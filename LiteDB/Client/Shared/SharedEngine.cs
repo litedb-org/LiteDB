@@ -21,7 +21,7 @@ namespace LiteDB
         {
             _settings = settings;
 
-            var name = Path.GetFullPath(settings.Filename).ToLower().Sha1();
+            string name = Uri.EscapeDataString(Path.GetFullPath(settings.Filename).ToLowerInvariant());
 
             try
             {
