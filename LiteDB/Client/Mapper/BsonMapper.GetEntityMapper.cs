@@ -28,10 +28,32 @@ public partial class BsonMapper
         mapper = new EntityMapper(type, cts.Token);
         if (_entities.TryAdd(type, mapper))
         {
-            this.BuildEntityMapper(mapper);
+            try
+            {
+                this.BuildEntityMapper(mapper);
+            }
+            catch (Exception e)
+            {
+                if (_entities.TryRemove(type, out var existingMapper))
+                {
+                    var isSameMapper = ReferenceEquals(mapper, existingMapper);
+                    if (!isSameMapper)
+                    {
+                        // Should never happen, but if it does, we need to put the existing mapper back in the cache
+                        _entities.TryAdd(type, existingMapper);
+                    }
+                }
+
+                throw new LiteException(LiteException.MAPPING_ERROR, $"Error in '{type.Name}' mapping: {e.Message}", e);
+            }
         }
-        cts.Cancel();
-        cts.Dispose();
+        else
+        {
+            if (!_entities.TryGetValue(type, out mapper))
+            {
+                throw new LiteException(LiteException.MAPPER_NOT_FOUND, $"EntityMapper for type {type} was not found.");
+            }
+        }
 
         return mapper;
     }

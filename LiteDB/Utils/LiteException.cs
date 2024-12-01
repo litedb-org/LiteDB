@@ -58,6 +58,9 @@ namespace LiteDB
         public const int INVALID_PASSWORD = 217;
         public const int ILLEGAL_DESERIALIZATION_TYPE = 218;
         public const int ENTITY_INITIALIZATION_FAILED = 219;
+        public const int MAPPER_NOT_FOUND = 220;
+        public const int MAPPING_ERROR = 221;
+        
 
         public const int INVALID_DATAFILE_STATE = 999;
 
