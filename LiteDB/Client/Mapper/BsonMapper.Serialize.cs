@@ -1,9 +1,7 @@
 ﻿using System;
 using System.Collections;
-using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using static LiteDB.Constants;
 
 namespace LiteDB
 {
@@ -110,7 +108,7 @@ namespace LiteDB
             }
             else if (obj is Enum)
             {
-                if (this.EnumAsInteger)
+                if (EnumAsInteger)
                 {
                     return new BsonValue((int)obj);
                 }
@@ -128,52 +126,55 @@ namespace LiteDB
                     type = obj.GetType();
                 }
 
-                var itemType = type.GetTypeInfo().IsGenericType ? type.GetGenericArguments()[1] : typeof(object);
+                Type valueType = typeof(object);
 
-                return this.SerializeDictionary(itemType, dict, depth);
+                if (type.GetTypeInfo().IsGenericType) {
+                    Type[] generics = type.GetGenericArguments();
+                    valueType = generics[1];
+                }
+
+                return SerializeDictionary(valueType, dict, depth);
             }
             // check if is a list or array
             else if (obj is IEnumerable)
             {
-                return this.SerializeArray(Reflection.GetListItemType(type), obj as IEnumerable, depth);
+                return SerializeArray(Reflection.GetListItemType(type), obj as IEnumerable, depth);
             }
             // otherwise serialize as a plain object
             else
             {
-                return this.SerializeObject(type, obj, depth);
+                return SerializeObject(type, obj, depth);
             }
         }
 
         private BsonArray SerializeArray(Type type, IEnumerable array, int depth)
         {
-            var arr = new BsonArray();
+            BsonArray bsonArray = [];
 
-            foreach (var item in array)
+            foreach (object item in array)
             {
-                arr.Add(this.Serialize(type, item, depth));
+                bsonArray.Add(Serialize(type, item, depth));
             }
 
-            return arr;
+            return bsonArray;
         }
 
-        private BsonDocument SerializeDictionary(Type type, IDictionary dict, int depth)
+        private BsonDocument SerializeDictionary(Type valueType, IDictionary dict, int depth)
         {
-            var o = new BsonDocument();
+            BsonDocument bsonDocument = [];
 
-            foreach (var key in dict.Keys)
+            foreach (DictionaryEntry entry in dict)
             {
-                var value = dict[key];
-                var skey = key.ToString();
+                string stringKey = entry.Key as string
+                    // Serialize key as JSON to support any key type
+                    ?? JsonSerializer.Serialize(Serialize(entry.Key));
 
-                if (key is DateTime dateKey)
-                {
-                    skey = dateKey.ToString("o");
-                }
+                BsonValue bsonValue = Serialize(valueType, entry.Value, depth);
 
-                o[skey] = this.Serialize(type, value, depth);
+                bsonDocument[stringKey] = bsonValue;
             }
 
-            return o;
+            return bsonDocument;
         }
 
         private BsonDocument SerializeObject(Type type, object obj, int depth)

@@ -3,7 +3,7 @@ using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
-using static LiteDB.Constants;
+using System.ComponentModel;
 
 namespace LiteDB
 {
@@ -216,35 +216,31 @@ namespace LiteDB
                 entity.WaitForInitialization();
 
                 // initialize CreateInstance
-                if (entity.CreateInstance == null)
+                entity.CreateInstance ??= GetTypeCtor(entity) ??
+                    ((BsonDocument _) => Reflection.CreateInstance(entity.ForType));
+
+                object instance = _typeInstantiator(type) ?? entity.CreateInstance(doc);
+
+                if (instance is IDictionary dict)
                 {
-                    entity.CreateInstance =
-                        this.GetTypeCtor(entity) ??
-                        ((BsonDocument v) => Reflection.CreateInstance(entity.ForType));
-                }
+                    Type keyType = typeof(object);
+                    Type valueType = typeof(object);
 
-                var o = _typeInstantiator(type) ?? entity.CreateInstance(doc);
-
-                if (o is IDictionary dict)
-                {
-                    if (o.GetType().GetTypeInfo().IsGenericType)
+                    if (instance.GetType().GetTypeInfo().IsGenericType)
                     {
-                        var k = type.GetGenericArguments()[0];
-                        var t = type.GetGenericArguments()[1];
+                        Type[] generics = type.GetGenericArguments();
+                        keyType = generics[0];
+                        valueType = generics[1];
+                    }
 
-                        this.DeserializeDictionary(k, t, dict, value.AsDocument);
-                    }
-                    else
-                    {
-                        this.DeserializeDictionary(typeof(object), typeof(object), dict, value.AsDocument);
-                    }
+                    DeserializeDictionary(keyType, valueType, dict, value.AsDocument);
                 }
                 else
                 {
-                    this.DeserializeObject(entity, o, doc);
+                    DeserializeObject(entity, instance, doc);
                 }
 
-                return o;
+                return instance;
             }
 
             // in last case, return value as-is - can cause "cast error"
@@ -290,15 +286,28 @@ namespace LiteDB
             return enumerable;
         }
 
-        private void DeserializeDictionary(Type K, Type T, IDictionary dict, BsonDocument value)
+        private void DeserializeDictionary(Type keyType, Type valueType, IDictionary dict, BsonDocument value)
         {
-            var isKEnum = K.GetTypeInfo().IsEnum;
-            foreach (var el in value.GetElements())
+            foreach (KeyValuePair<string, BsonValue> element in value.GetElements())
             {
-                var k = isKEnum ? Enum.Parse(K, el.Key) : K == typeof(Uri) ? new Uri(el.Key) : Convert.ChangeType(el.Key, K);
-                var v = this.Deserialize(T, el.Value);
+                object dictKey = element.Key;
 
-                dict.Add(k, v);
+                if (keyType != typeof(string))
+                {
+                    try
+                    {
+                        // Deserialize key as JSON to support any key type
+                        dictKey = Deserialize(keyType, JsonSerializer.Deserialize(element.Key));
+                    }
+                    catch (LiteException)
+                    {
+                        // Failed to deserialize key as JSON. Pass for compatibility
+                    }
+                }
+
+                object dictValue = Deserialize(valueType, element.Value);
+
+                dict[dictKey] = dictValue;
             }
         }
 

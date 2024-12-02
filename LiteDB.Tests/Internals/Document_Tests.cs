@@ -30,7 +30,7 @@ namespace LiteDB.Internals
             // ACT
             // copy all properties to destination array
 
-            var result = new KeyValuePair<string, BsonValue>[document.Count()];
+            var result = new KeyValuePair<string, BsonValue>[document.Count];
             document.CopyTo(result, 0);
         }
 

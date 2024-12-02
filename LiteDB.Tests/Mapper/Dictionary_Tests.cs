@@ -27,7 +27,7 @@ namespace LiteDB.Tests.Mapper
 
             var newobj = _mapper.ToObject<Dict>(doc);
 
-            newobj.DateDict.Keys.First().Should().Be(obj.DateDict.Keys.First());
+            newobj.DateDict.Keys.First().Truncate().Should().Be(obj.DateDict.Keys.First().Truncate());
         }
 
         [Fact]

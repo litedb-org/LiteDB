@@ -56,7 +56,7 @@ namespace LiteDB.Engine
 
             try
             {
-                foreach (var collection in reader.GetCollections())
+                foreach (string collection in reader.GetCollections())
                 {
                     // get snapshot, indexer and data services
                     var snapshot = transaction.CreateSnapshot(LockMode.Write, collection, true);
