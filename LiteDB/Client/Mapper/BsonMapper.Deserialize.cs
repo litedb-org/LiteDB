@@ -192,7 +192,7 @@ namespace LiteDB
                 var doc = value.AsDocument;
 
                 // test if value is object and has _type
-                if (doc.TryGetValue("_type", out var typeField) && typeField.IsString)
+                if (doc.TryGetValue(BsonMapper.Global.TypeDescriptor, out var typeField) && typeField.IsString)
                 {
                     var actualType = _typeNameBinder.GetType(typeField.AsString);
 
