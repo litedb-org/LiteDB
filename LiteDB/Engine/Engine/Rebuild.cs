@@ -46,52 +46,45 @@ namespace LiteDB.Engine
             return this.Rebuild(new RebuildOptions { Password = password, Collation = collation });
         }
 
-        /// <summary>
-        /// Fill current database with data inside file reader - run inside a transacion
-        /// </summary>
         internal void RebuildContent(IFileReader reader)
         {
-            // begin transaction and get TransactionID
-            var transaction = _monitor.GetTransaction(true, false, out _);
+            RebuildContent(reader, _disk.MAX_ITEMS_COUNT);
+        }
+
+        internal void RebuildContent(IFileReader reader, uint maxItemsCount)
+        {
+            var transaction = _monitor.GetTransaction(create: true, queryOnly: false, out _);
 
             try
             {
                 foreach (var collection in reader.GetCollections())
                 {
-                    // get snapshot, indexer and data services
-                    var snapshot = transaction.CreateSnapshot(LockMode.Write, collection, true);
-                    var indexer = new IndexService(snapshot, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
-                    var data = new DataService(snapshot, _disk.MAX_ITEMS_COUNT);
+                    var snapshot = transaction.CreateSnapshot(LockMode.Write, collection, addIfNotExists: true);
 
-                    // get all documents from current collection
-                    var docs = reader.GetDocuments(collection);
+                    var indexer = new IndexService(snapshot, _header.Pragmas.Collation, maxItemsCount);
+                    var data = new DataService(snapshot, maxItemsCount);
 
-                    // insert one-by-one
-                    foreach (var doc in docs)
+                    foreach (var doc in reader.GetDocuments(collection))
                     {
                         transaction.Safepoint();
-
-                        this.InsertDocument(snapshot, doc, BsonAutoId.ObjectId, indexer, data);
+                        InsertDocument(snapshot, doc, BsonAutoId.ObjectId, indexer, data);
                     }
 
-                    // first create all user indexes (exclude _id index)
-                    foreach (var index in reader.GetIndexes(collection))
+                    foreach (var idx in reader.GetIndexes(collection))
                     {
-                        this.EnsureIndex(collection,
-                            index.Name,
-                            BsonExpression.Create(index.Expression),
-                            index.Unique);
+                        EnsureIndex(collection,
+                                    idx.Name,
+                                    BsonExpression.Create(idx.Expression),
+                                    idx.Unique);
                     }
                 }
 
                 transaction.Commit();
-
                 _monitor.ReleaseTransaction(transaction);
             }
             catch (Exception ex)
             {
-                this.Close(ex);
-
+                Close(ex);
                 throw;
             }
         }
