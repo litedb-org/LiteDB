@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net4.5;netstandard1.3;netstandard2.0</TargetFrameworks>
+    <TargetFrameworks>net4.5;netstandard1.3;netstandard2.0;net6.0</TargetFrameworks>
     <AssemblyVersion>5.0.21</AssemblyVersion>
     <FileVersion>5.0.21</FileVersion>
     <VersionPrefix>5.0.21</VersionPrefix>
@@ -67,7 +67,7 @@
     <PackageReference Include="System.Security.Cryptography.Algorithms" Version="4.3.1" />
   </ItemGroup>
 
-  <ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0' or '$(TargetFramework)' == 'netstandard1.3' or '$(TargetFramework)' == 'net45'">
     <PackageReference Include="System.Buffers" Version="4.5.1" />
   </ItemGroup>
   
