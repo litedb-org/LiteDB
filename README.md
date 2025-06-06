@@ -1,5 +1,5 @@
 
-# Synthetik.LiteDB.MemoryEngine – A Hybrid Cognitive Memory Store for AI Agents
+# SynthetikDelusion.MemoryEngine – A Hybrid Cognitive Memory Store for AI Agents
 
 This repository is a customized fork of the original [LiteDB](https://github.com/mbdavid/LiteDB) by Maurício David. It serves as the memory backbone for the [Synthetik Delusion](https://github.com/hurley451/synthetikdelusion) framework—a brain-inspired cognitive architecture for autonomous agents written in C#.
 
