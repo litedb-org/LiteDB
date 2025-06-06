@@ -1,175 +1,74 @@
-# LiteDB - A .NET NoSQL Document Store in a single data file
 
-[![NuGet Version](https://img.shields.io/nuget/v/LiteDB)](https://www.nuget.org/packages/LiteDB/)
-[![NuGet Downloads](https://img.shields.io/nuget/dt/LiteDB)](https://www.nuget.org/packages/LiteDB/)
-[![Build status](https://ci.appveyor.com/api/projects/status/sfe8he0vik18m033?svg=true)](https://ci.appveyor.com/project/mbdavid/litedb) 
-[![](https://dcbadge.limes.pink/api/server/u8seFBH9Zu?style=flat-square)](https://discord.gg/u8seFBH9Zu)
+# Synthetik.LiteDB.MemoryEngine – A Hybrid Cognitive Memory Store for AI Agents
 
+This repository is a customized fork of the original [LiteDB](https://github.com/mbdavid/LiteDB) by Maurício David. It serves as the memory backbone for the [Synthetik Delusion](https://github.com/hurley451/synthetikdelusion) framework—a brain-inspired cognitive architecture for autonomous agents written in C#.
 
-LiteDB is a small, fast and lightweight .NET NoSQL embedded database. 
+This enhanced fork adds **hybrid vector + graph memory**, **emotionally weighted recall**, and **context-aware memory scoping**, while preserving the full document-based NoSQL functionality of LiteDB.
 
-- Serverless NoSQL Document Store
-- Simple API, similar to MongoDB
-- 100% C# code for .NET 4.5 / NETStandard 1.3/2.0 in a single DLL (less than 450kb)
-- Thread-safe
-- ACID with full transaction support
-- Data recovery after write failure (WAL log file)
-- Datafile encryption using DES (AES) cryptography
-- Map your POCO classes to `BsonDocument` using attributes or fluent mapper API
-- Store files and stream data (like GridFS in MongoDB)
-- Single data file storage (like SQLite)
-- Index document fields for fast search
-- LINQ support for queries
-- SQL-Like commands to access/transform data
-- [LiteDB Studio](https://github.com/mbdavid/LiteDB.Studio) - Nice UI for data access 
-- Open source and free for everyone - including commercial use
-- Install from NuGet: `Install-Package LiteDB`
+> **Credit:** Full credit for the embedded NoSQL database foundation goes to [LiteDB by mbdavid](https://github.com/mbdavid/LiteDB). This fork is respectful of the original MIT license and extends the system to support synthetic cognition.
 
+---
 
-## New v5
+## ✨ Enhancements Over Base LiteDB
 
-- New storage engine
-- No locks for `read` operations (multiple readers)
-- `Write` locks per collection (multiple writers)
-- Internal/System collections 
-- New `SQL-Like Syntax`
-- New query engine (support projection, sort, filter, query)
-- Partial document load (root level)
-- and much, much more!
+- 🔗 **Graph Memory Model** with embedded semantic edge relationships
+- 📐 **BsonVector**: native support for `float[]` embeddings
+- 🧠 **MemoryNode + MemoryEdge** constructs for storing and linking insights
+- ⚖️ **Weighted Memory Recall**: recall based on similarity, recency, emotional charge, frequency, and context
+- 🧳 **Scoped Memory Stores**: working memory (TTL-based), long-term memory, and cognitive unit-local memory
+- 🔁 **Memory Consolidator**: promotes meaningful memories based on relevance and usage patterns
+- 🧮 **Similarity and relevance queries**: cosine similarity and relevance-weighted scoring for top-K recall
 
-## Lite.Studio
+---
 
-New UI to manage and visualize your database:
+## 📦 Project Status
 
+This memory engine is actively used in Synthetik Delusion as the core of the agent's cognitive memory loop.
 
-![LiteDB.Studio](https://www.litedb.org/images/banner.gif)
+It is not a general-purpose database fork—but rather a **foundational cognitive substrate** tailored for AI reasoning, experience encoding, and adaptive behavior.
 
-## Documentation
+---
 
-Visit [the Wiki](https://github.com/mbdavid/LiteDB/wiki) for full documentation. For simplified chinese version, [check here](https://github.com/lidanger/LiteDB.wiki_Translation_zh-cn).
+## 💡 Example Use Case
 
-## LiteDB Community
+```csharp
+var memory = new WorkingMemoryStore("working.db", TimeSpan.FromMinutes(30));
+await memory.StoreNodeAsync(new MemoryNode {
+    Id = Guid.NewGuid(),
+    Label = "stimulus:file:report.docx",
+    Embedding = Vector.FromText("financial document"),
+    EmotionalCharge = 0.4f
+});
 
-Help LiteDB grow its user community by answering this [simple survey](https://docs.google.com/forms/d/e/1FAIpQLSc4cNG7wyLKXXcOLIt7Ea4TlXCG6s-51_EfHPu2p5WZ2dIx7A/viewform?usp=sf_link)
-
-## How to use LiteDB
-
-A quick example for storing and searching documents:
-
-```C#
-// Create your POCO class
-public class Customer
+var relevant = await memory.QueryRelevantNodesAsync(queryEmbedding, new DefaultRelevanceScorer());
+foreach (var match in relevant)
 {
-    public int Id { get; set; }
-    public string Name { get; set; }
-    public int Age { get; set; }
-    public string[] Phones { get; set; }
-    public bool IsActive { get; set; }
-}
-
-// Open database (or create if doesn't exist)
-using(var db = new LiteDatabase(@"MyData.db"))
-{
-    // Get customer collection
-    var col = db.GetCollection<Customer>("customers");
-
-    // Create your new customer instance
-    var customer = new Customer
-    { 
-        Name = "John Doe", 
-        Phones = new string[] { "8000-0000", "9000-0000" }, 
-        Age = 39,
-        IsActive = true
-    };
-
-    // Create unique index in Name field
-    col.EnsureIndex(x => x.Name, true);
-
-    // Insert new customer document (Id will be auto-incremented)
-    col.Insert(customer);
-
-    // Update a document inside a collection
-    customer.Name = "Joana Doe";
-
-    col.Update(customer);
-
-    // Use LINQ to query documents (with no index)
-    var results = col.Find(x => x.Age > 20);
+    Console.WriteLine($"Found related: {match.Node.Label} with weight {match.FinalWeight}");
 }
 ```
 
-Using fluent mapper and cross document reference for more complex data models
+---
 
-```C#
-// DbRef to cross references
-public class Order
-{
-    public ObjectId Id { get; set; }
-    public DateTime OrderDate { get; set; }
-    public Address ShippingAddress { get; set; }
-    public Customer Customer { get; set; }
-    public List<Product> Products { get; set; }
-}        
+## 🔍 Original LiteDB Features Preserved
 
-// Re-use mapper from global instance
-var mapper = BsonMapper.Global;
+Everything great about LiteDB still applies:
+- Single-file NoSQL embedded storage
+- Full ACID transactions
+- LINQ and SQL-like queries
+- BSON document mapping and POCO support
+- Thread-safe and compact (~450KB)
 
-// "Products" and "Customer" are from other collections (not embedded document)
-mapper.Entity<Order>()
-    .DbRef(x => x.Customer, "customers")   // 1 to 1/0 reference
-    .DbRef(x => x.Products, "products")    // 1 to Many reference
-    .Field(x => x.ShippingAddress, "addr"); // Embedded sub document
-            
-using(var db = new LiteDatabase("MyOrderDatafile.db"))
-{
-    var orders = db.GetCollection<Order>("orders");
-        
-    // When query Order, includes references
-    var query = orders
-        .Include(x => x.Customer)
-        .Include(x => x.Products) // 1 to many reference
-        .Find(x => x.OrderDate <= DateTime.Now);
+---
 
-    // Each instance of Order will load Customer/Products references
-    foreach(var order in query)
-    {
-        var name = order.Customer.Name;
-        ...
-    }
-}
+## 🧬 Project License
 
-```
+Synthetik.LiteDB.MemoryEngine inherits the [MIT License](http://opensource.org/licenses/MIT) from LiteDB. All cognitive extensions are offered under the same license, with attribution.
 
-## Where to use?
+---
 
-- Desktop/local small applications
-- Application file format
-- Small web sites/applications
-- One database **per account/user** data store
+## 📚 Learn More
 
-## Plugins
+- [Synthetik Delusion Framework Overview](https://github.com/hurley451/synthetikdelusion)
+- [LiteDB Original Project](https://github.com/mbdavid/LiteDB)
+- [LiteDB Studio UI](https://github.com/mbdavid/LiteDB.Studio)
 
-- A GUI viewer tool: https://github.com/falahati/LiteDBViewer (v4)
-- A GUI editor tool: https://github.com/JosefNemec/LiteDbExplorer (v4)
-- Lucene.NET directory: https://github.com/sheryever/LiteDBDirectory
-- LINQPad support: https://github.com/adospace/litedbpad
-- F# Support: https://github.com/Zaid-Ajaj/LiteDB.FSharp (v4)
-- UltraLiteDB (for Unity or IOT): https://github.com/rejemy/UltraLiteDB
-- OneBella - cross platform (windows, macos, linux) GUI tool : https://github.com/namigop/OneBella
-- LiteDB.Migration: Framework that makes schema migrations easier: https://github.com/JKamsker/LiteDB.Migration/
-
-## Changelog
-
-Change details for each release are documented in the [release notes](https://github.com/mbdavid/LiteDB/releases).
-
-## Code Signing
-
-LiteDB is digitally signed courtesy of [SignPath](https://www.signpath.io)
-
-<a href="https://www.signpath.io">
-    <img src="https://about.signpath.io/assets/signpath-logo.svg" width="150">
-</a>
-
-## License
-
-[MIT](http://opensource.org/licenses/MIT)
