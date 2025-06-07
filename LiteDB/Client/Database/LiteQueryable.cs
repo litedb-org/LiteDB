@@ -203,6 +203,14 @@ namespace LiteDB
             return this;
         }
 
+        public ILiteQueryable<T> WhereNear<K>(Expression<Func<T, K>> field, float[] target, double maxDistance)
+        {
+            if (field == null) throw new ArgumentNullException(nameof(field));
+
+            var fieldExpr = _mapper.GetExpression(field);
+            return this.WhereNear(fieldExpr, target, maxDistance);
+        }
+
         public IEnumerable<T> FindNearest(string vectorField, float[] target, double maxDistance)
         {
             this.WhereNear(vectorField, target, maxDistance);

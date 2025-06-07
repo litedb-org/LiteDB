@@ -36,6 +36,8 @@ namespace LiteDB
         /// Immediately returns documents nearest to the target vector based on cosine distance.
         /// </summary>
         IEnumerable<T> FindNearest(string vectorField, float[] target, double maxDistance);
+
+        ILiteQueryable<T> WhereNear<K>(Expression<Func<T, K>> field, float[] target, double maxDistance);
     }
 
     public interface ILiteQueryableResult<T>

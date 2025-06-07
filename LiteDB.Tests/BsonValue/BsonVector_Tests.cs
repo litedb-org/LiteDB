@@ -52,7 +52,7 @@ public class BsonVector_Tests
         // Query: Find vectors nearest to [1, 0]
         var target = new float[] { 1.0f, 0.0f };
         var results = col.Query()
-            .WhereNear("Embedding", target, maxDistance: .28)
+            .WhereNear(r => r.Embedding, [1.0f, 0.0f], maxDistance:.28)
             .ToList();
 
         results.Should().NotBeEmpty();
