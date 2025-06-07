@@ -74,7 +74,10 @@ namespace LiteDB
 
             // logic (will use Expression.AndAlso|OrElse)
             ["AND"] = Tuple.Create(" AND ", (MethodInfo)null, BsonExpressionType.And),
-            ["OR"] = Tuple.Create(" OR ", (MethodInfo)null, BsonExpressionType.Or)
+            ["OR"] = Tuple.Create(" OR ", (MethodInfo)null, BsonExpressionType.Or),
+
+            //VECTOR LOGIC
+            ["VECTOR_SIM"] = Tuple.Create(" VECTOR_SIM ", M("VECTOR_SIM"), BsonExpressionType.VectorSim),
         };
 
         private static readonly MethodInfo _parameterPathMethod = M("PARAMETER_PATH");

@@ -188,6 +188,26 @@ namespace LiteDB
             return new LiteQueryable<K>(_engine, _mapper, _collection, _query);
         }
 
+        public ILiteQueryable<T> WhereNear(string vectorField, float[] target, double maxDistance)
+        {
+            if (string.IsNullOrWhiteSpace(vectorField)) throw new ArgumentNullException(nameof(vectorField));
+            if (target == null || target.Length == 0) throw new ArgumentException("Target vector must be provided.", nameof(target));
+            if (maxDistance < 0) throw new ArgumentOutOfRangeException(nameof(maxDistance), "Max distance must be non-negative.");
+
+            _query.VectorField = vectorField;
+            _query.VectorTarget = target;
+            _query.VectorMaxDistance = maxDistance;
+
+            return this;
+        }
+
+        public IEnumerable<T> FindNearest(string vectorField, float[] target, double maxDistance)
+        {
+            this.WhereNear(vectorField, target, maxDistance);
+            return this.ToEnumerable();
+        }
+
+
         #endregion
 
         #region Offset/Limit/ForUpdate

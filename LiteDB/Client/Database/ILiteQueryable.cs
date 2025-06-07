@@ -26,6 +26,16 @@ namespace LiteDB
 
         ILiteQueryableResult<BsonDocument> Select(BsonExpression selector);
         ILiteQueryableResult<K> Select<K>(Expression<Func<T, K>> selector);
+
+        /// <summary>
+        /// Filters documents where the given vector field is within cosine distance from the target vector.
+        /// </summary>
+        ILiteQueryable<T> WhereNear(string vectorField, float[] target, double maxDistance);
+
+        /// <summary>
+        /// Immediately returns documents nearest to the target vector based on cosine distance.
+        /// </summary>
+        IEnumerable<T> FindNearest(string vectorField, float[] target, double maxDistance);
     }
 
     public interface ILiteQueryableResult<T>

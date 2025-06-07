@@ -352,6 +352,23 @@ namespace LiteDB.Engine
             return value;
         }
 
+        private BsonValue ReadVector()
+        {
+            var length = this.ReadNumber(BitConverter.ToInt16,2); // 2-byte float count
+            var values = new float[length];
+
+            for (int i = 0; i < length; i++)
+            {
+                // Ensure correct position advancement
+                byte[] floatBytes = new byte[4];
+                this.Read(floatBytes, 0, 4); // Use low-level method
+                values[i] = BitConverter.ToSingle(floatBytes, 0);
+            }
+
+            return new BsonVector(values);
+        }
+
+
         /// <summary>
         /// Write single byte
         /// </summary>
@@ -413,9 +430,13 @@ namespace LiteDB.Engine
                 case BsonType.MinValue: return BsonValue.MinValue;
                 case BsonType.MaxValue: return BsonValue.MaxValue;
 
+                case BsonType.Vector: return this.ReadVector();
+
                 default: throw new NotImplementedException();
             }
         }
+
+        
 
         #endregion
 
@@ -592,8 +613,12 @@ namespace LiteDB.Engine
             {
                 return BsonValue.MaxValue;
             }
+            else if (type == 0x64) // Vector
+            {
+                return this.ReadVector();
+            }
 
-            throw new NotSupportedException("BSON type not supported");
+                throw new NotSupportedException("BSON type not supported");
         }
 
         #endregion

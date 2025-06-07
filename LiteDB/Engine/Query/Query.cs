@@ -27,6 +27,11 @@ namespace LiteDB
         public int Limit { get; set; } = int.MaxValue;
         public bool ForUpdate { get; set; } = false;
 
+        public string VectorField { get; set; } = null;
+        public float[] VectorTarget { get; set; } = null;
+        public double VectorMaxDistance { get; set; } = double.MaxValue;
+        public bool HasVectorFilter => VectorField != null && VectorTarget != null;
+
         public string Into { get; set; }
         public BsonAutoId IntoAutoId { get; set; } = BsonAutoId.ObjectId;
 
@@ -69,10 +74,7 @@ namespace LiteDB
                 sb.AppendLine($"INCLUDE {string.Join(", ", this.Includes.Select(x => x.Source))}");
             }
 
-            if (this.Where.Count > 0)
-            {
-                sb.AppendLine($"WHERE {string.Join(" AND ", this.Where.Select(x => x.Source))}");
-            }
+            
 
             if (this.GroupBy != null)
             {
@@ -103,6 +105,28 @@ namespace LiteDB
             {
                 sb.AppendLine($"FOR UPDATE");
             }
+
+            if (this.HasVectorFilter)
+            {
+                var vectorExpr = $"VECTOR_SIM({this.VectorField}, [{string.Join(",", this.VectorTarget)}])";
+                if (this.Where.Count > 0)
+                {
+                    sb.AppendLine($"WHERE ({string.Join(" AND ", this.Where.Select(x => x.Source))}) AND {vectorExpr} <= {this.VectorMaxDistance}");
+                }
+                else
+                {
+                    sb.AppendLine($"WHERE {vectorExpr} <= {this.VectorMaxDistance}");
+                }
+            }
+            else if (this.Where.Count > 0)
+            {
+                sb.AppendLine($"WHERE {string.Join(" AND ", this.Where.Select(x => x.Source))}");
+            }
+
+            //if (this.Where.Count > 0)
+            //{
+            //    sb.AppendLine($"WHERE {string.Join(" AND ", this.Where.Select(x => x.Source))}");
+            //}
 
             return sb.ToString().Trim();
         }
