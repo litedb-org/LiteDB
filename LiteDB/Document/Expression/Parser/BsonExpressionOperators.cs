@@ -210,15 +210,24 @@ namespace LiteDB
         public static BsonValue IN_ALL(Collation collation, IEnumerable<BsonValue> left, BsonValue right) => left.All(x => IN(collation, x, right));
 
 
-        public static BsonValue VECTOR_SIM(Collation collation, BsonValue left, BsonValue right)
+        public static BsonValue VECTOR_SIM( BsonValue left, BsonValue right)
         {
+            // Convert right side if it’s an array instead of a vector
+            if (right.IsArray)
+                right = new BsonVector(right.AsArray.Select(x => (float)x.AsDouble).ToArray());
+
+            // Convert left side if needed
+            if (left.IsVector)
+                left = new BsonArray(left.AsVector.Select(x => (BsonValue)x).ToArray());
+
             if (!left.IsArray || right.Type != BsonType.Vector)
                 return BsonValue.Null;
 
             var query = left.AsArray;
             var candidate = right.AsVector;
 
-            if (query.Count != candidate.Length) return BsonValue.Null;
+            if (query.Count != candidate.Length)
+                return BsonValue.Null;
 
             double dot = 0, magQ = 0, magC = 0;
 
@@ -232,9 +241,12 @@ namespace LiteDB
                 magC += c * c;
             }
 
-            if (magQ == 0 || magC == 0) return BsonValue.Null;
+            if (magQ == 0 || magC == 0)
+                return BsonValue.Null;
 
-            return 1.0 - (dot / (Math.Sqrt(magQ) * Math.Sqrt(magC))); // Cosine distance
+            var cosineDist = 1.0 - (dot / (Math.Sqrt(magQ) * Math.Sqrt(magC)));
+
+            return double.IsNaN(cosineDist) ? BsonValue.Null : cosineDist;
         }
 
         #endregion
