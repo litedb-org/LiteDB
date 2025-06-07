@@ -194,9 +194,11 @@ namespace LiteDB
             if (target == null || target.Length == 0) throw new ArgumentException("Target vector must be provided.", nameof(target));
             if (maxDistance < 0) throw new ArgumentOutOfRangeException(nameof(maxDistance), "Max distance must be non-negative.");
 
-            _query.VectorField = vectorField;
-            _query.VectorTarget = target;
-            _query.VectorMaxDistance = maxDistance;
+            IEnumerable<BsonValue> args = target.Select(x => new BsonValue(x)).ToArray();
+            var expr = BsonExpression.Create($"VECTOR_SIM($.{vectorField}, [{string.Join(",", args)}]) <= {maxDistance}");
+
+            // inject expression into regular Where pipeline
+            _query.Where.Add(expr);
 
             return this;
         }

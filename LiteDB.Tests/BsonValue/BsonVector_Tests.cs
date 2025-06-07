@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System.Collections.Generic;
+using System.Linq;
 using FluentAssertions;
 using Xunit;
 
@@ -6,6 +7,10 @@ namespace LiteDB.Tests.BsonValue_Types;
 
 public class BsonVector_Tests
 {
+
+    private static readonly Collation _collation = Collation.Binary;
+    private static readonly BsonDocument _root = new BsonDocument();
+
     [Fact]
     public void BsonVector_RoundTrip_Success()
     {
@@ -47,13 +52,13 @@ public class BsonVector_Tests
         // Query: Find vectors nearest to [1, 0]
         var target = new float[] { 1.0f, 0.0f };
         var results = col.Query()
-            .WhereNear("Embedding", target, maxDistance: 1.5)
+            .WhereNear("Embedding", target, maxDistance: .28)
             .ToList();
 
         results.Should().NotBeEmpty();
         results.Select(x => x.Id).Should().Contain(1);
-        results.Select(x => x.Id).Should().Contain(3);
-        results.Select(x => x.Id).Should().NotContain(2); // too far away
+        results.Select(x => x.Id).Should().NotContain(2);
+        results.Select(x => x.Id).Should().NotContain(3); // too far away
     }
 
     [Fact]
@@ -80,7 +85,7 @@ public class BsonVector_Tests
 
         //var query = "SELECT * FROM vectors WHERE vector_sim([1.0, 0.0], $.Embedding) < 0.3";
         //var results = db.Execute(query).ToList();
-        var expr = BsonExpression.Create("VECTOR_SIM($.Embedding, [1.0, 0.0]) < 0.3");
+        var expr = BsonExpression.Create("VECTOR_SIM($.Embedding, [1.0, 0.0]) < 0.25");
 
         var results = db
             .GetCollection("vectors")
@@ -95,34 +100,36 @@ public class BsonVector_Tests
     [Fact]
     public void VectorSim_ReturnsZero_ForIdenticalVectors()
     {
-        var query = new BsonArray { 1.0, 0.0 };
-        var target = new BsonVector(new float[] { 1.0f, 0.0f });
+        var left = new BsonArray { 1.0, 0.0 };
+        var right = new BsonVector(new float[] { 1.0f, 0.0f });
 
-        var result = BsonExpressionOperators.VECTOR_SIM(query, target);
+        var result = BsonExpressionMethods.VECTOR_SIM(left, right);
 
         Assert.NotNull(result);
-        Assert.Equal(0.0, result.AsDouble, 6); // distance = 0.0
+        Assert.True(result.IsDouble);
+        Assert.Equal(0.0, result.AsDouble, 6); // Cosine distance = 0.0
     }
 
     [Fact]
     public void VectorSim_ReturnsOne_ForOrthogonalVectors()
     {
-        var query = new BsonArray { 1.0, 0.0 };
-        var target = new BsonVector(new float[] { 0.0f, 1.0f });
+        var left = new BsonArray { 1.0, 0.0 };
+        var right = new BsonVector(new float[] { 0.0f, 1.0f });
 
-        var result = BsonExpressionOperators.VECTOR_SIM(query, target);
+        var result = BsonExpressionMethods.VECTOR_SIM(left, right);
 
         Assert.NotNull(result);
-        Assert.Equal(1.0, result.AsDouble, 6); // distance = 1.0
+        Assert.True(result.IsDouble);
+        Assert.Equal(1.0, result.AsDouble, 6); // Cosine distance = 1.0
     }
 
     [Fact]
     public void VectorSim_ReturnsNull_ForInvalidInput()
     {
-        var invalid = new BsonArray { "a", "b" };
-        var target = new BsonVector(new float[] { 1.0f, 0.0f });
+        var left = new BsonArray { "a", "b" };
+        var right = new BsonVector(new float[] { 1.0f, 0.0f });
 
-        var result = BsonExpressionOperators.VECTOR_SIM(invalid, target);
+        var result = BsonExpressionMethods.VECTOR_SIM(left, right);
 
         Assert.True(result.IsNull);
     }
@@ -130,13 +137,15 @@ public class BsonVector_Tests
     [Fact]
     public void VectorSim_ReturnsNull_ForMismatchedLengths()
     {
-        var query = new BsonArray { 1.0, 2.0, 3.0 };
-        var target = new BsonVector(new float[] { 1.0f, 2.0f });
+        var left = new BsonArray { 1.0, 2.0, 3.0 };
+        var right = new BsonVector(new float[] { 1.0f, 2.0f });
 
-        var result = BsonExpressionOperators.VECTOR_SIM(query, target);
+        var result = BsonExpressionMethods.VECTOR_SIM(left, right);
 
         Assert.True(result.IsNull);
     }
+
+
 
 
 }

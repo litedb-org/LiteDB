@@ -108,7 +108,7 @@ namespace LiteDB
 
             if (this.HasVectorFilter)
             {
-                var vectorExpr = $"VECTOR_SIM({this.VectorField}, [{string.Join(",", this.VectorTarget)}])";
+                var vectorExpr = $"VECTOR_SIM($.{this.VectorField}, [{string.Join(",", this.VectorTarget)}])";
                 if (this.Where.Count > 0)
                 {
                     sb.AppendLine($"WHERE ({string.Join(" AND ", this.Where.Select(x => x.Source))}) AND {vectorExpr} <= {this.VectorMaxDistance}");
