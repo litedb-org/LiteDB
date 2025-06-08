@@ -38,6 +38,10 @@ namespace LiteDB
         IEnumerable<T> FindNearest(string vectorField, float[] target, double maxDistance);
 
         ILiteQueryable<T> WhereNear<K>(Expression<Func<T, K>> field, float[] target, double maxDistance);
+        ILiteQueryableResult<T> TopKNear<K>(Expression<Func<T, K>> field, float[] target, int k);
+        ILiteQueryableResult<T> TopKNear(string field, float[] target, int k);
+        ILiteQueryableResult<T> TopKNear(BsonExpression fieldExpr, float[] target, int k);
+
     }
 
     public interface ILiteQueryableResult<T>

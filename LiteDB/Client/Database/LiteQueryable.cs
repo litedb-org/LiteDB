@@ -218,6 +218,34 @@ namespace LiteDB
         }
 
 
+        public ILiteQueryableResult<T> TopKNear<K>(Expression<Func<T, K>> field, float[] target, int k)
+        {
+            var fieldExpr = _mapper.GetExpression(field);
+            return this.TopKNear(fieldExpr, target, k);
+        }
+
+        public ILiteQueryableResult<T> TopKNear(string field, float[] target, int k)
+        {
+            var fieldExpr = BsonExpression.Create($"$.{field}");
+            return this.TopKNear(fieldExpr, target, k);
+        }
+
+        public ILiteQueryableResult<T> TopKNear(BsonExpression fieldExpr, float[] target, int k)
+        {
+            if (fieldExpr == null) throw new ArgumentNullException(nameof(fieldExpr));
+            if (target == null || target.Length == 0) throw new ArgumentException("Target vector must be provided.", nameof(target));
+            if (k <= 0) throw new ArgumentOutOfRangeException(nameof(k), "Top-K must be greater than zero.");
+
+            var targetArray = new BsonArray(target.Select(v => new BsonValue(v)));
+
+            // Build VECTOR_SIM as order clause
+            var simExpr = BsonExpression.Create($"VECTOR_SIM({fieldExpr.Source}, @0)", targetArray);
+
+            return this
+                .OrderBy(simExpr, Query.Ascending)
+                .Limit(k);
+        }
+
         #endregion
 
         #region Offset/Limit/ForUpdate

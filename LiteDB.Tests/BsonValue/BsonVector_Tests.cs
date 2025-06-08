@@ -146,6 +146,24 @@ public class BsonVector_Tests
     }
 
 
+    [Fact]
+    public void VectorSim_TopK_ReturnsCorrectOrder()
+    {
+        using var db = new LiteDatabase(":memory:");
+        var col = db.GetCollection<VectorDoc>("vectors");
 
+        col.Insert(new VectorDoc { Id = 1, Embedding = new float[] { 1.0f, 0.0f } }); // sim = 0.0
+        col.Insert(new VectorDoc { Id = 2, Embedding = new float[] { 0.0f, 1.0f } }); // sim = 1.0
+        col.Insert(new VectorDoc { Id = 3, Embedding = new float[] { 1.0f, 1.0f } }); // sim ≈ 0.293
+
+        var target = new float[] { 1.0f, 0.0f };
+
+        var results = col.Query()
+            .TopKNear(x => x.Embedding, target, 2)
+            .ToList();
+
+        var ids = results.Select(r => r.Id).ToList();
+        ids.Should().BeEquivalentTo(new[] { 1, 3 }, options => options.WithStrictOrdering());
+    }
 
 }

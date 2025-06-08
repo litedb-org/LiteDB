@@ -13,6 +13,15 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LiteDB.Benchmarks", "LiteDB
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LiteDB.Stress", "LiteDB.Stress\LiteDB.Stress.csproj", "{FFBC5669-DA32-4907-8793-7B414279DA3B}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{02EA681E-C7D8-13C7-8484-4AC65E1B71E8}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "benchmarks", "benchmarks", "{33DF8B19-4DE5-4076-8A36-CE05AB8FDA78}"
+	ProjectSection(SolutionItems) = preProject
+		LiteDB.Benchmarks\bin\Release\net472\BenchmarkDotNet.Artifacts\results\LiteDB.Benchmarks.Benchmarks.Queries.QueryWithVectorSimilarity-report.csv = LiteDB.Benchmarks\bin\Release\net472\BenchmarkDotNet.Artifacts\results\LiteDB.Benchmarks.Benchmarks.Queries.QueryWithVectorSimilarity-report.csv
+		LiteDB.Benchmarks\bin\Release\net472\BenchmarkDotNet.Artifacts\results\LiteDB.Benchmarks.Benchmarks.Queries.QueryWithVectorSimilarity-report.html = LiteDB.Benchmarks\bin\Release\net472\BenchmarkDotNet.Artifacts\results\LiteDB.Benchmarks.Benchmarks.Queries.QueryWithVectorSimilarity-report.html
+		LiteDB.Benchmarks\bin\Release\net472\BenchmarkDotNet.Artifacts\results\LiteDB.Benchmarks.Benchmarks.Queries.QueryWithVectorSimilarity-report.txt = LiteDB.Benchmarks\bin\Release\net472\BenchmarkDotNet.Artifacts\results\LiteDB.Benchmarks.Benchmarks.Queries.QueryWithVectorSimilarity-report.txt
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -42,6 +51,9 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{33DF8B19-4DE5-4076-8A36-CE05AB8FDA78} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {45099B85-2AE1-434B-913A-6AD14FD3AF4A}
