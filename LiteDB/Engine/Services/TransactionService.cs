@@ -398,31 +398,39 @@ namespace LiteDB.Engine
                 return;
             }
 
-            ENSURE(_state != TransactionState.Disposed, "transaction must be active before call Done");
-
-            // clean snapshots if there is no commit/rollback
-            if (_state == TransactionState.Active && _snapshots.Count > 0)
+            try
             {
-                // release writable snapshots
-                foreach (var snapshot in _snapshots.Values.Where(x => x.Mode == LockMode.Write))
-                {
-                    // discard all dirty pages
-                    _disk.DiscardDirtyPages(snapshot.GetWritablePages(true, true).Select(x => x.Buffer));
 
-                    // discard all clean pages
-                    _disk.DiscardCleanPages(snapshot.GetWritablePages(false, true).Select(x => x.Buffer));
-                }
+                ENSURE(_state != TransactionState.Disposed, "transaction must be active before call Done");
 
-                // release buffers in read-only snaphosts
-                foreach (var snapshot in _snapshots.Values.Where(x => x.Mode == LockMode.Read))
+                // clean snapshots if there is no commit/rollback
+                if (_state == TransactionState.Active && _snapshots.Count > 0)
                 {
-                    foreach (var page in snapshot.LocalPages)
+                    // release writable snapshots
+                    foreach (var snapshot in _snapshots.Values.Where(x => x.Mode == LockMode.Write))
                     {
-                        page.Buffer.Release();
+                        // discard all dirty pages
+                        _disk.DiscardDirtyPages(snapshot.GetWritablePages(true, true).Select(x => x.Buffer));
+
+                        // discard all clean pages
+                        _disk.DiscardCleanPages(snapshot.GetWritablePages(false, true).Select(x => x.Buffer));
                     }
 
-                    snapshot.CollectionPage?.Buffer.Release();
+                    // release buffers in read-only snaphosts
+                    foreach (var snapshot in _snapshots.Values.Where(x => x.Mode == LockMode.Read))
+                    {
+                        foreach (var page in snapshot.LocalPages)
+                        {
+                            page.Buffer.Release();
+                        }
+
+                        snapshot.CollectionPage?.Buffer.Release();
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                LOG($"Error while disposing TransactionService: {ex.Message}", "ERROR");
             }
 
             _reader.Dispose();
