@@ -51,14 +51,15 @@ namespace LiteDB.Engine
                 // open file reader and ready to import to new temp engine instance
                 reader.Open();
 
-                // open new engine to recive all data readed from FileReader
-                using (var engine = new LiteEngine(new EngineSettings
+                try
                 {
-                    Filename = tempFilename,
-                    Collation = options.Collation,
-                    Password = options.Password,
-                }))
-                {
+                    // open new engine to recive all data readed from FileReader
+                    using var engine = new LiteEngine(new EngineSettings
+                    {
+                        Filename = tempFilename,
+                        Collation = options.Collation,
+                        Password = options.Password,
+                    });
                     // copy all database to new Log file with NO checkpoint during all rebuild
                     engine.Pragma(Pragmas.CHECKPOINT, 0);
 
@@ -84,6 +85,11 @@ namespace LiteDB.Engine
 
                     // after rebuild, copy log bytes into data file
                     engine.Checkpoint();
+                }
+                catch (Exception)
+                {
+                    File.Delete(tempFilename);
+                    throw;
                 }
             }
 

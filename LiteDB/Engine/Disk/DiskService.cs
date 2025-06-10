@@ -55,7 +55,15 @@ namespace LiteDB.Engine
             {
                 LOG($"creating new database: '{Path.GetFileName(_dataFactory.Name)}'", "DISK");
 
-                this.Initialize(_dataPool.Writer.Value, settings.Collation, settings.InitialSize);
+                try
+                {
+                    this.Initialize(_dataPool.Writer.Value, settings.Collation, settings.InitialSize);
+                }
+                catch (Exception ex)
+                {
+                    LOG($"Error while initializing DiskService: {ex.Message}", "ERROR");
+                    throw;
+                }
             }
 
             // if not readonly, force open writable datafile
