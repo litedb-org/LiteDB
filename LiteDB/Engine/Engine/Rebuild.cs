@@ -48,7 +48,17 @@ namespace LiteDB.Engine
 
         internal void RebuildContent(IFileReader reader)
         {
-            RebuildContent(reader, _disk.MAX_ITEMS_COUNT);
+            var maxCount = GetSourceMaxItemsCount(_settings);
+            RebuildContent(reader, maxCount);
+        }
+
+        private static uint GetSourceMaxItemsCount(EngineSettings settings)
+        {
+            var dataBytes = new FileInfo(settings.Filename).Length;
+            var logFile = FileHelper.GetLogFile(settings.Filename);
+            var logBytes = File.Exists(logFile) ? new FileInfo(logFile).Length : 0;
+            // ((liczba stron w data+log) + 10) * 255
+            return (uint)(((dataBytes + logBytes) / PAGE_SIZE + 10) * byte.MaxValue);
         }
 
         internal void RebuildContent(IFileReader reader, uint maxItemsCount)
