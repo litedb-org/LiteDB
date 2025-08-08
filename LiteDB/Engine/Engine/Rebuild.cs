@@ -10,34 +10,29 @@ namespace LiteDB.Engine
 {
     public partial class LiteEngine
     {
-        /// <summary>
-        /// Implement a full rebuild database. Engine will be closed and re-created in another instance.
-        /// A backup copy will be created with -backup extention. All data will be readed and re created in another database
-        /// After run, will re-open database
-        /// </summary>
         public long Rebuild(RebuildOptions options)
         {
-            if (string.IsNullOrEmpty(_settings.Filename)) return 0; // works only with os file
+            if (string.IsNullOrEmpty(_settings.Filename)) return 0;
 
-            this.Close();
+            lock (_exclusiveRebuildGate)
+            {
+                var collation = _header?.Pragmas?.Collation ?? options?.Collation ?? Collation.Default;
+                var password = options?.Password ?? _settings.Password;
+                var effective = options ?? new RebuildOptions();
+                if (effective.Collation == null) effective.Collation = collation;
+                if (effective.Password == null) effective.Password = password;
 
-            // run build service
-            var rebuilder = new RebuildService(_settings);
+                this.Close();
 
-            // return how many bytes of diference from original/rebuild version
-            var diff = rebuilder.Rebuild(options);
+                var diff = new RebuildService(_settings).Rebuild(effective);
 
-            // re-open engine
-            this.Open();
+                this.Open();
+                _state.Disposed = false;
 
-            _state.Disposed = false;
-
-            return diff;
+                return diff;
+            }
         }
 
-        /// <summary>
-        /// Implement a full rebuild database. A backup copy will be created with -backup extention. All data will be readed and re created in another database
-        /// </summary>
         public long Rebuild()
         {
             var collation = new Collation(this.Pragma(Pragmas.COLLATION));
@@ -57,7 +52,6 @@ namespace LiteDB.Engine
             var dataBytes = new FileInfo(settings.Filename).Length;
             var logFile = FileHelper.GetLogFile(settings.Filename);
             var logBytes = File.Exists(logFile) ? new FileInfo(logFile).Length : 0;
-            // ((liczba stron w data+log) + 10) * 255
             return (uint)(((dataBytes + logBytes) / PAGE_SIZE + 10) * byte.MaxValue);
         }
 
@@ -80,12 +74,36 @@ namespace LiteDB.Engine
                         InsertDocument(snapshot, doc, BsonAutoId.ObjectId, indexer, data);
                     }
 
+                    if (!RebuildHelpers.ValidatePkNoCycle(indexer, snapshot.CollectionPage.PK, out var pkCount, maxItemsCount))
+                    {
+                        throw new LiteException(0, $"Detected loop in PK index for collection '{collection}'.");
+                    }
+
                     foreach (var idx in reader.GetIndexes(collection))
                     {
-                        EnsureIndex(collection,
-                                    idx.Name,
-                                    BsonExpression.Create(idx.Expression),
-                                    idx.Unique);
+                        try
+                        {
+                            EnsureIndex(collection,
+                                        idx.Name,
+                                        BsonExpression.Create(idx.Expression),
+                                        idx.Unique);
+                        }
+                        catch (LiteException ex) when (ex.Message.IndexOf("Detected loop in FindAll", StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            try { DropIndex(collection, idx.Name); } catch { /* best effort */ }
+
+                            var expr = BsonExpression.Create(idx.Expression);
+
+                            RebuildHelpers.EnsureIndexFromDataScan(
+                                snapshot,
+                                idx.Name,
+                                expr,
+                                idx.Unique,
+                                indexer,
+                                data,
+                                transaction.Safepoint
+                            );
+                        }
                     }
                 }
 

@@ -80,28 +80,53 @@ namespace LiteDB.Engine
         {
             _state.Validate();
 
-            var transaction = _monitor.GetTransaction(true, false, out var isNew);
+            int retries = 0;
 
-            try
+            while (true)
             {
-                var result = fn(transaction);
+                var transaction = _monitor.GetTransaction(true, false, out var isNew);
 
-                // if this transaction was auto-created for this operation, commit & dispose now
-                if (isNew)
-                    this.CommitAndReleaseTransaction(transaction);
-
-                return result;
-            }
-            catch(Exception ex)
-            {
-                if (_state.Handle(ex))
+                try
                 {
-                    transaction.Rollback();
+                    var result = fn(transaction);
 
-                    _monitor.ReleaseTransaction(transaction);
+                    if (isNew)
+                        this.CommitAndReleaseTransaction(transaction);
+
+                    return result;
                 }
+                catch (Exception ex)
+                {
+                    try { transaction.Rollback(); } catch { }
+                    try { _monitor.ReleaseTransaction(transaction); } catch { }
 
-                throw;
+                    var willRetry =
+                        _settings.AutoRebuild &&
+                        !_autoRebuildInProgress &&
+                        IsStructuralCorruption(ex) &&
+                        retries == 0;
+
+                    if (willRetry)
+                    {
+                        retries++;
+
+                        _autoRebuildInProgress = true;
+                        try
+                        {
+                            AutoRebuildAndReopen();
+                        }
+                        finally
+                        {
+                            _autoRebuildInProgress = false;
+                        }
+
+                        continue;
+                    }
+
+                    try { _state.Handle(ex); } catch { }
+
+                    throw;
+                }
             }
         }
 
