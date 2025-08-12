@@ -7,6 +7,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
+
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -66,7 +67,7 @@ namespace LiteDB.Engine
         /// Initialize LiteEngine using connection string using key=value; parser
         /// </summary>
         public LiteEngine(string filename)
-            : this (new EngineSettings { Filename = filename })
+            : this(new EngineSettings { Filename = filename })
         {
         }
 
@@ -101,7 +102,7 @@ namespace LiteDB.Engine
 
                 // initialize disk service (will create database if needed)
                 _disk = new DiskService(_settings, _state, MEMORY_SEGMENT_SIZES);
-
+                CleanupOrphanTempFiles(_settings.Filename);
                 // read page with no cache ref (has a own PageBuffer) - do not Release() support
                 var buffer = _disk.ReadFull(FileOrigin.Data).First();
 
@@ -164,10 +165,16 @@ namespace LiteDB.Engine
             catch (Exception ex)
             {
                 LOG(ex.Message, "ERROR");
-
                 this.Close(ex);
+
+                if (TryAutoRebuild(ex, viaOpen: true))
+                {
+                    return true;
+                }
+
                 throw;
             }
+
         }
 
         /// <summary>
@@ -278,14 +285,20 @@ namespace LiteDB.Engine
 
             return false;
         }
-
         private void AutoRebuildAndReopenViaOpenPath()
         {
-            try { _disk?.MarkAsInvalidState(); } catch {  }
+            try { _disk?.MarkAsInvalidState(); } catch { }
 
-            this.Close();
-            this.Open();
-            _state.Disposed = false;
+            try
+            {
+                this.Close();
+                this.Open();
+                _state.Disposed = false;
+            }
+            finally
+            {
+                try { CleanupOrphanTempFiles(_settings.Filename); } catch { }
+            }
         }
 
         private void AutoRebuildAndReopen()
@@ -297,23 +310,80 @@ namespace LiteDB.Engine
                 try
                 {
                     var file = _settings?.Filename;
+                    PruneOldBackups(_settings.Filename);
                     if (!string.IsNullOrEmpty(file) && File.Exists(file))
                     {
                         var backup = file + "-backup";
                         if (!File.Exists(backup))
-                        {
-                            File.Copy(file, backup, overwrite: false);
-                        }
+                            File.Copy(file, backup, overwrite: true);
                     }
                 }
                 catch { /* best effort – backup  */ }
 
                 var collation = _header?.Pragmas?.Collation ?? Collation.Default;
 
-                this.Recovery(collation);
-                this.Open();
-                _state.Disposed = false;
+                try
+                {
+                    this.Recovery(collation);
+                    this.Open();
+                    _state.Disposed = false;
+                }
+                finally
+                {
+                    try { CleanupOrphanTempFiles(_settings.Filename); } catch { /* best effort */ }
+                }
             }
+        }
+
+        private static void PruneOldBackups(string dataFile, int keep = 1)
+        {
+            try
+            {
+                var dir = Path.GetDirectoryName(dataFile);
+                var baseName = Path.GetFileNameWithoutExtension(dataFile);
+                var pattern = $"{baseName}-backup-*.db";
+
+                var files = Directory.EnumerateFiles(dir, pattern)
+                    .Select(f => new FileInfo(f))
+                    .OrderByDescending(fi => fi.LastWriteTimeUtc)
+                    .ToList();
+
+                foreach (var fi in files.Skip(keep))
+                {
+                    try { fi.Delete(); } catch { }
+                }
+            }
+            catch { }
+        }
+
+        private static void CleanupOrphanTempFiles(string dataFile)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(dataFile)) return;
+
+                var dir = Path.GetDirectoryName(dataFile);
+                var baseName = Path.GetFileNameWithoutExtension(dataFile);
+
+                if (string.IsNullOrEmpty(dir) || string.IsNullOrEmpty(baseName)) return;
+
+                var patterns = new[]
+                {
+                    $"{baseName}-temp*.db",
+                    $"{baseName}-temp-*.db",
+                    $"{baseName}-temp.db",
+                    $"{baseName}-temp-log.db"
+                };
+
+                foreach (var pat in patterns)
+                {
+                    foreach (var f in Directory.EnumerateFiles(dir, pat))
+                    {
+                        try { File.Delete(f); } catch { /* ignore */ }
+                    }
+                }
+            }
+            catch { /* best effort */ }
         }
 
         public void Dispose()

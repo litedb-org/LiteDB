@@ -16,22 +16,31 @@ namespace LiteDB.Engine
 
             lock (_exclusiveRebuildGate)
             {
-                var collation = _header?.Pragmas?.Collation ?? options?.Collation ?? Collation.Default;
-                var password = options?.Password ?? _settings.Password;
-                var effective = options ?? new RebuildOptions();
-                if (effective.Collation == null) effective.Collation = collation;
-                if (effective.Password == null) effective.Password = password;
+                var dataFile = _settings.Filename;
+                try
+                {
+                    var collation = _header?.Pragmas?.Collation ?? options?.Collation ?? Collation.Default;
+                    var password = options?.Password ?? _settings.Password;
+                    var effective = options ?? new RebuildOptions();
+                    if (effective.Collation == null) effective.Collation = collation;
+                    if (effective.Password == null) effective.Password = password;
 
-                this.Close();
+                    this.Close();
 
-                var diff = new RebuildService(_settings).Rebuild(effective);
+                    var diff = new RebuildService(_settings).Rebuild(effective);
 
-                this.Open();
-                _state.Disposed = false;
+                    this.Open();
+                    _state.Disposed = false;
 
-                return diff;
+                    return diff;
+                }
+                finally
+                {
+                    try { CleanupOrphanTempFiles(dataFile); } catch { /* ignore */ }
+                }
             }
         }
+
 
         public long Rebuild()
         {

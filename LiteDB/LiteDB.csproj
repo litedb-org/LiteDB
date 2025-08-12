@@ -2,17 +2,17 @@
 
   <PropertyGroup>
     <TargetFrameworks>net4.5;netstandard1.3;netstandard2.0</TargetFrameworks>
-    <AssemblyVersion>5.0.21</AssemblyVersion>
-    <FileVersion>5.0.21</FileVersion>
-    <VersionPrefix>5.0.21</VersionPrefix>
-    <PackageVersion>5.0.21</PackageVersion>
-    <Authors>Maurício David</Authors>
-    <Product>LiteDB</Product>
+    <AssemblyVersion>5.0.25</AssemblyVersion>
+    <FileVersion>5.0.25</FileVersion>
+    <VersionPrefix>5.0.25</VersionPrefix>
+    <PackageVersion>5.0.25</PackageVersion>
+    <Authors>Maurício David, Patryk Golus</Authors>
+    <Product>LiteDB.fixed</Product>
     <Description>LiteDB - A lightweight embedded .NET NoSQL document store in a single datafile</Description>
     <Copyright>MIT</Copyright>
     <NeutralLanguage>en-US</NeutralLanguage>
-    <Title>LiteDB</Title>
-    <PackageId>LiteDB</PackageId>
+    <Title>LiteDB.fixed</Title>
+    <PackageId>LiteDB.fixed</PackageId>
     <PackageTags>database nosql embedded</PackageTags>
     <PackageIcon>icon_64x64.png</PackageIcon>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
