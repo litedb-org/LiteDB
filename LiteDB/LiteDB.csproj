@@ -2,10 +2,10 @@
 
   <PropertyGroup>
     <TargetFrameworks>net4.5;netstandard1.3;netstandard2.0</TargetFrameworks>
-    <AssemblyVersion>5.0.25</AssemblyVersion>
-    <FileVersion>5.0.25</FileVersion>
-    <VersionPrefix>5.0.25</VersionPrefix>
-    <PackageVersion>5.0.25</PackageVersion>
+    <AssemblyVersion>5.0.26</AssemblyVersion>
+    <FileVersion>5.0.26</FileVersion>
+    <VersionPrefix>5.0.26</VersionPrefix>
+    <PackageVersion>5.0.26</PackageVersion>
     <Authors>Maurício David, Patryk Golus</Authors>
     <Product>LiteDB.fixed</Product>
     <Description>LiteDB - A lightweight embedded .NET NoSQL document store in a single datafile</Description>

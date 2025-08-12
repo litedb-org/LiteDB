@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
+
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -224,7 +225,8 @@ namespace LiteDB.Engine
                     // persist header in log file
                     yield return clone;
                 }
-            };
+            }
+            ;
 
             // write all dirty pages, in sequence on log-file and store references into log pages on transPages
             // (works only for Write snapshots)
@@ -359,7 +361,8 @@ namespace LiteDB.Engine
                     Buffer.BlockCopy(buf.Array, buf.Offset, clone.Array, clone.Offset, clone.Count);
 
                     yield return clone;
-                };
+                }
+                ;
 
                 // create a header save point before any change
                 var safepoint = _header.Savepoint();
@@ -398,31 +401,38 @@ namespace LiteDB.Engine
                 return;
             }
 
-            ENSURE(_state != TransactionState.Disposed, "transaction must be active before call Done");
-
-            // clean snapshots if there is no commit/rollback
-            if (_state == TransactionState.Active && _snapshots.Count > 0)
+            try
             {
+                ENSURE(_state != TransactionState.Disposed, "transaction must be active before call Done");
                 // release writable snapshots
-                foreach (var snapshot in _snapshots.Values.Where(x => x.Mode == LockMode.Write))
+                // clean snapshots if there is no commit/rollback
+                if (_state == TransactionState.Active && _snapshots.Count > 0)
                 {
-                    // discard all dirty pages
-                    _disk.DiscardDirtyPages(snapshot.GetWritablePages(true, true).Select(x => x.Buffer));
-
-                    // discard all clean pages
-                    _disk.DiscardCleanPages(snapshot.GetWritablePages(false, true).Select(x => x.Buffer));
-                }
-
-                // release buffers in read-only snaphosts
-                foreach (var snapshot in _snapshots.Values.Where(x => x.Mode == LockMode.Read))
-                {
-                    foreach (var page in snapshot.LocalPages)
+                    // release writable snapshots
+                    foreach (var snapshot in _snapshots.Values.Where(x => x.Mode == LockMode.Write))
                     {
-                        page.Buffer.Release();
+                        // discard all dirty pages
+                        _disk.DiscardDirtyPages(snapshot.GetWritablePages(true, true).Select(x => x.Buffer));
+
+                        // discard all clean pages
+                        _disk.DiscardCleanPages(snapshot.GetWritablePages(false, true).Select(x => x.Buffer));
                     }
 
-                    snapshot.CollectionPage?.Buffer.Release();
+                    // release buffers in read-only snaphosts
+                    foreach (var snapshot in _snapshots.Values.Where(x => x.Mode == LockMode.Read))
+                    {
+                        foreach (var page in snapshot.LocalPages)
+                        {
+                            page.Buffer.Release();
+                        }
+
+                        snapshot.CollectionPage?.Buffer.Release();
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                LOG($"Error while disposing TransactionService: {ex.Message}", "ERROR");
             }
 
             _reader.Dispose();
