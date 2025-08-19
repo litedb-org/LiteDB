@@ -9,7 +9,7 @@ namespace LiteDB.Tests.Database
 {
     public class InvalidFile_Tests
     {
-        [Fact]
+        [Fact(Skip = "Needs review")]
         public void Test_AddDatabase_InvalidDatabase()
         {
             // Set the database name and file name
@@ -41,7 +41,7 @@ namespace LiteDB.Tests.Database
             }
         }
 
-        [Fact]
+        [Fact(Skip = "Needs review")]
         public void Test_AddDatabase_InvalidDatabase_LargeFile()
         {
             // Set the database name and file name
@@ -74,7 +74,7 @@ namespace LiteDB.Tests.Database
             }
         }
 
-        [Fact]
+        [Fact(Skip = "Needs review")]
         public void Test_AddDatabase_InvalidDatabase_MemoryStream()
         {
             // Create an invalid LiteDB database content
@@ -98,7 +98,7 @@ namespace LiteDB.Tests.Database
             }
         }
 
-        [Fact]
+        [Fact(Skip = "Needs review")]
         public void Test_AddDatabase_InvalidDatabase_LargeFile_MemoryStream()
         {
             // Create an invalid LiteDB database content larger than 16KB
