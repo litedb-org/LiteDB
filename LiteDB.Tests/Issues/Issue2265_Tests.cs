@@ -34,7 +34,7 @@ public class Issue2265_Tests
         using (var db = new LiteDatabase(":memory:"))
         {
             var c = db.GetCollection<Weights>("weights");
-            Weights? w = c.FindOne(x => true);
+            Weights w = c.FindOne(x => true);
             if (w == null)
             {
                 w = new Weights();

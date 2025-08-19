@@ -90,7 +90,9 @@ namespace LiteDB.Engine
                 _aes.Padding = PaddingMode.None;
                 _aes.Mode = CipherMode.ECB;
 
+#pragma warning disable SYSLIB0041
                 var pdb = new Rfc2898DeriveBytes(password, this.Salt);
+#pragma warning restore SYSLIB0041
 
                 using (pdb as IDisposable)
                 {

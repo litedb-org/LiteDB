@@ -11,7 +11,7 @@ namespace LiteDB.Internals
     public class CacheAsync_Tests
     {
         [Fact]
-        public void CacheAsync_Thread_ShareCounter()
+        public async Task CacheAsync_Thread_ShareCounterAsync()
         {
             // Set()   - Seta true - Se estiver bloqueado, vai liberar
             // Reset() - Seta false - Quando chegar no proximo Wait() vai aguardar
@@ -83,7 +83,7 @@ namespace LiteDB.Internals
             ta.Start();
             tb.Start();
 
-            Task.WaitAll(ta, tb);
+            await Task.WhenAll(ta, tb);
         }
     }
 }

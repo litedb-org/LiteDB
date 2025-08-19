@@ -41,9 +41,9 @@ namespace LiteDB.Internals
 
                 // read encrypted data
                 media.Position = 0;
-                media.Read(output0, 0, 8192);
-                media.Read(output1, 0, 8192);
-                media.Read(output2, 0, 8192);
+                media.ReadExactly(output0, 0, 8192);
+                media.ReadExactly(output1, 0, 8192);
+                media.ReadExactly(output2, 0, 8192);
 
                 output0.All(x => x == 100).Should().BeFalse();
                 output1.All(x => x == 101).Should().BeFalse();
@@ -51,13 +51,13 @@ namespace LiteDB.Internals
 
                 // read decrypted data
                 crypto.Position = 0 * 8192;
-                crypto.Read(output0, 0, 8192);
+                crypto.ReadExactly(output0, 0, 8192);
 
                 crypto.Position = 2 * 8192;
-                crypto.Read(output2, 0, 8192);
+                crypto.ReadExactly(output2, 0, 8192);
 
                 crypto.Position = 1 * 8192;
-                crypto.Read(output1, 0, 8192);
+                crypto.ReadExactly(output1, 0, 8192);
 
                 output0.All(x => x == 100).Should().BeTrue();
                 output1.All(x => x == 101).Should().BeTrue();
@@ -137,7 +137,7 @@ namespace LiteDB.Internals
                         .GetValue(crypto) as CryptoStream;
                     
                     memoryStream.Position = 32;
-                    cryptoReader.Read(checkBytes, 0, checkBytes.Length);
+                    cryptoReader.ReadExactly(checkBytes, 0, checkBytes.Length);
                     Assert.All(checkBytes, b => Assert.Equal(1, b));
                 }
             }

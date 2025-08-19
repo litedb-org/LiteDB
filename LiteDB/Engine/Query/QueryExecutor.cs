@@ -136,7 +136,7 @@ namespace LiteDB.Engine
                     catch (Exception ex)
                     {
                         _state.Handle(ex);
-                        throw ex;
+                        throw;
                     }
 
                     while (read)
@@ -157,7 +157,7 @@ namespace LiteDB.Engine
                         catch (Exception ex)
                         {
                             _state.Handle(ex);
-                            throw ex;
+                            throw;
                         }
                     }
                 }

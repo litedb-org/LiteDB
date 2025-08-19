@@ -18,7 +18,9 @@ namespace LiteDB
             _aes = Aes.Create();
             _aes.Padding = PaddingMode.Zeros;
 
+#pragma warning disable SYSLIB0041
             var pdb = new Rfc2898DeriveBytes(password, salt);
+#pragma warning restore SYSLIB0041
 
             using (pdb as IDisposable)
             {
