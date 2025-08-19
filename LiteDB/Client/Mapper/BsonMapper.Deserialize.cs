@@ -23,7 +23,7 @@ namespace LiteDB
         /// <summary>
         /// Gets called before deserialization of a value
         /// </summary>
-        public DeserializationCallback? OnDeserialization { get; set; }
+        public DeserializationCallback OnDeserialization { get; set; }
 
         #endregion Deserialization Hooks
 

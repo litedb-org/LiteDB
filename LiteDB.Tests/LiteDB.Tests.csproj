@@ -8,7 +8,7 @@
         <Copyright>MIT</Copyright>
         <NeutralLanguage>en-US</NeutralLanguage>
         <GenerateDocumentationFile>false</GenerateDocumentationFile>
-        <NoWarn>1701;1702;1705;1591;0618</NoWarn>
+        <NoWarn>1701;1702;1705;1591;0618;0649;2200;2022;</NoWarn>
         <SignAssembly>True</SignAssembly>
         <AssemblyOriginatorKeyFile>..\LiteDB\LiteDB.snk</AssemblyOriginatorKeyFile>
 

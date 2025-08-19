@@ -22,7 +22,7 @@
     <RootNamespace>LiteDB</RootNamespace>
     <AssemblyName>LiteDB</AssemblyName>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>1701;1702;1705;1591;0618</NoWarn>
+    <NoWarn>1701;1702;1705;1591;0618;0649;2200;2022;</NoWarn>
     <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\LiteDB.xml</DocumentationFile>
     <SignAssembly Condition="'$(OS)'=='Windows_NT'">true</SignAssembly>
     <AssemblyOriginatorKeyFile Condition="'$(Configuration)' == 'Release'">LiteDB.snk</AssemblyOriginatorKeyFile>
