@@ -4,6 +4,8 @@
 		<OutputType>Exe</OutputType>
 		<TargetFrameworks>net472;net6</TargetFrameworks>
 		<LangVersion>8</LangVersion>
+
+        <IsPackable>false</IsPackable>
 	</PropertyGroup>
 
 	<ItemGroup>

@@ -1,23 +1,25 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-	<TargetFramework>net6</TargetFramework>
-	<AssemblyName>LiteDB.Shell</AssemblyName>
-    <PackageId>LiteDB.Shell</PackageId>
-    <OutputType>Exe</OutputType>
-    <RootNamespace>LiteDB.Shell</RootNamespace>
-    <AssemblyVersion>5.0.6.0</AssemblyVersion>
-    <FileVersion>5.0.6</FileVersion>
-    <VersionPrefix>5.0.6</VersionPrefix>
-    <Authors>Maurício David</Authors>
-    <Copyright>MIT</Copyright>
-    <NeutralLanguage>en-US</NeutralLanguage>
-    <GenerateDocumentationFile>false</GenerateDocumentationFile>
-    <NoWarn>1701;1702;1705;1591</NoWarn>
-  </PropertyGroup>
-  
-  <ItemGroup>
-    <ProjectReference Include="..\LiteDB\LiteDB.csproj" />
-  </ItemGroup>
-  
+    <PropertyGroup>
+        <TargetFramework>net6</TargetFramework>
+        <AssemblyName>LiteDB.Shell</AssemblyName>
+        <PackageId>LiteDB.Shell</PackageId>
+        <OutputType>Exe</OutputType>
+        <RootNamespace>LiteDB.Shell</RootNamespace>
+        <AssemblyVersion>5.0.6.0</AssemblyVersion>
+        <FileVersion>5.0.6</FileVersion>
+        <VersionPrefix>5.0.6</VersionPrefix>
+        <Authors>Maurício David</Authors>
+        <Copyright>MIT</Copyright>
+        <NeutralLanguage>en-US</NeutralLanguage>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <NoWarn>1701;1702;1705;1591</NoWarn>
+
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\LiteDB\LiteDB.csproj"/>
+    </ItemGroup>
+
 </Project>

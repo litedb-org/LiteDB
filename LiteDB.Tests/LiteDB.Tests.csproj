@@ -1,50 +1,53 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net8</TargetFramework>
-    <AssemblyName>LiteDB.Tests</AssemblyName>
-    <RootNamespace>LiteDB.Tests</RootNamespace>
-    <Authors>Maurício David</Authors>
-    <Copyright>MIT</Copyright>
-    <NeutralLanguage>en-US</NeutralLanguage>
-    <GenerateDocumentationFile>false</GenerateDocumentationFile>
-    <NoWarn>1701;1702;1705;1591;0618</NoWarn>
-    <SignAssembly>True</SignAssembly>
-    <AssemblyOriginatorKeyFile>..\LiteDB\LiteDB.snk</AssemblyOriginatorKeyFile>
-  </PropertyGroup>
+    <PropertyGroup>
+        <TargetFramework>net8</TargetFramework>
+        <AssemblyName>LiteDB.Tests</AssemblyName>
+        <RootNamespace>LiteDB.Tests</RootNamespace>
+        <Authors>Maurício David</Authors>
+        <Copyright>MIT</Copyright>
+        <NeutralLanguage>en-US</NeutralLanguage>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <NoWarn>1701;1702;1705;1591;0618</NoWarn>
+        <SignAssembly>True</SignAssembly>
+        <AssemblyOriginatorKeyFile>..\LiteDB\LiteDB.snk</AssemblyOriginatorKeyFile>
 
-  <ItemGroup>
-    <None Update="xunit.runner.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
-	
-  <ItemGroup Condition="'$(Configuration)' == 'Release'">
-    <Compile Remove="Internals\**" />
-  </ItemGroup>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+    </PropertyGroup>
 
-  <ItemGroup>
-    <EmbeddedResource Include="Resources\person.json" />
-    <EmbeddedResource Include="Resources\zip.json" />
-  </ItemGroup>
+    <ItemGroup>
+        <None Update="xunit.runner.json">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="FluentAssertions" Version="6.12.2" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
-    <PackageReference Include="xunit" Version="2.9.2" />
-    <PackageReference Include="xunit.runner.console" Version="2.9.2">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-    <PackageReference Include="xunit.runner.reporters" Version="2.9.2" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-  </ItemGroup>
+    <ItemGroup Condition="'$(Configuration)' == 'Release'">
+        <Compile Remove="Internals\**"/>
+    </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\LiteDB\LiteDB.csproj" />
-  </ItemGroup>
+    <ItemGroup>
+        <EmbeddedResource Include="Resources\person.json"/>
+        <EmbeddedResource Include="Resources\zip.json"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FluentAssertions" Version="6.12.2"/>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0"/>
+        <PackageReference Include="xunit" Version="2.9.2"/>
+        <PackageReference Include="xunit.runner.console" Version="2.9.2">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="xunit.runner.reporters" Version="2.9.2"/>
+        <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\LiteDB\LiteDB.csproj"/>
+    </ItemGroup>
 
 </Project>
