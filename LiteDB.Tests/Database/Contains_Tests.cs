@@ -1,5 +1,5 @@
 using LiteDB;
-using FluentAssertions;
+using AwesomeAssertions;
 using Xunit;
 using System.IO;
 using System.Linq;

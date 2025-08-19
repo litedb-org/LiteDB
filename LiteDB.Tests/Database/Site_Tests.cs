@@ -2,7 +2,7 @@
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
-using FluentAssertions;
+using AwesomeAssertions;
 using Xunit;
 
 namespace LiteDB.Tests.Database

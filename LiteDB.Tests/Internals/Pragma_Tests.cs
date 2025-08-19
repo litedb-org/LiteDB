@@ -2,7 +2,7 @@
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
-using FluentAssertions;
+using AwesomeAssertions;
 using LiteDB.Engine;
 using Xunit;
 

@@ -3,7 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Collections.Generic;
 using System.Linq.Expressions;
-using FluentAssertions;
+using AwesomeAssertions;
 using Xunit;
 
 namespace LiteDB.Tests.Database

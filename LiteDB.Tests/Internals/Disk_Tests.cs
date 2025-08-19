@@ -1,6 +1,6 @@
 ﻿using System.IO;
 using System.Collections.Generic;
-using FluentAssertions;
+using AwesomeAssertions;
 using LiteDB.Engine;
 using Xunit;
 using System.Threading.Tasks;

@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Globalization;
-using FluentAssertions;
+using AwesomeAssertions;
 using Xunit;
 
 namespace LiteDB.Tests.Document

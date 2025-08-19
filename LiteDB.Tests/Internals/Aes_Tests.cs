@@ -3,7 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Security.Cryptography;
-using FluentAssertions;
+using AwesomeAssertions;
 using LiteDB.Engine;
 using Xunit;
 

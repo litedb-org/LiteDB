@@ -2,7 +2,7 @@
 using System.Threading.Tasks;
 using LiteDB.Engine;
 using System.Threading;
-using FluentAssertions;
+using AwesomeAssertions;
 using Xunit;
 using static LiteDB.Constants;
 

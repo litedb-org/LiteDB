@@ -2,7 +2,7 @@
 using System.IO;
 using System.Linq;
 using LiteDB;
-using FluentAssertions;
+using AwesomeAssertions;
 using Xunit;
 using Microsoft.VisualStudio.TestPlatform.CommunicationUtilities.ObjectModel;
 
