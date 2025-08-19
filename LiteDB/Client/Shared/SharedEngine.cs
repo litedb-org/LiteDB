@@ -2,11 +2,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Threading;
-#if NETFRAMEWORK
 using System.Security.AccessControl;
 using System.Security.Principal;
-#endif
+using System.Threading;
 
 namespace LiteDB
 {
@@ -25,17 +23,7 @@ namespace LiteDB
 
             try
             {
-#if NETFRAMEWORK
-                var allowEveryoneRule = new MutexAccessRule(new SecurityIdentifier(WellKnownSidType.WorldSid, null),
-                           MutexRights.FullControl, AccessControlType.Allow);
-
-                var securitySettings = new MutexSecurity();
-                securitySettings.AddAccessRule(allowEveryoneRule);
-
-                _mutex = new Mutex(false, "Global\\" + name + ".Mutex", out _, securitySettings);
-#else
-                _mutex = new Mutex(false, "Global\\" + name + ".Mutex");
-#endif
+                _mutex = CreateMutex(name);
             }
             catch (NotSupportedException ex)
             {
@@ -43,6 +31,22 @@ namespace LiteDB
             }
         }
 
+        private static Mutex CreateMutex(string name)
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                return new Mutex(false, "Global\\" + name + ".Mutex");
+            }
+
+            var allowEveryoneRule = new MutexAccessRule(new SecurityIdentifier(WellKnownSidType.WorldSid, null),
+                MutexRights.FullControl, AccessControlType.Allow);
+
+            var securitySettings = new MutexSecurity();
+            securitySettings.AddAccessRule(allowEveryoneRule);
+
+            return MutexAcl.Create(false, "Global\\" + name + ".Mutex", out _, securitySettings);
+        }
+        
         /// <summary>
         /// Open database in safe mode
         /// </summary>
