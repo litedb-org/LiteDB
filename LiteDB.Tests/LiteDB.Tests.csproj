@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net8</TargetFramework>
+        <TargetFramework>net9.0</TargetFramework>
         <AssemblyName>LiteDB.Tests</AssemblyName>
         <RootNamespace>LiteDB.Tests</RootNamespace>
         <Authors>Maurício David</Authors>
