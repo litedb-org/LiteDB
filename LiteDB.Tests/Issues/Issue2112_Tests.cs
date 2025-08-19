@@ -29,7 +29,7 @@ namespace LiteDB.Tests.Issues
 
             var deserialized = _mapper.Deserialize<IA>(serialized);
 
-            Assert.Equal(1, deserialized.Bs.Count);
+            Assert.Single(deserialized.Bs);
         }
 
         interface IA
