@@ -1,56 +1,63 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFrameworks>net6.0;net8.0;</TargetFrameworks>
-    <AssemblyVersion>5.0.21</AssemblyVersion>
-    <FileVersion>5.0.21</FileVersion>
-    <VersionPrefix>5.0.21</VersionPrefix>
-    <PackageVersion>5.0.21</PackageVersion>
-    <Authors>Maurício David</Authors>
-    <Product>LiteDB</Product>
-    <Description>LiteDB - A lightweight embedded .NET NoSQL document store in a single datafile</Description>
-    <Copyright>MIT</Copyright>
-    <NeutralLanguage>en-US</NeutralLanguage>
-    <Title>LiteDB</Title>
-    <PackageId>LiteDB</PackageId>
-    <PackageTags>database nosql embedded</PackageTags>
-    <PackageIcon>icon_64x64.png</PackageIcon>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://www.litedb.org</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/mbdavid/LiteDB</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
-    <RootNamespace>LiteDB</RootNamespace>
-    <AssemblyName>LiteDB</AssemblyName>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>1701;1702;1705;1591;0618;0649;2200;2022;</NoWarn>
-    <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\LiteDB.xml</DocumentationFile>
-    <SignAssembly Condition="'$(OS)'=='Windows_NT'">true</SignAssembly>
-    <AssemblyOriginatorKeyFile Condition="'$(Configuration)' == 'Release'">LiteDB.snk</AssemblyOriginatorKeyFile>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-  </PropertyGroup>
-    
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU'">
-    <DefineConstants>TRACE;DEBUG</DefineConstants>
-  </PropertyGroup>
+    <PropertyGroup>
+        <TargetFrameworks>net6.0;net8.0;</TargetFrameworks>
+        
+        <AssemblyVersion>5.0.21</AssemblyVersion>
+        <FileVersion>5.0.21</FileVersion>
+        <VersionPrefix>5.0.21</VersionPrefix>
+        <PackageVersion>5.0.21</PackageVersion>
+        
+        <Authors>Maurício David</Authors>
+        <Product>LiteDB</Product>
+        <Description>LiteDB - A lightweight embedded .NET NoSQL document store in a single datafile</Description>
+        <Copyright>MIT</Copyright>
+        <NeutralLanguage>en-US</NeutralLanguage>
+        <Title>LiteDB</Title>
+        <PackageId>LiteDB</PackageId>
+        <PackageTags>database nosql embedded</PackageTags>
+        <PackageIcon>icon_64x64.png</PackageIcon>
+        <PackageLicenseFile>LICENSE</PackageLicenseFile>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageProjectUrl>https://www.litedb.org</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/mbdavid/LiteDB</RepositoryUrl>
+        
+        <RepositoryType>git</RepositoryType>
+        <RootNamespace>LiteDB</RootNamespace>
+        <AssemblyName>LiteDB</AssemblyName>
 
-  <!-- Begin References -->
-  <ItemGroup>
-    <None Include="..\LICENSE" Pack="true" PackagePath="" />
-    <None Include="..\icon_64x64.png" Pack="true" PackagePath="\" />
-  </ItemGroup>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <NoWarn>1701;1702;1705;1591;0618;0649;2200;2022;</NoWarn>
+        <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\LiteDB.xml</DocumentationFile>
+        <SignAssembly Condition="'$(OS)'=='Windows_NT'">true</SignAssembly>
+        <AssemblyOriginatorKeyFile Condition="'$(Configuration)' == 'Release'">LiteDB.snk</AssemblyOriginatorKeyFile>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    </PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="System.Buffers" Version="4.5.1" />
-    <PackageReference Include="DotNet.ReproducibleBuilds" Version="1.2.25">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
-    <PackageReference Include="MinVer" Version="6.0.0">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
-  </ItemGroup>
+    <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU'">
+        <DefineConstants>TRACE;DEBUG</DefineConstants>
+    </PropertyGroup>
 
-  <!-- End References -->
+    <!-- Begin References -->
+    <ItemGroup>
+        <None Include="..\LICENSE" Pack="true" PackagePath=""/>
+        <None Include="..\icon_64x64.png" Pack="true" PackagePath=""/>
+        <None Include="..\README.md" Pack="true" PackagePath=""/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="System.Buffers" Version="4.5.1"/>
+        <PackageReference Include="DotNet.ReproducibleBuilds" Version="1.2.25">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+        <PackageReference Include="MinVer" Version="6.0.0">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <!-- End References -->
 
 </Project>
