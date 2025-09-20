@@ -16,6 +16,7 @@ namespace LiteDB.Tests
         public string City { get; set; }
         public double[] Loc { get; set; }
         public string State { get; set; }
+        public byte[] Payload { get; set; }
 
         public int CompareTo(Zip other)
         {
