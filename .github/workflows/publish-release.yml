@@ -32,7 +32,8 @@ jobs:
         run: dotnet build LiteDB.sln --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test LiteDB.sln --configuration Release --no-build --verbosity normal
+        timeout-minutes: 5
+        run: dotnet test LiteDB.sln --configuration Release --no-build --verbosity normal --settings tests.runsettings
 
       - name: Pack
         run: |
@@ -68,3 +69,4 @@ jobs:
           files: artifacts/*.nupkg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
