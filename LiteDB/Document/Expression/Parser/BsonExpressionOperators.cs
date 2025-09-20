@@ -202,9 +202,15 @@ namespace LiteDB
             }
             else
             {
-                return left == right;
+                return collation.Equals(left, right);
             }
         }
+
+        /// <summary>
+        /// Compute the cosine distance between two vectors (or arrays that can be interpreted as vectors).
+        /// Returns null when the arguments cannot be converted into vectors of matching lengths.
+        /// </summary>
+        public static BsonValue VECTOR_SIM(BsonValue left, BsonValue right) => BsonExpressionMethods.VECTOR_SIM(left, right);
 
         public static BsonValue IN_ANY(Collation collation, IEnumerable<BsonValue> left, BsonValue right) => left.Any(x => IN(collation, x, right));
         public static BsonValue IN_ALL(Collation collation, IEnumerable<BsonValue> left, BsonValue right) => left.All(x => IN(collation, x, right));
