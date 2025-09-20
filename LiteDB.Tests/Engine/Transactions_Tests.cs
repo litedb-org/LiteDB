@@ -1,5 +1,6 @@
 ﻿using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -24,8 +25,9 @@ namespace LiteDB.Tests.Engine
 
             using (var db = new LiteDatabase("filename=:memory:"))
             {
-                // small timeout
+                // configure the minimal pragma timeout and then override the engine to a few milliseconds
                 db.Pragma(Pragmas.TIMEOUT, 1);
+                SetEngineTimeout(db, TimeSpan.FromMilliseconds(20));
 
                 var person = db.GetCollection<Person>();
 
@@ -35,8 +37,8 @@ namespace LiteDB.Tests.Engine
                 var taskASemaphore = new SemaphoreSlim(0, 1);
                 var taskBSemaphore = new SemaphoreSlim(0, 1);
 
-                // task A will open transaction and will insert +100 documents 
-                // but will commit only 2s later
+                // task A will open transaction and will insert +100 documents
+                // but will commit only after task B observes the timeout
                 var ta = Task.Run(() =>
                 {
                     db.BeginTrans();
@@ -53,7 +55,7 @@ namespace LiteDB.Tests.Engine
                     db.Commit();
                 });
 
-                // task B will try delete all documents but will be locked during 1 second
+                // task B will try delete all documents but will be locked until the short timeout is hit
                 var tb = Task.Run(() =>
                 {
                     taskBSemaphore.Wait();
@@ -251,7 +253,8 @@ namespace LiteDB.Tests.Engine
         public void Test_Transaction_ReleaseWhenFailToStart()
         {
             var    blockingStream             = new BlockingStream();
-            var    db                         = new LiteDatabase(blockingStream) { Timeout = TimeSpan.FromSeconds(1) };
+            var    db                         = new LiteDatabase(blockingStream);
+            SetEngineTimeout(db, TimeSpan.FromMilliseconds(50));
             Thread lockerThread               = null;
             try
             {
@@ -263,7 +266,7 @@ namespace LiteDB.Tests.Engine
                     db.Dispose();
                 });
                 lockerThread.Start();
-                blockingStream.Blocked.WaitOne(1000).Should().BeTrue();
+                blockingStream.Blocked.WaitOne(200).Should().BeTrue();
                 Assert.Throws<LiteException>(() => db.GetCollection<Person>().Insert(new Person())).Message.Should().Contain("timeout");
                 Assert.Throws<LiteException>(() => db.GetCollection<Person>().Insert(new Person())).Message.Should().Contain("timeout");
             }
@@ -272,6 +275,26 @@ namespace LiteDB.Tests.Engine
                 blockingStream.ShouldUnblock.Set();
                 lockerThread?.Join();
             }
+        }
+
+        private static void SetEngineTimeout(LiteDatabase database, TimeSpan timeout)
+        {
+            var engineField = typeof(LiteDatabase).GetField("_engine", BindingFlags.Instance | BindingFlags.NonPublic);
+            var engine      = engineField?.GetValue(database);
+
+            if (engine is not LiteEngine liteEngine)
+            {
+                throw new InvalidOperationException("Unable to retrieve LiteEngine instance for timeout override.");
+            }
+
+            var headerField = typeof(LiteEngine).GetField("_header", BindingFlags.Instance | BindingFlags.NonPublic);
+            var header      = headerField?.GetValue(liteEngine) ?? throw new InvalidOperationException("LiteEngine header not available.");
+            var pragmasProp = header.GetType().GetProperty("Pragmas", BindingFlags.Instance | BindingFlags.Public) ?? throw new InvalidOperationException("Engine pragmas not accessible.");
+            var pragmas     = pragmasProp.GetValue(header) ?? throw new InvalidOperationException("Engine pragmas not available.");
+            var timeoutProp = pragmas.GetType().GetProperty("Timeout", BindingFlags.Instance | BindingFlags.Public) ?? throw new InvalidOperationException("Timeout property not found.");
+            var setter      = timeoutProp.GetSetMethod(true) ?? throw new InvalidOperationException("Timeout setter not accessible.");
+
+            setter.Invoke(pragmas, new object[] { timeout });
         }
     }
 }
