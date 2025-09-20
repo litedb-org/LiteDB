@@ -47,9 +47,15 @@ jobs:
           PACKAGE_VERSION=${PACKAGE_VERSION%.nupkg}
           echo "package_version=${PACKAGE_VERSION}" >> "$GITHUB_OUTPUT"
 
+      - name: Retrieve secrets from Bitwarden
+        uses: bitwarden/sm-action@v2
+        with:
+          access_token: ${{ secrets.BW_ACCESS_TOKEN }}
+          base_url: https://vault.bitwarden.eu
+          secrets: |
+            265b2fb6-2cf0-4859-9bc8-b24c00ab4378 > NUGET_API_KEY
+
       - name: Push package to NuGet
-        env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
         run: |
           dotnet nuget push "artifacts/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
 
@@ -58,6 +64,7 @@ jobs:
         with:
           tag_name: v${{ steps.version.outputs.package_version }}
           name: LiteDB ${{ steps.version.outputs.package_version }}
+          generate_release_notes: true
           files: artifacts/*.nupkg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
