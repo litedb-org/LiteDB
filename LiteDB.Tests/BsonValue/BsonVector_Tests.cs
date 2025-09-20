@@ -52,13 +52,42 @@ public class BsonVector_Tests
         // Query: Find vectors nearest to [1, 0]
         var target = new float[] { 1.0f, 0.0f };
         var results = col.Query()
-            .WhereVectorSimilar(r => r.Embedding, [1.0f, 0.0f], maxDistance: .28)
+            .WhereNear(r => r.Embedding, [1.0f, 0.0f], maxDistance: .28)
             .ToList();
 
         results.Should().NotBeEmpty();
         results.Select(x => x.Id).Should().Contain(1);
         results.Select(x => x.Id).Should().NotContain(2);
         results.Select(x => x.Id).Should().NotContain(3); // too far away
+    }
+
+    [Fact]
+    public void VectorSim_Query_WhereVectorSimilar_AppliesAlias()
+    {
+        using var db = new LiteDatabase(":memory:");
+        var col = db.GetCollection<VectorDoc>("vectors");
+
+        col.Insert(new VectorDoc { Id = 1, Embedding = new float[] { 1.0f, 0.0f } });
+        col.Insert(new VectorDoc { Id = 2, Embedding = new float[] { 0.0f, 1.0f } });
+        col.Insert(new VectorDoc { Id = 3, Embedding = new float[] { 1.0f, 1.0f } });
+
+        var target = new float[] { 1.0f, 0.0f };
+
+        var nearResults = col.Query()
+            .WhereNear(r => r.Embedding, target, maxDistance: .28)
+            .ToList()
+            .Select(r => r.Id)
+            .OrderBy(id => id)
+            .ToList();
+
+        var similarResults = col.Query()
+            .WhereVectorSimilar(r => r.Embedding, target, maxDistance: .28)
+            .ToList()
+            .Select(r => r.Id)
+            .OrderBy(id => id)
+            .ToList();
+
+        similarResults.Should().Equal(nearResults);
     }
 
     [Fact]
