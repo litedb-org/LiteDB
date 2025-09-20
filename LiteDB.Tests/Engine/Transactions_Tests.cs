@@ -4,7 +4,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using LiteDB.Engine;
+using LiteDB.Tests.Utils;
 using Xunit;
+using Xunit.Sdk;
 
 namespace LiteDB.Tests.Engine
 {
@@ -12,7 +14,9 @@ namespace LiteDB.Tests.Engine
 
     public class Transactions_Tests
     {
-        [Fact]
+        const int MIN_CPU_COUNT = 2;
+        
+        [CpuBoundFact(MIN_CPU_COUNT)]
         public async Task Transaction_Write_Lock_Timeout()
         {
             var data1 = DataGen.Person(1, 100).ToArray();
@@ -69,7 +73,7 @@ namespace LiteDB.Tests.Engine
         }
 
 
-        [Fact]
+        [CpuBoundFact(MIN_CPU_COUNT)]
         public async Task Transaction_Avoid_Dirty_Read()
         {
             var data1 = DataGen.Person(1, 100).ToArray();
@@ -129,7 +133,7 @@ namespace LiteDB.Tests.Engine
             }
         }
 
-        [Fact]
+        [CpuBoundFact(MIN_CPU_COUNT)]
         public async Task Transaction_Read_Version()
         {
             var data1 = DataGen.Person(1, 100).ToArray();
@@ -186,7 +190,7 @@ namespace LiteDB.Tests.Engine
             }
         }
 
-        [Fact]
+        [CpuBoundFact(MIN_CPU_COUNT)]
         public void Test_Transaction_States()
         {
             var data0 = DataGen.Person(1, 10).ToArray();
@@ -243,7 +247,7 @@ namespace LiteDB.Tests.Engine
             }
         }
 
-        [Fact]
+        [CpuBoundFact(MIN_CPU_COUNT)]
         public void Test_Transaction_ReleaseWhenFailToStart()
         {
             var    blockingStream             = new BlockingStream();

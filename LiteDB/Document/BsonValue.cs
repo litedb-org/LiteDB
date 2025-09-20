@@ -526,6 +526,17 @@ namespace LiteDB
             return left.AsDouble / right.AsDouble;
         }
 
+        // %
+        public static BsonValue operator %(BsonValue left, BsonValue right)
+        {
+            if (!left.IsNumber || !right.IsNumber) return BsonValue.Null;
+            if (left.IsInt32 && right.IsInt32) return left.AsInt32 % right.AsInt32;
+            if (left.IsInt64 && right.IsInt64) return left.AsInt64 % right.AsInt64;
+            if (left.IsDecimal && right.IsDecimal) return left.AsDecimal % right.AsDecimal;
+
+            return left.AsDouble % right.AsDouble;
+        }
+
         public override string ToString()
         {
             return JsonSerializer.Serialize(this);

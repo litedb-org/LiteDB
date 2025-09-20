@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <RunConfiguration>
+    <TestSessionTimeout>300000</TestSessionTimeout>
+    <TestCaseTimeout>30000</TestCaseTimeout>
+  </RunConfiguration>
+</RunSettings>
