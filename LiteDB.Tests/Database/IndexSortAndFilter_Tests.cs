@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
+using LiteDB.Tests.Utils;
 using Xunit;
 
 namespace LiteDB.Tests.Database
@@ -25,7 +26,7 @@ namespace LiteDB.Tests.Database
         public IndexSortAndFilterTest()
         {
             _tempFile = new TempFile();
-            _database = new LiteDatabase(_tempFile.Filename);
+            _database = DatabaseFactory.Create(TestDatabaseType.Disk, _tempFile.Filename);
             _collection = _database.GetCollection<Item>("items");
 
             _collection.Upsert(new Item() { Id = "C", Value = "Value 1" });

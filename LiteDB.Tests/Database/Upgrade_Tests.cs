@@ -2,6 +2,7 @@
 using System.IO;
 using System.Linq;
 using LiteDB;
+using LiteDB.Tests.Utils;
 using FluentAssertions;
 using Xunit;
 using Microsoft.VisualStudio.TestPlatform.CommunicationUtilities.ObjectModel;
@@ -16,7 +17,7 @@ namespace LiteDB.Tests.Database
             // v5 upgrades only from v4!
             using(var tempFile = new TempFile("../../../Resources/v4.db"))
             {
-                using (var db = new LiteDatabase($"filename={tempFile};upgrade=true"))
+                using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, $"filename={tempFile};upgrade=true"))
                 {
                     // convert and open database
                     var col1 = db.GetCollection("col1");
@@ -24,7 +25,7 @@ namespace LiteDB.Tests.Database
                     col1.Count().Should().Be(3);
                 }
 
-                using (var db = new LiteDatabase($"filename={tempFile};upgrade=true"))
+                using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, $"filename={tempFile};upgrade=true"))
                 {
                     // database already converted
                     var col1 = db.GetCollection("col1");
@@ -40,7 +41,7 @@ namespace LiteDB.Tests.Database
             // v5 upgrades only from v4!
             using (var tempFile = new TempFile("../../../Resources/v4.db"))
             {
-                using (var db = new LiteDatabase($"filename={tempFile};upgrade=true"))
+                using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, $"filename={tempFile};upgrade=true"))
                 {
                     // convert and open database
                     var col1 = db.GetCollection("col1");
@@ -48,7 +49,7 @@ namespace LiteDB.Tests.Database
                     col1.Count().Should().Be(3);
                 }
 
-                using (var db = new LiteDatabase($"filename={tempFile};upgrade=true"))
+                using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, $"filename={tempFile};upgrade=true"))
                 {
                     // database already converted
                     var col1 = db.GetCollection("col1");

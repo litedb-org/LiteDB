@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using FluentAssertions;
+using LiteDB.Tests.Utils;
 using Xunit;
 
 namespace LiteDB.Tests.Database
@@ -31,7 +32,7 @@ namespace LiteDB.Tests.Database
         public void Storage_Upload_Download()
         {
             using (var f = new TempFile())
-            using (var db = new LiteDatabase(f.Filename))
+            using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, f.Filename))
                 //using (var db = new LiteDatabase(@"c:\temp\file.db"))
             {
                 var fs = db.GetStorage<int>("_files", "_chunks");

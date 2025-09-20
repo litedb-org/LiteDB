@@ -1,5 +1,6 @@
 ﻿using System.Linq;
 using FluentAssertions;
+using LiteDB.Tests.Utils;
 using Xunit;
 
 namespace LiteDB.Tests.Engine
@@ -10,7 +11,7 @@ namespace LiteDB.Tests.Engine
         public void DropCollection()
         {
             using (var file = new TempFile())
-            using (var db = new LiteDatabase(file.Filename))
+            using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, file.Filename))
             {
                 db.GetCollectionNames().Should().NotContain("col");
 
@@ -31,7 +32,7 @@ namespace LiteDB.Tests.Engine
         {
             using (var file = new TempFile())
             {
-                using (var db = new LiteDatabase(file.Filename))
+                using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, file.Filename))
                 {
                     var col = db.GetCollection("test");
                     col.Insert(new BsonDocument { ["_id"] = 1 });
@@ -39,7 +40,7 @@ namespace LiteDB.Tests.Engine
                     db.Rebuild();
                 }
 
-                using (var db = new LiteDatabase(file.Filename))
+                using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, file.Filename))
                 {
                     var col = db.GetCollection("test");
                     col.Insert(new BsonDocument { ["_id"] = 1 });

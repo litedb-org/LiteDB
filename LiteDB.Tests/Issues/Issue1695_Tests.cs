@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using FluentAssertions;
 using LiteDB.Engine;
+using LiteDB.Tests.Utils;
 using Xunit;
 
 namespace LiteDB.Tests.Issues
@@ -19,7 +20,7 @@ namespace LiteDB.Tests.Issues
         [Fact]
         public void ICollection_Parameter_Test()
         {
-            using var db = new LiteDatabase(":memory:");
+            using var db = DatabaseFactory.Create();
             var col = db.GetCollection<StateModel>("col");
 
             ICollection<ObjectId> ids = new List<ObjectId>();
