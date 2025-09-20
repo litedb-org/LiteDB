@@ -188,17 +188,35 @@ namespace LiteDB
             return new LiteQueryable<K>(_engine, _mapper, _collection, _query);
         }
 
+        private static void ValidateVectorArguments(float[] target, double maxDistance)
+        {
+            if (target == null || target.Length == 0) throw new ArgumentException("Target vector must be provided.", nameof(target));
+            if (maxDistance < 0) throw new ArgumentOutOfRangeException(nameof(maxDistance), "Max distance must be non-negative.");
+        }
+
+        private static BsonExpression CreateVectorSimilarityFilter(BsonExpression fieldExpr, float[] target, double maxDistance)
+        {
+            if (fieldExpr == null) throw new ArgumentNullException(nameof(fieldExpr));
+
+            ValidateVectorArguments(target, maxDistance);
+
+            var targetArray = new BsonArray(target.Select(v => new BsonValue(v)));
+            return BsonExpression.Create($"{fieldExpr.Source} VECTOR_SIM @0 <= @1", targetArray, new BsonValue(maxDistance));
+        }
+
         public ILiteQueryable<T> WhereNear(string vectorField, float[] target, double maxDistance)
         {
             if (string.IsNullOrWhiteSpace(vectorField)) throw new ArgumentNullException(nameof(vectorField));
-            if (target == null || target.Length == 0) throw new ArgumentException("Target vector must be provided.", nameof(target));
-            if (maxDistance < 0) throw new ArgumentOutOfRangeException(nameof(maxDistance), "Max distance must be non-negative.");
 
-            IEnumerable<BsonValue> args = target.Select(x => new BsonValue(x)).ToArray();
-            var expr = BsonExpression.Create($"VECTOR_SIM($.{vectorField}, [{string.Join(",", args)}]) <= {maxDistance}");
+            var fieldExpr = BsonExpression.Create($"$.{vectorField}");
+            return this.WhereNear(fieldExpr, target, maxDistance);
+        }
 
-            // inject expression into regular Where pipeline
-            _query.Where.Add(expr);
+        public ILiteQueryable<T> WhereNear(BsonExpression fieldExpr, float[] target, double maxDistance)
+        {
+            var filter = CreateVectorSimilarityFilter(fieldExpr, target, maxDistance);
+
+            _query.Where.Add(filter);
 
             return this;
         }
@@ -208,6 +226,21 @@ namespace LiteDB
             if (field == null) throw new ArgumentNullException(nameof(field));
 
             var fieldExpr = _mapper.GetExpression(field);
+            return this.WhereNear(fieldExpr, target, maxDistance);
+        }
+
+        public ILiteQueryable<T> WhereVectorSimilar(string vectorField, float[] target, double maxDistance)
+        {
+            return this.WhereNear(vectorField, target, maxDistance);
+        }
+
+        public ILiteQueryable<T> WhereVectorSimilar<K>(Expression<Func<T, K>> field, float[] target, double maxDistance)
+        {
+            return this.WhereNear(field, target, maxDistance);
+        }
+
+        public ILiteQueryable<T> WhereVectorSimilar(BsonExpression fieldExpr, float[] target, double maxDistance)
+        {
             return this.WhereNear(fieldExpr, target, maxDistance);
         }
 

@@ -35,6 +35,9 @@ namespace LiteDB
             ["+"] = Tuple.Create("+", M("ADD"), BsonExpressionType.Add),
             ["-"] = Tuple.Create("-", M("MINUS"), BsonExpressionType.Subtract),
 
+            // vector similarity operator returns the cosine distance between two vectors
+            ["VECTOR_SIM"] = Tuple.Create(" VECTOR_SIM ", M("VECTOR_SIM"), BsonExpressionType.VectorSim),
+
             // predicate
             ["LIKE"] = Tuple.Create(" LIKE ", M("LIKE"), BsonExpressionType.Like),
             ["BETWEEN"] = Tuple.Create(" BETWEEN ", M("BETWEEN"), BsonExpressionType.Between),
@@ -75,9 +78,6 @@ namespace LiteDB
             // logic (will use Expression.AndAlso|OrElse)
             ["AND"] = Tuple.Create(" AND ", (MethodInfo)null, BsonExpressionType.And),
             ["OR"] = Tuple.Create(" OR ", (MethodInfo)null, BsonExpressionType.Or),
-
-            ////VECTOR LOGIC
-            //["VECTOR_SIM"] = Tuple.Create(" VECTOR_SIM ", M("VECTOR_SIM"), BsonExpressionType.VectorSim),
         };
 
         private static readonly MethodInfo _parameterPathMethod = M("PARAMETER_PATH");

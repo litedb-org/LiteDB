@@ -52,13 +52,33 @@ public class BsonVector_Tests
         // Query: Find vectors nearest to [1, 0]
         var target = new float[] { 1.0f, 0.0f };
         var results = col.Query()
-            .WhereNear(r => r.Embedding, [1.0f, 0.0f], maxDistance:.28)
+            .WhereVectorSimilar(r => r.Embedding, [1.0f, 0.0f], maxDistance: .28)
             .ToList();
 
         results.Should().NotBeEmpty();
         results.Select(x => x.Id).Should().Contain(1);
         results.Select(x => x.Id).Should().NotContain(2);
         results.Select(x => x.Id).Should().NotContain(3); // too far away
+    }
+
+    [Fact]
+    public void VectorSim_Query_BsonExpressionOverload_ReturnsExpectedNearest()
+    {
+        using var db = new LiteDatabase(":memory:");
+        var col = db.GetCollection<VectorDoc>("vectors");
+
+        col.Insert(new VectorDoc { Id = 1, Embedding = new float[] { 1.0f, 0.0f } });
+        col.Insert(new VectorDoc { Id = 2, Embedding = new float[] { 0.0f, 1.0f } });
+        col.Insert(new VectorDoc { Id = 3, Embedding = new float[] { 1.0f, 1.0f } });
+
+        var target = new float[] { 1.0f, 0.0f };
+        var fieldExpr = BsonExpression.Create("$.Embedding");
+
+        var results = col.Query()
+            .WhereVectorSimilar(fieldExpr, target, maxDistance: .28)
+            .ToList();
+
+        results.Select(x => x.Id).Should().ContainSingle(id => id == 1);
     }
 
     [Fact]
@@ -83,18 +103,46 @@ public class BsonVector_Tests
             ["Embedding"] = new BsonVector(new float[] { 1.0f, 1.0f })
         });
 
-        //var query = "SELECT * FROM vectors WHERE vector_sim([1.0, 0.0], $.Embedding) < 0.3";
-        //var results = db.Execute(query).ToList();
-        var expr = BsonExpression.Create("VECTOR_SIM($.Embedding, [1.0, 0.0]) < 0.25");
+        var query = "SELECT * FROM vectors WHERE $.Embedding VECTOR_SIM [1.0, 0.0] <= 0.25";
+        var rawResults = db.Execute(query).ToList();
 
-        var results = db
-            .GetCollection("vectors")
-            .Find(expr)
+        var docs = rawResults
+            .Where(r => r.IsDocument)
+            .SelectMany(r =>
+            {
+                var doc = r.AsDocument;
+                if (doc.TryGetValue("expr", out var expr) && expr.IsArray)
+                {
+                    return expr.AsArray
+                        .Where(x => x.IsDocument)
+                        .Select(x => x.AsDocument);
+                }
+
+                return new[] { doc };
+            })
             .ToList();
 
-        results.Select(r => r["_id"].AsInt32).Should().Contain(1);
-        results.Select(r => r["_id"].AsInt32).Should().NotContain(2);
-        results.Select(r => r["_id"].AsInt32).Should().NotContain(3); // cosine ~ 0.293
+        docs.Select(d => d["_id"].AsInt32).Should().Contain(1);
+        docs.Select(d => d["_id"].AsInt32).Should().NotContain(2);
+        docs.Select(d => d["_id"].AsInt32).Should().NotContain(3); // cosine ~ 0.293
+    }
+
+    [Fact]
+    public void VectorSim_InfixExpression_ParsesAndEvaluates()
+    {
+        var expr = BsonExpression.Create("$.Embedding VECTOR_SIM [1.0, 0.0]");
+
+        expr.Type.Should().Be(BsonExpressionType.VectorSim);
+
+        var doc = new BsonDocument
+        {
+            ["Embedding"] = new BsonArray { 1.0, 0.0 }
+        };
+
+        var result = expr.ExecuteScalar(doc);
+
+        result.IsDouble.Should().BeTrue();
+        result.AsDouble.Should().BeApproximately(0.0, 1e-6);
     }
 
     [Fact]
