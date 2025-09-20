@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -37,6 +38,16 @@ namespace LiteDB.Engine
             _fileVersion = FileReaderV8.IsVersion(buffer) ? 8 : throw LiteException.InvalidDatabase();
         }
 
+        private static uint GetSourceMaxItemsCount(EngineSettings settings)
+        {
+            long dataBytes = new FileInfo(settings.Filename).Length;
+
+            var logFile = FileHelper.GetLogFile(settings.Filename);
+            long logBytes = File.Exists(logFile) ? new FileInfo(logFile).Length : 0;
+            // ((pages in data+log) + 10) * 255
+            return (uint)((((dataBytes + logBytes) / PAGE_SIZE) + 10) * byte.MaxValue);
+        }
+
         public long Rebuild(RebuildOptions options)
         {
             var backupFilename = FileHelper.GetSuffixFile(_settings.Filename, "-backup", true);
@@ -62,8 +73,11 @@ namespace LiteDB.Engine
                     // copy all database to new Log file with NO checkpoint during all rebuild
                     engine.Pragma(Pragmas.CHECKPOINT, 0);
 
+                    // compute the correct MAX_ITEMS_COUNT from the *source* file
+                    uint maxItemsCount = GetSourceMaxItemsCount(_settings);
+
                     // rebuild all content from reader into new engine
-                    engine.RebuildContent(reader);
+                    engine.RebuildContent(reader, maxItemsCount);
 
                     // insert error report
                     if (options.IncludeErrorReport && options.Errors.Count > 0)
@@ -106,7 +120,7 @@ namespace LiteDB.Engine
 
 
             // get difference size
-            return 
+            return
                 new FileInfo(backupFilename).Length -
                 new FileInfo(_settings.Filename).Length;
         }
