@@ -10,8 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    env:
-      MinVerDefaultPreReleaseIdentifiers: prerelease.${{ github.run_number }}
 
     steps:
       - name: Check out repository
