@@ -267,7 +267,9 @@ namespace LiteDB.Engine
 
         public Int32 ReadInt32() => this.ReadNumber(BitConverter.ToInt32, 4);
         public Int64 ReadInt64() => this.ReadNumber(BitConverter.ToInt64, 8);
+        public UInt16 ReadUInt16() => this.ReadNumber(BitConverter.ToUInt16, 2);
         public UInt32 ReadUInt32() => this.ReadNumber(BitConverter.ToUInt32, 4);
+        public Single ReadSingle() => this.ReadNumber(BitConverter.ToSingle, 4);
         public Double ReadDouble() => this.ReadNumber(BitConverter.ToDouble, 8);
 
         public Decimal ReadDecimal()
@@ -354,15 +356,12 @@ namespace LiteDB.Engine
 
         private BsonValue ReadVector()
         {
-            var length = this.ReadNumber(BitConverter.ToInt16,2); // 2-byte float count
+            var length = this.ReadUInt16();
             var values = new float[length];
 
-            for (int i = 0; i < length; i++)
+            for (var i = 0; i < length; i++)
             {
-                // Ensure correct position advancement
-                byte[] floatBytes = new byte[4];
-                this.Read(floatBytes, 0, 4); // Use low-level method
-                values[i] = BitConverter.ToSingle(floatBytes, 0);
+                values[i] = this.ReadSingle();
             }
 
             return new BsonVector(values);
