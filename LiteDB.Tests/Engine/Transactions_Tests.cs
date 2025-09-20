@@ -28,40 +28,64 @@ namespace LiteDB.Tests.Engine
                 // init person collection with 100 document
                 person.Insert(data1);
 
-                var taskASemaphore = new SemaphoreSlim(0, 1);
-                var taskBSemaphore = new SemaphoreSlim(0, 1);
+                using var taskASemaphore = new SemaphoreSlim(0, 1);
+                using var taskBSemaphore = new SemaphoreSlim(0, 1);
+                var waitTimeout = TimeSpan.FromSeconds(5);
 
-                // task A will open transaction and will insert +100 documents 
+                // task A will open transaction and will insert +100 documents
                 // but will commit only 2s later
-                var ta = Task.Run(() =>
+                var ta = Task.Run(async () =>
                 {
-                    db.BeginTrans();
+                    var startReleased = false;
 
-                    person.Insert(data2);
+                    try
+                    {
+                        db.BeginTrans();
 
-                    taskBSemaphore.Release();
-                    taskASemaphore.Wait();
+                        person.Insert(data2);
 
-                    var count = person.Count();
+                        taskBSemaphore.Release();
+                        startReleased = true;
 
-                    count.Should().Be(data1.Length + data2.Length);
+                        (await taskASemaphore.WaitAsync(waitTimeout))
+                            .Should()
+                            .BeTrue("task B should release task A after asserting the delete timeout");
 
-                    db.Commit();
+                        var count = person.Count();
+
+                        count.Should().Be(data1.Length + data2.Length);
+
+                        db.Commit();
+                    }
+                    finally
+                    {
+                        if (!startReleased)
+                        {
+                            taskBSemaphore.Release();
+                        }
+                    }
                 });
 
                 // task B will try delete all documents but will be locked during 1 second
-                var tb = Task.Run(() =>
+                var tb = Task.Run(async () =>
                 {
-                    taskBSemaphore.Wait();
+                    try
+                    {
+                        (await taskBSemaphore.WaitAsync(waitTimeout))
+                            .Should()
+                            .BeTrue("task A should start inserting data before task B attempts the delete");
 
-                    db.BeginTrans();
-                    person
-                        .Invoking(personCol => personCol.DeleteMany("1 = 1"))
-                        .Should()
-                        .Throw<LiteException>()
-                        .Where(ex => ex.ErrorCode == LiteException.LOCK_TIMEOUT);
-
-                    taskASemaphore.Release();
+                        db.BeginTrans();
+                        person
+                            .Invoking(personCol => personCol.DeleteMany("1 = 1"))
+                            .Should()
+                            .Throw<LiteException>()
+                            .Where(ex => ex.ErrorCode == LiteException.LOCK_TIMEOUT);
+                    }
+                    finally
+                    {
+                        taskASemaphore.Release();
+                    }
                 });
 
                 await Task.WhenAll(ta, tb);
@@ -82,47 +106,90 @@ namespace LiteDB.Tests.Engine
                 // init person collection with 100 document
                 person.Insert(data1);
 
-                var taskASemaphore = new SemaphoreSlim(0, 1);
-                var taskBSemaphore = new SemaphoreSlim(0, 1);
+                using var taskASemaphore = new SemaphoreSlim(0, 1);
+                using var taskBSemaphore = new SemaphoreSlim(0, 2);
+                var waitTimeout = TimeSpan.FromSeconds(5);
 
-                // task A will open transaction and will insert +100 documents 
+                // task A will open transaction and will insert +100 documents
                 // but will commit only 1s later - this plus +100 document must be visible only inside task A
-                var ta = Task.Run(() =>
+                var ta = Task.Run(async () =>
                 {
-                    db.BeginTrans();
+                    var initialSignalSent = false;
+                    var completionSignalSent = false;
 
-                    person.Insert(data2);
+                    try
+                    {
+                        db.BeginTrans();
 
-                    taskBSemaphore.Release();
-                    taskASemaphore.Wait();
+                        person.Insert(data2);
 
-                    var count = person.Count();
+                        taskBSemaphore.Release();
+                        initialSignalSent = true;
 
-                    count.Should().Be(data1.Length + data2.Length);
+                        (await taskASemaphore.WaitAsync(waitTimeout))
+                            .Should()
+                            .BeTrue("task B should confirm the original document count before task A commits");
 
-                    db.Commit();
-                    taskBSemaphore.Release();
+                        var count = person.Count();
+
+                        count.Should().Be(data1.Length + data2.Length);
+
+                        db.Commit();
+
+                        taskBSemaphore.Release();
+                        completionSignalSent = true;
+                    }
+                    finally
+                    {
+                        if (!initialSignalSent)
+                        {
+                            taskBSemaphore.Release();
+                        }
+
+                        if (!completionSignalSent)
+                        {
+                            taskBSemaphore.Release();
+                        }
+                    }
                 });
 
-                // task B will not open transaction and will wait 250ms before and count collection - 
+                // task B will not open transaction and will wait 250ms before and count collection -
                 // at this time, task A already insert +100 document but here I can't see (are not committed yet)
                 // after task A finish, I can see now all 200 documents
-                var tb = Task.Run(() =>
+                var tb = Task.Run(async () =>
                 {
-                    taskBSemaphore.Wait();
+                    var releasedTaskA = false;
 
-                    var count = person.Count();
+                    try
+                    {
+                        (await taskBSemaphore.WaitAsync(waitTimeout))
+                            .Should()
+                            .BeTrue("task A should signal before task B reads the uncommitted data");
 
-                    // read 100 documents
-                    count.Should().Be(data1.Length);
+                        var count = person.Count();
 
-                    taskASemaphore.Release();
-                    taskBSemaphore.Wait();
+                        // read 100 documents
+                        count.Should().Be(data1.Length);
 
-                    // read 200 documents
-                    count = person.Count();
+                        taskASemaphore.Release();
+                        releasedTaskA = true;
 
-                    count.Should().Be(data1.Length + data2.Length);
+                        (await taskBSemaphore.WaitAsync(waitTimeout))
+                            .Should()
+                            .BeTrue("task A should signal completion after committing the transaction");
+
+                        // read 200 documents
+                        count = person.Count();
+
+                        count.Should().Be(data1.Length + data2.Length);
+                    }
+                    finally
+                    {
+                        if (!releasedTaskA)
+                        {
+                            taskASemaphore.Release();
+                        }
+                    }
                 });
 
                 await Task.WhenAll(ta, tb);
@@ -142,44 +209,86 @@ namespace LiteDB.Tests.Engine
                 // init person collection with 100 document
                 person.Insert(data1);
 
-                var taskASemaphore = new SemaphoreSlim(0, 1);
-                var taskBSemaphore = new SemaphoreSlim(0, 1);
+                using var taskASemaphore = new SemaphoreSlim(0, 1);
+                using var taskBSemaphore = new SemaphoreSlim(0, 2);
+                var waitTimeout = TimeSpan.FromSeconds(5);
 
                 // task A will insert more 100 documents but will commit only 1s later
-                var ta = Task.Run(() =>
+                var ta = Task.Run(async () =>
                 {
-                    db.BeginTrans();
+                    var initialSignalSent = false;
+                    var completionSignalSent = false;
 
-                    person.Insert(data2);
+                    try
+                    {
+                        db.BeginTrans();
 
-                    taskBSemaphore.Release();
-                    taskASemaphore.Wait();
+                        person.Insert(data2);
 
-                    db.Commit();
+                        taskBSemaphore.Release();
+                        initialSignalSent = true;
 
-                    taskBSemaphore.Release();
+                        (await taskASemaphore.WaitAsync(waitTimeout))
+                            .Should()
+                            .BeTrue("task B should start reading before task A commits");
+
+                        db.Commit();
+
+                        taskBSemaphore.Release();
+                        completionSignalSent = true;
+                    }
+                    finally
+                    {
+                        if (!initialSignalSent)
+                        {
+                            taskBSemaphore.Release();
+                        }
+
+                        if (!completionSignalSent)
+                        {
+                            taskBSemaphore.Release();
+                        }
+                    }
                 });
 
                 // task B will open transaction too and will count 100 original documents only
                 // but now, will wait task A finish - but is in transaction and must see only initial version
-                var tb = Task.Run(() =>
+                var tb = Task.Run(async () =>
                 {
-                    db.BeginTrans();
+                    var releasedTaskA = false;
 
-                    taskBSemaphore.Wait();
+                    try
+                    {
+                        db.BeginTrans();
 
-                    var count = person.Count();
+                        (await taskBSemaphore.WaitAsync(waitTimeout))
+                            .Should()
+                            .BeTrue("task A should insert data before task B's first read");
 
-                    // read 100 documents
-                    count.Should().Be(data1.Length);
+                        var count = person.Count();
 
-                    taskASemaphore.Release();
-                    taskBSemaphore.Wait();
+                        // read 100 documents
+                        count.Should().Be(data1.Length);
 
-                    // keep reading 100 documents because i'm still in same transaction
-                    count = person.Count();
+                        taskASemaphore.Release();
+                        releasedTaskA = true;
 
-                    count.Should().Be(data1.Length);
+                        (await taskBSemaphore.WaitAsync(waitTimeout))
+                            .Should()
+                            .BeTrue("task A should signal completion while task B is in the same transaction");
+
+                        // keep reading 100 documents because i'm still in same transaction
+                        count = person.Count();
+
+                        count.Should().Be(data1.Length);
+                    }
+                    finally
+                    {
+                        if (!releasedTaskA)
+                        {
+                            taskASemaphore.Release();
+                        }
+                    }
                 });
 
                 await Task.WhenAll(ta, tb);
