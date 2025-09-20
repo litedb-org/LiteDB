@@ -191,6 +191,24 @@ public class BsonVector_Tests
     }
 
     [Fact]
+    public void VectorSim_FunctionCall_ParsesAndEvaluates()
+    {
+        var expr = BsonExpression.Create("VECTOR_SIM($.Embedding, [1.0, 0.0])");
+
+        expr.Type.Should().Be(BsonExpressionType.VectorSim);
+
+        var doc = new BsonDocument
+        {
+            ["Embedding"] = new BsonArray { 1.0, 0.0 }
+        };
+
+        var result = expr.ExecuteScalar(doc);
+
+        result.IsDouble.Should().BeTrue();
+        result.AsDouble.Should().BeApproximately(0.0, 1e-6);
+    }
+
+    [Fact]
     public void VectorSim_ReturnsZero_ForIdenticalVectors()
     {
         var left = new BsonArray { 1.0, 0.0 };
