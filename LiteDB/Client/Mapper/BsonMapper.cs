@@ -88,6 +88,8 @@ namespace LiteDB
         /// </summary>
         public int MaxDepth { get; set; }
 
+        public string TypeDescriptor { get; set; }
+
         /// <summary>
         /// A custom callback to change MemberInfo behavior when converting to MemberMapper.
         /// Use mapper.ResolveMember(Type entity, MemberInfo property, MemberMapper documentMappedField)
@@ -113,6 +115,7 @@ namespace LiteDB
             this.ResolveCollectionName = (t) => Reflection.IsEnumerable(t) ? Reflection.GetListItemType(t).Name : t.Name;
             this.IncludeFields = false;
             this.MaxDepth = 20;
+            this.TypeDescriptor = "_type";
 
             _typeInstantiator = customTypeInstantiator ?? ((Type t) => null);
             _typeNameBinder = typeNameBinder ?? DefaultTypeNameBinder.Instance;
@@ -291,7 +294,7 @@ namespace LiteDB
                     doc["_id"] = idRef;
                     if (doc.ContainsKey("$type"))
                     {
-                        doc["_type"] = bson["$type"];
+                        doc[BsonMapper.Global.TypeDescriptor] = bson["$type"];
                     }
 
                     return m.Deserialize(entity.ForType, doc);
@@ -301,7 +304,7 @@ namespace LiteDB
                 {
                     return m.Deserialize(entity.ForType,
                         doc.ContainsKey("$type") ?
-                            new BsonDocument { ["_id"] = idRef, ["_type"] = bson["$type"] } :
+                            new BsonDocument { ["_id"] = idRef, [BsonMapper.Global.TypeDescriptor] = bson["$type"] } :
                             new BsonDocument { ["_id"] = idRef }); // if has $id, deserialize object using only _id object
                 }
 
@@ -377,7 +380,7 @@ namespace LiteDB
                         item["_id"] = idRef;
                         if (item.AsDocument.ContainsKey("$type"))
                         {
-                            item["_type"] = item["$type"];
+                            item[BsonMapper.Global.TypeDescriptor] = item["$type"];
                         }
 
                         result.Add(item);
@@ -388,7 +391,7 @@ namespace LiteDB
 
                         if (item.AsDocument.ContainsKey("$type"))
                         {
-                            bsonDocument["_type"] = item["$type"];
+                            bsonDocument[BsonMapper.Global.TypeDescriptor] = item["$type"];
                         }
 
                         result.Add(bsonDocument);

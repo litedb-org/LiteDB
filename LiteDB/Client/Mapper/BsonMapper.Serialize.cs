@@ -186,7 +186,7 @@ namespace LiteDB
             // adding _type only where property Type is not same as object instance type
             if (type != t)
             {
-                doc["_type"] = new BsonValue(_typeNameBinder.GetName(t));
+                doc[BsonMapper.Global.TypeDescriptor] = new BsonValue(_typeNameBinder.GetName(t));
             }
 
             foreach (var member in entity.Members.Where(x => x.Getter != null))
@@ -195,6 +195,7 @@ namespace LiteDB
                 var value = member.Getter(obj);
 
                 if (value == null && this.SerializeNullValues == false && member.FieldName != "_id") continue;
+                // Console.WriteLine(member.FieldName + " " + member.DataType.Name);
 
                 // if member has a custom serialization, use it
                 if (member.Serialize != null)
