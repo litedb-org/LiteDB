@@ -48,6 +48,11 @@ namespace LiteDB.Engine
         public long InitialSize { get; set; } = 0;
 
         /// <summary>
+        /// Limit memory cache usage (in bytes). Set to 0 for unlimited. (default: 256MB)
+        /// </summary>
+        public long CacheSize { get; set; } = DEFAULT_CACHE_SIZE;
+
+        /// <summary>
         /// Create database with custom string collection (used only to create database) (default: Collation.Default)
         /// </summary>
         public Collation Collation { get; set; }

@@ -87,7 +87,9 @@ namespace LiteDB
         /// Each byte array will be created with this size * PAGE_SIZE
         /// Use minimal 12 to allocate at least 85Kb per segment (will use LOH)
         /// </summary>
-        public static int[] MEMORY_SEGMENT_SIZES = new int[] { 12, 50, 100, 500, 1000 }; // 8Mb per extend
+        public static int[] MEMORY_SEGMENT_SIZES = new int[] { 12, 50, 100, 500, 1000 }; // cache growth pattern (pages)
+
+        public const long DEFAULT_CACHE_SIZE = 256L * 1024 * 1024;
 
         /// <summary>
         /// Define how many documents will be keep in memory until clear cache and remove support to orderby/groupby

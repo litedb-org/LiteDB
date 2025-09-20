@@ -602,7 +602,7 @@ namespace LiteDB.Engine
         {
             ENSURE(!_disposed, "the snapshot is disposed");
 
-            var indexer = new IndexService(this, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
+            var indexer = new IndexService(this, _header.Pragmas.Collation, () => _disk.MAX_ITEMS_COUNT);
 
             // CollectionPage will be last deleted page (there is no NextPageID from CollectionPage)
             _transPages.FirstDeletedPageID = _collectionPage.PageID;

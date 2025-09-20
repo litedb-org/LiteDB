@@ -110,7 +110,7 @@ namespace LiteDB
         public BsonValue(DateTime value)
         {
             this.Type = BsonType.DateTime;
-            this.RawValue = value.Truncate();
+            this.RawValue = value;
         }
 
         protected BsonValue(BsonType type, object rawValue)
@@ -138,7 +138,7 @@ namespace LiteDB
             else if (value is DateTime)
             {
                 this.Type = BsonType.DateTime;
-                this.RawValue = ((DateTime)value).Truncate();
+                this.RawValue = (DateTime)value;
             }
             else if (value is BsonValue)
             {
@@ -223,7 +223,19 @@ namespace LiteDB
         public bool AsBoolean => (bool)this.RawValue;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public string AsString => (string)this.RawValue;
+        public string AsString
+        {
+            get
+            {
+                return this.Type switch
+                {
+                    BsonType.Null => null,
+                    BsonType.String => (string)this.RawValue,
+                    BsonType.ObjectId => this.AsObjectId.ToString(),
+                    _ => throw new InvalidCastException($"Value '{this.RawValue}' is not a string"),
+                };
+            }
+        }
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         public int AsInt32 => Convert.ToInt32(this.RawValue);

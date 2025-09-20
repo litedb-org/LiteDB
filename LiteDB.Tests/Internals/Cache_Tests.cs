@@ -94,17 +94,13 @@ namespace LiteDB.Internals
             // checks if still 2 segments in memory (segments never decrease)
             m.ExtendSegments.Should().Be(2);
 
-            // but only 3 free pages
-            m.FreePages.Should().Be(3);
-
-            // now, request new 5 pages to write
+            // now, request new 5 pages to write (all should come from reclaimed pages)
             for (var i = 0; i < 5; i++)
             {
                 pages.Add(m.NewPage());
             }
 
-            // extends must be increase
-            m.ExtendSegments.Should().Be(3);
+            m.ExtendSegments.Should().Be(2);
 
             // but if I release more than 10 pages, now I will re-use old pages
             foreach (var p in pages.Where(x => x.ShareCounter == -1).Take(10))
@@ -116,9 +112,6 @@ namespace LiteDB.Internals
                 m.TryMoveToReadable(p);
             }
 
-            m.WritablePages.Should().Be(7);
-            m.FreePages.Should().Be(8);
-
             // now, if I request for 10 pages, all pages will be reused (no segment extend)
             for (var i = 0; i < 10; i++)
             {
@@ -126,14 +119,44 @@ namespace LiteDB.Internals
             }
 
             // keep same extends
-            m.ExtendSegments.Should().Be(3);
+            m.ExtendSegments.Should().Be(2);
 
             // discard all pages
             PageBuffer pw;
 
-            while ((pw = pages.FirstOrDefault(x => x.ShareCounter == -1)) != null)
+            while ((pw = pages.FirstOrDefault(x => x.ShareCounter == Constants.BUFFER_WRITABLE)) != null)
             {
                 m.DiscardPage(pw);
+            }
+        }
+
+        [Fact]
+        public void Cache_Reuses_When_Few_Readables_Available()
+        {
+            var cache = new MemoryCache(new int[] { 4, 4 });
+
+            var pages = new List<PageBuffer>();
+
+            for (var i = 0; i < 4; i++)
+            {
+                var page = cache.NewPage();
+                page.Origin = FileOrigin.Log;
+                page.Position = i;
+                cache.TryMoveToReadable(page);
+                pages.Add(page);
+            }
+
+            cache.ExtendSegments.Should().Be(1);
+
+            var reused = cache.NewPage();
+            pages.Add(reused);
+
+            cache.ExtendSegments.Should().Be(1);
+            reused.ShareCounter.Should().Be(Constants.BUFFER_WRITABLE);
+
+            foreach (var page in pages.Where(p => p.ShareCounter == Constants.BUFFER_WRITABLE))
+            {
+                cache.DiscardPage(page);
             }
         }
 

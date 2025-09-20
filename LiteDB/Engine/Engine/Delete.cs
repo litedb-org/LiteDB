@@ -19,8 +19,8 @@ namespace LiteDB.Engine
             {
                 var snapshot = transaction.CreateSnapshot(LockMode.Write, collection, false);
                 var collectionPage = snapshot.CollectionPage;
-                var data = new DataService(snapshot, _disk.MAX_ITEMS_COUNT);
-                var indexer = new IndexService(snapshot, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
+                var data = new DataService(snapshot, () => _disk.MAX_ITEMS_COUNT);
+                var indexer = new IndexService(snapshot, _header.Pragmas.Collation, () => _disk.MAX_ITEMS_COUNT);
 
                 if (collectionPage == null) return 0;
 
@@ -73,14 +73,21 @@ namespace LiteDB.Engine
             }
             else
             {
-                IEnumerable<BsonValue> getIds()
+                // Delete documents in small batches to avoid creating massive WAL files when
+                // removing large result sets with a single transaction.
+                var deleted = 0;
+                var ids = new List<BsonValue>(512);
+
+                while (true)
                 {
-                    // this is intresting: if _id returns an document (like in FileStorage) you can't run direct _id
+                    ids.Clear();
+
+                    // this is interesting: if _id returns a document (like in FileStorage) you can't run direct _id
                     // field because "reader.Current" will return _id document - but not - { _id: [document] }
                     // create inner document to ensure _id will be a document
-                    var query = new Query { Select = "{ i: _id }", ForUpdate = true };
+                    var query = new Query { Select = "{ i: _id }", ForUpdate = true, Limit = 2048 };
 
-                    if(predicate != null)
+                    if (predicate != null)
                     {
                         query.Where.Add(predicate);
                     }
@@ -93,13 +100,19 @@ namespace LiteDB.Engine
 
                             if (value != BsonValue.Null)
                             {
-                                yield return value;
+                                ids.Add(value);
                             }
                         }
                     }
+
+                    if (ids.Count == 0) break;
+
+                    deleted += this.Delete(collection, ids.ToArray());
+
+                    // continue looping until there are no more documents matching the predicate
                 }
 
-                return this.Delete(collection, getIds());
+                return deleted;
             }
         }
     }

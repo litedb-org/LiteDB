@@ -33,7 +33,11 @@ namespace LiteDB.Engine
             EngineState state,
             int[] memorySegmentSizes)
         {
-            _cache = new MemoryCache(memorySegmentSizes);
+            var maxPages = settings.CacheSize <= 0
+                ? int.MaxValue
+                : (int)Math.Min(int.MaxValue, Math.Max(1, settings.CacheSize / PAGE_SIZE));
+
+            _cache = new MemoryCache(memorySegmentSizes, maxPages);
             _state = state;
 
 

@@ -17,13 +17,15 @@ namespace LiteDB.Engine
             DataBlock.DATA_BLOCK_FIXED_SIZE; // [6 bytes];
 
         private readonly Snapshot _snapshot;
-        private readonly uint _maxItemsCount;
+        private readonly Func<uint> _maxItemsCount;
 
-        public DataService(Snapshot snapshot, uint maxItemsCount)
+        public DataService(Snapshot snapshot, Func<uint> maxItemsCount)
         {
             _snapshot = snapshot;
-            _maxItemsCount = maxItemsCount;
+            _maxItemsCount = maxItemsCount ?? (() => uint.MaxValue);
         }
+
+        private uint MaxItemsCount => _maxItemsCount();
 
         /// <summary>
         /// Insert BsonDocument into new data pages
@@ -165,7 +167,7 @@ namespace LiteDB.Engine
 
             while (address != PageAddress.Empty)
             {
-                ENSURE(counter++ < _maxItemsCount, "Detected loop in data Read({0})", address);
+                ENSURE(counter++ < this.MaxItemsCount, "Detected loop in data Read({0})", address);
 
                 var dataPage = _snapshot.GetPage<DataPage>(address.PageID);
 

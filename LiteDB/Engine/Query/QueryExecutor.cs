@@ -117,10 +117,10 @@ namespace LiteDB.Engine
                 }
 
                 // get node list from query - distinct by dataBlock (avoid duplicate)
-                var nodes = queryPlan.Index.Run(snapshot.CollectionPage, new IndexService(snapshot, _pragmas.Collation, _disk.MAX_ITEMS_COUNT));
+                var nodes = queryPlan.Index.Run(snapshot.CollectionPage, new IndexService(snapshot, _pragmas.Collation, () => _disk.MAX_ITEMS_COUNT));
 
                 // get current query pipe: normal or groupby pipe
-                var pipe = queryPlan.GetPipe(transaction, snapshot, _sortDisk, _pragmas, _disk.MAX_ITEMS_COUNT);
+                var pipe = queryPlan.GetPipe(transaction, snapshot, _sortDisk, _pragmas, () => _disk.MAX_ITEMS_COUNT);
 
                 // start cursor elapsed timer which stops on dispose
                 using var _ = _cursor.Elapsed.StartDisposable();

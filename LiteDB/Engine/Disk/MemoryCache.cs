@@ -32,20 +32,29 @@ namespace LiteDB.Engine
         private readonly ConcurrentDictionary<long, PageBuffer> _readable = new ConcurrentDictionary<long, PageBuffer>();
 
         /// <summary>
-        /// Get how many extends were made in this store
-        /// </summary>
-        private int _extends = 0;
-
-        /// <summary>
         /// Get memory segment sizes
         /// </summary>
         private readonly int[] _segmentSizes;
 
-        public MemoryCache(int[] memorySegmentSizes)
-        {
-            _segmentSizes = memorySegmentSizes;
+        private readonly List<int> _segments = new List<int>();
 
-            this.Extend();
+        private readonly int _maxPageCount;
+
+        private int _totalPages = 0;
+
+        public MemoryCache(int[] memorySegmentSizes, int maxPageCount = int.MaxValue)
+        {
+            _segmentSizes = memorySegmentSizes ?? throw new ArgumentNullException(nameof(memorySegmentSizes));
+            _maxPageCount = maxPageCount <= 0 ? int.MaxValue : maxPageCount;
+
+            var firstSize = _segmentSizes.Length > 0 ? _segmentSizes[0] : 1;
+            var initialSize = Math.Min(firstSize, _maxPageCount);
+            initialSize = Math.Max(1, initialSize);
+
+            if (this.AllocateSegment(initialSize) == false)
+            {
+                throw LiteException.CacheLimitExceeded((long)_maxPageCount * PAGE_SIZE);
+            }
         }
 
         #region Readable Pages
@@ -270,97 +279,141 @@ namespace LiteDB.Engine
         {
             if (_free.TryDequeue(out var page))
             {
+                return Validate(page);
+            }
+
+            lock(_free)
+            {
+                if (_free.TryDequeue(out page))
+                {
+                    return Validate(page);
+                }
+
+                var spinner = new SpinWait();
+
+                for (var attempt = 0; attempt < 4; attempt++)
+                {
+                    if (this.TryExtend())
+                    {
+                        return this.GetFreePage();
+                    }
+
+                    if (_maxPageCount == int.MaxValue)
+                    {
+                        break;
+                    }
+
+                    spinner.SpinOnce();
+                }
+
+                throw LiteException.CacheLimitExceeded((long)_maxPageCount * PAGE_SIZE);
+            }
+
+            static PageBuffer Validate(PageBuffer page)
+            {
                 ENSURE(page.Position == long.MaxValue, "pages in memory store must have no position defined");
                 ENSURE(page.ShareCounter == 0, "pages in memory store must be non-shared");
                 ENSURE(page.Origin == FileOrigin.None, "page in memory must have no page origin");
 
                 return page;
             }
-            // if no more page inside memory store - extend store/reuse non-shared pages
-            else
-            {
-                // ensure only 1 single thread call extend method
-                lock(_free)
-                {
-                    if (_free.Count > 0) return this.GetFreePage();
-
-                    this.Extend();
-                }
-
-                return this.GetFreePage();
-            }
         }
 
         /// <summary>
         /// Check if it's possible move readable pages to free list - if not possible, extend memory
         /// </summary>
-        private void Extend()
+        private bool TryExtend()
         {
-            // count how many pages in cache are available to be re-used (is not in use at this time)
-            var emptyShareCounter = _readable.Values.Count(x => x.ShareCounter == 0);
+            var patternIndex = _segmentSizes.Length == 0 ? 0 : Math.Min(_segmentSizes.Length - 1, _segments.Count);
+            var patternSize = _segmentSizes.Length == 0 ? 1 : _segmentSizes[patternIndex];
 
-            // get segmentSize
-            var segmentSize = _segmentSizes[Math.Min(_segmentSizes.Length - 1, _extends)];
-
-            // if this count is larger than MEMORY_SEGMENT_SIZE, re-use all this pages
-            if (emptyShareCounter > segmentSize)
+            var remaining = _maxPageCount - _totalPages;
+            if (remaining <= 0)
             {
-                // get all readable pages that can return to _free (slow way)
-                // sort by timestamp used (set as free oldest first)
-                var readables = _readable
-                    .Where(x => x.Value.ShareCounter == 0)
-                    .OrderBy(x => x.Value.Timestamp)
-                    .Select(x => x.Key)
-                    .Take(segmentSize)
-                    .ToArray();
+                return this.Reclaim(patternSize) > 0;
+            }
 
-                // move pages from readable list to free list
-                foreach (var key in readables)
+            var target = Math.Min(patternSize, remaining);
+
+            if (this.Reclaim(target) > 0)
+            {
+                return true;
+            }
+
+            return this.AllocateSegment(target);
+        }
+
+        private int Reclaim(int request)
+        {
+            if (request <= 0)
+            {
+                return 0;
+            }
+
+            var reclaimed = 0;
+
+            var readables = _readable
+                .Where(x => x.Value.ShareCounter == 0)
+                .OrderBy(x => x.Value.Timestamp)
+                .Select(x => x.Key)
+                .Take(request)
+                .ToArray();
+
+            foreach (var key in readables)
+            {
+                if (_readable.TryRemove(key, out var page) == false)
                 {
-                    var removed = _readable.TryRemove(key, out var page);
-
-                    ENSURE(removed, "page should be in readable list before moving to free list");
-
-                    // if removed page was changed between make array and now, must add back to readable list
-                    if (page.ShareCounter > 0)
-                    {
-                        // but wait: between last "remove" and now, another thread can added this page
-                        if (!_readable.TryAdd(key, page))
-                        {
-                            // this is a terrible situation, to avoid memory corruption I will throw expcetion for now
-                            throw new LiteException(0, "MemoryCache: removed in-use memory page. This situation has no way to fix (yet). Throwing exception to avoid database corruption. No other thread can read/write from database now.");
-                        }
-                    }
-                    else
-                    {
-                        ENSURE(page.ShareCounter == 0, "page should not be in use by anyone");
-
-                        // clean controls
-                        page.Position = long.MaxValue;
-                        page.Origin = FileOrigin.None;
-
-                        _free.Enqueue(page);
-                    }
+                    continue;
                 }
 
-                LOG($"re-using cache pages (flushing {_free.Count} pages)", "CACHE");
-            }
-            else
-            {
-                // create big linear array in heap memory (LOH => 85Kb)
-                var buffer = new byte[PAGE_SIZE * segmentSize];
-                var uniqueID = this.ExtendPages + 1;
-
-                // split linear array into many array slices
-                for (var i = 0; i < segmentSize; i++)
+                if (page.ShareCounter > 0)
                 {
-                    _free.Enqueue(new PageBuffer(buffer, i * PAGE_SIZE, uniqueID++));
+                    if (!_readable.TryAdd(key, page))
+                    {
+                        throw new LiteException(0, "MemoryCache: removed in-use memory page. This situation has no way to fix (yet). Throwing exception to avoid database corruption. No other thread can read/write from database now.");
+                    }
+
+                    continue;
                 }
 
-                _extends++;
+                ENSURE(page.ShareCounter == 0, "page should not be in use by anyone");
 
-                LOG($"extending memory usage: (segments: {_extends})", "CACHE");
+                page.Position = long.MaxValue;
+                page.Origin = FileOrigin.None;
+
+                _free.Enqueue(page);
+                reclaimed++;
             }
+
+            if (reclaimed > 0)
+            {
+                LOG($"re-using cache pages (flushing {reclaimed} pages)", "CACHE");
+            }
+
+            return reclaimed;
+        }
+
+        private bool AllocateSegment(int segmentSize)
+        {
+            if (segmentSize <= 0)
+            {
+                return false;
+            }
+
+            var buffer = new byte[PAGE_SIZE * segmentSize];
+            var uniqueID = _totalPages + 1;
+
+            for (var i = 0; i < segmentSize; i++)
+            {
+                _free.Enqueue(new PageBuffer(buffer, i * PAGE_SIZE, uniqueID++));
+            }
+
+            _segments.Add(segmentSize);
+            _totalPages += segmentSize;
+
+            LOG($"extending memory usage: (segments: {_segments.Count})", "CACHE");
+
+            return true;
         }
 
         /// <summary>
@@ -376,18 +429,18 @@ namespace LiteDB.Engine
         /// <summary>
         /// Return how many segments are already loaded in memory
         /// </summary>
-        public int ExtendSegments => _extends;
+        public int ExtendSegments => _segments.Count;
 
         /// <summary>
         /// Get how many pages this cache extends in memory
         /// </summary>
-        public int ExtendPages => Enumerable.Range(0, _extends).Select(x => _segmentSizes[Math.Min(_segmentSizes.Length - 1, x)]).Sum();
+        public int ExtendPages => _totalPages;
 
         /// <summary>
         /// Get how many pages are used as Writable at this moment
         /// </summary>
-        public int WritablePages => this.ExtendPages - // total memory
-            _free.Count - _readable.Count; // allocated pages
+        public int WritablePages => _totalPages -
+            _free.Count - _readable.Count;
 
         /// <summary>
         /// Get all readable pages

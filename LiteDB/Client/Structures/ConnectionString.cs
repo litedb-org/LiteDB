@@ -34,6 +34,11 @@ namespace LiteDB
         public long InitialSize { get; set; } = 0;
 
         /// <summary>
+        /// "cache size": Limit in-memory cache usage (default: 256MB, set to 0 for unlimited)
+        /// </summary>
+        public long CacheSize { get; set; } = DEFAULT_CACHE_SIZE;
+
+        /// <summary>
         /// "readonly": Open datafile in readonly mode (default: false)
         /// </summary>
         public bool ReadOnly { get; set; } = false;
@@ -91,6 +96,7 @@ namespace LiteDB
             }
 
             this.InitialSize = _values.GetFileSize(@"initial size", this.InitialSize);
+            this.CacheSize = _values.GetFileSize(@"cache size", this.CacheSize);
             this.ReadOnly = _values.GetValue("readonly", this.ReadOnly);
 
             this.Collation = _values.ContainsKey("collation") ? new Collation(_values.GetValue<string>("collation")) : this.Collation;
@@ -114,6 +120,7 @@ namespace LiteDB
                 Filename = this.Filename,
                 Password = this.Password,
                 InitialSize = this.InitialSize,
+                CacheSize = this.CacheSize,
                 ReadOnly = this.ReadOnly,
                 Collation = this.Collation,
                 Upgrade = this.Upgrade,

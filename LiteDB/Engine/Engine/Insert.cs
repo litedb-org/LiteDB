@@ -21,8 +21,8 @@ namespace LiteDB.Engine
             {
                 var snapshot = transaction.CreateSnapshot(LockMode.Write, collection, true);
                 var count = 0;
-                var indexer = new IndexService(snapshot, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
-                var data = new DataService(snapshot, _disk.MAX_ITEMS_COUNT);
+                var indexer = new IndexService(snapshot, _header.Pragmas.Collation, () => _disk.MAX_ITEMS_COUNT);
+                var data = new DataService(snapshot, () => _disk.MAX_ITEMS_COUNT);
 
                 LOG($"insert `{collection}`", "COMMAND");
 

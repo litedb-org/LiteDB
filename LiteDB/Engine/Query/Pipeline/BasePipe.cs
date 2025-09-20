@@ -14,15 +14,15 @@ namespace LiteDB.Engine
         protected readonly IDocumentLookup _lookup;
         protected readonly SortDisk _tempDisk;
         protected readonly EnginePragmas _pragmas;
-        protected readonly uint _maxItemsCount;
+        protected readonly Func<uint> _maxItemsCount;
 
-        public BasePipe(TransactionService transaction, IDocumentLookup lookup, SortDisk tempDisk, EnginePragmas pragmas, uint maxItemsCount)
+        public BasePipe(TransactionService transaction, IDocumentLookup lookup, SortDisk tempDisk, EnginePragmas pragmas, Func<uint> maxItemsCount)
         {
             _transaction = transaction;
             _lookup = lookup;
             _tempDisk = tempDisk;
             _pragmas = pragmas;
-            _maxItemsCount = maxItemsCount;
+            _maxItemsCount = maxItemsCount ?? (() => uint.MaxValue);
         }
 
         /// <summary>

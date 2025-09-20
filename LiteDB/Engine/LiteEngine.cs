@@ -186,11 +186,9 @@ namespace LiteDB.Engine
             // stop running all transactions
             tc.Catch(() => _monitor?.Dispose());
 
-            if (_header?.Pragmas.Checkpoint > 0)
-            {
-                // do a soft checkpoint (only if exclusive lock is possible)
-                tc.Catch(() => _walIndex?.TryCheckpoint());
-            }
+            // Always attempt a final checkpoint so committed changes are flushed even
+            // when automatic checkpoints are disabled.
+            tc.Catch(() => _walIndex?.TryCheckpoint());
 
             // close all disk streams (and delete log if empty)
             tc.Catch(() => _disk?.Dispose());
@@ -253,7 +251,17 @@ namespace LiteDB.Engine
         /// <summary>
         /// Run checkpoint command to copy log file into data file
         /// </summary>
-        public int Checkpoint() => _walIndex.Checkpoint();
+        public int Checkpoint()
+        {
+            try
+            {
+                return _walIndex.Checkpoint();
+            }
+            catch (LiteException ex) when (ex.ErrorCode == LiteException.LOCK_TIMEOUT)
+            {
+                return _walIndex.TryCheckpoint();
+            }
+        }
 
         public void Dispose()
         {

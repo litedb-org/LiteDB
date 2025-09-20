@@ -10,7 +10,7 @@ namespace LiteDB.Engine
     /// </summary>
     internal class GroupByPipe : BasePipe
     {
-        public GroupByPipe(TransactionService transaction, IDocumentLookup loader, SortDisk tempDisk, EnginePragmas pragmas, uint maxItemsCount)
+        public GroupByPipe(TransactionService transaction, IDocumentLookup loader, SortDisk tempDisk, EnginePragmas pragmas, Func<uint> maxItemsCount)
             : base(transaction, loader, tempDisk, pragmas, maxItemsCount)
         {
         }

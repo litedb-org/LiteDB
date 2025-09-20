@@ -97,7 +97,7 @@ namespace LiteDB.Engine
         /// <summary>
         /// Select corrent pipe
         /// </summary>
-        public BasePipe GetPipe(TransactionService transaction, Snapshot snapshot, SortDisk tempDisk, EnginePragmas pragmas, uint maxItemsCount)
+        public BasePipe GetPipe(TransactionService transaction, Snapshot snapshot, SortDisk tempDisk, EnginePragmas pragmas, Func<uint> maxItemsCount)
         {
             if (this.GroupBy == null)
             {
@@ -112,7 +112,7 @@ namespace LiteDB.Engine
         /// <summary>
         /// Get corrent IDocumentLookup
         /// </summary>
-        public IDocumentLookup GetLookup(Snapshot snapshot, EnginePragmas pragmas, uint maxItemsCount)
+        public IDocumentLookup GetLookup(Snapshot snapshot, EnginePragmas pragmas, Func<uint> maxItemsCount)
         {
             var data = new DataService(snapshot, maxItemsCount);
             var indexer = new IndexService(snapshot, pragmas.Collation, maxItemsCount);

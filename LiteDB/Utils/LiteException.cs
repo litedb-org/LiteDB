@@ -39,6 +39,7 @@ namespace LiteDB
         public const int INDEX_ALREADY_EXIST = 135;
         public const int INVALID_UPDATE_FIELD = 136;
         public const int ENGINE_DISPOSED = 137;
+        public const int CACHE_LIMIT_EXCEEDED = 138;
 
         public const int INVALID_FORMAT = 200;
         public const int DOCUMENT_MAX_DEPTH = 201;
@@ -116,6 +117,16 @@ namespace LiteDB
         internal static LiteException FileSizeExceeded(long limit)
         {
             return new LiteException(FILE_SIZE_EXCEEDED, "Database size exceeds limit of {0}.", FileHelper.FormatFileSize(limit));
+        }
+
+        internal static LiteException CacheLimitExceeded(long limit)
+        {
+            if (limit <= 0)
+            {
+                return new LiteException(CACHE_LIMIT_EXCEEDED, "Memory cache limit reached.");
+            }
+
+            return new LiteException(CACHE_LIMIT_EXCEEDED, "Memory cache limit of {0} reached. Release open readers or increase the `Cache Size` setting.", FileHelper.FormatFileSize(limit));
         }
 
         internal static LiteException CollectionLimitExceeded(int limit)

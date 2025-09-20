@@ -60,8 +60,8 @@ namespace LiteDB.Engine
                 {
                     // get snapshot, indexer and data services
                     var snapshot = transaction.CreateSnapshot(LockMode.Write, collection, true);
-                    var indexer = new IndexService(snapshot, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
-                    var data = new DataService(snapshot, _disk.MAX_ITEMS_COUNT);
+                    var indexer = new IndexService(snapshot, _header.Pragmas.Collation, () => _disk.MAX_ITEMS_COUNT);
+                    var data = new DataService(snapshot, () => _disk.MAX_ITEMS_COUNT);
 
                     // get all documents from current collection
                     var docs = reader.GetDocuments(collection);

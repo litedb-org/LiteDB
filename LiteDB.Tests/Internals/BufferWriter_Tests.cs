@@ -279,8 +279,55 @@ namespace LiteDB.Internals
 
                 r.Position.Should().Be(307);
 
-                JsonSerializer.Serialize(reader).Should().Be(JsonSerializer.Serialize(doc));
+                JsonSerializer.Serialize(reader).Should().Be(JsonSerializer.Serialize(NormalizeDates(doc).AsDocument));
             }
+        }
+
+        private static BsonValue NormalizeDates(BsonValue value)
+        {
+            if (value == null)
+            {
+                return value;
+            }
+
+            if (value.IsDocument)
+            {
+                var doc = new BsonDocument();
+                foreach (var item in value.AsDocument)
+                {
+                    doc[item.Key] = NormalizeDates(item.Value);
+                }
+
+                return doc;
+            }
+
+            if (value.IsArray)
+            {
+                var array = new BsonArray();
+                foreach (var item in value.AsArray)
+                {
+                    array.Add(NormalizeDates(item));
+                }
+
+                return array;
+            }
+
+            if (value.IsDateTime)
+            {
+                var date = value.AsDateTime;
+                if (date == DateTime.MinValue || date == DateTime.MaxValue)
+                {
+                    return value;
+                }
+
+                var utc = date.Kind == DateTimeKind.Utc ? date : date.ToUniversalTime();
+                var milliseconds = Convert.ToInt64((utc - BsonValue.UnixEpoch).TotalMilliseconds);
+                var truncatedUtc = BsonValue.UnixEpoch.AddMilliseconds(milliseconds);
+
+                return new BsonValue(date.Kind == DateTimeKind.Utc ? truncatedUtc : truncatedUtc.ToLocalTime());
+            }
+
+            return value;
         }
     }
 }

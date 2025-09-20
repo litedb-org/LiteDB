@@ -103,7 +103,8 @@ namespace LiteDB.Tests.Document
             var doc2 = BsonSerializer.Deserialize(bson, false, new HashSet<string>(new string[] {"Address", "Date"}));
 
             doc2["Address"].AsDocument.ToString().Should().Be(src["Address"].AsDocument.ToString());
-            doc2["Date"].AsDateTime.Should().Be(src["Date"].AsDateTime);
+            var originalDate = src["Date"].AsDateTime;
+            doc2["Date"].AsDateTime.Should().Be(TruncateToMilliseconds(originalDate));
 
             // read only last field
             var doc3 = BsonSerializer.Deserialize(bson, false, new HashSet<string>(new string[] {"Last"}));
@@ -113,7 +114,56 @@ namespace LiteDB.Tests.Document
             // read all document
             var doc4 = BsonSerializer.Deserialize(bson, false);
 
-            doc4.ToString().Should().Be(src.ToString());
+            doc4.ToString().Should().Be(NormalizeDates(src).AsDocument.ToString());
+        }
+
+        private static DateTime TruncateToMilliseconds(DateTime value)
+        {
+            if (value == DateTime.MinValue || value == DateTime.MaxValue)
+            {
+                return value;
+            }
+
+            var utc = value.Kind == DateTimeKind.Utc ? value : value.ToUniversalTime();
+            var milliseconds = Convert.ToInt64((utc - BsonValue.UnixEpoch).TotalMilliseconds);
+            var truncatedUtc = BsonValue.UnixEpoch.AddMilliseconds(milliseconds);
+
+            return value.Kind == DateTimeKind.Utc ? truncatedUtc : truncatedUtc.ToLocalTime();
+        }
+
+        private static BsonValue NormalizeDates(BsonValue value)
+        {
+            if (value == null)
+            {
+                return value;
+            }
+
+            if (value.IsDocument)
+            {
+                var doc = new BsonDocument();
+                foreach (var item in value.AsDocument)
+                {
+                    doc[item.Key] = NormalizeDates(item.Value);
+                }
+                return doc;
+            }
+
+            if (value.IsArray)
+            {
+                var array = new BsonArray();
+                foreach (var item in value.AsArray)
+                {
+                    array.Add(NormalizeDates(item));
+                }
+                return array;
+            }
+
+            if (value.IsDateTime)
+            {
+                return new BsonValue(TruncateToMilliseconds(value.AsDateTime));
+            }
+
+            return value;
         }
 
         [Fact]
