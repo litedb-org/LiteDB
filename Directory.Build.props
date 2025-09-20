@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <MinVerTagPrefix Condition="'$(MinVerTagPrefix)' == ''">v</MinVerTagPrefix>
+    <MinVerDefaultPreReleaseIdentifiers Condition="'$(MinVerDefaultPreReleaseIdentifiers)' == ''">prerelease.0</MinVerDefaultPreReleaseIdentifiers>
+    <MinVerMinimumMajorMinor Condition="'$(MinVerMinimumMajorMinor)' == ''">6.0</MinVerMinimumMajorMinor>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MinVer" Version="4.3.0" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

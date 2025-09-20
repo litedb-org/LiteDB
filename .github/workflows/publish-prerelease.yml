@@ -1,0 +1,63 @@
+name: Publish prerelease
+
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      MinVerDefaultPreReleaseIdentifiers: prerelease.${{ github.run_number }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore LiteDB.sln
+
+      - name: Build
+        run: dotnet build LiteDB.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test LiteDB.sln --configuration Release --no-build --verbosity normal
+
+      - name: Pack
+        run: |
+          dotnet pack LiteDB/LiteDB.csproj --configuration Release --no-build -o artifacts
+
+      - name: Capture package version
+        id: version
+        run: |
+          PACKAGE_PATH=$(ls artifacts/LiteDB.*.nupkg | head -n 1)
+          PACKAGE_FILENAME=$(basename "$PACKAGE_PATH")
+          PACKAGE_VERSION=${PACKAGE_FILENAME#LiteDB.}
+          PACKAGE_VERSION=${PACKAGE_VERSION%.nupkg}
+          echo "package_version=${PACKAGE_VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Push package to NuGet
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          dotnet nuget push "artifacts/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+      - name: Publish GitHub prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.package_version }}
+          name: LiteDB ${{ steps.version.outputs.package_version }}
+          prerelease: true
+          files: artifacts/*.nupkg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
