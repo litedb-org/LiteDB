@@ -99,24 +99,24 @@ namespace LiteDB
         {
             if (bytes == null) throw new ArgumentNullException(nameof(bytes));
 
-            this.Timestamp = 
-                (bytes[startIndex + 0] << 24) + 
-                (bytes[startIndex + 1] << 16) + 
-                (bytes[startIndex + 2] << 8) + 
+            this.Timestamp =
+                (bytes[startIndex + 0] << 24) +
+                (bytes[startIndex + 1] << 16) +
+                (bytes[startIndex + 2] << 8) +
                 bytes[startIndex + 3];
 
-            this.Machine = 
-                (bytes[startIndex + 4] << 16) + 
-                (bytes[startIndex + 5] << 8) + 
+            this.Machine =
+                (bytes[startIndex + 4] << 16) +
+                (bytes[startIndex + 5] << 8) +
                 bytes[startIndex + 6];
 
             this.Pid = (short)
-                ((bytes[startIndex + 7] << 8) + 
+                ((bytes[startIndex + 7] << 8) +
                 bytes[startIndex + 8]);
 
-            this.Increment = 
-                (bytes[startIndex + 9] << 16) + 
-                (bytes[startIndex + 10] << 8) + 
+            this.Increment =
+                (bytes[startIndex + 9] << 16) +
+                (bytes[startIndex + 10] << 8) +
                 bytes[startIndex + 11];
         }
 
@@ -149,7 +149,7 @@ namespace LiteDB
         /// </summary>
         public bool Equals(ObjectId other)
         {
-            return other != null && 
+            return other != null &&
                 this.Timestamp == other.Timestamp &&
                 this.Machine == other.Machine &&
                 this.Pid == other.Pid &&
@@ -325,6 +325,70 @@ namespace LiteDB
 
             return new ObjectId((int)timestamp, _machine, _pid, inc);
         }
+
+        #endregion
+
+
+        #region parse
+        public static ObjectId GenerateNewId() => NewObjectId();
+        public static ObjectId Parse(string value)
+        {
+            if (string.IsNullOrEmpty(value)) throw new ArgumentNullException(nameof(value));
+            if (value.Length != 24) throw new ArgumentException(string.Format("ObjectId strings should be 24 hex characters, got {0} : \"{1}\"", value.Length, value));
+            var bytes = HexStringToByteArray(value);
+            return new ObjectId(bytes);
+
+        }
+        public static bool TryParse(string value, out ObjectId objectId)
+        {
+            if (string.IsNullOrEmpty(value) || value.Length != 24)
+                objectId = null;
+            else
+            {
+                var bytes = HexStringToByteArray(value);
+                if (bytes is null)
+                    objectId = null;
+                else
+                    objectId = new ObjectId(bytes);
+            }
+            return objectId != null;
+        }
+
+        static byte[] HexStringToByteArray(string hex)
+        {
+            if (hex is null) return null;
+            if (!IsHexString(hex)) return null;
+
+            if (hex.StartsWith("0x")) hex = hex.Substring(2);
+            int numberChars = hex.Length;
+            byte[] bytes = new byte[numberChars / 2];
+
+            if (numberChars % 2 != 0)
+            {
+                hex = "0" + hex;
+                numberChars = hex.Length;
+            }
+            for (int i = 0; i < numberChars; i += 2)
+            {
+                bytes[i / 2] = Convert.ToByte(hex.Substring(i, 2), 16);
+            }
+            return bytes;
+        }
+        static bool IsHexString(string value)
+        {
+            bool isHex;
+            value = value.Substring(value.StartsWith("0x") ? 2 : 0);
+            foreach (var c in value)
+            {
+                isHex = ((c >= '0' && c <= '9') ||
+                         (c >= 'a' && c <= 'f') ||
+                         (c >= 'A' && c <= 'F'));
+
+                if (!isHex) return false;
+            }
+            return true;
+        }
+
 
         #endregion
     }
