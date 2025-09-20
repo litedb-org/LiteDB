@@ -593,6 +593,25 @@ namespace LiteDB
                 case BsonType.Guid: return this.AsGuid.CompareTo(other.AsGuid);
 
                 case BsonType.Boolean: return this.AsBoolean.CompareTo(other.AsBoolean);
+                case BsonType.Vector:
+                    {
+                        var left = this.AsVector;
+                        var right = other.AsVector;
+                        var length = Math.Min(left.Length, right.Length);
+
+                        for (var i = 0; i < length; i++)
+                        {
+                            var result = left[i].CompareTo(right[i]);
+                            if (result != 0)
+                            {
+                                return result;
+                            }
+                        }
+
+                        if (left.Length == right.Length) return 0;
+
+                        return left.Length < right.Length ? -1 : 1;
+                    }
                 case BsonType.DateTime:
                     var d0 = this.AsDateTime;
                     var d1 = other.AsDateTime;

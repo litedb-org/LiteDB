@@ -246,7 +246,9 @@ namespace LiteDB.Engine
 
         public void Write(Int32 value) => this.WriteNumber(value, BufferExtensions.ToBytes, 4);
         public void Write(Int64 value) => this.WriteNumber(value, BufferExtensions.ToBytes, 8);
+        public void Write(UInt16 value) => this.WriteNumber(value, BufferExtensions.ToBytes, 2);
         public void Write(UInt32 value) => this.WriteNumber(value, BufferExtensions.ToBytes, 4);
+        public void Write(Single value) => this.WriteNumber(value, BufferExtensions.ToBytes, 4);
         public void Write(Double value) => this.WriteNumber(value, BufferExtensions.ToBytes, 8);
 
         public void Write(Decimal value)
@@ -335,14 +337,13 @@ namespace LiteDB.Engine
 
         public void Write(float[] vector)
         {
-            // Write the count of floats as UInt16
-            WriteNumber(vector.Length, BufferExtensions.ToBytes, 2);
+            ENSURE(vector.Length <= ushort.MaxValue, "Vector length must fit into UInt16");
 
-            // Write each float as 4-byte IEEE 754 single precision
-            for (int i = 0; i < vector.Length; i++)
+            this.Write((ushort)vector.Length);
+
+            for (var i = 0; i < vector.Length; i++)
             {
-                var bytes = BitConverter.GetBytes(vector[i]);
-                this.Write(bytes, 0, 4);
+                this.Write(vector[i]);
             }
         }
 

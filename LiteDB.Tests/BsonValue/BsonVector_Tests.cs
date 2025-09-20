@@ -29,6 +29,22 @@ public class BsonVector_Tests
         Assert.Equal(-3.75f, vec[2]);
     }
 
+    [Fact]
+    public void BsonVector_RoundTrip_UInt16Limit()
+    {
+        var values = Enumerable.Range(0, ushort.MaxValue).Select(i => (float)(i % 32)).ToArray();
+
+        var original = new BsonDocument
+        {
+            ["vec"] = new BsonVector(values)
+        };
+
+        var bytes = BsonSerializer.Serialize(original);
+        var deserialized = BsonSerializer.Deserialize(bytes);
+
+        deserialized["vec"].AsVector.Should().Equal(values);
+    }
+
     private class VectorDoc
     {
         public int Id { get; set; }
@@ -243,4 +259,46 @@ public class BsonVector_Tests
         ids.Should().BeEquivalentTo(new[] { 1, 3 }, options => options.WithStrictOrdering());
     }
 
+    [Fact]
+    public void BsonVector_CompareTo_SortsLexicographically()
+    {
+        var values = new List<BsonValue>
+        {
+            new BsonVector(new float[] { 1.0f }),
+            new BsonVector(new float[] { 0.0f, 2.0f }),
+            new BsonVector(new float[] { 0.0f, 1.0f, 0.5f }),
+            new BsonVector(new float[] { 0.0f, 1.0f })
+        };
+
+        values.Sort();
+
+        values.Should().Equal(
+            new BsonVector(new float[] { 0.0f, 1.0f }),
+            new BsonVector(new float[] { 0.0f, 1.0f, 0.5f }),
+            new BsonVector(new float[] { 0.0f, 2.0f }),
+            new BsonVector(new float[] { 1.0f }));
+    }
+
+    [Fact]
+    public void BsonVector_Index_OrderIsDeterministic()
+    {
+        using var db = new LiteDatabase(":memory:");
+        var col = db.GetCollection<VectorDoc>("vectors");
+
+        var docs = new[]
+        {
+            new VectorDoc { Id = 1, Embedding = new float[] { 0.0f, 1.0f } },
+            new VectorDoc { Id = 2, Embedding = new float[] { 0.0f, 1.0f, 0.5f } },
+            new VectorDoc { Id = 3, Embedding = new float[] { 0.0f, 2.0f } },
+            new VectorDoc { Id = 4, Embedding = new float[] { 1.0f } }
+        };
+
+        col.InsertBulk(docs);
+
+        col.EnsureIndex(x => x.Embedding);
+
+        var ordered = col.Query().OrderBy(x => x.Embedding).ToList();
+
+        ordered.Select(x => x.Id).Should().Equal(1, 2, 3, 4);
+    }
 }
