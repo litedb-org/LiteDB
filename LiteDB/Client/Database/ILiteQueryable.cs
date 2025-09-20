@@ -31,21 +31,13 @@ namespace LiteDB
         /// Filters documents where the given vector field is within cosine distance from the target vector.
         /// </summary>
         ILiteQueryable<T> WhereNear(string vectorField, float[] target, double maxDistance);
-        /// <summary>
-        /// Convenience alias for <see cref="WhereNear(string, float[], double)"/> that emphasises cosine similarity semantics.
-        /// </summary>
-        ILiteQueryable<T> WhereVectorSimilar(string vectorField, float[] target, double maxDistance);
-
+        
         /// <summary>
         /// Immediately returns documents nearest to the target vector based on cosine distance.
         /// </summary>
         IEnumerable<T> FindNearest(string vectorField, float[] target, double maxDistance);
-
         ILiteQueryable<T> WhereNear<K>(Expression<Func<T, K>> field, float[] target, double maxDistance);
-        /// <inheritdoc cref="WhereVectorSimilar(string, float[], double)"/>
-        ILiteQueryable<T> WhereVectorSimilar<K>(Expression<Func<T, K>> field, float[] target, double maxDistance);
-        /// <inheritdoc cref="WhereVectorSimilar(string, float[], double)"/>
-        ILiteQueryable<T> WhereVectorSimilar(BsonExpression fieldExpr, float[] target, double maxDistance);
+        ILiteQueryable<T> WhereNear(BsonExpression fieldExpr, float[] target, double maxDistance);
         ILiteQueryableResult<T> TopKNear<K>(Expression<Func<T, K>> field, float[] target, int k);
         ILiteQueryableResult<T> TopKNear(string field, float[] target, int k);
         ILiteQueryableResult<T> TopKNear(BsonExpression fieldExpr, float[] target, int k);

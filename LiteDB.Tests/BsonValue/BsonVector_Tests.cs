@@ -81,7 +81,7 @@ public class BsonVector_Tests
             .ToList();
 
         var similarResults = col.Query()
-            .WhereVectorSimilar(r => r.Embedding, target, maxDistance: .28)
+            .WhereNear(r => r.Embedding, target, maxDistance: .28)
             .ToList()
             .Select(r => r.Id)
             .OrderBy(id => id)
@@ -104,7 +104,7 @@ public class BsonVector_Tests
         var fieldExpr = BsonExpression.Create("$.Embedding");
 
         var results = col.Query()
-            .WhereVectorSimilar(fieldExpr, target, maxDistance: .28)
+            .WhereNear(fieldExpr, target, maxDistance: .28)
             .ToList();
 
         results.Select(x => x.Id).Should().ContainSingle(id => id == 1);

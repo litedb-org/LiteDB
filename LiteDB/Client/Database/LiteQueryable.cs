@@ -228,22 +228,7 @@ namespace LiteDB
             var fieldExpr = _mapper.GetExpression(field);
             return this.WhereNear(fieldExpr, target, maxDistance);
         }
-
-        public ILiteQueryable<T> WhereVectorSimilar(string vectorField, float[] target, double maxDistance)
-        {
-            return this.WhereNear(vectorField, target, maxDistance);
-        }
-
-        public ILiteQueryable<T> WhereVectorSimilar<K>(Expression<Func<T, K>> field, float[] target, double maxDistance)
-        {
-            return this.WhereNear(field, target, maxDistance);
-        }
-
-        public ILiteQueryable<T> WhereVectorSimilar(BsonExpression fieldExpr, float[] target, double maxDistance)
-        {
-            return this.WhereNear(fieldExpr, target, maxDistance);
-        }
-
+        
         public IEnumerable<T> FindNearest(string vectorField, float[] target, double maxDistance)
         {
             this.WhereNear(vectorField, target, maxDistance);
