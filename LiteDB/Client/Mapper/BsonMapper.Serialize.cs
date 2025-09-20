@@ -176,9 +176,13 @@ namespace LiteDB
             return o;
         }
 
+        //some settings
+        bool _useInterface=true;
+        
         private BsonDocument SerializeObject(Type type, object obj, int depth)
         {
-            var t = obj.GetType();
+            //var t = obj.GetType();
+            var t = _useInterface ? type : obj.GetType();
             var doc = new BsonDocument();
             var entity = this.GetEntityMapper(t);
             entity.WaitForInitialization();
