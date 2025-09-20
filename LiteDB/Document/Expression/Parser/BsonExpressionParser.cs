@@ -1180,7 +1180,7 @@ namespace LiteDB
                 case "MAP": return ParseFunction(token, BsonExpressionType.Map, tokenizer, context, parameters, scope);
                 case "FILTER": return ParseFunction(token, BsonExpressionType.Filter, tokenizer, context, parameters, scope);
                 case "SORT": return ParseFunction(token, BsonExpressionType.Sort, tokenizer, context, parameters, scope);
-                //case "VECTOR_SIM": return ParseFunction(token, BsonExpressionType.VectorSim, tokenizer, context, parameters, scope);
+                // VECTOR_SIM is parsed through TryParseMethodCall to keep it as a scalar expression.
             }
 
             return null;
