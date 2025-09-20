@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
@@ -26,6 +26,21 @@ namespace LiteDB
 
         ILiteQueryableResult<BsonDocument> Select(BsonExpression selector);
         ILiteQueryableResult<K> Select<K>(Expression<Func<T, K>> selector);
+
+        /// <summary>
+        /// Filters documents where the given vector field is within cosine distance from the target vector.
+        /// </summary>
+        ILiteQueryable<T> WhereNear(string vectorField, float[] target, double maxDistance);
+
+        /// <summary>
+        /// Immediately returns documents nearest to the target vector based on cosine distance.
+        /// </summary>
+        IEnumerable<T> FindNearest(string vectorField, float[] target, double maxDistance);
+
+        ILiteQueryable<T> WhereNear<K>(Expression<Func<T, K>> field, float[] target, double maxDistance);
+        ILiteQueryableResult<T> TopKNear<K>(Expression<Func<T, K>> field, float[] target, int k);
+        ILiteQueryableResult<T> TopKNear(string field, float[] target, int k);
+        ILiteQueryableResult<T> TopKNear(BsonExpression fieldExpr, float[] target, int k);
     }
 
     public interface ILiteQueryableResult<T>

@@ -333,6 +333,19 @@ namespace LiteDB.Engine
             this.Write(address.Index);
         }
 
+        public void Write(float[] vector)
+        {
+            // Write the count of floats as UInt16
+            WriteNumber(vector.Length, BufferExtensions.ToBytes, 2);
+
+            // Write each float as 4-byte IEEE 754 single precision
+            for (int i = 0; i < vector.Length; i++)
+            {
+                var bytes = BitConverter.GetBytes(vector[i]);
+                this.Write(bytes, 0, 4);
+            }
+        }
+
         #endregion
 
         #region BsonDocument as SPECS
@@ -475,6 +488,11 @@ namespace LiteDB.Engine
                 case BsonType.MaxValue:
                     this.Write((byte)0x7F);
                     this.WriteCString(key);
+                    break;
+                case BsonType.Vector:
+                    this.Write((byte)0x64); // ✅ 0x64 = 100
+                    this.WriteCString(key);
+                    this.Write(value.AsVector); // ✅ This should exist
                     break;
             }
         }

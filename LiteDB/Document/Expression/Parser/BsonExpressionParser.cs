@@ -74,7 +74,10 @@ namespace LiteDB
 
             // logic (will use Expression.AndAlso|OrElse)
             ["AND"] = Tuple.Create(" AND ", (MethodInfo)null, BsonExpressionType.And),
-            ["OR"] = Tuple.Create(" OR ", (MethodInfo)null, BsonExpressionType.Or)
+            ["OR"] = Tuple.Create(" OR ", (MethodInfo)null, BsonExpressionType.Or),
+
+            ////VECTOR LOGIC
+            //["VECTOR_SIM"] = Tuple.Create(" VECTOR_SIM ", M("VECTOR_SIM"), BsonExpressionType.VectorSim),
         };
 
         private static readonly MethodInfo _parameterPathMethod = M("PARAMETER_PATH");
@@ -1177,6 +1180,7 @@ namespace LiteDB
                 case "MAP": return ParseFunction(token, BsonExpressionType.Map, tokenizer, context, parameters, scope);
                 case "FILTER": return ParseFunction(token, BsonExpressionType.Filter, tokenizer, context, parameters, scope);
                 case "SORT": return ParseFunction(token, BsonExpressionType.Sort, tokenizer, context, parameters, scope);
+                //case "VECTOR_SIM": return ParseFunction(token, BsonExpressionType.VectorSim, tokenizer, context, parameters, scope);
             }
 
             return null;

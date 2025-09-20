@@ -188,6 +188,64 @@ namespace LiteDB
             return new LiteQueryable<K>(_engine, _mapper, _collection, _query);
         }
 
+        public ILiteQueryable<T> WhereNear(string vectorField, float[] target, double maxDistance)
+        {
+            if (string.IsNullOrWhiteSpace(vectorField)) throw new ArgumentNullException(nameof(vectorField));
+            if (target == null || target.Length == 0) throw new ArgumentException("Target vector must be provided.", nameof(target));
+            if (maxDistance < 0) throw new ArgumentOutOfRangeException(nameof(maxDistance), "Max distance must be non-negative.");
+
+            IEnumerable<BsonValue> args = target.Select(x => new BsonValue(x)).ToArray();
+            var expr = BsonExpression.Create($"VECTOR_SIM($.{vectorField}, [{string.Join(",", args)}]) <= {maxDistance}");
+
+            // inject expression into regular Where pipeline
+            _query.Where.Add(expr);
+
+            return this;
+        }
+
+        public ILiteQueryable<T> WhereNear<K>(Expression<Func<T, K>> field, float[] target, double maxDistance)
+        {
+            if (field == null) throw new ArgumentNullException(nameof(field));
+
+            var fieldExpr = _mapper.GetExpression(field);
+            return this.WhereNear(fieldExpr, target, maxDistance);
+        }
+
+        public IEnumerable<T> FindNearest(string vectorField, float[] target, double maxDistance)
+        {
+            this.WhereNear(vectorField, target, maxDistance);
+            return this.ToEnumerable();
+        }
+
+
+        public ILiteQueryableResult<T> TopKNear<K>(Expression<Func<T, K>> field, float[] target, int k)
+        {
+            var fieldExpr = _mapper.GetExpression(field);
+            return this.TopKNear(fieldExpr, target, k);
+        }
+
+        public ILiteQueryableResult<T> TopKNear(string field, float[] target, int k)
+        {
+            var fieldExpr = BsonExpression.Create($"$.{field}");
+            return this.TopKNear(fieldExpr, target, k);
+        }
+
+        public ILiteQueryableResult<T> TopKNear(BsonExpression fieldExpr, float[] target, int k)
+        {
+            if (fieldExpr == null) throw new ArgumentNullException(nameof(fieldExpr));
+            if (target == null || target.Length == 0) throw new ArgumentException("Target vector must be provided.", nameof(target));
+            if (k <= 0) throw new ArgumentOutOfRangeException(nameof(k), "Top-K must be greater than zero.");
+
+            var targetArray = new BsonArray(target.Select(v => new BsonValue(v)));
+
+            // Build VECTOR_SIM as order clause
+            var simExpr = BsonExpression.Create($"VECTOR_SIM({fieldExpr.Source}, @0)", targetArray);
+
+            return this
+                .OrderBy(simExpr, Query.Ascending)
+                .Limit(k);
+        }
+
         #endregion
 
         #region Offset/Limit/ForUpdate
