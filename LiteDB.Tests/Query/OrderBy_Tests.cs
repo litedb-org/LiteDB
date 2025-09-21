@@ -506,7 +506,7 @@ namespace LiteDB.Tests.QueryTest
             var data = Enumerable
                 .Range(1, 1000)
                 .Select(x => new ThreeLayerData(
-                    x,
+                    0,
                     random.Next(1, 5), // Category 1-4
                     ((char)('A' + random.Next(0, 5))).ToString(), // Name A-E
                     random.Next(1, 4) // Priority 1-3
@@ -519,17 +519,21 @@ namespace LiteDB.Tests.QueryTest
             col.EnsureIndex(x => x.Name);
             col.EnsureIndex(x => x.Priority);
             col.Insert(data);
+            
+            data = col.FindAll().ToArray();
 
             var expected = data
                 .OrderByDescending(x => x.Category)
                 .ThenBy(x => x.Name)
                 .ThenByDescending(x => x.Priority)
+                .ThenByDescending(x => x.Id)
                 .ToArray();
 
             var actual = col.Query()
                 .OrderByDescending(x => x.Category)
                 .ThenBy(x => x.Name)
                 .ThenByDescending(x => x.Priority)
+                .ThenByDescending(x => x.Id)
                 .ToArray();
 
             actual.Should().Equal(expected);
