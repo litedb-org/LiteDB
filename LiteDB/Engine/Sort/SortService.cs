@@ -92,9 +92,7 @@ namespace LiteDB.Engine
                 var container = new SortContainer(_pragmas.Collation, _containerSize, _orders);
 
                 // insert segmented items inside a container - reuse same buffer slice
-                var order = _orders.Length == 1 ? _orders[0] : Query.Ascending;
-
-                container.Insert(containerItems, order, _buffer);
+                container.Insert(containerItems, _buffer);
 
                 _containers.Add(container);
 
