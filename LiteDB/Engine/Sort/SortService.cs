@@ -136,41 +136,17 @@ namespace LiteDB.Engine
             }
             else
             {
-                var diffOrder = _orders.Length == 1 ? _orders[0] * -1 : -1;
-
                 // merge sort with all containers
                 while (_containers.Any(x => !x.IsEOF))
                 {
-                    foreach (var container in _containers.Where(x => !x.IsEOF))
-                    {
-                        var diff = container.Current.Key.CompareTo(current.Current.Key, _pragmas.Collation);
+                    var next = _containers
+                        .Where(x => !x.IsEOF)
+                        .Aggregate((cur, n) =>
+                            cur.Current.Key.CompareTo(n.Current.Key, _pragmas.Collation) > 0 ? n : cur
+                        );
 
-                        if (diff == diffOrder)
-                        {
-                            current = container;
-                        }
-                    }
-
-                    yield return current.Current;
-
-                    var lastKey = current.Current.Key;
-
-                    if (current.MoveNext() == false)
-                    {
-                        // now, current container must any new container that still have values
-                        current = _containers.FirstOrDefault(x => !x.IsEOF);
-                    }
-
-                    // after run MoveNext(), if container contains same lastKey, can return now
-                    while (current?.Current.Key == lastKey)
-                    {
-                        yield return current.Current;
-
-                        if (current.MoveNext() == false)
-                        {
-                            current = _containers.FirstOrDefault(x => !x.IsEOF);
-                        }
-                    }
+                    yield return next.Current;
+                    next.MoveNext();
                 }
             }
         }
