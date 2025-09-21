@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using LiteDB.Tests.Utils;
 using Xunit;
 
 namespace LiteDB.Tests.Issues;
@@ -9,7 +10,7 @@ public class Issue2458_Tests
     [Fact]
     public void NegativeSeekFails()
     {
-        using var db = new LiteDatabase(":memory:");
+        using var db = DatabaseFactory.Create();
         var fs = db.FileStorage;
         AddTestFile("test", 1, fs);
         using Stream stream = fs.OpenRead("test");
@@ -21,7 +22,7 @@ public class Issue2458_Tests
     [Fact]
     public void SeekPastFileSucceds()
     {
-        using var db = new LiteDatabase(":memory:");
+        using var db = DatabaseFactory.Create();
         var fs = db.FileStorage;
         AddTestFile("test", 1, fs);
         using Stream stream = fs.OpenRead("test");
@@ -31,7 +32,7 @@ public class Issue2458_Tests
     [Fact]
     public void SeekShortChunks()
     {
-        using var db = new LiteDatabase(":memory:");
+        using var db = DatabaseFactory.Create();
         var fs = db.FileStorage;
         using(Stream writeStream = fs.OpenWrite("test", "test"))
         {

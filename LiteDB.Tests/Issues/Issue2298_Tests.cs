@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
+using LiteDB.Tests.Utils;
 using Xunit;
 
 namespace LiteDB.Tests.Issues;
@@ -45,23 +46,22 @@ public class Issue2298_Tests
     }
 
     [Fact]
-    public void We_Dont_Need_Ctor()
-    {
-        BsonMapper.Global.RegisterType<QuantityRange<Mass>>(
-            serialize: (range) => new BsonDocument
-            {
-                { nameof(QuantityRange<Mass>.Min), range.Min },
-                { nameof(QuantityRange<Mass>.Max), range.Max },
-                { nameof(QuantityRange<Mass>.Unit), range.Unit.ToString() }
-            },
-            deserialize: (document) => MassRangeBuilder(document as BsonDocument)
-        );
+        public void We_Dont_Need_Ctor()
+        {
+            BsonMapper.Global.RegisterType<QuantityRange<Mass>>(
+                serialize: (range) => new BsonDocument
+                {
+                    { nameof(QuantityRange<Mass>.Min), range.Min },
+                    { nameof(QuantityRange<Mass>.Max), range.Max },
+                    { nameof(QuantityRange<Mass>.Unit), range.Unit.ToString() }
+                },
+                deserialize: (document) => MassRangeBuilder(document as BsonDocument)
+            );
 
-        var range = new QuantityRange<Mass>(100, 500, Mass.Units.Pound);
-        var filename = "Demo.DB";
-        var DB = new LiteDatabase(filename);
-        var collection = DB.GetCollection<QuantityRange<Mass>>("DEMO");
-        collection.Insert(range);
-        var restored = collection.FindAll().First();
-    }
+            var range = new QuantityRange<Mass>(100, 500, Mass.Units.Pound);
+            using var db = DatabaseFactory.Create();
+            var collection = db.GetCollection<QuantityRange<Mass>>("DEMO");
+            collection.Insert(range);
+            var restored = collection.FindAll().First();
+        }
 }
