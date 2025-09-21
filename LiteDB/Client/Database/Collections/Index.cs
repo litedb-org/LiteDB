@@ -23,6 +23,15 @@ namespace LiteDB
             return _engine.EnsureIndex(_collection, name, expression, unique);
         }
 
+        public bool EnsureIndex(string name, BsonExpression expression, VectorIndexOptions options)
+        {
+            if (string.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
+            if (expression == null) throw new ArgumentNullException(nameof(expression));
+            if (options == null) throw new ArgumentNullException(nameof(options));
+
+            return _engine.EnsureVectorIndex(_collection, name, expression, options);
+        }
+
         /// <summary>
         /// Create a new permanent index in all documents inside this collections if index not exists already. Returns true if index was created or false if already exits
         /// </summary>
@@ -37,6 +46,16 @@ namespace LiteDB
             return this.EnsureIndex(name, expression, unique);
         }
 
+        public bool EnsureIndex(BsonExpression expression, VectorIndexOptions options)
+        {
+            if (expression == null) throw new ArgumentNullException(nameof(expression));
+            if (options == null) throw new ArgumentNullException(nameof(options));
+
+            var name = Regex.Replace(expression.Source, @"[^a-z0-9]", "", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+            return this.EnsureIndex(name, expression, options);
+        }
+
         /// <summary>
         /// Create a new permanent index in all documents inside this collections if index not exists already.
         /// </summary>
@@ -47,6 +66,15 @@ namespace LiteDB
             var expression = this.GetIndexExpression(keySelector);
 
             return this.EnsureIndex(expression, unique);
+        }
+
+        public bool EnsureIndex<K>(Expression<Func<T, K>> keySelector, VectorIndexOptions options)
+        {
+            if (options == null) throw new ArgumentNullException(nameof(options));
+
+            var expression = this.GetIndexExpression(keySelector);
+
+            return this.EnsureIndex(expression, options);
         }
 
         /// <summary>
@@ -60,6 +88,15 @@ namespace LiteDB
             var expression = this.GetIndexExpression(keySelector);
 
             return this.EnsureIndex(name, expression, unique);
+        }
+
+        public bool EnsureIndex<K>(string name, Expression<Func<T, K>> keySelector, VectorIndexOptions options)
+        {
+            if (options == null) throw new ArgumentNullException(nameof(options));
+
+            var expression = this.GetIndexExpression(keySelector);
+
+            return this.EnsureIndex(name, expression, options);
         }
 
         /// <summary>

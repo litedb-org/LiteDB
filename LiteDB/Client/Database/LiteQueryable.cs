@@ -218,6 +218,10 @@ namespace LiteDB
 
             _query.Where.Add(filter);
 
+            _query.VectorField = fieldExpr.Source;
+            _query.VectorTarget = target?.ToArray();
+            _query.VectorMaxDistance = maxDistance;
+
             return this;
         }
 
@@ -258,6 +262,10 @@ namespace LiteDB
 
             // Build VECTOR_SIM as order clause
             var simExpr = BsonExpression.Create($"VECTOR_SIM({fieldExpr.Source}, @0)", targetArray);
+
+            _query.VectorField = fieldExpr.Source;
+            _query.VectorTarget = target?.ToArray();
+            _query.VectorMaxDistance = double.MaxValue;
 
             return this
                 .OrderBy(simExpr, Query.Ascending)

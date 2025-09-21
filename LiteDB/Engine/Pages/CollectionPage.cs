@@ -26,6 +26,7 @@ namespace LiteDB.Engine
         /// All indexes references for this collection
         /// </summary>
         private readonly Dictionary<string, CollectionIndex> _indexes = new Dictionary<string, CollectionIndex>();
+        private readonly Dictionary<string, VectorIndexMetadata> _vectorIndexes = new Dictionary<string, VectorIndexMetadata>();
 
         public CollectionPage(PageBuffer buffer, uint pageID)
             : base(buffer, pageID, PageType.Collection)
@@ -65,6 +66,16 @@ namespace LiteDB.Engine
 
                     _indexes[index.Name] = index;
                 }
+
+                var vectorCount = r.ReadByte();
+
+                for (var i = 0; i < vectorCount; i++)
+                {
+                    var name = r.ReadCString();
+                    var metadata = new VectorIndexMetadata(r);
+
+                    _vectorIndexes[name] = metadata;
+                }
             }
         }
 
@@ -91,6 +102,14 @@ namespace LiteDB.Engine
                 foreach (var index in _indexes.Values)
                 {
                     index.UpdateBuffer(w);
+                }
+
+                w.Write((byte)_vectorIndexes.Count);
+
+                foreach (var pair in _vectorIndexes)
+                {
+                    w.WriteCString(pair.Key);
+                    pair.Value.UpdateBuffer(w);
                 }
             }
 
@@ -138,27 +157,83 @@ namespace LiteDB.Engine
             return indexes;
         }
 
+        private int GetSerializedLength(int additionalIndexLength, int additionalVectorLength)
+        {
+            var length = 1 + _indexes.Sum(x => CollectionIndex.GetLength(x.Value)) + additionalIndexLength;
+
+            length += 1 + _vectorIndexes.Sum(x => GetVectorMetadataLength(x.Key)) + additionalVectorLength;
+
+            return length;
+        }
+
+        private static int GetVectorMetadataLength(string name)
+        {
+            return StringEncoding.UTF8.GetByteCount(name) + 1 + VectorIndexMetadata.GetLength();
+        }
+
+        public IEnumerable<(CollectionIndex Index, VectorIndexMetadata Metadata)> GetVectorIndexes()
+        {
+            foreach (var pair in _vectorIndexes)
+            {
+                if (_indexes.TryGetValue(pair.Key, out var index))
+                {
+                    yield return (index, pair.Value);
+                }
+            }
+        }
+
+        public VectorIndexMetadata GetVectorIndexMetadata(string name)
+        {
+            return _vectorIndexes.TryGetValue(name, out var metadata) ? metadata : null;
+        }
+
         /// <summary>
         /// Insert new index inside this collection page
         /// </summary>
         public CollectionIndex InsertCollectionIndex(string name, string expr, bool unique)
         {
-            var totalLength = 1 +
-                _indexes.Sum(x => CollectionIndex.GetLength(x.Value)) +
-                CollectionIndex.GetLength(name, expr);
+            if (_indexes.ContainsKey(name) || _vectorIndexes.ContainsKey(name))
+            {
+                throw LiteException.IndexAlreadyExist(name);
+            }
 
-            // check if has space avaiable
+            var totalLength = this.GetSerializedLength(CollectionIndex.GetLength(name, expr), 0);
+
             if (_indexes.Count == 255 || totalLength >= P_INDEXES_COUNT) throw new LiteException(0, $"This collection has no more space for new indexes");
 
             var slot = (byte)(_indexes.Count == 0 ? 0 : (_indexes.Max(x => x.Value.Slot) + 1));
 
             var index = new CollectionIndex(slot, 0, name, expr, unique);
-            
+
             _indexes[name] = index;
 
             this.IsDirty = true;
 
             return index;
+        }
+
+        public (CollectionIndex Index, VectorIndexMetadata Metadata) InsertVectorIndex(string name, string expr, ushort dimensions, VectorDistanceMetric metric)
+        {
+            if (_indexes.ContainsKey(name) || _vectorIndexes.ContainsKey(name))
+            {
+                throw LiteException.IndexAlreadyExist(name);
+            }
+
+            var totalLength = this.GetSerializedLength(CollectionIndex.GetLength(name, expr), GetVectorMetadataLength(name));
+
+            if (_indexes.Count == 255 || totalLength >= P_INDEXES_COUNT) throw new LiteException(0, $"This collection has no more space for new indexes");
+
+            var slot = (byte)(_indexes.Count == 0 ? 0 : (_indexes.Max(x => x.Value.Slot) + 1));
+
+            var index = new CollectionIndex(slot, 1, name, expr, false);
+            var metadata = new VectorIndexMetadata(slot, dimensions, metric);
+
+            _indexes[name] = index;
+            _vectorIndexes[name] = metadata;
+
+            this.IsDirty = true;
+
+            return (index, metadata);
         }
 
         /// <summary>
@@ -177,6 +252,7 @@ namespace LiteDB.Engine
         public void DeleteCollectionIndex(string name)
         {
             _indexes.Remove(name);
+            _vectorIndexes.Remove(name);
 
             this.IsDirty = true;
         }

@@ -235,6 +235,11 @@ namespace LiteDB
             return QueryDatabase(() => _engine.EnsureIndex(collection, name, expression, unique));
         }
 
+        public bool EnsureVectorIndex(string collection, string name, BsonExpression expression, VectorIndexOptions options)
+        {
+            return QueryDatabase(() => _engine.EnsureVectorIndex(collection, name, expression, options));
+        }
+
         #endregion
 
         public void Dispose()

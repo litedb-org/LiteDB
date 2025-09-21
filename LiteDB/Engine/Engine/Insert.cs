@@ -23,6 +23,7 @@ namespace LiteDB.Engine
                 var count = 0;
                 var indexer = new IndexService(snapshot, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
                 var data = new DataService(snapshot, _disk.MAX_ITEMS_COUNT);
+                var vectorService = new VectorIndexService(snapshot, _header.Pragmas.Collation);
 
                 LOG($"insert `{collection}`", "COMMAND");
 
@@ -32,7 +33,7 @@ namespace LiteDB.Engine
 
                     transaction.Safepoint();
 
-                    this.InsertDocument(snapshot, doc, autoId, indexer, data);
+                    this.InsertDocument(snapshot, doc, autoId, indexer, data, vectorService);
 
                     count++;
                 }
@@ -44,7 +45,7 @@ namespace LiteDB.Engine
         /// <summary>
         /// Internal implementation of insert a document
         /// </summary>
-        private void InsertDocument(Snapshot snapshot, BsonDocument doc, BsonAutoId autoId, IndexService indexer, DataService data)
+        private void InsertDocument(Snapshot snapshot, BsonDocument doc, BsonAutoId autoId, IndexService indexer, DataService data, VectorIndexService vectorService)
         {
             // if no _id, use AutoId
             if (!doc.TryGetValue("_id", out var id))
@@ -72,7 +73,7 @@ namespace LiteDB.Engine
             IndexNode last = null;
 
             // for each index, insert new IndexNode
-            foreach (var index in snapshot.CollectionPage.GetCollectionIndexes())
+            foreach (var index in snapshot.CollectionPage.GetCollectionIndexes().Where(x => x.IndexType == 0))
             {
                 // for each index, get all keys (supports multi-key) - gets distinct values only
                 // if index are unique, get single key only
@@ -86,6 +87,11 @@ namespace LiteDB.Engine
 
                     last = node;
                 }
+            }
+
+            foreach (var (vectorIndex, metadata) in snapshot.CollectionPage.GetVectorIndexes())
+            {
+                vectorService.Upsert(vectorIndex, metadata, doc);
             }
         }
     }
