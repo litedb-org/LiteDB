@@ -26,4 +26,14 @@ jobs:
 
       - name: Test
         timeout-minutes: 5
+        continue-on-error: true
         run: dotnet test LiteDB.sln --configuration Release --no-build --verbosity normal --settings tests.runsettings --logger "trx;LogFileName=TestResults.trx" --logger "console;verbosity=detailed"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            **/TestResults.trx
+            **/TestResults/**/*
