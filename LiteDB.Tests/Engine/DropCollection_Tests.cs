@@ -10,8 +10,7 @@ namespace LiteDB.Tests.Engine
         [Fact]
         public void DropCollection()
         {
-            using (var file = new TempFile())
-            using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, file.Filename))
+            using (var db = DatabaseFactory.Create())
             {
                 db.GetCollectionNames().Should().NotContain("col");
 

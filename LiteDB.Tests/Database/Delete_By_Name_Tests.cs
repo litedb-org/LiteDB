@@ -1,5 +1,4 @@
 ﻿using System;
-using System.IO;
 using System.Linq;
 using FluentAssertions;
 using LiteDB.Tests.Utils;
@@ -22,8 +21,7 @@ namespace LiteDB.Tests.Database
         [Fact]
         public void Delete_By_Name()
         {
-            using (var f = new TempFile())
-            using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, f.Filename))
+            using (var db = DatabaseFactory.Create())
             {
                 var col = db.GetCollection<Person>("Person");
 

@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using FluentAssertions;
 using LiteDB.Engine;
@@ -16,8 +15,7 @@ namespace LiteDB.Tests.Database
         [Fact]
         public void Very_Large_Single_Document_Support_With_Partial_Load_Memory_Usage()
         {
-            using (var file = new TempFile())
-            using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, file.Filename))
+            using (var db = DatabaseFactory.Create())
             {
                 var col = db.GetCollection("col");
 

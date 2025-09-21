@@ -59,8 +59,7 @@ public class Issue2298_Tests
             );
 
             var range = new QuantityRange<Mass>(100, 500, Mass.Units.Pound);
-            using var filename = new TempFile();
-            using var db = DatabaseFactory.Create(TestDatabaseType.Disk, filename.Filename);
+            using var db = DatabaseFactory.Create();
             var collection = db.GetCollection<QuantityRange<Mass>>("DEMO");
             collection.Insert(range);
             var restored = collection.FindAll().First();

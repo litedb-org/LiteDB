@@ -1,5 +1,4 @@
 ﻿using System;
-using System.IO;
 using System.Linq;
 using FluentAssertions;
 using LiteDB.Tests.Utils;
@@ -25,8 +24,7 @@ namespace LiteDB.Tests.Database
         [Fact]
         public void Query_Min_Max()
         {
-            using (var f = new TempFile())
-            using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, f.Filename))
+            using (var db = DatabaseFactory.Create())
             {
                 var c = db.GetCollection<EntityMinMax>("col");
 
