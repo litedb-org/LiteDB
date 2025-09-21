@@ -53,7 +53,7 @@ namespace LiteDB.Engine
             _cache.Clear();
 
             var service = new VectorIndexService(_snapshot, _collation);
-            var results = service.Search(col, indexer, _index, _metadata, _target, _maxDistance, _limit).ToArray();
+            var results = service.Search(_metadata, _target, _maxDistance, _limit).ToArray();
 
             foreach (var result in results)
             {

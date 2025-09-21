@@ -15,26 +15,45 @@ namespace LiteDB.Engine
             _collation = collation;
         }
 
-        public void Upsert(CollectionIndex index, VectorIndexMetadata metadata, BsonDocument document)
+        public void Upsert(CollectionIndex index, VectorIndexMetadata metadata, BsonDocument document, PageAddress dataBlock)
         {
             var value = index.BsonExpr.ExecuteScalar(document, _collation);
 
-            if (!TryExtractVector(value, metadata.Dimensions, out _))
+            if (!TryExtractVector(value, metadata.Dimensions, out var vector))
             {
-                throw new LiteException(0, $"Vector index '{index.Name}' expected an array with {metadata.Dimensions} items.");
+                this.RemoveNode(metadata, dataBlock);
+                return;
             }
+
+            var existing = this.FindNode(metadata, dataBlock, out var previous);
+
+            if (existing != null)
+            {
+                existing.UpdateVector(vector);
+                return;
+            }
+
+            var length = VectorIndexNode.GetLength(vector.Length);
+            var freeList = metadata.Reserved;
+            var page = _snapshot.GetFreeVectorPage(length, ref freeList);
+            metadata.Reserved = freeList;
+            var node = page.InsertNode(dataBlock, metadata.Root, vector, length);
+
+            metadata.Root = node.Position;
+
+            freeList = metadata.Reserved;
+            metadata.Reserved = uint.MaxValue;
+            _snapshot.AddOrRemoveFreeVectorList(page, ref freeList);
+            metadata.Reserved = freeList;
+            _snapshot.CollectionPage.IsDirty = true;
         }
 
-        public void Delete(CollectionIndex index, VectorIndexMetadata metadata, BsonDocument document)
+        public void Delete(VectorIndexMetadata metadata, PageAddress dataBlock)
         {
-            // Current implementation stores vector payloads alongside the owning documents.
-            // This hook exists to align with the index service API and for future persistence work.
+            this.RemoveNode(metadata, dataBlock);
         }
 
         public IEnumerable<(BsonDocument Document, double Distance)> Search(
-            CollectionPage collection,
-            IndexService indexer,
-            CollectionIndex index,
             VectorIndexMetadata metadata,
             float[] target,
             double maxDistance,
@@ -43,33 +62,50 @@ namespace LiteDB.Engine
             var data = new DataService(_snapshot, uint.MaxValue);
             var comparer = new List<(BsonDocument Document, double Distance)>();
 
-            foreach (var pkNode in new IndexAll("_id", Query.Ascending).Run(collection, indexer))
+            var current = metadata.Root;
+
+            while (!current.IsEmpty)
             {
-                using (var reader = new BufferReader(data.Read(pkNode.DataBlock)))
+                var node = this.GetNode(current);
+                var candidate = node.ReadVector();
+                var distance = ComputeDistance(candidate, target, metadata.Metric);
+
+                if (!double.IsNaN(distance) && distance <= maxDistance)
                 {
+                    using var reader = new BufferReader(data.Read(node.DataBlock));
                     var result = reader.ReadDocument().GetValue();
-                    var value = index.BsonExpr.ExecuteScalar(result, _collation);
-
-                    if (!TryExtractVector(value, metadata.Dimensions, out var candidate))
-                    {
-                        continue;
-                    }
-
-                    var distance = ComputeDistance(candidate, target, metadata.Metric);
-
-                    if (double.IsNaN(distance) || distance > maxDistance)
-                    {
-                        continue;
-                    }
-
-                    result.RawId = pkNode.DataBlock;
+                    result.RawId = node.DataBlock;
                     comparer.Add((result, distance));
                 }
+
+                current = node.Next;
             }
 
             return comparer
                 .OrderBy(x => x.Distance)
                 .Take(limit ?? int.MaxValue);
+        }
+
+        public void Drop(VectorIndexMetadata metadata)
+        {
+            var current = metadata.Root;
+
+            while (!current.IsEmpty)
+            {
+                var node = this.GetNode(current);
+                current = node.Next;
+
+                var page = node.Page;
+                page.DeleteNode(node.Position.Index);
+                var freeList = metadata.Reserved;
+                metadata.Reserved = uint.MaxValue;
+                _snapshot.AddOrRemoveFreeVectorList(page, ref freeList);
+                metadata.Reserved = freeList;
+            }
+
+            metadata.Root = PageAddress.Empty;
+            metadata.Reserved = uint.MaxValue;
+            _snapshot.CollectionPage.IsDirty = true;
         }
 
         public static double ComputeDistance(float[] candidate, float[] target, VectorDistanceMetric metric)
@@ -140,6 +176,66 @@ namespace LiteDB.Engine
             }
 
             return sum;
+        }
+
+        private void RemoveNode(VectorIndexMetadata metadata, PageAddress dataBlock)
+        {
+            if (metadata.Root.IsEmpty)
+            {
+                return;
+            }
+
+            var node = this.FindNode(metadata, dataBlock, out var previous);
+
+            if (node == null)
+            {
+                return;
+            }
+
+            if (previous == null)
+            {
+                metadata.Root = node.Next;
+            }
+            else
+            {
+                previous.SetNext(node.Next);
+            }
+
+            var page = node.Page;
+            page.DeleteNode(node.Position.Index);
+            var freeList = metadata.Reserved;
+            metadata.Reserved = uint.MaxValue;
+            _snapshot.AddOrRemoveFreeVectorList(page, ref freeList);
+            metadata.Reserved = freeList;
+            _snapshot.CollectionPage.IsDirty = true;
+        }
+
+        private VectorIndexNode FindNode(VectorIndexMetadata metadata, PageAddress dataBlock, out VectorIndexNode previous)
+        {
+            previous = null;
+
+            var current = metadata.Root;
+            while (!current.IsEmpty)
+            {
+                var node = this.GetNode(current);
+
+                if (node.DataBlock == dataBlock)
+                {
+                    return node;
+                }
+
+                previous = node;
+                current = node.Next;
+            }
+
+            return null;
+        }
+
+        private VectorIndexNode GetNode(PageAddress address)
+        {
+            var page = _snapshot.GetPage<VectorIndexPage>(address.PageID);
+
+            return page.GetNode(address.Index);
         }
 
         private static bool TryExtractVector(BsonValue value, ushort expectedDimensions, out float[] vector)

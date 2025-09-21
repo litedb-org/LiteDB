@@ -91,7 +91,7 @@ namespace LiteDB.Engine
 
             foreach (var (vectorIndex, metadata) in snapshot.CollectionPage.GetVectorIndexes())
             {
-                vectorService.Upsert(vectorIndex, metadata, doc);
+                vectorService.Upsert(vectorIndex, metadata, doc, dataBlock);
             }
         }
     }

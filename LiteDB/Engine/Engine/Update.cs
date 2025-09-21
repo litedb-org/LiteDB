@@ -116,7 +116,7 @@ namespace LiteDB.Engine
             data.Update(col, pkNode.DataBlock, doc);
             foreach (var (vectorIndex, metadata) in col.GetVectorIndexes())
             {
-                vectorService.Upsert(vectorIndex, metadata, doc);
+                vectorService.Upsert(vectorIndex, metadata, doc, pkNode.DataBlock);
             }
             
             // get all current non-pk index nodes from this data block (slot, key, nodePosition)

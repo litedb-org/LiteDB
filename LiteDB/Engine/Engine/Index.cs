@@ -151,7 +151,7 @@ namespace LiteDB.Engine
                     using (var reader = new BufferReader(data.Read(pkNode.DataBlock)))
                     {
                         var doc = reader.ReadDocument(expression.Fields).GetValue();
-                        vectorService.Upsert(tuple.Index, tuple.Metadata, doc);
+                        vectorService.Upsert(tuple.Index, tuple.Metadata, doc, pkNode.DataBlock);
                     }
 
                     transaction.Safepoint();
@@ -188,6 +188,13 @@ namespace LiteDB.Engine
 
                 if (index.IndexType == 1)
                 {
+                    var metadata = col.GetVectorIndexMetadata(name);
+                    if (metadata != null)
+                    {
+                        var vectorService = new VectorIndexService(snapshot, _header.Pragmas.Collation);
+                        vectorService.Drop(metadata);
+                    }
+
                     snapshot.CollectionPage.DeleteCollectionIndex(name);
                     return true;
                 }

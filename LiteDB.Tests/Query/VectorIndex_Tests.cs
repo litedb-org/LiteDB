@@ -1,7 +1,9 @@
 using FluentAssertions;
 using LiteDB;
+using LiteDB.Engine;
 using System;
 using System.Linq;
+using System.Reflection;
 using Xunit;
 
 namespace LiteDB.Tests.QueryTest
@@ -13,6 +15,29 @@ namespace LiteDB.Tests.QueryTest
             public int Id { get; set; }
             public float[] Embedding { get; set; }
             public bool Flag { get; set; }
+        }
+
+        private static readonly FieldInfo EngineField = typeof(LiteDatabase).GetField("_engine", BindingFlags.NonPublic | BindingFlags.Instance);
+        private static readonly FieldInfo HeaderField = typeof(LiteEngine).GetField("_header", BindingFlags.NonPublic | BindingFlags.Instance);
+        private static readonly MethodInfo AutoTransactionMethod = typeof(LiteEngine).GetMethod("AutoTransaction", BindingFlags.NonPublic | BindingFlags.Instance);
+
+        private static T InspectVectorIndex<T>(LiteDatabase db, string collection, Func<Snapshot, Collation, VectorIndexMetadata, T> selector)
+        {
+            var engine = (LiteEngine)EngineField.GetValue(db);
+            var header = (HeaderPage)HeaderField.GetValue(engine);
+            var collation = header.Pragmas.Collation;
+            var method = AutoTransactionMethod.MakeGenericMethod(typeof(T));
+
+            return (T)method.Invoke(engine, new object[]
+            {
+                new Func<TransactionService, T>(transaction =>
+                {
+                    var snapshot = transaction.CreateSnapshot(LockMode.Read, collection, false);
+                    var metadata = snapshot.CollectionPage.GetVectorIndexMetadata("embedding_idx");
+
+                    return metadata == null ? default : selector(snapshot, collation, metadata);
+                })
+            });
         }
 
         [Fact]
@@ -144,6 +169,82 @@ namespace LiteDB.Tests.QueryTest
             var results = query.ToArray();
 
             results.Select(x => x.Id).Should().Equal(new[] { 1, 3 });
+        }
+
+        [Fact]
+        public void VectorIndex_PersistsNodes_WhenDocumentsChange()
+        {
+            using var db = new LiteDatabase(":memory:");
+            var collection = db.GetCollection<VectorDocument>("vectors");
+
+            collection.Insert(new[]
+            {
+                new VectorDocument { Id = 1, Embedding = new[] { 1f, 0f }, Flag = true },
+                new VectorDocument { Id = 2, Embedding = new[] { 0f, 1f }, Flag = false },
+                new VectorDocument { Id = 3, Embedding = new[] { 1f, 1f }, Flag = true }
+            });
+
+            collection.EnsureIndex("embedding_idx", BsonExpression.Create("$.Embedding"), new VectorIndexOptions(2, VectorDistanceMetric.Euclidean));
+
+            InspectVectorIndex(db, "vectors", (snapshot, collation, metadata) =>
+            {
+                metadata.Root.IsEmpty.Should().BeFalse();
+
+                var service = new VectorIndexService(snapshot, collation);
+                var target = new[] { 1f, 1f };
+                service.Search(metadata, target, double.MaxValue, null).Count().Should().Be(3);
+
+                return 0;
+            });
+
+            collection.Update(new VectorDocument { Id = 2, Embedding = new[] { 1f, 2f }, Flag = false });
+
+            InspectVectorIndex(db, "vectors", (snapshot, collation, metadata) =>
+            {
+                var service = new VectorIndexService(snapshot, collation);
+                var target = new[] { 1f, 1f };
+                service.Search(metadata, target, double.MaxValue, null).Count().Should().Be(3);
+
+                return 0;
+            });
+
+            collection.Update(new VectorDocument { Id = 3, Embedding = null, Flag = true });
+
+            InspectVectorIndex(db, "vectors", (snapshot, collation, metadata) =>
+            {
+                var service = new VectorIndexService(snapshot, collation);
+                var target = new[] { 1f, 1f };
+                service.Search(metadata, target, double.MaxValue, null).Select(x => x.Document["_id"].AsInt32).Should().BeEquivalentTo(new[] { 1, 2 });
+
+                return 0;
+            });
+
+            collection.DeleteMany(x => x.Id == 1);
+
+            InspectVectorIndex(db, "vectors", (snapshot, collation, metadata) =>
+            {
+                var service = new VectorIndexService(snapshot, collation);
+                var target = new[] { 1f, 1f };
+                var results = service.Search(metadata, target, double.MaxValue, null).ToArray();
+
+                results.Select(x => x.Document["_id"].AsInt32).Should().BeEquivalentTo(new[] { 2 });
+                metadata.Root.IsEmpty.Should().BeFalse();
+
+                return 0;
+            });
+
+            collection.DeleteAll();
+
+            InspectVectorIndex(db, "vectors", (snapshot, collation, metadata) =>
+            {
+                var service = new VectorIndexService(snapshot, collation);
+                var target = new[] { 1f, 1f };
+                service.Search(metadata, target, double.MaxValue, null).Should().BeEmpty();
+                metadata.Root.IsEmpty.Should().BeTrue();
+                metadata.Reserved.Should().Be(uint.MaxValue);
+
+                return 0;
+            });
         }
     }
 }
