@@ -1,17 +1,20 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace LiteDB.Engine
 {
     internal sealed class VectorIndexNode
     {
         private const int P_DATA_BLOCK = 0;
-        private const int P_LEFT_NODE = P_DATA_BLOCK + PageAddress.SIZE;
-        private const int P_RIGHT_NODE = P_LEFT_NODE + PageAddress.SIZE;
-        private const int P_LEFT_MIN = P_RIGHT_NODE + PageAddress.SIZE;
-        private const int P_LEFT_MAX = P_LEFT_MIN + 4;
-        private const int P_RIGHT_MIN = P_LEFT_MAX + 4;
-        private const int P_RIGHT_MAX = P_RIGHT_MIN + 4;
-        private const int P_VECTOR = P_RIGHT_MAX + 4;
+        private const int P_LEVEL_COUNT = P_DATA_BLOCK + PageAddress.SIZE;
+        private const int P_LEVELS = P_LEVEL_COUNT + 1;
+
+        public const int MaxLevels = 4;
+        public const int MaxNeighborsPerLevel = 8;
+
+        private const int LEVEL_STRIDE = 1 + (MaxNeighborsPerLevel * PageAddress.SIZE);
+        private const int P_VECTOR = P_LEVELS + (MaxLevels * LEVEL_STRIDE);
 
         private readonly VectorIndexPage _page;
         private readonly BufferSlice _segment;
@@ -22,17 +25,7 @@ namespace LiteDB.Engine
 
         public VectorIndexPage Page => _page;
 
-        public PageAddress Left { get; private set; }
-
-        public PageAddress Right { get; private set; }
-
-        public float LeftMinDistance { get; private set; }
-
-        public float LeftMaxDistance { get; private set; }
-
-        public float RightMinDistance { get; private set; }
-
-        public float RightMaxDistance { get; private set; }
+        public byte LevelCount { get; private set; }
 
         public int Dimensions { get; }
 
@@ -43,41 +36,42 @@ namespace LiteDB.Engine
 
             this.Position = new PageAddress(page.PageID, index);
             this.DataBlock = segment.ReadPageAddress(P_DATA_BLOCK);
-            this.Left = segment.ReadPageAddress(P_LEFT_NODE);
-            this.Right = segment.ReadPageAddress(P_RIGHT_NODE);
-            this.LeftMinDistance = segment.ReadSingle(P_LEFT_MIN);
-            this.LeftMaxDistance = segment.ReadSingle(P_LEFT_MAX);
-            this.RightMinDistance = segment.ReadSingle(P_RIGHT_MIN);
-            this.RightMaxDistance = segment.ReadSingle(P_RIGHT_MAX);
+            this.LevelCount = segment.ReadByte(P_LEVEL_COUNT);
 
             var vector = segment.ReadVector(P_VECTOR);
             this.Dimensions = vector.Length;
         }
 
-        public VectorIndexNode(VectorIndexPage page, byte index, BufferSlice segment, PageAddress dataBlock, float[] vector)
+        public VectorIndexNode(VectorIndexPage page, byte index, BufferSlice segment, PageAddress dataBlock, float[] vector, byte levelCount)
         {
             if (vector == null) throw new ArgumentNullException(nameof(vector));
+            if (levelCount == 0 || levelCount > MaxLevels) throw new ArgumentOutOfRangeException(nameof(levelCount));
 
             _page = page;
             _segment = segment;
 
             this.Position = new PageAddress(page.PageID, index);
             this.DataBlock = dataBlock;
-            this.Left = PageAddress.Empty;
-            this.Right = PageAddress.Empty;
-            this.LeftMinDistance = float.PositiveInfinity;
-            this.LeftMaxDistance = float.NegativeInfinity;
-            this.RightMinDistance = float.PositiveInfinity;
-            this.RightMaxDistance = float.NegativeInfinity;
+            this.LevelCount = levelCount;
             this.Dimensions = vector.Length;
 
             segment.Write(dataBlock, P_DATA_BLOCK);
-            segment.Write(PageAddress.Empty, P_LEFT_NODE);
-            segment.Write(PageAddress.Empty, P_RIGHT_NODE);
-            segment.Write(float.PositiveInfinity, P_LEFT_MIN);
-            segment.Write(float.NegativeInfinity, P_LEFT_MAX);
-            segment.Write(float.PositiveInfinity, P_RIGHT_MIN);
-            segment.Write(float.NegativeInfinity, P_RIGHT_MAX);
+            segment.Write(levelCount, P_LEVEL_COUNT);
+
+            for (var level = 0; level < MaxLevels; level++)
+            {
+                var offset = GetLevelOffset(level);
+                segment.Write((byte)0, offset);
+
+                var position = offset + 1;
+
+                for (var i = 0; i < MaxNeighborsPerLevel; i++)
+                {
+                    segment.Write(PageAddress.Empty, position);
+                    position += PageAddress.SIZE;
+                }
+            }
+
             segment.Write(vector, P_VECTOR);
 
             page.IsDirty = true;
@@ -87,82 +81,135 @@ namespace LiteDB.Engine
         {
             return
                 PageAddress.SIZE + // DataBlock
-                PageAddress.SIZE + // Left child
-                PageAddress.SIZE + // Right child
-                4 + // Left min distance
-                4 + // Left max distance
-                4 + // Right min distance
-                4 + // Right max distance
+                1 + // Level count
+                (MaxLevels * LEVEL_STRIDE) +
                 2 + // vector length prefix
                 (dimensions * sizeof(float));
         }
 
-        public void SetLeft(PageAddress left)
+        public IReadOnlyList<PageAddress> GetNeighbors(int level)
         {
-            this.Left = left;
-            _segment.Write(left, P_LEFT_NODE);
+            if (level < 0 || level >= MaxLevels)
+            {
+                throw new ArgumentOutOfRangeException(nameof(level));
+            }
+
+            var offset = GetLevelOffset(level);
+            var count = _segment.ReadByte(offset);
+            var neighbors = new List<PageAddress>(count);
+            var position = offset + 1;
+
+            for (var i = 0; i < count; i++)
+            {
+                neighbors.Add(_segment.ReadPageAddress(position));
+                position += PageAddress.SIZE;
+            }
+
+            return neighbors;
+        }
+
+        public void SetNeighbors(int level, IReadOnlyList<PageAddress> neighbors)
+        {
+            if (level < 0 || level >= MaxLevels)
+            {
+                throw new ArgumentOutOfRangeException(nameof(level));
+            }
+
+            if (neighbors == null)
+            {
+                throw new ArgumentNullException(nameof(neighbors));
+            }
+
+            var offset = GetLevelOffset(level);
+            var count = Math.Min(neighbors.Count, MaxNeighborsPerLevel);
+
+            _segment.Write((byte)count, offset);
+
+            var position = offset + 1;
+
+            var i = 0;
+
+            for (; i < count; i++)
+            {
+                _segment.Write(neighbors[i], position);
+                position += PageAddress.SIZE;
+            }
+
+            for (; i < MaxNeighborsPerLevel; i++)
+            {
+                _segment.Write(PageAddress.Empty, position);
+                position += PageAddress.SIZE;
+            }
+
             _page.IsDirty = true;
         }
 
-        public void SetRight(PageAddress right)
+        public bool TryAddNeighbor(int level, PageAddress address)
         {
-            this.Right = right;
-            _segment.Write(right, P_RIGHT_NODE);
+            if (level < 0 || level >= MaxLevels)
+            {
+                throw new ArgumentOutOfRangeException(nameof(level));
+            }
+
+            var current = this.GetNeighbors(level);
+
+            if (current.Contains(address))
+            {
+                return false;
+            }
+
+            if (current.Count >= MaxNeighborsPerLevel)
+            {
+                return false;
+            }
+
+            var expanded = new List<PageAddress>(current.Count + 1);
+            expanded.AddRange(current);
+            expanded.Add(address);
+
+            this.SetNeighbors(level, expanded);
+
+            return true;
+        }
+
+        public bool RemoveNeighbor(int level, PageAddress address)
+        {
+            if (level < 0 || level >= MaxLevels)
+            {
+                throw new ArgumentOutOfRangeException(nameof(level));
+            }
+
+            var current = this.GetNeighbors(level);
+
+            if (!current.Contains(address))
+            {
+                return false;
+            }
+
+            var reduced = current
+                .Where(x => x != address)
+                .ToList();
+
+            this.SetNeighbors(level, reduced);
+
+            return true;
+        }
+
+        public void SetLevelCount(byte levelCount)
+        {
+            if (levelCount == 0 || levelCount > MaxLevels)
+            {
+                throw new ArgumentOutOfRangeException(nameof(levelCount));
+            }
+
+            this.LevelCount = levelCount;
+            _segment.Write(levelCount, P_LEVEL_COUNT);
             _page.IsDirty = true;
         }
 
-        public void SetLeftRange(float min, float max)
+        private static int GetLevelOffset(int level)
         {
-            this.LeftMinDistance = min;
-            this.LeftMaxDistance = max;
-            _segment.Write(min, P_LEFT_MIN);
-            _segment.Write(max, P_LEFT_MAX);
-            _page.IsDirty = true;
-        }
-
-        public void SetRightRange(float min, float max)
-        {
-            this.RightMinDistance = min;
-            this.RightMaxDistance = max;
-            _segment.Write(min, P_RIGHT_MIN);
-            _segment.Write(max, P_RIGHT_MAX);
-            _page.IsDirty = true;
-        }
-
-        public void UpdateLeftRange(float distance)
-        {
-            var min = this.LeftMinDistance;
-            var max = this.LeftMaxDistance;
-
-            if (float.IsPositiveInfinity(min) || distance < min)
-            {
-                min = distance;
-            }
-
-            if (float.IsNegativeInfinity(max) || distance > max)
-            {
-                max = distance;
-            }
-
-            this.SetLeftRange(min, max);
-        }
-
-        public void UpdateRightRange(float distance)
-        {
-            var min = this.RightMinDistance;
-            var max = this.RightMaxDistance;
-
-            if (float.IsPositiveInfinity(min) || distance < min)
-            {
-                min = distance;
-            }
-
-            if (float.IsNegativeInfinity(max) || distance > max)
-            {
-                max = distance;
-            }
-
-            this.SetRightRange(min, max);
+            return P_LEVELS + (level * LEVEL_STRIDE);
         }
 
         public void UpdateVector(float[] vector)
@@ -184,4 +231,3 @@ namespace LiteDB.Engine
         }
     }
 }
-

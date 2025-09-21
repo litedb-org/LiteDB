@@ -48,15 +48,16 @@ namespace LiteDB.Tests.QueryTest
                 return 0;
             }
 
-            var stack = new Stack<PageAddress>();
-            stack.Push(root);
+            var visited = new HashSet<PageAddress>();
+            var queue = new Queue<PageAddress>();
+            queue.Enqueue(root);
 
             var count = 0;
 
-            while (stack.Count > 0)
+            while (queue.Count > 0)
             {
-                var address = stack.Pop();
-                if (address.IsEmpty)
+                var address = queue.Dequeue();
+                if (!visited.Add(address))
                 {
                     continue;
                 }
@@ -64,14 +65,15 @@ namespace LiteDB.Tests.QueryTest
                 var node = snapshot.GetPage<VectorIndexPage>(address.PageID).GetNode(address.Index);
                 count++;
 
-                if (!node.Left.IsEmpty)
+                for (var level = 0; level < node.LevelCount; level++)
                 {
-                    stack.Push(node.Left);
-                }
-
-                if (!node.Right.IsEmpty)
-                {
-                    stack.Push(node.Right);
+                    foreach (var neighbor in node.GetNeighbors(level))
+                    {
+                        if (!neighbor.IsEmpty)
+                        {
+                            queue.Enqueue(neighbor);
+                        }
+                    }
                 }
             }
 
