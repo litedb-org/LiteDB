@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using LiteDB;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -19,6 +20,7 @@ namespace LiteDB.Engine
         private readonly Collation _collation;
         private readonly int _size;
         private readonly int[] _orders;
+        private readonly IComparer<BsonValue> _comparer;
 
         private int _remaining = 0;
         private int _count = 0;
@@ -55,12 +57,12 @@ namespace LiteDB.Engine
             _collation = collation;
             _size = size;
             _orders = orders as int[] ?? orders.ToArray();
+            _comparer = new SortKeyComparer(collation, _orders);
         }
 
-        public void Insert(IEnumerable<KeyValuePair<BsonValue, PageAddress>> items, int order, BufferSlice buffer)
+        public void Insert(IEnumerable<KeyValuePair<BsonValue, PageAddress>> items, BufferSlice buffer)
         {
-            var query = order == Query.Ascending ?
-                items.OrderBy(x => x.Key, _collation) : items.OrderByDescending(x => x.Key, _collation);
+            var query = items.OrderBy(x => x.Key, _comparer);
 
             var offset = 0;
 
@@ -149,6 +151,33 @@ namespace LiteDB.Engine
         public void Dispose()
         {
             _reader?.Dispose();
+        }
+
+        private sealed class SortKeyComparer : IComparer<BsonValue>
+        {
+            private readonly Collation _collation;
+            private readonly int[] _orders;
+
+            public SortKeyComparer(Collation collation, int[] orders)
+            {
+                _collation = collation;
+                _orders = orders;
+            }
+
+            public int Compare(BsonValue x, BsonValue y)
+            {
+                if (_orders.Length == 1)
+                {
+                    var result = x.CompareTo(y, _collation);
+
+                    return _orders[0] == Query.Descending ? -result : result;
+                }
+
+                var left = SortKey.FromBsonValue(x, _orders);
+                var right = SortKey.FromBsonValue(y, _orders);
+
+                return left.CompareTo(right, _collation);
+            }
         }
     }
 }

@@ -67,5 +67,55 @@ namespace LiteDB.Internals
                 output.Should().Equal(source.OrderByDescending(x => x.Key).ToArray());
             }
         }
+
+        [Fact]
+        public void Sort_With_Multiple_Orders_Should_Honor_All_Segments()
+        {
+            var orders = new[] { Query.Ascending, Query.Descending };
+
+            var tuples = Enumerable.Range(0, 5000)
+                .Select(i => new
+                {
+                    Primary = i / 4,
+                    Secondary = ((char)('a' + (i % 4))).ToString(),
+                    Address = new PageAddress((uint)i, (byte)(i % 256))
+                })
+                .ToArray();
+
+            var source = tuples
+                .Select(item =>
+                {
+                    var key = SortKey.FromValues(new BsonValue[]
+                    {
+                        new BsonValue(item.Primary),
+                        new BsonValue(item.Secondary)
+                    }, orders);
+
+                    return new KeyValuePair<BsonValue, PageAddress>(key, item.Address);
+                })
+                .ToArray();
+
+            var pragmas = new EnginePragmas(null);
+            pragmas.Set(Pragmas.COLLATION, Collation.Binary.ToString(), false);
+
+            using (var tempDisk = new SortDisk(_factory, 8192, pragmas))
+            using (var sorter = new SortService(tempDisk, orders, pragmas))
+            {
+                sorter.Insert(source);
+
+                sorter.Count.Should().Be(source.Length);
+                sorter.Containers.Count.Should().BeGreaterThan(1);
+
+                var output = sorter.Sort().ToArray();
+
+                var expected = tuples
+                    .OrderBy(x => x.Primary)
+                    .ThenByDescending(x => x.Secondary, StringComparer.Ordinal)
+                    .Select(x => x.Address)
+                    .ToArray();
+
+                output.Select(x => x.Value).Should().Equal(expected);
+            }
+        }
     }
 }

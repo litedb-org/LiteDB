@@ -92,9 +92,7 @@ namespace LiteDB.Engine
                 var container = new SortContainer(_pragmas.Collation, _containerSize, _orders);
 
                 // insert segmented items inside a container - reuse same buffer slice
-                var order = _orders.Length == 1 ? _orders[0] : Query.Ascending;
-
-                container.Insert(containerItems, order, _buffer);
+                container.Insert(containerItems, _buffer);
 
                 _containers.Add(container);
 
@@ -138,18 +136,31 @@ namespace LiteDB.Engine
             }
             else
             {
-                var diffOrder = _orders.Length == 1 ? _orders[0] * -1 : -1;
-
                 // merge sort with all containers
                 while (_containers.Any(x => !x.IsEOF))
                 {
+                    if (current == null)
+                    {
+                        current = _containers.FirstOrDefault(x => !x.IsEOF);
+
+                        if (current == null)
+                        {
+                            yield break;
+                        }
+                    }
+
+                    var currentKey = SortKey.FromBsonValue(current.Current.Key, _orders);
+
                     foreach (var container in _containers.Where(x => !x.IsEOF))
                     {
-                        var diff = container.Current.Key.CompareTo(current.Current.Key, _pragmas.Collation);
+                        var containerKey = SortKey.FromBsonValue(container.Current.Key, _orders);
 
-                        if (diff == diffOrder)
+                        var diff = containerKey.CompareTo(currentKey, _pragmas.Collation);
+
+                        if (diff < 0)
                         {
                             current = container;
+                            currentKey = containerKey;
                         }
                     }
 
