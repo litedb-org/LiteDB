@@ -25,11 +25,11 @@ namespace LiteDB.Engine
             return new VectorIndexNode(this, index, segment);
         }
 
-        public VectorIndexNode InsertNode(PageAddress dataBlock, PageAddress next, float[] vector, int bytesLength)
+        public VectorIndexNode InsertNode(PageAddress dataBlock, float[] vector, int bytesLength)
         {
             var segment = base.Insert((ushort)bytesLength, out var index);
 
-            return new VectorIndexNode(this, index, segment, dataBlock, next, vector);
+            return new VectorIndexNode(this, index, segment, dataBlock, vector);
         }
 
         public void DeleteNode(byte index)

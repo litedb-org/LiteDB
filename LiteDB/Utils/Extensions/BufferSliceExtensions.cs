@@ -40,6 +40,11 @@ namespace LiteDB
             return BitConverter.ToUInt32(buffer.Array, buffer.Offset + offset);
         }
 
+        public static float ReadSingle(this BufferSlice buffer, int offset)
+        {
+            return BitConverter.ToSingle(buffer.Array, buffer.Offset + offset);
+        }
+
         public static Int64 ReadInt64(this BufferSlice buffer, int offset)
         {
             return BitConverter.ToInt64(buffer.Array, buffer.Offset + offset);
@@ -212,6 +217,11 @@ namespace LiteDB
         public static void Write(this BufferSlice buffer, UInt32 value, int offset)
         {
             value.ToBytes(buffer.Array, buffer.Offset + offset);
+        }
+
+        public static void Write(this BufferSlice buffer, float value, int offset)
+        {
+            BitConverter.GetBytes(value).CopyTo(buffer.Array, buffer.Offset + offset);
         }
 
         public static void Write(this BufferSlice buffer, Int64 value, int offset)

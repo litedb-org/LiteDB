@@ -2,6 +2,7 @@ using FluentAssertions;
 using LiteDB;
 using LiteDB.Engine;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Xunit;
@@ -38,6 +39,43 @@ namespace LiteDB.Tests.QueryTest
                     return metadata == null ? default : selector(snapshot, collation, metadata);
                 })
             });
+        }
+
+        private static int CountNodes(Snapshot snapshot, PageAddress root)
+        {
+            if (root.IsEmpty)
+            {
+                return 0;
+            }
+
+            var stack = new Stack<PageAddress>();
+            stack.Push(root);
+
+            var count = 0;
+
+            while (stack.Count > 0)
+            {
+                var address = stack.Pop();
+                if (address.IsEmpty)
+                {
+                    continue;
+                }
+
+                var node = snapshot.GetPage<VectorIndexPage>(address.PageID).GetNode(address.Index);
+                count++;
+
+                if (!node.Left.IsEmpty)
+                {
+                    stack.Push(node.Left);
+                }
+
+                if (!node.Right.IsEmpty)
+                {
+                    stack.Push(node.Right);
+                }
+            }
+
+            return count;
         }
 
         [Fact]
@@ -169,6 +207,57 @@ namespace LiteDB.Tests.QueryTest
             var results = query.ToArray();
 
             results.Select(x => x.Id).Should().Equal(new[] { 1, 3 });
+        }
+
+        [Fact]
+        public void VectorIndex_Search_Prunes_Node_Visits()
+        {
+            using var db = new LiteDatabase(":memory:");
+            var collection = db.GetCollection<VectorDocument>("vectors");
+
+            var documents = new List<VectorDocument>();
+
+            for (var i = 0; i < 32; i++)
+            {
+                documents.Add(new VectorDocument
+                {
+                    Id = i + 1,
+                    Embedding = new[] { 1f, i / 100f },
+                    Flag = true
+                });
+            }
+
+            for (var i = 0; i < 32; i++)
+            {
+                documents.Add(new VectorDocument
+                {
+                    Id = i + 33,
+                    Embedding = new[] { -1f, 2f + i / 100f },
+                    Flag = false
+                });
+            }
+
+            collection.Insert(documents);
+
+            collection.EnsureIndex(
+                "embedding_idx",
+                BsonExpression.Create("$.Embedding"),
+                new VectorIndexOptions(2, VectorDistanceMetric.Euclidean));
+
+            var stats = InspectVectorIndex(
+                db,
+                "vectors",
+                (snapshot, collation, metadata) =>
+                {
+                    var service = new VectorIndexService(snapshot, collation);
+                    var matches = service.Search(metadata, new[] { 1f, 0f }, maxDistance: 0.25, limit: 5).ToList();
+                    var total = CountNodes(snapshot, metadata.Root);
+
+                    return (Visited: service.LastVisitedCount, Total: total, Matches: matches.Select(x => x.Document["Id"].AsInt32).ToArray());
+                });
+
+            stats.Total.Should().BeGreaterThan(stats.Visited);
+            stats.Matches.Should().OnlyContain(id => id < 32);
         }
 
         [Fact]
