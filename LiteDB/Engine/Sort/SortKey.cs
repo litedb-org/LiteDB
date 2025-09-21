@@ -9,8 +9,21 @@ namespace LiteDB.Engine
     {
         private readonly int[] _orders;
 
-        private SortKey(IEnumerable<BsonValue> values, IReadOnlyList<int> orders)
-            : base(values?.Select(x => x ?? BsonValue.Null).ToArray() ?? throw new ArgumentNullException(nameof(values)))
+        private SortKey(IEnumerable<BsonValue> values, IEnumerable<int> orders)
+            : base(values?.Select(x => x ?? BsonValue.Null) ?? throw new ArgumentNullException(nameof(values)))
+        {
+            if (orders == null) throw new ArgumentNullException(nameof(orders));
+
+            _orders = orders as int[] ?? orders.ToArray();
+
+            if (_orders.Length != this.Count)
+            {
+                throw new ArgumentException("Orders length must match values length", nameof(orders));
+            }
+        }
+        
+        private SortKey(BsonArray array, IEnumerable<int> orders)
+            : base(array)
         {
             if (orders == null) throw new ArgumentNullException(nameof(orders));
 
@@ -49,7 +62,7 @@ namespace LiteDB.Engine
 
             if (other is BsonArray array)
             {
-                return this.CompareTo(new SortKey(array, Enumerable.Repeat(Query.Ascending, array.Count).ToArray()), collation);
+                return this.CompareTo(new SortKey(array, Enumerable.Repeat(Query.Ascending, array.Count)), collation);
             }
 
             return base.CompareTo(other, collation);
@@ -73,19 +86,6 @@ namespace LiteDB.Engine
             }
 
             return new SortKey(new[] { value }, orders);
-        }
-
-        private SortKey(BsonArray array, IReadOnlyList<int> orders)
-            : base(array?.ToArray() ?? throw new ArgumentNullException(nameof(array)))
-        {
-            if (orders == null) throw new ArgumentNullException(nameof(orders));
-
-            _orders = orders as int[] ?? orders.ToArray();
-
-            if (_orders.Length != this.Count)
-            {
-                throw new ArgumentException("Orders length must match values length", nameof(orders));
-            }
         }
     }
 }

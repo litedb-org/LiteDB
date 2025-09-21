@@ -107,7 +107,7 @@ namespace LiteDB
         /// </summary>
         public ILiteQueryable<T> OrderBy(BsonExpression keySelector, int order = Query.Ascending)
         {
-            if (_query.OrderBy.Count > 0) throw new ArgumentException("ORDER BY already defined in this query builder");
+            if (_query.OrderBy.Count > 0) throw new ArgumentException("Multiple OrderBy calls are not supported. Use ThenBy for additional sort keys.");
 
             _query.OrderBy.Add(new QueryOrder(keySelector, order));
             return this;
