@@ -20,13 +20,11 @@ namespace LiteDB.Tests.Database
         #endregion
 
         private readonly ILiteCollection<Item> _collection;
-        private readonly TempFile _tempFile;
         private readonly ILiteDatabase _database;
 
         public IndexSortAndFilterTest()
         {
-            _tempFile = new TempFile();
-            _database = DatabaseFactory.Create(TestDatabaseType.Disk, _tempFile.Filename);
+            _database = DatabaseFactory.Create();
             _collection = _database.GetCollection<Item>("items");
 
             _collection.Upsert(new Item() { Id = "C", Value = "Value 1" });
@@ -39,7 +37,6 @@ namespace LiteDB.Tests.Database
         public void Dispose()
         {
             _database.Dispose();
-            _tempFile.Dispose();
         }
 
         [Fact]
