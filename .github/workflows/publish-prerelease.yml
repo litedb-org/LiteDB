@@ -22,6 +22,15 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      - name: Set version with padded build number
+        id: version
+        run: |
+          # Pad the run number with leading zeros (4 digits)
+          PADDED_BUILD_NUMBER=$(printf "%04d" ${{ github.run_number }})
+          PACKAGE_VERSION="6.0.0-prerelease.${PADDED_BUILD_NUMBER}"
+          echo "package_version=${PACKAGE_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Version set to $PACKAGE_VERSION"
+
       - name: Restore
         run: dotnet restore LiteDB.sln
 
@@ -34,16 +43,18 @@ jobs:
 
       - name: Pack
         run: |
-          dotnet pack LiteDB/LiteDB.csproj --configuration Release --no-build -o artifacts
+          dotnet pack LiteDB/LiteDB.csproj --configuration Release --no-build -o artifacts -p:PackageVersion=${{ steps.version.outputs.package_version }} -p:Version=${{ steps.version.outputs.package_version }}
 
-      - name: Capture package version
-        id: version
-        run: |
-          PACKAGE_PATH=$(ls artifacts/LiteDB.*.nupkg | head -n 1)
-          PACKAGE_FILENAME=$(basename "$PACKAGE_PATH")
-          PACKAGE_VERSION=${PACKAGE_FILENAME#LiteDB.}
-          PACKAGE_VERSION=${PACKAGE_VERSION%.nupkg}
-          echo "package_version=${PACKAGE_VERSION}" >> "$GITHUB_OUTPUT"
+      - name: Publish GitHub prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.package_version }}
+          name: LiteDB ${{ steps.version.outputs.package_version }}
+          generate_release_notes: true
+          prerelease: true
+          files: artifacts/*.nupkg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Retrieve secrets from Bitwarden
         uses: bitwarden/sm-action@v2
@@ -57,13 +68,4 @@ jobs:
         run: |
           dotnet nuget push "artifacts/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
 
-      - name: Publish GitHub prerelease
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.version.outputs.package_version }}
-          name: LiteDB ${{ steps.version.outputs.package_version }}
-          generate_release_notes: true
-          prerelease: true
-          files: artifacts/*.nupkg
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
