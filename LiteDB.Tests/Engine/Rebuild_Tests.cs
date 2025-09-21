@@ -1,5 +1,6 @@
 ﻿using FluentAssertions;
 using LiteDB.Engine;
+using LiteDB.Tests.Utils;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -15,7 +16,7 @@ namespace LiteDB.Tests.Engine
         public void Rebuild_After_DropCollection()
         {
             using (var file = new TempFile())
-            using (var db = new LiteDatabase(file.Filename))
+            using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, file.Filename))
             {
                 var col = db.GetCollection<Zip>("zip");
 
@@ -47,7 +48,7 @@ namespace LiteDB.Tests.Engine
 
             using (var file = new TempFile())
             {
-                using (var db = new LiteDatabase(file.Filename))
+                using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, file.Filename))
                 {
                     var col = db.GetCollection<Zip>();
 
@@ -81,7 +82,7 @@ namespace LiteDB.Tests.Engine
                 }
 
                 // re-open and rebuild again
-                using (var db = new LiteDatabase(file.Filename))
+                using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, file.Filename))
                 {
                     var col = db.GetCollection<Zip>();
 
@@ -132,7 +133,7 @@ namespace LiteDB.Tests.Engine
         public void Rebuild_Change_Culture_Error()
         {
             using (var file = new TempFile())
-            using (var db = new LiteDatabase(file.Filename))
+            using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, file.Filename))
             {
                 // remove string comparer ignore case
                 db.Rebuild(new RebuildOptions { Collation = new Collation("en-US/None") });

@@ -23,7 +23,7 @@ namespace LiteDB.Tests.Engine
             var data1 = DataGen.Person(1, 100).ToArray();
             var data2 = DataGen.Person(101, 200).ToArray();
 
-            using (var db = new LiteDatabase("filename=:memory:"))
+            using (var db = DatabaseFactory.Create(connectionString: "filename=:memory:"))
             {
                 // configure the minimal pragma timeout and then override the engine to a few milliseconds
                 db.Pragma(Pragmas.TIMEOUT, 1);

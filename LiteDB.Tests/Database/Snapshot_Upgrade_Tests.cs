@@ -2,6 +2,7 @@
 using System.IO;
 using System.Linq;
 using FluentAssertions;
+using LiteDB.Tests.Utils;
 using Xunit;
 
 namespace LiteDB.Tests.Database
@@ -11,7 +12,7 @@ namespace LiteDB.Tests.Database
         [Fact]
         public void Transaction_Update_Upsert()
         {
-            using var db = new LiteDatabase(":memory:");
+            using var db = DatabaseFactory.Create();
             var col = db.GetCollection("test");
 
             bool transactionCreated = db.BeginTrans();
