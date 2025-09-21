@@ -66,6 +66,19 @@ namespace LiteDB.Engine
             }
         }
 
+        /// <summary>
+        /// Executes a nearest-neighbour search against the persisted vector index.
+        /// </summary>
+        /// <param name="metadata">The vector index metadata.</param>
+        /// <param name="target">Vector to search for.</param>
+        /// <param name="maxDistance">
+        /// Maximum allowed distance for Euclidean/Cosine metrics; treated as the minimum raw dot-product similarity when the
+        /// metric is <see cref="VectorDistanceMetric.DotProduct"/>.
+        /// </param>
+        /// <param name="limit">Optional limit for the number of matches returned.</param>
+        /// <returns>
+        /// A sequence of documents paired with their distance (or similarity for dot-product queries).
+        /// </returns>
         public IEnumerable<(BsonDocument Document, double Distance)> Search(
             VectorIndexMetadata metadata,
             float[] target,
@@ -73,19 +86,28 @@ namespace LiteDB.Engine
             int? limit)
         {
             var data = new DataService(_snapshot, uint.MaxValue);
-            var results = new List<(BsonDocument Document, double Distance)>();
+            var results = new List<(BsonDocument Document, double Distance, double Similarity)>();
 
             this.LastVisitedCount = 0;
 
             if (metadata.Root.IsEmpty)
             {
-                return results;
+                return Enumerable.Empty<(BsonDocument Document, double Distance)>();
             }
 
             var stack = new Stack<PageAddress>();
             stack.Push(metadata.Root);
 
-            var pruneDistance = maxDistance;
+            var pruneDistance = metadata.Metric == VectorDistanceMetric.DotProduct
+                ? double.PositiveInfinity
+                : maxDistance;
+
+            var hasExplicitSimilarity = metadata.Metric == VectorDistanceMetric.DotProduct
+                && !double.IsPositiveInfinity(maxDistance)
+                && maxDistance < double.MaxValue;
+
+            var baseMinSimilarity = hasExplicitSimilarity ? maxDistance : double.NegativeInfinity;
+            var minSimilarity = baseMinSimilarity;
 
             while (stack.Count > 0)
             {
@@ -99,15 +121,19 @@ namespace LiteDB.Engine
                 this.LastVisitedCount++;
 
                 var candidate = node.ReadVector();
-                var distance = ComputeDistance(candidate, target, metadata.Metric);
+                var distance = ComputeDistance(candidate, target, metadata.Metric, out var similarity);
                 var compareDistance = double.IsNaN(distance) ? double.PositiveInfinity : distance;
 
-                if (!double.IsNaN(distance) && distance <= pruneDistance)
+                var meetsThreshold = metadata.Metric == VectorDistanceMetric.DotProduct
+                    ? !double.IsNaN(similarity) && similarity >= minSimilarity
+                    : !double.IsNaN(distance) && compareDistance <= pruneDistance;
+
+                if (meetsThreshold)
                 {
                     using var reader = new BufferReader(data.Read(node.DataBlock));
                     var document = reader.ReadDocument().GetValue();
                     document.RawId = node.DataBlock;
-                    results.Add((document, distance));
+                    results.Add((document, distance, similarity));
 
                     if (limit.HasValue && results.Count > limit.Value)
                     {
@@ -117,7 +143,15 @@ namespace LiteDB.Engine
 
                     if (limit.HasValue && results.Count == limit.Value)
                     {
-                        pruneDistance = Math.Min(pruneDistance, results.Max(x => x.Distance));
+                        if (metadata.Metric == VectorDistanceMetric.DotProduct)
+                        {
+                            var worst = results.Min(x => x.Similarity);
+                            minSimilarity = Math.Max(baseMinSimilarity, worst);
+                        }
+                        else
+                        {
+                            pruneDistance = Math.Min(pruneDistance, results.Max(x => x.Distance));
+                        }
                     }
                 }
 
@@ -164,9 +198,18 @@ namespace LiteDB.Engine
                 }
             }
 
+            if (metadata.Metric == VectorDistanceMetric.DotProduct)
+            {
+                return results
+                    .OrderByDescending(x => x.Similarity)
+                    .Take(limit ?? int.MaxValue)
+                    .Select(x => (x.Document, x.Similarity));
+            }
+
             return results
                 .OrderBy(x => x.Distance)
-                .Take(limit ?? int.MaxValue);
+                .Take(limit ?? int.MaxValue)
+                .Select(x => (x.Document, x.Distance));
         }
 
         public void Drop(VectorIndexMetadata metadata)
@@ -178,8 +221,10 @@ namespace LiteDB.Engine
             _snapshot.CollectionPage.IsDirty = true;
         }
 
-        public static double ComputeDistance(float[] candidate, float[] target, VectorDistanceMetric metric)
+        public static double ComputeDistance(float[] candidate, float[] target, VectorDistanceMetric metric, out double similarity)
         {
+            similarity = double.NaN;
+
             if (candidate.Length != target.Length)
             {
                 return double.NaN;
@@ -192,7 +237,8 @@ namespace LiteDB.Engine
                 case VectorDistanceMetric.Euclidean:
                     return ComputeEuclideanDistance(candidate, target);
                 case VectorDistanceMetric.DotProduct:
-                    return -ComputeDotProduct(candidate, target);
+                    similarity = ComputeDotProduct(candidate, target);
+                    return -similarity;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(metric));
             }
@@ -372,7 +418,7 @@ namespace LiteDB.Engine
         {
             var node = this.GetNode(currentAddress);
             var pivot = node.ReadVector();
-            var distance = (float)ComputeDistance(pivot, vector, metadata.Metric);
+            var distance = (float)ComputeDistance(pivot, vector, metadata.Metric, out _);
 
             if (float.IsNaN(distance) || float.IsInfinity(distance))
             {

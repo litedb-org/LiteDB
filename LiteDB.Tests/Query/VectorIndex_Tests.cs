@@ -210,6 +210,37 @@ namespace LiteDB.Tests.QueryTest
         }
 
         [Fact]
+        public void WhereNear_DotProductHonorsMinimumSimilarity()
+        {
+            using var db = new LiteDatabase(":memory:");
+            var collection = db.GetCollection<VectorDocument>("vectors");
+
+            collection.Insert(new[]
+            {
+                new VectorDocument { Id = 1, Embedding = new[] { 1f, 0f } },
+                new VectorDocument { Id = 2, Embedding = new[] { 0.6f, 0.6f } },
+                new VectorDocument { Id = 3, Embedding = new[] { 0f, 1f } }
+            });
+
+            collection.EnsureIndex(
+                "embedding_idx",
+                BsonExpression.Create("$.Embedding"),
+                new VectorIndexOptions(2, VectorDistanceMetric.DotProduct));
+
+            var highThreshold = collection.Query()
+                .WhereNear(x => x.Embedding, new[] { 1f, 0f }, maxDistance: 0.75)
+                .ToArray();
+
+            highThreshold.Select(x => x.Id).Should().Equal(new[] { 1 });
+
+            var mediumThreshold = collection.Query()
+                .WhereNear(x => x.Embedding, new[] { 1f, 0f }, maxDistance: 0.4)
+                .ToArray();
+
+            mediumThreshold.Select(x => x.Id).Should().Equal(new[] { 1, 2 });
+        }
+
+        [Fact]
         public void VectorIndex_Search_Prunes_Node_Visits()
         {
             using var db = new LiteDatabase(":memory:");

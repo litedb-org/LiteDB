@@ -191,7 +191,8 @@ namespace LiteDB
         private static void ValidateVectorArguments(float[] target, double maxDistance)
         {
             if (target == null || target.Length == 0) throw new ArgumentException("Target vector must be provided.", nameof(target));
-            if (maxDistance < 0) throw new ArgumentOutOfRangeException(nameof(maxDistance), "Max distance must be non-negative.");
+            // Dot-product queries interpret "maxDistance" as a minimum similarity score and may therefore pass negative values.
+            if (double.IsNaN(maxDistance)) throw new ArgumentOutOfRangeException(nameof(maxDistance), "Similarity threshold must be a valid number.");
         }
 
         private static BsonExpression CreateVectorSimilarityFilter(BsonExpression fieldExpr, float[] target, double maxDistance)
