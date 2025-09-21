@@ -2,6 +2,7 @@
 using System.IO;
 using System.Linq;
 using LiteDB;
+using LiteDB.Tests.Utils;
 using FluentAssertions;
 using Xunit;
 using System.Globalization;
@@ -13,7 +14,7 @@ namespace LiteDB.Tests.Database
         [Fact]
         public void Database_Pragmas_Get_Set()
         {
-            using (var db = new LiteDatabase(":memory:"))
+            using (var db = DatabaseFactory.Create())
             {
                 db.Timeout.TotalSeconds.Should().Be(60.0);
                 db.UtcDate.Should().Be(false);

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Xunit;
 using System.Linq;
 using System.Security.Cryptography;
+using LiteDB.Tests.Utils;
 
 namespace LiteDB.Tests.Issues
 {
@@ -37,7 +38,7 @@ namespace LiteDB.Tests.Issues
 
             //BsonMapper.Global.ResolveCollectionName = (s) => "activity";
 
-            using var _database = new LiteDatabase(":memory:");
+            using var _database = DatabaseFactory.Create();
             var projectsCol = _database.GetCollection<Project>("activity");
             var pointsCol = _database.GetCollection<Point>("activity");
 

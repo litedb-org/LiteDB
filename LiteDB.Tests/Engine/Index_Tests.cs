@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using FluentAssertions;
+using LiteDB.Tests.Utils;
 using Xunit;
 
 namespace LiteDB.Tests.Engine
@@ -10,7 +11,7 @@ namespace LiteDB.Tests.Engine
         [Fact]
         public void Index_With_No_Name()
         {
-            using (var db = new LiteDatabase("filename=:memory:"))
+            using (var db = DatabaseFactory.Create(connectionString: "filename=:memory:"))
             {
                 var users = db.GetCollection("users");
                 var indexes = db.GetCollection("$indexes");
@@ -31,7 +32,7 @@ namespace LiteDB.Tests.Engine
         [Fact]
         public void Index_Order()
         {
-            using (var db = new LiteDatabase("filename=:memory:"))
+            using (var db = DatabaseFactory.Create(connectionString: "filename=:memory:"))
             {
                 var col = db.GetCollection("col");
                 var indexes = db.GetCollection("$indexes");
@@ -68,7 +69,7 @@ namespace LiteDB.Tests.Engine
         [Fact]
         public void Index_With_Like()
         {
-            using (var db = new LiteDatabase("filename=:memory:"))
+            using (var db = DatabaseFactory.Create(connectionString: "filename=:memory:"))
             {
                 var col = db.GetCollection("names", BsonAutoId.Int32);
 
@@ -118,7 +119,7 @@ namespace LiteDB.Tests.Engine
         [Fact]
         public void EnsureIndex_Invalid_Arguments()
         {
-            using var db = new LiteDatabase("filename=:memory:");
+            using var db = DatabaseFactory.Create(connectionString: "filename=:memory:");
             var test = db.GetCollection("test");
 
             // null name
@@ -143,7 +144,7 @@ namespace LiteDB.Tests.Engine
         [Fact]
         public void MultiKey_Index_Test()
         {
-            using var db = new LiteDatabase("filename=:memory:");
+            using var db = DatabaseFactory.Create(connectionString: "filename=:memory:");
             var col = db.GetCollection("customers", BsonAutoId.Int32);
             col.EnsureIndex("$.Phones[*].Type");
 
