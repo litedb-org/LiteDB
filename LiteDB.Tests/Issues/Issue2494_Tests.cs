@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+using LiteDB.Tests.Utils;
 using Xunit;
 
 namespace LiteDB.Tests.Issues;
@@ -23,7 +24,7 @@ public class Issue2494_Tests
             Upgrade = true,
         };
 
-        using (var db = new LiteDatabase(connectionString)) // <= throws as of version 5.0.18
+        using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, connectionString.ToString())) // <= throws as of version 5.0.18
         {
             var col = db.GetCollection<PlayerDto>();
             col.FindAll();

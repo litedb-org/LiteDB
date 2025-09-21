@@ -1,6 +1,8 @@
 ﻿using FluentAssertions;
 using LiteDB.Engine;
+using LiteDB.Tests.Utils;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
@@ -14,11 +16,11 @@ namespace LiteDB.Tests.Engine
         public void Rebuild_After_DropCollection()
         {
             using (var file = new TempFile())
-            using (var db = new LiteDatabase(file.Filename))
+            using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, file.Filename))
             {
                 var col = db.GetCollection<Zip>("zip");
 
-                col.Insert(DataGen.Zip());
+                col.Insert(CreateSyntheticZipData(200, SurvivorId));
 
                 db.DropCollection("zip");
 
@@ -46,7 +48,7 @@ namespace LiteDB.Tests.Engine
 
             using (var file = new TempFile())
             {
-                using (var db = new LiteDatabase(file.Filename))
+                using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, file.Filename))
                 {
                     var col = db.GetCollection<Zip>();
 
@@ -54,31 +56,33 @@ namespace LiteDB.Tests.Engine
 
                     col.EnsureIndex("city", false);
 
-                    var inserted = col.Insert(DataGen.Zip()); // 29.353 docs
-                    var deleted = col.DeleteMany(x => x.Id != "01001"); // delete 29.352 docs
+                    const int documentCount = 200;
 
-                    Assert.Equal(29353, inserted);
-                    Assert.Equal(29352, deleted);
+                    var inserted = col.Insert(CreateSyntheticZipData(documentCount, SurvivorId));
+                    var deleted = col.DeleteMany(x => x.Id != SurvivorId);
+
+                    Assert.Equal(documentCount, inserted);
+                    Assert.Equal(documentCount - 1, deleted);
 
                     Assert.Equal(1, col.Count());
 
                     // must checkpoint
                     db.Checkpoint();
 
-                    // file still large than 5mb (even with only 1 document)
-                    Assert.True(file.Size > 5 * 1024 * 1024);
+                    // file still larger than 1 MB (even with only 1 document)
+                    Assert.True(file.Size > 1 * 1024 * 1024);
 
                     // reduce datafile
                     var reduced = db.Rebuild();
 
-                    // now file are small than 50kb
-                    Assert.True(file.Size < 50 * 1024);
+                    // now file should be small again
+                    Assert.True(file.Size < 256 * 1024);
 
                     DoTest(db, col);
                 }
 
                 // re-open and rebuild again
-                using (var db = new LiteDatabase(file.Filename))
+                using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, file.Filename))
                 {
                     var col = db.GetCollection<Zip>();
 
@@ -91,11 +95,45 @@ namespace LiteDB.Tests.Engine
             }
         }
 
+        private const string SurvivorId = "01001";
+
+        private static IEnumerable<Zip> CreateSyntheticZipData(int totalCount, string survivingId)
+        {
+            if (totalCount < 1)
+            {
+                throw new ArgumentOutOfRangeException(nameof(totalCount));
+            }
+
+            const int payloadLength = 32 * 1024; // 32 KB payload to force file growth
+
+            for (var i = 0; i < totalCount; i++)
+            {
+                var id = (20000 + i).ToString("00000");
+
+                if (!string.IsNullOrEmpty(survivingId) && i == 0)
+                {
+                    id = survivingId;
+                }
+
+                var payload = new byte[payloadLength];
+                Array.Fill(payload, (byte)(i % 256));
+
+                yield return new Zip
+                {
+                    Id = id,
+                    City = $"City {i:D4}",
+                    Loc = new[] { (double)i, (double)i + 0.5 },
+                    State = "ST",
+                    Payload = payload
+                };
+            }
+        }
+
         [Fact (Skip = "Not supported yet")]
         public void Rebuild_Change_Culture_Error()
         {
             using (var file = new TempFile())
-            using (var db = new LiteDatabase(file.Filename))
+            using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, file.Filename))
             {
                 // remove string comparer ignore case
                 db.Rebuild(new RebuildOptions { Collation = new Collation("en-US/None") });

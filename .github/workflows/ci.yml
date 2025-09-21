@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore LiteDB.sln
+
+      - name: Build
+        run: dotnet build LiteDB.sln --configuration Release --no-restore
+
+      - name: Test
+        timeout-minutes: 5
+        run: dotnet test LiteDB.sln --configuration Release --no-build --verbosity normal --settings tests.runsettings --logger "trx;LogFileName=TestResults.trx" --logger "console;verbosity=detailed"
