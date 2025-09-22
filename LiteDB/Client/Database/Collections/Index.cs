@@ -24,9 +24,7 @@ namespace LiteDB
             if (expression == null) throw new ArgumentNullException(nameof(expression));
             cancellationToken.ThrowIfCancellationRequested();
 
-            var result = _engine.EnsureIndex(_collection, name, expression, unique);
-
-            return Task.FromResult(result);
+            return _engine.EnsureIndexAsync(_collection, name, expression, unique, cancellationToken);
         }
 
         /// <summary>
@@ -102,9 +100,7 @@ namespace LiteDB
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var result = _engine.DropIndex(_collection, name);
-
-            return Task.FromResult(result);
+            return _engine.DropIndexAsync(_collection, name, cancellationToken);
         }
     }
 }

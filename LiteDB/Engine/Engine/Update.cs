@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -10,12 +12,14 @@ namespace LiteDB.Engine
         /// <summary>
         /// Implement update command to a document inside a collection. Return number of documents updated
         /// </summary>
-        public int Update(string collection, IEnumerable<BsonDocument> docs)
+        public Task<int> UpdateAsync(string collection, IEnumerable<BsonDocument> docs, CancellationToken cancellationToken = default)
         {
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
             if (docs == null) throw new ArgumentNullException(nameof(docs));
 
-            return this.AutoTransaction(transaction =>
+            cancellationToken.ThrowIfCancellationRequested();
+
+            return this.AutoTransactionAsync((transaction, token) =>
             {
                 var snapshot = transaction.CreateSnapshot(LockMode.Write, collection, false);
                 var collectionPage = snapshot.CollectionPage;
@@ -23,12 +27,13 @@ namespace LiteDB.Engine
                 var data = new DataService(snapshot, _disk.MAX_ITEMS_COUNT);
                 var count = 0;
 
-                if (collectionPage == null) return 0;
+                if (collectionPage == null) return new ValueTask<int>(0);
 
                 LOG($"update `{collection}`", "COMMAND");
 
                 foreach (var doc in docs)
                 {
+                    token.ThrowIfCancellationRequested();
                     _state.Validate();
 
                     transaction.Safepoint();
@@ -39,56 +44,59 @@ namespace LiteDB.Engine
                     }
                 }
 
-                return count;
-            });
+                return new ValueTask<int>(count);
+            }, cancellationToken);
         }
 
         /// <summary>
         /// Update documents using transform expression (must return a scalar/document value) using predicate as filter
         /// </summary>
-        public int UpdateMany(string collection, BsonExpression transform, BsonExpression predicate)
+        public async Task<int> UpdateManyAsync(string collection, BsonExpression transform, BsonExpression predicate, CancellationToken cancellationToken = default)
         {
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
             if (transform == null) throw new ArgumentNullException(nameof(transform));
 
-            return this.Update(collection, transformDocs());
+            cancellationToken.ThrowIfCancellationRequested();
 
-            IEnumerable<BsonDocument> transformDocs()
+            var q = new Query { Select = "$", ForUpdate = true };
+
+            if (predicate != null)
             {
-                var q = new Query { Select = "$", ForUpdate = true };
+                q.Where.Add(predicate);
+            }
 
-                if (predicate != null)
-                {
-                    q.Where.Add(predicate);
-                }
+            var transformed = new List<BsonDocument>();
 
-                using (var reader = this.Query(collection, q))
+            await using (var reader = await this.QueryAsync(collection, q, cancellationToken).ConfigureAwait(false))
+            {
+                while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
                 {
-                    while (reader.Read())
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    var doc = reader.Current.AsDocument;
+
+                    var id = doc["_id"];
+                    var value = transform.ExecuteScalar(doc, _header.Pragmas.Collation);
+
+                    if (!value.IsDocument) throw new ArgumentException("Extend expression must return a document", nameof(transform));
+
+                    var result = BsonExpressionMethods.EXTEND(doc, value.AsDocument).AsDocument;
+
+                    // be sure result document will contain same _id as current doc
+                    if (result.TryGetValue("_id", out var newId))
                     {
-                        var doc = reader.Current.AsDocument;
-
-                        var id = doc["_id"];
-                        var value = transform.ExecuteScalar(doc, _header.Pragmas.Collation);
-
-                        if (!value.IsDocument) throw new ArgumentException("Extend expression must return a document", nameof(transform));
-
-                        var result = BsonExpressionMethods.EXTEND(doc, value.AsDocument).AsDocument;
-
-                        // be sure result document will contain same _id as current doc
-                        if (result.TryGetValue("_id", out var newId))
-                        {
-                            if (newId != id) throw LiteException.InvalidUpdateField("_id");
-                        }
-                        else
-                        {
-                            result["_id"] = id;
-                        }
-
-                        yield return result;
+                        if (newId != id) throw LiteException.InvalidUpdateField("_id");
                     }
+                    else
+                    {
+                        result["_id"] = id;
+                    }
+
+                    transformed.Add(result);
                 }
             }
+
+            return await this.UpdateAsync(collection, transformed, cancellationToken).ConfigureAwait(false);
         }
 
         /// <summary>

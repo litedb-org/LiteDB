@@ -3,6 +3,8 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -12,12 +14,14 @@ namespace LiteDB.Engine
         /// <summary>
         /// Insert all documents in collection. If document has no _id, use AutoId generation.
         /// </summary>
-        public int Insert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId)
+        public Task<int> InsertAsync(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId, CancellationToken cancellationToken = default)
         {
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
             if (docs == null) throw new ArgumentNullException(nameof(docs));
 
-            return this.AutoTransaction(transaction =>
+            cancellationToken.ThrowIfCancellationRequested();
+
+            return this.AutoTransactionAsync((transaction, token) =>
             {
                 var snapshot = transaction.CreateSnapshot(LockMode.Write, collection, true);
                 var count = 0;
@@ -28,6 +32,7 @@ namespace LiteDB.Engine
 
                 foreach (var doc in docs)
                 {
+                    token.ThrowIfCancellationRequested();
                     _state.Validate();
 
                     transaction.Safepoint();
@@ -37,8 +42,8 @@ namespace LiteDB.Engine
                     count++;
                 }
 
-                return count;
-            });
+                return new ValueTask<int>(count);
+            }, cancellationToken);
         }
 
         /// <summary>

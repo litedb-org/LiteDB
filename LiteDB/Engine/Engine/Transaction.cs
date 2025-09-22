@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -12,8 +13,10 @@ namespace LiteDB.Engine
         /// Initialize a new transaction. Transaction are created "per-thread". There is only one single transaction per thread.
         /// Return true if transaction was created or false if current thread already in a transaction.
         /// </summary>
-        public bool BeginTrans()
+        public Task<bool> BeginTransAsync(CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             _state.Validate();
 
             var transacion = _monitor.GetTransaction(true, false, out var isNew);
@@ -24,14 +27,16 @@ namespace LiteDB.Engine
 
             LOG(isNew, $"begin trans", "COMMAND");
 
-            return isNew;
+            return Task.FromResult(isNew);
         }
 
         /// <summary>
         /// Persist all dirty pages into LOG file
         /// </summary>
-        public bool Commit()
+        public async Task<bool> CommitAsync(CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             _state.Validate();
 
             var transaction = _monitor.GetTransaction(false, false, out _);
@@ -43,7 +48,7 @@ namespace LiteDB.Engine
 
                 if (transaction.State == TransactionState.Active)
                 {
-                    this.CommitAndReleaseTransaction(transaction);
+                    await this.CommitAndReleaseTransactionAsync(transaction, cancellationToken).ConfigureAwait(false);
 
                     return true;
                 }
@@ -55,8 +60,10 @@ namespace LiteDB.Engine
         /// <summary>
         /// Do rollback to current transaction. Clear dirty pages in memory and return new pages to main empty linked-list
         /// </summary>
-        public bool Rollback()
+        public Task<bool> RollbackAsync(CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             _state.Validate();
 
             var transaction = _monitor.GetTransaction(false, false, out _);
@@ -67,16 +74,16 @@ namespace LiteDB.Engine
 
                 _monitor.ReleaseTransaction(transaction);
 
-                return true;
+                return Task.FromResult(true);
             }
 
-            return false;
+            return Task.FromResult(false);
         }
 
         /// <summary>
         /// Create (or reuse) a transaction an add try/catch block. Commit transaction if is new transaction
         /// </summary>
-        private T AutoTransaction<T>(Func<TransactionService, T> fn)
+        private async Task<T> AutoTransactionAsync<T>(Func<TransactionService, CancellationToken, ValueTask<T>> fn, CancellationToken cancellationToken)
         {
             _state.Validate();
 
@@ -84,11 +91,13 @@ namespace LiteDB.Engine
 
             try
             {
-                var result = fn(transaction);
+                var result = await fn(transaction, cancellationToken).ConfigureAwait(false);
 
                 // if this transaction was auto-created for this operation, commit & dispose now
                 if (isNew)
-                    this.CommitAndReleaseTransaction(transaction);
+                {
+                    await this.CommitAndReleaseTransactionAsync(transaction, cancellationToken).ConfigureAwait(false);
+                }
 
                 return result;
             }
@@ -105,18 +114,22 @@ namespace LiteDB.Engine
             }
         }
 
-        private void CommitAndReleaseTransaction(TransactionService transaction)
+        private ValueTask CommitAndReleaseTransactionAsync(TransactionService transaction, CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             transaction.Commit();
 
             _monitor.ReleaseTransaction(transaction);
 
             // try checkpoint when finish transaction and log file are bigger than checkpoint pragma value (in pages)
-            if (_header.Pragmas.Checkpoint > 0 && 
+            if (_header.Pragmas.Checkpoint > 0 &&
                 _disk.GetFileLength(FileOrigin.Log) > (_header.Pragmas.Checkpoint * PAGE_SIZE))
             {
                 _walIndex.TryCheckpoint();
             }
+
+            return default;
         }
     }
 }

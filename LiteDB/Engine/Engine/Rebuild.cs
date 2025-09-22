@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 using static LiteDB.Constants;
 
@@ -15,9 +17,11 @@ namespace LiteDB.Engine
         /// A backup copy will be created with -backup extention. All data will be readed and re created in another database
         /// After run, will re-open database
         /// </summary>
-        public long Rebuild(RebuildOptions options)
+        public Task<long> RebuildAsync(RebuildOptions options, CancellationToken cancellationToken = default)
         {
-            if (string.IsNullOrEmpty(_settings.Filename)) return 0; // works only with os file
+            if (string.IsNullOrEmpty(_settings.Filename)) return Task.FromResult(0L); // works only with os file
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             this.Close();
 
@@ -32,18 +36,20 @@ namespace LiteDB.Engine
 
             _state.Disposed = false;
 
-            return diff;
+            return Task.FromResult(diff);
         }
 
         /// <summary>
         /// Implement a full rebuild database. A backup copy will be created with -backup extention. All data will be readed and re created in another database
         /// </summary>
-        public long Rebuild()
+        public Task<long> RebuildAsync(CancellationToken cancellationToken = default)
         {
-            var collation = new Collation(this.Pragma(Pragmas.COLLATION));
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var collation = _header.Pragmas.Collation;
             var password = _settings.Password;
 
-            return this.Rebuild(new RebuildOptions { Password = password, Collation = collation });
+            return this.RebuildAsync(new RebuildOptions { Password = password, Collation = collation }, cancellationToken);
         }
 
         /// <summary>
@@ -77,10 +83,12 @@ namespace LiteDB.Engine
                     // first create all user indexes (exclude _id index)
                     foreach (var index in reader.GetIndexes(collection))
                     {
-                        this.EnsureIndex(collection,
+                        this.EnsureIndexAsync(
+                            collection,
                             index.Name,
                             BsonExpression.Create(index.Expression),
-                            index.Unique);
+                            index.Unique,
+                            CancellationToken.None).ConfigureAwait(false).GetAwaiter().GetResult();
                     }
                 }
 

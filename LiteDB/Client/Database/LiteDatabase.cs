@@ -133,9 +133,7 @@ namespace LiteDB
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var result = _engine.BeginTrans();
-
-            return Task.FromResult(result);
+            return _engine.BeginTransAsync(cancellationToken);
         }
 
         /// <summary>
@@ -145,9 +143,7 @@ namespace LiteDB
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var result = _engine.Commit();
-
-            return Task.FromResult(result);
+            return _engine.CommitAsync(cancellationToken);
         }
 
         /// <summary>
@@ -157,9 +153,7 @@ namespace LiteDB
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var result = _engine.Rollback();
-
-            return Task.FromResult(result);
+            return _engine.RollbackAsync(cancellationToken);
         }
 
         #endregion
@@ -221,7 +215,7 @@ namespace LiteDB
         {
             if (name.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(name));
 
-            return _engine.DropCollection(name);
+            return this.RunSync(() => _engine.DropCollectionAsync(name));
         }
 
         /// <summary>
@@ -232,7 +226,7 @@ namespace LiteDB
             if (oldName.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(oldName));
             if (newName.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(newName));
 
-            return _engine.RenameCollection(oldName, newName);
+            return this.RunSync(() => _engine.RenameCollectionAsync(oldName, newName));
         }
 
         #endregion
@@ -311,9 +305,7 @@ namespace LiteDB
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            _engine.Checkpoint();
-
-            return Task.CompletedTask;
+            return _engine.CheckpointAsync(cancellationToken);
         }
 
         /// <summary>
@@ -323,9 +315,7 @@ namespace LiteDB
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var result = _engine.Rebuild(options ?? new RebuildOptions());
-
-            return Task.FromResult(result);
+            return _engine.RebuildAsync(options ?? new RebuildOptions(), cancellationToken);
         }
 
         #endregion
@@ -337,7 +327,7 @@ namespace LiteDB
         /// </summary>
         public BsonValue Pragma(string name)
         {
-            return _engine.Pragma(name);
+            return this.RunSync(() => _engine.PragmaAsync(name));
         }
 
         /// <summary>
@@ -345,7 +335,7 @@ namespace LiteDB
         /// </summary>
         public BsonValue Pragma(string name, BsonValue value)
         {
-            return _engine.Pragma(name, value);
+            return this.RunSync(() => _engine.PragmaAsync(name, value));
         }
 
         /// <summary>
@@ -353,8 +343,8 @@ namespace LiteDB
         /// </summary>
         public int UserVersion
         {
-            get => _engine.Pragma(Pragmas.USER_VERSION);
-            set => _engine.Pragma(Pragmas.USER_VERSION, value);
+            get => this.RunSync(() => _engine.PragmaAsync(Pragmas.USER_VERSION));
+            set => this.RunSync(() => _engine.PragmaAsync(Pragmas.USER_VERSION, value));
         }
 
         /// <summary>
@@ -362,8 +352,8 @@ namespace LiteDB
         /// </summary>
         public TimeSpan Timeout
         {
-            get => TimeSpan.FromSeconds(_engine.Pragma(Pragmas.TIMEOUT).AsInt32);
-            set => _engine.Pragma(Pragmas.TIMEOUT, (int)value.TotalSeconds);
+            get => TimeSpan.FromSeconds(this.RunSync(() => _engine.PragmaAsync(Pragmas.TIMEOUT)).AsInt32);
+            set => this.RunSync(() => _engine.PragmaAsync(Pragmas.TIMEOUT, (int)value.TotalSeconds));
         }
 
         /// <summary>
@@ -371,8 +361,8 @@ namespace LiteDB
         /// </summary>
         public bool UtcDate
         {
-            get => _engine.Pragma(Pragmas.UTC_DATE);
-            set => _engine.Pragma(Pragmas.UTC_DATE, value);
+            get => this.RunSync(() => _engine.PragmaAsync(Pragmas.UTC_DATE));
+            set => this.RunSync(() => _engine.PragmaAsync(Pragmas.UTC_DATE, value));
         }
 
         /// <summary>
@@ -380,8 +370,8 @@ namespace LiteDB
         /// </summary>
         public long LimitSize
         {
-            get => _engine.Pragma(Pragmas.LIMIT_SIZE);
-            set => _engine.Pragma(Pragmas.LIMIT_SIZE, value);
+            get => this.RunSync(() => _engine.PragmaAsync(Pragmas.LIMIT_SIZE));
+            set => this.RunSync(() => _engine.PragmaAsync(Pragmas.LIMIT_SIZE, value));
         }
 
         /// <summary>
@@ -390,8 +380,8 @@ namespace LiteDB
         /// </summary>
         public int CheckpointSize
         {
-            get => _engine.Pragma(Pragmas.CHECKPOINT);
-            set => _engine.Pragma(Pragmas.CHECKPOINT, value);
+            get => this.RunSync(() => _engine.PragmaAsync(Pragmas.CHECKPOINT));
+            set => this.RunSync(() => _engine.PragmaAsync(Pragmas.CHECKPOINT, value));
         }
 
         /// <summary>
@@ -399,7 +389,7 @@ namespace LiteDB
         /// </summary>
         public Collation Collation
         {
-            get => new Collation(_engine.Pragma(Pragmas.COLLATION).AsString);
+            get => new Collation(this.RunSync(() => _engine.PragmaAsync(Pragmas.COLLATION)).AsString);
         }
 
         #endregion
@@ -427,6 +417,11 @@ namespace LiteDB
             {
                 _engine.Dispose();
             }
+        }
+
+        private T RunSync<T>(Func<Task<T>> action)
+        {
+            return action().ConfigureAwait(false).GetAwaiter().GetResult();
         }
     }
 }

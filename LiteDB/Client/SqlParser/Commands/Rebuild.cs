@@ -44,7 +44,7 @@ namespace LiteDB
                 }
             }
 
-            var diff = _engine.Rebuild(options);
+            var diff = _engine.RebuildAsync(options).ConfigureAwait(false).GetAwaiter().GetResult();
 
             return new BsonDataReader((int)diff);
         }

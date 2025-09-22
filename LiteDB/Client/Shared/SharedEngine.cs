@@ -1,8 +1,9 @@
-﻿using LiteDB.Engine;
+using LiteDB.Engine;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 #if NETFRAMEWORK
 using System.Security.AccessControl;
 using System.Security.Principal;
@@ -95,13 +96,15 @@ namespace LiteDB
 
         #region Transaction Operations
 
-        public bool BeginTrans()
+        public async Task<bool> BeginTransAsync(CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             OpenDatabase();
 
             try
             {
-                _transactionRunning = _engine.BeginTrans();
+                _transactionRunning = await _engine.BeginTransAsync(cancellationToken).ConfigureAwait(false);
 
                 return _transactionRunning;
             }
@@ -112,13 +115,15 @@ namespace LiteDB
             }
         }
 
-        public bool Commit()
+        public async Task<bool> CommitAsync(CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             if (_engine == null) return false;
 
             try
             {
-                return _engine.Commit();
+                return await _engine.CommitAsync(cancellationToken).ConfigureAwait(false);
             }
             finally
             {
@@ -127,13 +132,15 @@ namespace LiteDB
             }
         }
 
-        public bool Rollback()
+        public async Task<bool> RollbackAsync(CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             if (_engine == null) return false;
 
             try
             {
-                return _engine.Rollback();
+                return await _engine.RollbackAsync(cancellationToken).ConfigureAwait(false);
             }
             finally
             {
@@ -146,93 +153,107 @@ namespace LiteDB
 
         #region Read Operation
 
-        public IBsonDataReader Query(string collection, Query query)
+        public async Task<IBsonDataReader> QueryAsync(string collection, Query query, CancellationToken cancellationToken = default)
         {
-            bool opened = OpenDatabase();
+            cancellationToken.ThrowIfCancellationRequested();
 
-            var reader = _engine.Query(collection, query);
+            var opened = OpenDatabase();
 
-            return new SharedDataReader(reader, () =>
+            try
+            {
+                var reader = await _engine.QueryAsync(collection, query, cancellationToken).ConfigureAwait(false);
+
+                return new SharedDataReader(reader, () =>
+                {
+                    if (opened)
+                    {
+                        CloseDatabase();
+                    }
+                });
+            }
+            catch
             {
                 if (opened)
                 {
                     CloseDatabase();
                 }
-            });
+
+                throw;
+            }
         }
 
-        public BsonValue Pragma(string name)
+        public Task<BsonValue> PragmaAsync(string name, CancellationToken cancellationToken = default)
         {
-            return QueryDatabase(() => _engine.Pragma(name));
+            return this.QueryDatabaseAsync(() => _engine.PragmaAsync(name, cancellationToken), cancellationToken);
         }
 
-        public bool Pragma(string name, BsonValue value)
+        public Task<bool> PragmaAsync(string name, BsonValue value, CancellationToken cancellationToken = default)
         {
-            return QueryDatabase(() => _engine.Pragma(name, value));
+            return this.QueryDatabaseAsync(() => _engine.PragmaAsync(name, value, cancellationToken), cancellationToken);
         }
 
         #endregion
 
         #region Write Operations
 
-        public int Checkpoint()
+        public Task<int> CheckpointAsync(CancellationToken cancellationToken = default)
         {
-            return QueryDatabase(() => _engine.Checkpoint());
+            return this.QueryDatabaseAsync(() => _engine.CheckpointAsync(cancellationToken), cancellationToken);
         }
 
-        public long Rebuild(RebuildOptions options)
+        public Task<long> RebuildAsync(RebuildOptions options, CancellationToken cancellationToken = default)
         {
-            return QueryDatabase(() => _engine.Rebuild(options));
+            return this.QueryDatabaseAsync(() => _engine.RebuildAsync(options, cancellationToken), cancellationToken);
         }
 
-        public int Insert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId)
+        public Task<int> InsertAsync(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId, CancellationToken cancellationToken = default)
         {
-            return QueryDatabase(() => _engine.Insert(collection, docs, autoId));
+            return this.QueryDatabaseAsync(() => _engine.InsertAsync(collection, docs, autoId, cancellationToken), cancellationToken);
         }
 
-        public int Update(string collection, IEnumerable<BsonDocument> docs)
+        public Task<int> UpdateAsync(string collection, IEnumerable<BsonDocument> docs, CancellationToken cancellationToken = default)
         {
-            return QueryDatabase(() => _engine.Update(collection, docs));
+            return this.QueryDatabaseAsync(() => _engine.UpdateAsync(collection, docs, cancellationToken), cancellationToken);
         }
 
-        public int UpdateMany(string collection, BsonExpression extend, BsonExpression predicate)
+        public Task<int> UpdateManyAsync(string collection, BsonExpression extend, BsonExpression predicate, CancellationToken cancellationToken = default)
         {
-            return QueryDatabase(() => _engine.UpdateMany(collection, extend, predicate));
+            return this.QueryDatabaseAsync(() => _engine.UpdateManyAsync(collection, extend, predicate, cancellationToken), cancellationToken);
         }
 
-        public int Upsert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId)
+        public Task<int> UpsertAsync(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId, CancellationToken cancellationToken = default)
         {
-            return QueryDatabase(() => _engine.Upsert(collection, docs, autoId));
+            return this.QueryDatabaseAsync(() => _engine.UpsertAsync(collection, docs, autoId, cancellationToken), cancellationToken);
         }
 
-        public int Delete(string collection, IEnumerable<BsonValue> ids)
+        public Task<int> DeleteAsync(string collection, IEnumerable<BsonValue> ids, CancellationToken cancellationToken = default)
         {
-            return QueryDatabase(() => _engine.Delete(collection, ids));
+            return this.QueryDatabaseAsync(() => _engine.DeleteAsync(collection, ids, cancellationToken), cancellationToken);
         }
 
-        public int DeleteMany(string collection, BsonExpression predicate)
+        public Task<int> DeleteManyAsync(string collection, BsonExpression predicate, CancellationToken cancellationToken = default)
         {
-            return QueryDatabase(() => _engine.DeleteMany(collection, predicate));
+            return this.QueryDatabaseAsync(() => _engine.DeleteManyAsync(collection, predicate, cancellationToken), cancellationToken);
         }
 
-        public bool DropCollection(string name)
+        public Task<bool> DropCollectionAsync(string name, CancellationToken cancellationToken = default)
         {
-            return QueryDatabase(() => _engine.DropCollection(name));
+            return this.QueryDatabaseAsync(() => _engine.DropCollectionAsync(name, cancellationToken), cancellationToken);
         }
 
-        public bool RenameCollection(string name, string newName)
+        public Task<bool> RenameCollectionAsync(string name, string newName, CancellationToken cancellationToken = default)
         {
-            return QueryDatabase(() => _engine.RenameCollection(name, newName));
+            return this.QueryDatabaseAsync(() => _engine.RenameCollectionAsync(name, newName, cancellationToken), cancellationToken);
         }
 
-        public bool DropIndex(string collection, string name)
+        public Task<bool> DropIndexAsync(string collection, string name, CancellationToken cancellationToken = default)
         {
-            return QueryDatabase(() => _engine.DropIndex(collection, name));
+            return this.QueryDatabaseAsync(() => _engine.DropIndexAsync(collection, name, cancellationToken), cancellationToken);
         }
 
-        public bool EnsureIndex(string collection, string name, BsonExpression expression, bool unique)
+        public Task<bool> EnsureIndexAsync(string collection, string name, BsonExpression expression, bool unique, CancellationToken cancellationToken = default)
         {
-            return QueryDatabase(() => _engine.EnsureIndex(collection, name, expression, unique));
+            return this.QueryDatabaseAsync(() => _engine.EnsureIndexAsync(collection, name, expression, unique, cancellationToken), cancellationToken);
         }
 
         #endregion
@@ -261,12 +282,26 @@ namespace LiteDB
             }
         }
 
-        private T QueryDatabase<T>(Func<T> Query)
+        public async ValueTask DisposeAsync()
         {
-            bool opened = OpenDatabase();
+            if (_engine != null)
+            {
+                await _engine.DisposeAsync().ConfigureAwait(false);
+                _engine = null;
+                _mutex.ReleaseMutex();
+            }
+
+            GC.SuppressFinalize(this);
+        }
+
+        private async Task<T> QueryDatabaseAsync<T>(Func<Task<T>> query, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var opened = OpenDatabase();
             try
             {
-                return Query();
+                return await query().ConfigureAwait(false);
             }
             finally
             {

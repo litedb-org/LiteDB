@@ -12,7 +12,7 @@ namespace LiteDB
         /// <summary>
         /// Insert a new entity to this collection. Document Id must be a new value in collection - Returns document Id
         /// </summary>
-        public Task<BsonValue> InsertAsync(T entity, CancellationToken cancellationToken = default)
+        public async Task<BsonValue> InsertAsync(T entity, CancellationToken cancellationToken = default)
         {
             if (entity == null) throw new ArgumentNullException(nameof(entity));
             cancellationToken.ThrowIfCancellationRequested();
@@ -20,7 +20,7 @@ namespace LiteDB
             var doc = _mapper.ToDocument(entity);
             var removed = this.RemoveDocId(doc);
 
-            _engine.Insert(_collection, new[] { doc }, _autoId);
+            await _engine.InsertAsync(_collection, new[] { doc }, _autoId, cancellationToken).ConfigureAwait(false);
 
             var id = doc["_id"];
 
@@ -30,13 +30,13 @@ namespace LiteDB
                 _id?.Setter(entity, id.RawValue);
             }
 
-            return Task.FromResult(id);
+            return id;
         }
 
         /// <summary>
         /// Insert a new document to this collection using passed id value.
         /// </summary>
-        public Task InsertAsync(BsonValue id, T entity, CancellationToken cancellationToken = default)
+        public async Task InsertAsync(BsonValue id, T entity, CancellationToken cancellationToken = default)
         {
             if (entity == null) throw new ArgumentNullException(nameof(entity));
             if (id == null || id.IsNull) throw new ArgumentNullException(nameof(id));
@@ -46,9 +46,9 @@ namespace LiteDB
 
             doc["_id"] = id;
 
-            _engine.Insert(_collection, new [] { doc }, _autoId);
+            await _engine.InsertAsync(_collection, new [] { doc }, _autoId, cancellationToken).ConfigureAwait(false);
 
-            return Task.CompletedTask;
+            return;
         }
 
         /// <summary>
@@ -58,9 +58,7 @@ namespace LiteDB
         {
             if (entities == null) throw new ArgumentNullException(nameof(entities));
 
-            var result = _engine.Insert(_collection, this.GetBsonDocs(entities, cancellationToken), _autoId);
-
-            return Task.FromResult(result);
+            return _engine.InsertAsync(_collection, this.GetBsonDocs(entities, cancellationToken), _autoId, cancellationToken);
         }
 
         /// <summary>
@@ -71,9 +69,7 @@ namespace LiteDB
         {
             if (entities == null) throw new ArgumentNullException(nameof(entities));
 
-            var result = _engine.Insert(_collection, this.GetBsonDocs(entities, cancellationToken), _autoId);
-
-            return Task.FromResult(result);
+            return _engine.InsertAsync(_collection, this.GetBsonDocs(entities, cancellationToken), _autoId, cancellationToken);
         }
 
         /// <summary>

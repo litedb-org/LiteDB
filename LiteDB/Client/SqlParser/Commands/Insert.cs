@@ -26,7 +26,7 @@ namespace LiteDB
             // will validate EOF or ;
             var docs = this.ParseListOfDocuments();
 
-            var result = _engine.Insert(collection, docs, autoId);
+            var result = _engine.InsertAsync(collection, docs, autoId).ConfigureAwait(false).GetAwaiter().GetResult();
 
             return new BsonDataReader(result);
         }

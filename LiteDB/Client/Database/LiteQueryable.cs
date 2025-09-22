@@ -275,7 +275,7 @@ namespace LiteDB
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            return Task.FromResult(this.ExecuteReaderCore());
+            return _engine.QueryAsync(_collection, _query, cancellationToken);
         }
 
         /// <summary>
@@ -338,7 +338,7 @@ namespace LiteDB
 
             try
             {
-                await using var reader = _engine.Query(_collection, _query);
+                await using var reader = await _engine.QueryAsync(_collection, _query, cancellationToken).ConfigureAwait(false);
 
                 if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
                 {
@@ -533,7 +533,7 @@ namespace LiteDB
             _query.Into = newCollection;
             _query.IntoAutoId = autoId;
 
-            await using var reader = this.ExecuteReaderCore();
+            await using var reader = await this.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
 
             return reader.Current.AsInt32;
         }
@@ -544,7 +544,7 @@ namespace LiteDB
         {
             _query.ExplainPlan = false;
 
-            return _engine.Query(_collection, _query);
+            return _engine.QueryAsync(_collection, _query).ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
         internal async IAsyncEnumerable<BsonDocument> EnumerateDocumentsAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)

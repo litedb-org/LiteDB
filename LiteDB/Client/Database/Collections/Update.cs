@@ -12,22 +12,22 @@ namespace LiteDB
         /// <summary>
         /// Update a document in this collection. Returns false if not found document in collection
         /// </summary>
-        public Task<bool> UpdateAsync(T entity, CancellationToken cancellationToken = default)
+        public async Task<bool> UpdateAsync(T entity, CancellationToken cancellationToken = default)
         {
             if (entity == null) throw new ArgumentNullException(nameof(entity));
             cancellationToken.ThrowIfCancellationRequested();
 
             var doc = _mapper.ToDocument(entity);
 
-            var result = _engine.Update(_collection, new BsonDocument[] { doc }) > 0;
+            var result = await _engine.UpdateAsync(_collection, new BsonDocument[] { doc }, cancellationToken).ConfigureAwait(false);
 
-            return Task.FromResult(result);
+            return result > 0;
         }
 
         /// <summary>
         /// Update a document in this collection. Returns false if not found document in collection
         /// </summary>
-        public Task<bool> UpdateAsync(BsonValue id, T entity, CancellationToken cancellationToken = default)
+        public async Task<bool> UpdateAsync(BsonValue id, T entity, CancellationToken cancellationToken = default)
         {
             if (entity == null) throw new ArgumentNullException(nameof(entity));
             if (id == null || id.IsNull) throw new ArgumentNullException(nameof(id));
@@ -37,9 +37,9 @@ namespace LiteDB
 
             doc["_id"] = id;
 
-            var result = _engine.Update(_collection, new BsonDocument[] { doc }) > 0;
+            var result = await _engine.UpdateAsync(_collection, new BsonDocument[] { doc }, cancellationToken).ConfigureAwait(false);
 
-            return Task.FromResult(result);
+            return result > 0;
         }
 
         /// <summary>
@@ -57,9 +57,7 @@ namespace LiteDB
                 docs.Add(_mapper.ToDocument(entity));
             }
 
-            var result = _engine.Update(_collection, docs);
-
-            return Task.FromResult(result);
+            return _engine.UpdateAsync(_collection, docs, cancellationToken);
         }
 
         /// <summary>
@@ -77,9 +75,7 @@ namespace LiteDB
                 throw new ArgumentException("Extend expression must return a document. Eg: `col.UpdateMany('{ Name: UPPER(Name)}', 'Age > 10')`");
             }
 
-            var result = _engine.UpdateMany(_collection, transform, predicate);
-
-            return Task.FromResult(result);
+            return _engine.UpdateManyAsync(_collection, transform, predicate, cancellationToken);
         }
 
         /// <summary>
@@ -100,9 +96,7 @@ namespace LiteDB
                 throw new ArgumentException("Extend expression must return an anonymous class to be merge with entities. Eg: `col.UpdateMany(x => new { Name = x.Name.ToUpper() }, x => x.Age > 10)`");
             }
 
-            var result = _engine.UpdateMany(_collection, ext, pred);
-
-            return Task.FromResult(result);
+            return _engine.UpdateManyAsync(_collection, ext, pred, cancellationToken);
         }
     }
 }

@@ -29,15 +29,13 @@ namespace LiteDB
         {
             if (entities == null) throw new ArgumentNullException(nameof(entities));
 
-            var result = _engine.Upsert(_collection, this.GetBsonDocs(entities, cancellationToken), _autoId);
-
-            return Task.FromResult(result);
+            return _engine.UpsertAsync(_collection, this.GetBsonDocs(entities, cancellationToken), _autoId, cancellationToken);
         }
 
         /// <summary>
         /// Insert or Update a document in this collection.
         /// </summary>
-        public Task<bool> UpsertAsync(BsonValue id, T entity, CancellationToken cancellationToken = default)
+        public async Task<bool> UpsertAsync(BsonValue id, T entity, CancellationToken cancellationToken = default)
         {
             if (entity == null) throw new ArgumentNullException(nameof(entity));
             if (id == null || id.IsNull) throw new ArgumentNullException(nameof(id));
@@ -49,9 +47,9 @@ namespace LiteDB
             // set document _id using id parameter
             doc["_id"] = id;
 
-            var result = _engine.Upsert(_collection, new[] { doc }, _autoId) > 0;
+            var result = await _engine.UpsertAsync(_collection, new[] { doc }, _autoId, cancellationToken).ConfigureAwait(false);
 
-            return Task.FromResult(result);
+            return result > 0;
         }
     }
 }

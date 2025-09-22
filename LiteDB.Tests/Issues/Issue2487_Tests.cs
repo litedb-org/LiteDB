@@ -1,4 +1,5 @@
 ﻿using FluentAssertions;
+using LiteDB.Engine;
 
 using System.Diagnostics;
 

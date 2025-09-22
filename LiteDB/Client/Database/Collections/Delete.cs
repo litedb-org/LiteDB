@@ -11,14 +11,14 @@ namespace LiteDB
         /// <summary>
         /// Delete a single document on collection based on _id index. Returns true if document was deleted
         /// </summary>
-        public Task<bool> DeleteAsync(BsonValue id, CancellationToken cancellationToken = default)
+        public async Task<bool> DeleteAsync(BsonValue id, CancellationToken cancellationToken = default)
         {
             if (id == null || id.IsNull) throw new ArgumentNullException(nameof(id));
             cancellationToken.ThrowIfCancellationRequested();
 
-            var result = _engine.Delete(_collection, new[] { id }) == 1;
+            var result = await _engine.DeleteAsync(_collection, new[] { id }, cancellationToken).ConfigureAwait(false);
 
-            return Task.FromResult(result);
+            return result == 1;
         }
 
         /// <summary>
@@ -28,9 +28,7 @@ namespace LiteDB
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var result = _engine.DeleteMany(_collection, null);
-
-            return Task.FromResult(result);
+            return _engine.DeleteManyAsync(_collection, null, cancellationToken);
         }
 
         /// <summary>
@@ -41,9 +39,7 @@ namespace LiteDB
             if (predicate == null) throw new ArgumentNullException(nameof(predicate));
             cancellationToken.ThrowIfCancellationRequested();
 
-            var result = _engine.DeleteMany(_collection, predicate);
-
-            return Task.FromResult(result);
+            return _engine.DeleteManyAsync(_collection, predicate, cancellationToken);
         }
 
         /// <summary>

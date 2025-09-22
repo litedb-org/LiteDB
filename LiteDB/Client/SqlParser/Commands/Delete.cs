@@ -31,7 +31,7 @@ namespace LiteDB
 
             _tokenizer.ReadToken();
 
-            var result = _engine.DeleteMany(collection, where);
+            var result = _engine.DeleteManyAsync(collection, where).ConfigureAwait(false).GetAwaiter().GetResult();
 
             return new BsonDataReader(result);
         }

@@ -26,7 +26,7 @@ namespace LiteDB
 
                 _tokenizer.ReadToken().Expect(TokenType.EOF, TokenType.SemiColon);
 
-                var result = _engine.DropIndex(collection, name);
+                var result = _engine.DropIndexAsync(collection, name).ConfigureAwait(false).GetAwaiter().GetResult();
 
                 return new BsonDataReader(result);
             }
@@ -36,7 +36,7 @@ namespace LiteDB
 
                 _tokenizer.ReadToken().Expect(TokenType.EOF, TokenType.SemiColon);
 
-                var result = _engine.DropCollection(collection);
+                var result = _engine.DropCollectionAsync(collection).ConfigureAwait(false).GetAwaiter().GetResult();
 
                 return new BsonDataReader(result);
             }
