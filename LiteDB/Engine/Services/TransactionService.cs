@@ -43,6 +43,8 @@ namespace LiteDB.Engine
         public IEnumerable<Snapshot> Snapshots => _snapshots.Values;
         public bool QueryOnly { get; }
 
+        internal TransactionMonitor.TransactionContext Context { get; set; }
+
         // get/set
         public int MaxTransactionSize { get; set; }
 
@@ -75,7 +77,7 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// Finalizer: Will be called once a thread is closed. The TransactionMonitor._slot releases the used TransactionService.
+        /// Finalizer: Will be called once a thread is closed. The TransactionMonitor releases the used TransactionService.
         /// </summary>
         ~TransactionService()
         {
@@ -403,25 +405,20 @@ namespace LiteDB.Engine
             // clean snapshots if there is no commit/rollback
             if (_state == TransactionState.Active && _snapshots.Count > 0)
             {
-                // release writable snapshots
-                foreach (var snapshot in _snapshots.Values.Where(x => x.Mode == LockMode.Write))
+                foreach (var snapshot in _snapshots.Values)
                 {
-                    // discard all dirty pages
-                    _disk.DiscardDirtyPages(snapshot.GetWritablePages(true, true).Select(x => x.Buffer));
-
-                    // discard all clean pages
-                    _disk.DiscardCleanPages(snapshot.GetWritablePages(false, true).Select(x => x.Buffer));
-                }
-
-                // release buffers in read-only snaphosts
-                foreach (var snapshot in _snapshots.Values.Where(x => x.Mode == LockMode.Read))
-                {
-                    foreach (var page in snapshot.LocalPages)
+                    try
                     {
-                        page.Buffer.Release();
+                        if (snapshot.Mode == LockMode.Write)
+                        {
+                            _disk.DiscardDirtyPages(snapshot.GetWritablePages(true, true).Select(x => x.Buffer));
+                            _disk.DiscardCleanPages(snapshot.GetWritablePages(false, true).Select(x => x.Buffer));
+                        }
                     }
-
-                    snapshot.CollectionPage?.Buffer.Release();
+                    finally
+                    {
+                        snapshot.Dispose();
+                    }
                 }
             }
 

@@ -1,8 +1,6 @@
-﻿using System;
-using System.Collections.Concurrent;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Threading;
 using static LiteDB.Constants;
 
@@ -15,7 +13,7 @@ namespace LiteDB.Engine
     internal class TransactionMonitor : IDisposable
     {
         private readonly Dictionary<uint, TransactionService> _transactions = new Dictionary<uint, TransactionService>();
-        private readonly ThreadLocal<TransactionService> _slot = new ThreadLocal<TransactionService>();
+        private readonly AsyncLocal<TransactionContext> _context = new AsyncLocal<TransactionContext>();
 
         private readonly HeaderPage _header;
         private readonly LockService _locker;
@@ -40,61 +38,31 @@ namespace LiteDB.Engine
             // initialize free pages with all avaiable pages in memory
             _freePages = MAX_TRANSACTION_SIZE;
 
-            // initial size 
+            // initial size
             _initialSize = MAX_TRANSACTION_SIZE / MAX_OPEN_TRANSACTIONS;
         }
 
         public TransactionService GetTransaction(bool create, bool queryOnly, out bool isNew)
         {
-            var transaction = _slot.Value;
+            var context = create ? this.GetOrCreateContext() : _context.Value;
+            TransactionService transaction = null;
 
-            if (create && transaction == null)
+            if (context != null)
             {
+                if (queryOnly)
+                {
+                    transaction = context.WriteTransaction ?? PeekQuery(context);
+                }
+                else
+                {
+                    transaction = context.WriteTransaction;
+                }
+            }
+
+            if (transaction == null && create)
+            {
+                transaction = this.CreateTransaction(queryOnly, context!);
                 isNew = true;
-
-                bool alreadyLock;
-
-                // must lock _transaction before work with _transactions (GetInitialSize use _transactions)
-                lock (_transactions)
-                {
-                    if (_transactions.Count >= MAX_OPEN_TRANSACTIONS) throw new LiteException(0, "Maximum number of transactions reached");
-
-                    var initialSize = this.GetInitialSize();
-
-                    // check if current thread contains any transaction
-                    alreadyLock = _transactions.Values.Any(x => x.ThreadID == Environment.CurrentManagedThreadId);
-
-                    transaction = new TransactionService(_header, _locker, _disk, _walIndex, initialSize, this, queryOnly);
-
-                    // add transaction to execution transaction dict
-                    _transactions[transaction.TransactionID] = transaction;
-                }
-
-                // enter in lock transaction after release _transaction lock
-                if (alreadyLock == false)
-                {
-                    try
-                    {
-                        _locker.EnterTransaction();
-                    }
-                    catch
-                    {
-                        transaction.Dispose();
-                        lock (_transactions)
-                        {
-                            // return pages
-                            _freePages += transaction.MaxTransactionSize;
-                            _transactions.Remove(transaction.TransactionID);
-                        }
-                        throw;
-                    }
-                }
-
-                // do not store in thread query-only transaction
-                if (queryOnly == false)
-                {
-                    _slot.Value = transaction;
-                }
             }
             else
             {
@@ -109,37 +77,22 @@ namespace LiteDB.Engine
         /// </summary>
         public void ReleaseTransaction(TransactionService transaction)
         {
-            // dispose current transaction
             transaction.Dispose();
-
-            bool keepLocked;
 
             lock (_transactions)
             {
-                // remove from "open transaction" list
                 _transactions.Remove(transaction.TransactionID);
 
                 // return freePages used area
                 _freePages += transaction.MaxTransactionSize;
-
-                // check if current thread contains more query transactions
-                keepLocked = _transactions.Values.Any(x => x.ThreadID == Environment.CurrentManagedThreadId);
             }
 
-            // unlock thread-transaction only if there is no more transactions
-            if (keepLocked == false)
+            if (transaction.Context != null)
             {
-                _locker.ExitTransaction();
+                this.UnregisterTransaction(transaction);
             }
 
-            // remove transaction from thread if are no queryOnly transaction
-            if (transaction.QueryOnly == false)
-            {
-                ENSURE(_slot.Value == transaction, "current thread must contains transaction parameter");
-
-                // clear thread slot for new transaction
-                _slot.Value = null;
-            }
+            _locker.ExitTransaction();
         }
 
         /// <summary>
@@ -148,11 +101,16 @@ namespace LiteDB.Engine
         /// </summary>
         public TransactionService GetThreadTransaction()
         {
+            var context = _context.Value;
+
+            if (context != null)
+            {
+                return context.WriteTransaction ?? PeekQuery(context);
+            }
+
             lock (_transactions)
             {
-                return 
-                    _slot.Value ??
-                    _transactions.Values.FirstOrDefault(x => x.ThreadID == Environment.CurrentManagedThreadId);
+                return _transactions.Values.FirstOrDefault();
             }
         }
 
@@ -211,7 +169,7 @@ namespace LiteDB.Engine
         /// </summary>
         public bool CheckSafepoint(TransactionService trans)
         {
-            return 
+            return
                 trans.Pages.TransactionSize >= trans.MaxTransactionSize &&
                 this.TryExtend(trans) == false;
         }
@@ -230,6 +188,134 @@ namespace LiteDB.Engine
 
                 _transactions.Clear();
             }
+        }
+
+        private TransactionService CreateTransaction(bool queryOnly, TransactionContext context)
+        {
+            TransactionService transaction;
+            int initialSize;
+
+            lock (_transactions)
+            {
+                if (_transactions.Count >= MAX_OPEN_TRANSACTIONS) throw new LiteException(0, "Maximum number of transactions reached");
+
+                initialSize = this.GetInitialSize();
+
+                transaction = new TransactionService(_header, _locker, _disk, _walIndex, initialSize, this, queryOnly);
+                _transactions[transaction.TransactionID] = transaction;
+            }
+
+            try
+            {
+                _locker.EnterTransaction();
+            }
+            catch
+            {
+                this.CleanupFailedTransaction(transaction);
+                throw;
+            }
+
+            transaction.Context = context;
+            this.RegisterTransaction(context, transaction);
+
+            return transaction;
+        }
+
+        private void RegisterTransaction(TransactionContext context, TransactionService transaction)
+        {
+            if (transaction.QueryOnly)
+            {
+                context.QueryTransactions.Push(transaction);
+            }
+            else
+            {
+                context.WriteTransaction = transaction;
+            }
+        }
+
+        private void CleanupFailedTransaction(TransactionService transaction)
+        {
+            transaction.Dispose();
+
+            lock (_transactions)
+            {
+                _freePages += transaction.MaxTransactionSize;
+                _transactions.Remove(transaction.TransactionID);
+            }
+
+            transaction.Context = null;
+        }
+
+        private void UnregisterTransaction(TransactionService transaction)
+        {
+            var context = transaction.Context;
+
+            if (context == null)
+            {
+                return;
+            }
+
+            if (transaction.QueryOnly)
+            {
+                if (context.QueryTransactions.Count > 0 && ReferenceEquals(context.QueryTransactions.Peek(), transaction))
+                {
+                    context.QueryTransactions.Pop();
+                }
+                else if (context.QueryTransactions.Count > 0)
+                {
+                    var buffer = new Stack<TransactionService>();
+
+                    while (context.QueryTransactions.Count > 0)
+                    {
+                        var current = context.QueryTransactions.Pop();
+
+                        if (!ReferenceEquals(current, transaction))
+                        {
+                            buffer.Push(current);
+                        }
+                    }
+
+                    while (buffer.Count > 0)
+                    {
+                        context.QueryTransactions.Push(buffer.Pop());
+                    }
+                }
+            }
+            else if (ReferenceEquals(context.WriteTransaction, transaction))
+            {
+                context.WriteTransaction = null;
+            }
+
+            transaction.Context = null;
+
+            if (ReferenceEquals(_context.Value, context) && context.WriteTransaction == null && context.QueryTransactions.Count == 0)
+            {
+                _context.Value = null;
+            }
+        }
+
+        private TransactionContext GetOrCreateContext()
+        {
+            var context = _context.Value;
+
+            if (context == null)
+            {
+                context = new TransactionContext();
+                _context.Value = context;
+            }
+
+            return context;
+        }
+
+        private static TransactionService PeekQuery(TransactionContext context)
+        {
+            return context.QueryTransactions.Count > 0 ? context.QueryTransactions.Peek() : null;
+        }
+
+        internal sealed class TransactionContext
+        {
+            public TransactionService WriteTransaction;
+            public Stack<TransactionService> QueryTransactions { get; } = new Stack<TransactionService>();
         }
     }
 }
