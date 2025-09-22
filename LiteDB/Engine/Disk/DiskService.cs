@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -21,6 +22,8 @@ namespace LiteDB.Engine
 
         private StreamPool _dataPool;
         private readonly StreamPool _logPool;
+        private readonly SemaphoreSlim _dataWriterLock = new SemaphoreSlim(1, 1);
+        private readonly SemaphoreSlim _logWriterLock = new SemaphoreSlim(1, 1);
         private readonly Lazy<Stream> _writer;
 
         private long _dataLength;
@@ -164,47 +167,50 @@ namespace LiteDB.Engine
         /// <summary>
         /// Write all pages inside log file in a thread safe operation
         /// </summary>
-        public int WriteLogDisk(IEnumerable<PageBuffer> pages)
+        public async ValueTask<int> WriteLogDiskAsync(IEnumerable<PageBuffer> pages, CancellationToken cancellationToken = default)
         {
             var count = 0;
             var stream = _writer.Value;
 
-            // do a global write lock - only 1 thread can write on disk at time
-            lock(stream)
+            await _logWriterLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+            try
             {
                 foreach (var page in pages)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     ENSURE(page.ShareCounter == BUFFER_WRITABLE, "to enqueue page, page must be writable");
 
-                    // adding this page into file AS new page (at end of file)
-                    // must add into cache to be sure that new readers can see this page
                     page.Position = Interlocked.Add(ref _logLength, PAGE_SIZE);
-
-                    // should mark page origin to log because async queue works only for log file
-                    // if this page came from data file, must be changed before MoveToReadable
                     page.Origin = FileOrigin.Log;
 
-                    // mark this page as readable and get cached paged to enqueue
                     var readable = _cache.MoveToReadable(page);
 
-                    // set log stream position to page
                     stream.Position = page.Position;
 
 #if DEBUG
                     _state.SimulateDiskWriteFail?.Invoke(page);
 #endif
 
-                    // and write to disk in a sync mode
-                    stream.Write(page.Array, page.Offset, PAGE_SIZE);
+                    await stream.WriteAsync(page.Array, page.Offset, PAGE_SIZE, cancellationToken).ConfigureAwait(false);
 
-                    // release page here (no page use after this)
                     page.Release();
 
                     count++;
                 }
             }
+            finally
+            {
+                _logWriterLock.Release();
+            }
 
             return count;
+        }
+
+        public int WriteLogDisk(IEnumerable<PageBuffer> pages)
+        {
+            return this.WriteLogDiskAsync(pages).GetAwaiter().GetResult();
         }
 
         /// <summary>
@@ -287,41 +293,72 @@ namespace LiteDB.Engine
         /// <summary>
         /// Write pages DIRECT in disk. This pages are not cached and are not shared - WORKS FOR DATA FILE ONLY
         /// </summary>
-        public void WriteDataDisk(IEnumerable<PageBuffer> pages)
+        public async ValueTask WriteDataDiskAsync(IEnumerable<PageBuffer> pages, CancellationToken cancellationToken = default)
         {
             var stream = _dataPool.Writer.Value;
 
-            foreach (var page in pages)
+            await _dataWriterLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+            try
             {
-                ENSURE(page.ShareCounter == 0, "this page can't be shared to use sync operation - do not use cached pages");
+                foreach (var page in pages)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
 
-                _dataLength = Math.Max(_dataLength, page.Position);
+                    ENSURE(page.ShareCounter == 0, "this page can't be shared to use sync operation - do not use cached pages");
 
-                stream.Position = page.Position;
+                    _dataLength = Math.Max(_dataLength, page.Position);
 
-                stream.Write(page.Array, page.Offset, PAGE_SIZE);
+                    stream.Position = page.Position;
+
+                    await stream.WriteAsync(page.Array, page.Offset, PAGE_SIZE, cancellationToken).ConfigureAwait(false);
+                }
+
+                await stream.FlushToDiskAsync(cancellationToken).ConfigureAwait(false);
             }
+            finally
+            {
+                _dataWriterLock.Release();
+            }
+        }
 
-            stream.FlushToDisk();
+        public void WriteDataDisk(IEnumerable<PageBuffer> pages)
+        {
+            this.WriteDataDiskAsync(pages).GetAwaiter().GetResult();
         }
 
         /// <summary>
         /// Set new length for file in sync mode. Queue must be empty before set length
         /// </summary>
-        public void SetLength(long length, FileOrigin origin)
+        public async ValueTask SetLengthAsync(long length, FileOrigin origin, CancellationToken cancellationToken = default)
         {
             var stream = origin == FileOrigin.Log ? _logPool.Writer : _dataPool.Writer;
+            var gate = origin == FileOrigin.Log ? _logWriterLock : _dataWriterLock;
 
-            if (origin == FileOrigin.Log)
-            {
-                Interlocked.Exchange(ref _logLength, length - PAGE_SIZE);
-            }
-            else
-            {
-                Interlocked.Exchange(ref _dataLength, length - PAGE_SIZE);
-            }
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
 
-            stream.Value.SetLength(length);
+            try
+            {
+                if (origin == FileOrigin.Log)
+                {
+                    Interlocked.Exchange(ref _logLength, length - PAGE_SIZE);
+                }
+                else
+                {
+                    Interlocked.Exchange(ref _dataLength, length - PAGE_SIZE);
+                }
+
+                stream.Value.SetLength(length);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }
+
+        public void SetLength(long length, FileOrigin origin)
+        {
+            this.SetLengthAsync(length, origin).GetAwaiter().GetResult();
         }
 
         /// <summary>
@@ -343,6 +380,9 @@ namespace LiteDB.Engine
             // dispose Stream pools
             _dataPool.Dispose();
             _logPool.Dispose();
+
+            _dataWriterLock.Dispose();
+            _logWriterLock.Dispose();
 
             if (delete) _logFactory.Delete();
 
