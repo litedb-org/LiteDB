@@ -5,6 +5,9 @@ using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Threading;
+using System.Threading.Tasks;
 using static LiteDB.Constants;
 
 namespace LiteDB
@@ -268,71 +271,86 @@ namespace LiteDB
         /// <summary>
         /// Execute query and returns resultset as generic BsonDataReader
         /// </summary>
-        public IBsonDataReader ExecuteReader()
+        public Task<IBsonDataReader> ExecuteReaderAsync(CancellationToken cancellationToken = default)
         {
-            _query.ExplainPlan = false;
+            cancellationToken.ThrowIfCancellationRequested();
 
-            return _engine.Query(_collection, _query);
+            return Task.FromResult(this.ExecuteReaderCore());
         }
 
         /// <summary>
-        /// Execute query and return resultset as IEnumerable of documents
+        /// Execute query and return resultset as asynchronous sequence of documents
         /// </summary>
-        public IEnumerable<BsonDocument> ToDocuments()
+        public async IAsyncEnumerable<BsonDocument> ToDocumentsAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            using (var reader = this.ExecuteReader())
+            await foreach (var document in this.EnumerateDocumentsAsync(cancellationToken).ConfigureAwait(false))
             {
-                while (reader.Read())
-                {
-                    yield return reader.Current as BsonDocument;
-                }
+                yield return document;
             }
         }
 
         /// <summary>
-        /// Execute query and return resultset as IEnumerable of T. If T is a ValueType or String, return values only (not documents)
+        /// Execute query and return resultset as asynchronous sequence of T. If T is a ValueType or String, return values only (not documents)
         /// </summary>
-        public IEnumerable<T> ToEnumerable()
+        public async IAsyncEnumerable<T> ToAsyncEnumerable([EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            if (_isSimpleType)
+            await foreach (var item in this.EnumerateAsync(cancellationToken).ConfigureAwait(false))
             {
-                return this.ToDocuments()
-                    .Select(x => x[x.Keys.First()])
-                    .Select(x => (T)_mapper.Deserialize(typeof(T), x));
-            }
-            else
-            {
-                return this.ToDocuments()
-                    .Select(x => (T)_mapper.Deserialize(typeof(T), x));
+                yield return item;
             }
         }
 
         /// <summary>
         /// Execute query and return results as a List
         /// </summary>
-        public List<T> ToList()
+        public async Task<List<T>> ToListAsync(CancellationToken cancellationToken = default)
         {
-            return this.ToEnumerable().ToList();
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var list = new List<T>();
+
+            await foreach (var item in this.ToAsyncEnumerable(cancellationToken).ConfigureAwait(false))
+            {
+                list.Add(item);
+            }
+
+            return list;
         }
 
         /// <summary>
         /// Execute query and return results as an Array
         /// </summary>
-        public T[] ToArray()
+        public async Task<T[]> ToArrayAsync(CancellationToken cancellationToken = default)
         {
-            return this.ToEnumerable().ToArray();
+            var list = await this.ToListAsync(cancellationToken).ConfigureAwait(false);
+            return list.ToArray();
         }
 
         /// <summary>
         /// Get execution plan over current query definition to see how engine will execute query
         /// </summary>
-        public BsonDocument GetPlan()
+        public async Task<BsonDocument> GetPlanAsync(CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var previousExplain = _query.ExplainPlan;
             _query.ExplainPlan = true;
 
-            var reader = _engine.Query(_collection, _query);
+            try
+            {
+                await using var reader = _engine.Query(_collection, _query);
 
-            return reader.ToEnumerable().FirstOrDefault()?.AsDocument;
+                if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    return reader.Current.AsDocument;
+                }
+
+                return null;
+            }
+            finally
+            {
+                _query.ExplainPlan = previousExplain;
+            }
         }
 
         #endregion
@@ -342,33 +360,84 @@ namespace LiteDB
         /// <summary>
         /// Returns the only document of resultset, and throw an exception if there not exactly one document in the sequence
         /// </summary>
-        public T Single()
+        public async Task<T> SingleAsync(CancellationToken cancellationToken = default)
         {
-            return this.ToEnumerable().Single();
+            cancellationToken.ThrowIfCancellationRequested();
+
+            T value = default;
+            var found = false;
+
+            await foreach (var item in this.ToAsyncEnumerable(cancellationToken).ConfigureAwait(false))
+            {
+                if (found)
+                {
+                    throw new InvalidOperationException("Sequence contains more than one element");
+                }
+
+                found = true;
+                value = item;
+            }
+
+            if (!found)
+            {
+                throw new InvalidOperationException("Sequence contains no elements");
+            }
+
+            return value;
         }
 
         /// <summary>
         /// Returns the only document of resultset, or null if resultset are empty; this method throw an exception if there not exactly one document in the sequence
         /// </summary>
-        public T SingleOrDefault()
+        public async Task<T> SingleOrDefaultAsync(CancellationToken cancellationToken = default)
         {
-            return this.ToEnumerable().SingleOrDefault();
+            cancellationToken.ThrowIfCancellationRequested();
+
+            T value = default;
+            var found = false;
+
+            await foreach (var item in this.ToAsyncEnumerable(cancellationToken).ConfigureAwait(false))
+            {
+                if (found)
+                {
+                    throw new InvalidOperationException("Sequence contains more than one element");
+                }
+
+                found = true;
+                value = item;
+            }
+
+            return value;
         }
 
         /// <summary>
         /// Returns first document of resultset
         /// </summary>
-        public T First()
+        public async Task<T> FirstAsync(CancellationToken cancellationToken = default)
         {
-            return this.ToEnumerable().First();
+            cancellationToken.ThrowIfCancellationRequested();
+
+            await foreach (var item in this.ToAsyncEnumerable(cancellationToken).ConfigureAwait(false))
+            {
+                return item;
+            }
+
+            throw new InvalidOperationException("Sequence contains no elements");
         }
 
         /// <summary>
         /// Returns first document of resultset or null if resultset are empty
         /// </summary>
-        public T FirstOrDefault()
+        public async Task<T> FirstOrDefaultAsync(CancellationToken cancellationToken = default)
         {
-            return this.ToEnumerable().FirstOrDefault();
+            cancellationToken.ThrowIfCancellationRequested();
+
+            await foreach (var item in this.ToAsyncEnumerable(cancellationToken).ConfigureAwait(false))
+            {
+                return item;
+            }
+
+            return default;
         }
 
         #endregion
@@ -376,18 +445,24 @@ namespace LiteDB
         #region Execute Count
 
         /// <summary>
-        /// Execute Count methos in filter query
+        /// Execute Count method in filter query
         /// </summary>
-        public int Count()
+        public async Task<int> CountAsync(CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             var oldSelect = _query.Select;
 
             try
             {
                 this.Select($"{{ count: COUNT(*._id) }}");
-                var ret = this.ToDocuments().Single()["count"].AsInt32;
 
-                return ret;
+                await foreach (var doc in this.ToDocumentsAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    return doc["count"].AsInt32;
+                }
+
+                return 0;
             }
             finally
             {
@@ -396,18 +471,24 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Execute Count methos in filter query
+        /// Execute Count method in filter query
         /// </summary>
-        public long LongCount()
+        public async Task<long> LongCountAsync(CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             var oldSelect = _query.Select;
 
             try
             {
                 this.Select($"{{ count: COUNT(*._id) }}");
-                var ret = this.ToDocuments().Single()["count"].AsInt64;
 
-                return ret;
+                await foreach (var doc in this.ToDocumentsAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    return doc["count"].AsInt64;
+                }
+
+                return 0L;
             }
             finally
             {
@@ -418,16 +499,22 @@ namespace LiteDB
         /// <summary>
         /// Returns true/false if query returns any result
         /// </summary>
-        public bool Exists()
+        public async Task<bool> ExistsAsync(CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             var oldSelect = _query.Select;
 
             try
             {
                 this.Select($"{{ exists: ANY(*._id) }}");
-                var ret = this.ToDocuments().Single()["exists"].AsBoolean;
 
-                return ret;
+                await foreach (var doc in this.ToDocumentsAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    return doc["exists"].AsBoolean;
+                }
+
+                return false;
             }
             finally
             {
@@ -439,17 +526,89 @@ namespace LiteDB
 
         #region Execute Into
 
-        public int Into(string newCollection, BsonAutoId autoId = BsonAutoId.ObjectId)
+        public async Task<int> IntoAsync(string newCollection, BsonAutoId autoId = BsonAutoId.ObjectId, CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             _query.Into = newCollection;
             _query.IntoAutoId = autoId;
 
-            using (var reader = this.ExecuteReader())
-            {
-                return reader.Current.AsInt32;
-            }
+            await using var reader = this.ExecuteReaderCore();
+
+            return reader.Current.AsInt32;
         }
 
         #endregion
+
+        private IBsonDataReader ExecuteReaderCore()
+        {
+            _query.ExplainPlan = false;
+
+            return _engine.Query(_collection, _query);
+        }
+
+        internal async IAsyncEnumerable<BsonDocument> EnumerateDocumentsAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await using var reader = await this.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (reader.Current is BsonDocument document)
+                {
+                    yield return document;
+                }
+                else
+                {
+                    yield return reader.Current.AsDocument;
+                }
+            }
+        }
+
+        internal async IAsyncEnumerable<T> EnumerateAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            if (_isSimpleType)
+            {
+                await foreach (var doc in this.EnumerateDocumentsAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    var value = doc[doc.Keys.First()];
+                    yield return (T)_mapper.Deserialize(typeof(T), value);
+                }
+            }
+            else
+            {
+                await foreach (var doc in this.EnumerateDocumentsAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    yield return (T)_mapper.Deserialize(typeof(T), doc);
+                }
+            }
+        }
+
+        internal IEnumerable<BsonDocument> EnumerateDocuments()
+        {
+            using (var reader = this.ExecuteReaderCore())
+            {
+                while (reader.Read())
+                {
+                    yield return reader.Current as BsonDocument;
+                }
+            }
+        }
+
+        internal IEnumerable<T> Enumerate()
+        {
+            if (_isSimpleType)
+            {
+                return this.EnumerateDocuments()
+                    .Select(x => x[x.Keys.First()])
+                    .Select(x => (T)_mapper.Deserialize(typeof(T), x));
+            }
+            else
+            {
+                return this.EnumerateDocuments()
+                    .Select(x => (T)_mapper.Deserialize(typeof(T), x));
+            }
+        }
     }
 }

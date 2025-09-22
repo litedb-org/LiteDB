@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using LiteDB.Engine;
 using static LiteDB.Constants;
 
@@ -128,17 +129,38 @@ namespace LiteDB
         /// Initialize a new transaction. Transaction are created "per-thread". There is only one single transaction per thread.
         /// Return true if transaction was created or false if current thread already in a transaction.
         /// </summary>
-        public bool BeginTrans() => _engine.BeginTrans();
+        public Task<bool> BeginTransAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var result = _engine.BeginTrans();
+
+            return Task.FromResult(result);
+        }
 
         /// <summary>
         /// Commit current transaction
         /// </summary>
-        public bool Commit() => _engine.Commit();
+        public Task<bool> CommitAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var result = _engine.Commit();
+
+            return Task.FromResult(result);
+        }
 
         /// <summary>
         /// Rollback current transaction
         /// </summary>
-        public bool Rollback() => _engine.Rollback();
+        public Task<bool> RollbackAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var result = _engine.Rollback();
+
+            return Task.FromResult(result);
+        }
 
         #endregion
 
@@ -220,46 +242,62 @@ namespace LiteDB
         /// <summary>
         /// Execute SQL commands and return as data reader.
         /// </summary>
-        public IBsonDataReader Execute(TextReader commandReader, BsonDocument parameters = null)
+        public Task<IBsonDataReader> ExecuteAsync(TextReader commandReader, BsonDocument parameters = null, CancellationToken cancellationToken = default)
         {
             if (commandReader == null) throw new ArgumentNullException(nameof(commandReader));
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             var tokenizer = new Tokenizer(commandReader);
             var sql = new SqlParser(_engine, tokenizer, parameters);
             var reader = sql.Execute();
 
-            return reader;
+            return Task.FromResult(reader);
         }
 
         /// <summary>
         /// Execute SQL commands and return as data reader
         /// </summary>
-        public IBsonDataReader Execute(string command, BsonDocument parameters = null)
+        public Task<IBsonDataReader> ExecuteAsync(string command, BsonDocument parameters = null, CancellationToken cancellationToken = default)
         {
             if (command == null) throw new ArgumentNullException(nameof(command));
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             var tokenizer = new Tokenizer(command);
             var sql = new SqlParser(_engine, tokenizer, parameters);
             var reader = sql.Execute();
 
-            return reader;
+            return Task.FromResult(reader);
         }
 
         /// <summary>
         /// Execute SQL commands and return as data reader
         /// </summary>
-        public IBsonDataReader Execute(string command, params BsonValue[] args)
+        public Task<IBsonDataReader> ExecuteAsync(string command, CancellationToken cancellationToken, params BsonValue[] args)
         {
+            if (command == null) throw new ArgumentNullException(nameof(command));
+
+            cancellationToken.ThrowIfCancellationRequested();
+
             var p = new BsonDocument();
             var index = 0;
 
-            foreach (var arg in args)
+            foreach (var arg in args ?? Array.Empty<BsonValue>())
             {
                 p[index.ToString()] = arg;
                 index++;
             }
 
-            return this.Execute(command, p);
+            return this.ExecuteAsync(command, p, cancellationToken);
+        }
+
+        /// <summary>
+        /// Execute SQL commands and return as data reader
+        /// </summary>
+        public Task<IBsonDataReader> ExecuteAsync(string command, params BsonValue[] args)
+        {
+            return this.ExecuteAsync(command, default, args);
         }
 
         #endregion
@@ -269,17 +307,25 @@ namespace LiteDB
         /// <summary>
         /// Do database checkpoint. Copy all commited transaction from log file into datafile.
         /// </summary>
-        public void Checkpoint()
+        public Task CheckpointAsync(CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             _engine.Checkpoint();
+
+            return Task.CompletedTask;
         }
 
         /// <summary>
         /// Rebuild all database to remove unused pages - reduce data file
         /// </summary>
-        public long Rebuild(RebuildOptions options = null)
+        public Task<long> RebuildAsync(RebuildOptions options = null, CancellationToken cancellationToken = default)
         {
-            return _engine.Rebuild(options ?? new RebuildOptions());
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var result = _engine.Rebuild(options ?? new RebuildOptions());
+
+            return Task.FromResult(result);
         }
 
         #endregion
@@ -362,6 +408,12 @@ namespace LiteDB
         {
             this.Dispose(true);
             GC.SuppressFinalize(this);
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            this.Dispose();
+            return default;
         }
 
         ~LiteDatabase()

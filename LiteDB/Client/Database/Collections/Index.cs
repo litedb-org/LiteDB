@@ -1,8 +1,10 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
 using static LiteDB.Constants;
 
 namespace LiteDB
@@ -15,12 +17,16 @@ namespace LiteDB
         /// <param name="name">Index name - unique name for this collection</param>
         /// <param name="expression">Create a custom expression function to be indexed</param>
         /// <param name="unique">If is a unique index</param>
-        public bool EnsureIndex(string name, BsonExpression expression, bool unique = false)
+        /// <param name="cancellationToken">A token to cancel the asynchronous operation.</param>
+        public Task<bool> EnsureIndexAsync(string name, BsonExpression expression, bool unique = false, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
             if (expression == null) throw new ArgumentNullException(nameof(expression));
+            cancellationToken.ThrowIfCancellationRequested();
 
-            return _engine.EnsureIndex(_collection, name, expression, unique);
+            var result = _engine.EnsureIndex(_collection, name, expression, unique);
+
+            return Task.FromResult(result);
         }
 
         /// <summary>
@@ -28,13 +34,14 @@ namespace LiteDB
         /// </summary>
         /// <param name="expression">Document field/expression</param>
         /// <param name="unique">If is a unique index</param>
-        public bool EnsureIndex(BsonExpression expression, bool unique = false)
+        /// <param name="cancellationToken">A token to cancel the asynchronous operation.</param>
+        public Task<bool> EnsureIndexAsync(BsonExpression expression, bool unique = false, CancellationToken cancellationToken = default)
         {
             if (expression == null) throw new ArgumentNullException(nameof(expression));
 
-            var name = Regex.Replace(expression.Source, @"[^a-z0-9]", "", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            var name = Regex.Replace(expression.Source, @"[^a-z0-9]", string.Empty, RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-            return this.EnsureIndex(name, expression, unique);
+            return this.EnsureIndexAsync(name, expression, unique, cancellationToken);
         }
 
         /// <summary>
@@ -42,11 +49,12 @@ namespace LiteDB
         /// </summary>
         /// <param name="keySelector">LinqExpression to be converted into BsonExpression to be indexed</param>
         /// <param name="unique">Create a unique keys index?</param>
-        public bool EnsureIndex<K>(Expression<Func<T, K>> keySelector, bool unique = false)
+        /// <param name="cancellationToken">A token to cancel the asynchronous operation.</param>
+        public Task<bool> EnsureIndexAsync<K>(Expression<Func<T, K>> keySelector, bool unique = false, CancellationToken cancellationToken = default)
         {
             var expression = this.GetIndexExpression(keySelector);
 
-            return this.EnsureIndex(expression, unique);
+            return this.EnsureIndexAsync(expression, unique, cancellationToken);
         }
 
         /// <summary>
@@ -55,11 +63,12 @@ namespace LiteDB
         /// <param name="name">Index name - unique name for this collection</param>
         /// <param name="keySelector">LinqExpression to be converted into BsonExpression to be indexed</param>
         /// <param name="unique">Create a unique keys index?</param>
-        public bool EnsureIndex<K>(string name, Expression<Func<T, K>> keySelector, bool unique = false)
+        /// <param name="cancellationToken">A token to cancel the asynchronous operation.</param>
+        public Task<bool> EnsureIndexAsync<K>(string name, Expression<Func<T, K>> keySelector, bool unique = false, CancellationToken cancellationToken = default)
         {
             var expression = this.GetIndexExpression(keySelector);
 
-            return this.EnsureIndex(name, expression, unique);
+            return this.EnsureIndexAsync(name, expression, unique, cancellationToken);
         }
 
         /// <summary>
@@ -73,9 +82,6 @@ namespace LiteDB
             {
                 if (expression.Type == BsonExpressionType.Path)
                 {
-                    // convert LINQ expression that returns an IEnumerable but expression returns a single value
-                    // `x => x.Phones` --> `$.Phones[*]`
-                    // works only if exression is a simple path
                     expression = expression.Source + "[*]";
                 }
                 else
@@ -90,9 +96,15 @@ namespace LiteDB
         /// <summary>
         /// Drop index and release slot for another index
         /// </summary>
-        public bool DropIndex(string name)
+        /// <param name="name">The index name to drop.</param>
+        /// <param name="cancellationToken">A token to cancel the asynchronous operation.</param>
+        public Task<bool> DropIndexAsync(string name, CancellationToken cancellationToken = default)
         {
-            return _engine.DropIndex(_collection, name);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var result = _engine.DropIndex(_collection, name);
+
+            return Task.FromResult(result);
         }
     }
 }
