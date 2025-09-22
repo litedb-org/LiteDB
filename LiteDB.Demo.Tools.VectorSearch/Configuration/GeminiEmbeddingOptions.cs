@@ -70,7 +70,7 @@ namespace LiteDB.Demo.Tools.VectorSearch.Configuration
 
         public string GetApiEndpoint()
         {
-            return $"https://generativelanguage.googleapis.com/v1beta/models/{GetApiModelIdentifier()}:embedContent";
+            return $"https://generativelanguage.googleapis.com/v1beta/{GetApiModelIdentifier()}:embedContent"; //models/{GetApiModelIdentifier()}:embedContent";
         }
 
         public string GetApiModelIdentifier()

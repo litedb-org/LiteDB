@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteDB.Demo.Tools.VectorSearch.Configuration;
@@ -95,6 +96,11 @@ namespace LiteDB.Demo.Tools.VectorSearch.Commands
                             record.SizeBytes = info.Length;
                             record.ContentHash = contentHash;
                             record.IngestedUtc = DateTime.UtcNow;
+                            
+                            File.WriteAllText($"ingest-{DateTime.Now:yyyyMMdd-HHmmss}.json", System.Text.Json.JsonSerializer.Serialize(record, new JsonSerializerOptions()
+                            {
+                                WriteIndented = true,
+                            }));
 
                             documentStore.Upsert(record);
                             processed++;

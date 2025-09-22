@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Threading.Tasks;
 using LiteDB.Demo.Tools.VectorSearch.Commands;
 using Spectre.Console;
@@ -25,6 +26,11 @@ namespace LiteDB.Demo.Tools.VectorSearch
 
                 config.AddCommand<SearchCommand>("search")
                     .WithDescription("Search previously embedded documents using vector similarity.");
+
+                if (Debugger.IsAttached)
+                {
+                    config.PropagateExceptions();
+                }
             });
 
             return await app.RunAsync(args);
