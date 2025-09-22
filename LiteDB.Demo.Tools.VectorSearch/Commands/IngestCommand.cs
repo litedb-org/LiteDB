@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteDB.Demo.Tools.VectorSearch.Configuration;
@@ -67,7 +66,6 @@ namespace LiteDB.Demo.Tools.VectorSearch.Commands
                         {
                             var info = new FileInfo(path);
                             var rawContent = TextUtilities.ReadDocument(path);
-                            var normalized = TextUtilities.NormalizeForEmbedding(rawContent, embeddingOptions.MaxInputLength);
                             var contentHash = TextUtilities.ComputeContentHash(rawContent);
 
                             var existing = documentStore.FindByPath(path);
@@ -77,32 +75,58 @@ namespace LiteDB.Demo.Tools.VectorSearch.Commands
                                 continue;
                             }
 
-                            if (string.IsNullOrWhiteSpace(normalized))
+                            var chunkRecords = new List<IndexedDocumentChunk>();
+                            var chunkIndex = 0;
+                            var ensuredIndex = false;
+
+                            foreach (var chunk in TextUtilities.SplitIntoChunks(rawContent, settings.ChunkLength, settings.ChunkOverlap))
                             {
-                                skipped++;
-                                continue;
+                                var normalizedChunk = TextUtilities.NormalizeForEmbedding(chunk, embeddingOptions.MaxInputLength);
+                                if (string.IsNullOrWhiteSpace(normalizedChunk))
+                                {
+                                    chunkIndex++;
+                                    continue;
+                                }
+
+                                var embedding = await embeddingService.EmbedAsync(normalizedChunk, CancellationToken.None);
+
+                                if (!ensuredIndex)
+                                {
+                                    documentStore.EnsureChunkVectorIndex(embedding.Length);
+                                    ensuredIndex = true;
+                                }
+
+                                chunkRecords.Add(new IndexedDocumentChunk
+                                {
+                                    Path = path,
+                                    ChunkIndex = chunkIndex,
+                                    Snippet = chunk.Trim(),
+                                    Embedding = embedding
+                                });
+
+                                chunkIndex++;
                             }
-
-                            var embedding = await embeddingService.EmbedAsync(normalized, CancellationToken.None);
-
-                            documentStore.EnsureVectorIndex(embedding.Length);
 
                             var record = existing ?? new IndexedDocument();
                             record.Path = path;
                             record.Title = Path.GetFileName(path);
                             record.Preview = TextUtilities.BuildPreview(rawContent, settings.PreviewLength);
-                            record.Embedding = embedding;
+                            record.Embedding = Array.Empty<float>();
                             record.LastModifiedUtc = info.LastWriteTimeUtc;
                             record.SizeBytes = info.Length;
                             record.ContentHash = contentHash;
                             record.IngestedUtc = DateTime.UtcNow;
-                            
-                            File.WriteAllText($"ingest-{DateTime.Now:yyyyMMdd-HHmmss}.json", System.Text.Json.JsonSerializer.Serialize(record, new JsonSerializerOptions()
+
+                            if (chunkRecords.Count == 0)
                             {
-                                WriteIndented = true,
-                            }));
+                                documentStore.Upsert(record);
+                                documentStore.ReplaceDocumentChunks(path, Array.Empty<IndexedDocumentChunk>());
+                                skipped++;
+                                continue;
+                            }
 
                             documentStore.Upsert(record);
+                            documentStore.ReplaceDocumentChunks(path, chunkRecords);
                             processed++;
                         }
                         catch (Exception ex)
@@ -174,6 +198,12 @@ namespace LiteDB.Demo.Tools.VectorSearch.Commands
         [CommandOption("--prune-missing")]
         public bool PruneMissing { get; set; }
 
+        [CommandOption("--chunk-length <CHARS>")]
+        public int ChunkLength { get; set; } = 600;
+
+        [CommandOption("--chunk-overlap <CHARS>")]
+        public int ChunkOverlap { get; set; } = 100;
+
         public bool Recursive => !NoRecursive;
 
         public override ValidationResult Validate()
@@ -192,6 +222,21 @@ namespace LiteDB.Demo.Tools.VectorSearch.Commands
             if (PreviewLength <= 0)
             {
                 return ValidationResult.Error("--preview-length must be greater than zero.");
+            }
+
+            if (ChunkLength <= 0)
+            {
+                return ValidationResult.Error("--chunk-length must be greater than zero.");
+            }
+
+            if (ChunkOverlap < 0)
+            {
+                return ValidationResult.Error("--chunk-overlap must be zero or greater.");
+            }
+
+            if (ChunkOverlap >= ChunkLength)
+            {
+                return ValidationResult.Error("--chunk-overlap must be smaller than --chunk-length.");
             }
 
             return ValidationResult.Success();
