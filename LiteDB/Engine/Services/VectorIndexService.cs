@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using LiteDB;
 
 namespace LiteDB.Engine
 {
@@ -12,6 +13,8 @@ namespace LiteDB.Engine
         private readonly Snapshot _snapshot;
         private readonly Collation _collation;
         private readonly Random _random = new Random();
+
+        private DataService _vectorData;
 
         private readonly struct NodeDistance
         {
@@ -202,17 +205,39 @@ namespace LiteDB.Engine
         private void Insert(VectorIndexMetadata metadata, PageAddress dataBlock, float[] vector)
         {
             var levelCount = this.SampleLevel();
-            var length = VectorIndexNode.GetLength(vector.Length);
+            var length = VectorIndexNode.GetLength(vector.Length, out var storesInline);
             var freeList = metadata.Reserved;
             var page = _snapshot.GetFreeVectorPage(length, ref freeList);
             metadata.Reserved = freeList;
 
-            var node = page.InsertNode(dataBlock, vector, length, levelCount);
+            PageAddress externalVector = PageAddress.Empty;
+            VectorIndexNode node;
 
-            freeList = metadata.Reserved;
-            metadata.Reserved = uint.MaxValue;
-            _snapshot.AddOrRemoveFreeVectorList(page, ref freeList);
-            metadata.Reserved = freeList;
+            try
+            {
+                if (!storesInline)
+                {
+                    externalVector = this.StoreVector(vector);
+                }
+
+                node = page.InsertNode(dataBlock, vector, length, levelCount, externalVector);
+
+                freeList = metadata.Reserved;
+                metadata.Reserved = uint.MaxValue;
+                _snapshot.AddOrRemoveFreeVectorList(page, ref freeList);
+                metadata.Reserved = freeList;
+            }
+            catch
+            {
+                if (!storesInline && !externalVector.IsEmpty)
+                {
+                    this.ReleaseVectorData(externalVector);
+                }
+
+                metadata.Reserved = freeList;
+
+                throw;
+            }
 
             _snapshot.CollectionPage.IsDirty = true;
 
@@ -292,7 +317,7 @@ namespace LiteDB.Engine
             var current = start;
             this.RegisterVisit(globalVisited, current);
 
-            var currentVector = this.GetVector(current, vectorCache);
+            var currentVector = this.GetVector(metadata, current, vectorCache);
             var currentDistance = NormalizeDistance(ComputeDistance(currentVector, target, metadata.Metric, out _));
 
             var improved = true;
@@ -311,7 +336,7 @@ namespace LiteDB.Engine
 
                     this.RegisterVisit(globalVisited, neighbor);
 
-                    var neighborVector = this.GetVector(neighbor, vectorCache);
+                    var neighborVector = this.GetVector(metadata, neighbor, vectorCache);
                     var neighborDistance = NormalizeDistance(ComputeDistance(neighborVector, target, metadata.Metric, out _));
 
                     if (neighborDistance < currentDistance)
@@ -345,7 +370,7 @@ namespace LiteDB.Engine
                 return results;
             }
 
-            var entryVector = this.GetVector(entryPoint, vectorCache);
+            var entryVector = this.GetVector(metadata, entryPoint, vectorCache);
             var entryDistance = ComputeDistance(entryVector, target, metadata.Metric, out var entrySimilarity);
             var entryNode = new NodeDistance(entryPoint, entryDistance, entrySimilarity);
 
@@ -380,7 +405,7 @@ namespace LiteDB.Engine
 
                     this.RegisterVisit(globalVisited, neighbor);
 
-                    var neighborVector = this.GetVector(neighbor, vectorCache);
+                    var neighborVector = this.GetVector(metadata, neighbor, vectorCache);
                     var distance = ComputeDistance(neighborVector, target, metadata.Metric, out var similarity);
                     var candidate = new NodeDistance(neighbor, distance, similarity);
 
@@ -417,12 +442,12 @@ namespace LiteDB.Engine
                 return Array.Empty<PageAddress>();
             }
 
-            var sourceVector = this.GetVector(source, vectorCache);
+            var sourceVector = this.GetVector(metadata, source, vectorCache);
             var scored = new List<NodeDistance>();
 
             foreach (var neighbor in unique)
             {
-                var neighborVector = this.GetVector(neighbor, vectorCache);
+                var neighborVector = this.GetVector(metadata, neighbor, vectorCache);
                 var distance = ComputeDistance(sourceVector, neighborVector, metadata.Metric, out _);
                 scored.Add(new NodeDistance(neighbor, distance, double.NaN));
             }
@@ -601,6 +626,8 @@ namespace LiteDB.Engine
 
         private void ReleaseNode(VectorIndexMetadata metadata, VectorIndexNode node)
         {
+            this.ReleaseVectorData(node);
+
             var page = node.Page;
             page.DeleteNode(node.Position.Index);
             var freeList = metadata.Reserved;
@@ -616,15 +643,136 @@ namespace LiteDB.Engine
             return page.GetNode(address.Index);
         }
 
-        private float[] GetVector(PageAddress address, Dictionary<PageAddress, float[]> cache)
+        private float[] GetVector(VectorIndexMetadata metadata, PageAddress address, Dictionary<PageAddress, float[]> cache)
         {
             if (!cache.TryGetValue(address, out var vector))
             {
-                vector = this.GetNode(address).ReadVector();
+                var node = this.GetNode(address);
+                vector = node.HasInlineVector
+                    ? node.ReadVector()
+                    : this.ReadExternalVector(node, metadata);
                 cache[address] = vector;
             }
 
             return vector;
+        }
+
+        private float[] ReadExternalVector(VectorIndexNode node, VectorIndexMetadata metadata)
+        {
+            if (node.ExternalVector.IsEmpty)
+            {
+                return Array.Empty<float>();
+            }
+
+            var dimensions = metadata.Dimensions;
+            if (dimensions == 0)
+            {
+                return Array.Empty<float>();
+            }
+
+            var totalBytes = dimensions * sizeof(float);
+            var vector = new float[dimensions];
+            var bytesCopied = 0;
+
+            foreach (var slice in this.GetVectorDataService().Read(node.ExternalVector))
+            {
+                if (bytesCopied >= totalBytes)
+                {
+                    break;
+                }
+
+                var available = Math.Min(slice.Count, totalBytes - bytesCopied);
+
+                if ((available & 3) != 0)
+                {
+                    throw new LiteException(0, "Vector data block is corrupted.");
+                }
+
+                Buffer.BlockCopy(slice.Array, slice.Offset, vector, bytesCopied, available);
+                bytesCopied += available;
+            }
+
+            if (bytesCopied != totalBytes)
+            {
+                throw new LiteException(0, "Vector data block is incomplete.");
+            }
+
+            return vector;
+        }
+
+        private PageAddress StoreVector(float[] vector)
+        {
+            if (vector.Length == 0)
+            {
+                return PageAddress.Empty;
+            }
+
+            var totalBytes = vector.Length * sizeof(float);
+            var bytesWritten = 0;
+            var firstBlock = PageAddress.Empty;
+            DataBlock lastBlock = null;
+
+            while (bytesWritten < totalBytes)
+            {
+                var remaining = totalBytes - bytesWritten;
+                var chunk = Math.Min(remaining, DataService.MAX_DATA_BYTES_PER_PAGE);
+
+                if ((chunk & 3) != 0)
+                {
+                    chunk -= chunk & 3;
+                }
+
+                if (chunk <= 0)
+                {
+                    chunk = remaining;
+                }
+
+                var dataPage = _snapshot.GetFreeDataPage(chunk + DataBlock.DATA_BLOCK_FIXED_SIZE);
+                var block = dataPage.InsertBlock(chunk, bytesWritten > 0);
+
+                if (lastBlock != null)
+                {
+                    lastBlock.SetNextBlock(block.Position);
+                }
+                else
+                {
+                    firstBlock = block.Position;
+                }
+
+                Buffer.BlockCopy(vector, bytesWritten, block.Buffer.Array, block.Buffer.Offset, chunk);
+
+                _snapshot.AddOrRemoveFreeDataList(dataPage);
+
+                lastBlock = block;
+                bytesWritten += chunk;
+            }
+
+            return firstBlock;
+        }
+
+        private void ReleaseVectorData(VectorIndexNode node)
+        {
+            if (node.HasInlineVector)
+            {
+                return;
+            }
+
+            this.ReleaseVectorData(node.ExternalVector);
+        }
+
+        private void ReleaseVectorData(PageAddress address)
+        {
+            if (address.IsEmpty)
+            {
+                return;
+            }
+
+            this.GetVectorDataService().Delete(address);
+        }
+
+        private DataService GetVectorDataService()
+        {
+            return _vectorData ??= new DataService(_snapshot, uint.MaxValue);
         }
 
         private byte SampleLevel()

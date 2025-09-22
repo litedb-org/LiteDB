@@ -72,7 +72,7 @@ namespace LiteDB
         {
             if (options == null) throw new ArgumentNullException(nameof(options));
 
-            var expression = this.GetIndexExpression(keySelector);
+            var expression = this.GetIndexExpression(keySelector, convertEnumerableToMultiKey: false);
 
             return this.EnsureIndex(expression, options);
         }
@@ -94,7 +94,7 @@ namespace LiteDB
         {
             if (options == null) throw new ArgumentNullException(nameof(options));
 
-            var expression = this.GetIndexExpression(keySelector);
+            var expression = this.GetIndexExpression(keySelector, convertEnumerableToMultiKey: false);
 
             return this.EnsureIndex(name, expression, options);
         }
@@ -102,11 +102,11 @@ namespace LiteDB
         /// <summary>
         /// Get index expression based on LINQ expression. Convert IEnumerable in MultiKey indexes
         /// </summary>
-        private BsonExpression GetIndexExpression<K>(Expression<Func<T, K>> keySelector)
+        private BsonExpression GetIndexExpression<K>(Expression<Func<T, K>> keySelector, bool convertEnumerableToMultiKey = true)
         {
             var expression = _mapper.GetIndexExpression(keySelector);
 
-            if (typeof(K).IsEnumerable() && expression.IsScalar == true)
+            if (convertEnumerableToMultiKey && typeof(K).IsEnumerable() && expression.IsScalar == true)
             {
                 if (expression.Type == BsonExpressionType.Path)
                 {

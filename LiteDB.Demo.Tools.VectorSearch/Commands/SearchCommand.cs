@@ -70,13 +70,15 @@ namespace LiteDB.Demo.Tools.VectorSearch.Commands
                 {
                     preview = preview[..settings.PreviewLength] + "\u2026";
                 }
-
-                table.AddRow(
-                    rank.ToString(),
-                    hit.Similarity.ToString("F3"),
-                    hit.Document.Title,
-                    preview,
-                    settings.HidePath ? string.Empty : hit.Document.Path);
+                
+                table.AddRow
+                (
+                    Markup.Escape(rank.ToString()),
+                    Markup.Escape(hit.Similarity.ToString("F3")),
+                    Markup.Escape(hit.Document.Title),
+                    Markup.Escape(preview),
+                    settings.HidePath ? string.Empty : Markup.Escape(hit.Document.Path)
+                );
 
                 rank++;
             }

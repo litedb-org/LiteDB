@@ -3,8 +3,10 @@ using LiteDB;
 using LiteDB.Engine;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text.Json;
 using Xunit;
 
 namespace LiteDB.Tests.QueryTest
@@ -101,6 +103,57 @@ namespace LiteDB.Tests.QueryTest
             Action conflicting = () => collection.EnsureIndex("embedding_idx", expression, new VectorIndexOptions(2, VectorDistanceMetric.Euclidean));
 
             conflicting.Should().Throw<LiteException>();
+        }
+
+        [Fact]
+        public void EnsureVectorIndex_PreservesEnumerableExpressionsForVectorIndexes()
+        {
+            using var db = new LiteDatabase(":memory:");
+            var collection = db.GetCollection<VectorDocument>("documents");
+
+            var resourcePath = Path.Combine(AppContext.BaseDirectory, "Resources", "ingest-20250922-234735.json");
+            var json = File.ReadAllText(resourcePath);
+
+            using var parsed = JsonDocument.Parse(json);
+            var embedding = parsed.RootElement
+                .GetProperty("Embedding")
+                .EnumerateArray()
+                .Select(static value => value.GetSingle())
+                .ToArray();
+
+            var options = new VectorIndexOptions((ushort)embedding.Length, VectorDistanceMetric.Cosine);
+
+            collection.EnsureIndex(x => x.Embedding, options);
+
+            var document = new VectorDocument
+            {
+                Id = 1,
+                Embedding = embedding,
+                Flag = false
+            };
+
+            Action act = () => collection.Upsert(document);
+
+            act.Should().NotThrow();
+
+            var stored = collection.FindById(1);
+
+            stored.Should().NotBeNull();
+            stored.Embedding.Should().Equal(embedding);
+
+            var storesInline = InspectVectorIndex(db, "documents", (snapshot, collation, metadata) =>
+            {
+                if (metadata.Root.IsEmpty)
+                {
+                    return true;
+                }
+
+                var page = snapshot.GetPage<VectorIndexPage>(metadata.Root.PageID);
+                var node = page.GetNode(metadata.Root.Index);
+                return node.HasInlineVector;
+            });
+
+            storesInline.Should().BeFalse();
         }
 
         [Fact]
