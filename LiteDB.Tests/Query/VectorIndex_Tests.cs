@@ -115,13 +115,10 @@ namespace LiteDB.Tests.QueryTest
             var json = File.ReadAllText(resourcePath);
 
             using var parsed = JsonDocument.Parse(json);
-            // Use a subset of the embedding to stay under the index entry size limit while
-            // preserving the serialized structure that triggered the regression.
             var embedding = parsed.RootElement
                 .GetProperty("Embedding")
                 .EnumerateArray()
                 .Select(static value => value.GetSingle())
-                .Take(128)
                 .ToArray();
 
             var options = new VectorIndexOptions((ushort)embedding.Length, VectorDistanceMetric.Cosine);
@@ -143,6 +140,20 @@ namespace LiteDB.Tests.QueryTest
 
             stored.Should().NotBeNull();
             stored.Embedding.Should().Equal(embedding);
+
+            var storesInline = InspectVectorIndex(db, "documents", (snapshot, collation, metadata) =>
+            {
+                if (metadata.Root.IsEmpty)
+                {
+                    return true;
+                }
+
+                var page = snapshot.GetPage<VectorIndexPage>(metadata.Root.PageID);
+                var node = page.GetNode(metadata.Root.Index);
+                return node.HasInlineVector;
+            });
+
+            storesInline.Should().BeFalse();
         }
 
         [Fact]

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using static LiteDB.Constants;
 
 namespace LiteDB.Engine
 {
@@ -15,6 +16,7 @@ namespace LiteDB.Engine
 
         private const int LEVEL_STRIDE = 1 + (MaxNeighborsPerLevel * PageAddress.SIZE);
         private const int P_VECTOR = P_LEVELS + (MaxLevels * LEVEL_STRIDE);
+        private const int P_VECTOR_POINTER = P_VECTOR + 2;
 
         private readonly VectorIndexPage _page;
         private readonly BufferSlice _segment;
@@ -29,6 +31,10 @@ namespace LiteDB.Engine
 
         public int Dimensions { get; }
 
+        public bool HasInlineVector { get; }
+
+        public PageAddress ExternalVector { get; }
+
         public VectorIndexNode(VectorIndexPage page, byte index, BufferSlice segment)
         {
             _page = page;
@@ -38,11 +44,23 @@ namespace LiteDB.Engine
             this.DataBlock = segment.ReadPageAddress(P_DATA_BLOCK);
             this.LevelCount = segment.ReadByte(P_LEVEL_COUNT);
 
-            var vector = segment.ReadVector(P_VECTOR);
-            this.Dimensions = vector.Length;
+            var length = segment.ReadUInt16(P_VECTOR);
+
+            if (length == 0)
+            {
+                this.HasInlineVector = false;
+                this.ExternalVector = segment.ReadPageAddress(P_VECTOR_POINTER);
+                this.Dimensions = 0;
+            }
+            else
+            {
+                this.HasInlineVector = true;
+                this.ExternalVector = PageAddress.Empty;
+                this.Dimensions = length;
+            }
         }
 
-        public VectorIndexNode(VectorIndexPage page, byte index, BufferSlice segment, PageAddress dataBlock, float[] vector, byte levelCount)
+        public VectorIndexNode(VectorIndexPage page, byte index, BufferSlice segment, PageAddress dataBlock, float[] vector, byte levelCount, PageAddress externalVector)
         {
             if (vector == null) throw new ArgumentNullException(nameof(vector));
             if (levelCount == 0 || levelCount > MaxLevels) throw new ArgumentOutOfRangeException(nameof(levelCount));
@@ -54,6 +72,8 @@ namespace LiteDB.Engine
             this.DataBlock = dataBlock;
             this.LevelCount = levelCount;
             this.Dimensions = vector.Length;
+            this.HasInlineVector = externalVector.IsEmpty;
+            this.ExternalVector = externalVector;
 
             segment.Write(dataBlock, P_DATA_BLOCK);
             segment.Write(levelCount, P_LEVEL_COUNT);
@@ -72,19 +92,49 @@ namespace LiteDB.Engine
                 }
             }
 
-            segment.Write(vector, P_VECTOR);
+            if (this.HasInlineVector)
+            {
+                segment.Write(vector, P_VECTOR);
+            }
+            else
+            {
+                if (externalVector.IsEmpty)
+                {
+                    throw new ArgumentException("External vector address must be provided when vector is stored out of page.", nameof(externalVector));
+                }
+
+                segment.Write((ushort)0, P_VECTOR);
+                segment.Write(externalVector, P_VECTOR_POINTER);
+            }
 
             page.IsDirty = true;
         }
 
-        public static int GetLength(int dimensions)
+        public static int GetLength(int dimensions, out bool storesInline)
         {
-            return
+            var inlineLength =
                 PageAddress.SIZE + // DataBlock
                 1 + // Level count
                 (MaxLevels * LEVEL_STRIDE) +
                 2 + // vector length prefix
                 (dimensions * sizeof(float));
+
+            var maxNodeLength = PAGE_SIZE - PAGE_HEADER_SIZE - BasePage.SLOT_SIZE;
+
+            if (inlineLength <= maxNodeLength)
+            {
+                storesInline = true;
+                return inlineLength;
+            }
+
+            storesInline = false;
+
+            return
+                PageAddress.SIZE + // DataBlock
+                1 + // Level count
+                (MaxLevels * LEVEL_STRIDE) +
+                2 + // sentinel prefix
+                PageAddress.SIZE; // pointer to external vector
         }
 
         public IReadOnlyList<PageAddress> GetNeighbors(int level)
@@ -216,6 +266,11 @@ namespace LiteDB.Engine
         {
             if (vector == null) throw new ArgumentNullException(nameof(vector));
 
+            if (this.HasInlineVector == false)
+            {
+                throw new InvalidOperationException("Inline vector update is not supported for externally stored vectors.");
+            }
+
             if (vector.Length != this.Dimensions)
             {
                 throw new ArgumentException("Vector length must match node dimensions.", nameof(vector));
@@ -227,6 +282,11 @@ namespace LiteDB.Engine
 
         public float[] ReadVector()
         {
+            if (!this.HasInlineVector)
+            {
+                throw new InvalidOperationException("Vector is stored externally and must be loaded from the data pages.");
+            }
+
             return _segment.ReadVector(P_VECTOR);
         }
     }
