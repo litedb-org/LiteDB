@@ -47,16 +47,11 @@ jobs:
 
       - name: Build
         if: success()
-        run: dotnet build LiteDB/LiteDB.csproj --configuration Release --no-restore \
-          -p:Version=${{ steps.version.outputs.package_version }} \
-          -p:PackageVersion=${{ steps.version.outputs.package_version }}
+        run: dotnet build LiteDB/LiteDB.csproj --configuration Release --no-restore -p:Version=${{ steps.version.outputs.package_version }} -p:PackageVersion=${{ steps.version.outputs.package_version }}
 
       - name: Pack
         if: success()
-        run: |
-          dotnet pack LiteDB/LiteDB.csproj --configuration Release --no-build -o artifacts \
-           -p:PackageVersion=${{ steps.version.outputs.package_version }} \
-           -p:Version=${{ steps.version.outputs.package_version }}
+        run: dotnet pack LiteDB/LiteDB.csproj --configuration Release --no-build -o artifacts -p:PackageVersion=${{ steps.version.outputs.package_version }} -p:Version=${{ steps.version.outputs.package_version }}
 
       - name: Publish GitHub prerelease
         if: success()
