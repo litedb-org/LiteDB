@@ -34,12 +34,12 @@ jobs:
       - name: Restore
         run: dotnet restore LiteDB.sln
 
-      - name: Build
-        run: dotnet build LiteDB.sln --configuration Release --no-restore
-
       - name: Test
         timeout-minutes: 5
-        run: dotnet test LiteDB.sln --configuration Release --no-build --verbosity normal --settings tests.runsettings --logger "trx;LogFileName=TestResults.trx" --logger "console;verbosity=detailed"
+        run: dotnet test LiteDB.sln --configuration Release --verbosity normal --settings tests.runsettings --logger "trx;LogFileName=TestResults.trx" --logger "console;verbosity=detailed" /p:DefineConstants=TESTING
+
+      - name: Build
+        run: dotnet build LiteDB.sln --configuration Release --no-restore
 
       - name: Pack
         run: |
