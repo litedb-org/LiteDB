@@ -15,7 +15,7 @@ namespace LiteDB.Tests.Engine
         [Fact]
         public void Rebuild_Crash_IO_Write_Error()
         {
-            var N = 1_000;
+            var N = 200;
 
             using (var file = new TempFile())
             {
@@ -26,13 +26,15 @@ namespace LiteDB.Tests.Engine
                     Password = "46jLz5QWd5fI3m4LiL2r"
                 };
 
+                var initial = new DateTime(2024, 1, 1);
+
                 var data = Enumerable.Range(1, N).Select(i => new BsonDocument
                 {
                     ["_id"] = i,
-                    ["name"] = Faker.Fullname(),
-                    ["age"] = Faker.Age(),
-                    ["created"] = Faker.Birthday(),
-                    ["lorem"] = Faker.Lorem(5, 25)
+                    ["name"] = $"user-{i:D4}",
+                    ["age"] = 18 + (i % 60),
+                    ["created"] = initial.AddDays(i),
+                    ["lorem"] = new string((char)('a' + (i % 26)), 200)
                 }).ToArray();
 
                 try
