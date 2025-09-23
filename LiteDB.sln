@@ -15,6 +15,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LiteDB.Stress", "LiteDB.Str
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConsoleApp1", "ConsoleApp1\ConsoleApp1.csproj", "{E8763934-E46A-4AAF-A2B5-E812016DAF84}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteDB.RollbackRepro", "LiteDB.RollbackRepro\LiteDB.RollbackRepro.csproj", "{BE1D6CA2-134A-404A-8F1A-C48E4E240159}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -45,6 +47,10 @@ Global
 		{E8763934-E46A-4AAF-A2B5-E812016DAF84}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E8763934-E46A-4AAF-A2B5-E812016DAF84}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E8763934-E46A-4AAF-A2B5-E812016DAF84}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BE1D6CA2-134A-404A-8F1A-C48E4E240159}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BE1D6CA2-134A-404A-8F1A-C48E4E240159}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BE1D6CA2-134A-404A-8F1A-C48E4E240159}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BE1D6CA2-134A-404A-8F1A-C48E4E240159}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
