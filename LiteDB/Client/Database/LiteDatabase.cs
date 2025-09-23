@@ -66,6 +66,13 @@ namespace LiteDB
             _engine = new LiteEngine(settings);
             _mapper = mapper ?? BsonMapper.Global;
             _disposeOnClose = true;
+
+            if (logStream == null && stream is not MemoryStream)
+            {
+                // Without a dedicated log stream the WAL lives purely in memory; force
+                // checkpointing to ensure commits reach the underlying data stream.
+                this.CheckpointSize = 1;
+            }
         }
 
         /// <summary>
