@@ -63,6 +63,9 @@ namespace LiteDB.Engine
                 catch (Exception ex)
                 {
                     LOG($"Error while initializing DiskService: {ex.Message}", "ERROR");
+                    // Cleanup resources allocated before initialization
+                    _dataPool?.Dispose();
+                    _logPool?.Dispose();
                     throw;
                 }
             }
