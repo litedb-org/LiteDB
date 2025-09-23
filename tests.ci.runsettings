@@ -2,7 +2,8 @@
 <RunSettings>
   <RunConfiguration>
     <!-- Increase timeouts for CI environment -->
-    <TestSessionTimeout>600000</TestSessionTimeout> <!-- 10 minutes -->
+    <!-- <TestSessionTimeout>600000</TestSessionTimeout> 10 minutes -->
+    <TestSessionTimeout>180000</TestSessionTimeout> <!-- 3 minutes -->
     <TestCaseTimeout>60000</TestCaseTimeout>        <!-- 60 seconds per test -->
     
     <!-- Optimize for CI -->
