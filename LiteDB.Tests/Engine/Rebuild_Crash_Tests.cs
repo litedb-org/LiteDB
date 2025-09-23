@@ -6,7 +6,7 @@ using System.Linq;
 
 using Xunit;
 
-#if DEBUG
+#if DEBUG || TESTING
 namespace LiteDB.Tests.Engine
 {
     public class Rebuild_Crash_Tests

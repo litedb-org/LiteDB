@@ -22,8 +22,8 @@ jobs:
         run: dotnet restore LiteDB.sln
 
       - name: Build
-        run: dotnet build LiteDB.sln --configuration Release --no-restore
+        run: dotnet build LiteDB.sln --configuration Release --no-restore /p:DefineConstants=TESTING
 
       - name: Test
         timeout-minutes: 5
-        run: dotnet test LiteDB.sln --configuration Release --no-build --verbosity normal --settings tests.runsettings --logger "trx;LogFileName=TestResults.trx" --logger "console;verbosity=detailed"
+        run: dotnet test LiteDB.sln --configuration Release --no-build --verbosity normal --settings tests.runsettings --logger "trx;LogFileName=TestResults.trx" --logger "console;verbosity=detailed" /p:DefineConstants=TESTING

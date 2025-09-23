@@ -1,4 +1,4 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.1.32328.378
@@ -12,6 +12,12 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LiteDB.Benchmarks", "LiteDB.Benchmarks\LiteDB.Benchmarks.csproj", "{DF9C82C1-446F-458A-AA50-78E58BA17273}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LiteDB.Stress", "LiteDB.Stress\LiteDB.Stress.csproj", "{FFBC5669-DA32-4907-8793-7B414279DA3B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConsoleApp1", "ConsoleApp1\ConsoleApp1.csproj", "{E8763934-E46A-4AAF-A2B5-E812016DAF84}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteDB.RollbackRepro", "LiteDB.RollbackRepro\LiteDB.RollbackRepro.csproj", "{BE1D6CA2-134A-404A-8F1A-C48E4E240159}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Misc", "Misc", "{D455AC29-7847-4DF4-AD06-69042F8B8885}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -39,6 +45,14 @@ Global
 		{FFBC5669-DA32-4907-8793-7B414279DA3B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{FFBC5669-DA32-4907-8793-7B414279DA3B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{FFBC5669-DA32-4907-8793-7B414279DA3B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E8763934-E46A-4AAF-A2B5-E812016DAF84}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E8763934-E46A-4AAF-A2B5-E812016DAF84}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E8763934-E46A-4AAF-A2B5-E812016DAF84}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E8763934-E46A-4AAF-A2B5-E812016DAF84}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BE1D6CA2-134A-404A-8F1A-C48E4E240159}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BE1D6CA2-134A-404A-8F1A-C48E4E240159}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BE1D6CA2-134A-404A-8F1A-C48E4E240159}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BE1D6CA2-134A-404A-8F1A-C48E4E240159}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -48,5 +62,9 @@ Global
 	EndGlobalSection
 	GlobalSection(Performance) = preSolution
 		HasPerformanceSessions = true
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{E8763934-E46A-4AAF-A2B5-E812016DAF84} = {D455AC29-7847-4DF4-AD06-69042F8B8885}
+		{BE1D6CA2-134A-404A-8F1A-C48E4E240159} = {D455AC29-7847-4DF4-AD06-69042F8B8885}
 	EndGlobalSection
 EndGlobal

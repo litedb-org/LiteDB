@@ -231,6 +231,107 @@ namespace LiteDB.Tests.Engine
             }
         }
 
+        [Fact]
+        public void Transaction_Rollback_Should_Skip_ReadOnly_Buffers_From_Safepoint()
+        {
+            using var db = DatabaseFactory.Create();
+            var collection = db.GetCollection<BsonDocument>("docs");
+
+            db.BeginTrans().Should().BeTrue();
+
+            for (var i = 0; i < 10; i++)
+            {
+                collection.Insert(new BsonDocument
+                {
+                    ["_id"] = i,
+                    ["value"] = $"value-{i}"
+                });
+            }
+
+            var engine = GetLiteEngine(db);
+            var monitor = engine.GetMonitor();
+            var transaction = monitor.GetThreadTransaction();
+
+            transaction.Should().NotBeNull();
+
+            var transactionService = transaction!;
+            transactionService.Pages.TransactionSize.Should().BeGreaterThan(0);
+
+            transactionService.MaxTransactionSize = Math.Max(1, transactionService.Pages.TransactionSize);
+            SetMonitorFreePages(monitor, 0);
+
+            transactionService.Safepoint();
+            transactionService.Pages.TransactionSize.Should().Be(0);
+
+            var snapshot = transactionService.Snapshots.Single();
+            snapshot.CollectionPage.Should().NotBeNull();
+
+            var collectionPage = snapshot.CollectionPage!;
+            collectionPage.IsDirty = true;
+
+            var buffer = collectionPage.Buffer;
+
+            try
+            {
+                buffer.ShareCounter = 1;
+
+                var shareCounters = snapshot
+                    .GetWritablePages(true, true)
+                    .Select(page => page.Buffer.ShareCounter)
+                    .ToList();
+
+                shareCounters.Should().NotBeEmpty();
+                shareCounters.Should().Contain(counter => counter != Constants.BUFFER_WRITABLE);
+
+                db.Rollback().Should().BeTrue();
+            }
+            finally
+            {
+                buffer.ShareCounter = 0;
+            }
+
+            collection.Count().Should().Be(0);
+        }
+
+        [Fact]
+        public void Transaction_Rollback_Should_Discard_Writable_Dirty_Pages()
+        {
+            using var db = DatabaseFactory.Create();
+            var collection = db.GetCollection<BsonDocument>("docs");
+
+            db.BeginTrans().Should().BeTrue();
+
+            for (var i = 0; i < 3; i++)
+            {
+                collection.Insert(new BsonDocument
+                {
+                    ["_id"] = i,
+                    ["value"] = $"value-{i}"
+                });
+            }
+
+            var engine = GetLiteEngine(db);
+            var monitor = engine.GetMonitor();
+            var transaction = monitor.GetThreadTransaction();
+
+            transaction.Should().NotBeNull();
+
+            var transactionService = transaction!;
+            var snapshot = transactionService.Snapshots.Single();
+
+            var shareCounters = snapshot
+                .GetWritablePages(true, true)
+                .Select(page => page.Buffer.ShareCounter)
+                .ToList();
+
+            shareCounters.Should().NotBeEmpty();
+            shareCounters.Should().OnlyContain(counter => counter == Constants.BUFFER_WRITABLE);
+
+            db.Rollback().Should().BeTrue();
+
+            collection.Count().Should().Be(0);
+        }
+
         private class BlockingStream : MemoryStream
         {
             public readonly AutoResetEvent   Blocked       = new AutoResetEvent(false);
@@ -277,18 +378,33 @@ namespace LiteDB.Tests.Engine
             }
         }
 
-        private static void SetEngineTimeout(LiteDatabase database, TimeSpan timeout)
+        private static LiteEngine GetLiteEngine(LiteDatabase database)
         {
-            var engineField = typeof(LiteDatabase).GetField("_engine", BindingFlags.Instance | BindingFlags.NonPublic);
-            var engine      = engineField?.GetValue(database);
+            var engineField = typeof(LiteDatabase).GetField("_engine", BindingFlags.Instance | BindingFlags.NonPublic)
+                              ?? throw new InvalidOperationException("Unable to locate LiteDatabase engine field.");
 
-            if (engine is not LiteEngine liteEngine)
+            if (engineField.GetValue(database) is not LiteEngine engine)
             {
-                throw new InvalidOperationException("Unable to retrieve LiteEngine instance for timeout override.");
+                throw new InvalidOperationException("LiteDatabase engine is not initialized.");
             }
 
+            return engine;
+        }
+
+        private static void SetMonitorFreePages(TransactionMonitor monitor, int value)
+        {
+            var freePagesField = typeof(TransactionMonitor).GetField("_freePages", BindingFlags.Instance | BindingFlags.NonPublic)
+                                  ?? throw new InvalidOperationException("Unable to locate TransactionMonitor free pages field.");
+
+            freePagesField.SetValue(monitor, value);
+        }
+
+        private static void SetEngineTimeout(LiteDatabase database, TimeSpan timeout)
+        {
+            var engine = GetLiteEngine(database);
+
             var headerField = typeof(LiteEngine).GetField("_header", BindingFlags.Instance | BindingFlags.NonPublic);
-            var header      = headerField?.GetValue(liteEngine) ?? throw new InvalidOperationException("LiteEngine header not available.");
+            var header      = headerField?.GetValue(engine) ?? throw new InvalidOperationException("LiteEngine header not available.");
             var pragmasProp = header.GetType().GetProperty("Pragmas", BindingFlags.Instance | BindingFlags.Public) ?? throw new InvalidOperationException("Engine pragmas not accessible.");
             var pragmas     = pragmasProp.GetValue(header) ?? throw new InvalidOperationException("Engine pragmas not available.");
             var timeoutProp = pragmas.GetType().GetProperty("Timeout", BindingFlags.Instance | BindingFlags.Public) ?? throw new InvalidOperationException("Timeout property not found.");
