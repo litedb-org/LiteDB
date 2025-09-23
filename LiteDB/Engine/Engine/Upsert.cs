@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -11,12 +13,14 @@ namespace LiteDB.Engine
         /// then any documents not updated are then attempted to insert.
         /// This will have the side effect of throwing if duplicate items are attempted to be inserted.
         /// </summary>
-        public int Upsert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId)
+        public Task<int> UpsertAsync(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId, CancellationToken cancellationToken = default)
         {
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
             if (docs == null) throw new ArgumentNullException(nameof(docs));
 
-            return this.AutoTransaction(transaction =>
+            cancellationToken.ThrowIfCancellationRequested();
+
+            return this.AutoTransactionAsync((transaction, token) =>
             {
                 var snapshot = transaction.CreateSnapshot(LockMode.Write, collection, true);
                 var collectionPage = snapshot.CollectionPage;
@@ -28,6 +32,7 @@ namespace LiteDB.Engine
 
                 foreach (var doc in docs)
                 {
+                    token.ThrowIfCancellationRequested();
                     _state.Validate();
 
                     transaction.Safepoint();
@@ -39,10 +44,10 @@ namespace LiteDB.Engine
                         count++;
                     }
                 }
-                
+
                 // returns how many document was inserted
-                return count;
-            });
+                return new ValueTask<int>(count);
+            }, cancellationToken);
         }
     }
 }

@@ -43,7 +43,7 @@ namespace LiteDB.Engine
             var fileMode = _readonly ? System.IO.FileMode.Open : System.IO.FileMode.OpenOrCreate;
             var fileAccess = write ? FileAccess.ReadWrite : FileAccess.Read;
             var fileShare = write ? FileShare.Read : FileShare.ReadWrite;
-            var fileOptions = sequencial ? FileOptions.SequentialScan : FileOptions.RandomAccess;
+            var fileOptions = (sequencial ? FileOptions.SequentialScan : FileOptions.RandomAccess) | FileOptions.Asynchronous;
 
             var isNewFile = write && this.Exists() == false;
 

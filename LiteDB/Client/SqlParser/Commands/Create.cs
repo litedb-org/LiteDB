@@ -45,7 +45,7 @@ namespace LiteDB
             // read EOF or ;
             _tokenizer.ReadToken().Expect(TokenType.EOF, TokenType.SemiColon);
 
-            var result = _engine.EnsureIndex(collection, name, expr, unique);
+            var result = _engine.EnsureIndexAsync(collection, name, expr, unique).ConfigureAwait(false).GetAwaiter().GetResult();
 
             return new BsonDataReader(result);
         }

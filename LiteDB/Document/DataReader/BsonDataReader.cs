@@ -3,6 +3,8 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using static LiteDB.Constants;
 
 namespace LiteDB
@@ -86,36 +88,12 @@ namespace LiteDB
         /// </summary>
         public bool Read()
         {
-            if (!_hasValues) return false;
+            return this.ReadCore(default);
+        }
 
-            if (_isFirst)
-            {
-                _isFirst = false;
-                return true;
-            }
-            else
-            {
-                if (_source != null)
-                {
-                    _state.Validate(); // checks if engine still open
-
-                    try
-                    {
-                        var read = _source.MoveNext(); // can throw any error here
-                        _current = _state.ReadTransform(_collection, _source.Current);
-                        return read;
-                    }
-                    catch (Exception ex)
-                    {
-                        _state.Handle(ex);
-                        throw ex;
-                    }
-                }
-                else
-                {
-                    return false;
-                }
-            }
+        public ValueTask<bool> ReadAsync(CancellationToken cancellationToken = default)
+        {
+            return new ValueTask<bool>(this.ReadCore(cancellationToken));
         }
 
         public BsonValue this[string field]
@@ -130,6 +108,12 @@ namespace LiteDB
         {
             this.Dispose(true);
             GC.SuppressFinalize(this);
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            this.Dispose();
+            return default;
         }
 
         ~BsonDataReader()
@@ -147,6 +131,38 @@ namespace LiteDB
             {
                 _source?.Dispose();
             }
+        }
+
+        private bool ReadCore(CancellationToken cancellationToken)
+        {
+            if (!_hasValues) return false;
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (_isFirst)
+            {
+                _isFirst = false;
+                return true;
+            }
+
+            if (_source != null)
+            {
+                _state.Validate();
+
+                try
+                {
+                    var read = _source.MoveNext();
+                    _current = _state.ReadTransform(_collection, _source.Current);
+                    return read;
+                }
+                catch (Exception ex)
+                {
+                    _state.Handle(ex);
+                    throw;
+                }
+            }
+
+            return false;
         }
     }
 }

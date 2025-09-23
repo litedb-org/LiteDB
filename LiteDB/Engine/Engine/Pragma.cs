@@ -2,6 +2,8 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -11,30 +13,34 @@ namespace LiteDB.Engine
         /// <summary>
         /// Get engine internal pragma value
         /// </summary>
-        public BsonValue Pragma(string name)
+        public Task<BsonValue> PragmaAsync(string name, CancellationToken cancellationToken = default)
         {
-            return _header.Pragmas.Get(name);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            return Task.FromResult(_header.Pragmas.Get(name));
         }
 
         /// <summary>
         /// Set engine pragma new value (some pragmas will be affected only after realod)
         /// </summary>
-        public bool Pragma(string name, BsonValue value)
+        public Task<bool> PragmaAsync(string name, BsonValue value, CancellationToken cancellationToken = default)
         {
-            if (this.Pragma(name) == value) return false;
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (_header.Pragmas.Get(name) == value) return Task.FromResult(false);
 
             if (_locker.IsInTransaction) throw LiteException.AlreadyExistsTransaction();
 
-            // do a inside transaction to edit pragma on commit event	
-            return this.AutoTransaction(transaction =>
+            // do a inside transaction to edit pragma on commit event
+            return this.AutoTransactionAsync((transaction, token) =>
             {
                 transaction.Pages.Commit += (h) =>
                 {
                     h.Pragmas.Set(name, value, true);
                 };
 
-                return true;
-            });
+                return new ValueTask<bool>(true);
+            }, cancellationToken);
         }
     }
 }

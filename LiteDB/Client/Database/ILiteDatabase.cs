@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using LiteDB.Engine;
 
 namespace LiteDB
 {
-    public interface ILiteDatabase : IDisposable
+    public interface ILiteDatabase : IDisposable, IAsyncDisposable
     {
         /// <summary>
         /// Get current instance of BsonMapper used in this database instance (can be BsonMapper.Global)
@@ -45,17 +47,17 @@ namespace LiteDB
         /// Initialize a new transaction. Transaction are created "per-thread". There is only one single transaction per thread.
         /// Return true if transaction was created or false if current thread already in a transaction.
         /// </summary>
-        bool BeginTrans();
+        Task<bool> BeginTransAsync(CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Commit current transaction
         /// </summary>
-        bool Commit();
+        Task<bool> CommitAsync(CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Rollback current transaction
         /// </summary>
-        bool Rollback();
+        Task<bool> RollbackAsync(CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Get new instance of Storage using custom FileId type, custom "_files" collection name and custom "_chunks" collection. LiteDB support multiples file storages (using different files/chunks collection names)
@@ -85,27 +87,32 @@ namespace LiteDB
         /// <summary>
         /// Execute SQL commands and return as data reader.
         /// </summary>
-        IBsonDataReader Execute(TextReader commandReader, BsonDocument parameters = null);
+        Task<IBsonDataReader> ExecuteAsync(TextReader commandReader, BsonDocument parameters = null, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Execute SQL commands and return as data reader
         /// </summary>
-        IBsonDataReader Execute(string command, BsonDocument parameters = null);
+        Task<IBsonDataReader> ExecuteAsync(string command, BsonDocument parameters = null, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Execute SQL commands and return as data reader
         /// </summary>
-        IBsonDataReader Execute(string command, params BsonValue[] args);
+        Task<IBsonDataReader> ExecuteAsync(string command, CancellationToken cancellationToken, params BsonValue[] args);
+
+        /// <summary>
+        /// Execute SQL commands and return as data reader
+        /// </summary>
+        Task<IBsonDataReader> ExecuteAsync(string command, params BsonValue[] args);
 
         /// <summary>
         /// Do database checkpoint. Copy all commited transaction from log file into datafile.
         /// </summary>
-        void Checkpoint();
+        Task CheckpointAsync(CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Rebuild all database to remove unused pages - reduce data file
         /// </summary>
-        long Rebuild(RebuildOptions options = null);
+        Task<long> RebuildAsync(RebuildOptions options = null, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Get value from internal engine variables

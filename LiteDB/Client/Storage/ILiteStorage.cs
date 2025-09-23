@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq.Expressions;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace LiteDB
 {
@@ -10,76 +12,76 @@ namespace LiteDB
         /// <summary>
         /// Find a file inside datafile and returns LiteFileInfo instance. Returns null if not found
         /// </summary>
-        LiteFileInfo<TFileId> FindById(TFileId id);
+        Task<LiteFileInfo<TFileId>> FindByIdAsync(TFileId id, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Find all files that match with predicate expression.
         /// </summary>
-        IEnumerable<LiteFileInfo<TFileId>> Find(BsonExpression predicate);
+        IAsyncEnumerable<LiteFileInfo<TFileId>> FindAsync(BsonExpression predicate, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Find all files that match with predicate expression.
         /// </summary>
-        IEnumerable<LiteFileInfo<TFileId>> Find(string predicate, BsonDocument parameters);
+        IAsyncEnumerable<LiteFileInfo<TFileId>> FindAsync(string predicate, BsonDocument parameters, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Find all files that match with predicate expression.
         /// </summary>
-        IEnumerable<LiteFileInfo<TFileId>> Find(string predicate, params BsonValue[] args);
+        IAsyncEnumerable<LiteFileInfo<TFileId>> FindAsync(string predicate, CancellationToken cancellationToken = default, params BsonValue[] args);
 
         /// <summary>
         /// Find all files that match with predicate expression.
         /// </summary>
-        IEnumerable<LiteFileInfo<TFileId>> Find(Expression<Func<LiteFileInfo<TFileId>, bool>> predicate);
+        IAsyncEnumerable<LiteFileInfo<TFileId>> FindAsync(Expression<Func<LiteFileInfo<TFileId>, bool>> predicate, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Find all files inside file collections
         /// </summary>
-        IEnumerable<LiteFileInfo<TFileId>> FindAll();
+        IAsyncEnumerable<LiteFileInfo<TFileId>> FindAllAsync(CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Returns if a file exisits in database
         /// </summary>
-        bool Exists(TFileId id);
+        Task<bool> ExistsAsync(TFileId id, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Open/Create new file storage and returns linked Stream to write operations.
         /// </summary>
-        LiteFileStream<TFileId> OpenWrite(TFileId id, string filename, BsonDocument metadata = null);
+        Task<LiteFileStream<TFileId>> OpenWriteAsync(TFileId id, string filename, BsonDocument metadata = null, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Upload a file based on stream data
         /// </summary>
-        LiteFileInfo<TFileId> Upload(TFileId id, string filename, Stream stream, BsonDocument metadata = null);
+        Task<LiteFileInfo<TFileId>> UploadAsync(TFileId id, string filename, Stream stream, BsonDocument metadata = null, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Upload a file based on file system data
         /// </summary>
-        LiteFileInfo<TFileId> Upload(TFileId id, string filename);
+        Task<LiteFileInfo<TFileId>> UploadAsync(TFileId id, string filename, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Update metadata on a file. File must exist.
         /// </summary>
-        bool SetMetadata(TFileId id, BsonDocument metadata);
+        Task<bool> SetMetadataAsync(TFileId id, BsonDocument metadata, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Load data inside storage and returns as Stream
         /// </summary>
-        LiteFileStream<TFileId> OpenRead(TFileId id);
+        Task<LiteFileStream<TFileId>> OpenReadAsync(TFileId id, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Copy all file content to a steam
         /// </summary>
-        LiteFileInfo<TFileId> Download(TFileId id, Stream stream);
+        Task<LiteFileInfo<TFileId>> DownloadAsync(TFileId id, Stream stream, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Copy all file content to a file
         /// </summary>
-        LiteFileInfo<TFileId> Download(TFileId id, string filename, bool overwritten);
+        Task<LiteFileInfo<TFileId>> DownloadAsync(TFileId id, string filename, bool overwritten, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Delete a file inside datafile and all metadata related
         /// </summary>
-        bool Delete(TFileId id);
+        Task<bool> DeleteAsync(TFileId id, CancellationToken cancellationToken = default);
     }
 }

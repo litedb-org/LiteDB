@@ -1,8 +1,10 @@
-﻿using System;
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace LiteDB
 {
-    public interface IBsonDataReader : IDisposable
+    public interface IBsonDataReader : IDisposable, IAsyncDisposable
     {
         BsonValue this[string field] { get; }
 
@@ -11,5 +13,7 @@ namespace LiteDB
         bool HasValues { get; }
 
         bool Read();
+
+        ValueTask<bool> ReadAsync(CancellationToken cancellationToken = default);
     }
 }

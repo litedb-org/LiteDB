@@ -25,7 +25,7 @@ namespace LiteDB
             {
                 _tokenizer.ReadToken();
 
-                var result = _engine.Pragma(name);
+                var result = _engine.PragmaAsync(name).ConfigureAwait(false).GetAwaiter().GetResult();
 
                 return new BsonDataReader(result);
             }
@@ -41,7 +41,7 @@ namespace LiteDB
                 // read last ; \ <eof>
                 _tokenizer.ReadToken().Expect(TokenType.EOF, TokenType.SemiColon);
 
-                var result = _engine.Pragma(name, value);
+                var result = _engine.PragmaAsync(name, value).ConfigureAwait(false).GetAwaiter().GetResult();
 
                 return new BsonDataReader(result);
             }

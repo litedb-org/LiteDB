@@ -46,6 +46,8 @@ namespace LiteDB.Shell
 
         public void WriteResult(IBsonDataReader result, Env env)
         {
+            if (result == null) throw new ArgumentNullException(nameof(result));
+
             var index = 0;
             var writer = new JsonWriter(Console.Out)
             {
@@ -53,19 +55,26 @@ namespace LiteDB.Shell
                 Indent = 2
             };
 
-            foreach (var item in result.ToEnumerable())
+            try
             {
-                if (env.Running == false) return;
+                while (result.Read())
+                {
+                    if (env.Running == false) return;
 
-                this.Write(ConsoleColor.Cyan, string.Format("[{0}]: ", ++index));
+                    this.Write(ConsoleColor.Cyan, string.Format("[{0}]: ", ++index));
 
-                if (this.Pretty) Console.WriteLine();
+                    if (this.Pretty) Console.WriteLine();
 
-                Console.ForegroundColor = ConsoleColor.DarkCyan;
+                    Console.ForegroundColor = ConsoleColor.DarkCyan;
 
-                writer.Serialize(item);
+                    writer.Serialize(result.Current);
 
-                Console.WriteLine();
+                    Console.WriteLine();
+                }
+            }
+            finally
+            {
+                result.Dispose();
             }
         }
 

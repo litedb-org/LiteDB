@@ -22,7 +22,7 @@ namespace LiteDB
                 _tokenizer.ReadToken().Expect(TokenType.EOF, TokenType.SemiColon);
             }
 
-            var result = _engine.Rollback();
+            var result = _engine.RollbackAsync().ConfigureAwait(false).GetAwaiter().GetResult();
 
             return new BsonDataReader(result);
         }

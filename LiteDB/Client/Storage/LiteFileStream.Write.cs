@@ -1,7 +1,7 @@
-﻿using System;
+using System;
 using System.IO;
-using System.Linq;
-using static LiteDB.Constants;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace LiteDB
 {
@@ -9,69 +9,88 @@ namespace LiteDB
     {
         public override void Write(byte[] buffer, int offset, int count)
         {
+            this.WriteAsync(buffer, offset, count, CancellationToken.None).GetAwaiter().GetResult();
+        }
+
+        public override async Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        {
+            if (_mode != FileAccess.Write) throw new NotSupportedException();
+
             _streamPosition += count;
 
-            _buffer.Write(buffer, offset, count);
+            await _buffer.WriteAsync(buffer, offset, count, cancellationToken).ConfigureAwait(false);
 
             if (_buffer.Length >= MAX_CHUNK_SIZE)
             {
-                this.WriteChunks(false);
+                await this.WriteChunksAsync(flush: false, cancellationToken).ConfigureAwait(false);
             }
         }
 
         public override void Flush()
         {
-            // write last unsaved chunks
-            this.WriteChunks(true);
+            this.FlushAsync(CancellationToken.None).GetAwaiter().GetResult();
         }
 
-        /// <summary>
-        /// Consume all _buffer bytes and write to chunk collection
-        /// </summary>
-        private void WriteChunks(bool flush)
+        public override Task FlushAsync(CancellationToken cancellationToken)
         {
-            var buffer = new byte[MAX_CHUNK_SIZE];
-            var read = 0;
+            return this.WriteChunksAsync(flush: true, cancellationToken);
+        }
+
+        private async Task WriteChunksAsync(bool flush, CancellationToken cancellationToken)
+        {
+            if (_buffer == null || _buffer.Length == 0)
+            {
+                if (flush && _buffer != null)
+                {
+                    _buffer.SetLength(0);
+                    _buffer.Position = 0;
+                }
+
+                if (flush)
+                {
+                    _file.UploadDate = DateTime.Now;
+                    _file.Length = _streamPosition;
+
+                    await _files.UpsertAsync(_file, cancellationToken).ConfigureAwait(false);
+                }
+
+                return;
+            }
+
+            var chunkBuffer = new byte[MAX_CHUNK_SIZE];
 
             _buffer.Seek(0, SeekOrigin.Begin);
 
-            while ((read = _buffer.Read(buffer, 0, MAX_CHUNK_SIZE)) > 0)
+            int read;
+            while ((read = await _buffer.ReadAsync(chunkBuffer, 0, MAX_CHUNK_SIZE, cancellationToken).ConfigureAwait(false)) > 0)
             {
                 var chunk = new BsonDocument
                 {
                     ["_id"] = new BsonDocument
                     {
                         ["f"] = _fileId,
-                        ["n"] = _file.Chunks++ // zero-based index
+                        ["n"] = _file.Chunks++
                     }
                 };
 
-                // get chunk byte array part
-                if (read != MAX_CHUNK_SIZE)
-                {
-                    var bytes = new byte[read];
-                    Buffer.BlockCopy(buffer, 0, bytes, 0, read);
-                    chunk["data"] = bytes;
-                }
-                else
-                {
-                    chunk["data"] = buffer;
-                }
+                var bytes = new byte[read];
+                Buffer.BlockCopy(chunkBuffer, 0, bytes, 0, read);
 
-                // insert chunk part
-                _chunks.Insert(chunk);
+                chunk["data"] = bytes;
+
+                await _chunks.InsertAsync(chunk, cancellationToken).ConfigureAwait(false);
             }
 
-            // if stream was closed/flush, update file too
             if (flush)
             {
                 _file.UploadDate = DateTime.Now;
                 _file.Length = _streamPosition;
 
-                _files.Upsert(_file);
+                await _files.UpsertAsync(_file, cancellationToken).ConfigureAwait(false);
             }
 
-            _buffer = new MemoryStream();
+            _buffer.SetLength(0);
+            _buffer.Position = 0;
         }
     }
 }

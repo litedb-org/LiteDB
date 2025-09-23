@@ -1,11 +1,12 @@
-﻿using System;
+using System;
 using System.IO;
-using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using static LiteDB.Constants;
 
 namespace LiteDB
 {
-    public partial class LiteFileStream<TFileId> : Stream
+    public partial class LiteFileStream<TFileId> : Stream, IAsyncDisposable
     {
         /// <summary>
         /// Number of bytes on each chunk document to store
@@ -32,46 +33,39 @@ namespace LiteDB
             _fileId = fileId;
             _mode = mode;
 
-            if (mode == FileAccess.Read)
-            {
-                // initialize first data block
-                _currentChunkData = this.GetChunkData(_currentChunkIndex);
-            }
-            else if(mode == FileAccess.Write)
+            if (mode == FileAccess.Write)
             {
                 _buffer = new MemoryStream(MAX_CHUNK_SIZE);
-
-                if (_file.Length > 0)
-                {
-                    // delete all chunks before re-write
-                    var count = _chunks.DeleteMany("_id BETWEEN { f: @0, n: 0 } AND { f: @0, n: 99999999 }", _fileId);
-
-                    ENSURE(count == _file.Chunks);
-
-                    // clear file content length+chunks
-                    _file.Length = 0;
-                    _file.Chunks = 0;
-                }
             }
         }
 
         /// <summary>
         /// Get file information
         /// </summary>
-        public LiteFileInfo<TFileId> FileInfo { get { return _file; } }
+        public LiteFileInfo<TFileId> FileInfo => _file;
 
-        public override long Length { get { return _file.Length; } }
+        public override long Length => _file.Length;
 
-        public override bool CanRead { get { return _mode == FileAccess.Read; } }
+        public override bool CanRead => _mode == FileAccess.Read;
 
-        public override bool CanWrite { get { return _mode == FileAccess.Write; } }
+        public override bool CanWrite => _mode == FileAccess.Write;
 
-        public override bool CanSeek { get { return _mode == FileAccess.Read; } }
+        public override bool CanSeek => _mode == FileAccess.Read;
 
         public override long Position
         {
-            get { return _streamPosition; }
-            set { if (_mode == FileAccess.Read) { this.SetReadStreamPosition(value); } else { throw new NotSupportedException(); } }
+            get => _streamPosition;
+            set
+            {
+                if (_mode == FileAccess.Read)
+                {
+                    this.SetReadStreamPosition(value);
+                }
+                else
+                {
+                    throw new NotSupportedException();
+                }
+            }
         }
 
         public override long Seek(long offset, SeekOrigin origin)
@@ -93,6 +87,7 @@ namespace LiteDB
                     this.SetReadStreamPosition(Length + offset);
                     break;
             }
+
             return _streamPosition;
         }
 
@@ -102,18 +97,77 @@ namespace LiteDB
 
         protected override void Dispose(bool disposing)
         {
-            base.Dispose(disposing);
-
-            if (_disposed) return;
+            if (_disposed)
+            {
+                base.Dispose(disposing);
+                return;
+            }
 
             if (disposing && this.CanWrite)
             {
-                this.Flush();
+                this.FlushAsync(CancellationToken.None).GetAwaiter().GetResult();
+#if NETSTANDARD2_0
+                _buffer?.Dispose();
+#else
+                if (_buffer != null)
+                {
+                    _buffer.Dispose();
+                }
+#endif
+            }
+
+            _disposed = true;
+
+            base.Dispose(disposing);
+        }
+
+#if !NETSTANDARD2_0
+        public override async ValueTask DisposeAsync()
+        {
+            if (_disposed)
+            {
+                await base.DisposeAsync().ConfigureAwait(false);
+                return;
+            }
+
+            if (this.CanWrite)
+            {
+                await this.FlushAsync(CancellationToken.None).ConfigureAwait(false);
+#if NETSTANDARD2_0
+                _buffer?.Dispose();
+#else
+                if (_buffer != null)
+                {
+                    await _buffer.DisposeAsync().ConfigureAwait(false);
+                }
+#endif
+            }
+
+            _disposed = true;
+
+            await base.DisposeAsync().ConfigureAwait(false);
+        }
+#endif
+
+#if NETSTANDARD2_0
+        public async ValueTask DisposeAsync()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            if (this.CanWrite)
+            {
+                await this.FlushAsync(CancellationToken.None).ConfigureAwait(false);
                 _buffer?.Dispose();
             }
 
             _disposed = true;
+
+            base.Dispose(false);
         }
+#endif
 
         #endregion
 

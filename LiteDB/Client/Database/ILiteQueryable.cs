@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace LiteDB
 {
@@ -39,22 +41,22 @@ namespace LiteDB
         ILiteQueryableResult<T> Offset(int offset);
         ILiteQueryableResult<T> ForUpdate();
 
-        BsonDocument GetPlan();
-        IBsonDataReader ExecuteReader();
-        IEnumerable<BsonDocument> ToDocuments();
-        IEnumerable<T> ToEnumerable();
-        List<T> ToList();
-        T[] ToArray();
+        Task<BsonDocument> GetPlanAsync(CancellationToken cancellationToken = default);
+        Task<IBsonDataReader> ExecuteReaderAsync(CancellationToken cancellationToken = default);
+        IAsyncEnumerable<BsonDocument> ToDocumentsAsync(CancellationToken cancellationToken = default);
+        IAsyncEnumerable<T> ToAsyncEnumerable(CancellationToken cancellationToken = default);
+        Task<List<T>> ToListAsync(CancellationToken cancellationToken = default);
+        Task<T[]> ToArrayAsync(CancellationToken cancellationToken = default);
 
-        int Into(string newCollection, BsonAutoId autoId = BsonAutoId.ObjectId);
+        Task<int> IntoAsync(string newCollection, BsonAutoId autoId = BsonAutoId.ObjectId, CancellationToken cancellationToken = default);
 
-        T First();
-        T FirstOrDefault();
-        T Single();
-        T SingleOrDefault();
+        Task<T> FirstAsync(CancellationToken cancellationToken = default);
+        Task<T> FirstOrDefaultAsync(CancellationToken cancellationToken = default);
+        Task<T> SingleAsync(CancellationToken cancellationToken = default);
+        Task<T> SingleOrDefaultAsync(CancellationToken cancellationToken = default);
 
-        int Count();
-        long LongCount();
-        bool Exists();
+        Task<int> CountAsync(CancellationToken cancellationToken = default);
+        Task<long> LongCountAsync(CancellationToken cancellationToken = default);
+        Task<bool> ExistsAsync(CancellationToken cancellationToken = default);
     }
 }

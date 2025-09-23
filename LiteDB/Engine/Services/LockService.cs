@@ -1,7 +1,6 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using static LiteDB.Constants;
@@ -9,16 +8,21 @@ using static LiteDB.Constants;
 namespace LiteDB.Engine
 {
     /// <summary>
-    /// Lock service are collection-based locks. Lock will support any threads reading at same time. Writing operations will be locked
-    /// based on collection. Eventualy, write operation can change header page that has an exclusive locker for.
+    /// Lock service are collection-based locks. Lock will support any threads reading at same time. Writing operations will be
+    /// locked based on collection. Eventually, write operation can change header page that has an exclusive locker for.
     /// [ThreadSafe]
     /// </summary>
     internal class LockService : IDisposable
     {
         private readonly EnginePragmas _pragmas;
 
-        private readonly ReaderWriterLockSlim _transaction = new ReaderWriterLockSlim(LockRecursionPolicy.NoRecursion);
-        private readonly ConcurrentDictionary<string, object> _collections = new ConcurrentDictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+        private readonly SemaphoreSlim _writerLock = new SemaphoreSlim(1, 1);
+        private readonly SemaphoreSlim _readerSemaphore = new SemaphoreSlim(1, 1);
+        private readonly ConcurrentDictionary<string, SemaphoreSlim> _collections = new ConcurrentDictionary<string, SemaphoreSlim>(StringComparer.OrdinalIgnoreCase);
+        private readonly AsyncLocal<LockScope> _scope = new AsyncLocal<LockScope>();
+
+        private int _disposed;
+        private int _readerCount;
 
         internal LockService(EnginePragmas pragmas)
         {
@@ -26,24 +30,41 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// Return if current thread have open transaction
+        /// Return if current logical context has an open transaction
         /// </summary>
-        public bool IsInTransaction => _transaction.IsReadLockHeld || _transaction.IsWriteLockHeld;
+        public bool IsInTransaction
+        {
+            get
+            {
+                var scope = _scope.Value;
+                return scope != null && (scope.TransactionDepth > 0 || scope.ExclusiveDepth > 0);
+            }
+        }
 
         /// <summary>
         /// Return how many transactions are opened
         /// </summary>
-        public int TransactionsCount => _transaction.CurrentReadCount;
+        public int TransactionsCount => Volatile.Read(ref _readerCount);
 
         /// <summary>
-        /// Enter transaction read lock - should be called just before enter a new transaction
+        /// Enter transaction read lock - should be called just before entering a new transaction
         /// </summary>
         public void EnterTransaction()
         {
-            // if current thread already in exclusive mode, just exit
-            if (_transaction.IsWriteLockHeld) return;
+            this.EnterTransactionAsync().GetAwaiter().GetResult();
+        }
 
-            if (_transaction.TryEnterReadLock(_pragmas.Timeout) == false) throw LiteException.LockTimeout("transaction", _pragmas.Timeout);
+        public ValueTask EnterTransactionAsync(CancellationToken cancellationToken = default)
+        {
+            var scope = this.GetOrCreateScope();
+
+            if (scope.ExclusiveDepth > 0 || scope.TransactionDepth > 0)
+            {
+                scope.TransactionDepth++;
+                return default;
+            }
+
+            return new ValueTask(this.EnterTransactionSlowAsync(scope, cancellationToken));
         }
 
         /// <summary>
@@ -51,18 +72,39 @@ namespace LiteDB.Engine
         /// </summary>
         public void ExitTransaction()
         {
-            // if current thread are in reserved mode, do not exit transaction (will be exit from ExitExclusive)
-            if (_transaction.IsWriteLockHeld) return;
-            
-            //This can be called when a lock has either been released by the slim or somewhere else therefore there is no lock to release from ExitReadLock()
-            if (_transaction.IsReadLockHeld)
+            this.ExitTransactionAsync().GetAwaiter().GetResult();
+        }
+
+        public ValueTask ExitTransactionAsync()
+        {
+            if (Volatile.Read(ref _disposed) != 0)
             {
-                try
-                {
-                    _transaction.ExitReadLock();
-                }
-                catch { }
+                return default;
             }
+
+            var scope = _scope.Value;
+
+            if (scope == null || scope.TransactionDepth == 0)
+            {
+                return default;
+            }
+
+            scope.TransactionDepth--;
+
+            if (scope.TransactionDepth > 0 || scope.ExclusiveDepth > 0)
+            {
+                return default;
+            }
+
+            if (!scope.HoldsSharedLock)
+            {
+                this.TryClearScope(scope);
+                return default;
+            }
+
+            scope.HoldsSharedLock = false;
+
+            return new ValueTask(this.ExitTransactionSlowAsync(scope));
         }
 
         /// <summary>
@@ -70,36 +112,101 @@ namespace LiteDB.Engine
         /// </summary>
         public void EnterLock(string collectionName)
         {
-            ENSURE(_transaction.IsReadLockHeld || _transaction.IsWriteLockHeld, "Use EnterTransaction() before EnterLock(name)");
+            this.EnterLockAsync(collectionName).GetAwaiter().GetResult();
+        }
 
-            // get collection object lock from dictionary (or create new if doesnt exists)
-            var collection = _collections.GetOrAdd(collectionName, (s) => new object());
+        public ValueTask EnterLockAsync(string collectionName, CancellationToken cancellationToken = default)
+        {
+            var scope = this.GetOrCreateScope();
 
-            if (Monitor.TryEnter(collection, _pragmas.Timeout) == false) throw LiteException.LockTimeout("write", collectionName, _pragmas.Timeout);
+            ENSURE(scope.TransactionDepth > 0 || scope.ExclusiveDepth > 0, "Use EnterTransaction() before EnterLock(name)");
+
+            if (scope.CollectionLocks.TryGetValue(collectionName, out var counter))
+            {
+                scope.CollectionLocks[collectionName] = counter + 1;
+                return default;
+            }
+
+            var semaphore = _collections.GetOrAdd(collectionName, _ => new SemaphoreSlim(1, 1));
+
+            return new ValueTask(this.EnterCollectionLockAsync(scope, collectionName, semaphore, cancellationToken));
+        }
+
+        private async Task EnterCollectionLockAsync(LockScope scope, string collectionName, SemaphoreSlim semaphore, CancellationToken cancellationToken)
+        {
+            if (!await semaphore.WaitAsync(_pragmas.Timeout, cancellationToken).ConfigureAwait(false))
+            {
+                throw LiteException.LockTimeout("write", collectionName, _pragmas.Timeout);
+            }
+
+            scope.CollectionLocks[collectionName] = 1;
         }
 
         /// <summary>
-        /// Exit collection in reserved lock
+        /// Exit collection reserved lock
         /// </summary>
         public void ExitLock(string collectionName)
         {
-            if (_collections.TryGetValue(collectionName, out var collection) == false) throw LiteException.CollectionLockerNotFound(collectionName);
+            var scope = _scope.Value ?? throw LiteException.CollectionLockerNotFound(collectionName);
 
-            Monitor.Exit(collection);
+            if (scope.CollectionLocks.TryGetValue(collectionName, out var counter) == false)
+            {
+                throw LiteException.CollectionLockerNotFound(collectionName);
+            }
+
+            counter--;
+
+            if (counter > 0)
+            {
+                scope.CollectionLocks[collectionName] = counter;
+                return;
+            }
+
+            scope.CollectionLocks.Remove(collectionName);
+
+            if (_collections.TryGetValue(collectionName, out var semaphore))
+            {
+                TryRelease(semaphore);
+            }
+
+            this.TryClearScope(scope);
         }
 
         /// <summary>
-        /// Enter all database in exclusive lock. Wait for all transactions finish. In exclusive mode no one can enter in new transaction (for read/write)
-        /// If current thread already in exclusive mode, returns false
+        /// Enter all database in exclusive lock. Wait for all transactions to finish. In exclusive mode no one can enter a new transaction (for read/write)
+        /// If current context already in exclusive mode, returns false
         /// </summary>
         public bool EnterExclusive()
         {
-            // if current thread already in exclusive mode
-            if (_transaction.IsWriteLockHeld) return false;
+            return this.EnterExclusiveAsync().GetAwaiter().GetResult();
+        }
 
-            // wait finish all transactions before enter in reserved mode
-            if (_transaction.TryEnterWriteLock(_pragmas.Timeout) == false) throw LiteException.LockTimeout("exclusive", _pragmas.Timeout);
+        public ValueTask<bool> EnterExclusiveAsync(CancellationToken cancellationToken = default)
+        {
+            var scope = this.GetOrCreateScope();
 
+            if (scope.ExclusiveDepth > 0)
+            {
+                scope.ExclusiveDepth++;
+                return new ValueTask<bool>(false);
+            }
+
+            if (scope.TransactionDepth > 0)
+            {
+                throw new InvalidOperationException("Cannot enter exclusive mode while holding transaction locks.");
+            }
+
+            return new ValueTask<bool>(this.EnterExclusiveSlowAsync(scope, cancellationToken));
+        }
+
+        private async Task<bool> EnterExclusiveSlowAsync(LockScope scope, CancellationToken cancellationToken)
+        {
+            if (!await _writerLock.WaitAsync(_pragmas.Timeout, cancellationToken).ConfigureAwait(false))
+            {
+                throw LiteException.LockTimeout("exclusive", _pragmas.Timeout);
+            }
+
+            scope.ExclusiveDepth = 1;
             return true;
         }
 
@@ -109,32 +216,30 @@ namespace LiteDB.Engine
         /// </summary>
         public bool TryEnterExclusive(out bool mustExit)
         {
-            // if already in exclusive mode return true but "enter" indicator must be false (do not exit)
-            if (_transaction.IsWriteLockHeld)
+            var scope = this.GetOrCreateScope();
+
+            if (scope.ExclusiveDepth > 0)
             {
+                scope.ExclusiveDepth++;
                 mustExit = false;
                 return true;
             }
 
-            // if there is any open transaction, exit with false
-            if (_transaction.IsReadLockHeld || _transaction.CurrentReadCount > 0)
+            if (scope.TransactionDepth > 0)
             {
                 mustExit = false;
                 return false;
             }
 
-            // try enter in exclusive mode - but if not possible, just exit with false
-            if (_transaction.TryEnterWriteLock(10) == false)
+            if (_writerLock.Wait(0))
             {
-                mustExit = false;
-                return false;
+                scope.ExclusiveDepth = 1;
+                mustExit = true;
+                return true;
             }
 
-            ENSURE(_transaction.RecursiveReadCount == 0, "must have no other transaction here");
-
-            // now, current thread are in exclusive mode (must run ExitExclusive to exit)
-            mustExit = true;
-            return true;
+            mustExit = false;
+            return false;
         }
 
         /// <summary>
@@ -142,18 +247,180 @@ namespace LiteDB.Engine
         /// </summary>
         public void ExitExclusive()
         {
-            _transaction.ExitWriteLock();
+            var scope = _scope.Value ?? throw new SynchronizationLockException("No exclusive lock held by the current context.");
+
+            if (scope.ExclusiveDepth == 0)
+            {
+                throw new SynchronizationLockException("No exclusive lock held by the current context.");
+            }
+
+            scope.ExclusiveDepth--;
+
+            if (scope.ExclusiveDepth > 0)
+            {
+                return;
+            }
+
+            _writerLock.Release();
+            this.TryClearScope(scope);
         }
 
         public void Dispose()
         {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            {
+                return;
+            }
+
+            _writerLock.Dispose();
+            _readerSemaphore.Dispose();
+
+            foreach (var semaphore in _collections.Values)
+            {
+                semaphore.Dispose();
+            }
+        }
+
+        private async Task EnterTransactionSlowAsync(LockScope scope, CancellationToken cancellationToken)
+        {
+            var timeout = _pragmas.Timeout;
+
             try
             {
-                _transaction.Dispose();
+                if (!await _readerSemaphore.WaitAsync(timeout, cancellationToken).ConfigureAwait(false))
+                {
+                    throw LiteException.LockTimeout("transaction", timeout);
+                }
             }
-            catch (SynchronizationLockException)
+            catch (ObjectDisposedException)
+            {
+                return;
+            }
+
+            var acquiredWriter = false;
+            var incrementedReader = false;
+
+            try
+            {
+                if (_readerCount == 0)
+                {
+                    try
+                    {
+                        if (!await _writerLock.WaitAsync(timeout, cancellationToken).ConfigureAwait(false))
+                        {
+                            throw LiteException.LockTimeout("transaction", timeout);
+                        }
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        return;
+                    }
+
+                    acquiredWriter = true;
+                }
+
+                _readerCount++;
+                incrementedReader = true;
+            }
+            catch
+            {
+                if (incrementedReader)
+                {
+                    _readerCount--;
+
+                    if (_readerCount == 0 && acquiredWriter)
+                    {
+                        TryRelease(_writerLock);
+                    }
+                }
+                else if (acquiredWriter)
+                {
+                    TryRelease(_writerLock);
+                }
+
+                throw;
+            }
+            finally
+            {
+                TryRelease(_readerSemaphore);
+            }
+
+            scope.TransactionDepth = 1;
+            scope.HoldsSharedLock = true;
+        }
+
+        private async Task ExitTransactionSlowAsync(LockScope scope)
+        {
+            try
+            {
+                await _readerSemaphore.WaitAsync().ConfigureAwait(false);
+            }
+            catch (ObjectDisposedException)
+            {
+                return;
+            }
+
+            try
+            {
+                _readerCount--;
+
+                if (_readerCount == 0)
+                {
+                    TryRelease(_writerLock);
+                }
+            }
+            finally
+            {
+                TryRelease(_readerSemaphore);
+            }
+
+            this.TryClearScope(scope);
+        }
+
+        private LockScope GetOrCreateScope()
+        {
+            var scope = _scope.Value;
+
+            if (scope == null)
+            {
+                scope = new LockScope();
+                _scope.Value = scope;
+            }
+
+            return scope;
+        }
+
+        private void TryClearScope(LockScope scope)
+        {
+            if (scope.TransactionDepth == 0 && scope.ExclusiveDepth == 0 && scope.CollectionLocks.Count == 0)
+            {
+                if (ReferenceEquals(_scope.Value, scope))
+                {
+                    _scope.Value = null;
+                }
+            }
+        }
+
+        private static void TryRelease(SemaphoreSlim semaphore)
+        {
+            try
+            {
+                semaphore.Release();
+            }
+            catch (ObjectDisposedException)
             {
             }
+            catch (SemaphoreFullException)
+            {
+            }
+        }
+
+        private sealed class LockScope
+        {
+            public int TransactionDepth;
+            public bool HoldsSharedLock;
+            public int ExclusiveDepth;
+            public Dictionary<string, int> CollectionLocks { get; } = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         }
     }
 }

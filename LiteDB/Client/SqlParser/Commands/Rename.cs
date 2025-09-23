@@ -24,7 +24,7 @@ namespace LiteDB
 
             _tokenizer.ReadToken().Expect(TokenType.EOF, TokenType.SemiColon);
 
-            var result = _engine.RenameCollection(collection, newName);
+            var result = _engine.RenameCollectionAsync(collection, newName).ConfigureAwait(false).GetAwaiter().GetResult();
 
             return new BsonDataReader(result);
         }

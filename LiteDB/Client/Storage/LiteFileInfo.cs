@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
 using static LiteDB.Constants;
 
 namespace LiteDB
@@ -46,46 +48,57 @@ namespace LiteDB
         /// <summary>
         /// Open file stream to read from database
         /// </summary>
-        public LiteFileStream<TFileId> OpenRead()
+        public Task<LiteFileStream<TFileId>> OpenReadAsync(CancellationToken cancellationToken = default)
         {
-            return new LiteFileStream<TFileId>(_files, _chunks, this, _fileId, FileAccess.Read);
+            return Task.FromResult(new LiteFileStream<TFileId>(_files, _chunks, this, _fileId, FileAccess.Read));
         }
 
         /// <summary>
         /// Open file stream to write to database
         /// </summary>
-        public LiteFileStream<TFileId> OpenWrite()
+        public async Task<LiteFileStream<TFileId>> OpenWriteAsync(CancellationToken cancellationToken = default)
         {
+            if (this.Length > 0)
+            {
+                var deleted = await _chunks.DeleteManyAsync("_id BETWEEN { f: @0, n: 0 } AND { f: @0, n: @1 }", cancellationToken, _fileId, int.MaxValue).ConfigureAwait(false);
+
+                ENSURE(deleted == this.Chunks);
+
+                this.Length = 0;
+                this.Chunks = 0;
+            }
+
             return new LiteFileStream<TFileId>(_files, _chunks, this, _fileId, FileAccess.Write);
         }
 
         /// <summary>
         /// Copy file content to another stream
         /// </summary>
-        public void CopyTo(Stream stream)
+        public async Task CopyToAsync(Stream stream, CancellationToken cancellationToken = default)
         {
             if (stream == null) throw new ArgumentNullException(nameof(stream));
 
-            using (var reader = this.OpenRead())
-            {
-                reader.CopyTo(stream);
-            }
+            await using var reader = await this.OpenReadAsync(cancellationToken).ConfigureAwait(false);
+
+            cancellationToken.ThrowIfCancellationRequested();
+            await reader.CopyToAsync(stream).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
         }
 
         /// <summary>
         /// Save file content to a external file
         /// </summary>
-        public void SaveAs(string filename, bool overwritten = true)
+        public async Task SaveAsAsync(string filename, bool overwritten = true, CancellationToken cancellationToken = default)
         {
             if (filename.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(filename));
 
-            using (var file = File.Open(filename, overwritten ? FileMode.Create : FileMode.CreateNew))
-            {
-                using (var stream = this.OpenRead())
-                {
-                    stream.CopyTo(file);
-                }
-            }
+            using var file = new FileStream(filename, overwritten ? FileMode.Create : FileMode.CreateNew, FileAccess.Write, FileShare.None, bufferSize: 81920, FileOptions.Asynchronous | FileOptions.SequentialScan);
+
+            await using var stream = await this.OpenReadAsync(cancellationToken).ConfigureAwait(false);
+
+            cancellationToken.ThrowIfCancellationRequested();
+            await stream.CopyToAsync(file).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
         }
     }
 }

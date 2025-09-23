@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace LiteDB
 {
@@ -29,6 +31,8 @@ namespace LiteDB
 
         public bool Read() => _reader.Read();
 
+        public ValueTask<bool> ReadAsync(CancellationToken cancellationToken = default) => _reader.ReadAsync(cancellationToken);
+
         public void Dispose()
         {
             this.Dispose(true);
@@ -50,6 +54,27 @@ namespace LiteDB
             {
                 _reader.Dispose();
                 _dispose();
+            }
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+
+            GC.SuppressFinalize(this);
+
+            try
+            {
+                _dispose();
+            }
+            finally
+            {
+                await _reader.DisposeAsync().ConfigureAwait(false);
             }
         }
     }

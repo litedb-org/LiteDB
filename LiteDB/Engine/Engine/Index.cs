@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -11,7 +13,7 @@ namespace LiteDB.Engine
         /// <summary>
         /// Create a new index (or do nothing if already exists) to a collection/field
         /// </summary>
-        public bool EnsureIndex(string collection, string name, BsonExpression expression, bool unique)
+        public Task<bool> EnsureIndexAsync(string collection, string name, BsonExpression expression, bool unique, CancellationToken cancellationToken = default)
         {
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
             if (name.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(name));
@@ -23,9 +25,11 @@ namespace LiteDB.Engine
             if (name.StartsWith("$")) throw LiteException.InvalidIndexName(name, collection, "Index name can't start with `$`");
             if (expression.IsScalar == false && unique) throw new LiteException(0, "Multikey index expression do not support unique option");
 
-            if (expression.Source == "$._id") return false; // always exists
+            if (expression.Source == "$._id") return Task.FromResult(false); // always exists
 
-            return this.AutoTransaction(transaction =>
+            cancellationToken.ThrowIfCancellationRequested();
+
+            return this.AutoTransactionAsync((transaction, token) =>
             {
                 var snapshot = transaction.CreateSnapshot(LockMode.Write, collection, true);
                 var collectionPage = snapshot.CollectionPage;
@@ -41,7 +45,7 @@ namespace LiteDB.Engine
                     // but if expression are different, throw error
                     if (current.Expression != expression.Source) throw LiteException.IndexAlreadyExist(name);
 
-                    return false;
+                    return new ValueTask<bool>(false);
                 }
 
                 LOG($"create index `{collection}.{name}`", "COMMAND");
@@ -53,6 +57,8 @@ namespace LiteDB.Engine
                 // read all objects (read from PK index)
                 foreach (var pkNode in new IndexAll("_id", LiteDB.Query.Ascending).Run(collectionPage, indexer))
                 {
+                    token.ThrowIfCancellationRequested();
+
                     using (var reader = new BufferReader(data.Read(pkNode.DataBlock)))
                     {
                         var doc = reader.ReadDocument(expression.Fields).GetValue();
@@ -67,6 +73,8 @@ namespace LiteDB.Engine
                         // adding index node for each value
                         foreach (var key in keys)
                         {
+                            token.ThrowIfCancellationRequested();
+
                             _state.Validate();
 
                             // insert new index node
@@ -90,43 +98,45 @@ namespace LiteDB.Engine
                     transaction.Safepoint();
                 }
 
-                return true;
-            });
+                return new ValueTask<bool>(true);
+            }, cancellationToken);
         }
 
         /// <summary>
         /// Drop an index from a collection
         /// </summary>
-        public bool DropIndex(string collection, string name)
+        public Task<bool> DropIndexAsync(string collection, string name, CancellationToken cancellationToken = default)
         {
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
             if (name.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(name));
 
             if (name == "_id") throw LiteException.IndexDropId();
 
-            return this.AutoTransaction(transaction =>
+            cancellationToken.ThrowIfCancellationRequested();
+
+            return this.AutoTransactionAsync((transaction, token) =>
             {
                 var snapshot = transaction.CreateSnapshot(LockMode.Write, collection, false);
                 var col = snapshot.CollectionPage;
                 var indexer = new IndexService(snapshot, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
-            
+
                 // no collection, no index
-                if (col == null) return false;
-            
+                if (col == null) return new ValueTask<bool>(false);
+
                 // search for index reference
                 var index = col.GetCollectionIndex(name);
-            
+
                 // no index, no drop
-                if (index == null) return false;
+                if (index == null) return new ValueTask<bool>(false);
 
                 // delete all data pages + indexes pages
                 indexer.DropIndex(index);
 
                 // remove index entry in collection page
                 snapshot.CollectionPage.DeleteCollectionIndex(name);
-            
-                return true;
-            });
+
+                return new ValueTask<bool>(true);
+            }, cancellationToken);
         }
     }
 }

@@ -60,7 +60,7 @@ namespace LiteDB.Engine
                 }))
                 {
                     // copy all database to new Log file with NO checkpoint during all rebuild
-                    engine.Pragma(Pragmas.CHECKPOINT, 0);
+                    engine.PragmaAsync(Pragmas.CHECKPOINT, 0).ConfigureAwait(false).GetAwaiter().GetResult();
 
                     // rebuild all content from reader into new engine
                     engine.RebuildContent(reader);
@@ -70,20 +70,20 @@ namespace LiteDB.Engine
                     {
                         var report = options.GetErrorReport();
 
-                        engine.Insert("_rebuild_errors", report, BsonAutoId.Int32);
+                        engine.InsertAsync("_rebuild_errors", report, BsonAutoId.Int32).ConfigureAwait(false).GetAwaiter().GetResult();
                     }
 
                     // update pragmas
                     var pragmas = reader.GetPragmas();
 
-                    engine.Pragma(Pragmas.CHECKPOINT, pragmas[Pragmas.CHECKPOINT]);
-                    engine.Pragma(Pragmas.TIMEOUT, pragmas[Pragmas.TIMEOUT]);
-                    engine.Pragma(Pragmas.LIMIT_SIZE, pragmas[Pragmas.LIMIT_SIZE]);
-                    engine.Pragma(Pragmas.UTC_DATE, pragmas[Pragmas.UTC_DATE]);
-                    engine.Pragma(Pragmas.USER_VERSION, pragmas[Pragmas.USER_VERSION]);
+                    engine.PragmaAsync(Pragmas.CHECKPOINT, pragmas[Pragmas.CHECKPOINT]).ConfigureAwait(false).GetAwaiter().GetResult();
+                    engine.PragmaAsync(Pragmas.TIMEOUT, pragmas[Pragmas.TIMEOUT]).ConfigureAwait(false).GetAwaiter().GetResult();
+                    engine.PragmaAsync(Pragmas.LIMIT_SIZE, pragmas[Pragmas.LIMIT_SIZE]).ConfigureAwait(false).GetAwaiter().GetResult();
+                    engine.PragmaAsync(Pragmas.UTC_DATE, pragmas[Pragmas.UTC_DATE]).ConfigureAwait(false).GetAwaiter().GetResult();
+                    engine.PragmaAsync(Pragmas.USER_VERSION, pragmas[Pragmas.USER_VERSION]).ConfigureAwait(false).GetAwaiter().GetResult();
 
                     // after rebuild, copy log bytes into data file
-                    engine.Checkpoint();
+                    engine.CheckpointAsync().ConfigureAwait(false).GetAwaiter().GetResult();
                 }
             }
 

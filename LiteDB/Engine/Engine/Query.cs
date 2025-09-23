@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -12,10 +14,12 @@ namespace LiteDB.Engine
         /// Run query over collection using a query definition. 
         /// Returns a new IBsonDataReader that run and return first document result (open transaction)
         /// </summary>
-        public IBsonDataReader Query(string collection, Query query)
+        public Task<IBsonDataReader> QueryAsync(string collection, Query query, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(collection)) throw new ArgumentNullException(nameof(collection));
             if (query == null) throw new ArgumentNullException(nameof(query));
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             IEnumerable<BsonDocument> source = null;
 
@@ -42,7 +46,7 @@ namespace LiteDB.Engine
                 query, 
                 source);
 
-            return exec.ExecuteQuery();
+            return Task.FromResult<IBsonDataReader>(exec.ExecuteQuery());
         }
     }
 }

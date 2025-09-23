@@ -3,6 +3,8 @@ using System.Buffers;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Threading;
+using System.Threading.Tasks;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -197,6 +199,28 @@ namespace LiteDB.Engine
             _writer.Write(array, offset, count);
         }
 
+        public override async Task<int> ReadAsync(byte[] array, int offset, int count, CancellationToken cancellationToken)
+        {
+            ENSURE(this.Position % PAGE_SIZE == 0, "AesRead: position must be in PAGE_SIZE module. Position={0}, File={1}", this.Position, _name);
+
+            var r = await _reader.ReadAsync(array, offset, count, cancellationToken).ConfigureAwait(false);
+
+            if (this.IsBlank(array, offset))
+            {
+                array.Fill(0, offset, count);
+            }
+
+            return r;
+        }
+
+        public override async Task WriteAsync(byte[] array, int offset, int count, CancellationToken cancellationToken)
+        {
+            ENSURE(count == PAGE_SIZE || count == 1, "buffer size must be PAGE_SIZE");
+            ENSURE(this.Position == HeaderPage.P_INVALID_DATAFILE_STATE || this.Position % PAGE_SIZE == 0, "AesWrite: position must be in PAGE_SIZE module. Position={0}, File={1}", this.Position, _name);
+
+            await _writer.WriteAsync(array, offset, count, cancellationToken).ConfigureAwait(false);
+        }
+
         protected override void Dispose(bool disposing)
         {
             base.Dispose(disposing);
@@ -227,6 +251,11 @@ namespace LiteDB.Engine
         public override void Flush()
         {
             _stream.Flush();
+        }
+
+        public override Task FlushAsync(CancellationToken cancellationToken)
+        {
+            return _stream.FlushAsync(cancellationToken);
         }
 
         public override long Seek(long offset, SeekOrigin origin)

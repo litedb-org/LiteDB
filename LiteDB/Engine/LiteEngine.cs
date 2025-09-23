@@ -7,6 +7,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -253,7 +254,12 @@ namespace LiteDB.Engine
         /// <summary>
         /// Run checkpoint command to copy log file into data file
         /// </summary>
-        public int Checkpoint() => _walIndex.Checkpoint();
+        public Task<int> CheckpointAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            return Task.FromResult(_walIndex.Checkpoint());
+        }
 
         public void Dispose()
         {
@@ -264,6 +270,12 @@ namespace LiteDB.Engine
         protected virtual void Dispose(bool disposing)
         {
             this.Close();
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            this.Dispose();
+            return default;
         }
     }
 }

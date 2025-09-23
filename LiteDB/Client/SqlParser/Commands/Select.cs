@@ -188,7 +188,7 @@ namespace LiteDB
             // read eof/;
             _tokenizer.ReadToken().Expect(TokenType.EOF, TokenType.SemiColon);
 
-            return _engine.Query(collection, query);
+            return _engine.QueryAsync(collection, query).ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
         /// <summary>

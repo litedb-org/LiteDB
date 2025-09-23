@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using static LiteDB.Constants;
 
 namespace LiteDB
@@ -10,21 +12,22 @@ namespace LiteDB
         /// <summary>
         /// Insert a new entity to this collection. Document Id must be a new value in collection - Returns document Id
         /// </summary>
-        public BsonValue Insert(T entity)
+        public async Task<BsonValue> InsertAsync(T entity, CancellationToken cancellationToken = default)
         {
             if (entity == null) throw new ArgumentNullException(nameof(entity));
+            cancellationToken.ThrowIfCancellationRequested();
 
             var doc = _mapper.ToDocument(entity);
             var removed = this.RemoveDocId(doc);
 
-            _engine.Insert(_collection, new[] { doc }, _autoId);
+            await _engine.InsertAsync(_collection, new[] { doc }, _autoId, cancellationToken).ConfigureAwait(false);
 
             var id = doc["_id"];
 
             // checks if must update _id value in entity
             if (removed)
             {
-                _id.Setter(entity, id.RawValue);
+                _id?.Setter(entity, id.RawValue);
             }
 
             return id;
@@ -33,46 +36,51 @@ namespace LiteDB
         /// <summary>
         /// Insert a new document to this collection using passed id value.
         /// </summary>
-        public void Insert(BsonValue id, T entity)
+        public async Task InsertAsync(BsonValue id, T entity, CancellationToken cancellationToken = default)
         {
             if (entity == null) throw new ArgumentNullException(nameof(entity));
             if (id == null || id.IsNull) throw new ArgumentNullException(nameof(id));
+            cancellationToken.ThrowIfCancellationRequested();
 
             var doc = _mapper.ToDocument(entity);
 
             doc["_id"] = id;
 
-            _engine.Insert(_collection, new [] { doc }, _autoId);
+            await _engine.InsertAsync(_collection, new [] { doc }, _autoId, cancellationToken).ConfigureAwait(false);
+
+            return;
         }
 
         /// <summary>
         /// Insert an array of new documents to this collection. Document Id must be a new value in collection. Can be set buffer size to commit at each N documents
         /// </summary>
-        public int Insert(IEnumerable<T> entities)
+        public Task<int> InsertAsync(IEnumerable<T> entities, CancellationToken cancellationToken = default)
         {
             if (entities == null) throw new ArgumentNullException(nameof(entities));
 
-            return _engine.Insert(_collection, this.GetBsonDocs(entities), _autoId);
+            return _engine.InsertAsync(_collection, this.GetBsonDocs(entities, cancellationToken), _autoId, cancellationToken);
         }
 
         /// <summary>
         /// Implements bulk insert documents in a collection. Usefull when need lots of documents.
         /// </summary>
-        [Obsolete("Use normal Insert()")]
-        public int InsertBulk(IEnumerable<T> entities, int batchSize = 5000)
+        [Obsolete("Use InsertAsync()")]
+        public Task<int> InsertBulkAsync(IEnumerable<T> entities, int batchSize = 5000, CancellationToken cancellationToken = default)
         {
             if (entities == null) throw new ArgumentNullException(nameof(entities));
 
-            return _engine.Insert(_collection, this.GetBsonDocs(entities), _autoId);
+            return _engine.InsertAsync(_collection, this.GetBsonDocs(entities, cancellationToken), _autoId, cancellationToken);
         }
 
         /// <summary>
         /// Convert each T document in a BsonDocument, setting autoId for each one
         /// </summary>
-        private IEnumerable<BsonDocument> GetBsonDocs(IEnumerable<T> documents)
+        private IEnumerable<BsonDocument> GetBsonDocs(IEnumerable<T> documents, CancellationToken cancellationToken)
         {
             foreach (var document in documents)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 var doc = _mapper.ToDocument(document);
                 var removed = this.RemoveDocId(doc);
 
