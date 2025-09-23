@@ -370,7 +370,10 @@ namespace LiteDB.Tests.Engine
                     blockingStream.ShouldBlock = true;
                     db.Checkpoint();
                     db.Dispose();
-                });
+                })
+                {
+                    IsBackground = true
+                };
                 lockerThread.Start();
                 blockingStream.Blocked.WaitOne(200).Should().BeTrue();
                 Assert.Throws<LiteException>(() => db.GetCollection<Person>().Insert(new Person())).Message.Should().Contain("timeout");
