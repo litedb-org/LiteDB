@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
+using LiteDB.Utils;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -55,7 +56,18 @@ namespace LiteDB.Engine
             {
                 LOG($"creating new database: '{Path.GetFileName(_dataFactory.Name)}'", "DISK");
 
-                this.Initialize(_dataPool.Writer.Value, settings.Collation, settings.InitialSize);
+                try
+                {
+                    this.Initialize(_dataPool.Writer.Value, settings.Collation, settings.InitialSize);
+                }
+                catch (Exception ex)
+                {
+                    LOG($"Error while initializing DiskService: {ex.Message}", "ERROR");
+                    // Cleanup resources allocated before initialization
+                    _dataPool?.Dispose();
+                    _logPool?.Dispose();
+                    throw;
+                }
             }
 
             // if not readonly, force open writable datafile
@@ -340,14 +352,16 @@ namespace LiteDB.Engine
             // can change file size
             var delete = _logFactory.Exists() && _logPool.Writer.Value.Length == 0;
 
-            // dispose Stream pools
-            _dataPool.Dispose();
-            _logPool.Dispose();
+            var tc = new TryCatch();
 
-            if (delete) _logFactory.Delete();
+            // dispose Stream pools
+            tc.Catch(() => _dataPool.Dispose());
+            tc.Catch(() => _logPool.Dispose());
+
+            if (delete) tc.Catch(() => _logFactory.Delete());
 
             // other disposes
-            _cache.Dispose();
+            tc.Catch(() => _cache.Dispose());
         }
     }
 }
