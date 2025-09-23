@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Runtime.CompilerServices;
+using System.Threading;
+using System.Threading.Tasks;
 using static LiteDB.Constants;
 
 namespace LiteDB
@@ -28,13 +31,13 @@ namespace LiteDB
         /// <summary>
         /// Find a file inside datafile and returns LiteFileInfo instance. Returns null if not found
         /// </summary>
-        public LiteFileInfo<TFileId> FindById(TFileId id)
+        public async Task<LiteFileInfo<TFileId>> FindByIdAsync(TFileId id, CancellationToken cancellationToken = default)
         {
             if (id == null) throw new ArgumentNullException(nameof(id));
 
             var fileId = _db.Mapper.Serialize(typeof(TFileId), id);
 
-            var file = _files.FindById(fileId);
+            var file = await _files.FindByIdAsync(fileId, cancellationToken).ConfigureAwait(false);
 
             if (file == null) return null;
 
@@ -46,7 +49,7 @@ namespace LiteDB
         /// <summary>
         /// Find all files that match with predicate expression.
         /// </summary>
-        public IEnumerable<LiteFileInfo<TFileId>> Find(BsonExpression predicate)
+        public async IAsyncEnumerable<LiteFileInfo<TFileId>> FindAsync(BsonExpression predicate, [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             var query = _files.Query();
 
@@ -55,7 +58,7 @@ namespace LiteDB
                 query = query.Where(predicate);
             }
 
-            foreach (var file in query.ToEnumerable())
+            await foreach (var file in query.ToAsyncEnumerable(cancellationToken).ConfigureAwait(false))
             {
                 var fileId = _db.Mapper.Serialize(typeof(TFileId), file.Id);
 
@@ -68,33 +71,33 @@ namespace LiteDB
         /// <summary>
         /// Find all files that match with predicate expression.
         /// </summary>
-        public IEnumerable<LiteFileInfo<TFileId>> Find(string predicate, BsonDocument parameters) => this.Find(BsonExpression.Create(predicate, parameters));
+        public IAsyncEnumerable<LiteFileInfo<TFileId>> FindAsync(string predicate, BsonDocument parameters, CancellationToken cancellationToken = default) => this.FindAsync(BsonExpression.Create(predicate, parameters), cancellationToken);
 
         /// <summary>
         /// Find all files that match with predicate expression.
         /// </summary>
-        public IEnumerable<LiteFileInfo<TFileId>> Find(string predicate, params BsonValue[] args) => this.Find(BsonExpression.Create(predicate, args));
+        public IAsyncEnumerable<LiteFileInfo<TFileId>> FindAsync(string predicate, CancellationToken cancellationToken = default, params BsonValue[] args) => this.FindAsync(BsonExpression.Create(predicate, args), cancellationToken);
 
         /// <summary>
         /// Find all files that match with predicate expression.
         /// </summary>
-        public IEnumerable<LiteFileInfo<TFileId>> Find(Expression<Func<LiteFileInfo<TFileId>, bool>> predicate) => this.Find(_db.Mapper.GetExpression(predicate));
+        public IAsyncEnumerable<LiteFileInfo<TFileId>> FindAsync(Expression<Func<LiteFileInfo<TFileId>, bool>> predicate, CancellationToken cancellationToken = default) => this.FindAsync(_db.Mapper.GetExpression(predicate), cancellationToken);
 
         /// <summary>
         /// Find all files inside file collections
         /// </summary>
-        public IEnumerable<LiteFileInfo<TFileId>> FindAll() => this.Find((BsonExpression)null);
+        public IAsyncEnumerable<LiteFileInfo<TFileId>> FindAllAsync(CancellationToken cancellationToken = default) => this.FindAsync((BsonExpression)null, cancellationToken);
 
         /// <summary>
         /// Returns if a file exisits in database
         /// </summary>
-        public bool Exists(TFileId id)
+        public Task<bool> ExistsAsync(TFileId id, CancellationToken cancellationToken = default)
         {
             if (id == null) throw new ArgumentNullException(nameof(id));
 
             var fileId = _db.Mapper.Serialize(typeof(TFileId), id);
 
-            return _files.Exists("_id = @0", fileId);
+            return _files.ExistsAsync("_id = @0", cancellationToken, fileId);
         }
 
         #endregion
@@ -104,13 +107,13 @@ namespace LiteDB
         /// <summary>
         /// Open/Create new file storage and returns linked Stream to write operations.
         /// </summary>
-        public LiteFileStream<TFileId> OpenWrite(TFileId id, string filename, BsonDocument metadata = null)
+        public async Task<LiteFileStream<TFileId>> OpenWriteAsync(TFileId id, string filename, BsonDocument metadata = null, CancellationToken cancellationToken = default)
         {
             // get _id as BsonValue
             var fileId = _db.Mapper.Serialize(typeof(TFileId), id);
 
             // checks if file exists
-            var file = this.FindById(id);
+            var file = await this.FindByIdAsync(id, cancellationToken).ConfigureAwait(false);
 
             if (file == null)
             {
@@ -133,47 +136,49 @@ namespace LiteDB
                 file.Metadata = metadata ?? file.Metadata;
             }
 
-            return file.OpenWrite();
+            return await file.OpenWriteAsync(cancellationToken).ConfigureAwait(false);
         }
 
         /// <summary>
         /// Upload a file based on stream data
         /// </summary>
-        public LiteFileInfo<TFileId> Upload(TFileId id, string filename, Stream stream, BsonDocument metadata = null)
+        public async Task<LiteFileInfo<TFileId>> UploadAsync(TFileId id, string filename, Stream stream, BsonDocument metadata = null, CancellationToken cancellationToken = default)
         {
-            using (var writer = this.OpenWrite(id, filename, metadata))
-            {
-                stream.CopyTo(writer);
+            if (stream == null) throw new ArgumentNullException(nameof(stream));
 
-                return writer.FileInfo;
-            }
+            await using var writer = await this.OpenWriteAsync(id, filename, metadata, cancellationToken).ConfigureAwait(false);
+
+            cancellationToken.ThrowIfCancellationRequested();
+            await stream.CopyToAsync(writer).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            return writer.FileInfo;
         }
 
         /// <summary>
         /// Upload a file based on file system data
         /// </summary>
-        public LiteFileInfo<TFileId> Upload(TFileId id, string filename)
+        public async Task<LiteFileInfo<TFileId>> UploadAsync(TFileId id, string filename, CancellationToken cancellationToken = default)
         {
             if (filename.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(filename));
 
-            using (var stream = File.OpenRead(filename))
-            {
-                return this.Upload(id, Path.GetFileName(filename), stream);
-            }
+            using var stream = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 81920, FileOptions.Asynchronous | FileOptions.SequentialScan);
+
+            return await this.UploadAsync(id, Path.GetFileName(filename), stream, null, cancellationToken).ConfigureAwait(false);
         }
 
         /// <summary>
         /// Update metadata on a file. File must exist.
         /// </summary>
-        public bool SetMetadata(TFileId id, BsonDocument metadata)
+        public async Task<bool> SetMetadataAsync(TFileId id, BsonDocument metadata, CancellationToken cancellationToken = default)
         {
-            var file = this.FindById(id);
+            var file = await this.FindByIdAsync(id, cancellationToken).ConfigureAwait(false);
 
             if (file == null) return false;
 
             file.Metadata = metadata ?? new BsonDocument();
 
-            _files.Update(file);
+            await _files.UpdateAsync(file, cancellationToken).ConfigureAwait(false);
 
             return true;
         }
@@ -185,23 +190,27 @@ namespace LiteDB
         /// <summary>
         /// Load data inside storage and returns as Stream
         /// </summary>
-        public LiteFileStream<TFileId> OpenRead(TFileId id)
+        public async Task<LiteFileStream<TFileId>> OpenReadAsync(TFileId id, CancellationToken cancellationToken = default)
         {
-            var file = this.FindById(id);
+            var file = await this.FindByIdAsync(id, cancellationToken).ConfigureAwait(false);
 
             if (file == null) throw LiteException.FileNotFound(id.ToString());
 
-            return file.OpenRead();
+            return await file.OpenReadAsync(cancellationToken).ConfigureAwait(false);
         }
 
         /// <summary>
         /// Copy all file content to a steam
         /// </summary>
-        public LiteFileInfo<TFileId> Download(TFileId id, Stream stream)
+        public async Task<LiteFileInfo<TFileId>> DownloadAsync(TFileId id, Stream stream, CancellationToken cancellationToken = default)
         {
-            var file = this.FindById(id) ?? throw LiteException.FileNotFound(id.ToString());
+            if (stream == null) throw new ArgumentNullException(nameof(stream));
 
-            file.CopyTo(stream);
+            var file = await this.FindByIdAsync(id, cancellationToken).ConfigureAwait(false) ?? throw LiteException.FileNotFound(id.ToString());
+
+            cancellationToken.ThrowIfCancellationRequested();
+            await file.CopyToAsync(stream).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
 
             return file;
         }
@@ -209,11 +218,13 @@ namespace LiteDB
         /// <summary>
         /// Copy all file content to a file
         /// </summary>
-        public LiteFileInfo<TFileId> Download(TFileId id, string filename, bool overwritten)
+        public async Task<LiteFileInfo<TFileId>> DownloadAsync(TFileId id, string filename, bool overwritten, CancellationToken cancellationToken = default)
         {
-            var file = this.FindById(id) ?? throw LiteException.FileNotFound(id.ToString());
+            if (filename.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(filename));
 
-            file.SaveAs(filename, overwritten);
+            var file = await this.FindByIdAsync(id, cancellationToken).ConfigureAwait(false) ?? throw LiteException.FileNotFound(id.ToString());
+
+            await file.SaveAsAsync(filename, overwritten, cancellationToken).ConfigureAwait(false);
 
             return file;
         }
@@ -225,7 +236,7 @@ namespace LiteDB
         /// <summary>
         /// Delete a file inside datafile and all metadata related
         /// </summary>
-        public bool Delete(TFileId id)
+        public async Task<bool> DeleteAsync(TFileId id, CancellationToken cancellationToken = default)
         {
             if (id == null) throw new ArgumentNullException(nameof(id));
 
@@ -233,12 +244,12 @@ namespace LiteDB
             var fileId = _db.Mapper.Serialize(typeof(TFileId), id);
 
             // remove file reference
-            var deleted = _files.Delete(fileId);
+            var deleted = await _files.DeleteAsync(fileId, cancellationToken).ConfigureAwait(false);
 
             if (deleted)
             {
                 // delete all chunks
-                _chunks.DeleteMany("_id BETWEEN { f: @0, n: 0} AND {f: @0, n: @1 }", fileId, int.MaxValue);
+                await _chunks.DeleteManyAsync("_id BETWEEN { f: @0, n: 0} AND {f: @0, n: @1 }", cancellationToken, fileId, int.MaxValue).ConfigureAwait(false);
             }
 
             return deleted;

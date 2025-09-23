@@ -3,6 +3,8 @@
 using LiteDB.Tests.Utils;
 using Xunit;
 
+#nullable enable
+
 namespace LiteDB.Tests.Issues;
 
 // issue 2265

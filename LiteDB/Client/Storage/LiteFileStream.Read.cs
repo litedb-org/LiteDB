@@ -1,20 +1,31 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using static LiteDB.Constants;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace LiteDB
 {
     public partial class LiteFileStream<TFileId> : Stream
     {
-        private Dictionary<int, long> _chunkLengths = new Dictionary<int, long>();
+        private readonly Dictionary<int, long> _chunkLengths = new Dictionary<int, long>();
+
         public override int Read(byte[] buffer, int offset, int count)
+        {
+            return this.ReadAsync(buffer, offset, count, CancellationToken.None).GetAwaiter().GetResult();
+        }
+
+        public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         {
             if (_mode != FileAccess.Read) throw new NotSupportedException();
             if (_streamPosition == Length)
             {
                 return 0;
+            }
+
+            if (_currentChunkData == null)
+            {
+                _currentChunkData = await this.GetChunkDataAsync(_currentChunkIndex, cancellationToken).ConfigureAwait(false);
             }
 
             var bytesLeft = count;
@@ -33,27 +44,11 @@ namespace LiteDB
                 if (_positionInChunk >= _currentChunkData.Length)
                 {
                     _positionInChunk = 0;
-
-                    _currentChunkData = this.GetChunkData(++_currentChunkIndex);
+                    _currentChunkData = await this.GetChunkDataAsync(++_currentChunkIndex, cancellationToken).ConfigureAwait(false);
                 }
             }
 
             return count - bytesLeft;
-        }
-
-        private byte[] GetChunkData(int index)
-        {
-            // check if there is no more chunks in this file
-            var chunk = _chunks
-                .FindOne("_id = { f: @0, n: @1 }", _fileId, index);
-
-            // if chunk is null there is no more chunks
-            byte[] result = chunk?["data"].AsBinary;
-            if (result != null)
-            {
-                _chunkLengths[index] = result.Length;
-            }
-            return result;
         }
 
         private void SetReadStreamPosition(long newPosition)
@@ -62,17 +57,19 @@ namespace LiteDB
             {
                 throw new ArgumentOutOfRangeException();
             }
+
             if (newPosition >= Length)
             {
                 _streamPosition = Length;
                 return;
             }
+
             _streamPosition = newPosition;
 
-            // calculate new chunk position
             long seekStreamPosition = 0;
             int loadedChunk = _currentChunkIndex;
             int newChunkIndex = 0;
+
             while (seekStreamPosition <= _streamPosition)
             {
                 if (_chunkLengths.TryGetValue(newChunkIndex, out long length))
@@ -82,20 +79,56 @@ namespace LiteDB
                 else
                 {
                     loadedChunk = newChunkIndex;
-                    _currentChunkData = GetChunkData(newChunkIndex);
+                    _currentChunkData = GetChunkDataSync(newChunkIndex);
+                    if (_currentChunkData == null)
+                    {
+                        break;
+                    }
+
                     seekStreamPosition += _currentChunkData.Length;
                 }
+
                 newChunkIndex++;
             }
-            
+
             newChunkIndex--;
-            seekStreamPosition -= _chunkLengths[newChunkIndex];
+
+            if (newChunkIndex >= 0 && _chunkLengths.TryGetValue(newChunkIndex, out long chunkLength))
+            {
+                seekStreamPosition -= chunkLength;
+            }
+
             _positionInChunk = (int)(_streamPosition - seekStreamPosition);
-            _currentChunkIndex = newChunkIndex;
+            _currentChunkIndex = Math.Max(0, newChunkIndex);
+
             if (loadedChunk != _currentChunkIndex)
             {
-                _currentChunkData = GetChunkData(_currentChunkIndex);
+                _currentChunkData = GetChunkDataSync(_currentChunkIndex);
             }
+        }
+
+        private async Task<byte[]> GetChunkDataAsync(int index, CancellationToken cancellationToken)
+        {
+            var chunkId = new BsonDocument
+            {
+                ["f"] = _fileId,
+                ["n"] = index
+            };
+
+            var chunk = await _chunks.FindByIdAsync(chunkId, cancellationToken).ConfigureAwait(false);
+
+            byte[] result = chunk?["data"].AsBinary;
+            if (result != null)
+            {
+                _chunkLengths[index] = result.Length;
+            }
+
+            return result;
+        }
+
+        private byte[] GetChunkDataSync(int index)
+        {
+            return this.GetChunkDataAsync(index, CancellationToken.None).GetAwaiter().GetResult();
         }
     }
 }

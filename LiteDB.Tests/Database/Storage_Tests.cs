@@ -1,7 +1,8 @@
-﻿using System;
+using System;
+using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Security.Cryptography;
+using System.Threading.Tasks;
 using FluentAssertions;
 using LiteDB.Tests.Utils;
 using Xunit;
@@ -29,49 +30,64 @@ namespace LiteDB.Tests.Database
         }
 
         [Fact]
-        public void Storage_Upload_Download()
+        public async Task Storage_Upload_Download()
         {
-            using (var db = DatabaseFactory.Create())
-                //using (var db = new LiteDatabase(@"c:\temp\file.db"))
+            await using (var db = DatabaseFactory.Create())
             {
                 var fs = db.GetStorage<int>("_files", "_chunks");
 
-                var small = fs.Upload(10, "photo_small.png", new MemoryStream(_smallFile));
-                var big = fs.Upload(100, "photo_big.png", new MemoryStream(_bigFile));
+                var small = await fs.UploadAsync(10, "photo_small.png", new MemoryStream(_smallFile));
+                var big = await fs.UploadAsync(100, "photo_big.png", new MemoryStream(_bigFile));
 
-                _smallFile.Length.Should().Be((int) small.Length);
-                _bigFile.Length.Should().Be((int) big.Length);
+                _smallFile.Length.Should().Be((int)small.Length);
+                _bigFile.Length.Should().Be((int)big.Length);
 
-                var f0 = fs.Find(x => x.Filename == "photo_small.png").First();
-                var f1 = fs.Find(x => x.Filename == "photo_big.png").First();
+                var f0 = await FirstAsync(fs.FindAsync(x => x.Filename == "photo_small.png"));
+                var f1 = await FirstAsync(fs.FindAsync(x => x.Filename == "photo_big.png"));
 
-                this.HashFile(f0.OpenRead()).Should().Be(_smallHash);
-                this.HashFile(f1.OpenRead()).Should().Be(_bigHash);
+                await using (var reader0 = await f0.OpenReadAsync())
+                {
+                    var hash = await this.HashFileAsync(reader0);
+                    hash.Should().Be(_smallHash);
+                }
 
-                // now replace small content with big-content
-                var repl = fs.Upload(10, "new_photo.jpg", new MemoryStream(_bigFile));
+                await using (var reader1 = await f1.OpenReadAsync())
+                {
+                    var hash = await this.HashFileAsync(reader1);
+                    hash.Should().Be(_bigHash);
+                }
 
-                fs.Exists(10).Should().BeTrue();
+                var repl = await fs.UploadAsync(10, "new_photo.jpg", new MemoryStream(_bigFile));
 
-                var nrepl = fs.FindById(10);
+                (await fs.ExistsAsync(10)).Should().BeTrue();
+
+                var nrepl = await fs.FindByIdAsync(10);
 
                 nrepl.Chunks.Should().Be(repl.Chunks);
 
-                // update metadata
-                fs.SetMetadata(100, new BsonDocument {["x"] = 100, ["y"] = 99});
+                await fs.SetMetadataAsync(100, new BsonDocument { ["x"] = 100, ["y"] = 99 });
 
-                // find using metadata
-                var md = fs.Find(x => x.Metadata["x"] == 100).FirstOrDefault();
+                var md = await FirstAsync(fs.FindAsync(x => x.Metadata["x"] == 100));
 
                 md.Metadata["y"].AsInt32.Should().Be(99);
             }
         }
 
-        private string HashFile(Stream stream)
+        private static async Task<LiteFileInfo<int>> FirstAsync(IAsyncEnumerable<LiteFileInfo<int>> source)
         {
-            var m = new MemoryStream();
-            stream.CopyTo(m);
-            return this.HashFile(m.ToArray());
+            await foreach (var item in source)
+            {
+                return item;
+            }
+
+            return null;
+        }
+
+        private async Task<string> HashFileAsync(Stream stream)
+        {
+            await using var memory = new MemoryStream();
+            await stream.CopyToAsync(memory);
+            return this.HashFile(memory.ToArray());
         }
 
         private string HashFile(byte[] input)

@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.IO;
+using System.Threading.Tasks;
 using LiteDB.Tests.Utils;
 using Xunit;
 
@@ -8,48 +9,48 @@ namespace LiteDB.Tests.Issues;
 public class Issue2458_Tests
 {
     [Fact]
-    public void NegativeSeekFails()
+    public async Task NegativeSeekFails()
     {
-        using var db = DatabaseFactory.Create();
+        await using var db = DatabaseFactory.Create();
         var fs = db.FileStorage;
-        AddTestFile("test", 1, fs);
-        using Stream stream = fs.OpenRead("test");
+        await AddTestFileAsync("test", 1, fs);
+        await using var stream = await fs.OpenReadAsync("test");
         Assert.Throws<ArgumentOutOfRangeException>(() => stream.Position = -1);
     }
 
-    //https://learn.microsoft.com/en-us/dotnet/api/system.io.stream.position?view=net-8.0 says seeking to a position
-    //beyond the end of a stream is supported, so implementations should support it (error on read).
     [Fact]
-    public void SeekPastFileSucceds()
+    public async Task SeekPastFileSucceds()
     {
-        using var db = DatabaseFactory.Create();
+        await using var db = DatabaseFactory.Create();
         var fs = db.FileStorage;
-        AddTestFile("test", 1, fs);
-        using Stream stream = fs.OpenRead("test");
-        stream.Position = Int32.MaxValue;
+        await AddTestFileAsync("test", 1, fs);
+        await using var stream = await fs.OpenReadAsync("test");
+        stream.Position = int.MaxValue;
     }
 
     [Fact]
-    public void SeekShortChunks()
+    public async Task SeekShortChunks()
     {
-        using var db = DatabaseFactory.Create();
+        await using var db = DatabaseFactory.Create();
         var fs = db.FileStorage;
-        using(Stream writeStream = fs.OpenWrite("test", "test"))
+        await using (var writeStream = await fs.OpenWriteAsync("test", "test"))
         {
-            writeStream.WriteByte(0);
-            writeStream.Flush(); //Create single-byte chunk just containing a 0
-            writeStream.WriteByte(1);
-            writeStream.Flush();
-            writeStream.WriteByte(2);
+            await writeStream.WriteAsync(new byte[] { 0 }, 0, 1);
+            await writeStream.FlushAsync();
+            await writeStream.WriteAsync(new byte[] { 1 }, 0, 1);
+            await writeStream.FlushAsync();
+            await writeStream.WriteAsync(new byte[] { 2 }, 0, 1);
         }
-        using Stream readStream = fs.OpenRead("test");
+
+        await using var readStream = await fs.OpenReadAsync("test");
         readStream.Position = 2;
         Assert.Equal(2, readStream.ReadByte());
     }
 
-    private void AddTestFile(string id, long length, ILiteStorage<string> fs)
+    private static async Task AddTestFileAsync(string id, long length, ILiteStorage<string> fs)
     {
-        using Stream writeStream = fs.OpenWrite(id, id);
-        writeStream.Write(new byte[length]);
+        await using var writeStream = await fs.OpenWriteAsync(id, id);
+        var buffer = new byte[length];
+        await writeStream.WriteAsync(buffer, 0, buffer.Length);
     }
 }
