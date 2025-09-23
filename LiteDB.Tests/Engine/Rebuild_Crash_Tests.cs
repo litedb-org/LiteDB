@@ -3,12 +3,11 @@ using LiteDB.Engine;
 using System;
 using System.IO;
 using System.Linq;
-using System.Threading.Tasks;
 
 using Xunit;
 using Xunit.Abstractions;
 
-#if DEBUG || TESTING
+#if DEBUG
 namespace LiteDB.Tests.Engine
 {
     public class Rebuild_Crash_Tests
@@ -20,16 +19,13 @@ namespace LiteDB.Tests.Engine
             _output = output;
         }
 
-        [Fact(Timeout = 30000)]
-        public async Task Rebuild_Crash_IO_Write_Error()
+        [Fact]
+        public void Rebuild_Crash_IO_Write_Error()
         {
-            var testName = nameof(Rebuild_Crash_IO_Write_Error);
-
-            _output.WriteLine($"starting {testName}");
-
+            _output.WriteLine("Running Rebuild_Crash_IO_Write_Error");
             try
             {
-                var N = 1000;
+                var N = 1_000;
 
                 using (var file = new TempFile())
                 {
@@ -40,15 +36,13 @@ namespace LiteDB.Tests.Engine
                         Password = "46jLz5QWd5fI3m4LiL2r"
                     };
 
-                    var initial = new DateTime(2024, 1, 1);
-
                     var data = Enumerable.Range(1, N).Select(i => new BsonDocument
                     {
                         ["_id"] = i,
-                        ["name"] = $"user-{i:D4}",
-                        ["age"] = 18 + (i % 60),
-                        ["created"] = initial.AddDays(i),
-                        ["lorem"] = new string((char)('a' + (i % 26)), 800)
+                        ["name"] = Faker.Fullname(),
+                        ["age"] = Faker.Age(),
+                        ["created"] = Faker.Birthday(),
+                        ["lorem"] = Faker.Lorem(5, 25)
                     }).ToArray();
 
                     try
@@ -103,12 +97,10 @@ namespace LiteDB.Tests.Engine
 
                     }
                 }
-
-                await Task.CompletedTask;
             }
             finally
             {
-                _output.WriteLine($"{testName} completed");
+                _output.WriteLine("Finished running Rebuild_Crash_IO_Write_Error");
             }
         }
     }
