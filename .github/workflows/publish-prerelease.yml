@@ -39,7 +39,7 @@ jobs:
         run: dotnet test LiteDB.sln --configuration Release --verbosity normal --settings tests.runsettings --logger "trx;LogFileName=TestResults.trx" --logger "console;verbosity=detailed" /p:DefineConstants=TESTING
 
       - name: Build
-        run: dotnet build LiteDB.sln --configuration Release --no-restore \
+        run: dotnet build LiteDB/LiteDB.csproj --configuration Release --no-restore \
           -p:Version=${{ steps.version.outputs.package_version }} \
           -p:PackageVersion=${{ steps.version.outputs.package_version }}
 
