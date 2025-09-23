@@ -3,6 +3,7 @@ using LiteDB.Engine;
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 
 using Xunit;
 
@@ -12,10 +13,10 @@ namespace LiteDB.Tests.Engine
     public class Rebuild_Crash_Tests
     {
 
-        [Fact]
-        public void Rebuild_Crash_IO_Write_Error()
+        [Fact(Timeout = 30000)]
+        public async Task Rebuild_Crash_IO_Write_Error()
         {
-            var N = 200;
+            var N = 1000;
 
             using (var file = new TempFile())
             {
@@ -34,7 +35,7 @@ namespace LiteDB.Tests.Engine
                     ["name"] = $"user-{i:D4}",
                     ["age"] = 18 + (i % 60),
                     ["created"] = initial.AddDays(i),
-                    ["lorem"] = new string((char)('a' + (i % 26)), 200)
+                    ["lorem"] = new string((char)('a' + (i % 26)), 800)
                 }).ToArray();
 
                 try
@@ -88,6 +89,8 @@ namespace LiteDB.Tests.Engine
                     errors.Should().Be(1);
 
                 }
+
+                await Task.CompletedTask;
             }
         }
     }

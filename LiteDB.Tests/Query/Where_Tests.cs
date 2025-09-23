@@ -1,5 +1,6 @@
 ﻿using FluentAssertions;
 using System.Linq;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace LiteDB.Tests.QueryTest
@@ -12,8 +13,8 @@ namespace LiteDB.Tests.QueryTest
             public int Size { get; set; }
         }
 
-        [Fact]
-        public void Query_Where_With_Parameter()
+        [Fact(Timeout = 30000)]
+        public async Task Query_Where_With_Parameter()
         {
             using var db = new PersonQueryData();
             var (collection, local) = db.GetData();
@@ -27,10 +28,12 @@ namespace LiteDB.Tests.QueryTest
                 .ToArray();
 
             AssertEx.ArrayEqual(r0, r1, true);
+
+            await Task.CompletedTask;
         }
 
-        [Fact]
-        public void Query_Multi_Where_With_Like()
+        [Fact(Timeout = 30000)]
+        public async Task Query_Multi_Where_With_Like()
         {
             using var db = new PersonQueryData();
             var (collection, local) = db.GetData();
@@ -46,10 +49,12 @@ namespace LiteDB.Tests.QueryTest
                 .ToArray();
 
             AssertEx.ArrayEqual(r0, r1, true);
+
+            await Task.CompletedTask;
         }
 
-        [Fact]
-        public void Query_Single_Where_With_And()
+        [Fact(Timeout = 30000)]
+        public async Task Query_Single_Where_With_And()
         {
             using var db = new PersonQueryData();
             var (collection, local) = db.GetData();
@@ -63,10 +68,12 @@ namespace LiteDB.Tests.QueryTest
                 .ToArray();
 
             AssertEx.ArrayEqual(r0, r1, true);
+
+            await Task.CompletedTask;
         }
 
-        [Fact]
-        public void Query_Single_Where_With_Or_And_In()
+        [Fact(Timeout = 30000)]
+        public async Task Query_Single_Where_With_Or_And_In()
         {
             using var db = new PersonQueryData();
             var (collection, local) = db.GetData();
@@ -85,10 +92,12 @@ namespace LiteDB.Tests.QueryTest
 
             AssertEx.ArrayEqual(r0, r1, true);
             AssertEx.ArrayEqual(r1, r2, true);
+
+            await Task.CompletedTask;
         }
 
-        [Fact]
-        public void Query_With_Array_Ids()
+        [Fact(Timeout = 30000)]
+        public async Task Query_With_Array_Ids()
         {
             using var db = new PersonQueryData();
             var (collection, local) = db.GetData();
@@ -104,6 +113,8 @@ namespace LiteDB.Tests.QueryTest
                 .ToArray();
 
             AssertEx.ArrayEqual(r0, r1, true);
+
+            await Task.CompletedTask;
         }
     }
 }
