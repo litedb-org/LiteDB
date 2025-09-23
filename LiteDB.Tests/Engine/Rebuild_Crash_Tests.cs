@@ -6,91 +6,109 @@ using System.Linq;
 using System.Threading.Tasks;
 
 using Xunit;
+using Xunit.Abstractions;
 
 #if DEBUG || TESTING
 namespace LiteDB.Tests.Engine
 {
     public class Rebuild_Crash_Tests
     {
+        private readonly ITestOutputHelper _output;
+
+        public Rebuild_Crash_Tests(ITestOutputHelper output)
+        {
+            _output = output;
+        }
 
         [Fact(Timeout = 30000)]
         public async Task Rebuild_Crash_IO_Write_Error()
         {
-            var N = 1000;
+            var testName = nameof(Rebuild_Crash_IO_Write_Error);
 
-            using (var file = new TempFile())
+            _output.WriteLine($"starting {testName}");
+
+            try
             {
-                var settings = new EngineSettings
-                {
-                    AutoRebuild = true,
-                    Filename = file.Filename,
-                    Password = "46jLz5QWd5fI3m4LiL2r"
-                };
+                var N = 1000;
 
-                var initial = new DateTime(2024, 1, 1);
-
-                var data = Enumerable.Range(1, N).Select(i => new BsonDocument
+                using (var file = new TempFile())
                 {
-                    ["_id"] = i,
-                    ["name"] = $"user-{i:D4}",
-                    ["age"] = 18 + (i % 60),
-                    ["created"] = initial.AddDays(i),
-                    ["lorem"] = new string((char)('a' + (i % 26)), 800)
-                }).ToArray();
+                    var settings = new EngineSettings
+                    {
+                        AutoRebuild = true,
+                        Filename = file.Filename,
+                        Password = "46jLz5QWd5fI3m4LiL2r"
+                    };
 
-                try
-                {
+                    var initial = new DateTime(2024, 1, 1);
+
+                    var data = Enumerable.Range(1, N).Select(i => new BsonDocument
+                    {
+                        ["_id"] = i,
+                        ["name"] = $"user-{i:D4}",
+                        ["age"] = 18 + (i % 60),
+                        ["created"] = initial.AddDays(i),
+                        ["lorem"] = new string((char)('a' + (i % 26)), 800)
+                    }).ToArray();
+
+                    try
+                    {
+                        using (var db = new LiteEngine(settings))
+                        {
+                            db.SimulateDiskWriteFail = (page) =>
+                            {
+                                var p = new BasePage(page);
+
+                                if (p.PageID == 28)
+                                {
+                                    p.ColID.Should().Be(1);
+                                    p.PageType.Should().Be(PageType.Data);
+
+                                    page.Write((uint)123123123, 8192 - 4);
+                                }
+                            };
+
+                            db.Pragma("USER_VERSION", 123);
+
+                            db.EnsureIndex("col1", "idx_age", "$.age", false);
+
+                            db.Insert("col1", data, BsonAutoId.Int32);
+                            db.Insert("col2", data, BsonAutoId.Int32);
+
+                            db.Checkpoint();
+
+                            // will fail
+                            var col1 = db.Query("col1", Query.All()).ToList().Count;
+
+                            // never run here
+                            Assert.Fail("should get error in query");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Assert.True(ex is LiteException lex && lex.ErrorCode == 999);
+                    }
+
+                    //Console.WriteLine("Recovering database...");
+
                     using (var db = new LiteEngine(settings))
                     {
-                        db.SimulateDiskWriteFail = (page) =>
-                        {
-                            var p = new BasePage(page);
-
-                            if (p.PageID == 28)
-                            {
-                                p.ColID.Should().Be(1);
-                                p.PageType.Should().Be(PageType.Data);
-
-                                page.Write((uint)123123123, 8192 - 4);
-                            }
-                        };
-
-                        db.Pragma("USER_VERSION", 123);
-
-                        db.EnsureIndex("col1", "idx_age", "$.age", false);
-
-                        db.Insert("col1", data, BsonAutoId.Int32);
-                        db.Insert("col2", data, BsonAutoId.Int32);
-
-                        db.Checkpoint();
-
-                        // will fail
                         var col1 = db.Query("col1", Query.All()).ToList().Count;
+                        var col2 = db.Query("col2", Query.All()).ToList().Count;
+                        var errors = db.Query("_rebuild_errors", Query.All()).ToList().Count;
 
-                        // never run here
-                        Assert.Fail("should get error in query");
+                        col1.Should().Be(N - 1);
+                        col2.Should().Be(N);
+                        errors.Should().Be(1);
+
                     }
-                }
-                catch (Exception ex)
-                {
-                    Assert.True(ex is LiteException lex && lex.ErrorCode == 999);
-                }
-
-                //Console.WriteLine("Recovering database...");
-
-                using (var db = new LiteEngine(settings))
-                {
-                    var col1 = db.Query("col1", Query.All()).ToList().Count;
-                    var col2 = db.Query("col2", Query.All()).ToList().Count;
-                    var errors = db.Query("_rebuild_errors", Query.All()).ToList().Count;
-
-                    col1.Should().Be(N - 1);
-                    col2.Should().Be(N);
-                    errors.Should().Be(1);
-
                 }
 
                 await Task.CompletedTask;
+            }
+            finally
+            {
+                _output.WriteLine($"{testName} completed");
             }
         }
     }
