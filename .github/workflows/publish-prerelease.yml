@@ -39,11 +39,15 @@ jobs:
         run: dotnet test LiteDB.sln --configuration Release --verbosity normal --settings tests.runsettings --logger "trx;LogFileName=TestResults.trx" --logger "console;verbosity=detailed" /p:DefineConstants=TESTING
 
       - name: Build
-        run: dotnet build LiteDB.sln --configuration Release --no-restore
+        run: dotnet build LiteDB.sln --configuration Release --no-restore \
+          -p:Version=${{ steps.version.outputs.package_version }} \
+          -p:PackageVersion=${{ steps.version.outputs.package_version }}
 
       - name: Pack
         run: |
-          dotnet pack LiteDB/LiteDB.csproj --configuration Release --no-build -o artifacts -p:PackageVersion=${{ steps.version.outputs.package_version }} -p:Version=${{ steps.version.outputs.package_version }}
+          dotnet pack LiteDB/LiteDB.csproj --configuration Release --no-build -o artifacts \
+           -p:PackageVersion=${{ steps.version.outputs.package_version }} \
+           -p:Version=${{ steps.version.outputs.package_version }}
 
       - name: Publish GitHub prerelease
         uses: softprops/action-gh-release@v2
@@ -53,8 +57,10 @@ jobs:
           generate_release_notes: true
           prerelease: true
           files: artifacts/*.nupkg
+          target_commitish: ${{ github.sha }}   # or 'dev'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 
       - name: Retrieve secrets from Bitwarden
         uses: bitwarden/sm-action@v2
