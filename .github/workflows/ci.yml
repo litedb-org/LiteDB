@@ -26,7 +26,7 @@ jobs:
 
       - name: Test
         timeout-minutes: 5
-        run: dotnet test LiteDB.sln --configuration Release --no-build --verbosity normal --settings tests.ci.runsettings --logger "trx;LogFileName=TestResults.trx" --logger "console;verbosity=detailed" /p:DefineConstants=TESTING
+        run: dotnet test LiteDB.sln --configuration Release --no-build --verbosity normal --settings tests.ci.runsettings --logger "trx;LogFileName=TestResults.trx" --logger "console;verbosity=detailed" --blame-hang-timeout 2m /p:DefineConstants=TESTING
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
