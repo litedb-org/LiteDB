@@ -25,5 +25,12 @@ jobs:
         run: dotnet build LiteDB.sln --configuration Release --no-restore /p:DefineConstants=TESTING
 
       - name: Test
-        timeout-minutes: 5
-        run: dotnet test LiteDB.sln --configuration Release --no-build --verbosity normal --settings tests.runsettings --logger "trx;LogFileName=TestResults.trx" --logger "console;verbosity=detailed" /p:DefineConstants=TESTING
+        timeout-minutes: 3
+        run: dotnet test LiteDB.sln --configuration Release --no-build --verbosity normal --settings tests.ci.runsettings --logger "trx;LogFileName=TestResults.trx" --logger "console;verbosity=detailed" /p:DefineConstants=TESTING
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: "**/*TestResults*.trx"
