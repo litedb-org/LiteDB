@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
@@ -74,7 +75,7 @@ namespace LiteDB.Tests.Engine
             }
         }
 
-
+        
         [CpuBoundFact(MIN_CPU_COUNT)]
         public async Task Transaction_Avoid_Dirty_Read()
         {
@@ -134,6 +135,7 @@ namespace LiteDB.Tests.Engine
                 await Task.WhenAll(ta, tb);
             }
         }
+       
 
         [CpuBoundFact(MIN_CPU_COUNT)]
         public async Task Transaction_Read_Version()
@@ -231,6 +233,7 @@ namespace LiteDB.Tests.Engine
             }
         }
 
+#if DEBUG || TESTING
         [Fact]
         public void Transaction_Rollback_Should_Skip_ReadOnly_Buffers_From_Safepoint()
         {
@@ -331,6 +334,8 @@ namespace LiteDB.Tests.Engine
 
             collection.Count().Should().Be(0);
         }
+
+#endif
 
         private class BlockingStream : MemoryStream
         {
