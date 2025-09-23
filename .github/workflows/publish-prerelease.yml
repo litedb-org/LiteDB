@@ -22,14 +22,12 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Set version with padded build number
+      - name: Set prerelease version
         id: version
         run: |
-          # Pad the run number with leading zeros (4 digits)
-          PADDED_BUILD_NUMBER=$(printf "%04d" ${{ github.run_number }})
-          PACKAGE_VERSION="6.0.0-prerelease.${PADDED_BUILD_NUMBER}"
-          echo "package_version=${PACKAGE_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "Version set to $PACKAGE_VERSION"
+          # Use SemVer-compliant prerelease without leading zeros
+          echo "package_version=6.0.0-prerelease.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          echo "Version set to 6.0.0-prerelease.${{ github.run_number }}"
 
       - name: Restore
         run: dotnet restore LiteDB.sln
@@ -62,10 +60,9 @@ jobs:
           generate_release_notes: true
           prerelease: true
           files: artifacts/*.nupkg
-          target_commitish: ${{ github.sha }}   # or 'dev'
+          target_commitish: ${{ github.sha }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
 
       - name: Retrieve secrets from Bitwarden
         if: success()
@@ -80,5 +77,4 @@ jobs:
         if: success()
         run: |
           dotnet nuget push "artifacts/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
-
 
