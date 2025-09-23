@@ -9,6 +9,10 @@ using LiteDB;
 
 namespace LiteDB.RollbackRepro;
 
+/// <summary>
+/// Repro of #2586
+/// To repro after the patch, set ``<PackageReference Include="LiteDB" Version="5.0.20" />``
+/// </summary>
 internal static class Program
 {
     private const int HolderTransactionCount = 99;
@@ -230,8 +234,13 @@ internal static class Program
             }
 
             db.Rollback();
+  
+            var color = Console.ForegroundColor;
+            Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine("Rollback returned without throwing — the bug did not reproduce.");
-            throw;
+            Console.ForegroundColor = color;
+            // throw;
+            return;
         }
         finally
         {
@@ -240,6 +249,11 @@ internal static class Program
                 db.Commit();
             }
         }
+        
+        var colorFg = Console.ForegroundColor;
+        Console.ForegroundColor = ConsoleColor.Red;
+        Console.WriteLine("Rollback threw LiteException — the bug reproduced.");
+        Console.ForegroundColor = colorFg;
     }
 
     private sealed class LargeDocument
