@@ -3,6 +3,7 @@ using Xunit;
 
 namespace LiteDB.Tests.Engine;
 
+[Collection("SharedDemoDatabase")]
 public class Recursion_Tests
 {
     [Fact]

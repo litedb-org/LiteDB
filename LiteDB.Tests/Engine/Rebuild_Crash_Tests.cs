@@ -1,8 +1,10 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using LiteDB.Engine;
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 using Xunit;
 using Xunit.Abstractions;
@@ -45,20 +47,31 @@ namespace LiteDB.Tests.Engine
                         ["lorem"] = Faker.Lorem(5, 25)
                     }).ToArray();
 
+                    var faultInjected = 0;
+
                     try
                     {
                         using (var db = new LiteEngine(settings))
                         {
+                            var writeHits = 0;
+
                             db.SimulateDiskWriteFail = (page) =>
                             {
                                 var p = new BasePage(page);
 
-                                if (p.PageID == 28)
+                                if (p.PageType == PageType.Data && p.ColID == 1)
                                 {
-                                    p.ColID.Should().Be(1);
-                                    p.PageType.Should().Be(PageType.Data);
+                                    var hit = Interlocked.Increment(ref writeHits);
 
-                                    page.Write((uint)123123123, 8192 - 4);
+                                    if (hit == 10)
+                                    {
+                                        p.PageType.Should().Be(PageType.Data);
+                                        p.ColID.Should().Be(1);
+
+                                        page.Write((uint)123123123, 8192 - 4);
+
+                                        Interlocked.Exchange(ref faultInjected, 1);
+                                    }
                                 }
                             };
 
@@ -80,6 +93,8 @@ namespace LiteDB.Tests.Engine
                     }
                     catch (Exception ex)
                     {
+                        faultInjected.Should().Be(1, "the simulated disk write fault should have triggered");
+
                         Assert.True(ex is LiteException lex && lex.ErrorCode == 999);
                     }
 
