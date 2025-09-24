@@ -303,64 +303,74 @@ namespace LiteDB.Engine
             var segmentSize = _segmentSizes[Math.Min(_segmentSizes.Length - 1, _extends)];
 
             // if this count is larger than MEMORY_SEGMENT_SIZE, re-use all this pages
-            if (emptyShareCounter > segmentSize)
+            if (emptyShareCounter > 0)
             {
-                // get all readable pages that can return to _free (slow way)
-                // sort by timestamp used (set as free oldest first)
-                var readables = _readable
-                    .Where(x => x.Value.ShareCounter == 0)
-                    .OrderBy(x => x.Value.Timestamp)
-                    .Select(x => x.Key)
-                    .Take(segmentSize)
-                    .ToArray();
+                var take = Math.Min(segmentSize, emptyShareCounter);
 
-                // move pages from readable list to free list
-                foreach (var key in readables)
+                if (take > 0)
                 {
-                    var removed = _readable.TryRemove(key, out var page);
+                    // get readable pages that can return to _free (slow way)
+                    // sort by timestamp used (set as free oldest first)
+                    var readables = _readable
+                        .Where(x => x.Value.ShareCounter == 0)
+                        .OrderBy(x => x.Value.Timestamp)
+                        .Select(x => x.Key)
+                        .Take(take)
+                        .ToArray();
 
-                    ENSURE(removed, "page should be in readable list before moving to free list");
+                    var reused = 0;
 
-                    // if removed page was changed between make array and now, must add back to readable list
-                    if (page.ShareCounter > 0)
+                    // move pages from readable list to free list
+                    foreach (var key in readables)
                     {
-                        // but wait: between last "remove" and now, another thread can added this page
-                        if (!_readable.TryAdd(key, page))
+                        var removed = _readable.TryRemove(key, out var page);
+
+                        ENSURE(removed, "page should be in readable list before moving to free list");
+
+                        // if removed page was changed between make array and now, must add back to readable list
+                        if (page.ShareCounter > 0)
                         {
-                            // this is a terrible situation, to avoid memory corruption I will throw expcetion for now
-                            throw new LiteException(0, "MemoryCache: removed in-use memory page. This situation has no way to fix (yet). Throwing exception to avoid database corruption. No other thread can read/write from database now.");
+                            // but wait: between last "remove" and now, another thread can added this page
+                            if (!_readable.TryAdd(key, page))
+                            {
+                                // this is a terrible situation, to avoid memory corruption I will throw expcetion for now
+                                throw new LiteException(0, "MemoryCache: removed in-use memory page. This situation has no way to fix (yet). Throwing exception to avoid database corruption. No other thread can read/write from database now.");
+                            }
+                        }
+                        else
+                        {
+                            ENSURE(page.ShareCounter == 0, "page should not be in use by anyone");
+
+                            // clean controls
+                            page.Position = long.MaxValue;
+                            page.Origin = FileOrigin.None;
+
+                            _free.Enqueue(page);
+                            reused++;
                         }
                     }
-                    else
+
+                    if (reused > 0)
                     {
-                        ENSURE(page.ShareCounter == 0, "page should not be in use by anyone");
-
-                        // clean controls
-                        page.Position = long.MaxValue;
-                        page.Origin = FileOrigin.None;
-
-                        _free.Enqueue(page);
+                        LOG($"re-using cache pages (flushing {_free.Count} pages)", "CACHE");
+                        return;
                     }
                 }
-
-                LOG($"re-using cache pages (flushing {_free.Count} pages)", "CACHE");
             }
-            else
+
+            // create big linear array in heap memory (LOH => 85Kb)
+            var buffer = new byte[PAGE_SIZE * segmentSize];
+            var uniqueID = this.ExtendPages + 1;
+
+            // split linear array into many array slices
+            for (var i = 0; i < segmentSize; i++)
             {
-                // create big linear array in heap memory (LOH => 85Kb)
-                var buffer = new byte[PAGE_SIZE * segmentSize];
-                var uniqueID = this.ExtendPages + 1;
-
-                // split linear array into many array slices
-                for (var i = 0; i < segmentSize; i++)
-                {
-                    _free.Enqueue(new PageBuffer(buffer, i * PAGE_SIZE, uniqueID++));
-                }
-
-                _extends++;
-
-                LOG($"extending memory usage: (segments: {_extends})", "CACHE");
+                _free.Enqueue(new PageBuffer(buffer, i * PAGE_SIZE, uniqueID++));
             }
+
+            _extends++;
+
+            LOG($"extending memory usage: (segments: {_extends})", "CACHE");
         }
 
         /// <summary>
