@@ -1,24 +1,33 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using LiteDB;
 
 namespace LiteDB.Engine
 {
     internal sealed class VectorIndexService
     {
+        private const int EfConstruction = 24;
+        private const int DefaultEfSearch = 32;
+
         private readonly Snapshot _snapshot;
         private readonly Collation _collation;
+        private readonly Random _random = new Random();
 
-        private readonly struct VectorEntry
+        private DataService _vectorData;
+
+        private readonly struct NodeDistance
         {
-            public VectorEntry(PageAddress dataBlock, float[] vector)
+            public NodeDistance(PageAddress address, double distance, double similarity)
             {
-                this.DataBlock = dataBlock;
-                this.Vector = vector;
+                this.Address = address;
+                this.Distance = double.IsNaN(distance) ? double.PositiveInfinity : distance;
+                this.Similarity = similarity;
             }
 
-            public PageAddress DataBlock { get; }
-            public float[] Vector { get; }
+            public PageAddress Address { get; }
+            public double Distance { get; }
+            public double Similarity { get; }
         }
 
         public int LastVisitedCount { get; private set; }
@@ -33,70 +42,69 @@ namespace LiteDB.Engine
         {
             var value = index.BsonExpr.ExecuteScalar(document, _collation);
 
-            var entries = this.ReadAllEntries(metadata);
-            var changed = false;
-
-            var existing = entries.FindIndex(x => x.DataBlock == dataBlock);
-            if (existing >= 0)
+            if (!TryExtractVector(value, metadata.Dimensions, out var vector))
             {
-                entries.RemoveAt(existing);
-                changed = true;
+                this.Delete(metadata, dataBlock);
+                return;
             }
 
-            if (TryExtractVector(value, metadata.Dimensions, out var vector))
-            {
-                entries.Add(new VectorEntry(dataBlock, vector));
-                changed = true;
-            }
-
-            if (changed)
-            {
-                this.RebuildTree(metadata, entries);
-            }
+            this.Delete(metadata, dataBlock);
+            this.Insert(metadata, dataBlock, vector);
         }
 
         public void Delete(VectorIndexMetadata metadata, PageAddress dataBlock)
         {
-            var entries = this.ReadAllEntries(metadata);
-            var removed = entries.RemoveAll(x => x.DataBlock == dataBlock);
-
-            if (removed > 0)
+            if (!this.TryFindNode(metadata, dataBlock, out var address, out var node))
             {
-                this.RebuildTree(metadata, entries);
+                return;
             }
+
+            this.RemoveNode(metadata, address, node);
         }
 
-        /// <summary>
-        /// Executes a nearest-neighbour search against the persisted vector index.
-        /// </summary>
-        /// <param name="metadata">The vector index metadata.</param>
-        /// <param name="target">Vector to search for.</param>
-        /// <param name="maxDistance">
-        /// Maximum allowed distance for Euclidean/Cosine metrics; treated as the minimum raw dot-product similarity when the
-        /// metric is <see cref="VectorDistanceMetric.DotProduct"/>.
-        /// </param>
-        /// <param name="limit">Optional limit for the number of matches returned.</param>
-        /// <returns>
-        /// A sequence of documents paired with their distance (or similarity for dot-product queries).
-        /// </returns>
         public IEnumerable<(BsonDocument Document, double Distance)> Search(
             VectorIndexMetadata metadata,
             float[] target,
             double maxDistance,
             int? limit)
         {
-            var data = new DataService(_snapshot, uint.MaxValue);
-            var results = new List<(BsonDocument Document, double Distance, double Similarity)>();
-
-            this.LastVisitedCount = 0;
-
             if (metadata.Root.IsEmpty)
             {
+                this.LastVisitedCount = 0;
                 return Enumerable.Empty<(BsonDocument Document, double Distance)>();
             }
 
-            var stack = new Stack<PageAddress>();
-            stack.Push(metadata.Root);
+            var data = new DataService(_snapshot, uint.MaxValue);
+            var vectorCache = new Dictionary<PageAddress, float[]>();
+            var visited = new HashSet<PageAddress>();
+
+            this.LastVisitedCount = 0;
+
+            var entryPoint = metadata.Root;
+            var entryNode = this.GetNode(entryPoint);
+            var entryTopLevel = entryNode.LevelCount - 1;
+            var currentEntry = entryPoint;
+
+            for (var level = entryTopLevel; level > 0; level--)
+            {
+                currentEntry = this.GreedySearch(metadata, target, currentEntry, level, vectorCache, visited);
+            }
+
+            var effectiveLimit = limit.HasValue && limit.Value > 0
+                ? Math.Max(limit.Value * 4, DefaultEfSearch)
+                : DefaultEfSearch;
+
+            var candidates = this.SearchLayer(
+                metadata,
+                target,
+                currentEntry,
+                0,
+                effectiveLimit,
+                effectiveLimit,
+                visited,
+                vectorCache);
+
+            var results = new List<(BsonDocument Document, double Distance, double Similarity)>();
 
             var pruneDistance = metadata.Metric == VectorDistanceMetric.DotProduct
                 ? double.PositiveInfinity
@@ -109,107 +117,57 @@ namespace LiteDB.Engine
             var baseMinSimilarity = hasExplicitSimilarity ? maxDistance : double.NegativeInfinity;
             var minSimilarity = baseMinSimilarity;
 
-            while (stack.Count > 0)
+            foreach (var candidate in candidates)
             {
-                var address = stack.Pop();
-                if (address.IsEmpty)
+                var compareDistance = candidate.Distance;
+                var meetsThreshold = metadata.Metric == VectorDistanceMetric.DotProduct
+                    ? !double.IsNaN(candidate.Similarity) && candidate.Similarity >= minSimilarity
+                    : !double.IsNaN(compareDistance) && compareDistance <= pruneDistance;
+
+                if (!meetsThreshold)
                 {
                     continue;
                 }
 
-                var node = this.GetNode(address);
-                this.LastVisitedCount++;
-
-                var candidate = node.ReadVector();
-                var distance = ComputeDistance(candidate, target, metadata.Metric, out var similarity);
-                var compareDistance = double.IsNaN(distance) ? double.PositiveInfinity : distance;
-
-                var meetsThreshold = metadata.Metric == VectorDistanceMetric.DotProduct
-                    ? !double.IsNaN(similarity) && similarity >= minSimilarity
-                    : !double.IsNaN(distance) && compareDistance <= pruneDistance;
-
-                if (meetsThreshold)
-                {
-                    using var reader = new BufferReader(data.Read(node.DataBlock));
-                    var document = reader.ReadDocument().GetValue();
-                    document.RawId = node.DataBlock;
-                    results.Add((document, distance, similarity));
-
-                    if (limit.HasValue && results.Count > limit.Value)
-                    {
-                        results.Sort((a, b) => a.Distance.CompareTo(b.Distance));
-                        results.RemoveRange(limit.Value, results.Count - limit.Value);
-                    }
-
-                    if (limit.HasValue && results.Count == limit.Value)
-                    {
-                        if (metadata.Metric == VectorDistanceMetric.DotProduct)
-                        {
-                            var worst = results.Min(x => x.Similarity);
-                            minSimilarity = Math.Max(baseMinSimilarity, worst);
-                        }
-                        else
-                        {
-                            pruneDistance = Math.Min(pruneDistance, results.Max(x => x.Distance));
-                        }
-                    }
-                }
-
-                var firstChild = PageAddress.Empty;
-                var firstScore = double.PositiveInfinity;
-                var secondChild = PageAddress.Empty;
-                var secondScore = double.PositiveInfinity;
-
-                if (!node.Left.IsEmpty && ShouldVisit(compareDistance, pruneDistance, node.LeftMinDistance, node.LeftMaxDistance))
-                {
-                    firstChild = node.Left;
-                    firstScore = ComputeRangeScore(node.LeftMinDistance, node.LeftMaxDistance, compareDistance);
-                }
-
-                if (!node.Right.IsEmpty && ShouldVisit(compareDistance, pruneDistance, node.RightMinDistance, node.RightMaxDistance))
-                {
-                    var score = ComputeRangeScore(node.RightMinDistance, node.RightMaxDistance, compareDistance);
-
-                    if (firstChild.IsEmpty)
-                    {
-                        firstChild = node.Right;
-                        firstScore = score;
-                    }
-                    else
-                    {
-                        secondChild = node.Right;
-                        secondScore = score;
-                    }
-                }
-
-                if (!secondChild.IsEmpty)
-                {
-                    if (firstScore > secondScore)
-                    {
-                        (firstChild, secondChild) = (secondChild, firstChild);
-                    }
-
-                    stack.Push(secondChild);
-                }
-
-                if (!firstChild.IsEmpty)
-                {
-                    stack.Push(firstChild);
-                }
+                var node = this.GetNode(candidate.Address);
+                using var reader = new BufferReader(data.Read(node.DataBlock));
+                var document = reader.ReadDocument().GetValue();
+                document.RawId = node.DataBlock;
+                results.Add((document, candidate.Distance, candidate.Similarity));
             }
 
             if (metadata.Metric == VectorDistanceMetric.DotProduct)
             {
-                return results
+                results = results
                     .OrderByDescending(x => x.Similarity)
-                    .Take(limit ?? int.MaxValue)
-                    .Select(x => (x.Document, x.Similarity));
+                    .ToList();
+
+                if (limit.HasValue)
+                {
+                    results = results.Take(limit.Value).ToList();
+                    if (results.Count == limit.Value)
+                    {
+                        minSimilarity = Math.Max(baseMinSimilarity, results.Min(x => x.Similarity));
+                    }
+                }
+
+                return results.Select(x => (x.Document, x.Similarity));
             }
 
-            return results
+            results = results
                 .OrderBy(x => x.Distance)
-                .Take(limit ?? int.MaxValue)
-                .Select(x => (x.Document, x.Distance));
+                .ToList();
+
+            if (limit.HasValue)
+            {
+                results = results.Take(limit.Value).ToList();
+                if (results.Count == limit.Value)
+                {
+                    pruneDistance = Math.Min(pruneDistance, results.Max(x => x.Distance));
+                }
+            }
+
+            return results.Select(x => (x.Document, x.Distance));
         }
 
         public void Drop(VectorIndexMetadata metadata)
@@ -242,6 +200,680 @@ namespace LiteDB.Engine
                 default:
                     throw new ArgumentOutOfRangeException(nameof(metric));
             }
+        }
+
+        private void Insert(VectorIndexMetadata metadata, PageAddress dataBlock, float[] vector)
+        {
+            var levelCount = this.SampleLevel();
+            var length = VectorIndexNode.GetLength(vector.Length, out var storesInline);
+            var freeList = metadata.Reserved;
+            var page = _snapshot.GetFreeVectorPage(length, ref freeList);
+            metadata.Reserved = freeList;
+
+            PageAddress externalVector = PageAddress.Empty;
+            VectorIndexNode node;
+
+            try
+            {
+                if (!storesInline)
+                {
+                    externalVector = this.StoreVector(vector);
+                }
+
+                node = page.InsertNode(dataBlock, vector, length, levelCount, externalVector);
+
+                freeList = metadata.Reserved;
+                metadata.Reserved = uint.MaxValue;
+                _snapshot.AddOrRemoveFreeVectorList(page, ref freeList);
+                metadata.Reserved = freeList;
+            }
+            catch
+            {
+                if (!storesInline && !externalVector.IsEmpty)
+                {
+                    this.ReleaseVectorData(externalVector);
+                }
+
+                metadata.Reserved = freeList;
+
+                throw;
+            }
+
+            _snapshot.CollectionPage.IsDirty = true;
+
+            var newAddress = node.Position;
+
+            if (metadata.Root.IsEmpty)
+            {
+                metadata.Root = newAddress;
+                _snapshot.CollectionPage.IsDirty = true;
+                return;
+            }
+
+            var vectorCache = new Dictionary<PageAddress, float[]>
+            {
+                [newAddress] = vector
+            };
+
+            var entryPoint = metadata.Root;
+            var entryNode = this.GetNode(entryPoint);
+            var entryTopLevel = entryNode.LevelCount - 1;
+            var newTopLevel = levelCount - 1;
+
+            if (newTopLevel > entryTopLevel)
+            {
+                metadata.Root = newAddress;
+                _snapshot.CollectionPage.IsDirty = true;
+                entryTopLevel = newTopLevel;
+            }
+
+            var currentEntry = entryPoint;
+
+            for (var level = entryTopLevel; level > newTopLevel; level--)
+            {
+                currentEntry = this.GreedySearch(metadata, vector, currentEntry, level, vectorCache, null);
+            }
+
+            var maxLevelToConnect = Math.Min(entryNode.LevelCount - 1, newTopLevel);
+
+            for (var level = maxLevelToConnect; level >= 0; level--)
+            {
+                var candidates = this.SearchLayer(
+                    metadata,
+                    vector,
+                    currentEntry,
+                    level,
+                    VectorIndexNode.MaxNeighborsPerLevel,
+                    EfConstruction,
+                    null,
+                    vectorCache);
+
+                var selected = this.SelectNeighbors(
+                    candidates.Where(x => x.Address != newAddress).ToList(),
+                    VectorIndexNode.MaxNeighborsPerLevel);
+
+                node.SetNeighbors(level, selected.Select(x => x.Address).ToList());
+
+                foreach (var neighbor in selected)
+                {
+                    this.EnsureBidirectional(metadata, neighbor.Address, newAddress, level, vectorCache);
+                }
+
+                if (selected.Count > 0)
+                {
+                    currentEntry = selected[0].Address;
+                }
+            }
+        }
+
+        private PageAddress GreedySearch(
+            VectorIndexMetadata metadata,
+            float[] target,
+            PageAddress start,
+            int level,
+            Dictionary<PageAddress, float[]> vectorCache,
+            HashSet<PageAddress> globalVisited)
+        {
+            var current = start;
+            this.RegisterVisit(globalVisited, current);
+
+            var currentVector = this.GetVector(metadata, current, vectorCache);
+            var currentDistance = NormalizeDistance(ComputeDistance(currentVector, target, metadata.Metric, out _));
+
+            var improved = true;
+
+            while (improved)
+            {
+                improved = false;
+
+                var node = this.GetNode(current);
+                foreach (var neighbor in node.GetNeighbors(level))
+                {
+                    if (neighbor.IsEmpty)
+                    {
+                        continue;
+                    }
+
+                    this.RegisterVisit(globalVisited, neighbor);
+
+                    var neighborVector = this.GetVector(metadata, neighbor, vectorCache);
+                    var neighborDistance = NormalizeDistance(ComputeDistance(neighborVector, target, metadata.Metric, out _));
+
+                    if (neighborDistance < currentDistance)
+                    {
+                        current = neighbor;
+                        currentDistance = neighborDistance;
+                        improved = true;
+                    }
+                }
+            }
+
+            return current;
+        }
+
+        private List<NodeDistance> SearchLayer(
+            VectorIndexMetadata metadata,
+            float[] target,
+            PageAddress entryPoint,
+            int level,
+            int maxResults,
+            int explorationFactor,
+            HashSet<PageAddress> globalVisited,
+            Dictionary<PageAddress, float[]> vectorCache)
+        {
+            var results = new List<NodeDistance>();
+            var candidates = new List<NodeDistance>();
+            var visited = new HashSet<PageAddress>();
+
+            if (entryPoint.IsEmpty)
+            {
+                return results;
+            }
+
+            var entryVector = this.GetVector(metadata, entryPoint, vectorCache);
+            var entryDistance = ComputeDistance(entryVector, target, metadata.Metric, out var entrySimilarity);
+            var entryNode = new NodeDistance(entryPoint, entryDistance, entrySimilarity);
+
+            InsertOrdered(results, entryNode, Math.Max(1, explorationFactor));
+            candidates.Add(entryNode);
+            visited.Add(entryPoint);
+            this.RegisterVisit(globalVisited, entryPoint);
+
+            while (candidates.Count > 0)
+            {
+                var index = GetMinimumIndex(candidates);
+                var current = candidates[index];
+                candidates.RemoveAt(index);
+
+                var worstAllowed = results.Count >= explorationFactor
+                    ? results[results.Count - 1].Distance
+                    : double.PositiveInfinity;
+
+                if (current.Distance > worstAllowed)
+                {
+                    continue;
+                }
+
+                var node = this.GetNode(current.Address);
+
+                foreach (var neighbor in node.GetNeighbors(level))
+                {
+                    if (neighbor.IsEmpty || !visited.Add(neighbor))
+                    {
+                        continue;
+                    }
+
+                    this.RegisterVisit(globalVisited, neighbor);
+
+                    var neighborVector = this.GetVector(metadata, neighbor, vectorCache);
+                    var distance = ComputeDistance(neighborVector, target, metadata.Metric, out var similarity);
+                    var candidate = new NodeDistance(neighbor, distance, similarity);
+
+                    if (InsertOrdered(results, candidate, Math.Max(1, explorationFactor)))
+                    {
+                        candidates.Add(candidate);
+                    }
+                }
+            }
+
+            return this.SelectNeighbors(results, Math.Max(1, maxResults));
+        }
+
+        private void EnsureBidirectional(VectorIndexMetadata metadata, PageAddress source, PageAddress target, int level, Dictionary<PageAddress, float[]> vectorCache)
+        {
+            var node = this.GetNode(source);
+            var neighbors = node.GetNeighbors(level).ToList();
+
+            if (!neighbors.Contains(target))
+            {
+                neighbors.Add(target);
+            }
+
+            var pruned = this.PruneNeighbors(metadata, source, neighbors, vectorCache);
+            node.SetNeighbors(level, pruned);
+        }
+
+        private IReadOnlyList<PageAddress> PruneNeighbors(VectorIndexMetadata metadata, PageAddress source, List<PageAddress> neighbors, Dictionary<PageAddress, float[]> vectorCache)
+        {
+            var unique = new HashSet<PageAddress>(neighbors.Where(x => !x.IsEmpty && x != source));
+
+            if (unique.Count == 0)
+            {
+                return Array.Empty<PageAddress>();
+            }
+
+            var sourceVector = this.GetVector(metadata, source, vectorCache);
+            var scored = new List<NodeDistance>();
+
+            foreach (var neighbor in unique)
+            {
+                var neighborVector = this.GetVector(metadata, neighbor, vectorCache);
+                var distance = ComputeDistance(sourceVector, neighborVector, metadata.Metric, out _);
+                scored.Add(new NodeDistance(neighbor, distance, double.NaN));
+            }
+
+            return this.SelectNeighbors(scored, VectorIndexNode.MaxNeighborsPerLevel)
+                .Select(x => x.Address)
+                .ToList();
+        }
+
+        private void RemoveNode(VectorIndexMetadata metadata, PageAddress address, VectorIndexNode node)
+        {
+            var start = PageAddress.Empty;
+
+            for (var level = 0; level < node.LevelCount && start.IsEmpty; level++)
+            {
+                foreach (var neighbor in node.GetNeighbors(level))
+                {
+                    if (!neighbor.IsEmpty)
+                    {
+                        start = neighbor;
+                        break;
+                    }
+                }
+            }
+
+            for (var level = 0; level < node.LevelCount; level++)
+            {
+                foreach (var neighbor in node.GetNeighbors(level))
+                {
+                    if (neighbor.IsEmpty)
+                    {
+                        continue;
+                    }
+
+                    var neighborNode = this.GetNode(neighbor);
+                    neighborNode.RemoveNeighbor(level, address);
+                }
+            }
+
+            if (metadata.Root == address)
+            {
+                metadata.Root = this.SelectNewRoot(metadata, address, start);
+                _snapshot.CollectionPage.IsDirty = true;
+            }
+
+            this.ReleaseNode(metadata, node);
+        }
+
+        private PageAddress SelectNewRoot(VectorIndexMetadata metadata, PageAddress removed, PageAddress start)
+        {
+            if (start.IsEmpty)
+            {
+                return PageAddress.Empty;
+            }
+
+            var best = PageAddress.Empty;
+            byte bestLevel = 0;
+
+            var visited = new HashSet<PageAddress>();
+            var queue = new Queue<PageAddress>();
+            queue.Enqueue(start);
+
+            while (queue.Count > 0)
+            {
+                var current = queue.Dequeue();
+                if (current == removed || !visited.Add(current))
+                {
+                    continue;
+                }
+
+                var node = this.GetNode(current);
+                var levelCount = node.LevelCount;
+
+                if (best.IsEmpty || levelCount > bestLevel)
+                {
+                    best = current;
+                    bestLevel = levelCount;
+                }
+
+                for (var level = 0; level < levelCount; level++)
+                {
+                    foreach (var neighbor in node.GetNeighbors(level))
+                    {
+                        if (!neighbor.IsEmpty && neighbor != removed)
+                        {
+                            queue.Enqueue(neighbor);
+                        }
+                    }
+                }
+            }
+
+            return best;
+        }
+
+        private bool TryFindNode(VectorIndexMetadata metadata, PageAddress dataBlock, out PageAddress address, out VectorIndexNode node)
+        {
+            address = PageAddress.Empty;
+            node = null;
+
+            if (metadata.Root.IsEmpty)
+            {
+                return false;
+            }
+
+            var visited = new HashSet<PageAddress>();
+            var queue = new Queue<PageAddress>();
+            queue.Enqueue(metadata.Root);
+
+            while (queue.Count > 0)
+            {
+                var current = queue.Dequeue();
+                if (!visited.Add(current))
+                {
+                    continue;
+                }
+
+                var candidate = this.GetNode(current);
+
+                if (candidate.DataBlock == dataBlock)
+                {
+                    address = current;
+                    node = candidate;
+                    return true;
+                }
+
+                for (var level = 0; level < candidate.LevelCount; level++)
+                {
+                    foreach (var neighbor in candidate.GetNeighbors(level))
+                    {
+                        if (!neighbor.IsEmpty)
+                        {
+                            queue.Enqueue(neighbor);
+                        }
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private void ClearTree(VectorIndexMetadata metadata)
+        {
+            if (metadata.Root.IsEmpty)
+            {
+                return;
+            }
+
+            var visited = new HashSet<PageAddress>();
+            var stack = new Stack<PageAddress>();
+            stack.Push(metadata.Root);
+
+            while (stack.Count > 0)
+            {
+                var address = stack.Pop();
+                if (!visited.Add(address))
+                {
+                    continue;
+                }
+
+                var node = this.GetNode(address);
+
+                for (var level = 0; level < node.LevelCount; level++)
+                {
+                    foreach (var neighbor in node.GetNeighbors(level))
+                    {
+                        if (!neighbor.IsEmpty && !visited.Contains(neighbor))
+                        {
+                            stack.Push(neighbor);
+                        }
+                    }
+                }
+
+                this.ReleaseNode(metadata, node);
+            }
+        }
+
+        private void ReleaseNode(VectorIndexMetadata metadata, VectorIndexNode node)
+        {
+            this.ReleaseVectorData(node);
+
+            var page = node.Page;
+            page.DeleteNode(node.Position.Index);
+            var freeList = metadata.Reserved;
+            metadata.Reserved = uint.MaxValue;
+            _snapshot.AddOrRemoveFreeVectorList(page, ref freeList);
+            metadata.Reserved = freeList;
+        }
+
+        private VectorIndexNode GetNode(PageAddress address)
+        {
+            var page = _snapshot.GetPage<VectorIndexPage>(address.PageID);
+
+            return page.GetNode(address.Index);
+        }
+
+        private float[] GetVector(VectorIndexMetadata metadata, PageAddress address, Dictionary<PageAddress, float[]> cache)
+        {
+            if (!cache.TryGetValue(address, out var vector))
+            {
+                var node = this.GetNode(address);
+                vector = node.HasInlineVector
+                    ? node.ReadVector()
+                    : this.ReadExternalVector(node, metadata);
+                cache[address] = vector;
+            }
+
+            return vector;
+        }
+
+        private float[] ReadExternalVector(VectorIndexNode node, VectorIndexMetadata metadata)
+        {
+            if (node.ExternalVector.IsEmpty)
+            {
+                return Array.Empty<float>();
+            }
+
+            var dimensions = metadata.Dimensions;
+            if (dimensions == 0)
+            {
+                return Array.Empty<float>();
+            }
+
+            var totalBytes = dimensions * sizeof(float);
+            var vector = new float[dimensions];
+            var bytesCopied = 0;
+
+            foreach (var slice in this.GetVectorDataService().Read(node.ExternalVector))
+            {
+                if (bytesCopied >= totalBytes)
+                {
+                    break;
+                }
+
+                var available = Math.Min(slice.Count, totalBytes - bytesCopied);
+
+                if ((available & 3) != 0)
+                {
+                    throw new LiteException(0, "Vector data block is corrupted.");
+                }
+
+                Buffer.BlockCopy(slice.Array, slice.Offset, vector, bytesCopied, available);
+                bytesCopied += available;
+            }
+
+            if (bytesCopied != totalBytes)
+            {
+                throw new LiteException(0, "Vector data block is incomplete.");
+            }
+
+            return vector;
+        }
+
+        private PageAddress StoreVector(float[] vector)
+        {
+            if (vector.Length == 0)
+            {
+                return PageAddress.Empty;
+            }
+
+            var totalBytes = vector.Length * sizeof(float);
+            var bytesWritten = 0;
+            var firstBlock = PageAddress.Empty;
+            DataBlock lastBlock = null;
+
+            while (bytesWritten < totalBytes)
+            {
+                var remaining = totalBytes - bytesWritten;
+                var chunk = Math.Min(remaining, DataService.MAX_DATA_BYTES_PER_PAGE);
+
+                if ((chunk & 3) != 0)
+                {
+                    chunk -= chunk & 3;
+                }
+
+                if (chunk <= 0)
+                {
+                    chunk = remaining;
+                }
+
+                var dataPage = _snapshot.GetFreeDataPage(chunk + DataBlock.DATA_BLOCK_FIXED_SIZE);
+                var block = dataPage.InsertBlock(chunk, bytesWritten > 0);
+
+                if (lastBlock != null)
+                {
+                    lastBlock.SetNextBlock(block.Position);
+                }
+                else
+                {
+                    firstBlock = block.Position;
+                }
+
+                Buffer.BlockCopy(vector, bytesWritten, block.Buffer.Array, block.Buffer.Offset, chunk);
+
+                _snapshot.AddOrRemoveFreeDataList(dataPage);
+
+                lastBlock = block;
+                bytesWritten += chunk;
+            }
+
+            return firstBlock;
+        }
+
+        private void ReleaseVectorData(VectorIndexNode node)
+        {
+            if (node.HasInlineVector)
+            {
+                return;
+            }
+
+            this.ReleaseVectorData(node.ExternalVector);
+        }
+
+        private void ReleaseVectorData(PageAddress address)
+        {
+            if (address.IsEmpty)
+            {
+                return;
+            }
+
+            this.GetVectorDataService().Delete(address);
+        }
+
+        private DataService GetVectorDataService()
+        {
+            return _vectorData ??= new DataService(_snapshot, uint.MaxValue);
+        }
+
+        private byte SampleLevel()
+        {
+            var level = 1;
+
+            lock (_random)
+            {
+                while (level < VectorIndexNode.MaxLevels && _random.NextDouble() < 0.5d)
+                {
+                    level++;
+                }
+            }
+
+            return (byte)level;
+        }
+
+        private void RegisterVisit(HashSet<PageAddress> visited, PageAddress address)
+        {
+            if (address.IsEmpty)
+            {
+                return;
+            }
+
+            if (visited != null)
+            {
+                if (!visited.Add(address))
+                {
+                    return;
+                }
+            }
+
+            this.LastVisitedCount++;
+        }
+
+        private static int GetMinimumIndex(List<NodeDistance> candidates)
+        {
+            var index = 0;
+            var best = candidates[0].Distance;
+
+            for (var i = 1; i < candidates.Count; i++)
+            {
+                if (candidates[i].Distance < best)
+                {
+                    best = candidates[i].Distance;
+                    index = i;
+                }
+            }
+
+            return index;
+        }
+
+        private static bool InsertOrdered(List<NodeDistance> list, NodeDistance item, int maxSize)
+        {
+            if (maxSize <= 0)
+            {
+                return false;
+            }
+
+            var inserted = false;
+
+            var index = list.FindIndex(x => item.Distance < x.Distance);
+
+            if (index >= 0)
+            {
+                list.Insert(index, item);
+                inserted = true;
+            }
+            else if (list.Count < maxSize)
+            {
+                list.Add(item);
+                inserted = true;
+            }
+
+            if (list.Count > maxSize)
+            {
+                list.RemoveAt(list.Count - 1);
+            }
+
+            return inserted;
+        }
+
+        private List<NodeDistance> SelectNeighbors(List<NodeDistance> candidates, int maxNeighbors)
+        {
+            if (candidates.Count == 0 || maxNeighbors <= 0)
+            {
+                return new List<NodeDistance>();
+            }
+
+            var seen = new HashSet<PageAddress>();
+
+            return candidates
+                .OrderBy(x => x.Distance)
+                .Where(x => seen.Add(x.Address))
+                .Take(maxNeighbors)
+                .ToList();
+        }
+
+        private static double NormalizeDistance(double distance)
+        {
+            return double.IsNaN(distance) ? double.PositiveInfinity : distance;
         }
 
         private static double ComputeCosineDistance(float[] candidate, float[] target)
@@ -292,246 +924,6 @@ namespace LiteDB.Engine
             }
 
             return sum;
-        }
-
-        private void RebuildTree(VectorIndexMetadata metadata, List<VectorEntry> entries)
-        {
-            this.ClearTree(metadata);
-
-            if (entries.Count == 0)
-            {
-                metadata.Root = PageAddress.Empty;
-                metadata.Reserved = uint.MaxValue;
-                _snapshot.CollectionPage.IsDirty = true;
-                return;
-            }
-
-            foreach (var entry in entries)
-            {
-                this.InsertNode(metadata, entry.Vector, entry.DataBlock);
-            }
-        }
-
-        private void ClearTree(VectorIndexMetadata metadata)
-        {
-            if (metadata.Root.IsEmpty)
-            {
-                return;
-            }
-
-            var stack = new Stack<PageAddress>();
-            stack.Push(metadata.Root);
-
-            while (stack.Count > 0)
-            {
-                var address = stack.Pop();
-                if (address.IsEmpty)
-                {
-                    continue;
-                }
-
-                var node = this.GetNode(address);
-
-                if (!node.Left.IsEmpty)
-                {
-                    stack.Push(node.Left);
-                }
-
-                if (!node.Right.IsEmpty)
-                {
-                    stack.Push(node.Right);
-                }
-
-                this.ReleaseNode(metadata, node);
-            }
-
-            metadata.Root = PageAddress.Empty;
-            metadata.Reserved = uint.MaxValue;
-            _snapshot.CollectionPage.IsDirty = true;
-        }
-
-        private void ReleaseNode(VectorIndexMetadata metadata, VectorIndexNode node)
-        {
-            var page = node.Page;
-            page.DeleteNode(node.Position.Index);
-            var freeList = metadata.Reserved;
-            metadata.Reserved = uint.MaxValue;
-            _snapshot.AddOrRemoveFreeVectorList(page, ref freeList);
-            metadata.Reserved = freeList;
-        }
-
-        private List<VectorEntry> ReadAllEntries(VectorIndexMetadata metadata)
-        {
-            var entries = new List<VectorEntry>();
-
-            if (metadata.Root.IsEmpty)
-            {
-                return entries;
-            }
-
-            var stack = new Stack<PageAddress>();
-            stack.Push(metadata.Root);
-
-            while (stack.Count > 0)
-            {
-                var address = stack.Pop();
-                if (address.IsEmpty)
-                {
-                    continue;
-                }
-
-                var node = this.GetNode(address);
-
-                if (!node.DataBlock.IsEmpty)
-                {
-                    entries.Add(new VectorEntry(node.DataBlock, node.ReadVector()));
-                }
-
-                if (!node.Left.IsEmpty)
-                {
-                    stack.Push(node.Left);
-                }
-
-                if (!node.Right.IsEmpty)
-                {
-                    stack.Push(node.Right);
-                }
-            }
-
-            return entries;
-        }
-
-        private void InsertNode(VectorIndexMetadata metadata, float[] vector, PageAddress dataBlock)
-        {
-            if (metadata.Root.IsEmpty)
-            {
-                var root = this.CreateNode(metadata, dataBlock, vector);
-                metadata.Root = root;
-                _snapshot.CollectionPage.IsDirty = true;
-                return;
-            }
-
-            this.InsertInto(metadata, metadata.Root, vector, dataBlock);
-        }
-
-        private void InsertInto(VectorIndexMetadata metadata, PageAddress currentAddress, float[] vector, PageAddress dataBlock)
-        {
-            var node = this.GetNode(currentAddress);
-            var pivot = node.ReadVector();
-            var distance = (float)ComputeDistance(pivot, vector, metadata.Metric, out _);
-
-            if (float.IsNaN(distance) || float.IsInfinity(distance))
-            {
-                distance = 0f;
-            }
-
-            if (node.Left.IsEmpty)
-            {
-                var child = this.CreateNode(metadata, dataBlock, vector);
-                node.SetLeft(child);
-                node.SetLeftRange(distance, distance);
-                return;
-            }
-
-            if (node.Right.IsEmpty)
-            {
-                var child = this.CreateNode(metadata, dataBlock, vector);
-                node.SetRight(child);
-                node.SetRightRange(distance, distance);
-                return;
-            }
-
-            var leftExpansion = ComputeExpansion(node.LeftMinDistance, node.LeftMaxDistance, distance);
-            var rightExpansion = ComputeExpansion(node.RightMinDistance, node.RightMaxDistance, distance);
-
-            if (leftExpansion <= rightExpansion)
-            {
-                node.UpdateLeftRange(distance);
-                this.InsertInto(metadata, node.Left, vector, dataBlock);
-            }
-            else
-            {
-                node.UpdateRightRange(distance);
-                this.InsertInto(metadata, node.Right, vector, dataBlock);
-            }
-        }
-
-        private PageAddress CreateNode(VectorIndexMetadata metadata, PageAddress dataBlock, float[] vector)
-        {
-            var length = VectorIndexNode.GetLength(vector.Length);
-            var freeList = metadata.Reserved;
-            var page = _snapshot.GetFreeVectorPage(length, ref freeList);
-            metadata.Reserved = freeList;
-
-            var node = page.InsertNode(dataBlock, vector, length);
-
-            freeList = metadata.Reserved;
-            metadata.Reserved = uint.MaxValue;
-            _snapshot.AddOrRemoveFreeVectorList(page, ref freeList);
-            metadata.Reserved = freeList;
-
-            _snapshot.CollectionPage.IsDirty = true;
-
-            return node.Position;
-        }
-
-        private static float ComputeExpansion(float min, float max, float distance)
-        {
-            var hasRange = !(float.IsPositiveInfinity(min) && float.IsNegativeInfinity(max));
-
-            var currentMin = hasRange ? min : distance;
-            var currentMax = hasRange ? max : distance;
-
-            var newMin = Math.Min(currentMin, distance);
-            var newMax = Math.Max(currentMax, distance);
-
-            var currentWidth = hasRange ? currentMax - currentMin : 0f;
-            var newWidth = newMax - newMin;
-
-            return newWidth - currentWidth;
-        }
-
-        private static bool ShouldVisit(double distance, double radius, float min, float max)
-        {
-            if (double.IsInfinity(distance) || double.IsInfinity(radius))
-            {
-                return true;
-            }
-
-            if (float.IsPositiveInfinity(min) && float.IsNegativeInfinity(max))
-            {
-                return true;
-            }
-
-            if (min > max)
-            {
-                return true;
-            }
-
-            return (distance - radius) <= max && (distance + radius) >= min;
-        }
-
-        private static double ComputeRangeScore(float min, float max, double target)
-        {
-            if (float.IsPositiveInfinity(min) && float.IsNegativeInfinity(max))
-            {
-                return double.NegativeInfinity;
-            }
-
-            if (min > max)
-            {
-                return double.NegativeInfinity;
-            }
-
-            var center = ((double)min + max) * 0.5d;
-            return Math.Abs(target - center);
-        }
-
-        private VectorIndexNode GetNode(PageAddress address)
-        {
-            var page = _snapshot.GetPage<VectorIndexPage>(address.PageID);
-
-            return page.GetNode(address.Index);
         }
 
         private static bool TryExtractVector(BsonValue value, ushort expectedDimensions, out float[] vector)

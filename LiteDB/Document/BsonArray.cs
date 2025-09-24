@@ -36,6 +36,14 @@ namespace LiteDB
 
             this.AddRange(items);
         }
+        
+        public BsonArray(BsonArray items)
+            : this()
+        {
+            if (items == null) throw new ArgumentNullException(nameof(items));
+
+            this.AddRange(items);
+        }
 
         public new IList<BsonValue> RawValue => (IList<BsonValue>)base.RawValue;
 
@@ -73,9 +81,8 @@ namespace LiteDB
 
             foreach (var bsonValue in collection)
             {
-                list.Add(bsonValue ?? Null);    
+                list.Add(bsonValue ?? Null);
             }
-            
         }
         
         public void AddRange(IEnumerable<BsonValue> items)

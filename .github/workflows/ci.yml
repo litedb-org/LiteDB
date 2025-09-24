@@ -6,6 +6,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
 
     steps:
       - name: Check out repository
@@ -22,18 +25,40 @@ jobs:
         run: dotnet restore LiteDB.sln
 
       - name: Build
-        run: dotnet build LiteDB.sln --configuration Release --no-restore
+        run: dotnet build LiteDB.sln --configuration Release --no-restore /p:DefineConstants=TESTING
 
-      - name: Test
-        timeout-minutes: 5
-        continue-on-error: true
-        run: dotnet test LiteDB.sln --configuration Release --no-build --verbosity normal --settings tests.runsettings --logger "trx;LogFileName=TestResults.trx" --logger "console;verbosity=detailed"
+      - name: Test (with hang diagnostics)
+        timeout-minutes: 8
+        env:
+          VSTEST_TESTHOST_HANG_DUMP_TYPE: full
+          VSTEST_TESTHOST_HANG_DUMP_FOLDER: ${{ github.workspace }}/hangdumps
+          DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+          DOTNET_NOLOGO: 1
+        run: >-
+          dotnet test LiteDB.sln
+          --configuration Release
+          --no-build
+          --verbosity normal
+          --settings tests.ci.runsettings
+          --logger "trx;LogFileName=TestResults.trx"
+          --logger "console;verbosity=detailed"
+          --blame-hang --blame-hang-timeout 00:02:00
+          --diag "TestHost.diag.log;tracelevel=verbose"
+          /p:DefineConstants=TESTING
 
       - name: Upload test results
-        if: always()
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: test-results
+          path: "**/*TestResults*.trx"
+
+      - name: Upload hang dumps (if any)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hangdumps
           path: |
-            **/TestResults.trx
-            **/TestResults/**/*
+            hangdumps
+            **/TestResults/**/*.dmp
+          if-no-files-found: ignore
