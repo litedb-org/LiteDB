@@ -21,6 +21,7 @@ namespace LiteDB.Engine
                 var collectionPage = snapshot.CollectionPage;
                 var data = new DataService(snapshot, _disk.MAX_ITEMS_COUNT);
                 var indexer = new IndexService(snapshot, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
+                var vectorService = new VectorIndexService(snapshot, _header.Pragmas.Collation);
 
                 if (collectionPage == null) return 0;
 
@@ -37,6 +38,11 @@ namespace LiteDB.Engine
                     if (pkNode == null) continue;
 
                     _state.Validate();
+
+                    foreach (var (_, metadata) in collectionPage.GetVectorIndexes())
+                    {
+                        vectorService.Delete(metadata, pkNode.DataBlock);
+                    }
 
                     // remove object data
                     data.Delete(pkNode.DataBlock);

@@ -17,8 +17,7 @@ namespace LiteDB
         public List<BsonExpression> Includes { get; } = new List<BsonExpression>();
         public List<BsonExpression> Where { get; } = new List<BsonExpression>();
 
-        public BsonExpression OrderBy { get; set; } = null;
-        public int Order { get; set; } = Query.Ascending;
+        public List<QueryOrder> OrderBy { get; } = new List<QueryOrder>();
 
         public BsonExpression GroupBy { get; set; } = null;
         public BsonExpression Having { get; set; } = null;
@@ -86,9 +85,12 @@ namespace LiteDB
                 sb.AppendLine($"HAVING {this.Having.Source}");
             }
 
-            if (this.OrderBy != null)
+            if (this.OrderBy.Count > 0)
             {
-                sb.AppendLine($"ORDER BY {this.OrderBy.Source} {(this.Order == Query.Ascending ? "ASC" : "DESC")}");
+                var orderBy = this.OrderBy
+                    .Select(x => $"{x.Expression.Source} {(x.Order == Query.Ascending ? "ASC" : "DESC")}");
+
+                sb.AppendLine($"ORDER BY {string.Join(", ", orderBy)}");
             }
 
             if (this.Limit != int.MaxValue)
@@ -108,7 +110,21 @@ namespace LiteDB
 
             if (this.HasVectorFilter)
             {
-                var vectorExpr = $"VECTOR_SIM($.{this.VectorField}, [{string.Join(",", this.VectorTarget)}])";
+                var field = this.VectorField;
+
+                if (!string.IsNullOrEmpty(field))
+                {
+                    field = field.Trim();
+
+                    if (!field.StartsWith("$", StringComparison.Ordinal))
+                    {
+                        field = field.StartsWith(".", StringComparison.Ordinal)
+                            ? "$" + field
+                            : "$." + field;
+                    }
+                }
+
+                var vectorExpr = $"VECTOR_SIM({field}, [{string.Join(",", this.VectorTarget)}])";
                 if (this.Where.Count > 0)
                 {
                     sb.AppendLine($"WHERE ({string.Join(" AND ", this.Where.Select(x => x.Source))}) AND {vectorExpr} <= {this.VectorMaxDistance}");

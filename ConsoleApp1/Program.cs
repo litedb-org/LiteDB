@@ -27,7 +27,7 @@ try
 {
     using (var db = new LiteEngine(settings))
     {
-#if DEBUG
+#if DEBUG || TESTING
         db.SimulateDiskWriteFail = (page) =>
         {
             var p = new BasePage(page);

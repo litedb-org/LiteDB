@@ -50,7 +50,7 @@ namespace LiteDB.Engine
                 _cache.GetWritablePage(position, origin, (pos, buf) => this.ReadStream(stream, pos, buf)) :
                 _cache.GetReadablePage(position, origin, (pos, buf) => this.ReadStream(stream, pos, buf));
 
-#if DEBUG
+#if DEBUG || TESTING
             _state.SimulateDiskReadFail?.Invoke(page);
 #endif
 

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
@@ -24,7 +24,7 @@ namespace LiteDB.Internals
             pragmas.Set(Pragmas.COLLATION, Collation.Binary.ToString(), false);
 
             using (var tempDisk = new SortDisk(_factory, 10 * 8192, pragmas))
-            using (var s = new SortService(tempDisk, Query.Ascending, pragmas))
+            using (var s = new SortService(tempDisk, new[] { Query.Ascending }, pragmas))
             {
                 s.Insert(source);
 
@@ -52,7 +52,7 @@ namespace LiteDB.Internals
             pragmas.Set(Pragmas.COLLATION, Collation.Binary.ToString(), false);
 
             using (var tempDisk = new SortDisk(_factory, 8192, pragmas))
-            using (var s = new SortService(tempDisk, Query.Descending, pragmas))
+            using (var s = new SortService(tempDisk, [Query.Descending], pragmas))
             {
                 s.Insert(source);
 
