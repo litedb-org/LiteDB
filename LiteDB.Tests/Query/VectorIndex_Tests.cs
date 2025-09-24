@@ -265,6 +265,52 @@ namespace LiteDB.Tests.QueryTest
         }
 
         [Fact]
+        public void OrderBy_VectorSimilarity_WithCompositeOrdering_UsesVectorIndex()
+        {
+            using var db = new LiteDatabase(":memory:");
+            var collection = db.GetCollection<VectorDocument>("vectors");
+
+            collection.Insert(new[]
+            {
+                new VectorDocument { Id = 1, Embedding = new[] { 1f, 0f }, Flag = true },
+                new VectorDocument { Id = 2, Embedding = new[] { 1f, 0f }, Flag = false },
+                new VectorDocument { Id = 3, Embedding = new[] { 0f, 1f }, Flag = true }
+            });
+
+            collection.EnsureIndex(
+                "embedding_idx",
+                BsonExpression.Create("$.Embedding"),
+                new VectorIndexOptions(2, VectorDistanceMetric.Cosine));
+
+            var similarity = BsonExpression.Create("VECTOR_SIM($.Embedding, [1.0, 0.0])");
+
+            var query = (LiteQueryable<VectorDocument>)collection.Query()
+                .OrderBy(similarity, Query.Ascending)
+                .ThenBy(x => x.Flag);
+
+            var queryField = typeof(LiteQueryable<VectorDocument>).GetField("_query", BindingFlags.NonPublic | BindingFlags.Instance);
+            var definition = (Query)queryField.GetValue(query);
+
+            definition.OrderBy.Should().HaveCount(2);
+            definition.OrderBy[0].Expression.Type.Should().Be(BsonExpressionType.VectorSim);
+
+            definition.VectorField = "$.Embedding";
+            definition.VectorTarget = new[] { 1f, 0f };
+            definition.VectorMaxDistance = double.MaxValue;
+
+            var plan = query.GetPlan();
+
+            plan["index"]["mode"].AsString.Should().Be("VECTOR INDEX SEARCH");
+            plan["index"]["expr"].AsString.Should().Be("$.Embedding");
+            plan.ContainsKey("orderBy").Should().BeFalse();
+
+            var results = query.ToArray();
+
+            results.Should().HaveCount(3);
+            results.Select(x => x.Id).Should().BeEquivalentTo(new[] { 1, 2, 3 });
+        }
+
+        [Fact]
         public void WhereNear_DotProductHonorsMinimumSimilarity()
         {
             using var db = new LiteDatabase(":memory:");
