@@ -19,6 +19,7 @@ namespace LiteDB
         private readonly ILiteEngine _engine;
         private readonly BsonMapper _mapper;
         private readonly bool _disposeOnClose;
+        private readonly int? _checkpointOverride;
 
         /// <summary>
         /// Get current instance of BsonMapper used in this database instance (can be BsonMapper.Global)
@@ -66,6 +67,27 @@ namespace LiteDB
             _engine = new LiteEngine(settings);
             _mapper = mapper ?? BsonMapper.Global;
             _disposeOnClose = true;
+
+            if (logStream == null && stream is not MemoryStream)
+            {
+                if (!stream.CanWrite)
+                {
+                    // Read-only streams cannot participate in eager checkpointing because the process
+                    // writes pages back to the underlying data stream immediately.
+                }
+                else
+                {
+                    // Without a dedicated log stream the WAL lives purely in memory; force
+                    // checkpointing to ensure commits reach the underlying data stream.
+                    var originalCheckpointSize = _engine.Pragma(Pragmas.CHECKPOINT);
+
+                    if (originalCheckpointSize != 1)
+                    {
+                        _engine.Pragma(Pragmas.CHECKPOINT, 1);
+                        _checkpointOverride = originalCheckpointSize;
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -373,6 +395,11 @@ namespace LiteDB
         {
             if (disposing && _disposeOnClose)
             {
+                if (_checkpointOverride.HasValue)
+                {
+                    _engine.Pragma(Pragmas.CHECKPOINT, _checkpointOverride.Value);
+                }
+
                 _engine.Dispose();
             }
         }

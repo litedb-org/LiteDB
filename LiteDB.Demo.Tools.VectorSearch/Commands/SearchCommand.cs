@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -36,49 +37,73 @@ namespace LiteDB.Demo.Tools.VectorSearch.Commands
             var normalized = TextUtilities.NormalizeForEmbedding(queryText, embeddingOptions.MaxInputLength);
             var queryEmbedding = await embeddingService.EmbedAsync(normalized, CancellationToken.None);
 
-            var results = documentStore.TopNearest(queryEmbedding, settings.Top)
-                .Select(doc => new SearchHit(doc, VectorMath.CosineSimilarity(doc.Embedding, queryEmbedding)))
+            var chunkResults = documentStore.TopNearestChunks(queryEmbedding, settings.Top)
+                .Select(chunk => new SearchHit(chunk, VectorMath.CosineSimilarity(chunk.Embedding, queryEmbedding)))
                 .ToList();
 
             if (settings.MaxDistance.HasValue)
             {
-                results = results
-                    .Where(hit => VectorMath.CosineDistance(hit.Document.Embedding, queryEmbedding) <= settings.MaxDistance.Value)
+                chunkResults = chunkResults
+                    .Where(hit => VectorMath.CosineDistance(hit.Chunk.Embedding, queryEmbedding) <= settings.MaxDistance.Value)
                     .ToList();
             }
 
-            if (results.Count == 0)
+            if (chunkResults.Count == 0)
             {
                 AnsiConsole.MarkupLine("[yellow]No matching documents were found.[/]");
                 return 0;
             }
 
-            results.Sort((left, right) => right.Similarity.CompareTo(left.Similarity));
+            chunkResults.Sort((left, right) => right.Similarity.CompareTo(left.Similarity));
 
             var table = new Table().Border(TableBorder.Rounded);
             table.AddColumn("#");
             table.AddColumn("Score");
-            table.AddColumn("Title");
-            table.AddColumn("Preview");
-            table.AddColumn("Path");
+            table.AddColumn("Document");
+            if (!settings.HidePath)
+            {
+                table.AddColumn("Path");
+            }
+            table.AddColumn("Snippet");
 
             var rank = 1;
-            foreach (var hit in results)
+            var documentCache = new Dictionary<string, IndexedDocument?>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var hit in chunkResults)
             {
-                var preview = hit.Document.Preview;
-                if (preview.Length > settings.PreviewLength)
+                var snippet = hit.Chunk.Snippet;
+                if (snippet.Length > settings.PreviewLength)
                 {
-                    preview = preview[..settings.PreviewLength] + "\u2026";
+                    snippet = snippet[..settings.PreviewLength] + "\u2026";
                 }
-                
-                table.AddRow
-                (
+
+                if (!documentCache.TryGetValue(hit.Chunk.Path, out var parentDocument))
+                {
+                    parentDocument = documentStore.FindByPath(hit.Chunk.Path);
+                    documentCache[hit.Chunk.Path] = parentDocument;
+                }
+
+                var chunkNumber = hit.Chunk.ChunkIndex + 1;
+                var documentLabel = parentDocument != null
+                    ? $"{parentDocument.Title} (Chunk {chunkNumber})"
+                    : $"Chunk {chunkNumber}";
+
+                var rowData = new List<string>
+                {
                     Markup.Escape(rank.ToString()),
                     Markup.Escape(hit.Similarity.ToString("F3")),
-                    Markup.Escape(hit.Document.Title),
-                    Markup.Escape(preview),
-                    settings.HidePath ? string.Empty : Markup.Escape(hit.Document.Path)
-                );
+                    Markup.Escape(documentLabel)
+                };
+
+                if (!settings.HidePath)
+                {
+                    var pathValue = parentDocument?.Path ?? hit.Chunk.Path;
+                    rowData.Add(Markup.Escape(pathValue));
+                }
+
+                rowData.Add(Markup.Escape(snippet));
+
+                table.AddRow(rowData.ToArray());
 
                 rank++;
             }
@@ -87,7 +112,7 @@ namespace LiteDB.Demo.Tools.VectorSearch.Commands
             return 0;
         }
 
-        private sealed record SearchHit(Models.IndexedDocument Document, double Similarity);
+        private sealed record SearchHit(IndexedDocumentChunk Chunk, double Similarity);
     }
 
     internal sealed class SearchCommandSettings : VectorSearchCommandSettings

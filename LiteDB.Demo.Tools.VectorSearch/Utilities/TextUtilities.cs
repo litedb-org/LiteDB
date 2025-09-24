@@ -16,6 +16,8 @@ namespace LiteDB.Demo.Tools.VectorSearch.Utilities
             ".mdown"
         };
 
+        private static readonly char[] _chunkBreakCharacters = { '\n', ' ', '\t' };
+
         public static bool IsSupportedDocument(string path)
         {
             if (string.IsNullOrWhiteSpace(path))
@@ -110,6 +112,65 @@ namespace LiteDB.Demo.Tools.VectorSearch.Utilities
             var hash = sha256.ComputeHash(bytes);
 
             return Convert.ToHexString(hash);
+        }
+
+        public static IEnumerable<string> SplitIntoChunks(string content, int chunkLength, int chunkOverlap)
+        {
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                yield break;
+            }
+
+            if (chunkLength <= 0)
+            {
+                yield break;
+            }
+
+            if (chunkOverlap < 0 || chunkOverlap >= chunkLength)
+            {
+                throw new ArgumentOutOfRangeException(nameof(chunkOverlap), chunkOverlap, "Chunk overlap must be non-negative and smaller than the chunk length.");
+            }
+
+            var normalized = content.Replace("\r\n", "\n", StringComparison.Ordinal)
+                .Replace('\r', '\n');
+
+            var step = chunkLength - chunkOverlap;
+            var position = 0;
+
+            if (step <= 0)
+            {
+                yield break;
+            }
+
+            while (position < normalized.Length)
+            {
+                var remaining = normalized.Length - position;
+                var take = Math.Min(chunkLength, remaining);
+                var window = normalized.Substring(position, take);
+
+                if (take == chunkLength && position + take < normalized.Length)
+                {
+                    var lastBreak = window.LastIndexOfAny(_chunkBreakCharacters);
+                    if (lastBreak >= step)
+                    {
+                        window = window[..lastBreak];
+                        take = window.Length;
+                    }
+                }
+
+                var chunk = window.Trim();
+                if (!string.IsNullOrWhiteSpace(chunk))
+                {
+                    yield return chunk;
+                }
+
+                if (position + take >= normalized.Length)
+                {
+                    yield break;
+                }
+
+                position += step;
+            }
         }
     }
 }

@@ -243,7 +243,7 @@ namespace LiteDB.Engine
 
         #endregion
 
-#if DEBUG
+#if DEBUG || TESTING
         // exposes for unit tests
         internal TransactionMonitor GetMonitor() => _monitor;
         internal Action<PageBuffer> SimulateDiskReadFail { set => _state.SimulateDiskReadFail = value; }

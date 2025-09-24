@@ -9,11 +9,13 @@ namespace LiteDB.Demo.Tools.VectorSearch.Services
 {
     internal sealed class DocumentStore : IDisposable
     {
-        private const string CollectionName = "documents";
+        private const string DocumentCollectionName = "documents";
+        private const string ChunkCollectionName = "chunks";
 
         private readonly LiteDatabase _database;
-        private readonly ILiteCollection<IndexedDocument> _collection;
-        private ushort? _vectorDimensions;
+        private readonly ILiteCollection<IndexedDocument> _documents;
+        private readonly ILiteCollection<IndexedDocumentChunk> _chunks;
+        private ushort? _chunkVectorDimensions;
 
         public DocumentStore(string databasePath)
         {
@@ -24,8 +26,12 @@ namespace LiteDB.Demo.Tools.VectorSearch.Services
 
             var fullPath = Path.GetFullPath(databasePath);
             _database = new LiteDatabase(fullPath);
-            _collection = _database.GetCollection<IndexedDocument>(CollectionName);
-            _collection.EnsureIndex(x => x.Path, true);
+            _documents = _database.GetCollection<IndexedDocument>(DocumentCollectionName);
+            _documents.EnsureIndex(x => x.Path, true);
+
+            _chunks = _database.GetCollection<IndexedDocumentChunk>(ChunkCollectionName);
+            _chunks.EnsureIndex(x => x.Path);
+            _chunks.EnsureIndex(x => x.ChunkIndex);
         }
 
         public IndexedDocument? FindByPath(string absolutePath)
@@ -35,10 +41,10 @@ namespace LiteDB.Demo.Tools.VectorSearch.Services
                 return null;
             }
 
-            return _collection.FindOne(x => x.Path == absolutePath);
+            return _documents.FindOne(x => x.Path == absolutePath);
         }
 
-        public void EnsureVectorIndex(int dimensions)
+        public void EnsureChunkVectorIndex(int dimensions)
         {
             if (dimensions <= 0)
             {
@@ -46,13 +52,13 @@ namespace LiteDB.Demo.Tools.VectorSearch.Services
             }
 
             var targetDimensions = (ushort)dimensions;
-            if (_vectorDimensions == targetDimensions)
+            if (_chunkVectorDimensions == targetDimensions)
             {
                 return;
             }
 
-            _collection.EnsureIndex(x => x.Embedding, new VectorIndexOptions(targetDimensions, VectorDistanceMetric.Cosine));
-            _vectorDimensions = targetDimensions;
+            _chunks.EnsureIndex(x => x.Embedding, new VectorIndexOptions(targetDimensions, VectorDistanceMetric.Cosine));
+            _chunkVectorDimensions = targetDimensions;
         }
 
         public void Upsert(IndexedDocument document)
@@ -62,10 +68,42 @@ namespace LiteDB.Demo.Tools.VectorSearch.Services
                 throw new ArgumentNullException(nameof(document));
             }
 
-            _collection.Upsert(document);
+            _documents.Upsert(document);
         }
 
-        public IEnumerable<IndexedDocument> TopNearest(float[] embedding, int count)
+        public void ReplaceDocumentChunks(string documentPath, IEnumerable<IndexedDocumentChunk> chunks)
+        {
+            if (string.IsNullOrWhiteSpace(documentPath))
+            {
+                throw new ArgumentException("Document path must be provided.", nameof(documentPath));
+            }
+
+            _chunks.DeleteMany(chunk => chunk.Path == documentPath);
+
+            if (chunks == null)
+            {
+                return;
+            }
+
+            foreach (var chunk in chunks)
+            {
+                if (chunk == null)
+                {
+                    continue;
+                }
+
+                chunk.Path = documentPath;
+
+                if (chunk.Id == ObjectId.Empty)
+                {
+                    chunk.Id = ObjectId.NewObjectId();
+                }
+
+                _chunks.Insert(chunk);
+            }
+        }
+
+        public IEnumerable<IndexedDocumentChunk> TopNearestChunks(float[] embedding, int count)
         {
             if (embedding == null)
             {
@@ -77,14 +115,16 @@ namespace LiteDB.Demo.Tools.VectorSearch.Services
                 throw new ArgumentOutOfRangeException(nameof(count), count, "Quantity must be positive.");
             }
 
-            return _collection.Query()
+            EnsureChunkVectorIndex(embedding.Length);
+
+            return _chunks.Query()
                 .TopKNear(x => x.Embedding, embedding, count)
                 .ToEnumerable();
         }
 
         public IReadOnlyCollection<string> GetTrackedPaths()
         {
-            return _collection.FindAll()
+            return _documents.FindAll()
                 .Select(doc => doc.Path)
                 .Where(path => !string.IsNullOrWhiteSpace(path))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -100,9 +140,10 @@ namespace LiteDB.Demo.Tools.VectorSearch.Services
 
             var keep = new HashSet<string>(existingDocumentPaths, StringComparer.OrdinalIgnoreCase);
 
-            foreach (var doc in _collection.FindAll().Where(doc => !keep.Contains(doc.Path)))
+            foreach (var doc in _documents.FindAll().Where(doc => !keep.Contains(doc.Path)))
             {
-                _collection.Delete(doc.Id);
+                _documents.Delete(doc.Id);
+                _chunks.DeleteMany(chunk => chunk.Path == doc.Path);
             }
         }
 
