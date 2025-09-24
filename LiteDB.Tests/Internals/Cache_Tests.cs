@@ -103,8 +103,8 @@ namespace LiteDB.Internals
                 pages.Add(m.NewPage());
             }
 
-            // extends must be increase
-            m.ExtendSegments.Should().Be(3);
+            // there were readable pages available, so cache should reuse instead of extending
+            m.ExtendSegments.Should().Be(2);
 
             // but if I release more than 10 pages, now I will re-use old pages
             foreach (var p in pages.Where(x => x.ShareCounter == -1).Take(10))
@@ -117,7 +117,7 @@ namespace LiteDB.Internals
             }
 
             m.WritablePages.Should().Be(7);
-            m.FreePages.Should().Be(8);
+            m.FreePages.Should().Be(3);
 
             // now, if I request for 10 pages, all pages will be reused (no segment extend)
             for (var i = 0; i < 10; i++)
@@ -126,7 +126,7 @@ namespace LiteDB.Internals
             }
 
             // keep same extends
-            m.ExtendSegments.Should().Be(3);
+            m.ExtendSegments.Should().Be(2);
 
             // discard all pages
             PageBuffer pw;
@@ -135,6 +135,28 @@ namespace LiteDB.Internals
             {
                 m.DiscardPage(pw);
             }
+        }
+
+        [Fact]
+        public void Cache_Reuses_Readable_Pages_Before_Extending()
+        {
+            var cache = new MemoryCache(new int[] { 2, 4 });
+
+            var first = cache.GetReadablePage(0, FileOrigin.Data, (pos, slice) => { });
+            var second = cache.GetReadablePage(Constants.PAGE_SIZE, FileOrigin.Data, (pos, slice) => { });
+
+            cache.ExtendSegments.Should().Be(1);
+            cache.FreePages.Should().Be(0);
+
+            first.Release();
+            second.Release();
+
+            var reused = cache.GetReadablePage(Constants.PAGE_SIZE * 2, FileOrigin.Data, (pos, slice) => { });
+
+            cache.ExtendSegments.Should().Be(1);
+            cache.FreePages.Should().Be(1);
+
+            reused.Release();
         }
 
         [Fact]
