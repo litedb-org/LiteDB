@@ -36,7 +36,9 @@ namespace LiteDB
         /// </summary>
         public static Query All(int order = Ascending)
         {
-            return new Query { OrderBy = "_id", Order = order };
+            var query = new Query();
+            query.OrderBy.Add(new QueryOrder(BsonExpression.Create("_id"), order));
+            return query;
         }
 
         /// <summary>
@@ -44,7 +46,9 @@ namespace LiteDB
         /// </summary>
         public static Query All(string field, int order = Ascending)
         {
-            return new Query { OrderBy = field, Order = order };
+            var query = new Query();
+            query.OrderBy.Add(new QueryOrder(BsonExpression.Create(field), order));
+            return query;
         }
 
         /// <summary>

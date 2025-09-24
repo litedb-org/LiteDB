@@ -179,11 +179,11 @@ namespace LiteDB.Engine
 
             if (this.OrderBy != null)
             {
-                doc["orderBy"] = new BsonDocument
+                doc["orderBy"] = new BsonArray(this.OrderBy.Segments.Select(x => new BsonDocument
                 {
-                    ["expr"] = this.OrderBy.Expression.Source,
-                    ["order"] = this.OrderBy.Order,
-                };
+                    ["expr"] = x.Expression.Source,
+                    ["order"] = x.Order,
+                }));
             }
 
             if (this.Limit != int.MaxValue)

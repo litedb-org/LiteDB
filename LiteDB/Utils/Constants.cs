@@ -6,7 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 
 [assembly: InternalsVisibleTo("LiteDB.Tests")]
-#if DEBUG
+#if DEBUG || TESTING
 [assembly: InternalsVisibleTo("ConsoleApp1")]
 #endif
 
@@ -102,7 +102,7 @@ namespace LiteDB
         /// <summary>
         /// Initial seed for Random
         /// </summary>
-#if DEBUG
+#if DEBUG || TESTING
         public const int RANDOMIZER_SEED = 3131;
 #else
         public const int RANDOMIZER_SEED = 0;
