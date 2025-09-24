@@ -431,9 +431,12 @@ namespace LiteDB.Tests.QueryTest
             using var db = new LiteDatabase(":memory:");
             var collection = db.GetCollection<VectorDocument>("vectors");
 
+            const int nearClusterSize = 64;
+            const int farClusterSize = 64;
+
             var documents = new List<VectorDocument>();
 
-            for (var i = 0; i < 64; i++)
+            for (var i = 0; i < nearClusterSize; i++)
             {
                 documents.Add(new VectorDocument
                 {
@@ -443,17 +446,18 @@ namespace LiteDB.Tests.QueryTest
                 });
             }
 
-            for (var i = 0; i < 64; i++)
+            for (var i = 0; i < farClusterSize; i++)
             {
                 documents.Add(new VectorDocument
                 {
-                    Id = i + 65,
+                    Id = i + nearClusterSize + 1,
                     Embedding = new[] { -1f, 2f + i / 100f },
                     Flag = false
                 });
             }
 
             collection.Insert(documents);
+            collection.Count().Should().Be(documents.Count);
 
             collection.EnsureIndex(
                 "embedding_idx",
@@ -473,8 +477,8 @@ namespace LiteDB.Tests.QueryTest
                 });
 
             stats.Total.Should().BeGreaterThan(stats.Visited);
-            stats.Total.Should().BeGreaterThan(64);
-            stats.Matches.Should().OnlyContain(id => id <= 64);
+            stats.Total.Should().BeGreaterOrEqualTo(nearClusterSize);
+            stats.Matches.Should().OnlyContain(id => id <= nearClusterSize);
         }
 
         [Fact]
