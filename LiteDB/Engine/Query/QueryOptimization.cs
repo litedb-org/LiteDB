@@ -326,12 +326,16 @@ namespace LiteDB.Engine
                 }
             }
 
-            if (expression == null && _query.OrderBy != null)
+            if (expression == null && _query.OrderBy.Count > 0)
             {
-                if (this.TryParseVectorExpression(_query.OrderBy, out expression, out target))
+                foreach (var order in _query.OrderBy)
                 {
-                    matchedFromOrderBy = true;
-                    maxDistance = double.MaxValue;
+                    if (this.TryParseVectorExpression(order.Expression, out expression, out target))
+                    {
+                        matchedFromOrderBy = true;
+                        maxDistance = double.MaxValue;
+                        break;
+                    }
                 }
             }
 
@@ -340,7 +344,7 @@ namespace LiteDB.Engine
                 expression = NormalizeVectorField(_query.VectorField);
                 target = _query.VectorTarget?.ToArray();
                 maxDistance = _query.VectorMaxDistance;
-                matchedFromOrderBy = matchedFromOrderBy || (_query.OrderBy != null && _query.OrderBy.Type == BsonExpressionType.VectorSim);
+                matchedFromOrderBy = matchedFromOrderBy || (_query.OrderBy.Any(order => order.Expression?.Type == BsonExpressionType.VectorSim));
             }
 
             if (expression == null || target == null)
