@@ -1,17 +1,8 @@
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
 using System;
->>>>>>> origin/codex/add-regression-tests-for-vector-index-feature-sc7x7j
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-=======
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
->>>>>>> origin/codex/add-regression-tests-for-vector-index-feature-3uorv1
 using FluentAssertions;
 using LiteDB;
 using LiteDB.Engine;
@@ -22,36 +13,10 @@ namespace LiteDB.Tests.Engine
 {
     public class DropCollection_Tests
     {
-<<<<<<< HEAD
-<<<<<<< HEAD
-        private static Dictionary<PageType, int> CountPagesByType(string filename)
-        {
-            var counts = new Dictionary<PageType, int>();
-            var buffer = new byte[Constants.PAGE_SIZE];
-
-            using var stream = File.OpenRead(filename);
-
-            while (stream.Read(buffer, 0, buffer.Length) == buffer.Length)
-            {
-                var pageType = (PageType)buffer[BasePage.P_PAGE_TYPE];
-                counts.TryGetValue(pageType, out var current);
-                counts[pageType] = current + 1;
-            }
-
-            return counts;
-=======
         private class VectorDocument
         {
             public int Id { get; set; }
 
-            public float[] Embedding { get; set; }
->>>>>>> origin/codex/add-regression-tests-for-vector-index-feature-sc7x7j
-        }
-
-=======
-        private class VectorDocument
-        {
-            public int Id { get; set; }
             public float[] Embedding { get; set; }
         }
 
@@ -60,7 +25,6 @@ namespace LiteDB.Tests.Engine
         private static readonly FieldInfo EngineField = typeof(LiteDatabase).GetField("_engine", BindingFlags.NonPublic | BindingFlags.Instance);
         private static readonly MethodInfo AutoTransactionMethod = typeof(LiteEngine).GetMethod("AutoTransaction", BindingFlags.NonPublic | BindingFlags.Instance);
 
->>>>>>> origin/codex/add-regression-tests-for-vector-index-feature-3uorv1
         [Fact]
         public void DropCollection()
         {
@@ -102,10 +66,8 @@ namespace LiteDB.Tests.Engine
         }
 
         [Fact]
-        public void DropCollection_WithVectorIndex_Regression()
+        public void DropCollection_WithVectorIndex_ReclaimsPages_ByCounting()
         {
-<<<<<<< HEAD
-<<<<<<< HEAD
             using var file = new TempFile();
 
             const ushort dimensions = 6;
@@ -115,7 +77,7 @@ namespace LiteDB.Tests.Engine
                 var collection = db.GetCollection("docs");
 
                 collection.EnsureIndex(
-                    "embedding_idx",
+                    VectorIndexName,
                     BsonExpression.Create("$.embedding"),
                     new VectorIndexOptions(dimensions, VectorDistanceMetric.Cosine));
 
@@ -130,7 +92,66 @@ namespace LiteDB.Tests.Engine
                         ["embedding"] = embedding
                     });
                 }
-=======
+
+                db.Checkpoint();
+            }
+
+            var beforeCounts = CountPagesByType(file.Filename);
+            beforeCounts.TryGetValue(PageType.VectorIndex, out var vectorPagesBefore);
+            vectorPagesBefore.Should().BeGreaterThan(0, "creating a vector index should allocate vector pages");
+
+            var drop = () =>
+            {
+                using var db = DatabaseFactory.Create(TestDatabaseType.Disk, file.Filename);
+                db.DropCollection("docs");
+                db.Checkpoint();
+            };
+
+            drop.Should().NotThrow();
+
+            var afterCounts = CountPagesByType(file.Filename);
+            afterCounts.TryGetValue(PageType.VectorIndex, out var vectorPagesAfter);
+            vectorPagesAfter.Should().BeLessThan(vectorPagesBefore, "dropping the collection should reclaim vector pages");
+        }
+
+        [Fact]
+        public void DropCollection_WithVectorIndex_ReclaimsPages_SimpleVectors()
+        {
+            using var file = new TempFile();
+
+            using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, file.Filename))
+            {
+                var collection = db.GetCollection<VectorDocument>("vectors");
+                var options = new VectorIndexOptions(8, VectorDistanceMetric.Cosine);
+
+                collection.Insert(new List<VectorDocument>
+                {
+                    new VectorDocument { Id = 1, Embedding = new[] { 1f, 0.5f, -0.25f, 0.75f, 1.5f, -0.5f, 0.25f, -1f } },
+                    new VectorDocument { Id = 2, Embedding = new[] { -0.5f, 0.25f, 0.75f, -1.5f, 1f, 0.5f, -0.25f, 0.125f } },
+                    new VectorDocument { Id = 3, Embedding = new[] { 0.5f, -0.75f, 1.25f, 0.875f, -0.375f, 0.625f, -1.125f, 0.25f } }
+                });
+
+                collection.EnsureIndex(VectorIndexName, x => x.Embedding, options);
+
+                db.Checkpoint();
+
+                Action drop = () => db.DropCollection("vectors");
+
+                drop.Should().NotThrow(
+                    "dropping a collection with vector indexes should release vector index pages instead of treating them like skip-list indexes");
+
+                db.Checkpoint();
+            }
+
+            using (var reopened = DatabaseFactory.Create(TestDatabaseType.Disk, file.Filename))
+            {
+                reopened.GetCollectionNames().Should().NotContain("vectors");
+            }
+        }
+
+        [Fact]
+        public void DropCollection_WithVectorIndex_ReclaimsTrackedPages()
+        {
             using var file = new TempFile();
 
             HashSet<uint> vectorPages;
@@ -159,20 +180,11 @@ namespace LiteDB.Tests.Engine
 
                 vectorPages.Should().NotBeEmpty();
                 vectorDataPages.Should().NotBeEmpty();
->>>>>>> origin/codex/add-regression-tests-for-vector-index-feature-3uorv1
 
                 db.Checkpoint();
             }
 
-<<<<<<< HEAD
-            var beforeCounts = CountPagesByType(file.Filename);
-            beforeCounts.TryGetValue(PageType.VectorIndex, out var vectorPagesBefore);
-            vectorPagesBefore.Should().BeGreaterThan(0, "creating a vector index should allocate vector pages");
-
-            var drop = () =>
-=======
             Action drop = () =>
->>>>>>> origin/codex/add-regression-tests-for-vector-index-feature-3uorv1
             {
                 using var db = DatabaseFactory.Create(TestDatabaseType.Disk, file.Filename);
                 db.DropCollection("docs");
@@ -181,11 +193,27 @@ namespace LiteDB.Tests.Engine
 
             drop.Should().NotThrow();
 
-<<<<<<< HEAD
-            var afterCounts = CountPagesByType(file.Filename);
-            afterCounts.TryGetValue(PageType.VectorIndex, out var vectorPagesAfter);
-            vectorPagesAfter.Should().BeLessThan(vectorPagesBefore, "dropping the collection should reclaim vector pages");
-=======
+            using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, file.Filename))
+            {
+                var vectorPageTypes = GetPageTypes(db, vectorPages);
+                foreach (var kvp in vectorPageTypes)
+                {
+                    kvp.Value.Should().Be(PageType.Empty, $"vector index page {kvp.Key} should be reclaimed after dropping the collection");
+                }
+
+                var dataPageTypes = GetPageTypes(db, vectorDataPages);
+                foreach (var kvp in dataPageTypes)
+                {
+                    kvp.Value.Should().Be(PageType.Empty, $"vector data page {kvp.Key} should be reclaimed after dropping the collection");
+                }
+
+                db.GetCollectionNames().Should().NotContain("docs");
+            }
+        }
+
+        [Fact]
+        public void DropCollection_WithVectorIndex_ReclaimsDiskSpace()
+        {
             using var tempFile = new TempFile();
 
             using (var db = new LiteDatabase(tempFile.Filename))
@@ -213,7 +241,7 @@ namespace LiteDB.Tests.Engine
                 }
 
                 collection.Insert(documents);
-                collection.EnsureIndex("embedding_idx", x => x.Embedding, options);
+                collection.EnsureIndex(VectorIndexName, x => x.Embedding, options);
 
                 db.Checkpoint();
 
@@ -232,24 +260,23 @@ namespace LiteDB.Tests.Engine
 
                 sizeAfterDrop.Should().BeLessThan(sizeAfterInsert, "vector index pages must be reclaimed when the collection is dropped");
             }
->>>>>>> origin/codex/add-regression-tests-for-vector-index-feature-sc7x7j
-=======
-            using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, file.Filename))
+        }
+
+        private static Dictionary<PageType, int> CountPagesByType(string filename)
+        {
+            var counts = new Dictionary<PageType, int>();
+            var buffer = new byte[Constants.PAGE_SIZE];
+
+            using var stream = File.OpenRead(filename);
+
+            while (stream.Read(buffer, 0, buffer.Length) == buffer.Length)
             {
-                var vectorPageTypes = GetPageTypes(db, vectorPages);
-                foreach (var kvp in vectorPageTypes)
-                {
-                    kvp.Value.Should().Be(PageType.Empty, $"vector index page {kvp.Key} should be reclaimed after dropping the collection");
-                }
-
-                var dataPageTypes = GetPageTypes(db, vectorDataPages);
-                foreach (var kvp in dataPageTypes)
-                {
-                    kvp.Value.Should().Be(PageType.Empty, $"vector data page {kvp.Key} should be reclaimed after dropping the collection");
-                }
-
-                db.GetCollectionNames().Should().NotContain("docs");
+                var pageType = (PageType)buffer[BasePage.P_PAGE_TYPE];
+                counts.TryGetValue(pageType, out var current);
+                counts[pageType] = current + 1;
             }
+
+            return counts;
         }
 
         private static T ExecuteInTransaction<T>(LiteDatabase db, Func<TransactionService, T> action)
@@ -367,7 +394,6 @@ namespace LiteDB.Tests.Engine
             }
 
             return vector;
->>>>>>> origin/codex/add-regression-tests-for-vector-index-feature-3uorv1
         }
     }
 }
