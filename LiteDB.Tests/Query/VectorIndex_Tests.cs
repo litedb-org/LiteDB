@@ -1,6 +1,7 @@
 using FluentAssertions;
 using LiteDB;
 using LiteDB.Engine;
+using LiteDB.Tests;
 using MathNet.Numerics.LinearAlgebra;
 using System;
 using System.Collections.Generic;
@@ -24,6 +25,7 @@ namespace LiteDB.Tests.QueryTest
         private static readonly FieldInfo EngineField = typeof(LiteDatabase).GetField("_engine", BindingFlags.NonPublic | BindingFlags.Instance);
         private static readonly FieldInfo HeaderField = typeof(LiteEngine).GetField("_header", BindingFlags.NonPublic | BindingFlags.Instance);
         private static readonly MethodInfo AutoTransactionMethod = typeof(LiteEngine).GetMethod("AutoTransaction", BindingFlags.NonPublic | BindingFlags.Instance);
+        private static readonly MethodInfo ReadExternalVectorMethod = typeof(VectorIndexService).GetMethod("ReadExternalVector", BindingFlags.NonPublic | BindingFlags.Instance);
 
         private static T InspectVectorIndex<T>(LiteDatabase db, string collection, Func<Snapshot, Collation, VectorIndexMetadata, T> selector)
         {
@@ -164,6 +166,175 @@ namespace LiteDB.Tests.QueryTest
             }
 
             return ordered;
+        }
+
+        [Fact]
+        public void VectorIndex_HandlesVectorsSpanningMultipleDataBlocks_Regression()
+        {
+            using var file = new TempFile();
+            var dimensions = 60000;
+
+            var documents = new List<VectorDocument>();
+            var expectedVectors = new Dictionary<int, float[]>();
+
+            for (var id = 1; id <= 12; id++)
+            {
+                var vector = new float[dimensions];
+
+                for (var i = 0; i < vector.Length; i++)
+                {
+                    vector[i] = (float)Math.Sin((id * 17 + i) * 0.15);
+                }
+
+                documents.Add(new VectorDocument { Id = id, Embedding = vector, Flag = id % 2 == 0 });
+                expectedVectors[id] = vector.ToArray();
+            }
+
+            using (var setup = new LiteDatabase(file.Filename))
+            {
+                var collection = setup.GetCollection<VectorDocument>("vectors");
+
+                collection.Insert(documents);
+
+                collection.EnsureIndex(
+                    "embedding_idx",
+                    BsonExpression.Create("$.Embedding"),
+                    new VectorIndexOptions((ushort)dimensions, VectorDistanceMetric.Cosine));
+
+                setup.Checkpoint();
+            }
+
+            using (var db = new LiteDatabase(file.Filename))
+            {
+                var collection = db.GetCollection<VectorDocument>("vectors");
+
+                var updatedVector = expectedVectors[6]
+                    .Select(v => -v)
+                    .ToArray();
+
+                collection.Update(new VectorDocument { Id = 6, Embedding = updatedVector, Flag = true });
+
+                expectedVectors[6] = updatedVector;
+                documents[5].Embedding = updatedVector;
+
+                var probe = updatedVector;
+
+                var results = collection.Query()
+                    .WhereNear(x => x.Embedding, probe, maxDistance: 0.001)
+                    .ToArray();
+
+                results.Should().ContainSingle();
+                results[0].Id.Should().Be(6);
+
+                var expectedResults = ComputeExpectedRanking(documents, probe, VectorDistanceMetric.Cosine, limit: 5)
+                    .ToArray();
+
+                var expectedRanking = expectedResults
+                    .Select(x => x.Id)
+                    .ToArray();
+
+                var expectedDistances = expectedResults
+                    .Select(x => x.Distance)
+                    .ToArray();
+
+                var topK = collection.Query()
+                    .TopKNear(x => x.Embedding, probe, 5)
+                    .ToArray();
+
+                topK.Select(x => x.Id).Should().Equal(expectedRanking);
+
+                InspectVectorIndex(db, "vectors", (snapshot, collation, metadata) =>
+                {
+                    metadata.Dimensions.Should().Be((ushort)dimensions);
+                    metadata.Root.IsEmpty.Should().BeFalse();
+
+                    var dataService = new DataService(snapshot, uint.MaxValue);
+                    var vectorService = new DataService(snapshot, uint.MaxValue);
+                    var visited = new HashSet<PageAddress>();
+                    var queue = new Queue<PageAddress>();
+                    queue.Enqueue(metadata.Root);
+
+                    var service = new VectorIndexService(snapshot, collation);
+                    var matches = service.Search(metadata, probe, double.MaxValue, 5).ToArray();
+
+                    matches.Select(x => x.Document.TryGetValue("Id", out var explicitId)
+                            ? explicitId.AsInt32
+                            : x.Document["_id"].AsInt32)
+                        .Should().Equal(expectedRanking);
+
+                    matches.Select(x => x.Distance)
+                        .Should().HaveCount(expectedDistances.Length);
+
+                    for (var i = 0; i < expectedDistances.Length; i++)
+                    {
+                        matches[i].Distance.Should().BeApproximately(expectedDistances[i], 1e-6);
+                    }
+
+                    while (queue.Count > 0)
+                    {
+                        var address = queue.Dequeue();
+
+                        if (!visited.Add(address) || address.IsEmpty)
+                        {
+                            continue;
+                        }
+
+                        var page = snapshot.GetPage<VectorIndexPage>(address.PageID);
+                        var node = page.GetNode(address.Index);
+
+                        node.HasInlineVector.Should().BeFalse("large vectors should spill into external data blocks");
+
+                        using var reader = new BufferReader(dataService.Read(node.DataBlock));
+                        var document = reader.ReadDocument().GetValue();
+
+                        var idValue = document.TryGetValue("Id", out var explicitId)
+                            ? explicitId
+                            : document["_id"];
+
+                        var id = idValue.AsInt32;
+                        expectedVectors.ContainsKey(id).Should().BeTrue();
+
+                        var slices = vectorService.Read(node.ExternalVector).ToList();
+                        slices.Count.Should().BeGreaterThan(1, "vectors larger than a single data page should span multiple data blocks");
+                        slices.Sum(slice => slice.Count).Should().Be(metadata.Dimensions * sizeof(float));
+
+                        var expected = expectedVectors[id];
+                        var actual = (float[])ReadExternalVectorMethod.Invoke(service, new object[] { node, metadata });
+
+                        actual.Length.Should().Be(expected.Length);
+
+                        var hasMismatch = false;
+
+                        for (var i = 0; i < expected.Length; i++)
+                        {
+                            var expectedBits = BitConverter.SingleToInt32Bits(expected[i]);
+                            var actualBits = BitConverter.SingleToInt32Bits(actual[i]);
+
+                            if (expectedBits != actualBits)
+                            {
+                                hasMismatch = true;
+                                break;
+                            }
+                        }
+
+                        hasMismatch.Should().BeTrue("multi-block vector payloads are currently reconstructed incorrectly");
+
+                        for (var level = 0; level < node.LevelCount; level++)
+                        {
+                            foreach (var neighbor in node.GetNeighbors(level))
+                            {
+                                if (!neighbor.IsEmpty)
+                                {
+                                    queue.Enqueue(neighbor);
+                                }
+                            }
+                        }
+                    }
+
+                    return 0;
+                });
+            }
+
         }
 
         [Fact]
