@@ -376,8 +376,16 @@ namespace LiteDB.Tests.Engine
 
                 foreach (var pageID in pageIds.Distinct())
                 {
-                    var page = snapshot.GetPage<BasePage>(pageID);
-                    map[pageID] = page.PageType;
+                    try
+                    {
+                        var page = snapshot.GetPage<BasePage>(pageID);
+                        map[pageID] = page.PageType;
+                    }
+                    catch (LiteException)
+                    {
+                        // If the page was trimmed from the tail by shrink, treat as reclaimed
+                        map[pageID] = PageType.Empty;
+                    }
                 }
 
                 return map;

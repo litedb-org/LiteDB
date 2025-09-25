@@ -253,7 +253,24 @@ namespace LiteDB.Engine
         /// <summary>
         /// Run checkpoint command to copy log file into data file
         /// </summary>
-        public int Checkpoint() => _walIndex.Checkpoint();
+        public int Checkpoint()
+        {
+            var written = _walIndex.Checkpoint();
+
+            // After checkpoint, shrink data file if Header.LastPageID indicates a shorter tail
+            lock (_header)
+            {
+                var targetLength = ((long)_header.LastPageID + 1) * PAGE_SIZE;
+                var currentLength = _disk.GetFileLength(FileOrigin.Data);
+
+                if (targetLength >= 0 && currentLength > targetLength)
+                {
+                    _disk.SetLength(targetLength, FileOrigin.Data);
+                }
+            }
+
+            return written;
+        }
 
         public void Dispose()
         {

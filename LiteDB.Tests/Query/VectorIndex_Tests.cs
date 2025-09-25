@@ -295,7 +295,7 @@ namespace LiteDB.Tests.QueryTest
             inspection.NodeCount.Should().Be(documents.Count);
             inspection.ExternalNodes.Should().BeGreaterThan(0, "vectors large enough should be stored externally");
             inspection.MultiBlockNodes.Should().BeGreaterThan(0, "vectors should span multiple data blocks");
-            inspection.Mismatched.Should().NotBeEmpty("vector payloads spanning multiple data blocks are currently reconstructed incorrectly");
+            inspection.Mismatched.Should().BeEmpty();
 
             var target = documents[0].Embedding;
             var expectedTop = ComputeExpectedRanking(documents, target, VectorDistanceMetric.Cosine, 8);
@@ -646,7 +646,7 @@ namespace LiteDB.Tests.QueryTest
                             }
                         }
 
-                        hasMismatch.Should().BeTrue("multi-block vector payloads are currently reconstructed incorrectly");
+                        hasMismatch.Should().BeFalse();
 
                         for (var level = 0; level < node.LevelCount; level++)
                         {

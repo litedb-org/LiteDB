@@ -745,6 +745,7 @@ namespace LiteDB.Engine
             }
 
             // remove collection name (in header) at commit time
+            this.TryShrinkDeletedTail();
             _transPages.Commit += (h) => h.DeleteCollection(_collectionName);
         }
 
@@ -753,6 +754,94 @@ namespace LiteDB.Engine
         public override string ToString()
         {
             return $"{_collectionName} (pages: {_localPages.Count})";
+        }
+
+        private void TryShrinkDeletedTail()
+        {
+            if (_transPages.FirstDeletedPageID == uint.MaxValue)
+            {
+                return;
+            }
+
+            var deletedOrder = new List<uint>();
+            var deletedSet = new HashSet<uint>();
+            var current = _transPages.FirstDeletedPageID;
+
+            while (current != uint.MaxValue)
+            {
+                if (!deletedSet.Add(current))
+                {
+                    break;
+                }
+
+                deletedOrder.Add(current);
+
+                var page = current == _collectionPage.PageID
+                    ? (BasePage)_collectionPage
+                    : this.GetPage<BasePage>(current);
+                current = page.NextPageID;
+            }
+
+            if (deletedOrder.Count == 0)
+            {
+                return;
+            }
+
+            var shrinkTarget = _header.LastPageID;
+
+            while (shrinkTarget > 0 && deletedSet.Contains(shrinkTarget))
+            {
+                deletedSet.Remove(shrinkTarget);
+                shrinkTarget--;
+            }
+
+            if (shrinkTarget == _header.LastPageID)
+            {
+                return;
+            }
+
+            var keptOrder = new List<uint>();
+
+            foreach (var pageID in deletedOrder)
+            {
+                if (pageID <= shrinkTarget)
+                {
+                    keptOrder.Add(pageID);
+                }
+            }
+
+            if (keptOrder.Count == 0)
+            {
+                _transPages.FirstDeletedPageID = uint.MaxValue;
+                _transPages.LastDeletedPageID = uint.MaxValue;
+                _transPages.DeletedPages = 0;
+            }
+            else
+            {
+                for (var i = 0; i < keptOrder.Count; i++)
+                {
+                    var pageID = keptOrder[i];
+                    var nextID = i + 1 < keptOrder.Count ? keptOrder[i + 1] : uint.MaxValue;
+                    var page = pageID == _collectionPage.PageID
+                        ? (BasePage)_collectionPage
+                        : this.GetPage<BasePage>(pageID);
+                    page.NextPageID = nextID;
+                    page.IsDirty = true;
+                }
+
+                _transPages.FirstDeletedPageID = keptOrder[0];
+                _transPages.LastDeletedPageID = keptOrder[keptOrder.Count - 1];
+                _transPages.DeletedPages = keptOrder.Count;
+            }
+
+            var newLastPageID = shrinkTarget;
+
+            _transPages.Commit += (header) =>
+            {
+                header.LastPageID = newLastPageID;
+                var newLength = ((long)newLastPageID + 1) * PAGE_SIZE;
+                _disk.SetLength(newLength, FileOrigin.Data);
+            };
         }
     }
 }

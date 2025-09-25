@@ -174,6 +174,8 @@ namespace LiteDB.Engine
         {
             this.ClearTree(metadata);
 
+            this.ReleaseReservedPages(metadata);
+
             metadata.Root = PageAddress.Empty;
             metadata.Reserved = uint.MaxValue;
             _snapshot.CollectionPage.IsDirty = true;
@@ -609,6 +611,17 @@ namespace LiteDB.Engine
 
                 var node = this.GetNode(address);
 
+                // Also traverse all nodes on the same page to ensure complete coverage
+                var page = node.Page;
+                foreach (var pageNode in page.GetNodes())
+                {
+                    var position = pageNode.Position;
+                    if (!visited.Contains(position))
+                    {
+                        stack.Push(position);
+                    }
+                }
+
                 for (var level = 0; level < node.LevelCount; level++)
                 {
                     foreach (var neighbor in node.GetNeighbors(level))
@@ -622,6 +635,36 @@ namespace LiteDB.Engine
 
                 this.ReleaseNode(metadata, node);
             }
+        }
+
+        private void ReleaseReservedPages(VectorIndexMetadata metadata)
+        {
+            var current = metadata.Reserved;
+
+            // Detach metadata from reserved list during processing
+            metadata.Reserved = uint.MaxValue;
+
+            var freeList = uint.MaxValue;
+
+            while (current != uint.MaxValue)
+            {
+                var page = _snapshot.GetPage<VectorIndexPage>(current);
+                var next = page.NextPageID;
+
+                // Release any remaining vector payloads from nodes on this page
+                var nodes = page.GetNodes().ToList();
+                foreach (var node in nodes)
+                {
+                    this.ReleaseVectorData(node);
+                    page.DeleteNode(node.Position.Index);
+                }
+
+                _snapshot.AddOrRemoveFreeVectorList(page, ref freeList);
+
+                current = next;
+            }
+
+            metadata.Reserved = freeList;
         }
 
         private void ReleaseNode(VectorIndexMetadata metadata, VectorIndexNode node)

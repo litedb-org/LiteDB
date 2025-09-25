@@ -52,11 +52,18 @@ namespace LiteDB
         {
             get
             {
-                return this.RawValue.GetOrDefault(key, BsonValue.Null);
+                var normalized = NormalizeKey(key);
+
+                if (this.RawValue.TryGetValue(normalized, out var value))
+                {
+                    return value;
+                }
+
+                return BsonValue.Null;
             }
             set
             {
-                this.RawValue[key] = value ?? BsonValue.Null;
+                this.RawValue[NormalizeKey(key)] = value ?? BsonValue.Null;
             }
         }
 
@@ -102,7 +109,7 @@ namespace LiteDB
 
         public bool IsReadOnly => false;
 
-        public bool ContainsKey(string key) => this.RawValue.ContainsKey(key);
+        public bool ContainsKey(string key) => this.RawValue.ContainsKey(NormalizeKey(key));
 
         /// <summary>
         /// Get all document elements - Return "_id" as first of all (if exists)
@@ -120,13 +127,13 @@ namespace LiteDB
             }
         }
 
-        public void Add(string key, BsonValue value) => this.RawValue.Add(key, value ?? BsonValue.Null);
+        public void Add(string key, BsonValue value) => this.RawValue.Add(NormalizeKey(key), value ?? BsonValue.Null);
 
-        public bool Remove(string key) => this.RawValue.Remove(key);
+        public bool Remove(string key) => this.RawValue.Remove(NormalizeKey(key));
 
         public void Clear() => this.RawValue.Clear();
 
-        public bool TryGetValue(string key, out BsonValue value) => this.RawValue.TryGetValue(key, out value);
+        public bool TryGetValue(string key, out BsonValue value) => this.RawValue.TryGetValue(NormalizeKey(key), out value);
 
         public void Add(KeyValuePair<string, BsonValue> item) => this.Add(item.Key, item.Value);
 
@@ -152,6 +159,21 @@ namespace LiteDB
         }
 
         #endregion
+
+        private static string NormalizeKey(string key)
+        {
+            if (key == null)
+            {
+                throw new ArgumentNullException(nameof(key));
+            }
+
+            if (string.Equals(key, "Id", StringComparison.OrdinalIgnoreCase))
+            {
+                return "_id";
+            }
+
+            return key;
+        }
 
         private int _length = 0;
 
