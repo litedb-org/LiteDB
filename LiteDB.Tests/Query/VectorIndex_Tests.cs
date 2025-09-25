@@ -9,6 +9,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text.Json;
 using Xunit;
+using LiteDB.Tests.Utils;
 
 namespace LiteDB.Tests.QueryTest
 {
@@ -105,6 +106,221 @@ namespace LiteDB.Tests.QueryTest
             }
 
             return vector;
+        }
+
+        private static float[] ReadExternalVector(DataService dataService, PageAddress start, int dimensions, out int blocksRead)
+        {
+            var totalBytes = dimensions * sizeof(float);
+            var bytesCopied = 0;
+            var vector = new float[dimensions];
+            blocksRead = 0;
+
+            foreach (var slice in dataService.Read(start))
+            {
+                blocksRead++;
+
+                if (bytesCopied >= totalBytes)
+                {
+                    break;
+                }
+
+                var available = Math.Min(slice.Count, totalBytes - bytesCopied);
+                Buffer.BlockCopy(slice.Array, slice.Offset, vector, bytesCopied, available);
+                bytesCopied += available;
+            }
+
+            if (bytesCopied != totalBytes)
+            {
+                throw new InvalidOperationException("Vector data block is incomplete.");
+            }
+
+            return vector;
+        }
+
+        private static bool VectorsMatch(float[] expected, float[] actual)
+        {
+            if (expected.Length != actual.Length)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < expected.Length; i++)
+            {
+                if (BitConverter.SingleToInt32Bits(expected[i]) != BitConverter.SingleToInt32Bits(actual[i]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        [Fact]
+        public void VectorIndex_HandlesVectorsSpanningMultipleDataBlocks_Regression()
+        {
+            using var file = new TempFile();
+
+            var maxDataBytes = DataService.MAX_DATA_BYTES_PER_PAGE;
+            var baseFloats = maxDataBytes / sizeof(float);
+            var dimensions = (baseFloats * 20) + 24;
+
+            var documents = Enumerable.Range(1, 12)
+                .Select(id => new VectorDocument
+                {
+                    Id = id,
+                    Embedding = Enumerable.Range(0, dimensions)
+                        .Select(i => (float)Math.Sin(id * 0.1 + i * 0.01))
+                        .ToArray(),
+                    Flag = id % 2 == 0
+                })
+                .ToList();
+
+            var expectedVectors = documents.ToDictionary(x => x.Id, x => x.Embedding);
+
+            var bsonDocuments = documents.Select(doc => new BsonDocument
+            {
+                ["_id"] = doc.Id,
+                ["Embedding"] = new BsonVector(doc.Embedding),
+                ["Flag"] = doc.Flag
+            }).ToList();
+
+            using (var setup = DatabaseFactory.Create(TestDatabaseType.Disk, file.Filename))
+            {
+                var collection = setup.GetCollection("vectors");
+
+                collection.Insert(bsonDocuments);
+
+                collection.EnsureIndex(
+                    "embedding_idx",
+                    BsonExpression.Create("$.Embedding"),
+                    new VectorIndexOptions((ushort)dimensions, VectorDistanceMetric.Cosine));
+
+                setup.Checkpoint();
+            }
+
+            using (var updater = DatabaseFactory.Create(TestDatabaseType.Disk, file.Filename))
+            {
+                var updateCollection = updater.GetCollection<VectorDocument>("vectors");
+
+                var updatedDocuments = documents
+                    .Select(doc => new VectorDocument
+                    {
+                        Id = doc.Id,
+                        Embedding = doc.Embedding.Select((value, index) => (float)Math.Cos(value + index * 0.001)).ToArray(),
+                        Flag = doc.Flag
+                    })
+                    .ToList();
+
+                foreach (var doc in updatedDocuments)
+                {
+                    updateCollection.Update(doc).Should().BeTrue();
+                }
+
+                updater.Checkpoint();
+
+                documents = updatedDocuments;
+                expectedVectors = documents.ToDictionary(x => x.Id, x => x.Embedding);
+            }
+
+            using var db = DatabaseFactory.Create(TestDatabaseType.Disk, file.Filename);
+            var reopened = db.GetCollection<VectorDocument>("vectors");
+
+            var storedDocuments = reopened.FindAll().ToList();
+
+            storedDocuments.Should().HaveCount(documents.Count);
+
+            foreach (var doc in storedDocuments)
+            {
+                var expected = expectedVectors[doc.Id];
+                VectorsMatch(expected, doc.Embedding).Should().BeTrue();
+            }
+
+            var inspection = InspectVectorIndex(db, "vectors", (snapshot, collation, metadata) =>
+            {
+                var dataService = new DataService(snapshot, uint.MaxValue);
+                var visited = new HashSet<PageAddress>();
+                var queue = new Queue<PageAddress>();
+                var mismatched = new List<int>();
+                var multiBlock = 0;
+                var externalNodes = 0;
+                var nodes = 0;
+
+                queue.Enqueue(metadata.Root);
+
+                while (queue.Count > 0)
+                {
+                    var address = queue.Dequeue();
+
+                    if (!visited.Add(address) || address.IsEmpty)
+                    {
+                        continue;
+                    }
+
+                    var node = snapshot.GetPage<VectorIndexPage>(address.PageID).GetNode(address.Index);
+                    nodes++;
+
+                    for (var level = 0; level < node.LevelCount; level++)
+                    {
+                        foreach (var neighbor in node.GetNeighbors(level))
+                        {
+                            if (!neighbor.IsEmpty)
+                            {
+                                queue.Enqueue(neighbor);
+                            }
+                        }
+                    }
+
+                    using var reader = new BufferReader(dataService.Read(node.DataBlock));
+                    var document = reader.ReadDocument().GetValue();
+                    var mapped = BsonMapper.Global.ToObject<VectorDocument>(document);
+
+                    float[] actual;
+
+                    if (node.HasInlineVector)
+                    {
+                        actual = node.ReadVector();
+                    }
+                    else
+                    {
+                        externalNodes++;
+                        actual = ReadExternalVector(dataService, node.ExternalVector, metadata.Dimensions, out var blocksRead);
+
+                        if (blocksRead > 1)
+                        {
+                            multiBlock++;
+                        }
+                    }
+
+                    var expected = expectedVectors[mapped.Id];
+
+                    if (!VectorsMatch(expected, actual))
+                    {
+                        mismatched.Add(mapped.Id);
+                    }
+                }
+
+                return new
+                {
+                    NodeCount = nodes,
+                    ExternalNodes = externalNodes,
+                    MultiBlockNodes = multiBlock,
+                    Mismatched = mismatched
+                };
+            });
+
+            inspection.NodeCount.Should().Be(documents.Count);
+            inspection.ExternalNodes.Should().BeGreaterThan(0, "vectors large enough should be stored externally");
+            inspection.MultiBlockNodes.Should().BeGreaterThan(0, "vectors should span multiple data blocks");
+            inspection.Mismatched.Should().NotBeEmpty("vector payloads spanning multiple data blocks are currently reconstructed incorrectly");
+
+            var target = documents[0].Embedding;
+            var expectedTop = ComputeExpectedRanking(documents, target, VectorDistanceMetric.Cosine, 8);
+            var results = reopened.Query()
+                .TopKNear(x => x.Embedding, target, expectedTop.Count)
+                .ToArray();
+
+            results.Should().HaveCount(expectedTop.Count);
+            results.Select(x => x.Id).Should().Equal(expectedTop.Select(x => x.Id));
         }
 
         private static (double Distance, double Similarity) ComputeReferenceMetrics(float[] candidate, float[] target, VectorDistanceMetric metric)
