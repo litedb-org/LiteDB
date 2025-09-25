@@ -664,7 +664,8 @@ namespace LiteDB.Engine
             ENSURE(!_disposed, "the snapshot is disposed");
 
             var indexer = new IndexService(this, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
-
+            VectorIndexService vectorIndexer = null;
+            
             // CollectionPage will be last deleted page (there is no NextPageID from CollectionPage)
             _transPages.FirstDeletedPageID = _collectionPage.PageID;
             _transPages.LastDeletedPageID = _collectionPage.PageID;
@@ -679,6 +680,11 @@ namespace LiteDB.Engine
             // getting all indexes pages from all indexes
             foreach(var index in _collectionPage.GetCollectionIndexes())
             {
+                if (index.IndexType == 1)
+                {
+                    continue;
+                }
+                
                 // add head/tail (same page) to be deleted
                 indexPages.Add(index.Head.PageID);
 
@@ -688,6 +694,15 @@ namespace LiteDB.Engine
 
                     safePoint();
                 }
+            }
+            
+            
+            foreach (var (_, metadata) in _collectionPage.GetVectorIndexes())
+            {
+                vectorIndexer ??= new VectorIndexService(this, _header.Pragmas.Collation);
+                vectorIndexer.Drop(metadata);
+
+                safePoint();
             }
 
             // now, mark all pages as deleted
