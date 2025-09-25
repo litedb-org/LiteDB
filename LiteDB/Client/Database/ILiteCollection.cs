@@ -102,6 +102,7 @@ namespace LiteDB
         /// <param name="expression">Create a custom expression function to be indexed</param>
         /// <param name="unique">If is a unique index</param>
         bool EnsureIndex(string name, BsonExpression expression, bool unique = false);
+        bool EnsureIndex(string name, BsonExpression expression, VectorIndexOptions options);
 
         /// <summary>
         /// Create a new permanent index in all documents inside this collections if index not exists already. Returns true if index was created or false if already exits
@@ -109,6 +110,7 @@ namespace LiteDB
         /// <param name="expression">Document field/expression</param>
         /// <param name="unique">If is a unique index</param>
         bool EnsureIndex(BsonExpression expression, bool unique = false);
+        bool EnsureIndex(BsonExpression expression, VectorIndexOptions options);
 
         /// <summary>
         /// Create a new permanent index in all documents inside this collections if index not exists already.
@@ -116,6 +118,7 @@ namespace LiteDB
         /// <param name="keySelector">LinqExpression to be converted into BsonExpression to be indexed</param>
         /// <param name="unique">Create a unique keys index?</param>
         bool EnsureIndex<K>(Expression<Func<T, K>> keySelector, bool unique = false);
+        bool EnsureIndex<K>(Expression<Func<T, K>> keySelector, VectorIndexOptions options);
 
         /// <summary>
         /// Create a new permanent index in all documents inside this collections if index not exists already.
@@ -124,6 +127,7 @@ namespace LiteDB
         /// <param name="keySelector">LinqExpression to be converted into BsonExpression to be indexed</param>
         /// <param name="unique">Create a unique keys index?</param>
         bool EnsureIndex<K>(string name, Expression<Func<T, K>> keySelector, bool unique = false);
+        bool EnsureIndex<K>(string name, Expression<Func<T, K>> keySelector, VectorIndexOptions options);
 
         /// <summary>
         /// Drop index and release slot for another index

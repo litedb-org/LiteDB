@@ -7,7 +7,7 @@ using static LiteDB.Constants;
 
 namespace LiteDB.Engine
 {
-    internal enum PageType { Empty = 0, Header = 1, Collection = 2, Index = 3, Data = 4 }
+    internal enum PageType { Empty = 0, Header = 1, Collection = 2, Index = 3, Data = 4, VectorIndex = 5 }
 
     internal class BasePage
     {
@@ -738,6 +738,7 @@ namespace LiteDB.Engine
             if (typeof(T) == typeof(HeaderPage)) return (T)(object)new HeaderPage(buffer);
             if (typeof(T) == typeof(CollectionPage)) return (T)(object)new CollectionPage(buffer);
             if (typeof(T) == typeof(IndexPage)) return (T)(object)new IndexPage(buffer);
+            if (typeof(T) == typeof(VectorIndexPage)) return (T)(object)new VectorIndexPage(buffer);
             if (typeof(T) == typeof(DataPage)) return (T)(object)new DataPage(buffer);
 
             throw new InvalidCastException();
@@ -751,6 +752,7 @@ namespace LiteDB.Engine
         {
             if (typeof(T) == typeof(CollectionPage)) return (T)(object)new CollectionPage(buffer, pageID);
             if (typeof(T) == typeof(IndexPage)) return (T)(object)new IndexPage(buffer, pageID);
+            if (typeof(T) == typeof(VectorIndexPage)) return (T)(object)new VectorIndexPage(buffer, pageID);
             if (typeof(T) == typeof(DataPage)) return (T)(object)new DataPage(buffer, pageID);
 
             throw new InvalidCastException();

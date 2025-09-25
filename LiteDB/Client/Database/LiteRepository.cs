@@ -173,6 +173,11 @@ namespace LiteDB
             return _db.GetCollection<T>(collectionName).EnsureIndex(name, expression, unique);
         }
 
+        public bool EnsureIndex<T>(string name, BsonExpression expression, VectorIndexOptions options, string collectionName = null)
+        {
+            return _db.GetCollection<T>(collectionName).EnsureIndex(name, expression, options);
+        }
+
         /// <summary>
         /// Create a new permanent index in all documents inside this collections if index not exists already. Returns true if index was created or false if already exits
         /// </summary>
@@ -182,6 +187,11 @@ namespace LiteDB
         public bool EnsureIndex<T>(BsonExpression expression, bool unique = false, string collectionName = null)
         {
             return _db.GetCollection<T>(collectionName).EnsureIndex(expression, unique);
+        }
+
+        public bool EnsureIndex<T>(BsonExpression expression, VectorIndexOptions options, string collectionName = null)
+        {
+            return _db.GetCollection<T>(collectionName).EnsureIndex(expression, options);
         }
 
         /// <summary>
@@ -195,6 +205,11 @@ namespace LiteDB
             return _db.GetCollection<T>(collectionName).EnsureIndex(keySelector, unique);
         }
 
+        public bool EnsureIndex<T, K>(Expression<Func<T, K>> keySelector, VectorIndexOptions options, string collectionName = null)
+        {
+            return _db.GetCollection<T>(collectionName).EnsureIndex(keySelector, options);
+        }
+
         /// <summary>
         /// Create a new permanent index in all documents inside this collections if index not exists already.
         /// </summary>
@@ -205,6 +220,11 @@ namespace LiteDB
         public bool EnsureIndex<T, K>(string name, Expression<Func<T, K>> keySelector, bool unique = false, string collectionName = null)
         {
             return _db.GetCollection<T>(collectionName).EnsureIndex(name, keySelector, unique);
+        }
+
+        public bool EnsureIndex<T, K>(string name, Expression<Func<T, K>> keySelector, VectorIndexOptions options, string collectionName = null)
+        {
+            return _db.GetCollection<T>(collectionName).EnsureIndex(name, keySelector, options);
         }
 
         #endregion

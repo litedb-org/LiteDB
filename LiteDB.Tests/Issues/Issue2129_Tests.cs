@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using LiteDB.Tests.Utils;
 using Xunit;
 
 namespace LiteDB.Tests.Issues
@@ -10,7 +11,7 @@ namespace LiteDB.Tests.Issues
         [Fact]
         public void TestInsertAfterDeleteAll()
         {
-            var db = new LiteDatabase(":memory:");
+            using var db = DatabaseFactory.Create();
             var col = db.GetCollection<SwapChance>(nameof(SwapChance));
             col.EnsureIndex(x => x.Accounts1to2);
             col.EnsureIndex(x => x.Accounts2to1);

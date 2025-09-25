@@ -3,6 +3,7 @@ using System;
 using System.IO;
 using System.Text;
 using System.Threading;
+using LiteDB.Tests.Utils;
 
 namespace LiteDB.Tests.Issues
 {
@@ -81,7 +82,7 @@ namespace LiteDB.Tests.Issues
                     Connection = ConnectionType.Direct
                 };
 
-                _liteDb = new LiteDatabase(connectionString);
+                _liteDb = DatabaseFactory.Create(TestDatabaseType.Disk, connectionString.ToString());
             }
 
             public void Insert(ExampleItem item)

@@ -1,4 +1,5 @@
 ﻿using FluentAssertions;
+using LiteDB.Tests.Utils;
 using Xunit;
 
 namespace LiteDB.Tests.Issues;
@@ -15,7 +16,7 @@ public class Issue2570_Tests
     [Fact]
     public void Issue2570_Tuples()
     {
-        using (var db = new LiteDatabase(":memory:"))
+        using (var db = DatabaseFactory.Create())
         {
             var col = db.GetCollection<Person>("Person");
 
@@ -46,7 +47,7 @@ public class Issue2570_Tests
     [Fact]
     public void Issue2570_Structs()
     {
-        using (var db = new LiteDatabase(":memory:"))
+        using (var db = DatabaseFactory.Create())
         {
             var col = db.GetCollection<PersonWithStruct>("Person");
 

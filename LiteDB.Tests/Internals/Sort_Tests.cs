@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
@@ -24,7 +24,7 @@ namespace LiteDB.Internals
             pragmas.Set(Pragmas.COLLATION, Collation.Binary.ToString(), false);
 
             using (var tempDisk = new SortDisk(_factory, 10 * 8192, pragmas))
-            using (var s = new SortService(tempDisk, Query.Ascending, pragmas))
+            using (var s = new SortService(tempDisk, new[] { Query.Ascending }, pragmas))
             {
                 s.Insert(source);
 
@@ -43,25 +43,24 @@ namespace LiteDB.Internals
         [Fact]
         public void Sort_Int_Desc()
         {
-            var rnd = new Random();
-            var source = Enumerable.Range(0, 20000)
-                .Select(x => new KeyValuePair<BsonValue, PageAddress>(rnd.Next(1, 30000), PageAddress.Empty))
+            var source = Enumerable.Range(0, 900)
+                .Select(x => (x * 37) % 1000)
+                .Select(x => new KeyValuePair<BsonValue, PageAddress>(x, PageAddress.Empty))
                 .ToArray();
 
             var pragmas = new EnginePragmas(null);
             pragmas.Set(Pragmas.COLLATION, Collation.Binary.ToString(), false);
 
-            using (var tempDisk = new SortDisk(_factory, 10 * 8192, pragmas))
-            using (var s = new SortService(tempDisk, Query.Descending, pragmas))
+            using (var tempDisk = new SortDisk(_factory, 8192, pragmas))
+            using (var s = new SortService(tempDisk, [Query.Descending], pragmas))
             {
                 s.Insert(source);
 
-                s.Count.Should().Be(20000);
-                s.Containers.Count.Should().Be(3);
+                s.Count.Should().Be(900);
+                s.Containers.Count.Should().Be(2);
 
-                s.Containers.ElementAt(0).Count.Should().Be(8192);
-                s.Containers.ElementAt(1).Count.Should().Be(8192);
-                s.Containers.ElementAt(2).Count.Should().Be(3616);
+                s.Containers.ElementAt(0).Count.Should().Be(819);
+                s.Containers.ElementAt(1).Count.Should().Be(81);
 
                 var output = s.Sort().ToArray();
 

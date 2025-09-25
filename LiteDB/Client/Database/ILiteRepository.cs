@@ -69,6 +69,7 @@ namespace LiteDB
         /// <param name="unique">If is a unique index</param>
         /// <param name="collectionName">Collection Name</param>
         bool EnsureIndex<T>(string name, BsonExpression expression, bool unique = false, string collectionName = null);
+        bool EnsureIndex<T>(string name, BsonExpression expression, VectorIndexOptions options, string collectionName = null);
 
         /// <summary>
         /// Create a new permanent index in all documents inside this collections if index not exists already. Returns true if index was created or false if already exits
@@ -77,6 +78,7 @@ namespace LiteDB
         /// <param name="unique">If is a unique index</param>
         /// <param name="collectionName">Collection Name</param>
         bool EnsureIndex<T>(BsonExpression expression, bool unique = false, string collectionName = null);
+        bool EnsureIndex<T>(BsonExpression expression, VectorIndexOptions options, string collectionName = null);
 
         /// <summary>
         /// Create a new permanent index in all documents inside this collections if index not exists already.
@@ -85,6 +87,7 @@ namespace LiteDB
         /// <param name="unique">Create a unique keys index?</param>
         /// <param name="collectionName">Collection Name</param>
         bool EnsureIndex<T, K>(Expression<Func<T, K>> keySelector, bool unique = false, string collectionName = null);
+        bool EnsureIndex<T, K>(Expression<Func<T, K>> keySelector, VectorIndexOptions options, string collectionName = null);
 
         /// <summary>
         /// Create a new permanent index in all documents inside this collections if index not exists already.
@@ -94,6 +97,7 @@ namespace LiteDB
         /// <param name="unique">Create a unique keys index?</param>
         /// <param name="collectionName">Collection Name</param>
         bool EnsureIndex<T, K>(string name, Expression<Func<T, K>> keySelector, bool unique = false, string collectionName = null);
+        bool EnsureIndex<T, K>(string name, Expression<Func<T, K>> keySelector, VectorIndexOptions options, string collectionName = null);
 
         /// <summary>
         /// Search for a single instance of T by Id. Shortcut from Query.SingleById

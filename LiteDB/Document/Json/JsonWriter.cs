@@ -116,6 +116,12 @@ namespace LiteDB
                 case BsonType.MaxValue:
                     this.WriteExtendDataType("$maxValue", "1");
                     break;
+
+                case BsonType.Vector:
+                    var vector = value.AsVector;
+                    var array = new BsonArray(vector.Select(x => (BsonValue)x));
+                    this.WriteArray(array);
+                    break;
             }
         }
 
