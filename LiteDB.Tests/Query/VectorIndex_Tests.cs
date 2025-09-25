@@ -9,6 +9,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text.Json;
 using Xunit;
+using LiteDB.Tests.Utils;
 
 namespace LiteDB.Tests.QueryTest
 {
@@ -164,6 +165,136 @@ namespace LiteDB.Tests.QueryTest
             }
 
             return ordered;
+        }
+
+        [Fact]
+        public void VectorIndex_HandlesVectorsSpanningMultipleDataBlocks_Regression()
+        {
+            using var tempFile = new TempFile();
+            using var db = new LiteDatabase(tempFile.Filename);
+            var collection = db.GetCollection<VectorDocument>("vectors");
+
+            var dimensions = (DataService.MAX_DATA_BYTES_PER_PAGE / sizeof(float)) + 128;
+            var documents = Enumerable.Range(0, 12)
+                .Select(i => new VectorDocument
+                {
+                    Id = i + 1,
+                    Embedding = Enumerable.Range(0, dimensions)
+                        .Select(component => (float)Math.Sin((i + 1) * (component + 1) * 0.0009765625d))
+                        .ToArray(),
+                    Flag = (i & 1) == 0
+                })
+                .ToList();
+
+            collection.Insert(documents);
+
+            collection.EnsureIndex(
+                "embedding_idx",
+                BsonExpression.Create("$.Embedding"),
+                new VectorIndexOptions((ushort)dimensions, VectorDistanceMetric.Cosine));
+
+            var target = documents[3].Embedding;
+            var matches = collection
+                .Query()
+                .WhereNear(x => x.Embedding, target, double.MaxValue)
+                .ToList();
+
+            matches.Should().NotBeEmpty();
+            matches[0].Id.Should().Be(documents[3].Id);
+            matches[0].Embedding.Length.Should().Be(dimensions);
+
+            var expectedVectors = documents.ToDictionary(x => x.Id, x => x.Embedding);
+
+            var observedVectors = InspectVectorIndex(
+                db,
+                "vectors",
+                (snapshot, collation, metadata) =>
+                {
+                    var dataService = new DataService(snapshot, uint.MaxValue);
+                    var visited = new HashSet<PageAddress>();
+                    var queue = new Queue<PageAddress>();
+
+                    if (!metadata.Root.IsEmpty)
+                    {
+                        queue.Enqueue(metadata.Root);
+                    }
+
+                    var vectors = new Dictionary<int, (bool Inline, float[] Vector)>();
+
+                    while (queue.Count > 0)
+                    {
+                        var address = queue.Dequeue();
+                        if (!visited.Add(address))
+                        {
+                            continue;
+                        }
+
+                        var node = snapshot.GetPage<VectorIndexPage>(address.PageID).GetNode(address.Index);
+
+                        using var reader = new BufferReader(dataService.Read(node.DataBlock));
+                        var document = reader.ReadDocument().GetValue();
+                        var id = document["Id"].AsInt32;
+
+                        float[] vector;
+
+                        if (node.HasInlineVector)
+                        {
+                            vector = node.ReadVector();
+                        }
+                        else
+                        {
+                            vector = new float[metadata.Dimensions];
+                            var totalBytes = vector.Length * sizeof(float);
+                            var bytesCopied = 0;
+
+                            foreach (var slice in dataService.Read(node.ExternalVector))
+                            {
+                                var chunk = Math.Min(slice.Count, totalBytes - bytesCopied);
+                                Buffer.BlockCopy(slice.Array, slice.Offset, vector, bytesCopied, chunk);
+                                bytesCopied += chunk;
+
+                                if (bytesCopied >= totalBytes)
+                                {
+                                    break;
+                                }
+                            }
+
+                            bytesCopied.Should().Be(totalBytes, "external vectors should span the expected number of bytes");
+                        }
+
+                        vectors[id] = (node.HasInlineVector, vector);
+
+                        for (var level = 0; level < node.LevelCount; level++)
+                        {
+                            foreach (var neighbor in node.GetNeighbors(level))
+                            {
+                                if (!neighbor.IsEmpty)
+                                {
+                                    queue.Enqueue(neighbor);
+                                }
+                            }
+                        }
+                    }
+
+                    return vectors;
+                });
+
+            observedVectors.Should().NotBeNull();
+            observedVectors.Should().NotBeEmpty();
+            observedVectors.Values.Any(v => !v.Inline).Should().BeTrue("large vectors should spill to external data blocks");
+            observedVectors.Keys.Should().BeEquivalentTo(expectedVectors.Keys);
+
+            foreach (var pair in observedVectors)
+            {
+                var expectedVector = expectedVectors[pair.Key];
+                var storedVector = pair.Value.Vector;
+
+                storedVector.Length.Should().Be(expectedVector.Length);
+                storedVector
+                    .Select(BitConverter.SingleToInt32Bits)
+                    .Should()
+                    .Equal(expectedVector.Select(BitConverter.SingleToInt32Bits));
+            }
         }
 
         [Fact]
