@@ -34,6 +34,9 @@ namespace LiteDB.Engine
             int[] memorySegmentSizes)
         {
             _cache = new MemoryCache(memorySegmentSizes);
+            // TODO: Add engine parameter to configure cache profile selection
+            _cache.ApplyProfile(MemoryCache.CacheProfile.Desktop);
+
             _state = state;
 
 

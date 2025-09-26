@@ -40,6 +40,27 @@ namespace LiteDB.Engine
         /// Get memory segment sizes
         /// </summary>
         private readonly int[] _segmentSizes;
+        
+        // On-demand cleanup system to prevent memory leaks
+        private readonly SemaphoreSlim _cleanLock = new SemaphoreSlim(1, 1); // Non-reentrant cleanup lock
+        private DateTime _lastCleanupRunUtc = DateTime.MinValue; // Last cleanup execution time
+        private volatile bool _cleanupSignal; // Signal to trigger cleanup
+
+        // Conservative library defaults
+        private const int DEFAULT_MAX_FREE_PAGES = 200;
+        private static readonly TimeSpan DEFAULT_IDLE = TimeSpan.FromSeconds(60);
+        private static readonly TimeSpan DEFAULT_INT = TimeSpan.FromSeconds(30);
+        private const int DEFAULT_BATCH = 128;
+        private const int OPS_CLEANUP_STEP = 256; // Trigger cleanup every N operations
+
+        // Instance-level overrides for tuning
+        private volatile int _maxFreePages = DEFAULT_MAX_FREE_PAGES;
+        private TimeSpan _idleBeforeEvict = DEFAULT_IDLE;
+        private TimeSpan _minCleanupInterval = DEFAULT_INT;
+        private volatile int _cleanupBatchSize = DEFAULT_BATCH;
+        private int _opsSinceLastCleanup; // Operations counter for periodic cleanup
+
+        public enum CacheProfile { Mobile, Desktop, Server }
 
         public MemoryCache(int[] memorySegmentSizes)
         {
@@ -78,6 +99,12 @@ namespace LiteDB.Engine
 
             // increment share counter
             Interlocked.Increment(ref page.ShareCounter);
+
+            // Periodic cleanup trigger
+            if ((Interlocked.Increment(ref _opsSinceLastCleanup) & (OPS_CLEANUP_STEP - 1)) == 0)
+            {
+                TryCleanupOnDemand();
+            }
 
             return page;
         }
@@ -134,7 +161,9 @@ namespace LiteDB.Engine
         /// </summary>
         public PageBuffer NewPage()
         {
-            return this.NewPage(long.MaxValue, FileOrigin.None);
+            var page = this.NewPage(long.MaxValue, FileOrigin.None);
+
+            return page;
         }
 
         /// <summary>
@@ -256,7 +285,10 @@ namespace LiteDB.Engine
             //  or will be overwritten by ReadPage
 
             // added into free list
+            page.Timestamp = DateTime.UtcNow.Ticks; // PR-1 mark freed time
             _free.Enqueue(page);
+            if (_free.Count > _maxFreePages) _cleanupSignal = true;
+            TryCleanupOnDemand(force: _free.Count > _maxFreePages);
         }
 
         #endregion
@@ -339,7 +371,9 @@ namespace LiteDB.Engine
                         page.Position = long.MaxValue;
                         page.Origin = FileOrigin.None;
 
+                        page.Timestamp = DateTime.UtcNow.Ticks;
                         _free.Enqueue(page);
+                        if (_free.Count > _maxFreePages) _cleanupSignal = true;
                     }
                 }
 
@@ -401,28 +435,186 @@ namespace LiteDB.Engine
         public int Clear()
         {
             var counter = 0;
+            var now = DateTime.UtcNow;
+            var overCap = false;
 
             ENSURE(this.PagesInUse == 0, "must have no pages in use when call Clear() cache");
 
-            foreach (var page in _readable.Values)
+            // Thread-safe enumeration of ConcurrentDictionary
+            foreach (var kv in _readable)
             {
-                page.Position = long.MaxValue;
-                page.Origin = FileOrigin.None;
+                if (_readable.TryRemove(kv.Key, out var page))
+                {
+                    // Reset page controls
+                    page.Position = long.MaxValue;
+                    page.Origin = FileOrigin.None;
 
-                _free.Enqueue(page);
+                    // Mark as "freed at" for idle policy
+                    page.Timestamp = now.Ticks;
 
-                counter++;
+                    _free.Enqueue(page);
+                    counter++;
+
+                    // Check if we exceed free pages limit
+                    if (_free.Count > _maxFreePages)
+                        overCap = true;
+                }
             }
 
-            _readable.Clear();
+            // Trigger cleanup if needed (outside any locks)
+            if (overCap)
+            {
+                _cleanupSignal = true;
+                TryCleanupOnDemand(force: true);
+            }
 
             return counter;
         }
 
         #endregion
 
+        #region Memory Cleanup & Tuning
+
+        /// <summary>
+        /// Apply predefined cache tuning profiles for different environments
+        /// </summary>
+        public void ApplyProfile(CacheProfile profile)
+        {
+            switch (profile)
+            {
+                case CacheProfile.Mobile:
+                    // Low-RAM / mobile devices - aggressive cleanup
+                    _maxFreePages = 100;
+                    _idleBeforeEvict = TimeSpan.FromSeconds(25);
+                    _minCleanupInterval = TimeSpan.FromSeconds(2);
+                    _cleanupBatchSize = 96;
+                    break;
+
+                case CacheProfile.Desktop:
+                    // Balanced defaults
+                    _maxFreePages = DEFAULT_MAX_FREE_PAGES;
+                    _idleBeforeEvict = DEFAULT_IDLE;
+                    _minCleanupInterval = DEFAULT_INT;
+                    _cleanupBatchSize = DEFAULT_BATCH;
+                    break;
+
+                case CacheProfile.Server:
+                    // High throughput - less frequent but larger cleanups
+                    _maxFreePages = 360;
+                    _idleBeforeEvict = TimeSpan.FromSeconds(90);
+                    _minCleanupInterval = TimeSpan.FromSeconds(45);
+                    _cleanupBatchSize = 192;
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Triggers cleanup if conditions are met: forced, cleanup signal set, 
+        /// free pages exceed limit, or operation threshold reached
+        /// </summary>
+        private void TryCleanupOnDemand(bool force = false)
+        {
+            if (_disposed) 
+                return;
+
+            var now = DateTime.UtcNow;
+            var since = now - _lastCleanupRunUtc;
+
+            if (!force &&
+                since < _minCleanupInterval &&
+                _free.Count <= _maxFreePages &&
+                !_cleanupSignal &&
+                _opsSinceLastCleanup < OPS_CLEANUP_STEP)
+            {
+                return;
+            }
+
+            _cleanupSignal = false;
+            Interlocked.Exchange(ref _opsSinceLastCleanup, 0);
+
+            Cleanup();
+        }
+
+        /// <summary>
+        /// Performs bounded, non-reentrant cleanup over the free-list.
+        /// Processes up to _cleanupBatchSize pages, evicting those idle longer than _idleBeforeEvict.
+        /// Uses atomic eviction flags to prevent race conditions during cleanup.
+        /// </summary>
+        private void Cleanup()
+        {
+            if (!_cleanLock.Wait(0)) return;
+            try
+            {
+                if (_free.IsEmpty) return;
+
+                var now = DateTime.UtcNow;
+                _lastCleanupRunUtc = now;
+
+                var keep = new List<PageBuffer>(_cleanupBatchSize);
+                int processed = 0;
+
+                while (processed < _cleanupBatchSize && _free.TryDequeue(out var page))
+                {
+                    if (!page.TryBeginEvict())
+                    {
+                        keep.Add(page);
+                        processed++;
+                        continue;
+                    }
+
+                    var freedAtTicks = page.Timestamp > 0 ? page.Timestamp : now.Ticks;
+                    var idle = now - new DateTime(freedAtTicks, DateTimeKind.Utc);
+
+                    if (idle < _idleBeforeEvict)
+                    {
+                        page.MarkReusable();
+                        keep.Add(page);
+                    }
+                    else
+                    {
+                        try 
+                        {
+                            // Try to clear the page buffer to free memory
+                            // If Clear() fails (e.g., corrupted buffer, access violation), 
+                            // we gracefully handle it by keeping the page for reuse instead of crashing
+                            page.Clear(); 
+                        }
+                        catch 
+                        { 
+                            page.MarkReusable(); 
+                            keep.Add(page); 
+                        }
+                    }
+
+                    processed++;
+                }
+
+                foreach (var p in keep) 
+                    _free.Enqueue(p);
+            }
+            finally
+            {
+                _cleanLock.Release();
+            }
+        }
+
+        #endregion
+
+        private volatile bool _disposed;
+
         public void Dispose()
         {
+            _disposed = true;      
+            _cleanupSignal = false;
+
+            try
+            {
+                _cleanLock.Wait(); 
+            }
+            finally
+            {
+                _cleanLock.Dispose();
+            }
         }
     }
 }
