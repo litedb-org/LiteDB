@@ -173,5 +173,73 @@ namespace LiteDB.Internals
                 p.ShareCounter = 0;
             }
         }
+
+        [Fact]
+        public void Cache_ProfileConfiguration()
+        {
+            var m = new MemoryCache(new int[] { 10 });
+
+            // Test Mobile profile
+            m.ApplyProfile(MemoryCache.CacheProfile.Mobile);
+            // Mobile profile should be more aggressive (can't directly test private fields, but behavior should reflect it)
+
+            // Test Desktop profile  
+            m.ApplyProfile(MemoryCache.CacheProfile.Desktop);
+
+            // Test Server profile
+            m.ApplyProfile(MemoryCache.CacheProfile.Server);
+
+            // Profiles should not crash and cache should remain functional
+            var page = m.NewPage();
+            page.ShareCounter.Should().Be(-1);
+            m.DiscardPage(page);
+        }
+
+        [Fact]
+        public void Cache_CleanupDoesNotInterfereWithNormalOperations()
+        {
+            var m = new MemoryCache(new int[] { 5 });
+            var pages = new List<PageBuffer>();
+
+            // Create many pages to potentially trigger cleanup
+            for (int i = 0; i < 100; i++)
+            {
+                var page = m.NewPage();
+                page.Origin = FileOrigin.Log;
+                page.Position = i;
+                m.TryMoveToReadable(page);
+                pages.Add(page);
+            }
+
+            // Read pages multiple times to trigger cleanup in GetReadablePage
+            for (int i = 0; i < 50; i++)
+            {
+                var page = m.GetReadablePage(i, FileOrigin.Log, (p, s) => { });
+                page.Should().NotBeNull();
+                page.Release();
+            }
+
+            // Cache should still be functional
+            m.ExtendSegments.Should().BeGreaterThan(0);
+            m.FreePages.Should().BeGreaterOrEqualTo(0);
+        }
+
+        [Fact]
+        public void Cache_EvictionFlags()
+        {
+            var page = new PageBuffer(new byte[8192], 0, 1);
+
+            // Initially should be able to begin eviction
+            page.TryBeginEvict().Should().BeTrue();
+
+            // Second attempt should fail (already evicting)
+            page.TryBeginEvict().Should().BeFalse();
+
+            // Mark as reusable
+            page.MarkReusable();
+
+            // Should be able to begin eviction again
+            page.TryBeginEvict().Should().BeTrue();
+        }
     }
 }

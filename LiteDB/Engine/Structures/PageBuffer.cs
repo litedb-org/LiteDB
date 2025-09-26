@@ -17,6 +17,18 @@ namespace LiteDB.Engine
     /// </summary>
     internal class PageBuffer : BufferSlice
     {
+        private int _evicting; // atomic eviction flag (0/1)
+
+        public bool TryBeginEvict()
+        {
+#if DEBUG
+            ENSURE(this.ShareCounter == 0, "evicting a non-free page");
+#endif
+            return Interlocked.CompareExchange(ref _evicting, 1, 0) == 0;
+        }
+
+        public void MarkReusable() => Interlocked.Exchange(ref _evicting, 0);
+
         /// <summary>
         /// Get, on initialize, a unique ID in all database instance for this PageBufer. Is a simple global incremented counter
         /// </summary>
@@ -38,7 +50,7 @@ namespace LiteDB.Engine
         public int ShareCounter;
 
         /// <summary>
-        /// Get/Set timestamp from last request
+        /// Last request timestamp; when moved to free-list, stores the "freed at" time (UTC ticks).
         /// </summary>
         public long Timestamp;
 
