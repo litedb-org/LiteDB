@@ -242,15 +242,15 @@ namespace LiteDB
             return BsonExpression.Create($"{fieldExpr.Source} VECTOR_SIM @0 <= @1", targetArray, new BsonValue(maxDistance));
         }
 
-        public ILiteQueryable<T> WhereNear(string vectorField, float[] target, double maxDistance)
+        internal ILiteQueryable<T> VectorWhereNear(string vectorField, float[] target, double maxDistance)
         {
             if (string.IsNullOrWhiteSpace(vectorField)) throw new ArgumentNullException(nameof(vectorField));
 
             var fieldExpr = BsonExpression.Create($"$.{vectorField}");
-            return this.WhereNear(fieldExpr, target, maxDistance);
+            return this.VectorWhereNear(fieldExpr, target, maxDistance);
         }
 
-        public ILiteQueryable<T> WhereNear(BsonExpression fieldExpr, float[] target, double maxDistance)
+        internal ILiteQueryable<T> VectorWhereNear(BsonExpression fieldExpr, float[] target, double maxDistance)
         {
             var filter = CreateVectorSimilarityFilter(fieldExpr, target, maxDistance);
 
@@ -263,34 +263,27 @@ namespace LiteDB
             return this;
         }
 
-        public ILiteQueryable<T> WhereNear<K>(Expression<Func<T, K>> field, float[] target, double maxDistance)
+        internal ILiteQueryable<T> VectorWhereNear<K>(Expression<Func<T, K>> field, float[] target, double maxDistance)
         {
             if (field == null) throw new ArgumentNullException(nameof(field));
 
             var fieldExpr = _mapper.GetExpression(field);
-            return this.WhereNear(fieldExpr, target, maxDistance);
-        }
-        
-        public IEnumerable<T> FindNearest(string vectorField, float[] target, double maxDistance)
-        {
-            this.WhereNear(vectorField, target, maxDistance);
-            return this.ToEnumerable();
+            return this.VectorWhereNear(fieldExpr, target, maxDistance);
         }
 
-
-        public ILiteQueryableResult<T> TopKNear<K>(Expression<Func<T, K>> field, float[] target, int k)
+        internal ILiteQueryableResult<T> VectorTopKNear<K>(Expression<Func<T, K>> field, float[] target, int k)
         {
             var fieldExpr = _mapper.GetExpression(field);
-            return this.TopKNear(fieldExpr, target, k);
+            return this.VectorTopKNear(fieldExpr, target, k);
         }
 
-        public ILiteQueryableResult<T> TopKNear(string field, float[] target, int k)
+        internal ILiteQueryableResult<T> VectorTopKNear(string field, float[] target, int k)
         {
             var fieldExpr = BsonExpression.Create($"$.{field}");
-            return this.TopKNear(fieldExpr, target, k);
+            return this.VectorTopKNear(fieldExpr, target, k);
         }
 
-        public ILiteQueryableResult<T> TopKNear(BsonExpression fieldExpr, float[] target, int k)
+        internal ILiteQueryableResult<T> VectorTopKNear(BsonExpression fieldExpr, float[] target, int k)
         {
             if (fieldExpr == null) throw new ArgumentNullException(nameof(fieldExpr));
             if (target == null || target.Length == 0) throw new ArgumentException("Target vector must be provided.", nameof(target));
@@ -308,6 +301,48 @@ namespace LiteDB
             return this
                 .OrderBy(simExpr, Query.Ascending)
                 .Limit(k);
+        }
+
+        [Obsolete("Add `using LiteDB.Vector;` and call the LiteQueryableVectorExtensions.WhereNear extension instead.")]
+        public ILiteQueryable<T> WhereNear(string vectorField, float[] target, double maxDistance)
+        {
+            return this.VectorWhereNear(vectorField, target, maxDistance);
+        }
+
+        [Obsolete("Add `using LiteDB.Vector;` and call the LiteQueryableVectorExtensions.WhereNear extension instead.")]
+        public ILiteQueryable<T> WhereNear(BsonExpression fieldExpr, float[] target, double maxDistance)
+        {
+            return this.VectorWhereNear(fieldExpr, target, maxDistance);
+        }
+
+        [Obsolete("Add `using LiteDB.Vector;` and call the LiteQueryableVectorExtensions.WhereNear extension instead.")]
+        public ILiteQueryable<T> WhereNear<K>(Expression<Func<T, K>> field, float[] target, double maxDistance)
+        {
+            return this.VectorWhereNear(field, target, maxDistance);
+        }
+
+        [Obsolete("Add `using LiteDB.Vector;` and call the LiteQueryableVectorExtensions.FindNearest extension instead.")]
+        public IEnumerable<T> FindNearest(string vectorField, float[] target, double maxDistance)
+        {
+            return this.VectorWhereNear(vectorField, target, maxDistance).ToEnumerable();
+        }
+
+        [Obsolete("Add `using LiteDB.Vector;` and call the LiteQueryableVectorExtensions.TopKNear extension instead.")]
+        public ILiteQueryableResult<T> TopKNear<K>(Expression<Func<T, K>> field, float[] target, int k)
+        {
+            return this.VectorTopKNear(field, target, k);
+        }
+
+        [Obsolete("Add `using LiteDB.Vector;` and call the LiteQueryableVectorExtensions.TopKNear extension instead.")]
+        public ILiteQueryableResult<T> TopKNear(string field, float[] target, int k)
+        {
+            return this.VectorTopKNear(field, target, k);
+        }
+
+        [Obsolete("Add `using LiteDB.Vector;` and call the LiteQueryableVectorExtensions.TopKNear extension instead.")]
+        public ILiteQueryableResult<T> TopKNear(BsonExpression fieldExpr, float[] target, int k)
+        {
+            return this.VectorTopKNear(fieldExpr, target, k);
         }
 
         #endregion

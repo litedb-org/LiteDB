@@ -1,6 +1,6 @@
 using System;
 
-namespace LiteDB
+namespace LiteDB.Vector
 {
     /// <summary>
     /// Options used when creating a vector-aware index.

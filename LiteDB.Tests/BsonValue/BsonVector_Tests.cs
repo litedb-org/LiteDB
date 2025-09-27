@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
+using LiteDB.Vector;
 using Xunit;
 
 namespace LiteDB.Tests.BsonValue_Types;

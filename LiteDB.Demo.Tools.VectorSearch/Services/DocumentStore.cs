@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using LiteDB;
 using LiteDB.Demo.Tools.VectorSearch.Models;
+using LiteDB.Vector;
 
 namespace LiteDB.Demo.Tools.VectorSearch.Services
 {

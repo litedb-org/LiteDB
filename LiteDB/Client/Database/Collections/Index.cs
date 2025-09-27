@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text.RegularExpressions;
+using LiteDB.Vector;
 using static LiteDB.Constants;
 
 namespace LiteDB
@@ -23,13 +24,19 @@ namespace LiteDB
             return _engine.EnsureIndex(_collection, name, expression, unique);
         }
 
-        public bool EnsureIndex(string name, BsonExpression expression, VectorIndexOptions options)
+        internal bool EnsureVectorIndex(string name, BsonExpression expression, VectorIndexOptions options)
         {
             if (string.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
             if (expression == null) throw new ArgumentNullException(nameof(expression));
             if (options == null) throw new ArgumentNullException(nameof(options));
 
             return _engine.EnsureVectorIndex(_collection, name, expression, options);
+        }
+
+        [Obsolete("Add `using LiteDB.Vector;` and call LiteCollectionVectorExtensions.EnsureIndex instead.")]
+        public bool EnsureIndex(string name, BsonExpression expression, VectorIndexOptions options)
+        {
+            return this.EnsureVectorIndex(name, expression, options);
         }
 
         /// <summary>
@@ -46,14 +53,20 @@ namespace LiteDB
             return this.EnsureIndex(name, expression, unique);
         }
 
-        public bool EnsureIndex(BsonExpression expression, VectorIndexOptions options)
+        internal bool EnsureVectorIndex(BsonExpression expression, VectorIndexOptions options)
         {
             if (expression == null) throw new ArgumentNullException(nameof(expression));
             if (options == null) throw new ArgumentNullException(nameof(options));
 
             var name = Regex.Replace(expression.Source, @"[^a-z0-9]", "", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-            return this.EnsureIndex(name, expression, options);
+            return this.EnsureVectorIndex(name, expression, options);
+        }
+
+        [Obsolete("Add `using LiteDB.Vector;` and call LiteCollectionVectorExtensions.EnsureIndex instead.")]
+        public bool EnsureIndex(BsonExpression expression, VectorIndexOptions options)
+        {
+            return this.EnsureVectorIndex(expression, options);
         }
 
         /// <summary>
@@ -68,13 +81,19 @@ namespace LiteDB
             return this.EnsureIndex(expression, unique);
         }
 
-        public bool EnsureIndex<K>(Expression<Func<T, K>> keySelector, VectorIndexOptions options)
+        internal bool EnsureVectorIndex<K>(Expression<Func<T, K>> keySelector, VectorIndexOptions options)
         {
             if (options == null) throw new ArgumentNullException(nameof(options));
 
             var expression = this.GetIndexExpression(keySelector, convertEnumerableToMultiKey: false);
 
-            return this.EnsureIndex(expression, options);
+            return this.EnsureVectorIndex(expression, options);
+        }
+
+        [Obsolete("Add `using LiteDB.Vector;` and call LiteCollectionVectorExtensions.EnsureIndex instead.")]
+        public bool EnsureIndex<K>(Expression<Func<T, K>> keySelector, VectorIndexOptions options)
+        {
+            return this.EnsureVectorIndex(keySelector, options);
         }
 
         /// <summary>
@@ -90,13 +109,19 @@ namespace LiteDB
             return this.EnsureIndex(name, expression, unique);
         }
 
-        public bool EnsureIndex<K>(string name, Expression<Func<T, K>> keySelector, VectorIndexOptions options)
+        internal bool EnsureVectorIndex<K>(string name, Expression<Func<T, K>> keySelector, VectorIndexOptions options)
         {
             if (options == null) throw new ArgumentNullException(nameof(options));
 
             var expression = this.GetIndexExpression(keySelector, convertEnumerableToMultiKey: false);
 
-            return this.EnsureIndex(name, expression, options);
+            return this.EnsureVectorIndex(name, expression, options);
+        }
+
+        [Obsolete("Add `using LiteDB.Vector;` and call LiteCollectionVectorExtensions.EnsureIndex instead.")]
+        public bool EnsureIndex<K>(string name, Expression<Func<T, K>> keySelector, VectorIndexOptions options)
+        {
+            return this.EnsureVectorIndex(name, keySelector, options);
         }
 
         /// <summary>
