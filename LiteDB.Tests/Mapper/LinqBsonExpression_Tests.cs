@@ -231,6 +231,15 @@ namespace LiteDB.Tests.Mapper
         }
 
         [Fact]
+        public void Linq_Grouping_Expressions()
+        {
+            TestExpr<IGrouping<int, User>>(g => g.Key, "@key");
+            TestExpr<IGrouping<int, User>>(g => g.Count(), "COUNT(@group)");
+            TestExpr<IGrouping<int, User>>(g => g.Sum(x => x.Id), "SUM(MAP(ITEMS(@group)=>@._id))");
+            TestExpr<IGrouping<int, User>>(g => g.Select(x => x.Name).ToArray(), "ARRAY(MAP(ITEMS(@group)=>@.Name))");
+        }
+
+        [Fact]
         public void Linq_Predicate()
         {
             // binary expressions

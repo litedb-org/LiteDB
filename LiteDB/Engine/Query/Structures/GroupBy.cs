@@ -18,11 +18,14 @@ namespace LiteDB.Engine
 
         public BsonExpression Having { get; }
 
-        public GroupBy(BsonExpression expression, BsonExpression select, BsonExpression having)
+        public OrderBy ProjectionOrderBy { get; }
+
+        public GroupBy(BsonExpression expression, BsonExpression select, BsonExpression having, OrderBy projectionOrderBy)
         {
             this.Expression = expression;
             this.Select = select;
             this.Having = having;
+            this.ProjectionOrderBy = projectionOrderBy;
         }
     }
 }

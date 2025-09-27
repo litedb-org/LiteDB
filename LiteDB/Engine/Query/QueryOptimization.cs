@@ -161,6 +161,11 @@ namespace LiteDB.Engine
                 fields.Clear();
             }
 
+            if (_query.GroupBy != null)
+            {
+                fields.Clear();
+            }
+
             _queryPlan.Fields = fields;
         }
 
@@ -307,7 +312,7 @@ namespace LiteDB.Engine
         private void DefineOrderBy()
         {
             // if has no order by, returns null
-            if (_query.OrderBy.Count == 0) return;
+            if (_query.GroupBy != null || _query.OrderBy.Count == 0) return;
 
             var orderBy = new OrderBy(_query.OrderBy.Select(x => new OrderByItem(x.Expression, x.Order)));
 
@@ -333,10 +338,11 @@ namespace LiteDB.Engine
         {
             if (_query.GroupBy == null) return;
 
-            if (_query.OrderBy.Count > 0) throw new NotSupportedException("GROUP BY expression do not support ORDER BY");
+            var projectionOrderBy = _query.OrderBy.Count == 0 ? null : new OrderBy(_query.OrderBy.Select(x => new OrderByItem(x.Expression, x.Order)));
+
             if (_query.Includes.Count > 0) throw new NotSupportedException("GROUP BY expression do not support INCLUDE");
 
-            var groupBy = new GroupBy(_query.GroupBy, _queryPlan.Select.Expression, _query.Having);
+            var groupBy = new GroupBy(_query.GroupBy, _queryPlan.Select.Expression, _query.Having, projectionOrderBy);
             var orderBy = (OrderBy)null;
 
             // if groupBy use same expression in index, set group by order to MaxValue to not run
@@ -352,6 +358,8 @@ namespace LiteDB.Engine
 
             _queryPlan.GroupBy = groupBy;
             _queryPlan.OrderBy = orderBy;
+
+            _query.OrderBy.Clear();
         }
 
         #endregion

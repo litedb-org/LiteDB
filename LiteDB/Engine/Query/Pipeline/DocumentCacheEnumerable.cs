@@ -19,6 +19,8 @@ namespace LiteDB.Engine
         private readonly List<PageAddress> _cache = new List<PageAddress>();
         private readonly IDocumentLookup _lookup;
 
+        public BsonValue GroupKey { get; set; } = BsonValue.Null;
+
         public DocumentCacheEnumerable(IEnumerable<BsonDocument> source, IDocumentLookup lookup)
         {
             _enumerator = source.GetEnumerator();

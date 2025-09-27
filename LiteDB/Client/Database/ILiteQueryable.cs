@@ -25,11 +25,12 @@ namespace LiteDB
         ILiteQueryable<T> ThenByDescending(BsonExpression keySelector);
         ILiteQueryable<T> ThenByDescending<K>(Expression<Func<T, K>> keySelector);
 
-        ILiteQueryable<T> GroupBy(BsonExpression keySelector);
+        ILiteQueryable<IGrouping<K, T>> GroupBy<K>(Expression<Func<T, K>> keySelector);
+        ILiteQueryable<IGrouping<BsonValue, T>> GroupBy(BsonExpression keySelector);
         ILiteQueryable<T> Having(BsonExpression predicate);
 
-        ILiteQueryableResult<BsonDocument> Select(BsonExpression selector);
-        ILiteQueryableResult<K> Select<K>(Expression<Func<T, K>> selector);
+        ILiteQueryable<BsonDocument> Select(BsonExpression selector);
+        ILiteQueryable<K> Select<K>(Expression<Func<T, K>> selector);
     }
 
     public interface ILiteQueryableResult<T>

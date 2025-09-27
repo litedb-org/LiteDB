@@ -1,5 +1,6 @@
 ﻿using LiteDB.Engine;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -176,12 +177,29 @@ namespace LiteDB
         /// <summary>
         /// Groups the documents of resultset according to a specified key selector expression (support only one GroupBy)
         /// </summary>
-        public ILiteQueryable<T> GroupBy(BsonExpression keySelector)
+        public ILiteQueryable<IGrouping<K, T>> GroupBy<K>(Expression<Func<T, K>> keySelector)
+        {
+            var expression = _mapper.GetExpression(keySelector);
+
+            if (_query.GroupBy != null) throw new ArgumentException("GROUP BY already defined in this query");
+
+            _query.GroupBy = expression;
+            this.EnsureDefaultGroupProjection();
+
+            return new LiteGroupedQueryable<K, T>(_engine, _mapper, _collection, _query);
+        }
+
+        /// <summary>
+        /// Groups the documents of resultset according to a specified key selector expression (support only one GroupBy)
+        /// </summary>
+        public ILiteQueryable<IGrouping<BsonValue, T>> GroupBy(BsonExpression keySelector)
         {
             if (_query.GroupBy != null) throw new ArgumentException("GROUP BY already defined in this query");
 
             _query.GroupBy = keySelector;
-            return this;
+            this.EnsureDefaultGroupProjection();
+
+            return new LiteGroupedQueryable<BsonValue, T>(_engine, _mapper, _collection, _query);
         }
 
         #endregion
@@ -206,7 +224,7 @@ namespace LiteDB
         /// <summary>
         /// Transform input document into a new output document. Can be used with each document, group by or all source
         /// </summary>
-        public ILiteQueryableResult<BsonDocument> Select(BsonExpression selector)
+        public ILiteQueryable<BsonDocument> Select(BsonExpression selector)
         {
             _query.Select = selector;
 
@@ -216,10 +234,8 @@ namespace LiteDB
         /// <summary>
         /// Project each document of resultset into a new document/value based on selector expression
         /// </summary>
-        public ILiteQueryableResult<K> Select<K>(Expression<Func<T, K>> selector)
+        public ILiteQueryable<K> Select<K>(Expression<Func<T, K>> selector)
         {
-            if (_query.GroupBy != null) throw new ArgumentException("Use Select(BsonExpression selector) when using GroupBy query");
-
             _query.Select = _mapper.GetExpression(selector);
 
             return new LiteQueryable<K>(_engine, _mapper, _collection, _query);
@@ -294,6 +310,11 @@ namespace LiteDB
         /// </summary>
         public IEnumerable<T> ToEnumerable()
         {
+            if (this.TryGetGroupingFactory(out var groupingFactory))
+            {
+                return this.ToDocuments().Select(doc => (T)groupingFactory(doc));
+            }
+
             if (_isSimpleType)
             {
                 return this.ToDocuments()
@@ -333,6 +354,88 @@ namespace LiteDB
             var reader = _engine.Query(_collection, _query);
 
             return reader.ToEnumerable().FirstOrDefault()?.AsDocument;
+        }
+
+        #endregion
+
+        #region Grouping Helpers
+
+        private void EnsureDefaultGroupProjection()
+        {
+            if (!ReferenceEquals(_query.Select, BsonExpression.Root)) return;
+
+            _query.Select = BsonExpression.Create("{ key: @key, group: @group }");
+        }
+
+        private bool TryGetGroupingFactory(out Func<BsonDocument, object> factory)
+        {
+            if (TryGetGroupingArguments(typeof(T), out var keyType, out var elementType))
+            {
+                factory = this.CreateGroupingFactory(keyType, elementType);
+                return true;
+            }
+
+            factory = null;
+            return false;
+        }
+
+        private Func<BsonDocument, object> CreateGroupingFactory(Type keyType, Type elementType)
+        {
+            var groupingType = typeof(LiteGrouping<,>).MakeGenericType(keyType, elementType);
+            var listType = typeof(List<>).MakeGenericType(elementType);
+
+            return document =>
+            {
+                if (!document.TryGetValue("key", out var keyValue) || !document.TryGetValue("group", out var groupValue))
+                {
+                    throw new LiteException(0, "GROUP BY result is missing required metadata to materialize IGrouping.");
+                }
+
+                var key = _mapper.Deserialize(keyType, keyValue);
+                var array = groupValue.IsArray ? groupValue.AsArray : new BsonArray();
+
+                var list = (IList)Activator.CreateInstance(listType);
+
+                foreach (var item in array)
+                {
+                    list.Add(_mapper.Deserialize(elementType, item));
+                }
+
+                return Activator.CreateInstance(groupingType, key, list);
+            };
+        }
+
+        private static bool TryGetGroupingArguments(Type type, out Type keyType, out Type elementType)
+        {
+            if (type == null)
+            {
+                keyType = null;
+                elementType = null;
+                return false;
+            }
+
+            if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IGrouping<,>))
+            {
+                var args = type.GetGenericArguments();
+                keyType = args[0];
+                elementType = args[1];
+                return true;
+            }
+
+            foreach (var iface in type.GetInterfaces())
+            {
+                if (iface.IsGenericType && iface.GetGenericTypeDefinition() == typeof(IGrouping<,>))
+                {
+                    var args = iface.GetGenericArguments();
+                    keyType = args[0];
+                    elementType = args[1];
+                    return true;
+                }
+            }
+
+            keyType = null;
+            elementType = null;
+            return false;
         }
 
         #endregion

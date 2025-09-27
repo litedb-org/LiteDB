@@ -25,6 +25,7 @@ namespace LiteDB
             [typeof(Double)] = new NumberResolver("DOUBLE"),
             [typeof(ICollection)] = new ICollectionResolver(),
             [typeof(Enumerable)] = new EnumerableResolver(),
+            [typeof(IGrouping<,>)] = new GroupingResolver(),
             [typeof(Guid)] = new GuidResolver(),
             [typeof(Math)] = new MathResolver(),
             [typeof(Regex)] = new RegexResolver(),
@@ -95,7 +96,7 @@ namespace LiteDB
             var l = base.VisitLambda(node);
 
             // remove last parameter $ (or @)
-            _builder.Length--;
+            this.TrimTrailingParameter();
 
             return l;
         }
@@ -108,7 +109,7 @@ namespace LiteDB
             var l = base.VisitInvocation(node);
 
             // remove last parameter $ (or @)
-            _builder.Length--;
+            this.TrimTrailingParameter();
 
             return l;
         }
@@ -118,7 +119,24 @@ namespace LiteDB
         /// </summary>
         protected override Expression VisitParameter(ParameterExpression node)
         {
-            _builder.Append(_rootParameter.Equals(node) ? "$" : "@");
+            if (_rootParameter.Equals(node))
+            {
+                if (IsGroupingType(node.Type))
+                {
+                    if (_nodes.Count == 0 || !(_nodes.Peek() is MemberExpression))
+                    {
+                        _builder.Append("@group");
+                    }
+                }
+                else
+                {
+                    _builder.Append("$");
+                }
+            }
+            else
+            {
+                _builder.Append("@");
+            }
 
             return base.VisitParameter(node);
         }
@@ -729,6 +747,11 @@ namespace LiteDB
         private bool TryGetResolver(Type declaringType, out ITypeResolver typeResolver)
         {
             // get method declaring type - if is from any kind of list, read as Enumerable
+            if (IsGroupingType(declaringType))
+            {
+                return _resolver.TryGetValue(typeof(IGrouping<,>), out typeResolver);
+            }
+
             var isCollection = Reflection.IsCollection(declaringType);
             var isEnumerable = Reflection.IsEnumerable(declaringType);
             var isNullable = Reflection.IsNullable(declaringType);
@@ -740,6 +763,31 @@ namespace LiteDB
                 declaringType;
 
             return _resolver.TryGetValue(type, out typeResolver);
+        }
+
+        private static bool IsGroupingType(Type type)
+        {
+            if (type == null) return false;
+
+            if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IGrouping<,>)) return true;
+
+            return type.GetInterfaces().Any(x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(IGrouping<,>));
+        }
+
+        private void TrimTrailingParameter()
+        {
+            if (_builder.Length >= 6 && _builder.ToString(_builder.Length - 6, 6) == "@group")
+            {
+                _builder.Length -= 6;
+            }
+            else if (_builder.Length >= 4 && _builder.ToString(_builder.Length - 4, 4) == "$[*]")
+            {
+                _builder.Length -= 4;
+            }
+            else if (_builder.Length > 0)
+            {
+                _builder.Length--;
+            }
         }
     }
 }
