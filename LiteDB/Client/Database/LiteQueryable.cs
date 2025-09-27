@@ -182,6 +182,8 @@ namespace LiteDB
 
             this.GroupBy(expression);
 
+            _mapper.RegisterGroupingType<K, T>();
+
             return new LiteQueryable<IGrouping<K, T>>(_engine, _mapper, _collection, _query);
         }
 

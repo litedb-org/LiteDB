@@ -134,7 +134,32 @@ namespace LiteDB.Engine
                         if (!filter.IsBoolean || !filter.AsBoolean) continue;
                     }
 
-                    value = groupBy.Select.ExecuteScalar(group, null, null, _pragmas.Collation);
+                    if (ReferenceEquals(groupBy.Select, BsonExpression.Root))
+                    {
+                        var key = BsonValue.Null;
+
+                        if (groupBy.Select.Parameters != null && groupBy.Select.Parameters.TryGetValue("key", out var storedKey))
+                        {
+                            key = storedKey;
+                        }
+
+                        var items = new BsonArray();
+
+                        foreach (var document in group)
+                        {
+                            items.Add(document);
+                        }
+
+                        value = new BsonDocument
+                        {
+                            [LiteGroupingFieldNames.Key] = key,
+                            [LiteGroupingFieldNames.Items] = items
+                        };
+                    }
+                    else
+                    {
+                        value = groupBy.Select.ExecuteScalar(group, null, null, _pragmas.Collation);
+                    }
                 }
                 finally
                 {

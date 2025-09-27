@@ -1,4 +1,5 @@
 ﻿using FluentAssertions;
+using LiteDB.Tests;
 using System.Linq;
 using Xunit;
 
@@ -81,5 +82,40 @@ namespace LiteDB.Tests.QueryTest
 
             actual.Should().Equal(expected);
         }
+
+        [Fact]
+        public void Query_GroupBy_ToList_Materializes_Groupings()
+        {
+            using var db = new PersonGroupByData();
+            var (collection, local) = db.GetData();
+
+            var expected = local
+                .GroupBy(x => x.Age)
+                .OrderBy(g => g.Key)
+                .Select(g => new
+                {
+                    Key = g.Key,
+                    Names = g.OrderBy(p => p.Name).Select(p => p.Name).ToArray()
+                })
+                .ToArray();
+
+            var groupings = collection.Query()
+                .GroupBy(x => x.Age)
+                .ToList();
+
+            groupings.Should().AllBeAssignableTo<IGrouping<int, Person>>();
+
+            var actual = groupings
+                .OrderBy(g => g.Key)
+                .Select(g => new
+                {
+                    g.Key,
+                    Names = g.OrderBy(p => p.Name).Select(p => p.Name).ToArray()
+                })
+                .ToArray();
+
+            actual.Should().BeEquivalentTo(expected, options => options.WithStrictOrdering());
+        }
+
     }
 }
