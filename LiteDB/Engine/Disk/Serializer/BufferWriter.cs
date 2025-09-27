@@ -246,7 +246,9 @@ namespace LiteDB.Engine
 
         public void Write(Int32 value) => this.WriteNumber(value, BufferExtensions.ToBytes, 4);
         public void Write(Int64 value) => this.WriteNumber(value, BufferExtensions.ToBytes, 8);
+        public void Write(UInt16 value) => this.WriteNumber(value, BufferExtensions.ToBytes, 2);
         public void Write(UInt32 value) => this.WriteNumber(value, BufferExtensions.ToBytes, 4);
+        public void Write(Single value) => this.WriteNumber(value, BufferExtensions.ToBytes, 4);
         public void Write(Double value) => this.WriteNumber(value, BufferExtensions.ToBytes, 8);
 
         public void Write(Decimal value)
@@ -331,6 +333,18 @@ namespace LiteDB.Engine
         {
             this.Write(address.PageID);
             this.Write(address.Index);
+        }
+
+        public void Write(float[] vector)
+        {
+            ENSURE(vector.Length <= ushort.MaxValue, "Vector length must fit into UInt16");
+
+            this.Write((ushort)vector.Length);
+
+            for (var i = 0; i < vector.Length; i++)
+            {
+                this.Write(vector[i]);
+            }
         }
 
         #endregion
@@ -475,6 +489,11 @@ namespace LiteDB.Engine
                 case BsonType.MaxValue:
                     this.Write((byte)0x7F);
                     this.WriteCString(key);
+                    break;
+                case BsonType.Vector:
+                    this.Write((byte)0x64); // ✅ 0x64 = 100
+                    this.WriteCString(key);
+                    this.Write(value.AsVector); // ✅ This should exist
                     break;
             }
         }

@@ -62,6 +62,7 @@ namespace LiteDB.Engine
                     var snapshot = transaction.CreateSnapshot(LockMode.Write, collection, true);
                     var indexer = new IndexService(snapshot, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
                     var data = new DataService(snapshot, _disk.MAX_ITEMS_COUNT);
+                    var vectorService = new VectorIndexService(snapshot, _header.Pragmas.Collation);
 
                     // get all documents from current collection
                     var docs = reader.GetDocuments(collection);
@@ -71,16 +72,28 @@ namespace LiteDB.Engine
                     {
                         transaction.Safepoint();
 
-                        this.InsertDocument(snapshot, doc, BsonAutoId.ObjectId, indexer, data);
+                        this.InsertDocument(snapshot, doc, BsonAutoId.ObjectId, indexer, data, vectorService);
                     }
 
                     // first create all user indexes (exclude _id index)
                     foreach (var index in reader.GetIndexes(collection))
                     {
-                        this.EnsureIndex(collection,
-                            index.Name,
-                            BsonExpression.Create(index.Expression),
-                            index.Unique);
+                        if (index.IndexType == 1 && index.VectorMetadata != null)
+                        {
+                            this.EnsureVectorIndex(
+                                collection,
+                                index.Name,
+                                BsonExpression.Create(index.Expression),
+                                new VectorIndexOptions(index.VectorMetadata.Dimensions, index.VectorMetadata.Metric));
+                        }
+                        else
+                        {
+                            this.EnsureIndex(
+                                collection,
+                                index.Name,
+                                BsonExpression.Create(index.Expression),
+                                index.Unique);
+                        }
                     }
                 }
 

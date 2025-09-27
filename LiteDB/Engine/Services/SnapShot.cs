@@ -330,6 +330,30 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
+        /// Get a vector index page with enough free space for a new node.
+        /// </summary>
+        public VectorIndexPage GetFreeVectorPage(int bytesLength, ref uint freeVectorPageList)
+        {
+            ENSURE(!_disposed, "the snapshot is disposed");
+
+            VectorIndexPage page;
+
+            if (freeVectorPageList == uint.MaxValue)
+            {
+                page = this.NewPage<VectorIndexPage>();
+            }
+            else
+            {
+                page = this.GetPage<VectorIndexPage>(freeVectorPageList);
+
+                ENSURE(page.FreeBytes > bytesLength, "this page shout be space enouth for this new vector node");
+                ENSURE(page.PageListSlot == 0, "this page should be in slot #0");
+            }
+
+            return page;
+        }
+
+        /// <summary>
         /// Get a new empty page from disk: can be a reused page (from header free list) or file extend
         /// Never re-use page from same transaction
         /// </summary>
@@ -489,6 +513,42 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
+        /// Add/Remove a vector index page from single free list
+        /// </summary>
+        public void AddOrRemoveFreeVectorList(VectorIndexPage page, ref uint startPageID)
+        {
+            ENSURE(!_disposed, "the snapshot is disposed");
+
+            var newSlot = VectorIndexPage.FreeListSlot(page.FreeBytes);
+            var isOnList = page.PageListSlot == 0;
+            var mustKeep = newSlot == 0;
+
+            if (page.ItemsCount == 0)
+            {
+                if (isOnList)
+                {
+                    this.RemoveFreeList(page, ref startPageID);
+                }
+
+                this.DeletePage(page);
+            }
+            else
+            {
+                if (isOnList && !mustKeep)
+                {
+                    this.RemoveFreeList(page, ref startPageID);
+                }
+                else if (!isOnList && mustKeep)
+                {
+                    this.AddFreeList(page, ref startPageID);
+                }
+
+                page.PageListSlot = newSlot;
+                page.IsDirty = true;
+            }
+        }
+
+        /// <summary>
         /// Add page into double linked-list (always add as first element)
         /// </summary>
         private void AddFreeList<T>(T page, ref uint startPageID) where T : BasePage
@@ -507,7 +567,7 @@ namespace LiteDB.Engine
             page.NextPageID = startPageID;
             page.IsDirty = true;
 
-            ENSURE(page.PageType == PageType.Data || page.PageType == PageType.Index, "only data/index pages must be first on free stack");
+            ENSURE(page.PageType == PageType.Data || page.PageType == PageType.Index || page.PageType == PageType.VectorIndex, "only data/index pages must be first on free stack");
 
             startPageID = page.PageID;
 
@@ -560,9 +620,10 @@ namespace LiteDB.Engine
         {
             ENSURE(page.PrevPageID == uint.MaxValue && page.NextPageID == uint.MaxValue, "before delete a page, no linked list with any another page");
             ENSURE(page.ItemsCount == 0 && page.UsedBytes == 0 && page.HighestIndex == byte.MaxValue && page.FragmentedBytes == 0, "no items on page when delete this page");
-            ENSURE(page.PageType == PageType.Data || page.PageType == PageType.Index, "only data/index page can be deleted");
+            ENSURE(page.PageType == PageType.Data || page.PageType == PageType.Index || page.PageType == PageType.VectorIndex, "only data/index page can be deleted");
             DEBUG(!_collectionPage.FreeDataPageList.Any(x => x == page.PageID), "this page cann't be deleted because free data list page is linked o this page");
             DEBUG(!_collectionPage.GetCollectionIndexes().Any(x => x.FreeIndexPageList == page.PageID), "this page cann't be deleted because free index list page is linked o this page");
+            DEBUG(!_collectionPage.GetVectorIndexes().Any(x => x.Metadata.Reserved == page.PageID), "this page cann't be deleted because free vector list page is linked o this page");
             DEBUG(page.Buffer.Slice(PAGE_HEADER_SIZE, PAGE_SIZE - PAGE_HEADER_SIZE - 1).All(0), "page content shloud be empty");
 
             // mark page as empty and dirty
@@ -603,7 +664,8 @@ namespace LiteDB.Engine
             ENSURE(!_disposed, "the snapshot is disposed");
 
             var indexer = new IndexService(this, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
-
+            VectorIndexService vectorIndexer = null;
+            
             // CollectionPage will be last deleted page (there is no NextPageID from CollectionPage)
             _transPages.FirstDeletedPageID = _collectionPage.PageID;
             _transPages.LastDeletedPageID = _collectionPage.PageID;
@@ -618,6 +680,11 @@ namespace LiteDB.Engine
             // getting all indexes pages from all indexes
             foreach(var index in _collectionPage.GetCollectionIndexes())
             {
+                if (index.IndexType == 1)
+                {
+                    continue;
+                }
+                
                 // add head/tail (same page) to be deleted
                 indexPages.Add(index.Head.PageID);
 
@@ -627,6 +694,15 @@ namespace LiteDB.Engine
 
                     safePoint();
                 }
+            }
+            
+            
+            foreach (var (_, metadata) in _collectionPage.GetVectorIndexes())
+            {
+                vectorIndexer ??= new VectorIndexService(this, _header.Pragmas.Collation);
+                vectorIndexer.Drop(metadata);
+
+                safePoint();
             }
 
             // now, mark all pages as deleted

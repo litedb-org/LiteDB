@@ -267,7 +267,9 @@ namespace LiteDB.Engine
 
         public Int32 ReadInt32() => this.ReadNumber(BitConverter.ToInt32, 4);
         public Int64 ReadInt64() => this.ReadNumber(BitConverter.ToInt64, 8);
+        public UInt16 ReadUInt16() => this.ReadNumber(BitConverter.ToUInt16, 2);
         public UInt32 ReadUInt32() => this.ReadNumber(BitConverter.ToUInt32, 4);
+        public Single ReadSingle() => this.ReadNumber(BitConverter.ToSingle, 4);
         public Double ReadDouble() => this.ReadNumber(BitConverter.ToDouble, 8);
 
         public Decimal ReadDecimal()
@@ -352,6 +354,20 @@ namespace LiteDB.Engine
             return value;
         }
 
+        private BsonValue ReadVector()
+        {
+            var length = this.ReadUInt16();
+            var values = new float[length];
+
+            for (var i = 0; i < length; i++)
+            {
+                values[i] = this.ReadSingle();
+            }
+
+            return new BsonVector(values);
+        }
+
+
         /// <summary>
         /// Write single byte
         /// </summary>
@@ -413,9 +429,13 @@ namespace LiteDB.Engine
                 case BsonType.MinValue: return BsonValue.MinValue;
                 case BsonType.MaxValue: return BsonValue.MaxValue;
 
+                case BsonType.Vector: return this.ReadVector();
+
                 default: throw new NotImplementedException();
             }
         }
+
+        
 
         #endregion
 
@@ -592,8 +612,12 @@ namespace LiteDB.Engine
             {
                 return BsonValue.MaxValue;
             }
+            else if (type == 0x64) // Vector
+            {
+                return this.ReadVector();
+            }
 
-            throw new NotSupportedException("BSON type not supported");
+                throw new NotSupportedException("BSON type not supported");
         }
 
         #endregion
