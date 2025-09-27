@@ -333,25 +333,25 @@ namespace LiteDB.Engine
         {
             if (_query.GroupBy == null) return;
 
-            if (_query.OrderBy.Count > 0) throw new NotSupportedException("GROUP BY expression do not support ORDER BY");
             if (_query.Includes.Count > 0) throw new NotSupportedException("GROUP BY expression do not support INCLUDE");
 
-            var groupBy = new GroupBy(_query.GroupBy, _queryPlan.Select.Expression, _query.Having);
-            var orderBy = (OrderBy)null;
+            var expression = _query.GroupBy;
+            var select = _queryPlan.Select.Expression;
+            var having = _query.Having;
+            var groupOrderBy = (OrderBy)null;
 
-            // if groupBy use same expression in index, set group by order to MaxValue to not run
-            if (groupBy.Expression.Source == _queryPlan.IndexExpression)
+            // if groupBy use same expression in index, no additional ordering is required before grouping
+            if (expression.Source == _queryPlan.IndexExpression)
             {
-                // great - group by expression are same used in index - no changes here
+                // index already provides grouped ordering
             }
             else
             {
                 // create orderBy expression
-                orderBy = new OrderBy(new[] { new OrderByItem(groupBy.Expression, Query.Ascending) });
+                groupOrderBy = new OrderBy(new[] { new OrderByItem(expression, Query.Ascending) });
             }
 
-            _queryPlan.GroupBy = groupBy;
-            _queryPlan.OrderBy = orderBy;
+            _queryPlan.GroupBy = new GroupBy(expression, select, having, groupOrderBy);
         }
 
         #endregion

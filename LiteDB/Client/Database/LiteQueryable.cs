@@ -176,6 +176,18 @@ namespace LiteDB
         /// <summary>
         /// Groups the documents of resultset according to a specified key selector expression (support only one GroupBy)
         /// </summary>
+        public ILiteQueryable<IGrouping<K, T>> GroupBy<K>(Expression<Func<T, K>> keySelector)
+        {
+            var expression = _mapper.GetExpression(keySelector);
+
+            this.GroupBy(expression);
+
+            return new LiteQueryable<IGrouping<K, T>>(_engine, _mapper, _collection, _query);
+        }
+
+        /// <summary>
+        /// Groups the documents of resultset according to a specified key selector expression (support only one GroupBy)
+        /// </summary>
         public ILiteQueryable<T> GroupBy(BsonExpression keySelector)
         {
             if (_query.GroupBy != null) throw new ArgumentException("GROUP BY already defined in this query");
@@ -206,7 +218,7 @@ namespace LiteDB
         /// <summary>
         /// Transform input document into a new output document. Can be used with each document, group by or all source
         /// </summary>
-        public ILiteQueryableResult<BsonDocument> Select(BsonExpression selector)
+        public ILiteQueryable<BsonDocument> Select(BsonExpression selector)
         {
             _query.Select = selector;
 
@@ -216,10 +228,8 @@ namespace LiteDB
         /// <summary>
         /// Project each document of resultset into a new document/value based on selector expression
         /// </summary>
-        public ILiteQueryableResult<K> Select<K>(Expression<Func<T, K>> selector)
+        public ILiteQueryable<K> Select<K>(Expression<Func<T, K>> selector)
         {
-            if (_query.GroupBy != null) throw new ArgumentException("Use Select(BsonExpression selector) when using GroupBy query");
-
             _query.Select = _mapper.GetExpression(selector);
 
             return new LiteQueryable<K>(_engine, _mapper, _collection, _query);

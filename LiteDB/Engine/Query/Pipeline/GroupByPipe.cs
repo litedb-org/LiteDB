@@ -36,10 +36,10 @@ namespace LiteDB.Engine
                 source = this.Filter(source, expr);
             }
 
-            // run orderBy used in GroupBy (if not already ordered by index)
-            if (query.OrderBy != null)
+            // run orderBy used to prepare data for grouping (if not already ordered by index)
+            if (query.GroupBy.OrderBy != null)
             {
-                source = this.OrderBy(source, query.OrderBy, 0, int.MaxValue);
+                source = this.OrderBy(source, query.GroupBy.OrderBy, 0, int.MaxValue);
             }
 
             // apply groupby
@@ -48,11 +48,18 @@ namespace LiteDB.Engine
             // apply group filter and transform result
             var result = this.SelectGroupBy(groups, query.GroupBy);
 
-            // apply offset
-            if (query.Offset > 0) result = result.Skip(query.Offset);
+            if (query.OrderBy != null)
+            {
+                result = this.OrderGroupedResult(result, query.OrderBy, query.Offset, query.Limit);
+            }
+            else
+            {
+                // apply offset
+                if (query.Offset > 0) result = result.Skip(query.Offset);
 
-            // apply limit
-            if (query.Limit < int.MaxValue) result = result.Take(query.Limit);
+                // apply limit
+                if (query.Limit < int.MaxValue) result = result.Take(query.Limit);
+            }
 
             return result;
         }
@@ -141,6 +148,53 @@ namespace LiteDB.Engine
                 else
                 {
                     yield return new BsonDocument { [defaultName] = value };
+                }
+            }
+        }
+
+        /// <summary>
+        /// Apply ORDER BY over grouped projection using in-memory sorting.
+        /// </summary>
+        private IEnumerable<BsonDocument> OrderGroupedResult(IEnumerable<BsonDocument> source, OrderBy orderBy, int offset, int limit)
+        {
+            var segments = orderBy.Segments;
+            var orders = segments.Select(x => x.Order).ToArray();
+            var buffer = new List<(SortKey Key, BsonDocument Document)>();
+
+            foreach (var document in source)
+            {
+                var values = new BsonValue[segments.Count];
+
+                for (var i = 0; i < segments.Count; i++)
+                {
+                    values[i] = segments[i].Expression.ExecuteScalar(document, _pragmas.Collation);
+                }
+
+                var key = SortKey.FromValues(values, orders);
+
+                buffer.Add((key, document));
+            }
+
+            buffer.Sort((left, right) => left.Key.CompareTo(right.Key, _pragmas.Collation));
+
+            var skipped = 0;
+            var returned = 0;
+
+            foreach (var item in buffer)
+            {
+                if (skipped < offset)
+                {
+                    skipped++;
+                    continue;
+                }
+
+                yield return item.Document;
+
+                returned++;
+
+                if (limit != int.MaxValue && returned >= limit)
+                {
+                    yield break;
                 }
             }
         }
