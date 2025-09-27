@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using LiteDB.Vector;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine

@@ -6,6 +6,7 @@ using BenchmarkDotNet.Attributes;
 using LiteDB;
 using LiteDB.Benchmarks.Models;
 using LiteDB.Benchmarks.Models.Generators;
+using LiteDB.Vector;
 
 namespace LiteDB.Benchmarks.Benchmarks.Queries
 {

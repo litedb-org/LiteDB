@@ -2,6 +2,7 @@ using FluentAssertions;
 using LiteDB;
 using LiteDB.Engine;
 using LiteDB.Tests;
+using LiteDB.Vector;
 using MathNet.Numerics.LinearAlgebra;
 using System;
 using System.Collections.Generic;

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using LiteDB.Vector;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine

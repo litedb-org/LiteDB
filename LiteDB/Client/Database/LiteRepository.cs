@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
+using LiteDB.Vector;
 using static LiteDB.Constants;
 
 namespace LiteDB
@@ -15,6 +16,18 @@ namespace LiteDB
         #region Properties
 
         private readonly ILiteDatabase _db = null;
+
+        private LiteCollection<T> GetLiteCollection<T>(string collectionName)
+        {
+            var collection = _db.GetCollection<T>(collectionName);
+
+            if (collection is LiteCollection<T> liteCollection)
+            {
+                return liteCollection;
+            }
+
+            throw new InvalidOperationException("The current collection implementation does not support vector operations.");
+        }
 
         /// <summary>
         /// Get database instance
@@ -173,9 +186,15 @@ namespace LiteDB
             return _db.GetCollection<T>(collectionName).EnsureIndex(name, expression, unique);
         }
 
+        internal bool EnsureVectorIndex<T>(string name, BsonExpression expression, VectorIndexOptions options, string collectionName = null)
+        {
+            return this.GetLiteCollection<T>(collectionName).EnsureVectorIndex(name, expression, options);
+        }
+
+        [Obsolete("Add `using LiteDB.Vector;` and call LiteRepositoryVectorExtensions.EnsureIndex instead.")]
         public bool EnsureIndex<T>(string name, BsonExpression expression, VectorIndexOptions options, string collectionName = null)
         {
-            return _db.GetCollection<T>(collectionName).EnsureIndex(name, expression, options);
+            return this.EnsureVectorIndex<T>(name, expression, options, collectionName);
         }
 
         /// <summary>
@@ -189,9 +208,15 @@ namespace LiteDB
             return _db.GetCollection<T>(collectionName).EnsureIndex(expression, unique);
         }
 
+        internal bool EnsureVectorIndex<T>(BsonExpression expression, VectorIndexOptions options, string collectionName = null)
+        {
+            return this.GetLiteCollection<T>(collectionName).EnsureVectorIndex(expression, options);
+        }
+
+        [Obsolete("Add `using LiteDB.Vector;` and call LiteRepositoryVectorExtensions.EnsureIndex instead.")]
         public bool EnsureIndex<T>(BsonExpression expression, VectorIndexOptions options, string collectionName = null)
         {
-            return _db.GetCollection<T>(collectionName).EnsureIndex(expression, options);
+            return this.EnsureVectorIndex<T>(expression, options, collectionName);
         }
 
         /// <summary>
@@ -205,9 +230,15 @@ namespace LiteDB
             return _db.GetCollection<T>(collectionName).EnsureIndex(keySelector, unique);
         }
 
+        internal bool EnsureVectorIndex<T, K>(Expression<Func<T, K>> keySelector, VectorIndexOptions options, string collectionName = null)
+        {
+            return this.GetLiteCollection<T>(collectionName).EnsureVectorIndex(keySelector, options);
+        }
+
+        [Obsolete("Add `using LiteDB.Vector;` and call LiteRepositoryVectorExtensions.EnsureIndex instead.")]
         public bool EnsureIndex<T, K>(Expression<Func<T, K>> keySelector, VectorIndexOptions options, string collectionName = null)
         {
-            return _db.GetCollection<T>(collectionName).EnsureIndex(keySelector, options);
+            return this.EnsureVectorIndex<T, K>(keySelector, options, collectionName);
         }
 
         /// <summary>
@@ -222,9 +253,15 @@ namespace LiteDB
             return _db.GetCollection<T>(collectionName).EnsureIndex(name, keySelector, unique);
         }
 
+        internal bool EnsureVectorIndex<T, K>(string name, Expression<Func<T, K>> keySelector, VectorIndexOptions options, string collectionName = null)
+        {
+            return this.GetLiteCollection<T>(collectionName).EnsureVectorIndex(name, keySelector, options);
+        }
+
+        [Obsolete("Add `using LiteDB.Vector;` and call LiteRepositoryVectorExtensions.EnsureIndex instead.")]
         public bool EnsureIndex<T, K>(string name, Expression<Func<T, K>> keySelector, VectorIndexOptions options, string collectionName = null)
         {
-            return _db.GetCollection<T>(collectionName).EnsureIndex(name, keySelector, options);
+            return this.EnsureVectorIndex<T, K>(name, keySelector, options, collectionName);
         }
 
         #endregion

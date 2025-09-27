@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
+using LiteDB.Vector;
 #if NETFRAMEWORK
 using System.Security.AccessControl;
 using System.Security.Principal;
