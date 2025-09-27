@@ -5,7 +5,7 @@
 ### Requirements
 
 - Supply Gemini credentials using **one** of the following approaches:
-  - API key with `--api-key`, `GOOGLE_VERTEX_API_KEY`, or `GOOGLE_API_KEY` (calls the public Generative Language endpoint).
+  - API key with `--api-key`, `GOOGLE_VERTEX_API_KEY`, or `GOOGLE_API_KEY` (Get from [AI Studio](https://aistudio.google.com/api-keys))
   - Service account credentials via `GOOGLE_APPLICATION_CREDENTIALS` (or other default `GoogleCredential` providers) together with project metadata.
 - When targeting Vertex AI with a service account, the following settings apply (optionally via command options):
   - `GOOGLE_PROJECT_ID`
