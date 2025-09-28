@@ -1,12 +1,22 @@
 using System.Threading;
 using LiteDB.ReproRunner.Cli.Commands;
+using LiteDB.ReproRunner.Cli.Execution;
+using LiteDB.ReproRunner.Cli.Infrastructure;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
 namespace LiteDB.ReproRunner.Cli;
 
+/// <summary>
+/// Entry point for the repro runner CLI application.
+/// </summary>
 internal static class Program
 {
+    /// <summary>
+    /// Application entry point.
+    /// </summary>
+    /// <param name="args">The command-line arguments provided by the user.</param>
+    /// <returns>The process exit code.</returns>
     public static async Task<int> Main(string[] args)
     {
         using var cts = new CancellationTokenSource();
@@ -22,6 +32,8 @@ internal static class Program
         var registrar = new TypeRegistrar();
         registrar.RegisterInstance(typeof(IAnsiConsole), console);
         registrar.RegisterInstance(typeof(ReproExecutor), new ReproExecutor());
+        registrar.RegisterInstance(typeof(RunDirectoryPlanner), new RunDirectoryPlanner());
+        registrar.RegisterInstance(typeof(ReproBuildCoordinator), new ReproBuildCoordinator());
         registrar.RegisterInstance(typeof(ReproRootLocator), new ReproRootLocator(rootOverride));
         registrar.RegisterInstance(typeof(CancellationToken), cts.Token);
 

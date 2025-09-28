@@ -1,22 +1,36 @@
 using System.Linq;
 using System.Text.Json;
 
-namespace LiteDB.ReproRunner.Cli;
+namespace LiteDB.ReproRunner.Cli.Manifests;
 
+/// <summary>
+/// Discovers and loads repro manifests from the configured root directory.
+/// </summary>
 internal sealed class ManifestRepository
 {
     private readonly string _rootPath;
     private readonly string _reprosPath;
     private readonly ManifestValidator _validator = new();
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ManifestRepository"/> class.
+    /// </summary>
+    /// <param name="rootPath">The root directory that contains the repro definitions.</param>
     public ManifestRepository(string rootPath)
     {
         _rootPath = Path.GetFullPath(rootPath);
         _reprosPath = Path.Combine(_rootPath, "Repros");
     }
 
+    /// <summary>
+    /// Gets the absolute root path where manifests are searched.
+    /// </summary>
     public string RootPath => _rootPath;
 
+    /// <summary>
+    /// Discovers repro manifests beneath the configured root directory.
+    /// </summary>
+    /// <returns>The list of discovered repros with their validation results.</returns>
     public IReadOnlyList<DiscoveredRepro> Discover()
     {
         if (!Directory.Exists(_reprosPath))

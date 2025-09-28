@@ -1,5 +1,5 @@
 using System.Text.Json;
-using LiteDB.ReproRunner.Cli;
+using LiteDB.ReproRunner.Cli.Manifests;
 
 namespace LiteDB.ReproRunner.Tests;
 

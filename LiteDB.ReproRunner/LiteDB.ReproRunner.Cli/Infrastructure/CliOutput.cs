@@ -1,9 +1,18 @@
+using LiteDB.ReproRunner.Cli.Manifests;
 using Spectre.Console;
 
-namespace LiteDB.ReproRunner.Cli;
+namespace LiteDB.ReproRunner.Cli.Infrastructure;
 
+/// <summary>
+/// Provides helper methods for rendering CLI output.
+/// </summary>
 internal static class CliOutput
 {
+    /// <summary>
+    /// Prints the validation errors for an invalid repro manifest.
+    /// </summary>
+    /// <param name="console">The console used for rendering output.</param>
+    /// <param name="repro">The repro that failed validation.</param>
     public static void PrintInvalid(IAnsiConsole console, DiscoveredRepro repro)
     {
         console.MarkupLine($"[red]INVALID[/]  {Markup.Escape(NormalizePath(repro.RelativeManifestPath))}");
@@ -13,6 +22,11 @@ internal static class CliOutput
         }
     }
 
+    /// <summary>
+    /// Prints the manifest details for a repro in a table format.
+    /// </summary>
+    /// <param name="console">The console used for rendering output.</param>
+    /// <param name="repro">The repro whose manifest should be displayed.</param>
     public static void PrintManifest(IAnsiConsole console, DiscoveredRepro repro)
     {
         if (repro.Manifest is null)
@@ -41,6 +55,11 @@ internal static class CliOutput
         console.Write(table);
     }
 
+    /// <summary>
+    /// Prints the validation result for a repro manifest.
+    /// </summary>
+    /// <param name="console">The console used for rendering output.</param>
+    /// <param name="repro">The repro whose validation status should be displayed.</param>
     public static void PrintValidationResult(IAnsiConsole console, DiscoveredRepro repro)
     {
         if (repro.IsValid)
@@ -53,6 +72,11 @@ internal static class CliOutput
         }
     }
 
+    /// <summary>
+    /// Prints a table listing the discovered valid repro manifests.
+    /// </summary>
+    /// <param name="console">The console used for rendering output.</param>
+    /// <param name="valid">The list of valid repros to display.</param>
     public static void PrintList(IAnsiConsole console, IReadOnlyList<DiscoveredRepro> valid)
     {
         if (valid.Count == 0)

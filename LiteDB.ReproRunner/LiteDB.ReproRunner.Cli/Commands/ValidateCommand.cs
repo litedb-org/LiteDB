@@ -1,3 +1,5 @@
+using LiteDB.ReproRunner.Cli.Infrastructure;
+using LiteDB.ReproRunner.Cli.Manifests;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -8,12 +10,23 @@ internal sealed class ValidateCommand : Command<ValidateCommandSettings>
     private readonly IAnsiConsole _console;
     private readonly ReproRootLocator _rootLocator;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ValidateCommand"/> class.
+    /// </summary>
+    /// <param name="console">The console used to render output.</param>
+    /// <param name="rootLocator">Resolves the repro root directory.</param>
     public ValidateCommand(IAnsiConsole console, ReproRootLocator rootLocator)
     {
         _console = console ?? throw new ArgumentNullException(nameof(console));
         _rootLocator = rootLocator ?? throw new ArgumentNullException(nameof(rootLocator));
     }
 
+    /// <summary>
+    /// Executes the validate command.
+    /// </summary>
+    /// <param name="context">The Spectre command context.</param>
+    /// <param name="settings">The user-provided settings.</param>
+    /// <returns>The process exit code.</returns>
     public override int Execute(CommandContext context, ValidateCommandSettings settings)
     {
         var repository = new ManifestRepository(_rootLocator.ResolveRoot(settings.Root));

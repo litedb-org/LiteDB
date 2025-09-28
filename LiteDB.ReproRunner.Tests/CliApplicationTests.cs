@@ -1,5 +1,5 @@
-using LiteDB.ReproRunner.Cli;
 using LiteDB.ReproRunner.Cli.Commands;
+using LiteDB.ReproRunner.Cli.Infrastructure;
 using Spectre.Console;
 using Spectre.Console.Testing;
 

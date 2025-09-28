@@ -1,14 +1,27 @@
-namespace LiteDB.ReproRunner.Cli;
+namespace LiteDB.ReproRunner.Cli.Infrastructure;
 
+/// <summary>
+/// Locates the root directory containing repro definitions.
+/// </summary>
 internal sealed class ReproRootLocator
 {
     private readonly string? _defaultRoot;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ReproRootLocator"/> class.
+    /// </summary>
+    /// <param name="defaultRoot">The optional default root path to use when discovery fails.</param>
     public ReproRootLocator(string? defaultRoot = null)
     {
         _defaultRoot = string.IsNullOrWhiteSpace(defaultRoot) ? null : defaultRoot;
     }
 
+    /// <summary>
+    /// Resolves the repro root directory using the supplied override or discovery heuristics.
+    /// </summary>
+    /// <param name="rootOverride">The optional root path override supplied by the user.</param>
+    /// <returns>The resolved repro root directory.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when a repro root cannot be located.</exception>
     public string ResolveRoot(string? rootOverride)
     {
         var candidateRoot = string.IsNullOrWhiteSpace(rootOverride) ? _defaultRoot : rootOverride;

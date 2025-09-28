@@ -47,10 +47,10 @@ Validate all manifests (exit code `2` means one or more manifests are invalid):
 dotnet run --project LiteDB.ReproRunner/LiteDB.ReproRunner.Cli -- validate
 ```
 
-Run a repro against the in-repo LiteDB sources:
+Run a repro against both the packaged and source builds:
 
 ```bash
-dotnet run --project LiteDB.ReproRunner/LiteDB.ReproRunner.Cli -- run Issue_2561_TransactionMonitor --useProjectRef
+dotnet run --project LiteDB.ReproRunner/LiteDB.ReproRunner.Cli -- run Issue_2561_TransactionMonitor
 ```
 
 ## Writing a new repro
@@ -155,31 +155,34 @@ Commands:
 ### Running repros
 
 ```
-repro-runner run <id> [--useProjectRef|--usePackage] [--instances N] [--timeout S] [--skipValidation]
+repro-runner run <id> [--instances N] [--timeout S] [--skipValidation]
 ```
 
-* `--useProjectRef` – Compile against the in-repo `LiteDB` project.
-* `--usePackage` – Use the NuGet package (default).
 * `--instances` – Override the number of processes to spawn. Must be ≥ 1 and ≥ 2 when the manifest
   requires parallel execution.
 * `--timeout` – Override the manifest timeout (seconds).
 * `--skipValidation` – Run even when the manifest is invalid (execution still requires the manifest to
   parse successfully).
 
-The runner performs a `dotnet build -c Release` once, then launches `dotnet run --no-build` for each
-instance. Processes inherit the manifest arguments and receive the orchestration environment
-variables described earlier. The shared working directory is unique per invocation and lives under
-`%TEMP%/LiteDB.ReproRunner/<sharedDatabaseKey>/<guid>`.
+Each invocation plans deterministic run directories under the CLI’s output folder
+(`bin/<tfm>/<configuration>/runs/<manifest>/<variant>`), cleans any leftover artifacts, and prepares all
+builds before execution begins. Package and source variants are compiled in Release mode with
+`UseProjectReference` flipped appropriately, and their artifacts are placed inside the planned run
+directories. Execution then launches the built assemblies directly so that run output stays within the
+per-variant folder. All run directories are removed once the command completes, even when failures or
+cancellations occur.
 
 Timeouts are enforced across all processes. When the timeout elapses the runner terminates all child
-processes and returns exit code `1`.
+processes and returns exit code `1`. Build failures surface in the run table and return a non-zero exit
+code even when execution is skipped.
 
 ## Parallel repros
 
 Set `requiresParallel` to `true` and choose a descriptive `sharedDatabaseKey`. The key is used to build
 a deterministic folder for shared resources (for example, a LiteDB data file). Each process receives:
 
-* `LITEDB_RR_SHARED_DB` – The shared directory path.
+* `LITEDB_RR_SHARED_DB` – The shared directory path rooted under the variant’s run folder (for example
+  `runs/Issue_1234_Sample/ver_latest/run/<guid>`).
 * `LITEDB_RR_INSTANCE_INDEX` – The zero-based process index.
 * `LITEDB_RR_TOTAL_INSTANCES` – Total instances spawned for this run.
 
@@ -201,9 +204,9 @@ exercised on every PR.
 
 * **Manifest fails validation** – Run `repro-runner show <id>` to inspect the parsed metadata. Most
   errors reference the JSON path that needs attention.
-* **Build failures** – When `repro-runner run` fails to build, the `dotnet build` exit code is printed.
-  Re-run the command with `--useProjectRef` or `--usePackage` to pinpoint which configuration is
-  failing.
+* **Build failures** – When `repro-runner run` fails to build, the `dotnet build` diagnostics for each
+  variant are printed after the run table. Use the variant label (package vs latest) to pinpoint which
+  configuration needs attention.
 * **Timeouts** – Use `--timeout` to temporarily raise the limit while debugging long-running repros.
 * **Custom LiteDB package version** – Pass `-p:LiteDBPackageVersion=<version>` through the CLI to
   target a specific NuGet version. The property is forwarded to both build and run invocations.

@@ -1,17 +1,24 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using LiteDB.ReproRunner.Cli.Manifests;
 using LiteDB.ReproRunner.Shared;
 using LiteDB.ReproRunner.Shared.Messaging;
 
-namespace LiteDB.ReproRunner.Cli;
+namespace LiteDB.ReproRunner.Cli.Execution;
 
+/// <summary>
+/// Executes built repro assemblies and relays their structured output.
+/// </summary>
 internal sealed class ReproExecutor
 {
     private readonly TextWriter _standardOut;
     private readonly TextWriter _standardError;
     private readonly object _writeLock = new();
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ReproExecutor"/> class using the console streams.
+    /// </summary>
     public ReproExecutor()
         : this(Console.Out, Console.Error)
     {
@@ -25,46 +32,57 @@ internal sealed class ReproExecutor
 
     internal Action<int, ReproHostMessageEnvelope>? StructuredMessageObserver { get; set; }
 
-    public async Task<ReproExecutionResult> ExecuteAsync(DiscoveredRepro repro, bool useProjectReference, int instances, int timeoutSeconds, CancellationToken cancellationToken)
+    internal Action<ReproExecutionLogEntry>? LogObserver { get; set; }
+
+    internal bool SuppressConsoleLogOutput { get; set; }
+
+    /// <summary>
+    /// Executes the provided repro build across the requested number of instances.
+    /// </summary>
+    /// <param name="build">The build to execute.</param>
+    /// <param name="instances">The number of instances to launch.</param>
+    /// <param name="timeoutSeconds">The timeout applied to the execution.</param>
+    /// <param name="cancellationToken">The token used to observe cancellation requests.</param>
+    /// <returns>The execution result for the run.</returns>
+    public async Task<ReproExecutionResult> ExecuteAsync(
+        ReproBuildResult build,
+        int instances,
+        int timeoutSeconds,
+        CancellationToken cancellationToken)
     {
+        if (build is null)
+        {
+            throw new ArgumentNullException(nameof(build));
+        }
+
+        if (!build.Succeeded || string.IsNullOrWhiteSpace(build.AssemblyPath))
+        {
+            return new ReproExecutionResult(build.Plan.UseProjectReference, false, build.ExitCode, TimeSpan.Zero);
+        }
+
+        var repro = build.Plan.Repro;
+
         if (repro.ProjectPath is null)
         {
-            return new ReproExecutionResult(useProjectReference, false, 2, TimeSpan.Zero);
+            return new ReproExecutionResult(build.Plan.UseProjectReference, false, build.ExitCode, TimeSpan.Zero);
         }
 
         var manifest = repro.Manifest ?? throw new InvalidOperationException("Manifest is required to execute a repro.");
-        var projectPath = repro.ProjectPath;
-        var projectDirectory = Path.GetDirectoryName(projectPath)!;
+        var projectDirectory = Path.GetDirectoryName(repro.ProjectPath)!;
         var stopwatch = Stopwatch.StartNew();
 
-        var buildExitCode = await RunProcessAsync(
-            projectDirectory,
-            new[]
-            {
-                "build",
-                projectPath,
-                "-c", "Release",
-                $"-p:UseProjectReference={(useProjectReference ? "true" : "false")}",
-                "--nologo"
-            },
-            cancellationToken).ConfigureAwait(false);
+        var sharedKey = !string.IsNullOrWhiteSpace(manifest.SharedDatabaseKey)
+            ? manifest.SharedDatabaseKey!
+            : manifest.Id;
 
-        if (buildExitCode != 0)
-        {
-            stopwatch.Stop();
-            return new ReproExecutionResult(useProjectReference, false, buildExitCode, stopwatch.Elapsed);
-        }
-
-        var sharedKey = !string.IsNullOrWhiteSpace(manifest.SharedDatabaseKey) ? manifest.SharedDatabaseKey! : manifest.Id;
         var runIdentifier = Guid.NewGuid().ToString("N");
-        var sharedRoot = Path.Combine(Path.GetTempPath(), "LiteDB.ReproRunner", sharedKey, runIdentifier);
+        var sharedRoot = Path.Combine(build.Plan.ExecutionRootDirectory, Sanitize(sharedKey), runIdentifier);
         Directory.CreateDirectory(sharedRoot);
 
         var exitCode = await RunInstancesAsync(
             manifest,
             projectDirectory,
-            projectPath,
-            useProjectReference,
+            build.AssemblyPath,
             instances,
             timeoutSeconds,
             sharedRoot,
@@ -72,35 +90,20 @@ internal sealed class ReproExecutor
             cancellationToken).ConfigureAwait(false);
 
         stopwatch.Stop();
-        return new ReproExecutionResult(useProjectReference, exitCode == 0, exitCode, stopwatch.Elapsed);
+        return new ReproExecutionResult(build.Plan.UseProjectReference, exitCode == 0, exitCode, stopwatch.Elapsed);
     }
 
     private async Task<int> RunInstancesAsync(
         ReproManifest manifest,
         string projectDirectory,
-        string projectPath,
-        bool useProjectReference,
+        string assemblyPath,
         int instances,
         int timeoutSeconds,
         string sharedRoot,
         string runIdentifier,
         CancellationToken cancellationToken)
     {
-        var runArgs = new List<string>
-        {
-            "run",
-            "--project", projectPath,
-            "-c", "Release",
-            "--no-build",
-            $"-p:UseProjectReference={(useProjectReference ? "true" : "false")}",
-        };
-
-        if (manifest.Args.Count > 0)
-        {
-            runArgs.Add("--");
-            runArgs.AddRange(manifest.Args);
-        }
-
+        var manifestArgs = manifest.Args;
         var processes = new List<Process>();
         var outputTasks = new List<Task>();
         var errorTasks = new List<Task>();
@@ -111,10 +114,11 @@ internal sealed class ReproExecutor
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var startInfo = CreateStartInfo(projectDirectory, runArgs);
+                var startInfo = CreateStartInfo(projectDirectory, assemblyPath, manifestArgs);
                 startInfo.Environment["LITEDB_RR_SHARED_DB"] = sharedRoot;
                 startInfo.Environment["LITEDB_RR_INSTANCE_INDEX"] = index.ToString();
                 startInfo.Environment["LITEDB_RR_TOTAL_INSTANCES"] = instances.ToString();
+                startInfo.Environment["LITEDB_RR_RUN_IDENTIFIER"] = runIdentifier;
 
                 var process = Process.Start(startInfo);
                 if (process is null)
@@ -179,7 +183,7 @@ internal sealed class ReproExecutor
         }
     }
 
-    private static ProcessStartInfo CreateStartInfo(string workingDirectory, IEnumerable<string> arguments)
+    private static ProcessStartInfo CreateStartInfo(string workingDirectory, string assemblyPath, IEnumerable<string> arguments)
     {
         var startInfo = new ProcessStartInfo("dotnet")
         {
@@ -192,27 +196,14 @@ internal sealed class ReproExecutor
             StandardErrorEncoding = Encoding.UTF8
         };
 
+        startInfo.ArgumentList.Add(assemblyPath);
+
         foreach (var argument in arguments)
         {
             startInfo.ArgumentList.Add(argument);
         }
 
         return startInfo;
-    }
-
-    private async Task<int> RunProcessAsync(string workingDirectory, IEnumerable<string> arguments, CancellationToken cancellationToken)
-    {
-        var startInfo = CreateStartInfo(workingDirectory, arguments);
-
-        using var process = Process.Start(startInfo) ?? throw new InvalidOperationException("Failed to start process.");
-
-        var outputPump = DrainStreamAsync(process.StandardOutput, isError: false, cancellationToken);
-        var errorPump = DrainStreamAsync(process.StandardError, isError: true, cancellationToken);
-
-        await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
-        await Task.WhenAll(outputPump, errorPump).ConfigureAwait(false);
-
-        return process.ExitCode;
     }
 
     private async Task PumpStandardOutputAsync(Process process, int instanceIndex, CancellationToken cancellationToken)
@@ -301,9 +292,17 @@ internal sealed class ReproExecutor
     private void WriteLogMessage(int instanceIndex, ReproHostMessageEnvelope envelope)
     {
         var message = envelope.Text ?? string.Empty;
+        var level = envelope.Level ?? ReproHostLogLevel.Information;
         var formatted = $"[{instanceIndex}] {message}";
 
-        switch (envelope.Level)
+        LogObserver?.Invoke(new ReproExecutionLogEntry(instanceIndex, message, level));
+
+        if (SuppressConsoleLogOutput)
+        {
+            return;
+        }
+
+        switch (level)
         {
             case ReproHostLogLevel.Error:
             case ReproHostLogLevel.Critical:
@@ -326,7 +325,14 @@ internal sealed class ReproExecutor
         WriteOutputLine($"[{instanceIndex}] {summary}");
     }
 
-    private async Task SendHostHandshakeAsync(Process process, ReproManifest manifest, string sharedRoot, string runIdentifier, int instanceIndex, int totalInstances, CancellationToken cancellationToken)
+    private async Task SendHostHandshakeAsync(
+        Process process,
+        ReproManifest manifest,
+        string sharedRoot,
+        string runIdentifier,
+        int instanceIndex,
+        int totalInstances,
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -339,34 +345,6 @@ internal sealed class ReproExecutor
             await writer.FlushAsync().ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException or ObjectDisposedException)
-        {
-        }
-    }
-
-    private async Task DrainStreamAsync(StreamReader reader, bool isError, CancellationToken cancellationToken)
-    {
-        try
-        {
-            while (true)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                var line = await reader.ReadLineAsync().ConfigureAwait(false);
-                if (line is null)
-                {
-                    break;
-                }
-
-                if (isError)
-                {
-                    WriteErrorLine(line);
-                }
-                else
-                {
-                    WriteOutputLine(line);
-                }
-            }
-        }
-        catch (Exception ex) when (ex is IOException or ObjectDisposedException)
         {
         }
     }
@@ -402,6 +380,39 @@ internal sealed class ReproExecutor
         {
         }
     }
+
+    private static string Sanitize(string value)
+    {
+        var builder = new StringBuilder(value.Length);
+        foreach (var ch in value)
+        {
+            if (Array.IndexOf(Path.GetInvalidFileNameChars(), ch) >= 0)
+            {
+                builder.Append('_');
+            }
+            else
+            {
+                builder.Append(ch);
+            }
+        }
+
+        return builder.Length == 0 ? "shared" : builder.ToString();
+    }
 }
 
+/// <summary>
+/// Represents the result of executing a repro variant.
+/// </summary>
+/// <param name="UseProjectReference">Indicates whether the run targeted the source project build.</param>
+/// <param name="Reproduced">Indicates whether the repro successfully reproduced the issue.</param>
+/// <param name="ExitCode">The exit code reported by the repro host.</param>
+/// <param name="Duration">The elapsed time for the execution.</param>
 internal readonly record struct ReproExecutionResult(bool UseProjectReference, bool Reproduced, int ExitCode, TimeSpan Duration);
+
+/// <summary>
+/// Represents a structured log entry emitted during repro execution.
+/// </summary>
+/// <param name="InstanceIndex">The zero-based instance index originating the log entry.</param>
+/// <param name="Message">The log message text.</param>
+/// <param name="Level">The severity associated with the log entry.</param>
+internal readonly record struct ReproExecutionLogEntry(int InstanceIndex, string Message, ReproHostLogLevel Level);

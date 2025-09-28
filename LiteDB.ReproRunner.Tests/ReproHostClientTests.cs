@@ -1,6 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using LiteDB.ReproRunner.Cli;
+using LiteDB.ReproRunner.Cli.Execution;
 using LiteDB.ReproRunner.Shared.Messaging;
 
 namespace LiteDB.ReproRunner.Tests;

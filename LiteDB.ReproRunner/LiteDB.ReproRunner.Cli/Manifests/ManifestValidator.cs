@@ -2,13 +2,23 @@ using System.Linq;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-namespace LiteDB.ReproRunner.Cli;
+namespace LiteDB.ReproRunner.Cli.Manifests;
 
+/// <summary>
+/// Validates repro manifest documents and produces strongly typed models.
+/// </summary>
 internal sealed class ManifestValidator
 {
     private static readonly string[] AllowedStates = { "red", "green", "flaky" };
     private static readonly Regex IdPattern = new("^[A-Za-z0-9_]+$", RegexOptions.Compiled);
 
+    /// <summary>
+    /// Validates the supplied JSON manifest and produces a <see cref="ReproManifest"/> instance.
+    /// </summary>
+    /// <param name="root">The root JSON element to evaluate.</param>
+    /// <param name="validation">The validation result collector that will receive any errors.</param>
+    /// <param name="rawId">When this method returns, contains the identifier parsed before validation succeeded.</param>
+    /// <returns>The parsed manifest when validation succeeds; otherwise, <c>null</c>.</returns>
     public ReproManifest? Validate(JsonElement root, ManifestValidationResult validation, out string? rawId)
     {
         rawId = null;
