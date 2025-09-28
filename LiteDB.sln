@@ -1,4 +1,4 @@
-
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.1.32328.378
@@ -18,6 +18,18 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteDB.RollbackRepro", "LiteDB.RollbackRepro\LiteDB.RollbackRepro.csproj", "{BE1D6CA2-134A-404A-8F1A-C48E4E240159}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Misc", "Misc", "{D455AC29-7847-4DF4-AD06-69042F8B8885}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "LiteDB.ReproRunner", "LiteDB.ReproRunner", "{C172DFBD-9BFC-41A4-82B9-5B9BBC90850D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteDB.ReproRunner.Cli", "LiteDB.ReproRunner\LiteDB.ReproRunner.Cli\LiteDB.ReproRunner.Cli.csproj", "{CDCF5EED-50F3-4790-B180-10B203EE6B4B}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Repros", "Repros", "{B0BD59D3-0D10-42BF-A744-533473577C8C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Issue_2561_TransactionMonitor", "LiteDB.ReproRunner\Repros\Issue_2561_TransactionMonitor\Issue_2561_TransactionMonitor.csproj", "{B5BF3DFE-5F26-447A-AF5A-60C6E3D341AC}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{3B786621-2B82-4C69-8FE9-3889ECB36E75}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteDB.ReproRunner.Tests", "LiteDB.ReproRunner.Tests\LiteDB.ReproRunner.Tests.csproj", "{3EF8E506-B57B-4A98-AD09-E687F9DC515D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -53,6 +65,18 @@ Global
 		{BE1D6CA2-134A-404A-8F1A-C48E4E240159}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BE1D6CA2-134A-404A-8F1A-C48E4E240159}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BE1D6CA2-134A-404A-8F1A-C48E4E240159}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CDCF5EED-50F3-4790-B180-10B203EE6B4B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CDCF5EED-50F3-4790-B180-10B203EE6B4B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CDCF5EED-50F3-4790-B180-10B203EE6B4B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CDCF5EED-50F3-4790-B180-10B203EE6B4B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B5BF3DFE-5F26-447A-AF5A-60C6E3D341AC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B5BF3DFE-5F26-447A-AF5A-60C6E3D341AC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B5BF3DFE-5F26-447A-AF5A-60C6E3D341AC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B5BF3DFE-5F26-447A-AF5A-60C6E3D341AC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3EF8E506-B57B-4A98-AD09-E687F9DC515D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3EF8E506-B57B-4A98-AD09-E687F9DC515D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3EF8E506-B57B-4A98-AD09-E687F9DC515D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3EF8E506-B57B-4A98-AD09-E687F9DC515D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -66,5 +90,9 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{E8763934-E46A-4AAF-A2B5-E812016DAF84} = {D455AC29-7847-4DF4-AD06-69042F8B8885}
 		{BE1D6CA2-134A-404A-8F1A-C48E4E240159} = {D455AC29-7847-4DF4-AD06-69042F8B8885}
+		{CDCF5EED-50F3-4790-B180-10B203EE6B4B} = {C172DFBD-9BFC-41A4-82B9-5B9BBC90850D}
+		{B0BD59D3-0D10-42BF-A744-533473577C8C} = {C172DFBD-9BFC-41A4-82B9-5B9BBC90850D}
+		{B5BF3DFE-5F26-447A-AF5A-60C6E3D341AC} = {B0BD59D3-0D10-42BF-A744-533473577C8C}
+		{3EF8E506-B57B-4A98-AD09-E687F9DC515D} = {3B786621-2B82-4C69-8FE9-3889ECB36E75}
 	EndGlobalSection
 EndGlobal
