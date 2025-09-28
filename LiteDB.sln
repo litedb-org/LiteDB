@@ -15,7 +15,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LiteDB.Stress", "LiteDB.Str
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConsoleApp1", "ConsoleApp1\ConsoleApp1.csproj", "{E8763934-E46A-4AAF-A2B5-E812016DAF84}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteDB.RollbackRepro", "LiteDB.RollbackRepro\LiteDB.RollbackRepro.csproj", "{BE1D6CA2-134A-404A-8F1A-C48E4E240159}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Issue_2586_RollbackTransaction", "LiteDB.ReproRunner\Repros\Issue_2586_RollbackTransaction\Issue_2586_RollbackTransaction.csproj", "{BE1D6CA2-134A-404A-8F1A-C48E4E240159}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Misc", "Misc", "{D455AC29-7847-4DF4-AD06-69042F8B8885}"
 EndProject

@@ -7,18 +7,18 @@ using System.Reflection;
 using System.Threading;
 using LiteDB;
 
-namespace LiteDB.RollbackRepro;
+namespace Issue_2586_RollbackTransaction;
 
 /// <summary>
-/// Repro of #2586
-/// To repro after the patch, set ``<PackageReference Include="LiteDB" Version="5.0.20" />``
+/// Repro of LiteDB issue #2586. The repro returns exit code 0 when the rollback throws the expected
+/// LiteException and non-zero when the bug fails to reproduce.
 /// </summary>
 internal static class Program
 {
     private const int HolderTransactionCount = 99;
     private const int DocumentWriteCount = 10_000;
 
-    private static void Main()
+    private static int Main()
     {
         var stopwatch = Stopwatch.StartNew();
 
@@ -50,13 +50,8 @@ internal static class Program
 
         try
         {
-            RunFailingTransaction(db, collection);
-        }
-        catch (LiteException liteException)
-        {
-            Console.WriteLine();
-            Console.WriteLine("Captured expected LiteDB.LiteException:");
-            Console.WriteLine(liteException);
+            var bugReproduced = RunFailingTransaction(db, collection);
+            return bugReproduced ? 0 : 1;
         }
         finally
         {
@@ -135,7 +130,7 @@ internal static class Program
         }
     }
 
-    private static void RunFailingTransaction(LiteDatabase db, ILiteCollection<LargeDocument> collection)
+    private static bool RunFailingTransaction(LiteDatabase db, ILiteCollection<LargeDocument> collection)
     {
         Console.WriteLine();
         Console.WriteLine($"Starting write transaction on thread {Thread.CurrentThread.ManagedThreadId}.");
@@ -154,8 +149,6 @@ internal static class Program
         var payloadB = new string('B', 4_096);
         var payloadC = new string('C', 2_048);
         var largeBinary = new byte[128 * 1024];
-
-        var commitRequested = false;
 
         try
         {
@@ -233,27 +226,31 @@ internal static class Program
                 }
             }
 
-            db.Rollback();
-  
-            var color = Console.ForegroundColor;
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine("Rollback returned without throwing — the bug did not reproduce.");
-            Console.ForegroundColor = color;
-            // throw;
-            return;
-        }
-        finally
-        {
-            if (commitRequested)
+            try
             {
-                db.Commit();
+                db.Rollback();
+
+                var color = Console.ForegroundColor;
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine("Rollback returned without throwing — the bug did not reproduce.");
+                Console.ForegroundColor = color;
+
+                return false;
+            }
+            catch (LiteException liteException)
+            {
+                Console.WriteLine();
+                Console.WriteLine("Captured expected LiteDB.LiteException:");
+                Console.WriteLine(liteException);
+
+                var colorFg = Console.ForegroundColor;
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("Rollback threw LiteException — the bug reproduced.");
+                Console.ForegroundColor = colorFg;
+
+                return true;
             }
         }
-        
-        var colorFg = Console.ForegroundColor;
-        Console.ForegroundColor = ConsoleColor.Red;
-        Console.WriteLine("Rollback threw LiteException — the bug reproduced.");
-        Console.ForegroundColor = colorFg;
     }
 
     private sealed class LargeDocument
