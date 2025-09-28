@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -194,7 +195,7 @@ internal static class Program
             {
                 if (shouldTriggerSafepoint && !safepointTriggered)
                 {
-                    inspector ??= TransactionInspector.Attach(db);
+                    inspector ??= TransactionInspector.Attach(db, collection.Name);
 
                     Console.WriteLine();
                     Log(host, $"Manually invoking safepoint before processing document #{i:N0}.");
@@ -229,7 +230,7 @@ internal static class Program
                     Log(host, $"Upserted {i:N0} documents...");
                 }
 
-                inspector ??= TransactionInspector.Attach(db);
+                inspector ??= TransactionInspector.Attach(db, collection.Name);
 
                 var currentSize = inspector.CurrentSize;
                 maxSize = Math.Max(maxSize, inspector.MaxSize);
@@ -425,7 +426,7 @@ internal static class Program
             }
         }
 
-        public static TransactionInspector Attach(LiteDatabase db)
+        public static TransactionInspector Attach(LiteDatabase db, string collectionName)
         {
             var engineField = typeof(LiteDatabase).GetField("_engine", BindingFlags.NonPublic | BindingFlags.Instance)
                               ?? throw new InvalidOperationException("Unable to locate LiteDatabase engine field.");
@@ -443,16 +444,12 @@ internal static class Program
             var transaction = getThreadTransaction.Invoke(monitor, Array.Empty<object>())
                               ?? throw new InvalidOperationException("Thread transaction is not available.");
 
-            var transactionPagesField = transaction.GetType().GetField("_transactionPages", BindingFlags.NonPublic | BindingFlags.Instance)
-                                         ?? throw new InvalidOperationException("_transactionPages field not found on transaction.");
+            var transactionType = transaction.GetType();
 
-            var transactionPages = transactionPagesField.GetValue(transaction)
+            var transactionPages = GetTransactionPages(transactionType, transaction)
                                   ?? throw new InvalidOperationException("Transaction pages are unavailable.");
 
-            var snapshotField = transaction.GetType().GetField("_snapshot", BindingFlags.NonPublic | BindingFlags.Instance)
-                                ?? throw new InvalidOperationException("Snapshot field not found on transaction.");
-
-            var snapshot = snapshotField.GetValue(transaction)
+            var snapshot = GetSnapshot(transactionType, transaction, collectionName)
                            ?? throw new InvalidOperationException("Transaction snapshot is unavailable.");
 
             var transactionSizeProperty = transactionPages.GetType().GetProperty("TransactionSize", BindingFlags.Public | BindingFlags.Instance)
@@ -464,8 +461,8 @@ internal static class Program
             var collectionPageProperty = snapshot.GetType().GetProperty("CollectionPage", BindingFlags.Public | BindingFlags.Instance)
                                         ?? throw new InvalidOperationException("CollectionPage property not found on snapshot.");
 
-            var bufferProperty = snapshot.GetType().GetProperty("Buffer", BindingFlags.Public | BindingFlags.Instance)
-                                   ?? throw new InvalidOperationException("Buffer property not found on snapshot.");
+            var bufferProperty = collectionPageProperty.PropertyType.GetProperty("Buffer", BindingFlags.Public | BindingFlags.Instance)
+                                   ?? throw new InvalidOperationException("Buffer property not found on collection page.");
 
             var shareCounterField = bufferProperty.PropertyType.GetField("ShareCounter", BindingFlags.Public | BindingFlags.Instance)
                                       ?? throw new InvalidOperationException("ShareCounter field not found on buffer.");
@@ -483,6 +480,111 @@ internal static class Program
                 bufferProperty,
                 shareCounterField,
                 safepointMethod);
+        }
+
+        private static object? GetTransactionPages(Type transactionType, object transaction)
+        {
+            var field = transactionType.GetField("_transactionPages", BindingFlags.NonPublic | BindingFlags.Instance)
+                        ?? transactionType.GetField("_transPages", BindingFlags.NonPublic | BindingFlags.Instance);
+
+            if (field?.GetValue(transaction) is { } pages)
+            {
+                return pages;
+            }
+
+            var property = transactionType.GetProperty("Pages", BindingFlags.Public | BindingFlags.Instance);
+
+            return property?.GetValue(transaction);
+        }
+
+        private static object? GetSnapshot(Type transactionType, object transaction, string collectionName)
+        {
+            var snapshot = transactionType.GetField("_snapshot", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(transaction);
+
+            if (snapshot is not null)
+            {
+                return snapshot;
+            }
+
+            var snapshotsField = transactionType.GetField("_snapshots", BindingFlags.NonPublic | BindingFlags.Instance);
+
+            if (snapshotsField?.GetValue(transaction) is IDictionary dictionary)
+            {
+                snapshot = FindSnapshot(dictionary, collectionName);
+
+                if (snapshot is not null)
+                {
+                    return snapshot;
+                }
+            }
+
+            var snapshotsProperty = transactionType.GetProperty("Snapshots", BindingFlags.Public | BindingFlags.Instance);
+
+            if (snapshotsProperty?.GetValue(transaction) is IEnumerable enumerable)
+            {
+                return FindSnapshot(enumerable, collectionName);
+            }
+
+            return null;
+        }
+
+        private static object? FindSnapshot(IDictionary dictionary, string collectionName)
+        {
+            if (!string.IsNullOrWhiteSpace(collectionName) && dictionary.Contains(collectionName))
+            {
+                var value = dictionary[collectionName];
+
+                if (value is not null)
+                {
+                    return value;
+                }
+            }
+
+            foreach (DictionaryEntry entry in dictionary)
+            {
+                if (entry.Value is null)
+                {
+                    continue;
+                }
+
+                if (MatchesCollection(entry.Value, collectionName))
+                {
+                    return entry.Value;
+                }
+            }
+
+            return null;
+        }
+
+        private static object? FindSnapshot(IEnumerable snapshots, string collectionName)
+        {
+            foreach (var snapshot in snapshots)
+            {
+                if (snapshot is null)
+                {
+                    continue;
+                }
+
+                if (MatchesCollection(snapshot, collectionName))
+                {
+                    return snapshot;
+                }
+            }
+
+            return null;
+        }
+
+        private static bool MatchesCollection(object snapshot, string collectionName)
+        {
+            if (string.IsNullOrWhiteSpace(collectionName))
+            {
+                return true;
+            }
+
+            var nameProperty = snapshot.GetType().GetProperty("CollectionName", BindingFlags.Public | BindingFlags.Instance);
+            var name = nameProperty?.GetValue(snapshot)?.ToString();
+
+            return string.Equals(name, collectionName, StringComparison.OrdinalIgnoreCase);
         }
     }
 
