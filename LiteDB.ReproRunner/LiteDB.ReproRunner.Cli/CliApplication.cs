@@ -1,19 +1,21 @@
-using System.IO;
 using System.Linq;
-using System.Threading;
+using System.Xml.Linq;
+using Spectre.Console;
 
 namespace LiteDB.ReproRunner.Cli;
 
 internal sealed class CliApplication
 {
-    private readonly IConsole _console;
+    private readonly IAnsiConsole _console;
+    private readonly ReproExecutor _executor;
 
-    public CliApplication(IConsole console)
+    public CliApplication(IAnsiConsole console, ReproExecutor executor)
     {
-        _console = console;
+        _console = console ?? throw new ArgumentNullException(nameof(console));
+        _executor = executor ?? throw new ArgumentNullException(nameof(executor));
     }
 
-    public async Task<int> RunAsync(string[] args)
+    public async Task<int> RunAsync(string[] args, CancellationToken cancellationToken)
     {
         try
         {
@@ -39,18 +41,23 @@ internal sealed class CliApplication
                 "list" => RunList(repository, commandArgs),
                 "show" => RunShow(repository, commandArgs),
                 "validate" => RunValidate(repository, commandArgs),
-                "run" => await RunReproAsync(repository, commandArgs).ConfigureAwait(false),
+                "run" => await RunReprosAsync(repository, commandArgs, cancellationToken).ConfigureAwait(false),
                 _ => UnknownCommand(command)
             };
         }
+        catch (OperationCanceledException)
+        {
+            _console.MarkupLine("[yellow]Execution cancelled.[/]");
+            return 1;
+        }
         catch (CliUsageException ex)
         {
-            _console.Error.WriteLine(ex.Message);
+            _console.WriteException(ex, ExceptionFormats.ShortenEverything);
             return 1;
         }
         catch (InvalidOperationException ex)
         {
-            _console.Error.WriteLine(ex.Message);
+            _console.MarkupLine($"[red]{Markup.Escape(ex.Message)}[/]");
             return 1;
         }
     }
@@ -110,17 +117,18 @@ internal sealed class CliApplication
 
     private void PrintUsage()
     {
-        _console.Out.WriteLine("Usage: repro-runner [--root <path>] <command> [options]");
-        _console.Out.WriteLine();
-        _console.Out.WriteLine("Commands:");
-        _console.Out.WriteLine("  list [--strict]                 List discovered repros and highlight invalid manifests.");
-        _console.Out.WriteLine("  show <id>                       Display the manifest metadata for a repro.");
-        _console.Out.WriteLine("  validate [--all|--id <id>]      Validate manifest files (exit 2 on invalid).");
-        _console.Out.WriteLine("  run <id> [options]              Execute a repro project.");
-        _console.Out.WriteLine();
-        _console.Out.WriteLine("Global options:");
-        _console.Out.WriteLine("  --root <path>                   Override the LiteDB.ReproRunner root directory.");
-        _console.Out.WriteLine("  --help                          Show this usage information.");
+        var panel = new Panel("Usage: repro-runner [--root <path>] <command> [options]")
+            .Expand();
+        _console.Write(panel);
+        _console.MarkupLine("Commands:");
+        _console.MarkupLine("  [yellow]list[/] [--strict]                     List discovered repros and highlight invalid manifests.");
+        _console.MarkupLine("  [yellow]show[/] <id>                           Display the manifest metadata for a repro.");
+        _console.MarkupLine("  [yellow]validate[/] [--all|--id <id>]          Validate manifest files (exit 2 on invalid).");
+        _console.MarkupLine("  [yellow]run[/] [--all|<id>] [options]          Execute repros against package and source builds.");
+        _console.WriteLine();
+        _console.MarkupLine("Global options:");
+        _console.MarkupLine("  --root <path>                                 Override the LiteDB.ReproRunner root directory.");
+        _console.MarkupLine("  --help                                        Show this usage information.");
     }
 
     private string ResolveRoot(string? rootOverride)
@@ -206,15 +214,26 @@ internal sealed class CliApplication
 
         if (valid.Count > 0)
         {
-            PrintListHeader();
+            var table = new Table().Border(TableBorder.Rounded);
+            table.AddColumns("Id", "State", "Timeout", "Failing Since", "Tags", "Title");
+
             foreach (var repro in valid)
             {
-                PrintListRow(repro.Manifest!);
+                var manifest = repro.Manifest!;
+                table.AddRow(
+                    Markup.Escape(manifest.Id),
+                    Markup.Escape(manifest.State),
+                    Markup.Escape($"{manifest.TimeoutSeconds}s"),
+                    Markup.Escape(manifest.FailingSince ?? "-"),
+                    Markup.Escape(manifest.Tags.Count > 0 ? string.Join(",", manifest.Tags) : "-"),
+                    Markup.Escape(manifest.Title));
             }
+
+            _console.Write(table);
         }
         else
         {
-            _console.Out.WriteLine("No valid repro manifests found.");
+            _console.MarkupLine("[yellow]No valid repro manifests found.[/]");
         }
 
         foreach (var repro in invalid)
@@ -248,7 +267,7 @@ internal sealed class CliApplication
 
         if (repro is null)
         {
-            _console.Error.WriteLine($"Repro '{id}' was not found.");
+            _console.MarkupLine($"[red]Repro '{Markup.Escape(id)}' was not found.[/]");
             return 1;
         }
 
@@ -295,7 +314,7 @@ internal sealed class CliApplication
 
             if (repro is null)
             {
-                _console.Error.WriteLine($"Repro '{targetId}' was not found.");
+                _console.MarkupLine($"[red]Repro '{Markup.Escape(targetId!)}' was not found.[/]");
                 return 1;
             }
 
@@ -314,20 +333,11 @@ internal sealed class CliApplication
         return anyInvalid ? 2 : 0;
     }
 
-    private async Task<int> RunReproAsync(ManifestRepository repository, string[] args)
+    private async Task<int> RunReprosAsync(ManifestRepository repository, string[] args, CancellationToken cancellationToken)
     {
-        if (args.Length == 0)
-        {
-            throw new CliUsageException("run requires a repro id.");
-        }
-
         var reader = new ArgumentReader(args);
-
-        if (!reader.TryRead(out var id))
-        {
-            throw new CliUsageException("run requires a repro id.");
-        }
-        bool? useProjectReference = null;
+        string? targetId = null;
+        var runAll = false;
         int? overrideInstances = null;
         int? overrideTimeout = null;
         var skipValidation = false;
@@ -336,11 +346,8 @@ internal sealed class CliApplication
         {
             switch (token)
             {
-                case "--useProjectRef":
-                    useProjectReference = true;
-                    break;
-                case "--usePackage":
-                    useProjectReference = false;
+                case "--all":
+                    runAll = true;
                     break;
                 case "--instances":
                     var instancesValue = reader.ReadValue("--instances");
@@ -364,122 +371,223 @@ internal sealed class CliApplication
                     skipValidation = true;
                     break;
                 default:
-                    throw new CliUsageException($"run: unknown option '{token}'.");
+                    if (targetId is not null)
+                    {
+                        throw new CliUsageException("run accepts only one repro id.");
+                    }
+
+                    targetId = token;
+                    break;
             }
         }
 
-        var manifests = repository.Discover();
-        var repro = manifests.FirstOrDefault(x => string.Equals(x.Manifest?.Id ?? x.RawId, id, StringComparison.OrdinalIgnoreCase));
-
-        if (repro is null)
+        if (!runAll && targetId is null)
         {
-            _console.Error.WriteLine($"Repro '{id}' was not found.");
+            throw new CliUsageException("run requires a repro id or --all.");
+        }
+
+        if (runAll && targetId is not null)
+        {
+            throw new CliUsageException("run cannot specify both --all and a repro id.");
+        }
+
+        var manifests = repository.Discover();
+        var selected = runAll
+            ? manifests.ToList()
+            : manifests.Where(x => string.Equals(x.Manifest?.Id ?? x.RawId, targetId, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        if (selected.Count == 0)
+        {
+            if (runAll)
+            {
+                _console.MarkupLine("[yellow]No repros discovered.[/]");
+                return 0;
+            }
+
+            _console.MarkupLine($"[red]Repro '{Markup.Escape(targetId!)}' was not found.[/]");
             return 1;
         }
 
-        if (!skipValidation && !repro.IsValid)
+        var table = new Table().Border(TableBorder.Rounded).AddColumns("Repro", "Outcome", "Details");
+        var overallExitCode = 0;
+
+        await _console.Live(table).StartAsync(async ctx =>
         {
-            PrintInvalid(repro);
-            return 2;
+            foreach (var repro in selected)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (!repro.IsValid)
+                {
+                    if (!skipValidation)
+                    {
+                        table.AddRow(Markup.Escape(repro.RawId ?? "(unknown)"), "[red]Invalid manifest[/]", Markup.Escape(string.Join(Environment.NewLine, repro.Validation.Errors)));
+                        ctx.Refresh();
+                        overallExitCode = overallExitCode == 0 ? 2 : overallExitCode;
+                        continue;
+                    }
+
+                    if (repro.Manifest is null)
+                    {
+                        table.AddRow(Markup.Escape(repro.RawId ?? "(unknown)"), "[red]Cannot run invalid manifest[/]", Markup.Escape("Validation failed and manifest not available."));
+                        ctx.Refresh();
+                        overallExitCode = overallExitCode == 0 ? 2 : overallExitCode;
+                        continue;
+                    }
+                }
+
+                if (repro.Manifest is null)
+                {
+                    table.AddRow(Markup.Escape(repro.RawId ?? "(unknown)"), "[red]Manifest missing[/]", Markup.Escape("Unable to load manifest."));
+                    ctx.Refresh();
+                    overallExitCode = overallExitCode == 0 ? 2 : overallExitCode;
+                    continue;
+                }
+
+                var manifest = repro.Manifest;
+                var instances = overrideInstances ?? manifest.DefaultInstances;
+
+                if (manifest.RequiresParallel && instances < 2)
+                {
+                    table.AddRow(Markup.Escape(manifest.Id), "[red]Invalid options[/]", Markup.Escape("Requires at least 2 instances."));
+                    ctx.Refresh();
+                    overallExitCode = 1;
+                    continue;
+                }
+
+                var timeoutSeconds = overrideTimeout ?? manifest.TimeoutSeconds;
+                var packageVersion = TryResolvePackageVersion(repro.ProjectPath);
+                var packageMessage = packageVersion is not null
+                    ? $"Reproduces at version {packageVersion}."
+                    : "Reproduces with NuGet package.";
+
+                var runs = new[]
+                {
+                    new RunTarget(false, packageMessage),
+                    new RunTarget(true, "Reproduces with current code.")
+                };
+
+                foreach (var run in runs)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    var result = await _executor.ExecuteAsync(repro, run.UseProjectReference, instances, timeoutSeconds, cancellationToken).ConfigureAwait(false);
+                    var status = result.Reproduced
+                        ? $"{run.Message} [green]✅[/]"
+                        : $"{run.Message} [red]❌[/]";
+                    var details = result.Reproduced
+                        ? $"Duration: {FormatDuration(result.Duration)}"
+                        : $"Exit code {result.ExitCode}, Duration: {FormatDuration(result.Duration)}";
+
+                    table.AddRow(Markup.Escape(manifest.Id), status, Markup.Escape(details));
+                    ctx.Refresh();
+
+                    if (!result.Reproduced)
+                    {
+                        overallExitCode = overallExitCode == 0 ? result.ExitCode : overallExitCode;
+                    }
+                }
+            }
+        }).ConfigureAwait(false);
+
+        return overallExitCode;
+    }
+
+    private static string FormatDuration(TimeSpan duration)
+    {
+        return duration.TotalSeconds >= 10
+            ? duration.ToString(@"hh\:mm\:ss")
+            : $"{duration.TotalSeconds:0.###}s";
+    }
+
+    private static string? TryResolvePackageVersion(string? projectPath)
+    {
+        if (projectPath is null || !File.Exists(projectPath))
+        {
+            return null;
         }
 
-        if (repro.Manifest is null)
+        try
         {
-            _console.Error.WriteLine($"Repro '{id}' could not be loaded.");
-            return 2;
+            var document = XDocument.Load(projectPath);
+            var ns = document.Root?.Name.Namespace ?? XNamespace.None;
+
+            var versionElement = document
+                .Descendants(ns + "LiteDBPackageVersion")
+                .FirstOrDefault();
+
+            if (versionElement is not null && !string.IsNullOrWhiteSpace(versionElement.Value))
+            {
+                return versionElement.Value.Trim();
+            }
+
+            var packageReference = document
+                .Descendants(ns + "PackageReference")
+                .FirstOrDefault(e => string.Equals(e.Attribute("Include")?.Value, "LiteDB", StringComparison.OrdinalIgnoreCase));
+
+            var version = packageReference?.Attribute("Version")?.Value;
+            if (!string.IsNullOrWhiteSpace(version))
+            {
+                return version!.Trim();
+            }
+        }
+        catch
+        {
         }
 
-        if (useProjectReference is null)
-        {
-            useProjectReference = false;
-        }
-
-        var instancesToRun = overrideInstances ?? repro.Manifest.DefaultInstances;
-
-        if (repro.Manifest.RequiresParallel && instancesToRun < 2)
-        {
-            throw new CliUsageException($"{repro.Manifest.Id} requires at least 2 instances.");
-        }
-
-        var timeoutSeconds = overrideTimeout ?? repro.Manifest.TimeoutSeconds;
-
-        var executor = new ReproExecutor(_console);
-
-        var options = new ReproExecutionOptions
-        {
-            UseProjectReference = useProjectReference.Value,
-            Instances = instancesToRun,
-            TimeoutSeconds = timeoutSeconds
-        };
-
-        return await executor.ExecuteAsync(repro, options, CancellationToken.None).ConfigureAwait(false);
+        return null;
     }
 
     private int UnknownCommand(string command)
     {
-        _console.Error.WriteLine($"Unknown command '{command}'.");
+        _console.MarkupLine($"[red]Unknown command '{Markup.Escape(command)}'.[/]");
         PrintUsage();
         return 1;
     }
 
-    private void PrintListHeader()
-    {
-        _console.Out.WriteLine($"{"ID",-35} {"STATE",-7} {"TIMEOUT",-9} {"FAILING",-12} {"TAGS",-24} TITLE");
-        _console.Out.WriteLine(new string('-', 92));
-    }
-
-    private void PrintListRow(ReproManifest manifest)
-    {
-        var tags = manifest.Tags.Count > 0 ? string.Join(",", manifest.Tags) : "-";
-        var failing = manifest.FailingSince ?? "-";
-        var timeout = manifest.TimeoutSeconds + "s";
-
-        _console.Out.WriteLine($"{manifest.Id,-35} {manifest.State,-7} {timeout,-9} {failing,-12} {tags,-24} {manifest.Title}");
-    }
-
     private void PrintInvalid(DiscoveredRepro repro)
     {
-        _console.Error.WriteLine($"INVALID  {repro.RelativeManifestPath.Replace(Path.DirectorySeparatorChar, '/')}");
+        _console.MarkupLine($"[red]INVALID[/]  {Markup.Escape(repro.RelativeManifestPath.Replace(Path.DirectorySeparatorChar, '/'))}");
         foreach (var error in repro.Validation.Errors)
         {
-            _console.Error.WriteLine($"  - {error}");
+            _console.MarkupLine($"  - {Markup.Escape(error)}");
         }
     }
 
     private void PrintManifest(DiscoveredRepro repro)
     {
         var manifest = repro.Manifest!;
-
-        _console.Out.WriteLine($"Id: {manifest.Id}");
-        _console.Out.WriteLine($"Title: {manifest.Title}");
-        _console.Out.WriteLine($"State: {manifest.State}");
-        _console.Out.WriteLine($"TimeoutSeconds: {manifest.TimeoutSeconds}");
-        _console.Out.WriteLine($"RequiresParallel: {manifest.RequiresParallel}");
-        _console.Out.WriteLine($"DefaultInstances: {manifest.DefaultInstances}");
-        _console.Out.WriteLine($"SharedDatabaseKey: {manifest.SharedDatabaseKey ?? "-"}");
-        _console.Out.WriteLine($"FailingSince: {manifest.FailingSince ?? "-"}");
-        _console.Out.WriteLine($"Tags: {(manifest.Tags.Count > 0 ? string.Join(", ", manifest.Tags) : "-")}");
-        _console.Out.WriteLine($"Args: {(manifest.Args.Count > 0 ? string.Join(" ", manifest.Args) : "-")}");
+        var table = new Table().Border(TableBorder.Rounded).AddColumns("Field", "Value");
+        table.AddRow("Id", Markup.Escape(manifest.Id));
+        table.AddRow("Title", Markup.Escape(manifest.Title));
+        table.AddRow("State", Markup.Escape(manifest.State));
+        table.AddRow("TimeoutSeconds", Markup.Escape(manifest.TimeoutSeconds.ToString()));
+        table.AddRow("RequiresParallel", Markup.Escape(manifest.RequiresParallel.ToString()));
+        table.AddRow("DefaultInstances", Markup.Escape(manifest.DefaultInstances.ToString()));
+        table.AddRow("SharedDatabaseKey", Markup.Escape(manifest.SharedDatabaseKey ?? "-"));
+        table.AddRow("FailingSince", Markup.Escape(manifest.FailingSince ?? "-"));
+        table.AddRow("Tags", Markup.Escape(manifest.Tags.Count > 0 ? string.Join(", ", manifest.Tags) : "-"));
+        table.AddRow("Args", Markup.Escape(manifest.Args.Count > 0 ? string.Join(" ", manifest.Args) : "-"));
 
         if (manifest.Issues.Count > 0)
         {
-            _console.Out.WriteLine("Issues:");
-            foreach (var issue in manifest.Issues)
-            {
-                _console.Out.WriteLine($"  - {issue}");
-            }
+            table.AddRow("Issues", Markup.Escape(string.Join(Environment.NewLine, manifest.Issues)));
         }
+
+        _console.Write(table);
     }
 
     private void PrintValidationResult(DiscoveredRepro repro)
     {
         if (repro.IsValid)
         {
-            _console.Out.WriteLine($"VALID    {repro.RelativeManifestPath.Replace(Path.DirectorySeparatorChar, '/')}");
+            _console.MarkupLine($"[green]VALID[/]    {Markup.Escape(repro.RelativeManifestPath.Replace(Path.DirectorySeparatorChar, '/'))}");
         }
         else
         {
             PrintInvalid(repro);
         }
     }
+
+    private readonly record struct RunTarget(bool UseProjectReference, string Message);
 }

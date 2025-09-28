@@ -1,4 +1,5 @@
 using LiteDB.ReproRunner.Cli;
+using Spectre.Console.Testing;
 
 namespace LiteDB.ReproRunner.Tests;
 
@@ -29,11 +30,11 @@ public sealed class CliApplicationTests
             await File.WriteAllTextAsync(Path.Combine(reproDirectory, "BadRepro.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\" />");
 
             using var console = new TestConsole();
-            var app = new CliApplication(console);
-            var exitCode = await app.RunAsync(new[] { "--root", reproRoot, "validate" });
+            var app = new CliApplication(console, new ReproExecutor());
+            var exitCode = await app.RunAsync(new[] { "--root", reproRoot, "validate" }, CancellationToken.None);
 
             Assert.Equal(2, exitCode);
-            Assert.Contains("INVALID", console.StandardError, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("INVALID", console.Output, StringComparison.OrdinalIgnoreCase);
         }
         finally
         {

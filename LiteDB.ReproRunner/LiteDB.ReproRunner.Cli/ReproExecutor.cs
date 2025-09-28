@@ -1,47 +1,44 @@
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Threading;
 
 namespace LiteDB.ReproRunner.Cli;
 
 internal sealed class ReproExecutor
 {
-    private readonly IConsole _console;
-
-    public ReproExecutor(IConsole console)
+    public ReproExecutor()
     {
-        _console = console;
     }
 
-    public async Task<int> ExecuteAsync(DiscoveredRepro repro, ReproExecutionOptions options, CancellationToken cancellationToken)
+    public async Task<ReproExecutionResult> ExecuteAsync(DiscoveredRepro repro, bool useProjectReference, int instances, int timeoutSeconds, CancellationToken cancellationToken)
     {
         if (repro.ProjectPath is null)
         {
-            _console.Error.WriteLine($"Unable to locate project file for '{repro.Manifest?.Id ?? repro.RawId}'.");
-            return 2;
+            return new ReproExecutionResult(useProjectReference, false, 2, TimeSpan.Zero);
         }
 
+        var manifest = repro.Manifest ?? throw new InvalidOperationException("Manifest is required to execute a repro.");
         var projectPath = repro.ProjectPath;
         var projectDirectory = Path.GetDirectoryName(projectPath)!;
-        var manifest = repro.Manifest ?? throw new InvalidOperationException("Manifest is required to execute a repro.");
+        var stopwatch = Stopwatch.StartNew();
 
-        _console.Out.WriteLine($"Building {Path.GetFileName(projectPath)} (UseProjectReference={options.UseProjectReference.ToString().ToLowerInvariant()})...");
+        var buildExitCode = await RunProcessAsync(
+            projectDirectory,
+            new[]
+            {
+                "build",
+                projectPath,
+                "-c", "Release",
+                $"-p:UseProjectReference={(useProjectReference ? "true" : "false")}",
+                "--nologo"
+            },
+            cancellationToken).ConfigureAwait(false);
 
-        var buildArgs = new List<string>
-        {
-            "build",
-            projectPath,
-            "-c", "Release",
-            $"-p:UseProjectReference={(options.UseProjectReference ? "true" : "false")}",
-            "--nologo"
-        };
-
-        var buildExitCode = await RunProcessAsync(projectDirectory, buildArgs, cancellationToken).ConfigureAwait(false);
         if (buildExitCode != 0)
         {
-            _console.Error.WriteLine($"dotnet build returned exit code {buildExitCode}.");
-            return buildExitCode;
+            stopwatch.Stop();
+            return new ReproExecutionResult(useProjectReference, false, buildExitCode, stopwatch.Elapsed);
         }
 
         var sharedKey = !string.IsNullOrWhiteSpace(manifest.SharedDatabaseKey) ? manifest.SharedDatabaseKey! : manifest.Id;
@@ -49,36 +46,57 @@ internal sealed class ReproExecutor
         var sharedRoot = Path.Combine(Path.GetTempPath(), "LiteDB.ReproRunner", sharedKey, runIdentifier);
         Directory.CreateDirectory(sharedRoot);
 
-        _console.Out.WriteLine($"Running {manifest.Id} with {options.Instances} instance(s), timeout {options.TimeoutSeconds}s.");
+        var exitCode = await RunInstancesAsync(
+            manifest,
+            projectDirectory,
+            projectPath,
+            useProjectReference,
+            instances,
+            timeoutSeconds,
+            sharedRoot,
+            cancellationToken).ConfigureAwait(false);
 
+        stopwatch.Stop();
+        return new ReproExecutionResult(useProjectReference, exitCode == 0, exitCode, stopwatch.Elapsed);
+    }
+
+    private async Task<int> RunInstancesAsync(
+        ReproManifest manifest,
+        string projectDirectory,
+        string projectPath,
+        bool useProjectReference,
+        int instances,
+        int timeoutSeconds,
+        string sharedRoot,
+        CancellationToken cancellationToken)
+    {
         var runArgs = new List<string>
         {
             "run",
             "--project", projectPath,
             "-c", "Release",
             "--no-build",
-            $"-p:UseProjectReference={(options.UseProjectReference ? "true" : "false")}" 
+            $"-p:UseProjectReference={(useProjectReference ? "true" : "false")}",
         };
 
         if (manifest.Args.Count > 0)
         {
             runArgs.Add("--");
-            foreach (var arg in manifest.Args)
-            {
-                runArgs.Add(arg);
-            }
+            runArgs.AddRange(manifest.Args);
         }
 
         var processes = new List<Process>();
 
         try
         {
-            for (var index = 0; index < options.Instances; index++)
+            for (var index = 0; index < instances; index++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 var startInfo = CreateStartInfo(projectDirectory, runArgs);
                 startInfo.Environment["LITEDB_RR_SHARED_DB"] = sharedRoot;
                 startInfo.Environment["LITEDB_RR_INSTANCE_INDEX"] = index.ToString();
-                startInfo.Environment["LITEDB_RR_TOTAL_INSTANCES"] = options.Instances.ToString();
+                startInfo.Environment["LITEDB_RR_TOTAL_INSTANCES"] = instances.ToString();
 
                 var process = Process.Start(startInfo);
                 if (process is null)
@@ -89,14 +107,18 @@ internal sealed class ReproExecutor
                 processes.Add(process);
             }
 
-            var timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
-            var waitTasks = processes.Select(p => p.WaitForExitAsync(cancellationToken)).ToArray();
+            var timeout = TimeSpan.FromSeconds(timeoutSeconds);
+            var waitTasks = processes.Select(p => p.WaitForExitAsync(cancellationToken)).ToList();
             var timeoutTask = Task.Delay(timeout, cancellationToken);
             var completed = await Task.WhenAny(Task.WhenAll(waitTasks), timeoutTask).ConfigureAwait(false);
 
+            if (cancellationToken.IsCancellationRequested)
+            {
+                throw new OperationCanceledException(cancellationToken);
+            }
+
             if (completed == timeoutTask)
             {
-                _console.Error.WriteLine($"Timed out after {timeout.TotalSeconds} seconds. Terminating instances...");
                 foreach (var process in processes)
                 {
                     TryKill(process);
@@ -112,14 +134,8 @@ internal sealed class ReproExecutor
                 var process = processes[index];
                 if (process.ExitCode != 0)
                 {
-                    _console.Error.WriteLine($"Instance {index} exited with code {process.ExitCode}.");
                     exitCode = exitCode == 0 ? process.ExitCode : exitCode;
                 }
-            }
-
-            if (exitCode == 0)
-            {
-                _console.Out.WriteLine("All instances completed successfully.");
             }
 
             return exitCode;
@@ -143,7 +159,9 @@ internal sealed class ReproExecutor
         var startInfo = new ProcessStartInfo("dotnet")
         {
             WorkingDirectory = workingDirectory,
-            UseShellExecute = false
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
         };
 
         foreach (var argument in arguments)
@@ -159,8 +177,28 @@ internal sealed class ReproExecutor
         var startInfo = CreateStartInfo(workingDirectory, arguments);
 
         using var process = Process.Start(startInfo) ?? throw new InvalidOperationException("Failed to start process.");
+
+        var outputPump = DrainStreamAsync(process.StandardOutput, cancellationToken);
+        var errorPump = DrainStreamAsync(process.StandardError, cancellationToken);
+
         await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+        await Task.WhenAll(outputPump, errorPump).ConfigureAwait(false);
+
         return process.ExitCode;
+    }
+
+    private static async Task DrainStreamAsync(StreamReader reader, CancellationToken cancellationToken)
+    {
+        var buffer = new char[1024];
+        while (!reader.EndOfStream)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var read = await reader.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken).ConfigureAwait(false);
+            if (read == 0)
+            {
+                break;
+            }
+        }
     }
 
     private static void TryKill(Process process)
@@ -178,11 +216,4 @@ internal sealed class ReproExecutor
     }
 }
 
-internal sealed class ReproExecutionOptions
-{
-    public bool UseProjectReference { get; set; }
-
-    public int Instances { get; set; }
-
-    public int TimeoutSeconds { get; set; }
-}
+internal readonly record struct ReproExecutionResult(bool UseProjectReference, bool Reproduced, int ExitCode, TimeSpan Duration);
