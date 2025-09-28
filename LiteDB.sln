@@ -31,6 +31,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{3B786621
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteDB.ReproRunner.Tests", "LiteDB.ReproRunner.Tests\LiteDB.ReproRunner.Tests.csproj", "{3EF8E506-B57B-4A98-AD09-E687F9DC515D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiteDB.ReproRunner.Shared", "LiteDB.ReproRunner\LiteDB.ReproRunner.Shared\LiteDB.ReproRunner.Shared.csproj", "{CE109129-4017-46E7-BE84-17D4D83296F4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -77,6 +79,10 @@ Global
 		{3EF8E506-B57B-4A98-AD09-E687F9DC515D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3EF8E506-B57B-4A98-AD09-E687F9DC515D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3EF8E506-B57B-4A98-AD09-E687F9DC515D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CE109129-4017-46E7-BE84-17D4D83296F4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CE109129-4017-46E7-BE84-17D4D83296F4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CE109129-4017-46E7-BE84-17D4D83296F4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CE109129-4017-46E7-BE84-17D4D83296F4}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -94,5 +100,6 @@ Global
 		{B0BD59D3-0D10-42BF-A744-533473577C8C} = {C172DFBD-9BFC-41A4-82B9-5B9BBC90850D}
 		{B5BF3DFE-5F26-447A-AF5A-60C6E3D341AC} = {B0BD59D3-0D10-42BF-A744-533473577C8C}
 		{3EF8E506-B57B-4A98-AD09-E687F9DC515D} = {3B786621-2B82-4C69-8FE9-3889ECB36E75}
+		{CE109129-4017-46E7-BE84-17D4D83296F4} = {C172DFBD-9BFC-41A4-82B9-5B9BBC90850D}
 	EndGlobalSection
 EndGlobal

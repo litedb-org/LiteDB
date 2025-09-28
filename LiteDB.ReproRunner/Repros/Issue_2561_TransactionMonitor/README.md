@@ -26,6 +26,10 @@ By default the project references the NuGet package (`LiteDBPackageVersion` defa
 `-p:LiteDBPackageVersion=<version>` to pin a different package, or `-p:UseProjectReference=true` to link
 against the in-repo sources. The ReproRunner CLI orchestrates those switches automatically.
 
+The repro now consumes `LiteDB.ReproRunner.Shared` helpers. `ReproContext` resolves the
+`LITEDB_RR_*` environment variables supplied by the CLI, while `ReproHostClient` emits structured
+JSON messages so progress and results surface cleanly in the host output.
+
 ## Expected outcome
 
 The repro prints the captured `LiteException` and exits with code `0` once the message containing

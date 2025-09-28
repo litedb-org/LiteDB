@@ -1,15 +1,29 @@
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
+using System.Text;
+using System.Text.Json;
+using LiteDB.ReproRunner.Shared;
+using LiteDB.ReproRunner.Shared.Messaging;
 
 namespace LiteDB.ReproRunner.Cli;
 
 internal sealed class ReproExecutor
 {
+    private readonly TextWriter _standardOut;
+    private readonly TextWriter _standardError;
+    private readonly object _writeLock = new();
+
     public ReproExecutor()
+        : this(Console.Out, Console.Error)
     {
     }
+
+    internal ReproExecutor(TextWriter? standardOut, TextWriter? standardError)
+    {
+        _standardOut = standardOut ?? Console.Out;
+        _standardError = standardError ?? Console.Error;
+    }
+
+    internal Action<int, ReproHostMessageEnvelope>? StructuredMessageObserver { get; set; }
 
     public async Task<ReproExecutionResult> ExecuteAsync(DiscoveredRepro repro, bool useProjectReference, int instances, int timeoutSeconds, CancellationToken cancellationToken)
     {
@@ -54,6 +68,7 @@ internal sealed class ReproExecutor
             instances,
             timeoutSeconds,
             sharedRoot,
+            runIdentifier,
             cancellationToken).ConfigureAwait(false);
 
         stopwatch.Stop();
@@ -68,6 +83,7 @@ internal sealed class ReproExecutor
         int instances,
         int timeoutSeconds,
         string sharedRoot,
+        string runIdentifier,
         CancellationToken cancellationToken)
     {
         var runArgs = new List<string>
@@ -86,6 +102,8 @@ internal sealed class ReproExecutor
         }
 
         var processes = new List<Process>();
+        var outputTasks = new List<Task>();
+        var errorTasks = new List<Task>();
 
         try
         {
@@ -105,12 +123,17 @@ internal sealed class ReproExecutor
                 }
 
                 processes.Add(process);
+                outputTasks.Add(PumpStandardOutputAsync(process, index, cancellationToken));
+                errorTasks.Add(PumpStandardErrorAsync(process, index, cancellationToken));
+
+                await SendHostHandshakeAsync(process, manifest, sharedRoot, runIdentifier, index, instances, cancellationToken).ConfigureAwait(false);
             }
 
             var timeout = TimeSpan.FromSeconds(timeoutSeconds);
             var waitTasks = processes.Select(p => p.WaitForExitAsync(cancellationToken)).ToList();
             var timeoutTask = Task.Delay(timeout, cancellationToken);
-            var completed = await Task.WhenAny(Task.WhenAll(waitTasks), timeoutTask).ConfigureAwait(false);
+            var allProcessesTask = Task.WhenAll(waitTasks);
+            var completed = await Task.WhenAny(allProcessesTask, timeoutTask).ConfigureAwait(false);
 
             if (cancellationToken.IsCancellationRequested)
             {
@@ -127,14 +150,16 @@ internal sealed class ReproExecutor
                 return 1;
             }
 
+            await allProcessesTask.ConfigureAwait(false);
+            await Task.WhenAll(outputTasks.Concat(errorTasks)).ConfigureAwait(false);
+
             var exitCode = 0;
 
-            for (var index = 0; index < processes.Count; index++)
+            foreach (var process in processes)
             {
-                var process = processes[index];
-                if (process.ExitCode != 0)
+                if (process.ExitCode != 0 && exitCode == 0)
                 {
-                    exitCode = exitCode == 0 ? process.ExitCode : exitCode;
+                    exitCode = process.ExitCode;
                 }
             }
 
@@ -162,6 +187,9 @@ internal sealed class ReproExecutor
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            RedirectStandardInput = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8
         };
 
         foreach (var argument in arguments)
@@ -178,8 +206,8 @@ internal sealed class ReproExecutor
 
         using var process = Process.Start(startInfo) ?? throw new InvalidOperationException("Failed to start process.");
 
-        var outputPump = DrainStreamAsync(process.StandardOutput, cancellationToken);
-        var errorPump = DrainStreamAsync(process.StandardError, cancellationToken);
+        var outputPump = DrainStreamAsync(process.StandardOutput, isError: false, cancellationToken);
+        var errorPump = DrainStreamAsync(process.StandardError, isError: true, cancellationToken);
 
         await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
         await Task.WhenAll(outputPump, errorPump).ConfigureAwait(false);
@@ -187,17 +215,177 @@ internal sealed class ReproExecutor
         return process.ExitCode;
     }
 
-    private static async Task DrainStreamAsync(StreamReader reader, CancellationToken cancellationToken)
+    private async Task PumpStandardOutputAsync(Process process, int instanceIndex, CancellationToken cancellationToken)
     {
-        var buffer = new char[1024];
-        while (!reader.EndOfStream)
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var read = await reader.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken).ConfigureAwait(false);
-            if (read == 0)
+            while (true)
             {
-                break;
+                cancellationToken.ThrowIfCancellationRequested();
+                var line = await process.StandardOutput.ReadLineAsync().ConfigureAwait(false);
+                if (line is null)
+                {
+                    break;
+                }
+
+                if (!TryProcessStructuredLine(line, instanceIndex))
+                {
+                    WriteOutputLine($"[{instanceIndex}] {line}");
+                }
             }
+        }
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException)
+        {
+        }
+    }
+
+    private async Task PumpStandardErrorAsync(Process process, int instanceIndex, CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var line = await process.StandardError.ReadLineAsync().ConfigureAwait(false);
+                if (line is null)
+                {
+                    break;
+                }
+
+                WriteErrorLine($"[{instanceIndex}] {line}");
+            }
+        }
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException)
+        {
+        }
+    }
+
+    internal bool TryProcessStructuredLine(string line, int instanceIndex)
+    {
+        if (!ReproHostMessageEnvelope.TryParse(line, out var envelope, out _))
+        {
+            return false;
+        }
+
+        HandleStructuredMessage(instanceIndex, envelope!);
+        return true;
+    }
+
+    private void HandleStructuredMessage(int instanceIndex, ReproHostMessageEnvelope envelope)
+    {
+        StructuredMessageObserver?.Invoke(instanceIndex, envelope);
+
+        switch (envelope.Type)
+        {
+            case ReproHostMessageTypes.Log:
+                WriteLogMessage(instanceIndex, envelope);
+                break;
+            case ReproHostMessageTypes.Result:
+                WriteResultMessage(instanceIndex, envelope);
+                break;
+            case ReproHostMessageTypes.Lifecycle:
+                WriteOutputLine($"[{instanceIndex}] lifecycle: {envelope.Event ?? "(unknown)"}");
+                break;
+            case ReproHostMessageTypes.Progress:
+                var suffix = envelope.Progress is double progress
+                    ? $" ({progress:0.##}%)"
+                    : string.Empty;
+                WriteOutputLine($"[{instanceIndex}] progress: {envelope.Event ?? "(unknown)"}{suffix}");
+                break;
+            default:
+                WriteOutputLine($"[{instanceIndex}] {envelope.Type}: {envelope.Text ?? string.Empty}");
+                break;
+        }
+    }
+
+    private void WriteLogMessage(int instanceIndex, ReproHostMessageEnvelope envelope)
+    {
+        var message = envelope.Text ?? string.Empty;
+        var formatted = $"[{instanceIndex}] {message}";
+
+        switch (envelope.Level)
+        {
+            case ReproHostLogLevel.Error:
+            case ReproHostLogLevel.Critical:
+                WriteErrorLine(formatted);
+                break;
+            case ReproHostLogLevel.Warning:
+                WriteErrorLine(formatted);
+                break;
+            default:
+                WriteOutputLine(formatted);
+                break;
+        }
+    }
+
+    private void WriteResultMessage(int instanceIndex, ReproHostMessageEnvelope envelope)
+    {
+        var success = envelope.Success is true;
+        var status = success ? "succeeded" : "completed";
+        var summary = envelope.Text ?? $"Repro {status}.";
+        WriteOutputLine($"[{instanceIndex}] {summary}");
+    }
+
+    private async Task SendHostHandshakeAsync(Process process, ReproManifest manifest, string sharedRoot, string runIdentifier, int instanceIndex, int totalInstances, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var envelope = ReproInputEnvelope.CreateHostReady(runIdentifier, sharedRoot, instanceIndex, totalInstances, manifest.Id);
+            var json = JsonSerializer.Serialize(envelope, ReproJsonOptions.Default);
+            var writer = process.StandardInput;
+            writer.AutoFlush = true;
+            cancellationToken.ThrowIfCancellationRequested();
+            await writer.WriteLineAsync(json).ConfigureAwait(false);
+            await writer.FlushAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException or ObjectDisposedException)
+        {
+        }
+    }
+
+    private async Task DrainStreamAsync(StreamReader reader, bool isError, CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var line = await reader.ReadLineAsync().ConfigureAwait(false);
+                if (line is null)
+                {
+                    break;
+                }
+
+                if (isError)
+                {
+                    WriteErrorLine(line);
+                }
+                else
+                {
+                    WriteOutputLine(line);
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException)
+        {
+        }
+    }
+
+    private void WriteOutputLine(string message)
+    {
+        lock (_writeLock)
+        {
+            _standardOut.WriteLine(message);
+            _standardOut.Flush();
+        }
+    }
+
+    private void WriteErrorLine(string message)
+    {
+        lock (_writeLock)
+        {
+            _standardError.WriteLine(message);
+            _standardError.Flush();
         }
     }
 

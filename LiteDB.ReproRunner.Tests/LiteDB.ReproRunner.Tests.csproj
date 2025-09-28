@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\LiteDB.ReproRunner\LiteDB.ReproRunner.Cli\LiteDB.ReproRunner.Cli.csproj" />
+    <ProjectReference Include="..\LiteDB.ReproRunner\LiteDB.ReproRunner.Shared\LiteDB.ReproRunner.Shared.csproj" />
   </ItemGroup>
 
   <ItemGroup>

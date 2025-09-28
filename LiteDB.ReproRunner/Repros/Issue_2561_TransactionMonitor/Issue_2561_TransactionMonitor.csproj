@@ -17,4 +17,8 @@
     <PackageReference Include="LiteDB" Version="$(LiteDBPackageVersion)" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\LiteDB.ReproRunner.Shared\LiteDB.ReproRunner.Shared.csproj" />
+  </ItemGroup>
+
 </Project>

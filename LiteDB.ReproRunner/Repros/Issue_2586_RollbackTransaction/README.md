@@ -20,3 +20,7 @@ dotnet run --project LiteDB.ReproRunner/LiteDB.ReproRunner.Cli -- run Issue_2586
 # Run against the in-repo LiteDB sources
 dotnet run --project LiteDB.ReproRunner/LiteDB.ReproRunner.Cli -- run Issue_2586_RollbackTransaction --useProjectRef
 ```
+
+The repro integrates the `LiteDB.ReproRunner.Shared` library for its execution context and
+message pipeline. `ReproContext` resolves the CLI-provided environment variables, and
+`ReproHostClient` streams JSON-formatted progress and results back to the host.

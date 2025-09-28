@@ -3,6 +3,8 @@ using System.Linq;
 using System.Reflection;
 using System.Threading;
 using LiteDB;
+using LiteDB.ReproRunner.Shared;
+using LiteDB.ReproRunner.Shared.Messaging;
 
 namespace Issue_2561_TransactionMonitor;
 
@@ -12,24 +14,38 @@ internal static class Program
 
     private static int Main()
     {
+        var host = ReproHostClient.CreateDefault();
+        var context = ReproContext.FromEnvironment();
+
+        host.SendLifecycle("starting", new
+        {
+            context.InstanceIndex,
+            context.TotalInstances,
+            context.SharedDatabaseRoot
+        });
+
         try
         {
-            Run();
+            Run(host, context);
+            host.SendResult(true, "Repro succeeded: ReleaseTransaction threw on the wrong thread.");
+            host.SendLifecycle("completed", new { Success = true });
             return 0;
         }
         catch (Exception ex)
         {
+            host.SendLog($"Reproduction failed: {ex}", ReproHostLogLevel.Error);
+            host.SendResult(false, "Reproduction failed.", new { Exception = ex.ToString() });
+            host.SendLifecycle("completed", new { Success = false });
             Console.Error.WriteLine("Reproduction failed: {0}", ex);
             return 1;
         }
     }
 
-    private static void Run()
+    private static void Run(ReproHostClient host, ReproContext context)
     {
-        var sharedRoot = Environment.GetEnvironmentVariable("LITEDB_RR_SHARED_DB");
-        var databaseDirectory = string.IsNullOrWhiteSpace(sharedRoot)
+        var databaseDirectory = string.IsNullOrWhiteSpace(context.SharedDatabaseRoot)
             ? AppContext.BaseDirectory
-            : sharedRoot;
+            : context.SharedDatabaseRoot;
 
         Directory.CreateDirectory(databaseDirectory);
 
@@ -39,7 +55,7 @@ internal static class Program
             File.Delete(databasePath);
         }
 
-        Console.WriteLine($"Using database: {databasePath}");
+        Log(host, $"Using database: {databasePath}");
 
         var connectionString = new ConnectionString
         {
@@ -69,7 +85,7 @@ internal static class Program
         var releaseTransaction = monitorType.GetMethod("ReleaseTransaction", BindingFlags.Public | BindingFlags.Instance)
                                ?? throw new InvalidOperationException("TransactionMonitor.ReleaseTransaction method not found.");
 
-        Console.WriteLine("Opening explicit transaction on main thread...");
+        Log(host, "Opening explicit transaction on main thread...");
 
         if (!(beginTrans.Invoke(engine, Array.Empty<object>()) is bool began) || !began)
         {
@@ -95,13 +111,13 @@ internal static class Program
             try
             {
                 releaseTransaction.Invoke(monitor, new[] { capturedTransaction });
-                Console.Error.WriteLine("ReleaseTransaction completed without throwing.");
+                Log(host, "ReleaseTransaction completed without throwing.", ReproHostLogLevel.Warning);
             }
             catch (TargetInvocationException invocationException) when (invocationException.InnerException is LiteException liteException)
             {
                 observedException = liteException;
-                Console.WriteLine("Observed LiteException from ReleaseTransaction on worker thread:");
-                Console.WriteLine(liteException);
+                Log(host, "Observed LiteException from ReleaseTransaction on worker thread:");
+                Log(host, liteException.ToString());
             }
             finally
             {
@@ -132,6 +148,20 @@ internal static class Program
             throw new InvalidOperationException($"LiteException did not contain expected message. Actual: {observedException.Message}");
         }
 
-        Console.WriteLine("Repro succeeded: ReleaseTransaction threw on the wrong thread.");
+        Log(host, "Repro succeeded: ReleaseTransaction threw on the wrong thread.");
+    }
+
+    private static void Log(ReproHostClient host, string message, ReproHostLogLevel level = ReproHostLogLevel.Information)
+    {
+        host.SendLog(message, level);
+
+        if (level >= ReproHostLogLevel.Warning)
+        {
+            Console.Error.WriteLine(message);
+        }
+        else
+        {
+            Console.WriteLine(message);
+        }
     }
 }
