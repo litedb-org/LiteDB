@@ -1,7 +1,9 @@
 <Project>
   <PropertyGroup>
-    <_RootGitHeadPath>$([System.IO.Path]::Combine('$(MSBuildThisFileDirectory)', '.git', 'HEAD'))</_RootGitHeadPath>
-    <GitVersionEnabled Condition="'$(GitVersionEnabled)' == '' and Exists('$(_RootGitHeadPath)')">true</GitVersionEnabled>
+    <_RootGitDirectory>$([System.IO.Path]::Combine('$(MSBuildThisFileDirectory)', '.git'))</_RootGitDirectory>
+    <_RootGitHeadPath>$([System.IO.Path]::Combine('$(_RootGitDirectory)', 'HEAD'))</_RootGitHeadPath>
+    <_RootGitShallowPath>$([System.IO.Path]::Combine('$(_RootGitDirectory)', 'shallow'))</_RootGitShallowPath>
+    <GitVersionEnabled Condition="'$(GitVersionEnabled)' == '' and Exists('$(_RootGitHeadPath)') and !Exists('$(_RootGitShallowPath)')">true</GitVersionEnabled>
     <GitVersionEnabled Condition="'$(GitVersionEnabled)' == ''">false</GitVersionEnabled>
   </PropertyGroup>
 
