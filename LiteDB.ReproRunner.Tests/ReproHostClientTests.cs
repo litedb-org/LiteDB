@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading.Tasks;
 using LiteDB.ReproRunner.Cli.Execution;
 using LiteDB.ReproRunner.Shared.Messaging;
 
@@ -21,6 +22,25 @@ public sealed class ReproHostClientTests
         Assert.Equal(ReproHostMessageTypes.Log, envelope!.Type);
         Assert.Equal(ReproHostLogLevel.Warning, envelope.Level);
         Assert.Equal("hello world", envelope.Text);
+    }
+
+    [Fact]
+    public async Task SendConfigurationAsync_WritesConfigurationEnvelope()
+    {
+        var writer = new StringWriter();
+        var client = new ReproHostClient(writer, TextReader.Null, CreateOptions());
+
+        await client.SendConfigurationAsync(true, "5.0.20");
+
+        var output = writer.ToString().Trim();
+        Assert.True(ReproHostMessageEnvelope.TryParse(output, out var envelope, out _));
+        Assert.NotNull(envelope);
+        Assert.Equal(ReproHostMessageTypes.Configuration, envelope!.Type);
+
+        var payload = envelope.DeserializePayload<ReproHostConfigurationPayload>();
+        Assert.NotNull(payload);
+        Assert.True(payload!.UseProjectReference);
+        Assert.Equal("5.0.20", payload.LiteDBPackageVersion);
     }
 
     [Fact]

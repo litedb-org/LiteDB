@@ -187,14 +187,16 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
                             manifest.Id,
                             packageVariantId,
                             packageDisplay,
-                            useProjectReference: false);
+                            useProjectReference: false,
+                            liteDbPackageVersion: packageVersion);
 
                         var latestPlan = _planner.CreateVariantPlan(
                             repro,
                             manifest.Id,
                             "ver_latest",
                             "Latest",
-                            useProjectReference: true);
+                            useProjectReference: true,
+                            liteDbPackageVersion: packageVersion);
 
                         plannedVariants.Add(packagePlan);
                         plannedVariants.Add(latestPlan);

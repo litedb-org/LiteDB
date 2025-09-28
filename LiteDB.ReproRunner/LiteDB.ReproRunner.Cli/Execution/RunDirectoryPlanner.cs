@@ -26,13 +26,15 @@ internal sealed class RunDirectoryPlanner
     /// <param name="variantIdentifier">The identifier to use for the variant directory.</param>
     /// <param name="displayName">The display label shown to the user.</param>
     /// <param name="useProjectReference">Indicates whether the repro should build against the source project.</param>
+    /// <param name="liteDbPackageVersion">The LiteDB package version associated with the variant.</param>
     /// <returns>The planned variant with prepared directories.</returns>
     public RunVariantPlan CreateVariantPlan(
         DiscoveredRepro repro,
         string manifestIdentifier,
         string variantIdentifier,
         string displayName,
-        bool useProjectReference)
+        bool useProjectReference,
+        string? liteDbPackageVersion)
     {
         if (repro is null)
         {
@@ -66,6 +68,7 @@ internal sealed class RunDirectoryPlanner
             repro,
             displayName,
             useProjectReference,
+            liteDbPackageVersion,
             manifestIdentifier,
             variantIdentifier,
             variantRoot,
@@ -120,6 +123,7 @@ internal sealed class RunVariantPlan : IDisposable
     /// <param name="repro">The repro that produced this plan.</param>
     /// <param name="displayName">The friendly name presented to the user.</param>
     /// <param name="useProjectReference">Indicates whether a project reference build should be used.</param>
+    /// <param name="liteDbPackageVersion">The LiteDB package version associated with the plan.</param>
     /// <param name="manifestIdentifier">The identifier used for the manifest directory.</param>
     /// <param name="variantIdentifier">The identifier used for the variant directory.</param>
     /// <param name="rootDirectory">The root directory allocated for the variant.</param>
@@ -130,6 +134,7 @@ internal sealed class RunVariantPlan : IDisposable
         DiscoveredRepro repro,
         string displayName,
         bool useProjectReference,
+        string? liteDbPackageVersion,
         string manifestIdentifier,
         string variantIdentifier,
         string rootDirectory,
@@ -140,6 +145,7 @@ internal sealed class RunVariantPlan : IDisposable
         Repro = repro ?? throw new ArgumentNullException(nameof(repro));
         DisplayName = displayName;
         UseProjectReference = useProjectReference;
+        LiteDBPackageVersion = liteDbPackageVersion;
         ManifestIdentifier = manifestIdentifier;
         VariantIdentifier = variantIdentifier;
         RootDirectory = rootDirectory ?? throw new ArgumentNullException(nameof(rootDirectory));
@@ -162,6 +168,11 @@ internal sealed class RunVariantPlan : IDisposable
     /// Gets a value indicating whether the build uses project references.
     /// </summary>
     public bool UseProjectReference { get; }
+
+    /// <summary>
+    /// Gets the LiteDB package version associated with the plan, when applicable.
+    /// </summary>
+    public string? LiteDBPackageVersion { get; }
 
     /// <summary>
     /// Gets the identifier used for the manifest directory.

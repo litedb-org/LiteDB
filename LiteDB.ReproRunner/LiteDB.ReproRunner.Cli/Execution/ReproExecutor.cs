@@ -1,4 +1,7 @@
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using LiteDB.ReproRunner.Cli.Manifests;
@@ -15,6 +18,11 @@ internal sealed class ReproExecutor
     private readonly TextWriter _standardOut;
     private readonly TextWriter _standardError;
     private readonly object _writeLock = new();
+    private readonly object _configurationLock = new();
+    private readonly Dictionary<int, ConfigurationState> _configurationStates = new();
+    private ConfigurationExpectation? _configurationExpectation;
+    private bool _configurationMismatchDetected;
+    private int _expectedConfigurationInstances;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ReproExecutor"/> class using the console streams.
@@ -35,6 +43,26 @@ internal sealed class ReproExecutor
     internal Action<ReproExecutionLogEntry>? LogObserver { get; set; }
 
     internal bool SuppressConsoleLogOutput { get; set; }
+
+    internal void ConfigureExpectedConfiguration(bool useProjectReference, string? liteDbPackageVersion, int instanceCount)
+    {
+        var normalizedVersion = string.IsNullOrWhiteSpace(liteDbPackageVersion)
+            ? null
+            : liteDbPackageVersion.Trim();
+
+        lock (_configurationLock)
+        {
+            _configurationExpectation = new ConfigurationExpectation(useProjectReference, normalizedVersion);
+            _configurationStates.Clear();
+            _expectedConfigurationInstances = Math.Max(instanceCount, 0);
+            _configurationMismatchDetected = false;
+
+            for (var index = 0; index < _expectedConfigurationInstances; index++)
+            {
+                _configurationStates[index] = new ConfigurationState();
+            }
+        }
+    }
 
     /// <summary>
     /// Executes the provided repro build across the requested number of instances.
@@ -68,6 +96,7 @@ internal sealed class ReproExecutor
         }
 
         var manifest = repro.Manifest ?? throw new InvalidOperationException("Manifest is required to execute a repro.");
+        ConfigureExpectedConfiguration(build.Plan.UseProjectReference, build.Plan.LiteDBPackageVersion, instances);
         var projectDirectory = Path.GetDirectoryName(repro.ProjectPath)!;
         var stopwatch = Stopwatch.StartNew();
 
@@ -79,18 +108,33 @@ internal sealed class ReproExecutor
         var sharedRoot = Path.Combine(build.Plan.ExecutionRootDirectory, Sanitize(sharedKey), runIdentifier);
         Directory.CreateDirectory(sharedRoot);
 
-        var exitCode = await RunInstancesAsync(
-            manifest,
-            projectDirectory,
-            build.AssemblyPath,
-            instances,
-            timeoutSeconds,
-            sharedRoot,
-            runIdentifier,
-            cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var exitCode = await RunInstancesAsync(
+                manifest,
+                projectDirectory,
+                build.AssemblyPath,
+                instances,
+                timeoutSeconds,
+                sharedRoot,
+                runIdentifier,
+                cancellationToken).ConfigureAwait(false);
 
-        stopwatch.Stop();
-        return new ReproExecutionResult(build.Plan.UseProjectReference, exitCode == 0, exitCode, stopwatch.Elapsed);
+            FinalizeConfigurationValidation();
+            var configurationMismatch = HasConfigurationMismatch();
+
+            if (configurationMismatch && exitCode == 0)
+            {
+                exitCode = -2;
+            }
+
+            stopwatch.Stop();
+            return new ReproExecutionResult(build.Plan.UseProjectReference, exitCode == 0 && !configurationMismatch, exitCode, stopwatch.Elapsed);
+        }
+        finally
+        {
+            ResetConfigurationExpectation();
+        }
     }
 
     private async Task<int> RunInstancesAsync(
@@ -258,14 +302,19 @@ internal sealed class ReproExecutor
             return false;
         }
 
+        StructuredMessageObserver?.Invoke(instanceIndex, envelope!);
+
+        if (!HandleConfigurationHandshake(instanceIndex, envelope!))
+        {
+            return true;
+        }
+
         HandleStructuredMessage(instanceIndex, envelope!);
         return true;
     }
 
     private void HandleStructuredMessage(int instanceIndex, ReproHostMessageEnvelope envelope)
     {
-        StructuredMessageObserver?.Invoke(instanceIndex, envelope);
-
         switch (envelope.Type)
         {
             case ReproHostMessageTypes.Log:
@@ -283,10 +332,194 @@ internal sealed class ReproExecutor
                     : string.Empty;
                 WriteOutputLine($"[{instanceIndex}] progress: {envelope.Event ?? "(unknown)"}{suffix}");
                 break;
+            case ReproHostMessageTypes.Configuration:
+                break;
             default:
                 WriteOutputLine($"[{instanceIndex}] {envelope.Type}: {envelope.Text ?? string.Empty}");
                 break;
         }
+    }
+
+    private bool HandleConfigurationHandshake(int instanceIndex, ReproHostMessageEnvelope envelope)
+    {
+        string? errorMessage = null;
+        var shouldProcess = true;
+
+        lock (_configurationLock)
+        {
+            if (_configurationExpectation is not { } expectation)
+            {
+                if (string.Equals(envelope.Type, ReproHostMessageTypes.Configuration, StringComparison.Ordinal))
+                {
+                    shouldProcess = false;
+                }
+
+                return shouldProcess;
+            }
+
+            if (!_configurationStates.TryGetValue(instanceIndex, out var state))
+            {
+                state = new ConfigurationState();
+                _configurationStates[instanceIndex] = state;
+            }
+
+            if (!state.Received)
+            {
+                if (!string.Equals(envelope.Type, ReproHostMessageTypes.Configuration, StringComparison.Ordinal))
+                {
+                    errorMessage = "expected configuration handshake before other messages.";
+                    state.Received = true;
+                    state.IsValid = false;
+                    _configurationMismatchDetected = true;
+                    shouldProcess = false;
+                }
+                else
+                {
+                    var payload = envelope.DeserializePayload<ReproHostConfigurationPayload>();
+                    if (payload is null)
+                    {
+                        errorMessage = "reported configuration without a payload.";
+                        state.Received = true;
+                        state.IsValid = false;
+                        _configurationMismatchDetected = true;
+                        shouldProcess = false;
+                    }
+                    else
+                    {
+                        var actualVersion = string.IsNullOrWhiteSpace(payload.LiteDBPackageVersion)
+                            ? null
+                            : payload.LiteDBPackageVersion.Trim();
+
+                        var expectedVersion = expectation.LiteDbPackageVersion;
+                        var versionMatches = string.Equals(
+                            actualVersion ?? string.Empty,
+                            expectedVersion ?? string.Empty,
+                            StringComparison.OrdinalIgnoreCase);
+
+                        if (payload.UseProjectReference != expectation.UseProjectReference || !versionMatches)
+                        {
+                            var expectedVersionDisplay = expectedVersion ?? "(unspecified)";
+                            var actualVersionDisplay = actualVersion ?? "(unspecified)";
+                            errorMessage = $"reported configuration UseProjectReference={payload.UseProjectReference}, LiteDBPackageVersion={actualVersionDisplay} but expected UseProjectReference={expectation.UseProjectReference}, LiteDBPackageVersion={expectedVersionDisplay}.";
+                            state.IsValid = false;
+                            _configurationMismatchDetected = true;
+                        }
+                        else
+                        {
+                            state.IsValid = true;
+                        }
+
+                        state.Received = true;
+                        shouldProcess = false;
+                    }
+                }
+            }
+            else if (!state.IsValid)
+            {
+                shouldProcess = false;
+            }
+            else if (string.Equals(envelope.Type, ReproHostMessageTypes.Configuration, StringComparison.Ordinal))
+            {
+                shouldProcess = false;
+            }
+        }
+
+        if (errorMessage is not null)
+        {
+            WriteConfigurationError(instanceIndex, errorMessage);
+        }
+
+        return shouldProcess;
+    }
+
+    private void FinalizeConfigurationValidation()
+    {
+        List<int>? missingInstances = null;
+
+        lock (_configurationLock)
+        {
+            if (_configurationExpectation is null)
+            {
+                return;
+            }
+
+            for (var index = 0; index < _expectedConfigurationInstances; index++)
+            {
+                if (!_configurationStates.TryGetValue(index, out var state))
+                {
+                    state = new ConfigurationState();
+                    _configurationStates[index] = state;
+                }
+
+                if (!state.Received)
+                {
+                    state.Received = true;
+                    state.IsValid = false;
+                    _configurationMismatchDetected = true;
+                    missingInstances ??= new List<int>();
+                    missingInstances.Add(index);
+                }
+            }
+        }
+
+        if (missingInstances is null)
+        {
+            return;
+        }
+
+        foreach (var instanceIndex in missingInstances)
+        {
+            WriteConfigurationError(instanceIndex, "did not report configuration handshake.");
+        }
+    }
+
+    private bool HasConfigurationMismatch()
+    {
+        lock (_configurationLock)
+        {
+            if (_configurationExpectation is null)
+            {
+                return false;
+            }
+
+            if (_configurationMismatchDetected)
+            {
+                return true;
+            }
+
+            foreach (var state in _configurationStates.Values)
+            {
+                if (!state.IsValid)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
+
+    private void ResetConfigurationExpectation()
+    {
+        lock (_configurationLock)
+        {
+            _configurationExpectation = null;
+            _configurationStates.Clear();
+            _configurationMismatchDetected = false;
+            _expectedConfigurationInstances = 0;
+        }
+    }
+
+    private void WriteConfigurationError(int instanceIndex, string message)
+    {
+        LogObserver?.Invoke(new ReproExecutionLogEntry(instanceIndex, $"configuration error: {message}", ReproHostLogLevel.Error));
+
+        if (SuppressConsoleLogOutput)
+        {
+            return;
+        }
+
+        WriteErrorLine($"[{instanceIndex}] configuration error: {message}");
     }
 
     private void WriteLogMessage(int instanceIndex, ReproHostMessageEnvelope envelope)
@@ -408,6 +641,15 @@ internal sealed class ReproExecutor
 
         return builder.Length == 0 ? "shared" : builder.ToString();
     }
+
+    private sealed class ConfigurationState
+    {
+        public bool Received { get; set; }
+
+        public bool IsValid { get; set; } = true;
+    }
+
+    private readonly record struct ConfigurationExpectation(bool UseProjectReference, string? LiteDbPackageVersion);
 }
 
 /// <summary>
