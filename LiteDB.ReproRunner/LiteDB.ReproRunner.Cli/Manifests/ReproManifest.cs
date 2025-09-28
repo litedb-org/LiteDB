@@ -19,6 +19,7 @@ internal sealed class ReproManifest
     /// <param name="args">Additional command-line arguments passed to the repro host.</param>
     /// <param name="tags">Tags describing the repro characteristics.</param>
     /// <param name="state">The current state of the repro (e.g., red, green).</param>
+    /// <param name="expectedOutcomes">The optional expected outcomes per variant.</param>
     public ReproManifest(
         string id,
         string title,
@@ -30,7 +31,8 @@ internal sealed class ReproManifest
         string? sharedDatabaseKey,
         IReadOnlyList<string> args,
         IReadOnlyList<string> tags,
-        string state)
+        ReproState state,
+        ReproVariantOutcomeExpectations expectedOutcomes)
     {
         Id = id;
         Title = title;
@@ -43,6 +45,7 @@ internal sealed class ReproManifest
         Args = args;
         Tags = tags;
         State = state;
+        ExpectedOutcomes = expectedOutcomes ?? ReproVariantOutcomeExpectations.Empty;
     }
 
     /// <summary>
@@ -96,7 +99,12 @@ internal sealed class ReproManifest
     public IReadOnlyList<string> Tags { get; }
 
     /// <summary>
-    /// Gets the declared state of the repro (for example, "red").
+    /// Gets the declared state of the repro (for example, <see cref="ReproState.Red"/>).
     /// </summary>
-    public string State { get; }
+    public ReproState State { get; }
+
+    /// <summary>
+    /// Gets the expected outcomes for the package and latest variants.
+    /// </summary>
+    public ReproVariantOutcomeExpectations ExpectedOutcomes { get; }
 }

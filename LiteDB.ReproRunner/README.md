@@ -117,9 +117,41 @@ exposes the metadata in the `list`, `show`, and `run` commands.
 | `args`               | string[]      | no       | Extra arguments passed to `dotnet run --`. |
 | `tags`               | string[]      | no       | Arbitrary labels for filtering (`list` prints them). |
 | `state`              | enum          | yes      | One of `red`, `green`, or `flaky`. |
+| `expectedOutcomes`   | object        | no       | Optional overrides for package/latest expectations (see below). |
 
 Unknown properties are rejected to keep the schema tight. The CLI also validates that each repro
 folder contains exactly one `.csproj` file.
+
+### Expected outcomes
+
+The optional `expectedOutcomes` block lets a manifest describe how each variant should behave. When
+absent, the CLI assumes the package build reproduces the issue (`kind: reproduce`) while the latest
+build matches the manifest state (`red` expects another reproduction, `green` expects `noRepro`, and
+`flaky` tolerates either outcome but emits a warning when it deviates).
+
+```json
+"expectedOutcomes": {
+  "package": {
+    "kind": "hardFail",
+    "exitCode": -5,
+    "logContains": "NetworkException"
+  },
+  "latest": {
+    "kind": "noRepro"
+  }
+}
+```
+
+Each variant supports the following `kind` values:
+
+* `reproduce` – Exit code `0` indicates success.
+* `noRepro` – Any non-zero exit code is treated as expected, signalling that the repro no longer
+  manifests the issue.
+* `hardFail` – Reserved for the package build. Use this when reproduction requires the host to crash
+  with a specific exit code or log message. The latest build must always exit cleanly.
+
+`exitCode` constrains the expected exit value, while `logContains` (case-insensitive) ensures the
+captured stdout/stderr output contains a specific substring. Leave them unset to accept any value.
 
 ### Validation output
 
@@ -163,6 +195,8 @@ repro-runner run <id> [--instances N] [--timeout S] [--skipValidation]
 * `--timeout` – Override the manifest timeout (seconds).
 * `--skipValidation` – Run even when the manifest is invalid (execution still requires the manifest to
   parse successfully).
+* `--report <path>` – Emit a JSON summary of the run to the specified file (use `-` for stdout).
+* `--report-format json` – Explicitly request JSON output. Additional formats may be added later.
 
 Each invocation plans deterministic run directories under the CLI’s output folder
 (`bin/<tfm>/<configuration>/runs/<manifest>/<variant>`), cleans any leftover artifacts, and prepares all
@@ -175,6 +209,40 @@ cancellations occur.
 Timeouts are enforced across all processes. When the timeout elapses the runner terminates all child
 processes and returns exit code `1`. Build failures surface in the run table and return a non-zero exit
 code even when execution is skipped.
+
+### Machine-readable reports
+
+Pass `--report <path>` (or `--report -` to stream to stdout) to persist the run summary as JSON. Each
+entry captures the manifest state, expectation result, exit codes, durations, and a trimmed copy of the
+stdout/stderr output:
+
+```json
+{
+  "generatedAt": "2024-03-31T12:34:56.7891234+00:00",
+  "repros": [
+    {
+      "id": "Issue_2561_TransactionMonitor",
+      "state": "Red",
+      "failed": false,
+      "package": {
+        "expected": "Reproduce",
+        "met": true,
+        "exitCode": 0,
+        "durationSeconds": 8.2
+      },
+      "latest": {
+        "expected": "Reproduce",
+        "met": true,
+        "exitCode": 0,
+        "durationSeconds": 8.1
+      }
+    }
+  ]
+}
+```
+
+The workflow publishes this file as an artifact so that other tools (for example, dashboards or
+auto-triage bots) can reason about the latest run without scraping console output.
 
 ## Parallel repros
 
@@ -191,14 +259,26 @@ folder to create or open the same database file.
 
 ## CI integration
 
-The GitHub Actions workflow builds the repository in Release mode, then runs:
+The GitHub Actions workflow builds the repository in Release mode and then exercises the CLI in three
+steps:
 
 1. `repro-runner list --strict`
 2. `repro-runner validate`
-3. A smoke repro run (initially `Issue_2561_TransactionMonitor`)
+3. `repro-runner run --all --report repro-summary.json`
 
-Any non-zero exit code fails the job, ensuring the manifests stay valid and at least one repro is
-exercised on every PR.
+Execution honours the manifest state and expectations:
+
+* **Package variant** – Must reproduce the issue. If the manifest declares a `hardFail` expectation,
+  the runner accepts the specified crash signature instead.
+* **Latest variant (`red`)** – Still expected to reproduce. CI stays green even though the repro
+  remains failing.
+* **Latest variant (`green`)** – Must *not* reproduce. When the repro finally passes, CI turns green
+  automatically.
+* **Latest variant (`flaky`)** – Deviations emit warnings in the JSON report and table output but do
+  not fail the build.
+
+The JSON summary (`repro-summary.json`) is uploaded as an artifact so downstream automation can
+inspect exit codes, durations, and captured logs.
 
 ## Troubleshooting
 
@@ -217,8 +297,9 @@ exercised on every PR.
 switching. The CLI gives us deterministic orchestration without constraining the repro to the xUnit
 lifecycle. Test suites can still shell out to `repro-runner` if desired.
 
-**How do I mark a repro as fixed?** Update `state` to `green`, adjust the README, and ensure the repro
-now exits `0` when the fix is present. Keeping the repro around prevents regressions.
+**How do I mark a repro as fixed?** Update `state` to `green`, adjust the README, and make sure the
+`expectedOutcomes.latest` entry (or the implicit default) expects `noRepro`. Hard-fail overrides for the
+package build can stay in place. Keeping the repro around prevents regressions.
 
 **Can I share helper code?** Keep repros isolated so they are self-documenting. If you must share
 helpers, place them next to the CLI and avoid coupling repros together.

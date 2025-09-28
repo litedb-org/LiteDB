@@ -15,6 +15,8 @@ namespace LiteDB.ReproRunner.Cli.Execution;
 /// </summary>
 internal sealed class ReproExecutor
 {
+    private const int CapturedOutputLimit = 200;
+
     private readonly TextWriter _standardOut;
     private readonly TextWriter _standardError;
     private readonly object _writeLock = new();
@@ -85,14 +87,14 @@ internal sealed class ReproExecutor
 
         if (!build.Succeeded || string.IsNullOrWhiteSpace(build.AssemblyPath))
         {
-            return new ReproExecutionResult(build.Plan.UseProjectReference, false, build.ExitCode, TimeSpan.Zero);
+            return new ReproExecutionResult(build.Plan.UseProjectReference, false, build.ExitCode, TimeSpan.Zero, Array.Empty<ReproExecutionCapturedLine>());
         }
 
         var repro = build.Plan.Repro;
 
         if (repro.ProjectPath is null)
         {
-            return new ReproExecutionResult(build.Plan.UseProjectReference, false, build.ExitCode, TimeSpan.Zero);
+            return new ReproExecutionResult(build.Plan.UseProjectReference, false, build.ExitCode, TimeSpan.Zero, Array.Empty<ReproExecutionCapturedLine>());
         }
 
         var manifest = repro.Manifest ?? throw new InvalidOperationException("Manifest is required to execute a repro.");
@@ -108,6 +110,8 @@ internal sealed class ReproExecutor
         var sharedRoot = Path.Combine(build.Plan.ExecutionRootDirectory, Sanitize(sharedKey), runIdentifier);
         Directory.CreateDirectory(sharedRoot);
 
+        var capturedOutput = new BoundedLogBuffer(CapturedOutputLimit);
+
         try
         {
             var exitCode = await RunInstancesAsync(
@@ -118,6 +122,7 @@ internal sealed class ReproExecutor
                 timeoutSeconds,
                 sharedRoot,
                 runIdentifier,
+                capturedOutput,
                 cancellationToken).ConfigureAwait(false);
 
             FinalizeConfigurationValidation();
@@ -129,7 +134,12 @@ internal sealed class ReproExecutor
             }
 
             stopwatch.Stop();
-            return new ReproExecutionResult(build.Plan.UseProjectReference, exitCode == 0 && !configurationMismatch, exitCode, stopwatch.Elapsed);
+            return new ReproExecutionResult(
+                build.Plan.UseProjectReference,
+                exitCode == 0 && !configurationMismatch,
+                exitCode,
+                stopwatch.Elapsed,
+                capturedOutput.ToSnapshot());
         }
         finally
         {
@@ -145,6 +155,7 @@ internal sealed class ReproExecutor
         int timeoutSeconds,
         string sharedRoot,
         string runIdentifier,
+        BoundedLogBuffer capturedOutput,
         CancellationToken cancellationToken)
     {
         var manifestArgs = manifest.Args;
@@ -171,8 +182,8 @@ internal sealed class ReproExecutor
                 }
 
                 processes.Add(process);
-                outputTasks.Add(PumpStandardOutputAsync(process, index, cancellationToken));
-                errorTasks.Add(PumpStandardErrorAsync(process, index, cancellationToken));
+                outputTasks.Add(PumpStandardOutputAsync(process, index, capturedOutput, cancellationToken));
+                errorTasks.Add(PumpStandardErrorAsync(process, index, capturedOutput, cancellationToken));
 
                 await SendHostHandshakeAsync(process, manifest, sharedRoot, runIdentifier, index, instances, cancellationToken).ConfigureAwait(false);
             }
@@ -250,7 +261,7 @@ internal sealed class ReproExecutor
         return startInfo;
     }
 
-    private async Task PumpStandardOutputAsync(Process process, int instanceIndex, CancellationToken cancellationToken)
+    private async Task PumpStandardOutputAsync(Process process, int instanceIndex, BoundedLogBuffer capturedOutput, CancellationToken cancellationToken)
     {
         try
         {
@@ -263,6 +274,7 @@ internal sealed class ReproExecutor
                     break;
                 }
 
+                capturedOutput.Add(ReproExecutionStream.StandardOutput, line);
                 if (!TryProcessStructuredLine(line, instanceIndex))
                 {
                     WriteOutputLine($"[{instanceIndex}] {line}");
@@ -274,7 +286,7 @@ internal sealed class ReproExecutor
         }
     }
 
-    private async Task PumpStandardErrorAsync(Process process, int instanceIndex, CancellationToken cancellationToken)
+    private async Task PumpStandardErrorAsync(Process process, int instanceIndex, BoundedLogBuffer capturedOutput, CancellationToken cancellationToken)
     {
         try
         {
@@ -287,6 +299,7 @@ internal sealed class ReproExecutor
                     break;
                 }
 
+                capturedOutput.Add(ReproExecutionStream.StandardError, line);
                 WriteErrorLine($"[{instanceIndex}] {line}");
             }
         }
@@ -582,6 +595,46 @@ internal sealed class ReproExecutor
         }
     }
 
+    private sealed class BoundedLogBuffer
+    {
+        private readonly int _capacity;
+        private readonly Queue<ReproExecutionCapturedLine> _buffer;
+        private readonly object _sync = new();
+
+        public BoundedLogBuffer(int capacity)
+        {
+            _capacity = Math.Max(1, capacity);
+            _buffer = new Queue<ReproExecutionCapturedLine>(_capacity);
+        }
+
+        public void Add(ReproExecutionStream stream, string text)
+        {
+            if (text is null)
+            {
+                return;
+            }
+
+            var entry = new ReproExecutionCapturedLine(stream, text);
+
+            lock (_sync)
+            {
+                _buffer.Enqueue(entry);
+                while (_buffer.Count > _capacity)
+                {
+                    _buffer.Dequeue();
+                }
+            }
+        }
+
+        public IReadOnlyList<ReproExecutionCapturedLine> ToSnapshot()
+        {
+            lock (_sync)
+            {
+                return _buffer.ToArray();
+            }
+        }
+    }
+
     private void WriteOutputLine(string message)
     {
         if (SuppressConsoleLogOutput)
@@ -659,7 +712,8 @@ internal sealed class ReproExecutor
 /// <param name="Reproduced">Indicates whether the repro successfully reproduced the issue.</param>
 /// <param name="ExitCode">The exit code reported by the repro host.</param>
 /// <param name="Duration">The elapsed time for the execution.</param>
-internal readonly record struct ReproExecutionResult(bool UseProjectReference, bool Reproduced, int ExitCode, TimeSpan Duration);
+/// <param name="CapturedOutput">The captured standard output and error lines.</param>
+internal readonly record struct ReproExecutionResult(bool UseProjectReference, bool Reproduced, int ExitCode, TimeSpan Duration, IReadOnlyList<ReproExecutionCapturedLine> CapturedOutput);
 
 /// <summary>
 /// Represents a structured log entry emitted during repro execution.
@@ -668,3 +722,19 @@ internal readonly record struct ReproExecutionResult(bool UseProjectReference, b
 /// <param name="Message">The log message text.</param>
 /// <param name="Level">The severity associated with the log entry.</param>
 internal readonly record struct ReproExecutionLogEntry(int InstanceIndex, string Message, ReproHostLogLevel Level);
+
+/// <summary>
+/// Identifies the stream that produced a captured line of output.
+/// </summary>
+internal enum ReproExecutionStream
+{
+    StandardOutput,
+    StandardError
+}
+
+/// <summary>
+/// Represents a captured line of standard output or error for report generation.
+/// </summary>
+/// <param name="Stream">The source stream for the line.</param>
+/// <param name="Text">The raw text captured from the process.</param>
+internal readonly record struct ReproExecutionCapturedLine(ReproExecutionStream Stream, string Text);

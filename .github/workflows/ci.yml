@@ -55,5 +55,13 @@ jobs:
       - name: Validate manifests
         run: dotnet run --project LiteDB.ReproRunner/LiteDB.ReproRunner.Cli -- validate
 
-      - name: Run Issue 2561 repro
-        run: dotnet run --project LiteDB.ReproRunner/LiteDB.ReproRunner.Cli -- run Issue_2561_TransactionMonitor --useProjectRef
+      # Execute every repro and emit a JSON summary that downstream automation can inspect.
+      - name: Run repro suite
+        run: dotnet run --project LiteDB.ReproRunner/LiteDB.ReproRunner.Cli -- run --all --report repro-summary.json
+
+      # Publish the summary so other jobs or manual reviewers can review the latest outcomes.
+      - name: Upload repro summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: repro-summary
+          path: repro-summary.json

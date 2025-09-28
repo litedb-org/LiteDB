@@ -1,4 +1,8 @@
+using System;
 using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Text.Json;
 using System.Threading.Channels;
 using System.Xml.Linq;
 using LiteDB.ReproRunner.Cli.Execution;
@@ -21,6 +25,7 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
     private readonly ReproBuildCoordinator _buildCoordinator;
     private readonly ReproExecutor _executor;
     private readonly CancellationToken _cancellationToken;
+    private readonly ReproOutcomeEvaluator _outcomeEvaluator = new();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RunCommand"/> class.
@@ -76,7 +81,8 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
             return 1;
         }
 
-        var table = new Table().Border(TableBorder.Rounded).Expand().AddColumns("Repro", "Repro Version", "Reproduced", "Fixed");
+        var report = new RunReport { Root = repository.RootPath };
+        var table = new Table().Border(TableBorder.Rounded).Expand().AddColumns("Repro", "State", "Package", "Latest");
         var logLines = new List<string>();
         var targetFps = settings.Fps ?? RunCommandSettings.DefaultFps;
         var layout = new Layout("root")
@@ -110,16 +116,16 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
                     writer.TryWrite(new LogLineUpdate(formatted));
                 };
 
-                void QueueRow(string reproId, string version, string reproduced, string fixedStatus)
+                void QueueRow(string reproId, string state, string package, string latest)
                 {
-                    writer.TryWrite(new TableRowUpdate(reproId, version, reproduced, fixedStatus));
+                    writer.TryWrite(new TableRowUpdate(reproId, state, package, latest));
                 }
 
                 var rowStates = new Dictionary<string, ReproRowState>();
 
-                void UpdateRowState(string reproId, string version, string reproduced, string fixedStatus)
+                void UpdateRowState(string reproId, string state, string package, string latest)
                 {
-                    rowStates[reproId] = new ReproRowState(reproId, version, reproduced, fixedStatus);
+                    rowStates[reproId] = new ReproRowState(reproId, state, package, latest);
                     writer.TryWrite(new TableRefreshUpdate(new Dictionary<string, ReproRowState>(rowStates)));
                 }
 
@@ -201,16 +207,19 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
                         plannedVariants.Add(packagePlan);
                         plannedVariants.Add(latestPlan);
 
+                        var stateCell = FormatReproState(manifest.State);
+
                         candidates.Add(new RunCandidate(
                             manifest,
                             instances,
                             timeoutSeconds,
                             packageDisplay,
                             packagePlan,
-                            latestPlan));
+                            latestPlan,
+                            stateCell));
 
                         // Add initial table row showing the repro is discovered and pending
-                        UpdateRowState(manifest.Id, "[yellow]Pending[/]", "[yellow]⏳[/]", "[yellow]⏳[/]");
+                        UpdateRowState(manifest.Id, stateCell, "[yellow]⏳[/]", "[yellow]⏳[/]");
                         writer.TryWrite(new LogLineUpdate($"Discovered repro: {manifest.Id}"));
                     }
 
@@ -222,7 +231,7 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
                     // Update all candidates to show building status
                     foreach (var candidate in candidates)
                     {
-                        UpdateRowState(candidate.Manifest.Id, "[yellow]Building...[/]", "[yellow]⏳[/]", "[yellow]⏳[/]");
+                        UpdateRowState(candidate.Manifest.Id, candidate.StateCell, "[yellow]Building...[/]", "[yellow]⏳[/]");
                     }
 
                     LogBuild($"Starting build for {plannedVariants.Count} variants across {candidates.Count} repros");
@@ -232,14 +241,14 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
 
                     foreach (var candidate in candidates)
                     {
+                        var stateCell = candidate.StateCell;
                         var packageBuild = buildLookup[candidate.PackagePlan];
                         var latestBuild = buildLookup[candidate.LatestPlan];
 
-                        // Check build status and update table accordingly
                         if (!packageBuild.Succeeded)
                         {
                             LogBuild($"Package build failed for {candidate.Manifest.Id} ({candidate.PackageDisplay})");
-                            UpdateRowState(candidate.Manifest.Id, "[red]Build Failed[/]", "[red]❌[/]", "[red]❌[/]");
+                            UpdateRowState(candidate.Manifest.Id, stateCell, "[red]Build Failed[/]", "[red]❌[/]");
                             overallExitCode = overallExitCode == 0 ? 1 : overallExitCode;
                             buildFailures.Add(new BuildFailure(candidate.Manifest.Id, candidate.PackageDisplay, packageBuild.Output));
                         }
@@ -247,10 +256,11 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
                         if (!latestBuild.Succeeded)
                         {
                             LogBuild($"Latest build failed for {candidate.Manifest.Id}");
-                            if (packageBuild.Succeeded) // Only update if package build succeeded (otherwise already marked as failed)
+                            if (packageBuild.Succeeded)
                             {
-                                UpdateRowState(candidate.Manifest.Id, Markup.Escape(candidate.PackageDisplay), "[yellow]-[/]", "[red]❌[/]");
+                                UpdateRowState(candidate.Manifest.Id, stateCell, "[yellow]⏳[/]", "[red]Build Failed[/]");
                             }
+
                             overallExitCode = overallExitCode == 0 ? 1 : overallExitCode;
                             buildFailures.Add(new BuildFailure(candidate.Manifest.Id, "Latest", latestBuild.Output));
                         }
@@ -258,41 +268,57 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
                         ReproExecutionResult? packageResult = null;
                         ReproExecutionResult? latestResult = null;
 
-                        // Execute package version if build succeeded
                         if (packageBuild.Succeeded)
                         {
                             LogBuild($"Build succeeded for {candidate.Manifest.Id} ({candidate.PackageDisplay}), starting execution");
-                            UpdateRowState(candidate.Manifest.Id, Markup.Escape(candidate.PackageDisplay), "[yellow]Running...[/]", "[yellow]⏳[/]");
+                            UpdateRowState(candidate.Manifest.Id, stateCell, "[yellow]Running...[/]", latestBuild.Succeeded ? "[yellow]⏳[/]" : "[yellow]⏳[/]");
                             packageResult = await _executor.ExecuteAsync(packageBuild, candidate.Instances, candidate.TimeoutSeconds, _cancellationToken).ConfigureAwait(false);
                         }
 
-                        // Execute latest version if build succeeded
                         if (latestBuild.Succeeded)
                         {
-                            var currentReproduced = packageResult is null ? "[yellow]-[/]" : (packageResult.Value.Reproduced ? "[green]✅[/]" : "[red]❌[/]");
-                            UpdateRowState(candidate.Manifest.Id, Markup.Escape(candidate.PackageDisplay), currentReproduced, "[yellow]Running...[/]");
+                            var interimPackageStatus = packageResult is null
+                                ? (packageBuild.Succeeded ? "[yellow]⏳[/]" : "[red]Build Failed[/]")
+                                : "[yellow]Completed[/]";
+                            UpdateRowState(candidate.Manifest.Id, stateCell, interimPackageStatus, "[yellow]Running...[/]");
                             latestResult = await _executor.ExecuteAsync(latestBuild, candidate.Instances, candidate.TimeoutSeconds, _cancellationToken).ConfigureAwait(false);
                         }
 
-                        // Final status update
-                        var versionCell = packageBuild.Succeeded
-                            ? Markup.Escape(candidate.PackageDisplay)
-                            : "[red]Build Failed[/]";
+                        var evaluation = _outcomeEvaluator.Evaluate(candidate.Manifest, packageResult, latestResult);
+                        var packageCell = FormatVariantCell(evaluation.Package);
+                        var latestCell = FormatVariantCell(evaluation.Latest);
 
-                        var reproducedStatus = packageResult is null
-                            ? "[yellow]-[/]"
-                            : (packageResult.Value.Reproduced ? "[green]✅[/]" : "[red]❌[/]");
+                        UpdateRowState(candidate.Manifest.Id, stateCell, packageCell, latestCell);
 
-                        var fixedStatus = latestResult is null
-                            ? "[yellow]-[/]"
-                            : (latestResult.Value.Reproduced ? "[red]❌[/]" : "[green]✅[/]");
+                        if (evaluation.Package.ShouldFail && evaluation.Package.FailureReason is string packageReason)
+                        {
+                            writer.TryWrite(new LogLineUpdate($"FAIL: {candidate.Manifest.Id} package - {packageReason}"));
+                        }
 
-                        if ((packageResult?.Reproduced ?? false) || (latestResult?.Reproduced ?? false))
+                        if (evaluation.Latest.ShouldFail && evaluation.Latest.FailureReason is string latestReason)
+                        {
+                            writer.TryWrite(new LogLineUpdate($"FAIL: {candidate.Manifest.Id} latest - {latestReason}"));
+                        }
+                        else if (evaluation.Latest.ShouldWarn && evaluation.Latest.FailureReason is string latestWarning)
+                        {
+                            writer.TryWrite(new LogLineUpdate($"WARN: {candidate.Manifest.Id} latest - {latestWarning}"));
+                        }
+
+                        if (evaluation.ShouldFail)
                         {
                             overallExitCode = overallExitCode == 0 ? 1 : overallExitCode;
                         }
 
-                        UpdateRowState(candidate.Manifest.Id, versionCell, reproducedStatus, fixedStatus);
+                        report.Add(new RunReportEntry
+                        {
+                            Id = candidate.Manifest.Id,
+                            State = candidate.Manifest.State,
+                            Failed = evaluation.ShouldFail,
+                            Warned = evaluation.ShouldWarn,
+                            Package = CreateReportVariant(evaluation.Package, candidate.PackagePlan.UseProjectReference),
+                            Latest = CreateReportVariant(evaluation.Latest, candidate.LatestPlan.UseProjectReference)
+                        });
+
                         writer.TryWrite(new LogLineUpdate($"Completed execution for {candidate.Manifest.Id}"));
                     }
                 }
@@ -342,7 +368,112 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
             }
         }
 
+        if (settings.ReportPath is string reportPath)
+        {
+            await WriteReportAsync(report, reportPath, settings.ReportFormat, _cancellationToken).ConfigureAwait(false);
+        }
+
         return overallExitCode;
+    }
+
+    private static async Task WriteReportAsync(RunReport report, string path, string? format, CancellationToken cancellationToken)
+    {
+        if (format is not null && !string.Equals(format, "json", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"Unsupported report format '{format}'.");
+        }
+
+        var serializerOptions = new JsonSerializerOptions
+        {
+            WriteIndented = true
+        };
+
+        var json = JsonSerializer.Serialize(report, serializerOptions);
+
+        if (string.Equals(path, "-", StringComparison.Ordinal))
+        {
+            await Console.Out.WriteLineAsync(json).ConfigureAwait(false);
+            return;
+        }
+
+        var fullPath = Path.GetFullPath(path);
+        var directory = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrEmpty(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        await File.WriteAllTextAsync(fullPath, json, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static RunReportVariant CreateReportVariant(ReproVariantEvaluation evaluation, bool useProjectReference)
+    {
+        var capturedLines = Array.Empty<RunReportCapturedLine>();
+
+        if (evaluation.Result is ReproExecutionResult result)
+        {
+            capturedLines = result.CapturedOutput
+                .Select(line => new RunReportCapturedLine
+                {
+                    Stream = line.Stream == ReproExecutionStream.StandardOutput ? "stdout" : "stderr",
+                    Text = line.Text ?? string.Empty
+                })
+                .ToArray();
+        }
+
+        return new RunReportVariant
+        {
+            Expected = evaluation.Expectation.Kind,
+            ExpectedExitCode = evaluation.Expectation.ExitCode,
+            ExpectedLogContains = evaluation.Expectation.LogContains,
+            Actual = evaluation.ActualKind,
+            Met = evaluation.Met,
+            ExitCode = evaluation.Result?.ExitCode,
+            DurationSeconds = evaluation.Result?.Duration.TotalSeconds,
+            UseProjectReference = evaluation.Result?.UseProjectReference ?? useProjectReference,
+            FailureReason = evaluation.FailureReason,
+            Output = capturedLines
+        };
+    }
+
+    private static string FormatVariantCell(ReproVariantEvaluation evaluation)
+    {
+        var symbol = evaluation.Met
+            ? "[green]✅[/]"
+            : evaluation.ShouldWarn
+                ? "[yellow]⚠️[/]"
+                : "[red]❌[/]";
+
+        string detail;
+        if (evaluation.Result is ReproExecutionResult result)
+        {
+            detail = string.Format(CultureInfo.InvariantCulture, "exit {0}", result.ExitCode);
+        }
+        else
+        {
+            detail = "no-run";
+        }
+
+        var expectation = evaluation.Expectation.Kind switch
+        {
+            ReproOutcomeKind.Reproduce => "repro",
+            ReproOutcomeKind.NoRepro => "no-repro",
+            ReproOutcomeKind.HardFail => "hard-fail",
+            _ => evaluation.Expectation.Kind.ToString().ToLowerInvariant()
+        };
+
+        return $"{symbol} {detail} [dim](exp {expectation})[/]";
+    }
+
+    private static string FormatReproState(ReproState state)
+    {
+        return state switch
+        {
+            ReproState.Red => "[red]red[/]",
+            ReproState.Green => "[green]green[/]",
+            ReproState.Flaky => "[yellow]flaky[/]",
+            _ => Markup.Escape(state.ToString().ToLowerInvariant())
+        };
     }
 
     private static string BuildVariantIdentifier(string? packageVersion)
@@ -400,7 +531,8 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
         int TimeoutSeconds,
         string PackageDisplay,
         RunVariantPlan PackagePlan,
-        RunVariantPlan LatestPlan);
+        RunVariantPlan LatestPlan,
+        string StateCell);
 
     private sealed record BuildFailure(string ManifestId, string Variant, IReadOnlyList<string> Output);
 
@@ -470,14 +602,14 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
                         layout["logs"].Update(CreateLogView(logLines, fps));
                         break;
                     case TableRowUpdate rowUpdate:
-                        table.AddRow(rowUpdate.ReproId, rowUpdate.Version, rowUpdate.Reproduced, rowUpdate.Fixed);
+                        table.AddRow(rowUpdate.ReproId, rowUpdate.State, rowUpdate.Package, rowUpdate.Latest);
                         break;
                     case TableRefreshUpdate refreshUpdate:
                         // Rebuild the entire table with current states
-                        var newTable = new Table().Border(TableBorder.Rounded).Expand().AddColumns("Repro", "Repro Version", "Reproduced", "Fixed");
+                        var newTable = new Table().Border(TableBorder.Rounded).Expand().AddColumns("Repro", "State", "Package", "Latest");
                         foreach (var state in refreshUpdate.RowStates.Values.OrderBy(s => s.ReproId))
                         {
-                            newTable.AddRow(state.ReproId, state.Version, state.Reproduced, state.Fixed);
+                            newTable.AddRow(state.ReproId, state.State, state.Package, state.Latest);
                         }
                         layout["results"].Update(newTable);
                         break;
@@ -524,9 +656,9 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
 
     private sealed record LogLineUpdate(string Line) : UiUpdate;
 
-    private sealed record TableRowUpdate(string ReproId, string Version, string Reproduced, string Fixed) : UiUpdate;
+    private sealed record TableRowUpdate(string ReproId, string State, string Package, string Latest) : UiUpdate;
 
     private sealed record TableRefreshUpdate(Dictionary<string, ReproRowState> RowStates) : UiUpdate;
 
-    private sealed record ReproRowState(string ReproId, string Version, string Reproduced, string Fixed);
+    private sealed record ReproRowState(string ReproId, string State, string Package, string Latest);
 }

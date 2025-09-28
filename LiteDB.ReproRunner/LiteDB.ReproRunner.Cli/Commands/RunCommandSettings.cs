@@ -1,3 +1,4 @@
+using System;
 using System.ComponentModel;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -54,6 +55,20 @@ internal sealed class RunCommandSettings : RootCommandSettings
     public decimal? Fps { get; set; }
 
     /// <summary>
+    /// Gets or sets the optional report output path.
+    /// </summary>
+    [CommandOption("--report <PATH>")]
+    [Description("Write a machine-readable report to the specified file or '-' for stdout.")]
+    public string? ReportPath { get; set; }
+
+    /// <summary>
+    /// Gets or sets the report format.
+    /// </summary>
+    [CommandOption("--report-format <FORMAT>")]
+    [Description("Report format (currently only 'json').")] 
+    public string? ReportFormat { get; set; }
+
+    /// <summary>
     /// Validates the run command settings.
     /// </summary>
     /// <returns>The validation result describing any errors.</returns>
@@ -82,6 +97,16 @@ internal sealed class RunCommandSettings : RootCommandSettings
         if (Fps is decimal fps && fps <= 0)
         {
             return ValidationResult.Error("--fps expects a positive decimal value.");
+        }
+
+        if (ReportFormat is string format && !string.Equals(format, "json", StringComparison.OrdinalIgnoreCase))
+        {
+            return ValidationResult.Error("--report-format supports only 'json'.");
+        }
+
+        if (ReportPath is null && ReportFormat is not null)
+        {
+            return ValidationResult.Error("--report-format requires --report.");
         }
 
         return base.Validate();
