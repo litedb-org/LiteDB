@@ -24,4 +24,9 @@ public static class ReproHostMessageTypes
     /// Identifies progress updates emitted by repros.
     /// </summary>
     public const string Progress = "progress";
+
+    /// <summary>
+    /// Identifies configuration handshakes emitted by repros.
+    /// </summary>
+    public const string Configuration = "configuration";
 }

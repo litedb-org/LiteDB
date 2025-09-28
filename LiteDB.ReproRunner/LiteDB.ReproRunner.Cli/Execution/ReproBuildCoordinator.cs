@@ -50,6 +50,11 @@ internal sealed class ReproBuildCoordinator
                 $"-p:OutputPath={plan.BuildOutputDirectory}"
             };
 
+            if (!string.IsNullOrWhiteSpace(plan.LiteDBPackageVersion))
+            {
+                arguments.Add($"-p:LiteDBPackageVersion={plan.LiteDBPackageVersion}");
+            }
+
             var (exitCode, output) = await RunProcessAsync(projectDirectory, arguments, cancellationToken).ConfigureAwait(false);
 
             if (exitCode != 0)

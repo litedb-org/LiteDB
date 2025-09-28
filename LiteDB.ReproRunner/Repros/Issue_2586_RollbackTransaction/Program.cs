@@ -24,6 +24,7 @@ internal static class Program
     private static int Main()
     {
         var host = ReproHostClient.CreateDefault();
+        ReproConfigurationReporter.SendConfiguration(host);
         var context = ReproContext.FromEnvironment();
 
         host.SendLifecycle("starting", new

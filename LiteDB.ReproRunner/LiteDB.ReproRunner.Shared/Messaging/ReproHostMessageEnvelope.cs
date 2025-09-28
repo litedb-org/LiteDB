@@ -144,6 +144,29 @@ public sealed class ReproHostMessageEnvelope
     }
 
     /// <summary>
+    /// Creates a configuration handshake message envelope.
+    /// </summary>
+    /// <param name="useProjectReference">Indicates whether the repro was built against the source project.</param>
+    /// <param name="liteDbPackageVersion">The LiteDB package version referenced by the repro, when applicable.</param>
+    /// <param name="timestamp">An optional timestamp to associate with the message.</param>
+    /// <returns>The constructed configuration message envelope.</returns>
+    public static ReproHostMessageEnvelope CreateConfiguration(bool useProjectReference, string? liteDbPackageVersion, DateTimeOffset? timestamp = null)
+    {
+        var payload = new ReproHostConfigurationPayload
+        {
+            UseProjectReference = useProjectReference,
+            LiteDBPackageVersion = liteDbPackageVersion
+        };
+
+        return new ReproHostMessageEnvelope
+        {
+            Type = ReproHostMessageTypes.Configuration,
+            Timestamp = timestamp ?? DateTimeOffset.UtcNow,
+            Payload = JsonSerializer.SerializeToElement(payload, ReproJsonOptions.Default)
+        };
+    }
+
+    /// <summary>
     /// Deserializes the payload to a strongly typed value.
     /// </summary>
     /// <typeparam name="T">The payload type.</typeparam>

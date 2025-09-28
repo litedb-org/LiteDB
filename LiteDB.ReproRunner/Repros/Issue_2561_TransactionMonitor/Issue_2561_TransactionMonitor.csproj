@@ -21,4 +21,9 @@
     <ProjectReference Include="..\..\LiteDB.ReproRunner.Shared\LiteDB.ReproRunner.Shared.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <AssemblyMetadata Include="LiteDB.ReproRunner.UseProjectReference" Value="$(UseProjectReference)" />
+    <AssemblyMetadata Include="LiteDB.ReproRunner.LiteDBPackageVersion" Value="$(LiteDBPackageVersion)" />
+  </ItemGroup>
+
 </Project>

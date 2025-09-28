@@ -103,6 +103,18 @@ public sealed class ReproHostClient
     }
 
     /// <summary>
+    /// Sends a configuration handshake to the host.
+    /// </summary>
+    /// <param name="useProjectReference">Indicates whether the repro was built against the source project.</param>
+    /// <param name="liteDbPackageVersion">The LiteDB package version referenced by the repro, when applicable.</param>
+    /// <param name="cancellationToken">The token used to observe cancellation requests.</param>
+    /// <returns>A task that completes when the message has been written.</returns>
+    public Task SendConfigurationAsync(bool useProjectReference, string? liteDbPackageVersion, CancellationToken cancellationToken = default)
+    {
+        return SendAsync(ReproHostMessageEnvelope.CreateConfiguration(useProjectReference, liteDbPackageVersion), cancellationToken);
+    }
+
+    /// <summary>
     /// Sends a structured log message to the host synchronously.
     /// </summary>
     /// <param name="message">The log message text.</param>
@@ -142,6 +154,16 @@ public sealed class ReproHostClient
     public void SendProgress(string stage, double? percentComplete = null, object? payload = null)
     {
         SendProgressAsync(stage, percentComplete, payload).GetAwaiter().GetResult();
+    }
+
+    /// <summary>
+    /// Sends a configuration handshake to the host synchronously.
+    /// </summary>
+    /// <param name="useProjectReference">Indicates whether the repro was built against the source project.</param>
+    /// <param name="liteDbPackageVersion">The LiteDB package version referenced by the repro, when applicable.</param>
+    public void SendConfiguration(bool useProjectReference, string? liteDbPackageVersion)
+    {
+        SendConfigurationAsync(useProjectReference, liteDbPackageVersion).GetAwaiter().GetResult();
     }
 
     /// <summary>
