@@ -1,4 +1,7 @@
+using System.Threading;
+using LiteDB.ReproRunner.Cli.Commands;
 using Spectre.Console;
+using Spectre.Console.Cli;
 
 namespace LiteDB.ReproRunner.Cli;
 
@@ -14,8 +17,93 @@ internal static class Program
             cts.Cancel();
         };
 
+        var (filteredArgs, rootOverride) = ExtractGlobalOptions(args);
         var console = AnsiConsole.Create(new AnsiConsoleSettings());
-        var app = new CliApplication(console, new ReproExecutor());
-        return await app.RunAsync(args, cts.Token).ConfigureAwait(false);
+        var registrar = new TypeRegistrar();
+        registrar.RegisterInstance(typeof(IAnsiConsole), console);
+        registrar.RegisterInstance(typeof(ReproExecutor), new ReproExecutor());
+        registrar.RegisterInstance(typeof(ReproRootLocator), new ReproRootLocator(rootOverride));
+        registrar.RegisterInstance(typeof(CancellationToken), cts.Token);
+
+        var app = new CommandApp(registrar);
+        app.Configure(config =>
+        {
+            config.SetApplicationName("repro-runner");
+            config.AddCommand<ListCommand>("list").WithDescription("List discovered repros and highlight invalid manifests.");
+            config.AddCommand<ShowCommand>("show").WithDescription("Display manifest metadata for a repro.");
+            config.AddCommand<ValidateCommand>("validate").WithDescription("Validate repro manifests.");
+            config.AddCommand<RunCommand>("run").WithDescription("Execute repros against package and source builds.");
+        });
+
+        try
+        {
+            return await app.RunAsync(filteredArgs).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            console.MarkupLine("[yellow]Execution cancelled.[/]");
+            return 1;
+        }
+        catch (CommandRuntimeException ex)
+        {
+            console.WriteException(ex, ExceptionFormats.ShortenEverything);
+            return 1;
+        }
+        catch (Exception ex)
+        {
+            console.WriteException(ex, ExceptionFormats.ShortenEverything);
+            return 1;
+        }
+    }
+
+    private static (string[] FilteredArgs, string? RootOverride) ExtractGlobalOptions(string[] args)
+    {
+        if (args.Length == 0)
+        {
+            return (Array.Empty<string>(), null);
+        }
+
+        var filtered = new List<string>();
+        string? rootOverride = null;
+        var index = 0;
+
+        while (index < args.Length)
+        {
+            var token = args[index];
+
+            if (!token.StartsWith("-", StringComparison.Ordinal))
+            {
+                break;
+            }
+
+            if (token == "--root")
+            {
+                index++;
+                if (index >= args.Length)
+                {
+                    throw new InvalidOperationException("--root requires a path.");
+                }
+
+                rootOverride = args[index];
+                index++;
+                continue;
+            }
+
+            if (token == "--")
+            {
+                filtered.Add(token);
+                index++;
+                break;
+            }
+
+            break;
+        }
+
+        for (; index < args.Length; index++)
+        {
+            filtered.Add(args[index]);
+        }
+
+        return (filtered.ToArray(), rootOverride);
     }
 }
