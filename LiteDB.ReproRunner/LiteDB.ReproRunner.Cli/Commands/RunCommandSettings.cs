@@ -9,7 +9,7 @@ internal sealed class RunCommandSettings : RootCommandSettings
     /// <summary>
     /// Gets the default frames-per-second limit applied to the live UI.
     /// </summary>
-    public const decimal DefaultFps = 30m;
+    public const decimal DefaultFps = 2m;
 
     /// <summary>
     /// Gets or sets the identifier of the repro to execute.
@@ -50,7 +50,7 @@ internal sealed class RunCommandSettings : RootCommandSettings
     /// Gets or sets the maximum number of times the live UI refreshes per second.
     /// </summary>
     [CommandOption("--fps <FPS>")]
-    [Description("Limit the live UI refresh rate in frames per second (default: 30).")]
+    [Description("Limit the live UI refresh rate in frames per second (default: 2).")]
     public decimal? Fps { get; set; }
 
     /// <summary>
