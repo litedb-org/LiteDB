@@ -76,7 +76,7 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
             return 1;
         }
 
-        var table = new Table().Border(TableBorder.Rounded).AddColumns("Repro", "Repro Version", "Reproduced", "Fixed");
+        var table = new Table().Border(TableBorder.Rounded).Expand().AddColumns("Repro", "Repro Version", "Reproduced", "Fixed");
         var logLines = new List<string>();
         var targetFps = settings.Fps ?? RunCommandSettings.DefaultFps;
         var layout = new Layout("root")
@@ -361,7 +361,7 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
 
     private static IRenderable CreateLogView(IReadOnlyList<string> lines, decimal fps)
     {
-        var logTable = new Table().Border(TableBorder.Rounded);
+        var logTable = new Table().Border(TableBorder.Rounded).Expand();
         var fpsLabel = fps <= 0
             ? "Unlimited"
             : string.Format(CultureInfo.InvariantCulture, "{0:0.0}", fps);
