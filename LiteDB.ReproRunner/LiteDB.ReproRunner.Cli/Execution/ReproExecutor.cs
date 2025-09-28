@@ -351,6 +351,11 @@ internal sealed class ReproExecutor
 
     private void WriteOutputLine(string message)
     {
+        if (SuppressConsoleLogOutput)
+        {
+            return;
+        }
+
         lock (_writeLock)
         {
             _standardOut.WriteLine(message);
@@ -360,6 +365,11 @@ internal sealed class ReproExecutor
 
     private void WriteErrorLine(string message)
     {
+        if (SuppressConsoleLogOutput)
+        {
+            return;
+        }
+
         lock (_writeLock)
         {
             _standardError.WriteLine(message);
