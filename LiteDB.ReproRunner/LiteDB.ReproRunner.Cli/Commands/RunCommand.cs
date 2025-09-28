@@ -41,7 +41,7 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
             return 1;
         }
 
-        var table = new Table().Border(TableBorder.Rounded).AddColumns("Repro", "Outcome", "Details");
+        var table = new Table().Border(TableBorder.Rounded).AddColumns("Repro", "Repro Version", "Reproduced", "Fixed");
         var overallExitCode = 0;
 
         await _console.Live(table).StartAsync(async ctx =>
@@ -54,7 +54,7 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
                 {
                     if (!settings.SkipValidation)
                     {
-                        table.AddRow(Markup.Escape(repro.RawId ?? "(unknown)"), "[red]Invalid manifest[/]", Markup.Escape(string.Join(Environment.NewLine, repro.Validation.Errors)));
+                        table.AddRow(Markup.Escape(repro.RawId ?? "(unknown)"), "[red]Invalid[/]", "[red]❌[/]", "[red]❌[/]");
                         ctx.Refresh();
                         overallExitCode = overallExitCode == 0 ? 2 : overallExitCode;
                         continue;
@@ -62,7 +62,7 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
 
                     if (repro.Manifest is null)
                     {
-                        table.AddRow(Markup.Escape(repro.RawId ?? "(unknown)"), "[red]Cannot run invalid manifest[/]", Markup.Escape("Validation failed and manifest not available."));
+                        table.AddRow(Markup.Escape(repro.RawId ?? "(unknown)"), "[red]Invalid[/]", "[red]❌[/]", "[red]❌[/]");
                         ctx.Refresh();
                         overallExitCode = overallExitCode == 0 ? 2 : overallExitCode;
                         continue;
@@ -71,7 +71,7 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
 
                 if (repro.Manifest is null)
                 {
-                    table.AddRow(Markup.Escape(repro.RawId ?? "(unknown)"), "[red]Manifest missing[/]", Markup.Escape("Unable to load manifest."));
+                    table.AddRow(Markup.Escape(repro.RawId ?? "(unknown)"), "[red]Missing[/]", "[red]❌[/]", "[red]❌[/]");
                     ctx.Refresh();
                     overallExitCode = overallExitCode == 0 ? 2 : overallExitCode;
                     continue;
@@ -82,7 +82,7 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
 
                 if (manifest.RequiresParallel && instances < 2)
                 {
-                    table.AddRow(Markup.Escape(manifest.Id), "[red]Invalid options[/]", Markup.Escape("Requires at least 2 instances."));
+                    table.AddRow(Markup.Escape(manifest.Id), "[red]Config Error[/]", "[red]❌[/]", "[red]❌[/]");
                     ctx.Refresh();
                     overallExitCode = 1;
                     continue;
@@ -90,35 +90,27 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
 
                 var timeoutSeconds = settings.Timeout ?? manifest.TimeoutSeconds;
                 var packageVersion = TryResolvePackageVersion(repro.ProjectPath);
-                var packageMessage = packageVersion is not null
-                    ? $"Reproduces at version {packageVersion}."
-                    : "Reproduces with NuGet package.";
+                var displayVersion = packageVersion ?? "NuGet";
 
-                var runs = new[]
+                _cancellationToken.ThrowIfCancellationRequested();
+
+                // Test with package version first
+                var packageResult = await _executor.ExecuteAsync(repro, false, instances, timeoutSeconds, _cancellationToken).ConfigureAwait(false);
+                
+                // Test with current code
+                var currentResult = await _executor.ExecuteAsync(repro, true, instances, timeoutSeconds, _cancellationToken).ConfigureAwait(false);
+
+                var reproducedStatus = packageResult.Reproduced ? "[green]✅[/]" : "[red]❌[/]";
+                var fixedStatus = currentResult.Reproduced 
+                    ? "[red]❌[/]"  // Still reproduces (crossed out X)
+                    : "[green]✅[/]";   // Fixed (check mark)
+
+                table.AddRow(Markup.Escape(manifest.Id), Markup.Escape(displayVersion), reproducedStatus, fixedStatus);
+                ctx.Refresh();
+
+                if (packageResult.Reproduced || currentResult.Reproduced)
                 {
-                    new RunTarget(false, packageMessage),
-                    new RunTarget(true, "Reproduces with current code.")
-                };
-
-                foreach (var run in runs)
-                {
-                    _cancellationToken.ThrowIfCancellationRequested();
-
-                    var result = await _executor.ExecuteAsync(repro, run.UseProjectReference, instances, timeoutSeconds, _cancellationToken).ConfigureAwait(false);
-                    var status = result.Reproduced
-                        ? $"{run.Message} [green]✅[/]"
-                        : $"{run.Message} [red]❌[/]";
-                    var details = result.Reproduced
-                        ? $"Duration: {FormatDuration(result.Duration)}"
-                        : $"Exit code {result.ExitCode}, Duration: {FormatDuration(result.Duration)}";
-
-                    table.AddRow(Markup.Escape(manifest.Id), status, Markup.Escape(details));
-                    ctx.Refresh();
-
-                    if (!result.Reproduced)
-                    {
-                        overallExitCode = overallExitCode == 0 ? result.ExitCode : overallExitCode;
-                    }
+                    overallExitCode = overallExitCode == 0 ? 1 : overallExitCode;
                 }
             }
         }).ConfigureAwait(false);
@@ -170,6 +162,4 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
 
         return null;
     }
-
-    private readonly record struct RunTarget(bool UseProjectReference, string Message);
 }
