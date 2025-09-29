@@ -38,7 +38,7 @@ internal static class CliOutput
         var table = new Table().Border(TableBorder.Rounded).AddColumns("Field", "Value");
         table.AddRow("Id", Markup.Escape(manifest.Id));
         table.AddRow("Title", Markup.Escape(manifest.Title));
-        table.AddRow("State", Markup.Escape(manifest.State));
+        table.AddRow("State", Markup.Escape(FormatState(manifest.State)));
         table.AddRow("TimeoutSeconds", Markup.Escape(manifest.TimeoutSeconds.ToString()));
         table.AddRow("RequiresParallel", Markup.Escape(manifest.RequiresParallel.ToString()));
         table.AddRow("DefaultInstances", Markup.Escape(manifest.DefaultInstances.ToString()));
@@ -98,7 +98,7 @@ internal static class CliOutput
             var manifest = repro.Manifest;
             table.AddRow(
                 Markup.Escape(manifest.Id),
-                Markup.Escape(manifest.State),
+                Markup.Escape(FormatState(manifest.State)),
                 Markup.Escape($"{manifest.TimeoutSeconds}s"),
                 Markup.Escape(manifest.FailingSince ?? "-"),
                 Markup.Escape(manifest.Tags.Count > 0 ? string.Join(",", manifest.Tags) : "-"),
@@ -111,5 +111,16 @@ internal static class CliOutput
     private static string NormalizePath(string path)
     {
         return path.Replace(Path.DirectorySeparatorChar, '/');
+    }
+
+    private static string FormatState(ReproState state)
+    {
+        return state switch
+        {
+            ReproState.Red => "red",
+            ReproState.Green => "green",
+            ReproState.Flaky => "flaky",
+            _ => state.ToString().ToLowerInvariant()
+        };
     }
 }

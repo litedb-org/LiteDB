@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -9,7 +10,12 @@ namespace LiteDB.ReproRunner.Cli.Manifests;
 /// </summary>
 internal sealed class ManifestValidator
 {
-    private static readonly string[] AllowedStates = { "red", "green", "flaky" };
+    private static readonly Dictionary<string, ReproState> AllowedStates = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["red"] = ReproState.Red,
+        ["green"] = ReproState.Green,
+        ["flaky"] = ReproState.Flaky
+    };
     private static readonly Regex IdPattern = new("^[A-Za-z0-9_]+$", RegexOptions.Compiled);
 
     /// <summary>
@@ -47,7 +53,8 @@ internal sealed class ManifestValidator
             "sharedDatabaseKey",
             "args",
             "tags",
-            "state"
+            "state",
+            "expectedOutcomes"
         };
 
         foreach (var name in map.Keys)
@@ -319,19 +326,19 @@ internal sealed class ManifestValidator
             }
         }
 
-        string? state = null;
+        ReproState? state = null;
         if (map.TryGetValue("state", out var stateElement))
         {
             if (stateElement.ValueKind == JsonValueKind.String)
             {
-                var value = stateElement.GetString()?.Trim().ToLowerInvariant();
-                if (string.IsNullOrEmpty(value) || !AllowedStates.Contains(value))
+                var value = stateElement.GetString()?.Trim();
+                if (string.IsNullOrEmpty(value) || !AllowedStates.TryGetValue(value, out var parsedState))
                 {
                     validation.AddError("$.state: expected one of red, green, flaky.");
                 }
                 else
                 {
-                    state = value;
+                    state = parsedState;
                 }
             }
             else
@@ -342,6 +349,12 @@ internal sealed class ManifestValidator
         else
         {
             validation.AddError("$.state: property is required.");
+        }
+
+        ReproVariantOutcomeExpectations? expectedOutcomes = ReproVariantOutcomeExpectations.Empty;
+        if (map.TryGetValue("expectedOutcomes", out var expectedOutcomesElement))
+        {
+            expectedOutcomes = ParseExpectedOutcomes(expectedOutcomesElement, validation);
         }
 
         if (requiresParallel == true)
@@ -357,7 +370,7 @@ internal sealed class ManifestValidator
             }
         }
 
-        if (id is null || title is null || timeoutSeconds is null || requiresParallel is null || defaultInstances is null || state is null)
+        if (id is null || title is null || timeoutSeconds is null || requiresParallel is null || defaultInstances is null || state is null || expectedOutcomes is null)
         {
             return null;
         }
@@ -377,7 +390,8 @@ internal sealed class ManifestValidator
             sharedDatabaseKey,
             argsArray,
             tagsArray,
-            state);
+            state.Value,
+            expectedOutcomes);
     }
 
     private static string DescribeKind(JsonValueKind kind)
@@ -393,5 +407,148 @@ internal sealed class ManifestValidator
             JsonValueKind.Null => "null",
             _ => kind.ToString().ToLowerInvariant()
         };
+    }
+
+    private static ReproVariantOutcomeExpectations? ParseExpectedOutcomes(JsonElement root, ManifestValidationResult validation)
+    {
+        if (root.ValueKind != JsonValueKind.Object)
+        {
+            validation.AddError("$.expectedOutcomes: expected object value.");
+            return null;
+        }
+
+        var allowed = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "package",
+            "latest"
+        };
+
+        foreach (var property in root.EnumerateObject())
+        {
+            if (!allowed.Contains(property.Name))
+            {
+                validation.AddError($"$.expectedOutcomes.{property.Name}: unknown property.");
+            }
+        }
+
+        ReproOutcomeExpectation? package = null;
+        ReproOutcomeExpectation? latest = null;
+
+        if (root.TryGetProperty("package", out var packageElement))
+        {
+            package = ParseOutcomeExpectation(packageElement, "$.expectedOutcomes.package", validation);
+        }
+
+        if (root.TryGetProperty("latest", out var latestElement))
+        {
+            latest = ParseOutcomeExpectation(latestElement, "$.expectedOutcomes.latest", validation);
+            if (latest?.Kind == ReproOutcomeKind.HardFail)
+            {
+                validation.AddError("$.expectedOutcomes.latest.kind: hardFail is only supported for the package variant.");
+            }
+        }
+
+        if (package is null && root.TryGetProperty("package", out _))
+        {
+            return null;
+        }
+
+        if (latest is null && root.TryGetProperty("latest", out _))
+        {
+            return null;
+        }
+
+        return new ReproVariantOutcomeExpectations(package, latest);
+    }
+
+    private static ReproOutcomeExpectation? ParseOutcomeExpectation(JsonElement element, string path, ManifestValidationResult validation)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            validation.AddError($"{path}: expected object value.");
+            return null;
+        }
+
+        var allowed = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "kind",
+            "exitCode",
+            "logContains"
+        };
+
+        foreach (var property in element.EnumerateObject())
+        {
+            if (!allowed.Contains(property.Name))
+            {
+                validation.AddError($"{path}.{property.Name}: unknown property.");
+            }
+        }
+
+        if (!element.TryGetProperty("kind", out var kindElement) || kindElement.ValueKind != JsonValueKind.String)
+        {
+            validation.AddError($"{path}.kind: expected string value.");
+            return null;
+        }
+
+        var kindText = kindElement.GetString()?.Trim();
+        if (string.IsNullOrEmpty(kindText))
+        {
+            validation.AddError($"{path}.kind: value must not be empty.");
+            return null;
+        }
+
+        ReproOutcomeKind kind;
+        switch (kindText.ToLowerInvariant())
+        {
+            case "reproduce":
+                kind = ReproOutcomeKind.Reproduce;
+                break;
+            case "norepro":
+                kind = ReproOutcomeKind.NoRepro;
+                break;
+            case "hardfail":
+                kind = ReproOutcomeKind.HardFail;
+                break;
+            default:
+                validation.AddError($"{path}.kind: expected one of reproduce, norepro, hardFail.");
+                return null;
+        }
+
+        int? exitCode = null;
+        if (element.TryGetProperty("exitCode", out var exitCodeElement))
+        {
+            if (exitCodeElement.ValueKind == JsonValueKind.Number && exitCodeElement.TryGetInt32(out var parsed))
+            {
+                exitCode = parsed;
+            }
+            else
+            {
+                validation.AddError($"{path}.exitCode: expected integer value.");
+                return null;
+            }
+        }
+
+        string? logContains = null;
+        if (element.TryGetProperty("logContains", out var logElement))
+        {
+            if (logElement.ValueKind == JsonValueKind.String)
+            {
+                var value = logElement.GetString();
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    validation.AddError($"{path}.logContains: value must not be empty when provided.");
+                    return null;
+                }
+
+                logContains = value;
+            }
+            else
+            {
+                validation.AddError($"{path}.logContains: expected string value.");
+                return null;
+            }
+        }
+
+        return new ReproOutcomeExpectation(kind, exitCode, logContains);
     }
 }
