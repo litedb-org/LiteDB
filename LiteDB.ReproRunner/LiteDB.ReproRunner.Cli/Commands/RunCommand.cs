@@ -469,7 +469,8 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
             var evaluation = _outcomeEvaluator.Evaluate(candidate.Manifest, packageResult, latestResult);
             var packageCell = FormatVariantCell(evaluation.Package);
             var latestCell = FormatVariantCell(evaluation.Latest);
-            var overallCell = FormatOverallCell(evaluation);
+            var overallState = ComputeOverallState(evaluation);
+            var overallCell = FormatOverallCell(evaluation, overallState);
             var finalState = new ReproRowState(candidate.Manifest.Id, candidate.ReproVersionCell, packageCell, latestCell, overallCell);
             onRowStateUpdated(finalState);
             finalStates[candidate.Manifest.Id] = finalState;
@@ -496,7 +497,7 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
             report.Add(new RunReportEntry
             {
                 Id = candidate.Manifest.Id,
-                State = candidate.Manifest.State,
+                State = overallState,
                 Failed = evaluation.ShouldFail,
                 Warned = evaluation.ShouldWarn,
                 Package = CreateReportVariant(evaluation.Package, candidate.PackagePlan.UseProjectReference),
@@ -614,7 +615,22 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
         return $"{symbol} {detail} [dim](exp {expectation})[/]";
     }
 
-    private static string FormatOverallCell(ReproRunEvaluation evaluation)
+    private static ReproState ComputeOverallState(ReproRunEvaluation evaluation)
+    {
+        if (evaluation.ShouldFail)
+        {
+            return ReproState.Red;
+        }
+
+        if (evaluation.ShouldWarn)
+        {
+            return ReproState.Flaky;
+        }
+
+        return ReproState.Green;
+    }
+
+    private static string FormatOverallCell(ReproRunEvaluation evaluation, ReproState overallState)
     {
         var symbol = evaluation.ShouldFail
             ? "[red]❌[/]"
@@ -622,7 +638,7 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
                 ? "[yellow]⚠️[/]"
                 : "[green]✅[/]";
 
-        return $"{symbol} {FormatReproState(evaluation.State)}";
+        return $"{symbol} {FormatReproState(overallState)}";
     }
 
     private static string FormatOverallPending(ReproState state)
