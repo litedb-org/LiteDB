@@ -81,268 +81,159 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
             return 1;
         }
 
+
         var report = new RunReport { Root = repository.RootPath };
         var table = new Table()
             .Border(TableBorder.Rounded)
             .Expand()
             .AddColumns("Repro", "Repro Version", "Reproduced", "Fixed", "Overall");
-        var logLines = new List<string>();
-        var targetFps = settings.Fps ?? RunCommandSettings.DefaultFps;
-        var layout = new Layout("root")
-            .SplitRows(
-                new Layout("logs").Size(8),
-                new Layout("results"));
-
-        layout["results"].Update(table);
-        layout["logs"].Update(CreateLogView(logLines, targetFps));
         var overallExitCode = 0;
         var plannedVariants = new List<RunVariantPlan>();
         var buildFailures = new List<BuildFailure>();
-        var uiUpdates = Channel.CreateUnbounded<UiUpdate>(new UnboundedChannelOptions
-        {
-            SingleReader = true,
-            AllowSynchronousContinuations = false
-        });
+        var useLiveDisplay = ShouldUseLiveDisplay();
 
         try
         {
-            await _console.Live(layout).StartAsync(async ctx =>
+            if (useLiveDisplay)
             {
-                var uiTask = ProcessUiUpdatesAsync(uiUpdates.Reader, table, layout, logLines, targetFps, ctx, _cancellationToken);
-                var writer = uiUpdates.Writer;
-                var previousObserver = _executor.LogObserver;
-                var previousSuppression = _executor.SuppressConsoleLogOutput;
-                _executor.SuppressConsoleLogOutput = true;
-                _executor.LogObserver = entry =>
-                {
-                    var formatted = FormatLogLine(entry);
-                    writer.TryWrite(new LogLineUpdate(formatted));
-                };
+                var logLines = new List<string>();
+                var targetFps = settings.Fps ?? RunCommandSettings.DefaultFps;
+                var layout = new Layout("root")
+                    .SplitRows(
+                        new Layout("logs").Size(8),
+                        new Layout("results"));
 
-                void QueueRow(string reproId, string reproVersion, string reproduced, string fixedStatus, string overall)
-                {
-                    writer.TryWrite(new TableRowUpdate(reproId, reproVersion, reproduced, fixedStatus, overall));
-                }
+                layout["results"].Update(table);
+                layout["logs"].Update(CreateLogView(logLines, targetFps));
 
-                var rowStates = new Dictionary<string, ReproRowState>();
-
-                void UpdateRowState(string reproId, string reproVersion, string reproduced, string fixedStatus, string overall)
+                var uiUpdates = Channel.CreateUnbounded<UiUpdate>(new UnboundedChannelOptions
                 {
-                    rowStates[reproId] = new ReproRowState(reproId, reproVersion, reproduced, fixedStatus, overall);
-                    writer.TryWrite(new TableRefreshUpdate(new Dictionary<string, ReproRowState>(rowStates)));
-                }
-
-                void LogBuild(string message)
-                {
-                    writer.TryWrite(new LogLineUpdate($"BUILD: {message}"));
-                }
+                    SingleReader = true,
+                    AllowSynchronousContinuations = false
+                });
 
                 try
                 {
-                    var candidates = new List<RunCandidate>();
-
-                    foreach (var repro in selected)
+                    await _console.Live(layout).StartAsync(async ctx =>
                     {
-                        _cancellationToken.ThrowIfCancellationRequested();
-
-                        if (!repro.IsValid)
+                        var uiTask = ProcessUiUpdatesAsync(uiUpdates.Reader, table, layout, logLines, targetFps, ctx, _cancellationToken);
+                        var writer = uiUpdates.Writer;
+                        var rowStates = new Dictionary<string, ReproRowState>();
+                        var previousObserver = _executor.LogObserver;
+                        var previousSuppression = _executor.SuppressConsoleLogOutput;
+                        _executor.SuppressConsoleLogOutput = true;
+                        _executor.LogObserver = entry =>
                         {
-                            if (!settings.SkipValidation)
+                            var formatted = FormatLogLine(entry);
+                            writer.TryWrite(new LogLineUpdate(formatted));
+                        };
+
+                        void HandleInitialRow(ReproRowState state)
+                        {
+                            rowStates[state.ReproId] = state;
+                            writer.TryWrite(new TableRowUpdate(state.ReproId, state.ReproVersion, state.Reproduced, state.Fixed, state.Overall));
+                        }
+
+                        void HandleRowUpdate(ReproRowState state)
+                        {
+                            rowStates[state.ReproId] = state;
+                            writer.TryWrite(new TableRefreshUpdate(new Dictionary<string, ReproRowState>(rowStates)));
+                        }
+
+                        void LogLine(string message)
+                        {
+                            writer.TryWrite(new LogLineUpdate(message));
+                        }
+
+                        void LogBuild(string message)
+                        {
+                            writer.TryWrite(new LogLineUpdate($"BUILD: {message}"));
+                        }
+
+                        try
+                        {
+                            var result = await RunExecutionLoopAsync(
+                                selected,
+                                settings,
+                                report,
+                                plannedVariants,
+                                buildFailures,
+                                HandleInitialRow,
+                                HandleRowUpdate,
+                                LogLine,
+                                LogBuild,
+                                _cancellationToken).ConfigureAwait(false);
+                            overallExitCode = result.ExitCode;
+                        }
+                        finally
+                        {
+                            _executor.LogObserver = previousObserver;
+                            _executor.SuppressConsoleLogOutput = previousSuppression;
+                            writer.TryComplete();
+
+                            try
                             {
-                                QueueRow(Markup.Escape(repro.RawId ?? "(unknown)"), "[red]n/a[/]", "[red]❌[/]", "[red]❌[/]", "[red]Invalid[/]");
-                                overallExitCode = overallExitCode == 0 ? 2 : overallExitCode;
-                                continue;
+                                await uiTask.ConfigureAwait(false);
                             }
-
-                            if (repro.Manifest is null)
+                            catch (OperationCanceledException)
                             {
-                                QueueRow(Markup.Escape(repro.RawId ?? "(unknown)"), "[red]n/a[/]", "[red]❌[/]", "[red]❌[/]", "[red]Invalid[/]");
-                                overallExitCode = overallExitCode == 0 ? 2 : overallExitCode;
-                                continue;
                             }
                         }
+                    }).ConfigureAwait(false);
+                }
+                finally
+                {
+                    uiUpdates.Writer.TryComplete();
+                }
+            }
+            else
+            {
+                var previousObserver = _executor.LogObserver;
+                var previousSuppression = _executor.SuppressConsoleLogOutput;
+                RunExecutionResult result;
 
-                        if (repro.Manifest is null)
-                        {
-                            QueueRow(Markup.Escape(repro.RawId ?? "(unknown)"), "[red]n/a[/]", "[red]❌[/]", "[red]❌[/]", "[red]Missing[/]");
-                            overallExitCode = overallExitCode == 0 ? 2 : overallExitCode;
-                            continue;
-                        }
-
-                        var manifest = repro.Manifest;
-                        var instances = settings.Instances ?? manifest.DefaultInstances;
-
-                        if (manifest.RequiresParallel && instances < 2)
-                        {
-                            QueueRow(Markup.Escape(manifest.Id), "[red]n/a[/]", "[red]❌[/]", "[red]❌[/]", "[red]Config Error[/]");
-                            overallExitCode = 1;
-                            continue;
-                        }
-
-                        if (repro.ProjectPath is null)
-                        {
-                            QueueRow(Markup.Escape(manifest.Id), "[red]n/a[/]", "[red]❌[/]", "[red]❌[/]", "[red]Project Missing[/]");
-                            overallExitCode = overallExitCode == 0 ? 2 : overallExitCode;
-                            continue;
-                        }
-
-                        var timeoutSeconds = settings.Timeout ?? manifest.TimeoutSeconds;
-                        var packageVersion = TryResolvePackageVersion(repro.ProjectPath);
-                        var packageDisplay = packageVersion ?? "NuGet";
-                        var packageVariantId = BuildVariantIdentifier(packageVersion);
-                        var failingSince = string.IsNullOrWhiteSpace(manifest.FailingSince)
-                            ? packageDisplay
-                            : manifest.FailingSince!;
-                        var reproVersionCell = Markup.Escape(failingSince);
-                        var pendingOverallCell = FormatOverallPending(manifest.State);
-
-                        var packagePlan = _planner.CreateVariantPlan(
-                            repro,
-                            manifest.Id,
-                            packageVariantId,
-                            packageDisplay,
-                            useProjectReference: false,
-                            liteDbPackageVersion: packageVersion);
-
-                        var latestPlan = _planner.CreateVariantPlan(
-                            repro,
-                            manifest.Id,
-                            "ver_latest",
-                            "Latest",
-                            useProjectReference: true,
-                            liteDbPackageVersion: packageVersion);
-
-                        plannedVariants.Add(packagePlan);
-                        plannedVariants.Add(latestPlan);
-
-                        candidates.Add(new RunCandidate(
-                            manifest,
-                            instances,
-                            timeoutSeconds,
-                            packageDisplay,
-                            packagePlan,
-                            latestPlan,
-                            reproVersionCell));
-
-                        // Add initial table row showing the repro is discovered and pending
-                        UpdateRowState(manifest.Id, reproVersionCell, "[yellow]⏳[/]", "[yellow]⏳[/]", pendingOverallCell);
-                        writer.TryWrite(new LogLineUpdate($"Discovered repro: {manifest.Id}"));
-                    }
-
-                    if (candidates.Count == 0)
+                try
+                {
+                    _executor.SuppressConsoleLogOutput = true;
+                    _executor.LogObserver = entry =>
                     {
-                        return;
-                    }
+                        var formatted = FormatLogLine(entry);
+                        _console.MarkupLine(formatted);
+                    };
 
-                    // Update all candidates to show building status
-                    foreach (var candidate in candidates)
-                    {
-                        UpdateRowState(candidate.Manifest.Id, candidate.ReproVersionCell, "[yellow]Building...[/]", "[yellow]⏳[/]", FormatOverallPending(candidate.Manifest.State));
-                    }
-
-                    LogBuild($"Starting build for {plannedVariants.Count} variants across {candidates.Count} repros");
-                    var buildResults = await _buildCoordinator.BuildAsync(plannedVariants, _cancellationToken).ConfigureAwait(false);
-                    LogBuild($"Build completed. Processing {buildResults.Count()} results");
-                    var buildLookup = buildResults.ToDictionary(result => result.Plan);
-
-                    foreach (var candidate in candidates)
-                    {
-                        var packageBuild = buildLookup[candidate.PackagePlan];
-                        var latestBuild = buildLookup[candidate.LatestPlan];
-
-                        if (!packageBuild.Succeeded)
-                        {
-                            LogBuild($"Package build failed for {candidate.Manifest.Id} ({candidate.PackageDisplay})");
-                            UpdateRowState(candidate.Manifest.Id, candidate.ReproVersionCell, "[red]Build Failed[/]", "[red]❌[/]", "[red]Build Failed[/]");
-                            overallExitCode = overallExitCode == 0 ? 1 : overallExitCode;
-                            buildFailures.Add(new BuildFailure(candidate.Manifest.Id, candidate.PackageDisplay, packageBuild.Output));
-                        }
-
-                        if (!latestBuild.Succeeded)
-                        {
-                            LogBuild($"Latest build failed for {candidate.Manifest.Id}");
-                            if (packageBuild.Succeeded)
-                            {
-                                UpdateRowState(candidate.Manifest.Id, candidate.ReproVersionCell, "[yellow]⏳[/]", "[red]Build Failed[/]", "[red]Build Failed[/]");
-                            }
-
-                            overallExitCode = overallExitCode == 0 ? 1 : overallExitCode;
-                            buildFailures.Add(new BuildFailure(candidate.Manifest.Id, "Latest", latestBuild.Output));
-                        }
-
-                        ReproExecutionResult? packageResult = null;
-                        ReproExecutionResult? latestResult = null;
-
-                        if (packageBuild.Succeeded)
-                        {
-                            LogBuild($"Build succeeded for {candidate.Manifest.Id} ({candidate.PackageDisplay}), starting execution");
-                            UpdateRowState(candidate.Manifest.Id, candidate.ReproVersionCell, "[yellow]Running...[/]", latestBuild.Succeeded ? "[yellow]⏳[/]" : "[yellow]⏳[/]", FormatOverallPending(candidate.Manifest.State));
-                            packageResult = await _executor.ExecuteAsync(packageBuild, candidate.Instances, candidate.TimeoutSeconds, _cancellationToken).ConfigureAwait(false);
-                        }
-
-                        if (latestBuild.Succeeded)
-                        {
-                            var interimPackageStatus = packageResult is null
-                                ? (packageBuild.Succeeded ? "[yellow]⏳[/]" : "[red]Build Failed[/]")
-                                : "[yellow]Completed[/]";
-                            UpdateRowState(candidate.Manifest.Id, candidate.ReproVersionCell, interimPackageStatus, "[yellow]Running...[/]", FormatOverallPending(candidate.Manifest.State));
-                            latestResult = await _executor.ExecuteAsync(latestBuild, candidate.Instances, candidate.TimeoutSeconds, _cancellationToken).ConfigureAwait(false);
-                        }
-
-                        var evaluation = _outcomeEvaluator.Evaluate(candidate.Manifest, packageResult, latestResult);
-                        var packageCell = FormatVariantCell(evaluation.Package);
-                        var latestCell = FormatVariantCell(evaluation.Latest);
-                        var overallCell = FormatOverallCell(evaluation);
-
-                        UpdateRowState(candidate.Manifest.Id, candidate.ReproVersionCell, packageCell, latestCell, overallCell);
-
-                        if (evaluation.Package.ShouldFail && evaluation.Package.FailureReason is string packageReason)
-                        {
-                            writer.TryWrite(new LogLineUpdate($"FAIL: {candidate.Manifest.Id} package - {packageReason}"));
-                        }
-
-                        if (evaluation.Latest.ShouldFail && evaluation.Latest.FailureReason is string latestReason)
-                        {
-                            writer.TryWrite(new LogLineUpdate($"FAIL: {candidate.Manifest.Id} latest - {latestReason}"));
-                        }
-                        else if (evaluation.Latest.ShouldWarn && evaluation.Latest.FailureReason is string latestWarning)
-                        {
-                            writer.TryWrite(new LogLineUpdate($"WARN: {candidate.Manifest.Id} latest - {latestWarning}"));
-                        }
-
-                        if (evaluation.ShouldFail)
-                        {
-                            overallExitCode = overallExitCode == 0 ? 1 : overallExitCode;
-                        }
-
-                        report.Add(new RunReportEntry
-                        {
-                            Id = candidate.Manifest.Id,
-                            State = candidate.Manifest.State,
-                            Failed = evaluation.ShouldFail,
-                            Warned = evaluation.ShouldWarn,
-                            Package = CreateReportVariant(evaluation.Package, candidate.PackagePlan.UseProjectReference),
-                            Latest = CreateReportVariant(evaluation.Latest, candidate.LatestPlan.UseProjectReference)
-                        });
-
-                        writer.TryWrite(new LogLineUpdate($"Completed execution for {candidate.Manifest.Id}"));
-                    }
+                    result = await RunExecutionLoopAsync(
+                        selected,
+                        settings,
+                        report,
+                        plannedVariants,
+                        buildFailures,
+                        _ => { },
+                        _ => { },
+                        message => _console.MarkupLine(message),
+                        message => _console.MarkupLine($"BUILD: {Markup.Escape(message)}"),
+                        _cancellationToken).ConfigureAwait(false);
+                    overallExitCode = result.ExitCode;
                 }
                 finally
                 {
                     _executor.LogObserver = previousObserver;
                     _executor.SuppressConsoleLogOutput = previousSuppression;
-                    writer.TryComplete();
-
-                    try
-                    {
-                        await uiTask.ConfigureAwait(false);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                    }
                 }
-            }).ConfigureAwait(false);
+
+                _console.WriteLine();
+                var finalTable = new Table()
+                    .Border(TableBorder.Rounded)
+                    .Expand()
+                    .AddColumns("Repro", "Repro Version", "Reproduced", "Fixed", "Overall");
+
+                foreach (var state in result.States.Values.OrderBy(s => s.ReproId))
+                {
+                    finalTable.AddRow(state.ReproId, state.ReproVersion, state.Reproduced, state.Fixed, state.Overall);
+                }
+
+                _console.Write(finalTable);
+            }
+
             if (buildFailures.Count > 0)
             {
                 _console.WriteLine();
@@ -380,6 +271,258 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
         }
 
         return overallExitCode;
+    }
+
+
+    private async Task<RunExecutionResult> RunExecutionLoopAsync(
+        IReadOnlyList<DiscoveredRepro> selected,
+        RunCommandSettings settings,
+        RunReport report,
+        List<RunVariantPlan> plannedVariants,
+        List<BuildFailure> buildFailures,
+        Action<ReproRowState> onInitialRow,
+        Action<ReproRowState> onRowStateUpdated,
+        Action<string> logLine,
+        Action<string> logBuild,
+        CancellationToken cancellationToken)
+    {
+        var overallExitCode = 0;
+        var candidates = new List<RunCandidate>();
+        var finalStates = new Dictionary<string, ReproRowState>();
+
+        foreach (var repro in selected)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (!repro.IsValid)
+            {
+                if (!settings.SkipValidation)
+                {
+                    var state = new ReproRowState(Markup.Escape(repro.RawId ?? "(unknown)"), "[red]n/a[/]", "[red]❌[/]", "[red]❌[/]", "[red]Invalid[/]");
+                    onInitialRow(state);
+                    finalStates[state.ReproId] = state;
+                    overallExitCode = overallExitCode == 0 ? 2 : overallExitCode;
+                    continue;
+                }
+
+                if (repro.Manifest is null)
+                {
+                    var state = new ReproRowState(Markup.Escape(repro.RawId ?? "(unknown)"), "[red]n/a[/]", "[red]❌[/]", "[red]❌[/]", "[red]Invalid[/]");
+                    onInitialRow(state);
+                    finalStates[state.ReproId] = state;
+                    overallExitCode = overallExitCode == 0 ? 2 : overallExitCode;
+                    continue;
+                }
+            }
+
+            if (repro.Manifest is null)
+            {
+                var state = new ReproRowState(Markup.Escape(repro.RawId ?? "(unknown)"), "[red]n/a[/]", "[red]❌[/]", "[red]❌[/]", "[red]Missing[/]");
+                onInitialRow(state);
+                finalStates[state.ReproId] = state;
+                overallExitCode = overallExitCode == 0 ? 2 : overallExitCode;
+                continue;
+            }
+
+            var manifest = repro.Manifest;
+            var instances = settings.Instances ?? manifest.DefaultInstances;
+
+            if (manifest.RequiresParallel && instances < 2)
+            {
+                var state = new ReproRowState(Markup.Escape(manifest.Id), "[red]n/a[/]", "[red]❌[/]", "[red]❌[/]", "[red]Config Error[/]");
+                onInitialRow(state);
+                finalStates[state.ReproId] = state;
+                overallExitCode = 1;
+                continue;
+            }
+
+            if (repro.ProjectPath is null)
+            {
+                var state = new ReproRowState(Markup.Escape(manifest.Id), "[red]n/a[/]", "[red]❌[/]", "[red]❌[/]", "[red]Project Missing[/]");
+                onInitialRow(state);
+                finalStates[state.ReproId] = state;
+                overallExitCode = overallExitCode == 0 ? 2 : overallExitCode;
+                continue;
+            }
+
+            var timeoutSeconds = settings.Timeout ?? manifest.TimeoutSeconds;
+            var packageVersion = TryResolvePackageVersion(repro.ProjectPath);
+            var packageDisplay = packageVersion ?? "NuGet";
+            var packageVariantId = BuildVariantIdentifier(packageVersion);
+            var failingSince = string.IsNullOrWhiteSpace(manifest.FailingSince)
+                ? packageDisplay
+                : manifest.FailingSince!;
+            var reproVersionCell = Markup.Escape(failingSince);
+            var pendingOverallCell = FormatOverallPending(manifest.State);
+
+            var packagePlan = _planner.CreateVariantPlan(
+                repro,
+                manifest.Id,
+                packageVariantId,
+                packageDisplay,
+                useProjectReference: false,
+                liteDbPackageVersion: packageVersion);
+
+            var latestPlan = _planner.CreateVariantPlan(
+                repro,
+                manifest.Id,
+                "ver_latest",
+                "Latest",
+                useProjectReference: true,
+                liteDbPackageVersion: packageVersion);
+
+            plannedVariants.Add(packagePlan);
+            plannedVariants.Add(latestPlan);
+
+            var candidate = new RunCandidate(
+                manifest,
+                instances,
+                timeoutSeconds,
+                packageDisplay,
+                packagePlan,
+                latestPlan,
+                reproVersionCell);
+
+            candidates.Add(candidate);
+
+            var pendingState = new ReproRowState(manifest.Id, reproVersionCell, "[yellow]⏳[/]", "[yellow]⏳[/]", pendingOverallCell);
+            onRowStateUpdated(pendingState);
+            finalStates[manifest.Id] = pendingState;
+
+            logLine($"Discovered repro: {Markup.Escape(manifest.Id)}");
+        }
+
+        if (candidates.Count == 0)
+        {
+            return new RunExecutionResult(overallExitCode, finalStates);
+        }
+
+        foreach (var candidate in candidates)
+        {
+            var buildingState = new ReproRowState(
+                candidate.Manifest.Id,
+                candidate.ReproVersionCell,
+                "[yellow]Building...[/]",
+                "[yellow]⏳[/]",
+                FormatOverallPending(candidate.Manifest.State));
+            onRowStateUpdated(buildingState);
+            finalStates[candidate.Manifest.Id] = buildingState;
+        }
+
+        logBuild($"Starting build for {plannedVariants.Count} variants across {candidates.Count} repros");
+        var buildResults = await _buildCoordinator.BuildAsync(plannedVariants, cancellationToken).ConfigureAwait(false);
+        logBuild($"Build completed. Processing {buildResults.Count()} results");
+        var buildLookup = buildResults.ToDictionary(result => result.Plan);
+
+        foreach (var candidate in candidates)
+        {
+            var packageBuild = buildLookup[candidate.PackagePlan];
+            var latestBuild = buildLookup[candidate.LatestPlan];
+
+            if (!packageBuild.Succeeded)
+            {
+                logBuild($"Package build failed for {Markup.Escape(candidate.Manifest.Id)} ({Markup.Escape(candidate.PackageDisplay)})");
+                var failedState = new ReproRowState(candidate.Manifest.Id, candidate.ReproVersionCell, "[red]Build Failed[/]", "[red]❌[/]", "[red]Build Failed[/]");
+                onRowStateUpdated(failedState);
+                finalStates[candidate.Manifest.Id] = failedState;
+                overallExitCode = overallExitCode == 0 ? 1 : overallExitCode;
+                buildFailures.Add(new BuildFailure(candidate.Manifest.Id, candidate.PackageDisplay, packageBuild.Output));
+            }
+
+            if (!latestBuild.Succeeded)
+            {
+                logBuild($"Latest build failed for {Markup.Escape(candidate.Manifest.Id)}");
+                if (packageBuild.Succeeded)
+                {
+                    var partialState = new ReproRowState(candidate.Manifest.Id, candidate.ReproVersionCell, "[yellow]⏳[/]", "[red]Build Failed[/]", "[red]Build Failed[/]");
+                    onRowStateUpdated(partialState);
+                    finalStates[candidate.Manifest.Id] = partialState;
+                }
+
+                overallExitCode = overallExitCode == 0 ? 1 : overallExitCode;
+                buildFailures.Add(new BuildFailure(candidate.Manifest.Id, "Latest", latestBuild.Output));
+            }
+
+            ReproExecutionResult? packageResult = null;
+            ReproExecutionResult? latestResult = null;
+
+            if (packageBuild.Succeeded)
+            {
+                logBuild($"Build succeeded for {Markup.Escape(candidate.Manifest.Id)} ({Markup.Escape(candidate.PackageDisplay)}), starting execution");
+                var runningState = new ReproRowState(candidate.Manifest.Id, candidate.ReproVersionCell, "[yellow]Running...[/]", latestBuild.Succeeded ? "[yellow]⏳[/]" : "[yellow]⏳[/]", FormatOverallPending(candidate.Manifest.State));
+                onRowStateUpdated(runningState);
+                finalStates[candidate.Manifest.Id] = runningState;
+                packageResult = await _executor.ExecuteAsync(packageBuild, candidate.Instances, candidate.TimeoutSeconds, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (latestBuild.Succeeded)
+            {
+                var interimPackageStatus = packageResult is null
+                    ? (packageBuild.Succeeded ? "[yellow]⏳[/]" : "[red]Build Failed[/]")
+                    : "[yellow]Completed[/]";
+                var latestRunningState = new ReproRowState(candidate.Manifest.Id, candidate.ReproVersionCell, interimPackageStatus, "[yellow]Running...[/]", FormatOverallPending(candidate.Manifest.State));
+                onRowStateUpdated(latestRunningState);
+                finalStates[candidate.Manifest.Id] = latestRunningState;
+                latestResult = await _executor.ExecuteAsync(latestBuild, candidate.Instances, candidate.TimeoutSeconds, cancellationToken).ConfigureAwait(false);
+            }
+
+            var evaluation = _outcomeEvaluator.Evaluate(candidate.Manifest, packageResult, latestResult);
+            var packageCell = FormatVariantCell(evaluation.Package);
+            var latestCell = FormatVariantCell(evaluation.Latest);
+            var overallCell = FormatOverallCell(evaluation);
+            var finalState = new ReproRowState(candidate.Manifest.Id, candidate.ReproVersionCell, packageCell, latestCell, overallCell);
+            onRowStateUpdated(finalState);
+            finalStates[candidate.Manifest.Id] = finalState;
+
+            if (evaluation.Package.ShouldFail && evaluation.Package.FailureReason is string packageReason)
+            {
+                logLine($"FAIL: {Markup.Escape(candidate.Manifest.Id)} package - {Markup.Escape(packageReason)}");
+            }
+
+            if (evaluation.Latest.ShouldFail && evaluation.Latest.FailureReason is string latestReason)
+            {
+                logLine($"FAIL: {Markup.Escape(candidate.Manifest.Id)} latest - {Markup.Escape(latestReason)}");
+            }
+            else if (evaluation.Latest.ShouldWarn && evaluation.Latest.FailureReason is string latestWarning)
+            {
+                logLine($"WARN: {Markup.Escape(candidate.Manifest.Id)} latest - {Markup.Escape(latestWarning)}");
+            }
+
+            if (evaluation.ShouldFail)
+            {
+                overallExitCode = overallExitCode == 0 ? 1 : overallExitCode;
+            }
+
+            report.Add(new RunReportEntry
+            {
+                Id = candidate.Manifest.Id,
+                State = candidate.Manifest.State,
+                Failed = evaluation.ShouldFail,
+                Warned = evaluation.ShouldWarn,
+                Package = CreateReportVariant(evaluation.Package, candidate.PackagePlan.UseProjectReference),
+                Latest = CreateReportVariant(evaluation.Latest, candidate.LatestPlan.UseProjectReference)
+            });
+
+            logLine($"Completed execution for {Markup.Escape(candidate.Manifest.Id)}");
+        }
+
+        return new RunExecutionResult(overallExitCode, finalStates);
+    }
+
+    private bool ShouldUseLiveDisplay()
+    {
+        if (IsCiEnvironment())
+        {
+            return false;
+        }
+
+        return _console.Profile.Capabilities.Interactive;
+    }
+
+    private static bool IsCiEnvironment()
+    {
+        static bool IsTrue(string? value) => !string.IsNullOrEmpty(value) && string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
+        return IsTrue(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")) || IsTrue(Environment.GetEnvironmentVariable("CI"));
     }
 
     private static async Task WriteReportAsync(RunReport report, string path, string? format, CancellationToken cancellationToken)
@@ -546,6 +689,8 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
 
         return null;
     }
+
+    private sealed record RunExecutionResult(int ExitCode, Dictionary<string, ReproRowState> States);
 
     private sealed record RunCandidate(
         ReproManifest Manifest,
