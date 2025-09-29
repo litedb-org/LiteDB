@@ -8,5 +8,5 @@
   "defaultInstances": 1,
   "args": [],
   "tags": ["transaction", "rollback", "safepoint"],
-  "state": "red"
+  "state": "green"
 }
