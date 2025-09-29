@@ -468,7 +468,7 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
 
             var evaluation = _outcomeEvaluator.Evaluate(candidate.Manifest, packageResult, latestResult);
             var packageCell = FormatVariantCell(evaluation.Package);
-            var latestCell = FormatVariantCell(evaluation.Latest);
+            var latestCell = FormatVariantCell(evaluation.Latest, false);
             var overallState = ComputeOverallState(evaluation);
             var overallCell = FormatOverallCell(evaluation, overallState);
             var finalState = new ReproRowState(candidate.Manifest.Id, candidate.ReproVersionCell, packageCell, latestCell, overallCell);
@@ -586,23 +586,23 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
         };
     }
 
-    private static string FormatVariantCell(ReproVariantEvaluation evaluation)
+    private static string FormatVariantCell(ReproVariantEvaluation evaluation, bool judgeOnMet = true)
     {
-        var symbol = evaluation.Met
-            ? "[green]✅[/]"
-            : evaluation.ShouldWarn
-                ? "[yellow]⚠️[/]"
-                : "[red]❌[/]";
+        var symbol1 = evaluation.Result?.Reproduced switch
+        {
+            true => "[green]✅[/]",
+            false => "[red]❌[/]",
+            null => "[yellow]⚠️[/]"
+        };
 
-        string detail;
-        if (evaluation.Result is ReproExecutionResult result)
-        {
-            detail = string.Format(CultureInfo.InvariantCulture, "exit {0}", result.ExitCode);
-        }
-        else
-        {
-            detail = "no-run";
-        }
+        return FormatVariantCell(evaluation, symbol1);
+    }
+
+    private static string FormatVariantCell(ReproVariantEvaluation evaluation, string symbol)
+    {
+        var detail = evaluation.Result is { } result 
+            ? string.Format(CultureInfo.InvariantCulture, "exit {0}", result.ExitCode) 
+            : "no-run";
 
         var expectation = evaluation.Expectation.Kind switch
         {
