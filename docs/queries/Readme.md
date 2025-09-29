@@ -1,41 +1,3 @@
-Queries - Hugo Whisper Theme
-
-
-
-[Fork me on GitHub](https://github.com/mbdavid/litedb)
-
-* [HOME](www.example.com/)
-* [DOCS](www.example.com/docs/)
-* [API](www.example.com/api/)
-* [DOWNLOAD](https://www.nuget.org/packages/LiteDB/)
-
-[![Logo](/www.example.com/logo_litedb.svg)](www.example.com)
-
-[![Logo](/www.example.com/logo_litedb.svg)](www.example.com)
-
-* [HOME](www.example.com/)
-* [DOCS](www.example.com/docs/)
-* [API](www.example.com/api/)
-* [DOWNLOAD](https://www.nuget.org/packages/LiteDB/)
-
-#### Docs
-
-* [BsonDocument](www.example.com/docs/bsondocument/)
-* [ChangeLog](www.example.com/docs/changelog/)
-* [Collections](www.example.com/docs/collections/)
-* [Concurrency](www.example.com/docs/concurrency/)
-* [Connection String](www.example.com/docs/connection-string/)
-* [Data Structure](www.example.com/docs/data-structure/)
-* [DbRef](www.example.com/docs/dbref/)
-* [Expressions](www.example.com/docs/expressions/)
-* [FileStorage](www.example.com/docs/filestorage/)
-* [Getting Started](www.example.com/docs/getting-started/)
-* [How LiteDB Works](www.example.com/docs/how-litedb-works/)
-* [Indexes](www.example.com/docs/indexes/)
-* [Object Mapping](www.example.com/docs/object-mapping/)
-* [Queries](www.example.com/docs/queries/)
-* [Repository Pattern](www.example.com/docs/repository-pattern/)
-
 # Queries
 
 Query filter document inside a collection in three ways:
@@ -44,7 +6,7 @@ Query filter document inside a collection in three ways:
 * Full scan on BsonDocument (slower but more powerful)
 * LINQ to object (slower but convenient)
 
-### Query implementations
+## Query implementations
 
 `Query` is a static class that creates a query criteria. Each method represents a different criteria operation that can be used to query documents.
 
@@ -61,7 +23,7 @@ Query filter document inside a collection in three ways:
 * **`Query.And`** - Apply intersection between two queries results.
 * **`Query.Or`** - Apply union between two queries results.
 
-```
+```csharp
 var results = col.Find(Query.EQ("Name", "John Doe"));
 
 var results = col.Find(Query.GTE("Age", 25));
@@ -92,7 +54,7 @@ In all queries:
 * **Field** name on left side, **Value** (or values) on right side
 * Queries are executed in `BsonDocument` class before mapping to your object. You need to use the `BsonDocument` field name and BSON types values. If you are using a custom `ResolvePropertyName` or `[BsonField]` attribute, you must use your document field name and not the property name on your type. See [Object Mapping](Object-Mapping).
 
-### Find(), FindById(), FindOne() and FindAll()
+## Find(), FindById(), FindOne() and FindAll()
 
 Collections are 4 ways to return documents:
 
@@ -107,7 +69,7 @@ Collections are 4 ways to return documents:
 
 Returning an `IEnumerable` your code still connected to datafile. Only when you finish consume all data, datafile will be disconected.
 
-```
+```csharp
 col.EnsureIndex(x => x.Name);
 
 var result = col
@@ -121,11 +83,11 @@ var result = col
     }); // Transform
 ```
 
-### Count() and Exists()
+## Count() and Exists()
 
 These two methods are useful because you can count documents (or check if a document exists) without deserializing the document.
 
-```
+```csharp
 // This way is more efficient
 var count = collection.Count(Query.EQ("Name", "John Doe"));
 
@@ -137,7 +99,7 @@ var count = collection.Find(Query.EQ("Name", "John Doe")).Count();
 * If the `Name` field does not have an index, LiteDB will deserialize the document but will not run the mapper. Still faster than `Find().Count()`
 * The same idea applies when using `Exists()`, which is again better than using `Count() >= 1`. Count needs to visit all matched results and `Exists()` stops on first match (similar to LINQ’s `Any` extension method).
 
-### Min() and Max()
+## Min() and Max()
 
 LiteDB uses a skip list implementation for indexes (See <Indexes>). Collections offer `Min` and `Max` index values. The implementation is:
 
@@ -146,11 +108,11 @@ LiteDB uses a skip list implementation for indexes (See <Indexes>). Collections 
 
 Min/Max required a created index in field.
 
-### LINQ expressions
+## LINQ expressions
 
 Some LiteDB methods support predicates to allow you to easily query strongly typed documents. If you are working with `BsonDocument`, you need to use classic `Query` class methods.
 
-```
+```csharp
 col.Find(x => x.Name == "John Doe")
 // Query.EQ("Name", "John Doe")
 
@@ -177,6 +139,8 @@ col.Find(x => !(x.Age > 30))
 
 * LINQ implementations are: `==, !=, >, >=, <, <=, StartsWith, Contains (string and IEnumerable), Equals, &&, ||, ! (not)`
 * Property name support inner document field: `x => x.Name.Last == "Doe"`
-* Behind the scene, LINQ expressions are converted to `Query` implementations using `QueryVisitor` class.
+* Behind the scenes, LINQ expressions are converted to `Query` implementations using the `QueryVisitor` class.
 
-* [www.zerostatic.io](https://www.zerostatic.io)
+---
+
+*Made with ♥ by the LiteDB team – [@mbdavid](https://twitter.com/mbdavid) – MIT License.*

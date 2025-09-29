@@ -1,44 +1,8 @@
-Data Structure - LiteDB :: A .NET embedded NoSQL database
-
-
-
-[Fork me on GitHub](https://github.com/mbdavid/litedb)
-
-* [HOME](/)
-* [DOCS](/docs/)
-* [API](/api/)
-* [DOWNLOAD](https://www.nuget.org/packages/LiteDB/)
-
-[![Logo](/images/logo_litedb.svg)](/)
-
-[![Logo](/images/logo_litedb.svg)](/)
-
-* [HOME](/)
-* [DOCS](/docs/)
-* [API](/api/)
-* [DOWNLOAD](https://www.nuget.org/packages/LiteDB/)
-
-#### Docs
-
-* [Getting Started](/docs/getting-started/)
-* [Data Structure](/docs/data-structure/)
-* [Object Mapping](/docs/object-mapping/)
-* [Collections](/docs/collections/)
-* [BsonDocument](/docs/bsondocument/)
-* [Expressions](/docs/expressions/)
-* [DbRef](/docs/dbref/)
-* [Connection String](/docs/connection-string/)
-* [FileStorage](/docs/filestorage/)
-* [Indexes](/docs/indexes/)
-* [Encryption](/docs/encryption/)
-* [Pragmas](/docs/pragmas/)
-* [Collation](/docs/collation/)
-
 # Data Structure
 
 LiteDB stores data as documents, which are JSON-like objects containing key-value pairs. Documents are a schema-less data structure. Each document stores both its data and its structure.
 
-```
+```json
 {
     _id: 1,
     name: { first: "John", last: "Doe" },
@@ -58,7 +22,7 @@ LiteDB stores data as documents, which are JSON-like objects containing key-valu
 
 LiteDB stores documents in collections. A collection is a group of related documents that have a set of shared indices. Collections are analogous to tables in relational databases.
 
-### BSON
+## BSON
 
 LiteDB stores documents using BSON (Binary JSON). BSON is a binary representation of JSON with additional type information. In the documents, the value of a field can be any of the BSON data types, including other documents, arrays, and arrays of documents. BSON is a fast and simple way to serialize documents in binary format.
 
@@ -85,7 +49,7 @@ LiteDB uses only a subset of [BSON data types](http://bsonspec.org/spec.html). S
 > Following the BSON specification, `DateTime` values are stored only up to the miliseconds.
 > All `DateTime` values are converted to UTC on storage and converted back to local time on retrieval.
 
-### Extended JSON
+## Extended JSON
 
 To serialize a BSON document to JSON, LiteDB uses an extended version of JSON so as not to lose any BSON type information. Extended data types are represented as embedded documents, using a key starting with `$` and string value.
 
@@ -104,7 +68,7 @@ LiteDB implements JSON in its `JsonSerializer` static class.
 
 If you want to convert your object type to a BsonValue, you must use a `BsonMapper`.
 
-```
+```csharp
 var customer = new Customer { Id = 1, Name = "John Doe" };
 
 var doc = BsonMapper.Global.ToDocument(customer);
@@ -114,7 +78,7 @@ var jsonString = JsonSerialize.Serialize(doc);
 
 `JsonSerialize` also supports `TextReader` and `TextWriter` to read/write directly from a file or `Stream`.
 
-### ObjectId
+## ObjectId
 
 `ObjectId` is a 12 bytes BSON type:
 
@@ -127,7 +91,7 @@ In LiteDB, documents are stored in a collection that requires a unique `_id` fie
 
 Unlike the Guid data type, ObjectIds are sequential, so it’s a better solution for indexing. ObjectIds use hexadecimal numbers represented as strings.
 
-```
+```csharp
 var id = ObjectId.NewObjectId();
 
 // You can get creation datetime from an ObjectId
@@ -141,4 +105,7 @@ Debug.WriteLine(id);
 var nid = new ObjectId("507h096e210a18719ea877a2");
 ```
 
-* Made with ♥ by LiteDB team - [@mbdavid](https://twitter.com/mbdavid) - MIT License
+
+---
+
+*Made with ♥ by the LiteDB team – [@mbdavid](https://twitter.com/mbdavid) – MIT License.*

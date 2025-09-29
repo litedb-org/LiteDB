@@ -1,39 +1,3 @@
-Expressions - LiteDB :: A .NET embedded NoSQL database
-
-
-
-[Fork me on GitHub](https://github.com/mbdavid/litedb)
-
-* [HOME](/)
-* [DOCS](/docs/)
-* [API](/api/)
-* [DOWNLOAD](https://www.nuget.org/packages/LiteDB/)
-
-[![Logo](/images/logo_litedb.svg)](/)
-
-[![Logo](/images/logo_litedb.svg)](/)
-
-* [HOME](/)
-* [DOCS](/docs/)
-* [API](/api/)
-* [DOWNLOAD](https://www.nuget.org/packages/LiteDB/)
-
-#### Docs
-
-* [Getting Started](/docs/getting-started/)
-* [Data Structure](/docs/data-structure/)
-* [Object Mapping](/docs/object-mapping/)
-* [Collections](/docs/collections/)
-* [BsonDocument](/docs/bsondocument/)
-* [Expressions](/docs/expressions/)
-* [DbRef](/docs/dbref/)
-* [Connection String](/docs/connection-string/)
-* [FileStorage](/docs/filestorage/)
-* [Indexes](/docs/indexes/)
-* [Encryption](/docs/encryption/)
-* [Pragmas](/docs/pragmas/)
-* [Collation](/docs/collation/)
-
 # Expressions
 
 Expressions are path or formulas to access and modify the data inside a document. Based on the concept of JSON path (<http://goessner.net/articles/JsonPath/),> LiteDB supports a similar syntax to navigate inside a document.
@@ -72,7 +36,7 @@ Expressions can be used in many ways:
 * Querying documents using the SQL syntax
   + `SELECT $.Name, $.Phones[@.Type = "Mobile"] FROM customers`
 
-# Path
+## Path
 
 * `$` - Root document
 * `$.Name` - Field `Name`
@@ -92,7 +56,7 @@ Inside an array, `@` acts as a sub-iterator, pointing to the current sub-documen
 
 * `$.Books[SUBSTRING(LOWER(@.Title), 0, 1) = 't']` - Returns all books whose `Title` starts with `'T'` or `'t'`.
 
-#### Difference between `$` and `*`
+### Difference between `$` and `*`
 
 In SQL query, it is possible use both `$` and `*`. They have different functionalities:
 
@@ -102,11 +66,11 @@ In SQL query, it is possible use both `$` and `*`. They have different functiona
 `SELECT $ FROM customers` returns `IEnumerable<BsonDocument>` result (`N` documents).
 `SELECT * FROM customers` returns a single value, a `BsonArray` with all documents result inside.
 
-# Functions
+## Functions
 
 Functions are used to manipulate data in expressions. A few examples will be provided for each category of functions. For a complete list of functions, check the API documentation.
 
-#### Aggregate Functions
+### Aggregate Functions
 
 Aggregate functions take an array as input and return a single value.
 
@@ -114,7 +78,7 @@ Aggregate functions take an array as input and return a single value.
 * `AVG(arr)` - Returns the average value in the array `arr`
 * `LAST(arr)` - Returns the last element in the array `arr`
 
-#### DataType Functions
+### DataType Functions
 
 DataType functions provide explicit data type conversion.
 
@@ -122,25 +86,25 @@ DataType functions provide explicit data type conversion.
 * `INT32(expr)` - Tries to convert the result of `expr` to an `Int32`, returning `null` if not possible
 * `DATETIME(expr)` - Tries to convert the result of `expr` to a `DateTime`, returning `null` if not possible
 
-#### Date Functions
+### Date Functions
 
 * `YEAR(date)` - Returns the year value from `date`
 * `DATEADD('year', 3, date)` - Returns a new date with 3 years added to date
 * `DATEDIFF('day', dateStart, dateEnd)` - Returns the difference in days between `dateEnd` and `dateStart`
 
-#### Math Functions
+### Math Functions
 
 * `ABS(num)` - Returns the absolute value of `num`
 * `ROUND(num, digits)` - Returns `num` rounded to `digits` digits
 * `POW(base, exp)` - Returns `base` to the power of `exp`
 
-#### String Functions
+### String Functions
 
 * `UPPER(str)` - Returns `str` in uppercase
 * `TRIM(str)` - Returns a new string without leading and trailing white spaces
 * `REPLACE(str, old, new)` - Returns a new string with every ocurrence of `old` in `str` replaced by `new`
 
-#### High-Order Functions
+### High-Order Functions
 
 High-Order functions take an array and a lambda expression that is applied to every document in the array. Use the `@` symbol to represent inner looped value.
 
@@ -159,10 +123,13 @@ High-Order functions take an array and a lambda expression that is applied to ev
   -`SORT([3,2,5,1,4] => @, 'desc')` returns `[5,4,3,2,1]`
   -`SORT([{a:1, b:2}, {a:2}] => @.a, -1)` returns `[{a:2}, {a:1, b:2}]`
 
-#### Misc Functions
+### Misc Functions
 
 * `JSON(str)` - Takes a string representation of a JSON and returns a `BsonValue` containing the parsed document
 * `CONCAT(arr1, arr2)` - Returns a new array containg the concatenation between arrays `arr1` and `arr2`
 * `RANDOM(min, max)` - Returns a random `Int32` between `min` and `max`
 
-* Made with ♥ by LiteDB team - [@mbdavid](https://twitter.com/mbdavid) - MIT License
+
+---
+
+*Made with ♥ by the LiteDB team – [@mbdavid](https://twitter.com/mbdavid) – MIT License.*

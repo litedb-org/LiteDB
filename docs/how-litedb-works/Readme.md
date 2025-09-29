@@ -1,44 +1,6 @@
-How LiteDB Works - Hugo Whisper Theme
-
-
-
-[Fork me on GitHub](https://github.com/mbdavid/litedb)
-
-* [HOME](www.example.com/)
-* [DOCS](www.example.com/docs/)
-* [API](www.example.com/api/)
-* [DOWNLOAD](https://www.nuget.org/packages/LiteDB/)
-
-[![Logo](/www.example.com/logo_litedb.svg)](www.example.com)
-
-[![Logo](/www.example.com/logo_litedb.svg)](www.example.com)
-
-* [HOME](www.example.com/)
-* [DOCS](www.example.com/docs/)
-* [API](www.example.com/api/)
-* [DOWNLOAD](https://www.nuget.org/packages/LiteDB/)
-
-#### Docs
-
-* [BsonDocument](www.example.com/docs/bsondocument/)
-* [ChangeLog](www.example.com/docs/changelog/)
-* [Collections](www.example.com/docs/collections/)
-* [Concurrency](www.example.com/docs/concurrency/)
-* [Connection String](www.example.com/docs/connection-string/)
-* [Data Structure](www.example.com/docs/data-structure/)
-* [DbRef](www.example.com/docs/dbref/)
-* [Expressions](www.example.com/docs/expressions/)
-* [FileStorage](www.example.com/docs/filestorage/)
-* [Getting Started](www.example.com/docs/getting-started/)
-* [How LiteDB Works](www.example.com/docs/how-litedb-works/)
-* [Indexes](www.example.com/docs/indexes/)
-* [Object Mapping](www.example.com/docs/object-mapping/)
-* [Queries](www.example.com/docs/queries/)
-* [Repository Pattern](www.example.com/docs/repository-pattern/)
-
 # How LiteDB Works
 
-### File Format
+## File Format
 
 LiteDB is a single file database. But databases have many different types of information, like indexes, collections, documents. To manage this, LiteDB implements database pages concepts. Page is a block of same information type and has 4096 bytes. Page is the minimum read/write operation on disk file. There are 6 page types:
 
@@ -51,7 +13,7 @@ LiteDB is a single file database. But databases have many different types of inf
 
 Each page has a own header and content. Header is used to manage common data structure like PageID, PageType, Free Space. Content are implement different on each page type.
 
-#### Page free space
+### Page free space
 
 Index pages and data pages contains a collection of elements (index nodes and data blocks). This pages can store data and keep with available space to more. To hold this free space on each page type, LiteDB implements free list pages.
 
@@ -59,7 +21,7 @@ Free list are a double linked list, sorted by available space. When database nee
 
 To create near data related, each collection contains an data free list. So, in a data page, all data blocks are of same collection. The same occurs in indexes. Each index (on each collection) contains your own free list. This solution consume more disk space but are much faster to read/write operations because data are related and near one with other. If you get all documents in a collection, database needs read less pages on disk.
 
-### Limits
+## Limits
 
 * Collection Name:
   + Pattern: `A-Z`, `_-`, `0-9`
@@ -86,4 +48,6 @@ To create near data related, each collection contains an data free list. So, in 
 * IndexPage Reserved Bytes: 100 bytes (like PCT FREE)
 * Database Max Length: In theory, `UInt.MaxValue` \* PageSize (4096) = 16TB ~ Too big!
 
-* [www.zerostatic.io](https://www.zerostatic.io)
+---
+
+*Made with ♥ by the LiteDB team – [@mbdavid](https://twitter.com/mbdavid) – MIT License.*

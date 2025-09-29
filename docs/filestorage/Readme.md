@@ -1,39 +1,3 @@
-FileStorage - LiteDB :: A .NET embedded NoSQL database
-
-
-
-[Fork me on GitHub](https://github.com/mbdavid/litedb)
-
-* [HOME](/)
-* [DOCS](/docs/)
-* [API](/api/)
-* [DOWNLOAD](https://www.nuget.org/packages/LiteDB/)
-
-[![Logo](/images/logo_litedb.svg)](/)
-
-[![Logo](/images/logo_litedb.svg)](/)
-
-* [HOME](/)
-* [DOCS](/docs/)
-* [API](/api/)
-* [DOWNLOAD](https://www.nuget.org/packages/LiteDB/)
-
-#### Docs
-
-* [Getting Started](/docs/getting-started/)
-* [Data Structure](/docs/data-structure/)
-* [Object Mapping](/docs/object-mapping/)
-* [Collections](/docs/collections/)
-* [BsonDocument](/docs/bsondocument/)
-* [Expressions](/docs/expressions/)
-* [DbRef](/docs/dbref/)
-* [Connection String](/docs/connection-string/)
-* [FileStorage](/docs/filestorage/)
-* [Indexes](/docs/indexes/)
-* [Encryption](/docs/encryption/)
-* [Pragmas](/docs/pragmas/)
-* [Collation](/docs/collation/)
-
 # FileStorage
 
 To keep its memory profile slim, LiteDB limits the size of a documents to 1MB. For most documents, this is plenty. However, 1MB is too small for a useful file storage. For this reason, LiteDB implements `FileStorage`, a custom collection to store files and streams.
@@ -42,7 +6,7 @@ To keep its memory profile slim, LiteDB limits the size of a documents to 1MB. F
 
 * The first collection stores file references and metadata only (by default it is called `_files`)
 
-```
+```json
 {
     _id: "my-photo",
     filename: "my-photo.jpg",
@@ -56,7 +20,7 @@ To keep its memory profile slim, LiteDB limits the size of a documents to 1MB. F
 
 * The second collection stores binary data in 255kB chunks (by default it is called `_chunks`)
 
-```
+```json
 {
     _id: { "f": "my-photo", "n": 0 },
     data: { $binary: "VHlwZSAob3Igc ... GUpIGhlcmUuLi4" }
@@ -88,7 +52,7 @@ The `FileStorage` collection contains simple methods like:
 * **`SetMetadata`**: Update stored file metadata. This method doesn’t change the value of the stored file. It updates the value of `_files.metadata`.
 * **`OpenRead`**: Find file by `_id` and returns a `LiteFileStream` to read file content as stream
 
-```
+```csharp
 // Gets a FileStorage with the default collections
 var fs = db.FileStorage;
 
@@ -116,4 +80,7 @@ var files = fs.Find("$/photos/2014/");
 
 `FileStorage` does not support transactions to avoid putting all of the file in memory before storing it on disk. Transactions *are* used per chunk. Each uploaded chunk is committed in a single transaction.
 
-* Made with ♥ by LiteDB team - [@mbdavid](https://twitter.com/mbdavid) - MIT License
+
+---
+
+*Made with ♥ by the LiteDB team – [@mbdavid](https://twitter.com/mbdavid) – MIT License.*

@@ -1,44 +1,8 @@
-Object Mapping - LiteDB :: A .NET embedded NoSQL database
-
-
-
-[Fork me on GitHub](https://github.com/mbdavid/litedb)
-
-* [HOME](/)
-* [DOCS](/docs/)
-* [API](/api/)
-* [DOWNLOAD](https://www.nuget.org/packages/LiteDB/)
-
-[![Logo](/images/logo_litedb.svg)](/)
-
-[![Logo](/images/logo_litedb.svg)](/)
-
-* [HOME](/)
-* [DOCS](/docs/)
-* [API](/api/)
-* [DOWNLOAD](https://www.nuget.org/packages/LiteDB/)
-
-#### Docs
-
-* [Getting Started](/docs/getting-started/)
-* [Data Structure](/docs/data-structure/)
-* [Object Mapping](/docs/object-mapping/)
-* [Collections](/docs/collections/)
-* [BsonDocument](/docs/bsondocument/)
-* [Expressions](/docs/expressions/)
-* [DbRef](/docs/dbref/)
-* [Connection String](/docs/connection-string/)
-* [FileStorage](/docs/filestorage/)
-* [Indexes](/docs/indexes/)
-* [Encryption](/docs/encryption/)
-* [Pragmas](/docs/pragmas/)
-* [Collation](/docs/collation/)
-
 # Object Mapping
 
 The LiteDB mapper converts POCO classes documents. When you get a `ILiteCollection<T>` instance from `LiteDatabase.GetCollection<T>`, `T` will be your document type. If `T` is not a `BsonDocument`, LiteDB internally maps your class to `BsonDocument`. To do this, LiteDB uses the `BsonMapper` class:
 
-```
+```csharp
 // Simple strongly-typed document
 public class Customer
 {
@@ -54,7 +18,7 @@ var typedCustomerCollection = db.GetCollection<Customer>("customer");
 var schemelessCollection = db.GetCollection("customer"); // <T> is BsonDocument
 ```
 
-### Mapper conventions
+## Mapper conventions
 
 `BsonMapper.ToDocument()` auto converts each property of a class to a document field following these conventions:
 
@@ -82,11 +46,11 @@ In addition to basic BSON types, `BsonMapper` maps others .NET types to BSON dat
 * `Nullable<T>` are accepted. If value is `null` the BSON type is Null, otherwise the mapper will use `T?`.
 * For `IDictionary<K, T>`, `K` key must be `String` or a simple type (convertible using `Convert.ToString(..)`).
 
-#### Constructors
+### Constructors
 
 Starting with version 5 of LiteDB you can use `BsonCtorAttribute` to indicate which constructor the mapper must use. Fields no longer need to have a public setter and can be initialized by the constructor.
 
-```
+```csharp
 public class Customer
 {
     public ObjectId CustomerId { get; }
@@ -123,11 +87,11 @@ When `GetCollection<T>` is called, it tries to create instances of `T` by search
 
 Please note that all the parameters in the constructor annotated with `BsonCtorAttribute` must be of a simple type, `BsonDocument` or `BsonArray`.
 
-#### Register a custom type
+### Register a custom type
 
 You can register your own map function, using the `RegisterType<T>` instance method. To register, you need to provide both serialize and deserialize functions.
 
-```
+```csharp
 BsonMapper.Global.RegisterType<Uri>
 (
     serialize: (uri) => uri.AbsoluteUri,
@@ -139,7 +103,7 @@ BsonMapper.Global.RegisterType<Uri>
 * `deserialize` function receives an instance of `BsonValue` and returns an instance of `T`
 * `RegisterType` supports complex objects via `BsonDocument` or `BsonArray`
 
-#### Mapping options
+### Mapping options
 
 `BsonMapper` class settings:
 
@@ -158,7 +122,7 @@ Please note that Linq expressions in typed collections will only work over Enum 
 
 `BsonMapper` offers 2 predefined functions to resolve property names: `UseCamelCase()` and `UseLowerCaseDelimiter('_')`.
 
-```
+```csharp
 BsonMapper.Global.UseLowerCaseDelimiter('_');
 
 public class Customer
@@ -178,7 +142,7 @@ var john = doc["first_name"].AsString;
 var doe = doc["customerLastName"].AsString;
 ```
 
-### AutoId
+## AutoId
 
 There are 4 built-in auto-id functions implemented:
 
@@ -191,13 +155,13 @@ Please note that AutoId requires the id field to have a public setter.
 
 While the AutoId can be used similarly to a sequence in a relational database, it behaves slightly differently. AutoIds are not persisted and have to be recreated in memory when the file is reopened, so it is possible that an id from a previously deleted document ends up being reused.
 
-### Fluent Mapping
+## Fluent Mapping
 
 LiteDB offers a complete fluent API to create custom mappings without using attributes, keeping you domain classes without external references.
 
 Fluent API uses `EntityBuilder` to add custom mappings to your classes.
 
-```
+```csharp
 var mapper = BsonMapper.Global;
 
 mapper.Entity<MyEntity>()
@@ -206,4 +170,7 @@ mapper.Entity<MyEntity>()
     .Field(x => x.CustomerName, "cust_name"); // rename document field
 ```
 
-* Made with ♥ by LiteDB team - [@mbdavid](https://twitter.com/mbdavid) - MIT License
+
+---
+
+*Made with ♥ by the LiteDB team – [@mbdavid](https://twitter.com/mbdavid) – MIT License.*

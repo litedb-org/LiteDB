@@ -1,46 +1,10 @@
-DbRef - LiteDB :: A .NET embedded NoSQL database
-
-
-
-[Fork me on GitHub](https://github.com/mbdavid/litedb)
-
-* [HOME](/)
-* [DOCS](/docs/)
-* [API](/api/)
-* [DOWNLOAD](https://www.nuget.org/packages/LiteDB/)
-
-[![Logo](/images/logo_litedb.svg)](/)
-
-[![Logo](/images/logo_litedb.svg)](/)
-
-* [HOME](/)
-* [DOCS](/docs/)
-* [API](/api/)
-* [DOWNLOAD](https://www.nuget.org/packages/LiteDB/)
-
-#### Docs
-
-* [Getting Started](/docs/getting-started/)
-* [Data Structure](/docs/data-structure/)
-* [Object Mapping](/docs/object-mapping/)
-* [Collections](/docs/collections/)
-* [BsonDocument](/docs/bsondocument/)
-* [Expressions](/docs/expressions/)
-* [DbRef](/docs/dbref/)
-* [Connection String](/docs/connection-string/)
-* [FileStorage](/docs/filestorage/)
-* [Indexes](/docs/indexes/)
-* [Encryption](/docs/encryption/)
-* [Pragmas](/docs/pragmas/)
-* [Collation](/docs/collation/)
-
 # DbRef
 
 LiteDB is a document database, so there is no JOIN between collections. You can use embedded documents (sub-documents) or create a reference between collections. To create a reference you can use `[BsonRef]` attribute or use the`DbRef` method from the fluent API mapper.
 
-### Mapping a reference on database initialization
+## Mapping a reference on database initialization
 
-```
+```csharp
 public class Customer
 {
     public int CustomerId { get; set; }
@@ -62,7 +26,7 @@ Order => { _id: 123, Customer: { CustomerId: 99, Name: "John Doe" } }
 
 If you want to store only a reference to a customer in `Order`, you can decorate your class:
 
-```
+```csharp
 public class Order
 {
     public int OrderId { get; set; }
@@ -76,7 +40,7 @@ Note that `BsonRef` decorates the full object being referenced, not an int `cust
 
 Or use fluent API:
 
-```
+```csharp
 BsonMapper.Global.Entity<Order>()
     .DbRef(x => x.Customer, "customers"); // where "customers" are Customer collection name
 ```
@@ -89,11 +53,11 @@ Now, when you store `Order` you are storing only the reference.
 Order => { _id: 123, Customer: { $id: 4, $ref: "customers"} }
 ```
 
-### Querying results
+## Querying results
 
 When you query a document with a cross-collection reference, you can auto load references using the `Include` method before query.
 
-```
+```csharp
 var orders = db.GetCollection<Order>("orders");
 
 var order1 = orders
@@ -103,7 +67,7 @@ var order1 = orders
 
 DbRef also support `List<T>` or `Array`, like:
 
-```
+```csharp
 public class Product
 {
     public int ProductId { get; set; }
@@ -126,7 +90,7 @@ If the `Products` field is null or an empty list, the value will be preserved wh
 
 In v4, this include process occurs on BsonDocument engine level. It also support any level of include, just using `Path` syntax:
 
-```
+```csharp
 orders.Include(new string[] { "$.Customer", "$.Products[*]" });
 ```
 
@@ -140,4 +104,7 @@ db.Query<Order>()
     .ToList();
 ```
 
-* Made with ♥ by LiteDB team - [@mbdavid](https://twitter.com/mbdavid) - MIT License
+
+---
+
+*Made with ♥ by the LiteDB team – [@mbdavid](https://twitter.com/mbdavid) – MIT License.*

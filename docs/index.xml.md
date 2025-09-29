@@ -1,3 +1,5 @@
+# Documentation RSS feed
+
 ```xml
 <?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
@@ -150,3 +152,7 @@ Datafiles are always created with CultureInfo.CurrentCulture as their culture an
   </channel>
 </rss>
 ```
+
+---
+
+*Made with ♥ by the LiteDB team – [@mbdavid](https://twitter.com/mbdavid) – MIT License.*

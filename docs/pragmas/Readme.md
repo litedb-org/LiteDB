@@ -1,39 +1,3 @@
-Pragmas - LiteDB :: A .NET embedded NoSQL database
-
-
-
-[Fork me on GitHub](https://github.com/mbdavid/litedb)
-
-* [HOME](/)
-* [DOCS](/docs/)
-* [API](/api/)
-* [DOWNLOAD](https://www.nuget.org/packages/LiteDB/)
-
-[![Logo](/images/logo_litedb.svg)](/)
-
-[![Logo](/images/logo_litedb.svg)](/)
-
-* [HOME](/)
-* [DOCS](/docs/)
-* [API](/api/)
-* [DOWNLOAD](https://www.nuget.org/packages/LiteDB/)
-
-#### Docs
-
-* [Getting Started](/docs/getting-started/)
-* [Data Structure](/docs/data-structure/)
-* [Object Mapping](/docs/object-mapping/)
-* [Collections](/docs/collections/)
-* [BsonDocument](/docs/bsondocument/)
-* [Expressions](/docs/expressions/)
-* [DbRef](/docs/dbref/)
-* [Connection String](/docs/connection-string/)
-* [FileStorage](/docs/filestorage/)
-* [Indexes](/docs/indexes/)
-* [Encryption](/docs/encryption/)
-* [Pragmas](/docs/pragmas/)
-* [Collation](/docs/collation/)
-
 # Pragmas
 
 In LiteDB v5, pragmas are variables that can alter the behavior of a datafile. They are stored in the header of the datafile.
@@ -47,7 +11,7 @@ In LiteDB v5, pragmas are variables that can alter the behavior of a datafile. T
 | UTC\_DATE | no | bool | If `false`, dates are converted to local time on retrieval. Storage format is not affected (always in UTC). | false |
 | CHECKPOINT | no | int | Maximum number of pages to be stored in the log before a soft checkpoint. If set to `0`, auto-checkpoint and shutdown checkpoint are disabled. | 1000 |
 
-#### Examples
+### Examples
 
 * `select pragmas from $database;` returns the pragmas in the current datafile
 * `pragma USER_VERSION = 1;` sets USER\_VERSION to 1
@@ -70,4 +34,7 @@ Rebuilds are also useful to defragment a datafile, making it smaller and faster 
 * `rebuild {"collation": "en-GB/IgnoreCase"};` rebuilds the datafile with the `en-GB` culture and case-insensitive string comparison
 * `rebuild {"collation": "pt-BR/None", "password" : "1234"};` rebuilds the datafile with the `pt-BR` culture, case-sensitive string comparison and sets the password to “1234”
 
-* Made with ♥ by LiteDB team - [@mbdavid](https://twitter.com/mbdavid) - MIT License
+
+---
+
+*Made with ♥ by the LiteDB team – [@mbdavid](https://twitter.com/mbdavid) – MIT License.*
