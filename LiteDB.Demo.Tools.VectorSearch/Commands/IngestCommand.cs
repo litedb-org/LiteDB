@@ -170,7 +170,7 @@ namespace LiteDB.Demo.Tools.VectorSearch.Commands
 
                 foreach (var (path, message) in errors)
                 {
-                    errorTable.AddRow(path, message);
+                    errorTable.AddRow(Markup.Escape(path), Markup.Escape(message));
                 }
 
                 AnsiConsole.Write(errorTable);
