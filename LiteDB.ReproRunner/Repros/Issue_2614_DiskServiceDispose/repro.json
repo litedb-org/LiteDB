@@ -1,0 +1,13 @@
+{
+  "id": "Issue_2614_DiskServiceDispose",
+  "title": "DiskService leaks handles when initialization fails",
+  "issues": ["https://github.com/litedb-org/LiteDB/issues/2614"],
+  "failingSince": "5.0.21",
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "sharedDatabaseKey": "issue2614-disk",
+  "args": [],
+  "tags": ["disk", "rlimit", "platform:unix"],
+  "state": "red"
+}
