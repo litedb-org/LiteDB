@@ -46,7 +46,7 @@ namespace LiteDB.Engine
             var groups = this.GroupBy(source, query.GroupBy);
 
             // apply group filter and transform result
-            var result = this.SelectGroupBy(groups, query.GroupBy);
+            var result = this.SelectGroupBy(groups, query.GroupBy, query.OrderBy);
 
             if (query.OrderBy != null)
             {
@@ -66,7 +66,20 @@ namespace LiteDB.Engine
         /// <summary>
         /// GROUP BY: Apply groupBy expression and aggregate results in DocumentGroup
         /// </summary>
-        private IEnumerable<DocumentCacheEnumerable> GroupBy(IEnumerable<BsonDocument> source, GroupBy groupBy)
+        private readonly struct GroupSource
+        {
+            public GroupSource(BsonValue key, DocumentCacheEnumerable documents)
+            {
+                this.Key = key;
+                this.Documents = documents;
+            }
+
+            public BsonValue Key { get; }
+
+            public DocumentCacheEnumerable Documents { get; }
+        }
+
+        private IEnumerable<GroupSource> GroupBy(IEnumerable<BsonDocument> source, GroupBy groupBy)
         {
             using (var enumerator = source.GetEnumerator())
             {
@@ -76,11 +89,9 @@ namespace LiteDB.Engine
                 {
                     var key = groupBy.Expression.ExecuteScalar(enumerator.Current, _pragmas.Collation);
 
-                    groupBy.Select.Parameters["key"] = key;
-
                     var group = YieldDocuments(key, enumerator, groupBy, done);
 
-                    yield return new DocumentCacheEnumerable(group, _lookup);
+                    yield return new GroupSource(key, new DocumentCacheEnumerable(group, _lookup));
                 }
             }
         }
@@ -96,15 +107,13 @@ namespace LiteDB.Engine
             {
                 var current = groupBy.Expression.ExecuteScalar(enumerator.Current, _pragmas.Collation);
 
-                if (key == current)
+                if (_pragmas.Collation.Equals(key, current))
                 {
                     // yield return document in same key (group)
                     yield return enumerator.Current;
                 }
                 else
                 {
-                    groupBy.Select.Parameters["key"] = current;
-
                     // stop current sequence
                     yield break;
                 }
@@ -117,46 +126,62 @@ namespace LiteDB.Engine
         /// </summary>
         private readonly struct GroupedResult
         {
-            public GroupedResult(BsonValue key, BsonDocument document)
+            public GroupedResult(BsonValue key, BsonDocument document, BsonValue[] orderValues)
             {
                 this.Key = key;
                 this.Document = document;
+                this.OrderValues = orderValues;
             }
 
             public BsonValue Key { get; }
 
             public BsonDocument Document { get; }
+
+            public BsonValue[] OrderValues { get; }
         }
 
-        private IEnumerable<GroupedResult> SelectGroupBy(IEnumerable<DocumentCacheEnumerable> groups, GroupBy groupBy)
+        private static void SetKeyParameter(BsonExpression expression, BsonValue key)
+        {
+            if (expression?.Parameters != null)
+            {
+                expression.Parameters["key"] = key;
+            }
+        }
+
+        private IEnumerable<GroupedResult> SelectGroupBy(IEnumerable<GroupSource> groups, GroupBy groupBy, OrderBy resultOrderBy)
         {
             var defaultName = groupBy.Select.DefaultFieldName();
 
             foreach (var group in groups)
             {
-                // transfom group result if contains select expression
-                BsonValue value;
-                var key = BsonValue.Null;
+                var key = group.Key;
+                var cache = group.Documents;
 
-                if (groupBy.Select.Parameters != null && groupBy.Select.Parameters.TryGetValue("key", out var storedKey))
-                {
-                    key = storedKey;
-                }
+                SetKeyParameter(groupBy.Select, key);
+                SetKeyParameter(groupBy.Having, key);
+
+                BsonDocument document = null;
+                BsonValue[] orderValues = null;
 
                 try
                 {
                     if (groupBy.Having != null)
                     {
-                        var filter = groupBy.Having.ExecuteScalar(group, null, null, _pragmas.Collation);
+                        var filter = groupBy.Having.ExecuteScalar(cache, null, null, _pragmas.Collation);
 
-                        if (!filter.IsBoolean || !filter.AsBoolean) continue;
+                        if (!filter.IsBoolean || !filter.AsBoolean)
+                        {
+                            continue;
+                        }
                     }
+
+                    BsonValue value;
 
                     if (ReferenceEquals(groupBy.Select, BsonExpression.Root))
                     {
                         var items = new BsonArray();
 
-                        foreach (var groupDocument in group)
+                        foreach (var groupDocument in cache)
                         {
                             items.Add(groupDocument);
                         }
@@ -169,26 +194,40 @@ namespace LiteDB.Engine
                     }
                     else
                     {
-                        value = groupBy.Select.ExecuteScalar(group, null, null, _pragmas.Collation);
+                        value = groupBy.Select.ExecuteScalar(cache, null, null, _pragmas.Collation);
+                    }
+
+                    if (value.IsDocument)
+                    {
+                        document = value.AsDocument;
+                    }
+                    else
+                    {
+                        document = new BsonDocument { [defaultName] = value };
+                    }
+
+                    if (resultOrderBy != null)
+                    {
+                        var segments = resultOrderBy.Segments;
+
+                        orderValues = new BsonValue[segments.Count];
+
+                        for (var i = 0; i < segments.Count; i++)
+                        {
+                            var expression = segments[i].Expression;
+
+                            SetKeyParameter(expression, key);
+
+                            orderValues[i] = expression.ExecuteScalar(cache, document, null, _pragmas.Collation);
+                        }
                     }
                 }
                 finally
                 {
-                    group.Dispose();
+                    cache.Dispose();
                 }
 
-                BsonDocument document;
-
-                if (value.IsDocument)
-                {
-                    document = value.AsDocument;
-                }
-                else
-                {
-                    document = new BsonDocument { [defaultName] = value };
-                }
-
-                yield return new GroupedResult(key, document);
+                yield return new GroupedResult(key, document, orderValues);
             }
         }
 
@@ -203,18 +242,18 @@ namespace LiteDB.Engine
 
             foreach (var item in source)
             {
-                var values = new BsonValue[segments.Count];
+                var values = item.OrderValues ?? new BsonValue[segments.Count];
 
-                for (var i = 0; i < segments.Count; i++)
+                if (item.OrderValues == null)
                 {
-                    var expression = segments[i].Expression;
-
-                    if (expression.Parameters != null)
+                    for (var i = 0; i < segments.Count; i++)
                     {
-                        expression.Parameters["key"] = item.Key;
-                    }
+                        var expression = segments[i].Expression;
 
-                    values[i] = expression.ExecuteScalar(item.Document, _pragmas.Collation);
+                        SetKeyParameter(expression, item.Key);
+
+                        values[i] = expression.ExecuteScalar(item.Document, _pragmas.Collation);
+                    }
                 }
 
                 var key = SortKey.FromValues(values, orders);
