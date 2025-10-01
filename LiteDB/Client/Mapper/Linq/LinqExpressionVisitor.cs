@@ -24,6 +24,7 @@ namespace LiteDB
             [typeof(Decimal)] = new NumberResolver("DECIMAL"),
             [typeof(Double)] = new NumberResolver("DOUBLE"),
             [typeof(ICollection)] = new ICollectionResolver(),
+            [typeof(IGrouping<,>)] = new GroupingResolver(),
             [typeof(Enumerable)] = new EnumerableResolver(),
             [typeof(Guid)] = new GuidResolver(),
             [typeof(Math)] = new MathResolver(),
@@ -202,7 +203,20 @@ namespace LiteDB
             }
 
             // if not found in resolver, try run method
-            if (!this.TryGetResolver(node.Method.DeclaringType, out var type))
+            var hasResolver = this.TryGetResolver(node.Method.DeclaringType, out var type);
+
+            if (node.Method.DeclaringType == typeof(Enumerable) && node.Arguments.Count > 0)
+            {
+                var first = node.Arguments[0].Type;
+
+                if (first.IsGenericType && first.GetGenericTypeDefinition() == typeof(IGrouping<,>))
+                {
+                    type = _resolver[typeof(IGrouping<,>)];
+                    hasResolver = true;
+                }
+            }
+
+            if (!hasResolver)
             {
                 // if method are called by parameter expression and it's not exists, throw error
                 var isParam = ParameterExpressionVisitor.Test(node);
@@ -729,11 +743,13 @@ namespace LiteDB
         private bool TryGetResolver(Type declaringType, out ITypeResolver typeResolver)
         {
             // get method declaring type - if is from any kind of list, read as Enumerable
+            var isGrouping = declaringType?.IsGenericType == true && declaringType.GetGenericTypeDefinition() == typeof(IGrouping<,>);
             var isCollection = Reflection.IsCollection(declaringType);
             var isEnumerable = Reflection.IsEnumerable(declaringType);
             var isNullable = Reflection.IsNullable(declaringType);
 
             var type =
+                isGrouping ? typeof(IGrouping<,>) :
                 isCollection ? typeof(ICollection) :
                 isEnumerable ? typeof(Enumerable) :
                 isNullable ? typeof(Nullable) :

@@ -203,12 +203,23 @@ namespace LiteDB.Engine
 
             if (this.GroupBy != null)
             {
-                doc["groupBy"] = new BsonDocument
+                var group = new BsonDocument
                 {
                     ["expr"] = this.GroupBy.Expression.Source,
                     ["having"] = this.GroupBy.Having?.Source,
                     ["select"] = this.GroupBy.Select?.Source
                 };
+
+                if (this.GroupBy.OrderBy != null)
+                {
+                    group["orderBy"] = new BsonArray(this.GroupBy.OrderBy.Segments.Select(x => new BsonDocument
+                    {
+                        ["expr"] = x.Expression.Source,
+                        ["order"] = x.Order
+                    }));
+                }
+
+                doc["groupBy"] = group;
             }
             else
             {
