@@ -71,7 +71,13 @@ internal static partial class Faker
 
     public static bool NextBool(this Random random)
     {
-        return random.NextSingle() >= 0.5;
+        return
+#if NETFRAMEWORK
+            random.NextDouble()
+#else
+            random.NextSingle()
+#endif
+            >= 0.5;
     }
 
     public static string Departments() => _departments[_random.Next(0, _departments.Length - 1)];

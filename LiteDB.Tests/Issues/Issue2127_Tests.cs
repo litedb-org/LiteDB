@@ -54,8 +54,20 @@ namespace LiteDB.Tests.Issues
                     var liteDbContent = File.ReadAllText(copiedLiteDbPath, Encoding.UTF8);
                     liteDbContent += File.ReadAllText(copiedLiteDbLogPath, Encoding.UTF8);
 
-                    Assert.True(liteDbContent.Contains(item1.SomeProperty, StringComparison.OrdinalIgnoreCase), $"Could not find item 1 property. {item1.SomeProperty}, Iteration: {i}");
-                    Assert.True(liteDbContent.Contains(item2.SomeProperty, StringComparison.OrdinalIgnoreCase), $"Could not find item 2 property. {item2.SomeProperty}, Iteration: {i}");
+                    Assert.True(
+#if NETFRAMEWORK
+                        liteDbContent.IndexOf(item1.SomeProperty, StringComparison.OrdinalIgnoreCase) >= 0,
+#else
+                        liteDbContent.Contains(item1.SomeProperty, StringComparison.OrdinalIgnoreCase),
+#endif
+                        $"Could not find item 1 property. {item1.SomeProperty}, Iteration: {i}");
+                    Assert.True(
+#if NETFRAMEWORK
+                        liteDbContent.IndexOf(item2.SomeProperty, StringComparison.OrdinalIgnoreCase) >= 0,
+#else
+                        liteDbContent.Contains(item2.SomeProperty, StringComparison.OrdinalIgnoreCase),
+#endif
+                        $"Could not find item 2 property. {item2.SomeProperty}, Iteration: {i}");
                 }
             }
         }

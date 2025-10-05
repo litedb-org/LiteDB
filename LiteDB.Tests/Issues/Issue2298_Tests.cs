@@ -2,50 +2,61 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+#if !NETFRAMEWORK
 using System.Text.Json;
+#endif
 using System.Threading.Tasks;
 
 using LiteDB.Tests.Utils;
 using Xunit;
 
-namespace LiteDB.Tests.Issues;
-
-public class Issue2298_Tests
+namespace LiteDB.Tests.Issues
 {
-    public struct Mass
+#if NETFRAMEWORK
+    public class Issue2298_Tests
     {
-        public enum Units
-        { Pound, Kilogram }
-
-        public Mass(double value, Units unit)
-        { Value = value; Unit = unit; }
-
-        public double Value { get; init; }
-        public Units Unit { get; init; }
+        [Fact(Skip = "System.Text.Json is not supported on .NET Framework for this scenario.")]
+        public void We_Dont_Need_Ctor()
+        {
+        }
     }
-
-    public class QuantityRange<T>
+#else
+    public class Issue2298_Tests
     {
-        public QuantityRange(double min, double max, Enum unit)
-        { Min = min; Max = max; Unit = unit; }
+        public struct Mass
+        {
+            public enum Units
+            { Pound, Kilogram }
 
-        public double Min { get; init; }
-        public double Max { get; init; }
-        public Enum Unit { get; init; }
-    }
+            public Mass(double value, Units unit)
+            { Value = value; Unit = unit; }
 
-    public static QuantityRange<Mass> MassRangeBuilder(BsonDocument document)
-    {
-        var doc = JsonDocument.Parse(document.ToString()).RootElement;
-        var min = doc.GetProperty(nameof(QuantityRange<Mass>.Min)).GetDouble();
-        var max = doc.GetProperty(nameof(QuantityRange<Mass>.Max)).GetDouble();
-        var unit = Enum.Parse<Mass.Units>(doc.GetProperty(nameof(QuantityRange<Mass>.Unit)).GetString());
+            public double Value { get; init; }
+            public Units Unit { get; init; }
+        }
 
-        var restored = new QuantityRange<Mass>(min, max, unit);
-        return restored;
-    }
+        public class QuantityRange<T>
+        {
+            public QuantityRange(double min, double max, Enum unit)
+            { Min = min; Max = max; Unit = unit; }
 
-    [Fact]
+            public double Min { get; init; }
+            public double Max { get; init; }
+            public Enum Unit { get; init; }
+        }
+
+        public static QuantityRange<Mass> MassRangeBuilder(BsonDocument document)
+        {
+            var doc = JsonDocument.Parse(document.ToString()).RootElement;
+            var min = doc.GetProperty(nameof(QuantityRange<Mass>.Min)).GetDouble();
+            var max = doc.GetProperty(nameof(QuantityRange<Mass>.Max)).GetDouble();
+            var unit = Enum.Parse<Mass.Units>(doc.GetProperty(nameof(QuantityRange<Mass>.Unit)).GetString());
+
+            var restored = new QuantityRange<Mass>(min, max, unit);
+            return restored;
+        }
+
+        [Fact]
         public void We_Dont_Need_Ctor()
         {
             BsonMapper.Global.RegisterType<QuantityRange<Mass>>(
@@ -64,4 +75,6 @@ public class Issue2298_Tests
             collection.Insert(range);
             var restored = collection.FindAll().First();
         }
+    }
+#endif
 }

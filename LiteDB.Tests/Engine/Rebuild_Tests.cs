@@ -116,7 +116,14 @@ namespace LiteDB.Tests.Engine
                 }
 
                 var payload = new byte[payloadLength];
+#if NETFRAMEWORK
+                for (var j = 0; j < payload.Length; j++)
+                {
+                    payload[j] = (byte)(i % 256);
+                }
+#else
                 Array.Fill(payload, (byte)(i % 256));
+#endif
 
                 yield return new Zip
                 {

@@ -1,7 +1,24 @@
+#if NETFRAMEWORK
+using Xunit;
+
+namespace LiteDB.Tests.QueryTest
+{
+    public class VectorIndex_Tests
+    {
+        [Fact(Skip = "Vector index tests are not supported on .NET Framework.")]
+        public void Vector_Index_Not_Supported_On_NetFramework()
+        {
+        }
+    }
+}
+#endif
+
+#if !NETFRAMEWORK
 using FluentAssertions;
 using LiteDB;
 using LiteDB.Engine;
 using LiteDB.Tests;
+using LiteDB.Tests.Utils;
 using LiteDB.Vector;
 using MathNet.Numerics.LinearAlgebra;
 using System;
@@ -11,7 +28,6 @@ using System.Linq;
 using System.Reflection;
 using System.Text.Json;
 using Xunit;
-using LiteDB.Tests.Utils;
 
 namespace LiteDB.Tests.QueryTest
 {
@@ -936,10 +952,19 @@ namespace LiteDB.Tests.QueryTest
 
             for (var i = 0; i < expected.Length; i++)
             {
+#if NETFRAMEWORK
+                var expectedBits = BitConverter.ToInt32(BitConverter.GetBytes(expected[i]), 0);
+                var actualBits = BitConverter.ToInt32(BitConverter.GetBytes(actual[i]), 0);
+                if (expectedBits != actualBits)
+                {
+                    return false;
+                }
+#else
                 if (BitConverter.SingleToInt32Bits(expected[i]) != BitConverter.SingleToInt32Bits(actual[i]))
                 {
                     return false;
                 }
+#endif
             }
 
             return true;
@@ -975,3 +1000,4 @@ namespace LiteDB.Tests.QueryTest
 
     }
 }
+#endif
