@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.InteropServices;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -122,6 +123,28 @@ namespace LiteDB.Engine
             ENSURE(count == bufferPosition, "current value must fit inside defined buffer");
 
             return bufferPosition;
+        }
+
+        private void Read(Span<byte> destination)
+        {
+            var written = 0;
+
+            while (written < destination.Length)
+            {
+                var bytesLeft = _current.Count - _currentPosition;
+                var bytesToCopy = Math.Min(destination.Length - written, bytesLeft);
+
+                new ReadOnlySpan<byte>(_current.Array, _current.Offset + _currentPosition, bytesToCopy)
+                    .CopyTo(destination.Slice(written, bytesToCopy));
+
+                written += bytesToCopy;
+
+                this.MoveForward(bytesToCopy);
+
+                if (_isEOF) break;
+            }
+
+            ENSURE(written == destination.Length, "current value must fit inside defined buffer");
         }
 
         /// <summary>
@@ -245,8 +268,11 @@ namespace LiteDB.Engine
             }
             else
             {
-                // can't use _tempoBuffer because Guid validate 16 bytes array length
-                value = new Guid(this.ReadBytes(16));
+                Span<byte> buffer = stackalloc byte[16];
+
+                this.Read(buffer);
+
+                value = MemoryMarshal.Read<Guid>(buffer);
             }
 
             return value;
@@ -261,19 +287,17 @@ namespace LiteDB.Engine
 
             if (_currentPosition + 12 <= _current.Count)
             {
-                value = new ObjectId(_current.Array, _current.Offset + _currentPosition);
+                value = BufferSliceExtensions.ReadObjectId(new ReadOnlySpan<byte>(_current.Array, _current.Offset + _currentPosition, 12));
 
                 this.MoveForward(12);
             }
             else
             {
-                var buffer = _bufferPool.Rent(12);
+                Span<byte> buffer = stackalloc byte[12];
 
-                this.Read(buffer, 0, 12);
+                this.Read(buffer);
 
-                value = new ObjectId(buffer, 0);
-
-                _bufferPool.Return(buffer, true);
+                value = BufferSliceExtensions.ReadObjectId(buffer);
             }
 
             return value;

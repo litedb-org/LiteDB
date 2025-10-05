@@ -276,6 +276,70 @@ namespace LiteDB.Internals
         }
 
         [Fact]
+        public void Buffer_Write_Guid_ObjectId_Across_Segments()
+        {
+            var guid = new Guid("01020304-0506-0708-090A-0B0C0D0E0F10");
+            var objectId = new ObjectId(0x11223344, 0x556677, 0x6677, 0xAABBCC);
+
+            var slices = new[]
+            {
+                new BufferSlice(new byte[8], 0, 8),
+                new BufferSlice(new byte[10], 0, 10),
+                new BufferSlice(new byte[12], 0, 12)
+            };
+
+            using (var writer = new BufferWriter(slices))
+            {
+                writer.Write(guid);
+                writer.Write(objectId);
+            }
+
+            var expectedGuidBytes = guid.ToByteArray();
+            var actualGuidBytes = new byte[16];
+
+            Buffer.BlockCopy(slices[0].Array, slices[0].Offset, actualGuidBytes, 0, slices[0].Count);
+            Buffer.BlockCopy(slices[1].Array, slices[1].Offset, actualGuidBytes, slices[0].Count, 16 - slices[0].Count);
+
+            actualGuidBytes.Should().Equal(expectedGuidBytes);
+
+            var expectedObjectIdBytes = objectId.ToByteArray();
+            var actualObjectIdBytes = new byte[12];
+
+            Buffer.BlockCopy(slices[1].Array, slices[1].Offset + 16 - slices[0].Count, actualObjectIdBytes, 0, slices[1].Count - (16 - slices[0].Count));
+            Buffer.BlockCopy(slices[2].Array, slices[2].Offset, actualObjectIdBytes, slices[1].Count - (16 - slices[0].Count), 12 - (slices[1].Count - (16 - slices[0].Count)));
+
+            actualObjectIdBytes.Should().Equal(expectedObjectIdBytes);
+
+            using (var reader = new BufferReader(slices))
+            {
+                reader.ReadGuid().Should().Be(guid);
+                reader.ReadObjectId().Should().Be(objectId);
+            }
+        }
+
+        [Fact]
+        public void BufferSlice_Span_Based_Guid_ObjectId_Should_Preserve_Endianness()
+        {
+            var buffer = new BufferSlice(new byte[64], 4, 40);
+            var guid = new Guid("0F0E0D0C-0B0A-0908-0706-050403020100");
+            var objectId = new ObjectId(0x0A0B0C0D, 0x010203, 0x0405, 0x060708);
+
+            buffer.Write(guid, 3);
+            buffer.Write(objectId, 21);
+
+            buffer.ReadGuid(3).Should().Be(guid);
+            buffer.ReadObjectId(21).Should().Be(objectId);
+
+            var guidBytes = new byte[16];
+            Buffer.BlockCopy(buffer.Array, buffer.Offset + 3, guidBytes, 0, 16);
+            guidBytes.Should().Equal(guid.ToByteArray());
+
+            var objectIdBytes = new byte[12];
+            Buffer.BlockCopy(buffer.Array, buffer.Offset + 21, objectIdBytes, 0, 12);
+            objectIdBytes.Should().Equal(objectId.ToByteArray());
+        }
+
+        [Fact]
         public void Buffer_Write_Overflow()
         {
             var data = new byte[50];
