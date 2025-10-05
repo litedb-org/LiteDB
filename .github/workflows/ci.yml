@@ -25,8 +25,8 @@ jobs:
       - name: Build
         run: dotnet build LiteDB.sln --configuration Release --no-restore /p:DefineConstants=TESTING
 
-      - name: Package test build outputs
-        run: tar -czf tests-build-linux.tar.gz LiteDB.Tests/bin/Release LiteDB.Tests/obj/Release
+      - name: Package build outputs
+        run: tar -czf tests-build-linux.tar.gz LiteDB/bin/Release LiteDB/obj/Release LiteDB.Tests/bin/Release LiteDB.Tests/obj/Release
 
       - name: Upload linux test build
         uses: actions/upload-artifact@v4
@@ -55,9 +55,9 @@ jobs:
       - name: Build
         run: dotnet build LiteDB.sln --configuration Release --no-restore /p:DefineConstants=TESTING
 
-      - name: Package test build outputs
+      - name: Package build outputs
         shell: pwsh
-        run: Compress-Archive -Path "LiteDB.Tests\bin\Release","LiteDB.Tests\obj\Release" -DestinationPath tests-build-windows.zip
+        run: Compress-Archive -Path "LiteDB\bin\Release","LiteDB\obj\Release","LiteDB.Tests\bin\Release","LiteDB.Tests\obj\Release" -DestinationPath tests-build-windows.zip
 
       - name: Upload windows test build
         uses: actions/upload-artifact@v4
@@ -110,6 +110,13 @@ jobs:
 
       - name: Extract build artifacts
         run: tar -xzf tests-build-linux.tar.gz
+
+      - name: Build test project for target framework
+        run: >-
+          dotnet build LiteDB.Tests/LiteDB.Tests.csproj
+          --configuration Release
+          --framework ${{ matrix.framework }}
+          --no-dependencies
 
       - name: Run tests
         timeout-minutes: 5
@@ -179,6 +186,13 @@ jobs:
       - name: Extract build artifacts
         shell: pwsh
         run: Expand-Archive -Path tests-build-windows.zip -DestinationPath . -Force
+
+      - name: Build test project for target framework
+        run: >-
+          dotnet build LiteDB.Tests/LiteDB.Tests.csproj
+          --configuration Release
+          --framework ${{ matrix.framework }}
+          --no-dependencies
 
       - name: Run tests
         timeout-minutes: 10
