@@ -26,6 +26,7 @@ namespace LiteDB
             [typeof(ICollection)] = new ICollectionResolver(),
             [typeof(IGrouping<,>)] = new GroupingResolver(),
             [typeof(Enumerable)] = new EnumerableResolver(),
+            [typeof(MemoryExtensions)] = new MemoryExtensionsResolver(),
             [typeof(Guid)] = new GuidResolver(),
             [typeof(Math)] = new MathResolver(),
             [typeof(Regex)] = new RegexResolver(),
@@ -182,6 +183,13 @@ namespace LiteDB
         /// </summary>
         protected override Expression VisitMethodCall(MethodCallExpression node)
         {
+            if (this.IsSpanImplicitConversion(node.Method))
+            {
+                this.Visit(node.Arguments[0]);
+
+                return node;
+            }
+
             // if special method for index access, eval index value (do not use parameters)
             if (this.IsMethodIndexEval(node, out var obj, out var idx))
             {
@@ -756,6 +764,31 @@ namespace LiteDB
                 declaringType;
 
             return _resolver.TryGetValue(type, out typeResolver);
+        }
+
+        private bool IsSpanImplicitConversion(MethodInfo method)
+        {
+            if (method == null || method.Name != "op_Implicit" || method.GetParameters().Length != 1)
+            {
+                return false;
+            }
+
+            var returnType = method.ReturnType;
+
+            return this.IsSpanLike(returnType);
+        }
+
+        private bool IsSpanLike(Type type)
+        {
+            if (type == null || !type.IsGenericType)
+            {
+                return false;
+            }
+
+            var definition = type.GetGenericTypeDefinition();
+            var name = definition.FullName;
+
+            return name == "System.Span`1" || name == "System.ReadOnlySpan`1";
         }
     }
 }
