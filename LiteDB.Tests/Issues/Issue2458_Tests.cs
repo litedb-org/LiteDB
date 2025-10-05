@@ -51,10 +51,6 @@ public class Issue2458_Tests
     {
         using Stream writeStream = fs.OpenWrite(id, id);
         var buffer = new byte[length];
-#if NETFRAMEWORK
         writeStream.Write(buffer, 0, buffer.Length);
-#else
-        writeStream.Write(buffer);
-#endif
     }
 }

@@ -33,15 +33,15 @@
   -->
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU'">
-    <DefineConstants>TRACE;DEBUG</DefineConstants>
+    <DefineConstants>$(DefineConstants);TRACE;DEBUG</DefineConstants>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-    <DefineConstants>HAVE_SHA1_MANAGED</DefineConstants>
+    <DefineConstants>$(DefineConstants);HAVE_SHA1_MANAGED</DefineConstants>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(TargetFramework)' == 'net8.0'">
-    <DefineConstants>HAVE_SHA1_MANAGED;HAVE_APP_DOMAIN;HAVE_PROCESS;HAVE_ENVIRONMENT</DefineConstants>
+    <DefineConstants>$(DefineConstants);HAVE_SHA1_MANAGED;HAVE_APP_DOMAIN;HAVE_PROCESS;HAVE_ENVIRONMENT</DefineConstants>
   </PropertyGroup>
     
 

@@ -252,7 +252,7 @@ namespace LiteDB.Tests.Engine
             }
 
             var engine = GetLiteEngine(db);
-            var monitor = engine.GetMonitor();
+            var monitor = GetTransactionMonitor(engine);
             var transaction = monitor.GetThreadTransaction();
 
             transaction.Should().NotBeNull();
@@ -314,7 +314,7 @@ namespace LiteDB.Tests.Engine
             }
 
             var engine = GetLiteEngine(db);
-            var monitor = engine.GetMonitor();
+            var monitor = GetTransactionMonitor(engine);
             var transaction = monitor.GetThreadTransaction();
 
             transaction.Should().NotBeNull();
@@ -397,6 +397,26 @@ namespace LiteDB.Tests.Engine
             }
 
             return engine;
+        }
+
+        private static TransactionMonitor GetTransactionMonitor(LiteEngine engine)
+        {
+            var getter = typeof(LiteEngine).GetMethod("GetMonitor", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+
+            if (getter != null && getter.ReturnType == typeof(TransactionMonitor))
+            {
+                return (TransactionMonitor)(getter.Invoke(engine, Array.Empty<object>()) ?? throw new InvalidOperationException("LiteEngine monitor accessor returned null."));
+            }
+
+            var monitorField = typeof(LiteEngine).GetField("_monitor", BindingFlags.Instance | BindingFlags.NonPublic)
+                               ?? throw new InvalidOperationException("Unable to locate LiteEngine monitor field.");
+
+            if (monitorField.GetValue(engine) is not TransactionMonitor monitor)
+            {
+                throw new InvalidOperationException("LiteEngine monitor instance is not available.");
+            }
+
+            return monitor;
         }
 
         private static void SetMonitorFreePages(TransactionMonitor monitor, int value)

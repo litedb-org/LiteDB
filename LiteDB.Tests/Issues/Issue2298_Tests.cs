@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-#if !NETFRAMEWORK
+#if NETCOREAPP
 using System.Text.Json;
 #endif
 using System.Threading.Tasks;
@@ -12,17 +12,14 @@ using Xunit;
 
 namespace LiteDB.Tests.Issues
 {
-#if NETFRAMEWORK
     public class Issue2298_Tests
     {
-        [Fact(Skip = "System.Text.Json is not supported on .NET Framework for this scenario.")]
+#if !NETCOREAPP
+        [Fact(Skip = "System.Text.Json is not supported on this target framework for this scenario.")]
         public void We_Dont_Need_Ctor()
         {
         }
-    }
 #else
-    public class Issue2298_Tests
-    {
         public struct Mass
         {
             public enum Units
@@ -75,6 +72,7 @@ namespace LiteDB.Tests.Issues
             collection.Insert(range);
             var restored = collection.FindAll().First();
         }
-    }
+        
 #endif
+    }
 }

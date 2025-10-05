@@ -1,19 +1,4 @@
-#if NETFRAMEWORK
-using Xunit;
-
-namespace LiteDB.Tests.QueryTest
-{
-    public class VectorIndex_Tests
-    {
-        [Fact(Skip = "Vector index tests are not supported on .NET Framework.")]
-        public void Vector_Index_Not_Supported_On_NetFramework()
-        {
-        }
-    }
-}
-#endif
-
-#if !NETFRAMEWORK
+#if NETCOREAPP
 using FluentAssertions;
 using LiteDB;
 using LiteDB.Engine;
@@ -998,6 +983,19 @@ namespace LiteDB.Tests.QueryTest
             return vector;
         }
 
+    }
+}
+#else
+using Xunit;
+
+namespace LiteDB.Tests.QueryTest
+{
+    public class VectorIndex_Tests
+    {
+        [Fact(Skip = "Vector index tests are not supported on this target framework.")]
+        public void Vector_Index_Not_Supported_On_NetFramework()
+        {
+        }
     }
 }
 #endif

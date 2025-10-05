@@ -3,7 +3,6 @@
   <PropertyGroup>
     <TargetFrameworks>net461;net481;net8.0</TargetFrameworks>
     <LangVersion>latest</LangVersion>
-    <DefineConstants Condition="'$(TargetFrameworkIdentifier)' == '.NETFramework'">$(DefineConstants);NETFRAMEWORK</DefineConstants>
     <AssemblyName>LiteDB.Tests</AssemblyName>
     <RootNamespace>LiteDB.Tests</RootNamespace>
     <Authors>Maurício David</Authors>
@@ -11,6 +10,10 @@
     <NeutralLanguage>en-US</NeutralLanguage>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <NoWarn>1701;1702;1705;1591;0618</NoWarn>
+    <DefineConstants Condition="'$(TargetFrameworkIdentifier)' == '.NETFramework'">$(DefineConstants);NETFRAMEWORK</DefineConstants>
+    <DefineConstants Condition="'$(TargetFramework)' == 'net461'">$(DefineConstants);NETFRAMEWORK</DefineConstants>
+    <DefineConstants Condition="'$(TargetFramework)' == 'net481'">$(DefineConstants);NETFRAMEWORK</DefineConstants>
+    <DefineConstants>$(DefineConstants);TESTING</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
