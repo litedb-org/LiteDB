@@ -8,8 +8,14 @@ on:
       - 'LiteDB/**'
 
 jobs:
+  ci-checks:
+    uses: ./.github/workflows/_reusable-ci.yml
+    secrets: inherit
+
   publish:
+    name: Pack & Publish
     runs-on: ubuntu-latest
+    needs: ci-checks
     permissions:
       contents: write
 
@@ -19,10 +25,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up .NET SDK
+      - name: Set up .NET SDKs (8/9/10)
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: |
+            10.0.x
+            9.0.x
+            8.0.x
+          include-prerelease: true
 
       - name: Restore .NET tools
         run: dotnet tool restore
@@ -57,36 +67,12 @@ jobs:
       - name: Restore
         run: dotnet restore LiteDB.sln
 
-      - name: Test
-        timeout-minutes: 5
-        run: dotnet test LiteDB.sln --configuration Release --verbosity normal --settings tests.runsettings --logger "trx;LogFileName=TestResults.trx" --logger "console;verbosity=detailed" /p:DefineConstants=TESTING
-
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: test-results
-          path: "**/*TestResults*.trx"
-
-      - name: Upload hang dumps (if any)
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: hangdumps
-          path: |
-            hangdumps
-            **/TestResults/**/*.dmp
-          if-no-files-found: ignore
-
       - name: Build
-        if: success()
         run: dotnet build LiteDB/LiteDB.csproj --configuration Release --no-restore /p:ContinuousIntegrationBuild=true
 
       - name: Pack
-        if: success()
         run: dotnet pack LiteDB/LiteDB.csproj --configuration Release --no-build -o artifacts /p:ContinuousIntegrationBuild=true
 
-      # if delete all nuget packages which are named ``0.0.0-detached.nupkg`` (leftover from detached builds)
       - name: Clean up detached packages
         run: |
           find artifacts -name "0.0.0-detached.nupkg" -delete
@@ -100,7 +86,6 @@ jobs:
             265b2fb6-2cf0-4859-9bc8-b24c00ab4378 > NUGET_API_KEY
 
       - name: Push package to NuGet
-        if: success()
         env:
           PACKAGE_VERSION: ${{ steps.gitversion.outputs.nugetVersion }}
         run: |
