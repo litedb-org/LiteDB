@@ -39,10 +39,12 @@ dotnet test LiteDB.Tests/LiteDB.Tests.csproj -f net8.0 --filter FullyQualifiedNa
 - Translate query shapes (circles, polygons) into `_gh` range windows and `_mbb` filters.
 - Hook range scans into the query pipeline to avoid `FindAll()` enumeration.
 - Benchmark on large datasets to confirm IO/CPU gains.
+- ✅ Implemented in `SpatialIndexing.CoverBoundingBox`, `SpatialQueryBuilder`, and the updated `Spatial.Near`/`Within*` helpers. Range windows respect persisted precision metadata and combine with `_mbb` predicates before geometry checks.
 
 ### 2. LINQ & Expression Support
 - Introduce spatial operators into the BsonExpression engine (e.g., `$near`, `$within`, `$intersects`).
 - Extend the LINQ translator to recognise Spatial methods and emit the new operators.
+- ✅ Added `SPATIAL_NEAR`, `SPATIAL_WITHIN`, `SPATIAL_INTERSECTS`, and `SPATIAL_CONTAINS_POINT` methods alongside a `SpatialResolver` so `Spatial.*` calls translate directly inside `LiteCollection.Query()` pipelines.
 
 ### 3. 3D & Extended Geometry
 - Design GeoPoint3D / GeoBoundingBox3D / GeoPolyhedron structures.
@@ -52,6 +54,7 @@ dotnet test LiteDB.Tests/LiteDB.Tests.csproj -f net8.0 --filter FullyQualifiedNa
 ### 4. Precision & Options
 - Surface defaults via SpatialOptions (index precision, tolerance, distance formula).
 - Persist precision metadata alongside index definitions for smarter range calculations.
+- ✅ `SpatialOptions` now exposes `IndexPrecisionBits` and `NumericToleranceDegrees`; `EnsurePointIndex` writes metadata into `_spatial_meta` and reuses it during query planning.
 
 ### 5. Migration & Tooling
 - Offer shell commands or utility APIs to backfill `_gh`/`_mbb` for existing datasets.
@@ -60,10 +63,12 @@ dotnet test LiteDB.Tests/LiteDB.Tests.csproj -f net8.0 --filter FullyQualifiedNa
 ### 6. Performance Tracking
 - Add BenchmarkDotNet scenarios targeting Near/Within/Intersects across dataset sizes.
 - Monitor allocations and wall-clock time before/after index-aware implementation.
+- ✅ `SpatialQueryBenchmarks` exercises radius, bounding-box, containment, and intersection workloads to capture allocations and timings for the new pipeline.
 
 ### 7. Documentation & Samples
 - Expand docs with tutorials covering spatial CRUD, indexing, and querying patterns.
 - Provide sample apps (e.g., REST endpoint performing radius searches).
+- ✅ `docs/spatial-guide.md` consolidates tutorials, and `samples/SpatialApiSample` offers a Minimal API demonstrating seeding, radius searches, and polygon filters.
 
 ## Open Questions
 - Should `_gh`/`_mbb` remain internal fields or become part of the public query DSL?

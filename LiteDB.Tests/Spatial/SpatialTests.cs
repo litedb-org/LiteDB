@@ -166,6 +166,73 @@ namespace LiteDB.Tests.Spatial
             Assert.NotEmpty(hits);
         }
 
+        [Fact]
+        public void EnsurePointIndex_Persists_Precision_Metadata()
+        {
+            using var db = new LiteDatabase(":memory:");
+            var col = db.GetCollection<Place>("p");
+
+            SpatialApi.EnsurePointIndex(col, x => x.Location, 40);
+
+            var meta = db.GetCollection("_spatial_meta").FindAll().ToList();
+
+            Assert.Single(meta);
+            Assert.Equal(40, meta[0]["precisionBits"].AsInt32);
+        }
+
+        [Fact]
+        public void Linq_Near_Uses_Spatial_Operator()
+        {
+            using var db = new LiteDatabase(":memory:");
+            var col = db.GetCollection<Place>("p");
+            SpatialApi.EnsurePointIndex(col, x => x.Location);
+
+            col.Insert(new[]
+            {
+                new Place { Name = "Center", Location = new GeoPoint(48.2082, 16.3738) },
+                new Place { Name = "Far", Location = new GeoPoint(48.35, 16.7) }
+            });
+
+            var center = new GeoPoint(48.2082, 16.3738);
+
+            var results = col.Query()
+                .Where(p => SpatialApi.Near(p.Location, center, 1_000))
+                .ToList();
+
+            Assert.Single(results);
+            Assert.Equal("Center", results[0].Name);
+        }
+
+        [Fact]
+        public void Linq_Within_Uses_Spatial_Operator()
+        {
+            using var db = new LiteDatabase(":memory:");
+            var col = db.GetCollection<Place>("p");
+            SpatialApi.EnsureShapeIndex(col, x => x.Location);
+
+            var polygon = new GeoPolygon(new[]
+            {
+                new GeoPoint(48.25, 16.30),
+                new GeoPoint(48.25, 16.45),
+                new GeoPoint(48.15, 16.45),
+                new GeoPoint(48.15, 16.30),
+                new GeoPoint(48.25, 16.30)
+            });
+
+            col.Insert(new[]
+            {
+                new Place { Name = "Inside", Location = new GeoPoint(48.21, 16.37) },
+                new Place { Name = "Outside", Location = new GeoPoint(48.30, 16.60) }
+            });
+
+            var results = col.Query()
+                .Where(p => SpatialApi.Within(p.Location, polygon))
+                .ToList();
+
+            Assert.Single(results);
+            Assert.Equal("Inside", results[0].Name);
+        }
+
         private class Place
         {
             public ObjectId Id { get; set; }

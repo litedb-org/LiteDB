@@ -21,5 +21,9 @@ namespace LiteDB.Spatial
         public int MaxCoveringCells { get; set; } = 32;
 
         public AngleUnit AngleUnit { get; set; } = AngleUnit.Degrees;
+
+        public int IndexPrecisionBits { get; set; } = 52;
+
+        public double NumericToleranceDegrees { get; set; } = 1e-9;
     }
 }
