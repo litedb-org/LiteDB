@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
+using LiteDB.Client.Shared;
 using LiteDB.Vector;
 #if NETFRAMEWORK
 using System.Security.AccessControl;
@@ -22,7 +23,7 @@ namespace LiteDB
         {
             _settings = settings;
 
-            string name = Uri.EscapeDataString(Path.GetFullPath(settings.Filename).ToLowerInvariant());
+            var name = SharedMutexNameFactory.Create(settings.Filename, settings.SharedMutexNameStrategy);
 
             try
             {
