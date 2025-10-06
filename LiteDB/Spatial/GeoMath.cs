@@ -8,7 +8,7 @@ namespace LiteDB.Spatial
 
         private const double DegToRad = Math.PI / 180d;
 
-        internal static double EpsilonDegrees => Spatial.Options.NumericToleranceDegrees;
+        internal static double EpsilonDegrees => Spatial.Options.ToleranceDegrees;
 
         public static double ClampLatitude(double latitude)
         {

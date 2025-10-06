@@ -61,6 +61,24 @@ namespace LiteDB.Spatial
             return !(other.MinLat > MaxLat || other.MaxLat < MinLat) && LongitudesOverlap(other);
         }
 
+        public GeoBoundingBox Expand(double meters)
+        {
+            if (meters <= 0d)
+            {
+                return this;
+            }
+
+            var angularDistance = meters / GeoMath.EarthRadiusMeters;
+            var deltaDegrees = angularDistance * (180d / Math.PI);
+
+            var minLat = GeoMath.ClampLatitude(MinLat - deltaDegrees);
+            var maxLat = GeoMath.ClampLatitude(MaxLat + deltaDegrees);
+            var minLon = GeoMath.NormalizeLongitude(MinLon - deltaDegrees);
+            var maxLon = GeoMath.NormalizeLongitude(MaxLon + deltaDegrees);
+
+            return new GeoBoundingBox(minLat, minLon, maxLat, maxLon);
+        }
+
         private bool LongitudesOverlap(GeoBoundingBox other)
         {
             var lonRange = new LongitudeRange(MinLon, MaxLon);

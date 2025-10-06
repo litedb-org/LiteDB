@@ -41,7 +41,7 @@ namespace LiteDB.Spatial
             var engine = Spatial.GetEngine(collection);
             if (engine == null)
             {
-                return Spatial.Options.IndexPrecisionBits;
+                return Spatial.Options.DefaultIndexPrecisionBits;
             }
 
             var key = EngineCollectionKey.Create(engine, collection.Name);
@@ -76,7 +76,7 @@ namespace LiteDB.Spatial
                 // Metadata collection may not exist yet; fall back to options.
             }
 
-            return Spatial.Options.IndexPrecisionBits;
+            return Spatial.Options.DefaultIndexPrecisionBits;
         }
 
         private readonly struct SpatialIndexMetadata
