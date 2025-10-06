@@ -8,7 +8,7 @@ namespace LiteDB.Client.Shared;
 
 internal static class SharedMutexNameFactory
 {
-    public static string Create(string fileName, SharedMutexNameStrategy strategy)
+    internal static string Create(string fileName, SharedMutexNameStrategy strategy)
     {
         return strategy switch
         {
@@ -18,7 +18,7 @@ internal static class SharedMutexNameFactory
         };
     }
     
-    public static string Sha1(string value)
+    internal static string Sha1(string value)
     {
         var data = Encoding.UTF8.GetBytes(value);
 
