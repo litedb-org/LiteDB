@@ -4,6 +4,7 @@ using System.Linq;
 using BenchmarkDotNet.Attributes;
 using LiteDB.Benchmarks.Models.Spatial;
 using LiteDB.Spatial;
+using SpatialApi = LiteDB.Spatial.Spatial;
 
 namespace LiteDB.Benchmarks.Benchmarks.Spatial
 {
@@ -23,9 +24,9 @@ namespace LiteDB.Benchmarks.Benchmarks.Spatial
             DatabaseInstance = new LiteDatabase(ConnectionString());
             _collection = DatabaseInstance.GetCollection<SpatialDocument>("places");
 
-            Spatial.EnsurePointIndex(_collection, x => x.Location);
-            Spatial.EnsureShapeIndex(_collection, x => x.Region);
-            Spatial.EnsureShapeIndex(_collection, x => x.Route);
+            SpatialApi.EnsurePointIndex(_collection, x => x.Location);
+            SpatialApi.EnsureShapeIndex(_collection, x => x.Region);
+            SpatialApi.EnsureShapeIndex(_collection, x => x.Route);
 
             var documents = SpatialDocumentGenerator.Generate(DatasetSize);
             _collection.Insert(documents);
@@ -40,25 +41,25 @@ namespace LiteDB.Benchmarks.Benchmarks.Spatial
         [Benchmark(Baseline = true)]
         public List<SpatialDocument> NearQuery()
         {
-            return Spatial.Near(_collection, x => x.Location, _center, _radiusMeters).ToList();
+            return SpatialApi.Near(_collection, x => x.Location, _center, _radiusMeters).ToList();
         }
 
         [Benchmark]
         public List<SpatialDocument> BoundingBoxQuery()
         {
-            return Spatial.WithinBoundingBox(_collection, x => x.Location, -0.2, -0.2, 0.2, 0.2).ToList();
+            return SpatialApi.WithinBoundingBox(_collection, x => x.Location, -0.2, -0.2, 0.2, 0.2).ToList();
         }
 
         [Benchmark]
         public List<SpatialDocument> PolygonContainmentQuery()
         {
-            return Spatial.Within(_collection, x => x.Region, _searchArea).ToList();
+            return SpatialApi.Within(_collection, x => x.Region, _searchArea).ToList();
         }
 
         [Benchmark]
         public List<SpatialDocument> RouteIntersectionQuery()
         {
-            return Spatial.Intersects(_collection, x => x.Route, _searchArea).ToList();
+            return SpatialApi.Intersects(_collection, x => x.Route, _searchArea).ToList();
         }
 
         [GlobalCleanup]

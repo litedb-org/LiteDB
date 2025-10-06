@@ -41,10 +41,10 @@ namespace LiteDB.Benchmarks.Models.Spatial
 
         private static GeoPolygon BuildSquare(GeoPoint center, double halfExtent)
         {
-            var minLat = GeoMath.ClampLatitude(center.Lat - halfExtent);
-            var maxLat = GeoMath.ClampLatitude(center.Lat + halfExtent);
-            var minLon = GeoMath.NormalizeLongitude(center.Lon - halfExtent);
-            var maxLon = GeoMath.NormalizeLongitude(center.Lon + halfExtent);
+            var minLat = ClampLatitude(center.Lat - halfExtent);
+            var maxLat = ClampLatitude(center.Lat + halfExtent);
+            var minLon = NormalizeLongitude(center.Lon - halfExtent);
+            var maxLon = NormalizeLongitude(center.Lon + halfExtent);
 
             var points = new List<GeoPoint>
             {
@@ -73,6 +73,32 @@ namespace LiteDB.Benchmarks.Models.Spatial
             };
 
             return new GeoLineString(points);
+        }
+
+        private static double ClampLatitude(double latitude)
+        {
+            return Math.Max(-90d, Math.Min(90d, latitude));
+        }
+
+        private static double NormalizeLongitude(double lon)
+        {
+            if (double.IsNaN(lon))
+            {
+                return lon;
+            }
+
+            var result = lon % 360d;
+
+            if (result <= -180d)
+            {
+                result += 360d;
+            }
+            else if (result > 180d)
+            {
+                result -= 360d;
+            }
+
+            return result;
         }
     }
 }

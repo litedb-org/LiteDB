@@ -1,3 +1,4 @@
+using System;
 using LiteDB.Spatial;
 
 namespace LiteDB.Benchmarks.Models.Spatial
