@@ -224,3 +224,5 @@ FakesAssemblies/
 # Uncomment if necessary however generally it will be regenerated when needed
 #!**/packages/repositories.config
 /LiteDB.BadJsonTest
+/LiteDB/Properties/PublishProfiles/FolderProfile.pubxml
+/LiteDB/README.md

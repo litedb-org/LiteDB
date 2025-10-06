@@ -1,7 +1,9 @@
 using LiteDB.Engine;
+
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+
 using static LiteDB.Constants;
 
 namespace LiteDB
@@ -85,7 +87,7 @@ namespace LiteDB
 
             this.Password = _values.GetValue("password", this.Password);
 
-            if(this.Password == string.Empty)
+            if (this.Password == string.Empty)
             {
                 this.Password = null;
             }
@@ -96,6 +98,10 @@ namespace LiteDB
             this.Collation = _values.ContainsKey("collation") ? new Collation(_values.GetValue<string>("collation")) : this.Collation;
 
             this.Upgrade = _values.GetValue("upgrade", this.Upgrade);
+
+            if (_values.TryGetValue("autorebuild", out var v) && !_values.ContainsKey("auto-rebuild"))
+                _values["auto-rebuild"] = v;
+
             this.AutoRebuild = _values.GetValue("auto-rebuild", this.AutoRebuild);
         }
 

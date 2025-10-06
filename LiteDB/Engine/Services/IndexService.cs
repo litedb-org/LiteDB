@@ -25,6 +25,46 @@ namespace LiteDB.Engine
 
         public Collation Collation => _collation;
 
+        // GetNodeList(PageAddress)
+        public IEnumerable<IndexNode> GetNodeList(PageAddress nodeAddress)
+        {
+            var node = this.GetNode(nodeAddress);
+            var counter = 0u;
+            var seen = new HashSet<PageAddress>();
+
+            while (node != null)
+            {
+                ENSURE(counter++ < _maxItemsCount, "Detected loop in GetNodeList({0})", nodeAddress);
+                ENSURE(seen.Add(node.Position), "Detected loop in GetNodeList({0})", nodeAddress);
+
+                yield return node;
+
+                node = this.GetNode(node.NextNode);
+            }
+        }
+
+        // FindAll(CollectionIndex index, int order)
+        public IEnumerable<IndexNode> FindAll(CollectionIndex index, int order)
+        {
+            var cur = order == Query.Ascending ? this.GetNode(index.Head) : this.GetNode(index.Tail);
+            var counter = 0u;
+            var seen = new HashSet<PageAddress>();
+
+            while (!cur.GetNextPrev(0, order).IsEmpty)
+            {
+                cur = this.GetNode(cur.GetNextPrev(0, order));
+
+                ENSURE(counter++ < _maxItemsCount, "Detected loop in FindAll({0})", index.Name);
+                ENSURE(seen.Add(cur.Position), "Detected loop in FindAll({0})", index.Name);
+
+                // stop if node is head/tail
+                if (cur.Key.IsMinValue || cur.Key.IsMaxValue) yield break;
+
+                yield return cur;
+            }
+        }
+
+
         /// <summary>
         /// Create a new index and returns head page address (skip list)
         /// </summary>
@@ -197,24 +237,6 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// Gets all node list from passed nodeAddress (forward only)
-        /// </summary>
-        public IEnumerable<IndexNode> GetNodeList(PageAddress nodeAddress)
-        {
-            var node = this.GetNode(nodeAddress);
-            var counter = 0u;
-
-            while (node != null)
-            {
-                ENSURE(counter++ < _maxItemsCount, "Detected loop in GetNodeList({0})", nodeAddress);
-
-                yield return node;
-
-                node = this.GetNode(node.NextNode);
-            }
-        }
-
-        /// <summary>
         /// Deletes all indexes nodes from pkNode
         /// </summary>
         public void DeleteAll(PageAddress pkAddress)
@@ -333,28 +355,6 @@ namespace LiteDB.Engine
         }
 
         #region Find
-
-        /// <summary>
-        /// Return all index nodes from an index
-        /// </summary>
-        public IEnumerable<IndexNode> FindAll(CollectionIndex index, int order)
-        {
-            var cur = order == Query.Ascending ? this.GetNode(index.Head) : this.GetNode(index.Tail);
-            var counter = 0u;
-
-            while (!cur.GetNextPrev(0, order).IsEmpty)
-            {
-                ENSURE(counter++ < _maxItemsCount, "Detected loop in FindAll({0})", index.Name);
-
-                cur = this.GetNode(cur.GetNextPrev(0, order));
-
-                // stop if node is head/tail
-                if (cur.Key.IsMinValue || cur.Key.IsMaxValue) yield break;
-
-                yield return cur;
-            }
-        }
-
         /// <summary>
         /// Find first node that index match with value .
         /// If index are unique, return unique value - if index are not unique, return first found (can start, middle or end)

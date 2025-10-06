@@ -1,7 +1,6 @@
-﻿using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Threading;
+﻿// plik: Transaction.cs
+using System;
+
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -74,34 +73,45 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// Create (or reuse) a transaction an add try/catch block. Commit transaction if is new transaction
+        /// Create (or reuse) a transaction and add try/catch block. Commit transaction if is new transaction
         /// </summary>
         private T AutoTransaction<T>(Func<TransactionService, T> fn)
         {
             _state.Validate();
 
-            var transaction = _monitor.GetTransaction(true, false, out var isNew);
+            bool retried = false;
 
-            try
+            while (true)
             {
-                var result = fn(transaction);
+                var transaction = _monitor.GetTransaction(true, false, out var isNew);
 
-                // if this transaction was auto-created for this operation, commit & dispose now
-                if (isNew)
-                    this.CommitAndReleaseTransaction(transaction);
-
-                return result;
-            }
-            catch(Exception ex)
-            {
-                if (_state.Handle(ex))
+                try
                 {
-                    transaction.Rollback();
+                    var result = fn(transaction);
 
-                    _monitor.ReleaseTransaction(transaction);
+                    if (isNew)
+                        this.CommitAndReleaseTransaction(transaction);
+
+                    return result;
                 }
+                catch (Exception ex)
+                {
+                    bool isExplicit = false;
+                    try { isExplicit = transaction?.ExplicitTransaction == true; } catch { }
 
-                throw;
+                    try { transaction.Rollback(); } catch { }
+                    try { _monitor.ReleaseTransaction(transaction); } catch { }
+
+                    if (!retried && !isExplicit && TryAutoRebuild(ex))
+                    {
+                        retried = true;
+                        continue;
+                    }
+
+                    try { _state.Handle(ex); } catch { }
+
+                    throw;
+                }
             }
         }
 
@@ -112,7 +122,7 @@ namespace LiteDB.Engine
             _monitor.ReleaseTransaction(transaction);
 
             // try checkpoint when finish transaction and log file are bigger than checkpoint pragma value (in pages)
-            if (_header.Pragmas.Checkpoint > 0 && 
+            if (_header.Pragmas.Checkpoint > 0 &&
                 _disk.GetFileLength(FileOrigin.Log) > (_header.Pragmas.Checkpoint * PAGE_SIZE))
             {
                 _walIndex.TryCheckpoint();
