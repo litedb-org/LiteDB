@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
+using LiteDB.Vector;
 #if NETFRAMEWORK
 using System.Security.AccessControl;
 using System.Security.Principal;
@@ -233,6 +234,11 @@ namespace LiteDB
         public bool EnsureIndex(string collection, string name, BsonExpression expression, bool unique)
         {
             return QueryDatabase(() => _engine.EnsureIndex(collection, name, expression, unique));
+        }
+
+        public bool EnsureVectorIndex(string collection, string name, BsonExpression expression, VectorIndexOptions options)
+        {
+            return QueryDatabase(() => _engine.EnsureVectorIndex(collection, name, expression, options));
         }
 
         #endregion

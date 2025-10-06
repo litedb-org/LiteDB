@@ -169,7 +169,3 @@ LiteDB is digitally signed courtesy of [SignPath](https://www.signpath.io)
 <a href="https://www.signpath.io">
     <img src="https://about.signpath.io/assets/signpath-logo.svg" width="150">
 </a>
-
-## License
-
-[MIT](http://opensource.org/licenses/MIT)

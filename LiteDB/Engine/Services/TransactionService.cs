@@ -296,11 +296,17 @@ namespace LiteDB.Engine
                 // but first, if writable, discard changes
                 if (snapshot.Mode == LockMode.Write)
                 {
-                    // discard all dirty pages
-                    _disk.DiscardDirtyPages(snapshot.GetWritablePages(true, true).Select(x => x.Buffer));
+                    // discard all dirty pages (only buffers still writable)
+                    _disk.DiscardDirtyPages(snapshot
+                        .GetWritablePages(true, true)
+                        .Select(x => x.Buffer)
+                        .Where(x => x.ShareCounter == BUFFER_WRITABLE));
 
-                    // discard all clean pages
-                    _disk.DiscardCleanPages(snapshot.GetWritablePages(false, true).Select(x => x.Buffer));
+                    // discard all clean pages (only buffers still writable)
+                    _disk.DiscardCleanPages(snapshot
+                        .GetWritablePages(false, true)
+                        .Select(x => x.Buffer)
+                        .Where(x => x.ShareCounter == BUFFER_WRITABLE));
                 }
 
                 // now, release pages
@@ -406,11 +412,17 @@ namespace LiteDB.Engine
                 // release writable snapshots
                 foreach (var snapshot in _snapshots.Values.Where(x => x.Mode == LockMode.Write))
                 {
-                    // discard all dirty pages
-                    _disk.DiscardDirtyPages(snapshot.GetWritablePages(true, true).Select(x => x.Buffer));
+                    // discard all dirty pages (only buffers still writable)
+                    _disk.DiscardDirtyPages(snapshot
+                        .GetWritablePages(true, true)
+                        .Select(x => x.Buffer)
+                        .Where(x => x.ShareCounter == BUFFER_WRITABLE));
 
-                    // discard all clean pages
-                    _disk.DiscardCleanPages(snapshot.GetWritablePages(false, true).Select(x => x.Buffer));
+                    // discard all clean pages (only buffers still writable)
+                    _disk.DiscardCleanPages(snapshot
+                        .GetWritablePages(false, true)
+                        .Select(x => x.Buffer)
+                        .Where(x => x.ShareCounter == BUFFER_WRITABLE));
                 }
 
                 // release buffers in read-only snaphosts

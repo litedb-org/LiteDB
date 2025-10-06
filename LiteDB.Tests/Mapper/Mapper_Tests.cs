@@ -1,6 +1,7 @@
 ﻿using FluentAssertions;
 using System;
 using System.Reflection;
+using LiteDB.Tests.Utils;
 using Xunit;
 
 namespace LiteDB.Tests.Mapper
@@ -23,7 +24,7 @@ namespace LiteDB.Tests.Mapper
         [Fact]
         public void Class_Not_Assignable()
         {
-            using (var db = new LiteDatabase(":memory:"))
+            using (var db = DatabaseFactory.Create())
             {
                 var col = db.GetCollection<MyClass>("Test");
                 col.Insert(new MyClass { Id = 1, Member = null });

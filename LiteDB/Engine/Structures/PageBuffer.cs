@@ -62,7 +62,7 @@ namespace LiteDB.Engine
             Interlocked.Decrement(ref this.ShareCounter);
         }
 
-#if DEBUG
+#if DEBUG || TESTING
         ~PageBuffer()
         {
             ENSURE(this.ShareCounter == 0, $"share count must be 0 in destroy PageBuffer (current: {this.ShareCounter})");

@@ -1,8 +1,8 @@
 ﻿using System;
-using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using FluentAssertions;
+using LiteDB.Tests.Utils;
 using Xunit;
 
 namespace LiteDB.Tests.Database
@@ -12,8 +12,7 @@ namespace LiteDB.Tests.Database
         [Fact]
         public void Home_Example()
         {
-            using (var f = new TempFile())
-            using (var db = new LiteDatabase(f.Filename))
+            using (var db = DatabaseFactory.Create())
             {
                 // Get customer collection
                 var customers = db.GetCollection<Customer>("customers");

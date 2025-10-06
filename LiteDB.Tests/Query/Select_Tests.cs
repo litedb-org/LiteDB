@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using FluentAssertions;
+using LiteDB.Tests.Utils;
 using Xunit;
 
 namespace LiteDB.Tests.QueryTest
@@ -78,7 +79,7 @@ namespace LiteDB.Tests.QueryTest
         [Fact]
         public void Query_With_No_Collection()
         {
-            using var db = new LiteDatabase(":memory:");
+            using var db = DatabaseFactory.Create();
 
             using (var r = db.Execute("SELECT DAY(NOW()) as DIA"))
             {

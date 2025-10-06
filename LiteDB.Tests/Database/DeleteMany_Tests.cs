@@ -2,6 +2,7 @@
 using System.IO;
 using System.Linq;
 using LiteDB;
+using LiteDB.Tests.Utils;
 using FluentAssertions;
 using Xunit;
 
@@ -12,7 +13,7 @@ namespace LiteDB.Tests.Database
         [Fact]
         public void DeleteMany_With_Arguments()
         {
-            using (var db = new LiteDatabase(":memory:"))
+            using (var db = DatabaseFactory.Create())
             {
                 var c1 = db.GetCollection("Test");
 

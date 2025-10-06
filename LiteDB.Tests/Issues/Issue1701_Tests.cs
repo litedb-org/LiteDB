@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using Xunit;
 using System.Linq;
+using LiteDB.Tests.Utils;
 
 namespace LiteDB.Tests.Issues
 {
@@ -10,7 +11,7 @@ namespace LiteDB.Tests.Issues
         [Fact]
         public void Deleted_Index_Slot_Test()
         {
-            using var db = new LiteDatabase(":memory:");
+            using var db = DatabaseFactory.Create();
             var col = db.GetCollection("col", BsonAutoId.Int32);
             var id = col.Insert(new BsonDocument { ["attr1"] = "attr", ["attr2"] = "attr", ["attr3"] = "attr" });
 

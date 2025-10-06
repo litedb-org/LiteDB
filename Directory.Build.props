@@ -1,0 +1,37 @@
+<Project>
+  <PropertyGroup>
+    <_RootGitDirectory>$([System.IO.Path]::Combine('$(MSBuildThisFileDirectory)', '.git'))</_RootGitDirectory>
+    <_RootGitHeadPath>$([System.IO.Path]::Combine('$(_RootGitDirectory)', 'HEAD'))</_RootGitHeadPath>
+    <_RootGitShallowPath>$([System.IO.Path]::Combine('$(_RootGitDirectory)', 'shallow'))</_RootGitShallowPath>
+    <GitVersionEnabled Condition="'$(GitVersionEnabled)' == '' and Exists('$(_RootGitHeadPath)') and !Exists('$(_RootGitShallowPath)')">true</GitVersionEnabled>
+    <GitVersionEnabled Condition="'$(GitVersionEnabled)' == ''">false</GitVersionEnabled>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(GitVersionEnabled)' == 'true'">
+    <GitVersion_NoFetch Condition="'$(GitVersion_NoFetch)' == ''">true</GitVersion_NoFetch>
+    <GitVersion_UpdateAssemblyInfo>false</GitVersion_UpdateAssemblyInfo>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(GitVersionEnabled)' == 'true'">
+    <_GitVersionPreReleaseNumberPadded Condition="'$(GitVersion_PreReleaseNumber)' != ''">$([System.String]::Format("{0:0000}", $(GitVersion_PreReleaseNumber)))</_GitVersionPreReleaseNumberPadded>
+    <_GitVersionCalculatedSemVer Condition="'$(GitVersion_PreReleaseLabel)' != ''">$(GitVersion_MajorMinorPatch)-$(GitVersion_PreReleaseLabel).$(_GitVersionPreReleaseNumberPadded)</_GitVersionCalculatedSemVer>
+    <_GitVersionCalculatedSemVer Condition="'$(GitVersion_PreReleaseLabel)' == ''">$(GitVersion_MajorMinorPatch)</_GitVersionCalculatedSemVer>
+    <Version Condition="'$(GitVersion_Major)' != ''">$(_GitVersionCalculatedSemVer)</Version>
+    <PackageVersion Condition="'$(GitVersion_Major)' != ''">$(_GitVersionCalculatedSemVer)</PackageVersion>
+    <AssemblyVersion Condition="'$(GitVersion_AssemblySemVer)' != ''">$(GitVersion_AssemblySemVer)</AssemblyVersion>
+    <FileVersion Condition="'$(GitVersion_AssemblySemFileVer)' != ''">$(GitVersion_AssemblySemFileVer)</FileVersion>
+    <InformationalVersion Condition="'$(GitVersion_Major)' != ''">$(_GitVersionCalculatedSemVer)+$(GitVersion_ShortSha)</InformationalVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(GitVersionEnabled)' != 'true'">
+    <Version Condition="'$(Version)' == ''">0.0.0-detached</Version>
+    <PackageVersion Condition="'$(PackageVersion)' == ''">0.0.0-detached</PackageVersion>
+    <AssemblyVersion Condition="'$(AssemblyVersion)' == ''">0.0.0.0</AssemblyVersion>
+    <FileVersion Condition="'$(FileVersion)' == ''">0.0.0.0</FileVersion>
+    <InformationalVersion Condition="'$(InformationalVersion)' == ''">0.0.0-detached</InformationalVersion>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(GitVersionEnabled)' == 'true'">
+    <PackageReference Include="GitVersion.MsBuild" Version="6.4.0" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

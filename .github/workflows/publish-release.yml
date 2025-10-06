@@ -1,0 +1,112 @@
+name: Publish release
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag, or SHA to release from
+        default: master
+        required: true
+      publish_nuget:
+        description: Push packages to NuGet
+        type: boolean
+        default: false
+      publish_github:
+        description: Create or update GitHub release
+        type: boolean
+        default: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref }}
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore .NET tools
+        run: dotnet tool restore
+
+      - name: Compute semantic version
+        id: gitversion
+        shell: bash
+        run: |
+          set -euo pipefail
+          JSON=$(dotnet tool run dotnet-gitversion /output json)
+          echo "$JSON"
+
+          NUGET_VERSION=$(echo "$JSON" | jq -r '.NuGetVersion')
+          FULL_SEMVER=$(echo "$JSON" | jq -r '.FullSemVer')
+          SHORT_SHA=$(echo "$JSON" | jq -r '.ShortSha')
+          MAJOR_MINOR_PATCH=$(echo "$JSON" | jq -r '.MajorMinorPatch')
+          PR_LABEL=$(echo "$JSON" | jq -r '.PreReleaseLabel')
+          PR_NUMBER=$(echo "$JSON" | jq -r '.PreReleaseNumber')
+
+          if [[ "$PR_LABEL" != "" && "$PR_LABEL" != "null" ]]; then
+            printf -v PR_PADDED '%04d' "$PR_NUMBER"
+            RELEASE_VERSION_PADDED="${MAJOR_MINOR_PATCH}-${PR_LABEL}.${PR_PADDED}"
+          else
+            RELEASE_VERSION_PADDED="$MAJOR_MINOR_PATCH"
+          fi
+
+          echo "nugetVersion=$NUGET_VERSION" >> "$GITHUB_OUTPUT"
+          echo "fullSemVer=$FULL_SEMVER" >> "$GITHUB_OUTPUT"
+          echo "releaseVersionPadded=$RELEASE_VERSION_PADDED" >> "$GITHUB_OUTPUT"
+          echo "informational=${NUGET_VERSION}+${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore
+        run: dotnet restore LiteDB.sln
+
+      - name: Build
+        run: dotnet build LiteDB.sln --configuration Release --no-restore /p:ContinuousIntegrationBuild=true
+
+      - name: Test
+        timeout-minutes: 8
+        run: dotnet test LiteDB.sln --configuration Release --no-build --verbosity normal --settings tests.runsettings --logger "trx;LogFileName=TestResults.trx" --logger "console;verbosity=detailed"
+
+      - name: Pack
+        run: dotnet pack LiteDB/LiteDB.csproj --configuration Release --no-build -o artifacts /p:ContinuousIntegrationBuild=true
+
+      # if delete all nuget packages which are named ``0.0.0-detached.nupkg`` (leftover from detached builds)
+      - name: Clean up detached packages
+        run: |
+          find artifacts -name "0.0.0-detached.nupkg" -delete
+
+      - name: Retrieve secrets from Bitwarden
+        if: ${{ inputs.publish_nuget }}
+        uses: bitwarden/sm-action@v2
+        with:
+          access_token: ${{ secrets.BW_ACCESS_TOKEN }}
+          base_url: https://vault.bitwarden.eu
+          secrets: |
+            265b2fb6-2cf0-4859-9bc8-b24c00ab4378 > NUGET_API_KEY
+
+      - name: Push package to NuGet
+        if: ${{ inputs.publish_nuget }}
+        env:
+          PACKAGE_VERSION: ${{ steps.gitversion.outputs.nugetVersion }}
+        run: |
+          echo "Pushing LiteDB version $PACKAGE_VERSION"
+          dotnet nuget push "artifacts/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+      - name: Publish GitHub release
+        if: ${{ inputs.publish_github }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.gitversion.outputs.releaseVersionPadded }}
+          name: LiteDB ${{ steps.gitversion.outputs.releaseVersionPadded }}
+          generate_release_notes: true
+          files: artifacts/*.nupkg
+          target_commitish: ${{ github.sha }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

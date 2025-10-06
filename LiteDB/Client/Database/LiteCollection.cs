@@ -47,6 +47,8 @@ namespace LiteDB
             else
             {
                 _entity = mapper.GetEntityMapper(typeof(T));
+                _entity.WaitForInitialization();
+                
                 _id = _entity.Id;
 
                 if (_id != null && _id.AutoId)
