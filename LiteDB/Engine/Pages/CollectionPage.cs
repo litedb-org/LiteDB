@@ -39,7 +39,7 @@ namespace LiteDB.Engine
         public CollectionPage(PageBuffer buffer)
             : base(buffer)
         {
-            ENSURE(this.PageType == PageType.Collection, "page type must be collection page");
+            ENSURE(this.PageType == PageType.Collection, "page type must be collection page, but it is {0}", PageType);
 
             if (this.PageType != PageType.Collection) throw LiteException.InvalidPageType(PageType.Collection, this);
 

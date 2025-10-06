@@ -160,7 +160,7 @@ namespace LiteDB.Engine
             }
             catch (Exception ex)
             {
-                LOG(ex.Message, "ERROR");
+                LOG(ex, "ERROR");
 
                 this.Close(ex);
                 throw;
