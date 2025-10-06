@@ -14,6 +14,9 @@ namespace LiteDB.Spatial
 
     public sealed class SpatialOptions
     {
+        private int _defaultIndexPrecisionBits = 52;
+        private double _toleranceDegrees = 1e-9;
+
         public DistanceFormula Distance { get; set; } = DistanceFormula.Haversine;
 
         public bool SortNearByDistance { get; set; } = true;
@@ -22,8 +25,32 @@ namespace LiteDB.Spatial
 
         public AngleUnit AngleUnit { get; set; } = AngleUnit.Degrees;
 
-        public int IndexPrecisionBits { get; set; } = 52;
+        public int DefaultIndexPrecisionBits
+        {
+            get => _defaultIndexPrecisionBits;
+            set => _defaultIndexPrecisionBits = value;
+        }
 
-        public double NumericToleranceDegrees { get; set; } = 1e-9;
+        public int IndexPrecisionBits
+        {
+            get => _defaultIndexPrecisionBits;
+            set => _defaultIndexPrecisionBits = value;
+        }
+
+        public double NumericToleranceDegrees
+        {
+            get => _toleranceDegrees;
+            set => _toleranceDegrees = value;
+        }
+
+        public double ToleranceDegrees
+        {
+            get => _toleranceDegrees;
+            set => _toleranceDegrees = value;
+        }
+
+        public double BoundingBoxPaddingMeters { get; set; } = 0d;
+
+        public double DistanceToleranceMeters { get; set; } = 0.001d;
     }
 }
