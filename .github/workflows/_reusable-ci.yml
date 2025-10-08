@@ -8,9 +8,9 @@ on:
         type: string
         default: |
           [
-            { "display": ".NET 8",  "sdk": "8.0.x",           "framework": "net8.0", "includePrerelease": false },
-            { "display": ".NET 9",  "sdk": "9.0.x\n8.0.x",    "framework": "net8.0", "includePrerelease": true  },
-            { "display": ".NET 10", "sdk": "10.0.x\n8.0.x",   "framework": "net8.0", "includePrerelease": true  }
+            { "display": ".NET 8",  "sdk": "8.0.x",           "framework": "net8.0", "includePrerelease": false, "msbuildProps": "" },
+            { "display": ".NET 9",  "sdk": "9.0.x\n8.0.x",    "framework": "net8.0", "includePrerelease": true,  "msbuildProps": "" },
+            { "display": ".NET 10", "sdk": "10.0.x\n8.0.x",   "framework": "net10.0", "includePrerelease": true, "msbuildProps": "-p:LiteDBTestsEnableNet10=true" }
           ]
 
 jobs:
@@ -79,6 +79,7 @@ jobs:
           --configuration Release
           --framework ${{ matrix.item.framework }}
           --no-dependencies
+          ${{ matrix.item.msbuildProps }}
 
       - name: Run tests
         timeout-minutes: 5
@@ -91,6 +92,7 @@ jobs:
           --settings tests.runsettings
           --logger "trx;LogFileName=TestResults.trx"
           --logger "console;verbosity=detailed"
+          ${{ matrix.item.msbuildProps }}
 
   repro-runner:
     runs-on: ubuntu-latest

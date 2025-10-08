@@ -1,7 +1,9 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <LiteDBTestsEnableNet10 Condition="'$(LiteDBTestsEnableNet10)' == ''">false</LiteDBTestsEnableNet10>
     <TargetFrameworks>net461;net481;net8.0</TargetFrameworks>
+    <TargetFrameworks Condition="'$(LiteDBTestsEnableNet10)' == 'true'">$(TargetFrameworks);net10.0</TargetFrameworks>
     <LangVersion>latest</LangVersion>
     <AssemblyName>LiteDB.Tests</AssemblyName>
     <RootNamespace>LiteDB.Tests</RootNamespace>
