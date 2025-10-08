@@ -1,12 +1,9 @@
 ﻿using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using LiteDB.Engine;
-
-#if NETSTANDARD2_0
-using System.Runtime.InteropServices;
-#endif
 
 namespace LiteDB.Client.Shared;
 
@@ -63,11 +60,7 @@ internal static class SharedMutexNameFactory
 
     private static bool IsWindows()
     {
-#if NETSTANDARD2_0
         return RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-#else
-        return OperatingSystem.IsWindows();
-#endif
     }
 
     internal static string CreateUsingSha1(string value)
