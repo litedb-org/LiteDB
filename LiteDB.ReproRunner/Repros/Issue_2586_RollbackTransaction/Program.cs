@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -6,28 +7,68 @@ using System.Linq;
 using System.Reflection;
 using System.Threading;
 using LiteDB;
+using LiteDB.ReproRunner.Shared;
+using LiteDB.ReproRunner.Shared.Messaging;
 
-namespace LiteDB.RollbackRepro;
+namespace Issue_2586_RollbackTransaction;
 
 /// <summary>
-/// Repro of #2586
-/// To repro after the patch, set ``<PackageReference Include="LiteDB" Version="5.0.20" />``
+/// Repro of LiteDB issue #2586. The repro returns exit code 0 when the rollback throws the expected
+/// LiteException and non-zero when the bug fails to reproduce.
 /// </summary>
 internal static class Program
 {
     private const int HolderTransactionCount = 99;
     private const int DocumentWriteCount = 10_000;
 
-    private static void Main()
+    private static int Main()
+    {
+        var host = ReproHostClient.CreateDefault();
+        ReproConfigurationReporter.SendConfiguration(host);
+        var context = ReproContext.FromEnvironment();
+
+        host.SendLifecycle("starting", new
+        {
+            context.InstanceIndex,
+            context.TotalInstances,
+            context.SharedDatabaseRoot
+        });
+
+        try
+        {
+            var reproduced = Run(host, context);
+            host.SendResult(reproduced, reproduced
+                ? "Repro succeeded: rollback threw with exhausted transaction pool."
+                : "Repro did not reproduce the rollback exception.");
+            host.SendLifecycle("completed", new { Success = reproduced });
+            return reproduced ? 0 : 1;
+        }
+        catch (Exception ex)
+        {
+            host.SendLog($"Reproduction failed: {ex}", ReproHostLogLevel.Error);
+            host.SendResult(false, "Reproduction failed.", new { Exception = ex.ToString() });
+            host.SendLifecycle("completed", new { Success = false });
+            Console.Error.WriteLine(ex);
+            return 1;
+        }
+    }
+
+    private static bool Run(ReproHostClient host, ReproContext context)
     {
         var stopwatch = Stopwatch.StartNew();
 
-        var databasePath = Path.Combine(AppContext.BaseDirectory, "rollback-crash.db");
-        Console.WriteLine($"Database path: {databasePath}");
+        var databaseDirectory = string.IsNullOrWhiteSpace(context.SharedDatabaseRoot)
+            ? AppContext.BaseDirectory
+            : context.SharedDatabaseRoot;
+
+        Directory.CreateDirectory(databaseDirectory);
+
+        var databasePath = Path.Combine(databaseDirectory, "rollback-crash.db");
+        Log(host, $"Database path: {databasePath}");
 
         if (File.Exists(databasePath))
         {
-            Console.WriteLine("Deleting previous database file.");
+            Log(host, "Deleting previous database file.");
             File.Delete(databasePath);
         }
 
@@ -43,20 +84,14 @@ internal static class Program
         using var releaseHolders = new ManualResetEventSlim(false);
         using var holdersReady = new CountdownEvent(HolderTransactionCount);
 
-        var holderThreads = StartGuardTransactions(db, holdersReady, releaseHolders);
+        var holderThreads = StartGuardTransactions(host, db, holdersReady, releaseHolders);
 
         holdersReady.Wait();
-        Console.WriteLine($"Spawned {HolderTransactionCount} background transactions to exhaust the shared transaction memory pool.");
+        Log(host, $"Spawned {HolderTransactionCount} background transactions to exhaust the shared transaction memory pool.");
 
         try
         {
-            RunFailingTransaction(db, collection);
-        }
-        catch (LiteException liteException)
-        {
-            Console.WriteLine();
-            Console.WriteLine("Captured expected LiteDB.LiteException:");
-            Console.WriteLine(liteException);
+            return RunFailingTransaction(host, db, collection);
         }
         finally
         {
@@ -68,17 +103,17 @@ internal static class Program
             }
 
             stopwatch.Stop();
-            Console.WriteLine($"Total elapsed time: {stopwatch.Elapsed}.");
+            Log(host, $"Total elapsed time: {stopwatch.Elapsed}.");
         }
     }
 
-    private static IReadOnlyList<Thread> StartGuardTransactions(LiteDatabase db, CountdownEvent ready, ManualResetEventSlim release)
+    private static IReadOnlyList<Thread> StartGuardTransactions(ReproHostClient host, LiteDatabase db, CountdownEvent ready, ManualResetEventSlim release)
     {
         var threads = new List<Thread>(HolderTransactionCount);
 
         for (var i = 0; i < HolderTransactionCount; i++)
         {
-            var thread = new Thread(() => HoldTransaction(db, ready, release))
+            var thread = new Thread(() => HoldTransaction(host, db, ready, release))
             {
                 IsBackground = true,
                 Name = $"Holder-{i:D2}"
@@ -91,7 +126,7 @@ internal static class Program
         return threads;
     }
 
-    private static void HoldTransaction(LiteDatabase db, CountdownEvent ready, ManualResetEventSlim release)
+    private static void HoldTransaction(ReproHostClient host, LiteDatabase db, CountdownEvent ready, ManualResetEventSlim release)
     {
         var threadId = Thread.CurrentThread.ManagedThreadId;
         var began = false;
@@ -101,12 +136,12 @@ internal static class Program
             began = db.BeginTrans();
             if (!began)
             {
-                Console.WriteLine($"[{threadId}] BeginTrans returned false for holder transaction.");
+                Log(host, $"[{threadId}] BeginTrans returned false for holder transaction.", ReproHostLogLevel.Warning);
             }
         }
         catch (LiteException ex)
         {
-            Console.WriteLine($"[{threadId}] Failed to start holder transaction: {ex.Message}");
+            Log(host, $"[{threadId}] Failed to start holder transaction: {ex.Message}", ReproHostLogLevel.Warning);
         }
         finally
         {
@@ -130,15 +165,15 @@ internal static class Program
             }
             catch (LiteException ex)
             {
-                Console.WriteLine($"[{threadId}] Holder rollback threw: {ex.Message}");
+                Log(host, $"[{threadId}] Holder rollback threw: {ex.Message}", ReproHostLogLevel.Warning);
             }
         }
     }
 
-    private static void RunFailingTransaction(LiteDatabase db, ILiteCollection<LargeDocument> collection)
+    private static bool RunFailingTransaction(ReproHostClient host, LiteDatabase db, ILiteCollection<LargeDocument> collection)
     {
         Console.WriteLine();
-        Console.WriteLine($"Starting write transaction on thread {Thread.CurrentThread.ManagedThreadId}.");
+        Log(host, $"Starting write transaction on thread {Thread.CurrentThread.ManagedThreadId}.");
 
         if (!db.BeginTrans())
         {
@@ -155,18 +190,16 @@ internal static class Program
         var payloadC = new string('C', 2_048);
         var largeBinary = new byte[128 * 1024];
 
-        var commitRequested = false;
-
         try
         {
             for (var i = 0; i < DocumentWriteCount; i++)
             {
                 if (shouldTriggerSafepoint && !safepointTriggered)
                 {
-                    inspector ??= TransactionInspector.Attach(db);
+                    inspector ??= TransactionInspector.Attach(db, collection.Name);
 
                     Console.WriteLine();
-                    Console.WriteLine($"Manually invoking safepoint before processing document #{i:N0}.");
+                    Log(host, $"Manually invoking safepoint before processing document #{i:N0}.");
 
                     inspector.InvokeSafepoint();
                     // Safepoint transitions all dirty buffers into the readable cache. Manually
@@ -195,10 +228,10 @@ internal static class Program
 
                 if (i % 100 == 0)
                 {
-                    Console.WriteLine($"Upserted {i:N0} documents...");
+                    Log(host, $"Upserted {i:N0} documents...");
                 }
 
-                inspector ??= TransactionInspector.Attach(db);
+                inspector ??= TransactionInspector.Attach(db, collection.Name);
 
                 var currentSize = inspector.CurrentSize;
                 maxSize = Math.Max(maxSize, inspector.MaxSize);
@@ -206,54 +239,63 @@ internal static class Program
                 if (!shouldTriggerSafepoint && currentSize >= maxSize)
                 {
                     shouldTriggerSafepoint = true;
-                    Console.WriteLine($"Queued safepoint after reaching transaction size {currentSize} at document #{i + 1:N0}.");
+                    Log(host, $"Queued safepoint after reaching transaction size {currentSize} at document #{i + 1:N0}.");
                 }
             }
 
             Console.WriteLine();
-            Console.WriteLine("Simulating failure after safepoint flush.");
+            Log(host, "Simulating failure after safepoint flush.");
             throw new InvalidOperationException("Simulating transaction failure after safepoint flush.");
         }
         catch (Exception ex) when (ex is not LiteException)
         {
-            Console.WriteLine($"Caught application exception: {ex.Message}");
-            Console.WriteLine("Requesting rollback — this should trigger 'discarded page must be writable'.");
+            Log(host, $"Caught application exception: {ex.Message}");
+            Log(host, "Requesting rollback — this should trigger 'discarded page must be writable'.");
 
             var shareCounter = inspector?.GetCollectionShareCounter();
             if (shareCounter.HasValue)
             {
-                Console.WriteLine($"Collection page share counter before rollback: {shareCounter.Value}.");
+                Log(host, $"Collection page share counter before rollback: {shareCounter.Value}.");
             }
 
             if (inspector is not null)
             {
                 foreach (var (pageId, pageType, counter) in inspector.EnumerateWritablePages())
                 {
-                    Console.WriteLine($"Writable page {pageId} ({pageType}) share counter: {counter}.");
+                    Log(host, $"Writable page {pageId} ({pageType}) share counter: {counter}.");
                 }
             }
 
-            db.Rollback();
-  
-            var color = Console.ForegroundColor;
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine("Rollback returned without throwing — the bug did not reproduce.");
-            Console.ForegroundColor = color;
-            // throw;
-            return;
-        }
-        finally
-        {
-            if (commitRequested)
+            try
             {
-                db.Commit();
+                db.Rollback();
+
+                var previous = Console.ForegroundColor;
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine("Rollback returned without throwing — the bug did not reproduce.");
+                Console.ForegroundColor = previous;
+
+                Log(host, "Rollback returned without throwing — the bug did not reproduce.", ReproHostLogLevel.Warning);
+                return false;
+            }
+            catch (LiteException liteException)
+            {
+                Console.WriteLine();
+                Console.WriteLine("Captured expected LiteDB.LiteException:");
+                Console.WriteLine(liteException);
+
+                Log(host, "Captured expected LiteDB.LiteException:");
+                Log(host, liteException.ToString(), ReproHostLogLevel.Warning);
+
+                var color = Console.ForegroundColor;
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("Rollback threw LiteException — the bug reproduced.");
+                Console.ForegroundColor = color;
+
+                Log(host, "Rollback threw LiteException — the bug reproduced.", ReproHostLogLevel.Error);
+                return true;
             }
         }
-        
-        var colorFg = Console.ForegroundColor;
-        Console.ForegroundColor = ConsoleColor.Red;
-        Console.WriteLine("Rollback threw LiteException — the bug reproduced.");
-        Console.ForegroundColor = colorFg;
     }
 
     private sealed class LargeDocument
@@ -385,7 +427,7 @@ internal static class Program
             }
         }
 
-        public static TransactionInspector Attach(LiteDatabase db)
+        public static TransactionInspector Attach(LiteDatabase db, string collectionName)
         {
             var engineField = typeof(LiteDatabase).GetField("_engine", BindingFlags.NonPublic | BindingFlags.Instance)
                               ?? throw new InvalidOperationException("Unable to locate LiteDatabase engine field.");
@@ -401,44 +443,33 @@ internal static class Program
                                        ?? throw new InvalidOperationException("GetThreadTransaction method not found.");
 
             var transaction = getThreadTransaction.Invoke(monitor, Array.Empty<object>())
-                ?? throw new InvalidOperationException("Current thread transaction is not available.");
+                              ?? throw new InvalidOperationException("Thread transaction is not available.");
 
-            var pagesProperty = transaction.GetType().GetProperty("Pages", BindingFlags.Public | BindingFlags.Instance)
-                                 ?? throw new InvalidOperationException("Transaction.Pages property not found.");
+            var transactionType = transaction.GetType();
 
-            var transactionPages = pagesProperty.GetValue(transaction)
-                ?? throw new InvalidOperationException("Transaction pages are not available.");
+            var transactionPages = GetTransactionPages(transactionType, transaction)
+                                  ?? throw new InvalidOperationException("Transaction pages are unavailable.");
+
+            var snapshot = GetSnapshot(transactionType, transaction, collectionName)
+                           ?? throw new InvalidOperationException("Transaction snapshot is unavailable.");
 
             var transactionSizeProperty = transactionPages.GetType().GetProperty("TransactionSize", BindingFlags.Public | BindingFlags.Instance)
-                                          ?? throw new InvalidOperationException("TransactionSize property not found.");
+                                           ?? throw new InvalidOperationException("TransactionSize property not found.");
 
             var maxTransactionSizeProperty = transaction.GetType().GetProperty("MaxTransactionSize", BindingFlags.Public | BindingFlags.Instance)
                                              ?? throw new InvalidOperationException("MaxTransactionSize property not found.");
 
-            var snapshotsProperty = transaction.GetType().GetProperty("Snapshots", BindingFlags.Public | BindingFlags.Instance)
-                                     ?? throw new InvalidOperationException("Snapshots property not found.");
-
-            if (snapshotsProperty.GetValue(transaction) is not IEnumerable<object> snapshots)
-            {
-                throw new InvalidOperationException("Snapshots collection not available.");
-            }
-
-            var snapshot = snapshots.Cast<object>().FirstOrDefault()
-                ?? throw new InvalidOperationException("No snapshots available for the current transaction.");
-
             var collectionPageProperty = snapshot.GetType().GetProperty("CollectionPage", BindingFlags.Public | BindingFlags.Instance)
-                                         ?? throw new InvalidOperationException("CollectionPage property not found.");
+                                        ?? throw new InvalidOperationException("CollectionPage property not found on snapshot.");
 
-            var collectionPageType = collectionPageProperty.PropertyType;
-
-            var bufferProperty = collectionPageType.GetProperty("Buffer", BindingFlags.Public | BindingFlags.Instance)
+            var bufferProperty = collectionPageProperty.PropertyType.GetProperty("Buffer", BindingFlags.Public | BindingFlags.Instance)
                                    ?? throw new InvalidOperationException("Buffer property not found on collection page.");
 
             var shareCounterField = bufferProperty.PropertyType.GetField("ShareCounter", BindingFlags.Public | BindingFlags.Instance)
-                                     ?? throw new InvalidOperationException("ShareCounter field not found on page buffer.");
+                                      ?? throw new InvalidOperationException("ShareCounter field not found on buffer.");
 
             var safepointMethod = transaction.GetType().GetMethod("Safepoint", BindingFlags.Public | BindingFlags.Instance)
-                                   ?? throw new InvalidOperationException("Safepoint method not found on transaction service.");
+                                  ?? throw new InvalidOperationException("Safepoint method not found on transaction.");
 
             return new TransactionInspector(
                 transaction,
@@ -450,6 +481,125 @@ internal static class Program
                 bufferProperty,
                 shareCounterField,
                 safepointMethod);
+        }
+
+        private static object? GetTransactionPages(Type transactionType, object transaction)
+        {
+            var field = transactionType.GetField("_transactionPages", BindingFlags.NonPublic | BindingFlags.Instance)
+                        ?? transactionType.GetField("_transPages", BindingFlags.NonPublic | BindingFlags.Instance);
+
+            if (field?.GetValue(transaction) is { } pages)
+            {
+                return pages;
+            }
+
+            var property = transactionType.GetProperty("Pages", BindingFlags.Public | BindingFlags.Instance);
+
+            return property?.GetValue(transaction);
+        }
+
+        private static object? GetSnapshot(Type transactionType, object transaction, string collectionName)
+        {
+            var snapshot = transactionType.GetField("_snapshot", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(transaction);
+
+            if (snapshot is not null)
+            {
+                return snapshot;
+            }
+
+            var snapshotsField = transactionType.GetField("_snapshots", BindingFlags.NonPublic | BindingFlags.Instance);
+
+            if (snapshotsField?.GetValue(transaction) is IDictionary dictionary)
+            {
+                snapshot = FindSnapshot(dictionary, collectionName);
+
+                if (snapshot is not null)
+                {
+                    return snapshot;
+                }
+            }
+
+            var snapshotsProperty = transactionType.GetProperty("Snapshots", BindingFlags.Public | BindingFlags.Instance);
+
+            if (snapshotsProperty?.GetValue(transaction) is IEnumerable enumerable)
+            {
+                return FindSnapshot(enumerable, collectionName);
+            }
+
+            return null;
+        }
+
+        private static object? FindSnapshot(IDictionary dictionary, string collectionName)
+        {
+            if (!string.IsNullOrWhiteSpace(collectionName) && dictionary.Contains(collectionName))
+            {
+                var value = dictionary[collectionName];
+
+                if (value is not null)
+                {
+                    return value;
+                }
+            }
+
+            foreach (DictionaryEntry entry in dictionary)
+            {
+                if (entry.Value is null)
+                {
+                    continue;
+                }
+
+                if (MatchesCollection(entry.Value, collectionName))
+                {
+                    return entry.Value;
+                }
+            }
+
+            return null;
+        }
+
+        private static object? FindSnapshot(IEnumerable snapshots, string collectionName)
+        {
+            foreach (var snapshot in snapshots)
+            {
+                if (snapshot is null)
+                {
+                    continue;
+                }
+
+                if (MatchesCollection(snapshot, collectionName))
+                {
+                    return snapshot;
+                }
+            }
+
+            return null;
+        }
+
+        private static bool MatchesCollection(object snapshot, string collectionName)
+        {
+            if (string.IsNullOrWhiteSpace(collectionName))
+            {
+                return true;
+            }
+
+            var nameProperty = snapshot.GetType().GetProperty("CollectionName", BindingFlags.Public | BindingFlags.Instance);
+            var name = nameProperty?.GetValue(snapshot)?.ToString();
+
+            return string.Equals(name, collectionName, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    private static void Log(ReproHostClient host, string message, ReproHostLogLevel level = ReproHostLogLevel.Information)
+    {
+        host.SendLog(message, level);
+
+        if (level >= ReproHostLogLevel.Warning)
+        {
+            Console.Error.WriteLine(message);
+        }
+        else
+        {
+            Console.WriteLine(message);
         }
     }
 }

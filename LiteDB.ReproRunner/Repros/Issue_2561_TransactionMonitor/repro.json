@@ -1,0 +1,13 @@
+{
+  "id": "Issue_2561_TransactionMonitor",
+  "title": "Transaction monitor finalizer runs on wrong thread",
+  "issues": ["https://github.com/litedb-org/LiteDB/issues/2561"],
+  "failingSince": "5.0.x",
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "sharedDatabaseKey": "issue2561",
+  "args": [],
+  "tags": ["transaction", "monitor", "finalizer"],
+  "state": "red"
+}

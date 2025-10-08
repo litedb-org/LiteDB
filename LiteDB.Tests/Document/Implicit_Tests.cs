@@ -13,9 +13,9 @@ namespace LiteDB.Tests.Document
             long l = long.MaxValue;
             ulong u = ulong.MaxValue;
 
-            BsonValue bi = i;
-            BsonValue bl = l;
-            BsonValue bu = u;
+            LiteDB.BsonValue bi = i;
+            LiteDB.BsonValue bl = l;
+            LiteDB.BsonValue bu = u;
 
             bi.IsInt32.Should().BeTrue();
             bl.IsInt64.Should().BeTrue();
@@ -35,7 +35,7 @@ namespace LiteDB.Tests.Document
             customer["CreateDate"] = DateTime.Now;
             customer["Phones"] = new BsonArray { "8000-0000", "9000-000" };
             customer["IsActive"] = true;
-            customer["IsAdmin"] = new BsonValue(true);
+            customer["IsAdmin"] = new LiteDB.BsonValue(true);
             customer["Address"] = new BsonDocument
             {
                 ["Street"] = "Av. Protasio Alves"

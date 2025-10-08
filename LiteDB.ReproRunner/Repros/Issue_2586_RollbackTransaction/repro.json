@@ -1,0 +1,12 @@
+{
+  "id": "Issue_2586_RollbackTransaction",
+  "title": "Rollback throws 'discarded page must be writable'",
+  "issues": ["https://github.com/litedb-org/LiteDB/issues/2586"],
+  "failingSince": "5.0.20",
+  "timeoutSeconds": 300,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": ["transaction", "rollback", "safepoint"],
+  "state": "green"
+}
