@@ -4,10 +4,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using LiteDB.Vector;
-#if NETFRAMEWORK
-using System.Security.AccessControl;
-using System.Security.Principal;
-#endif
 
 namespace LiteDB
 {
@@ -26,20 +22,15 @@ namespace LiteDB
 
             try
             {
-#if NETFRAMEWORK
-                var allowEveryoneRule = new MutexAccessRule(new SecurityIdentifier(WellKnownSidType.WorldSid, null),
-                           MutexRights.FullControl, AccessControlType.Allow);
-
-                var securitySettings = new MutexSecurity();
-                securitySettings.AddAccessRule(allowEveryoneRule);
-
-                _mutex = new Mutex(false, "Global\\" + name + ".Mutex", out _, securitySettings);
-#else
-                _mutex = new Mutex(false, "Global\\" + name + ".Mutex");
-#endif
+                _mutex = SharedMutexFactory.Create(name);
             }
             catch (NotSupportedException ex)
             {
+                if (ex is PlatformNotSupportedException)
+                {
+                    throw;
+                }
+
                 throw new PlatformNotSupportedException("Shared mode is not supported in platforms that do not implement named mutex.", ex);
             }
         }
