@@ -10,13 +10,29 @@ namespace LiteDB.Spatial
         public double MinLon { get; }
         public double MaxLat { get; }
         public double MaxLon { get; }
+        public bool SpansAllLongitudes { get; }
 
         public GeoBoundingBox(double minLat, double minLon, double maxLat, double maxLon)
         {
             MinLat = GeoMath.ClampLatitude(Math.Min(minLat, maxLat));
             MaxLat = GeoMath.ClampLatitude(Math.Max(minLat, maxLat));
-            MinLon = GeoMath.NormalizeLongitude(minLon);
-            MaxLon = GeoMath.NormalizeLongitude(maxLon);
+
+            var rawSpan = Math.Abs(maxLon - minLon);
+            var spansFull = double.IsInfinity(rawSpan) || rawSpan >= 360d - GeoMath.EpsilonDegrees;
+
+            if (spansFull)
+            {
+                SpansAllLongitudes = true;
+                var offset = Math.Max(GeoMath.EpsilonDegrees / 2d, 1e-12);
+                MinLon = -180d + offset;
+                MaxLon = 180d - offset;
+            }
+            else
+            {
+                SpansAllLongitudes = false;
+                MinLon = GeoMath.NormalizeLongitude(minLon);
+                MaxLon = GeoMath.NormalizeLongitude(maxLon);
+            }
         }
 
         public static GeoBoundingBox FromPoints(IEnumerable<GeoPoint> points)
@@ -58,7 +74,17 @@ namespace LiteDB.Spatial
 
         public bool Intersects(GeoBoundingBox other)
         {
-            return !(other.MinLat > MaxLat || other.MaxLat < MinLat) && LongitudesOverlap(other);
+            if (other.MinLat > MaxLat || other.MaxLat < MinLat)
+            {
+                return false;
+            }
+
+            if (SpansAllLongitudes || other.SpansAllLongitudes)
+            {
+                return true;
+            }
+
+            return LongitudesOverlap(other);
         }
 
         public GeoBoundingBox Expand(double meters)
@@ -73,6 +99,11 @@ namespace LiteDB.Spatial
 
             var minLat = GeoMath.ClampLatitude(MinLat - deltaDegrees);
             var maxLat = GeoMath.ClampLatitude(MaxLat + deltaDegrees);
+            if (SpansAllLongitudes)
+            {
+                return new GeoBoundingBox(minLat, -180d, maxLat, 180d);
+            }
+
             var minLon = GeoMath.NormalizeLongitude(MinLon - deltaDegrees);
             var maxLon = GeoMath.NormalizeLongitude(MaxLon + deltaDegrees);
 
@@ -88,6 +119,11 @@ namespace LiteDB.Spatial
 
         private bool IsLongitudeWithin(double lon)
         {
+            if (SpansAllLongitudes)
+            {
+                return true;
+            }
+
             var lonRange = new LongitudeRange(MinLon, MaxLon);
             return lonRange.Contains(lon);
         }

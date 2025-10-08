@@ -27,6 +27,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="GeographicLib.NET" Version="2.3.2" />
     <PackageReference Include="FluentAssertions" Version="6.12.2" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="xunit" Version="2.9.2" />
