@@ -42,6 +42,7 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" Condition="'$(TargetFrameworkIdentifier)' != '.NETFramework'" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.0.0" Condition="'$(TargetFramework)' == 'net481'" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.11.0" Condition="'$(TargetFramework)' == 'net461'" />
+    <PackageReference Include="System.Text.Json" Version="9.0.9" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.console" Version="2.9.2">
       <PrivateAssets>all</PrivateAssets>

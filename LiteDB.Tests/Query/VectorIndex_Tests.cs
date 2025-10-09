@@ -1,4 +1,3 @@
-#if NETCOREAPP
 using FluentAssertions;
 using LiteDB;
 using LiteDB.Engine;
@@ -801,7 +800,7 @@ namespace LiteDB.Tests.QueryTest
         [Fact]
         public void VectorIndex_HandlesVectorsSpanningMultipleDataBlocks_PersistedUpdate()
         {
-            using var file = new TempFile();
+            using var file = new MemoryStream();
 
             var dimensions = ((DataService.MAX_DATA_BYTES_PER_PAGE / sizeof(float)) * 10) + 16;
             dimensions.Should().BeLessThan(ushort.MaxValue);
@@ -826,7 +825,7 @@ namespace LiteDB.Tests.QueryTest
                 })
                 .ToList();
 
-            using (var setup = new LiteDatabase(file.Filename))
+            using (var setup = new LiteDatabase(file))
             {
                 var setupCollection = setup.GetCollection<VectorDocument>("vectors");
                 setupCollection.Insert(originalDocuments);
@@ -842,7 +841,7 @@ namespace LiteDB.Tests.QueryTest
                 setup.Checkpoint();
             }
 
-            using var db = new LiteDatabase(file.Filename);
+            using var db = new LiteDatabase(file);
             var collection = db.GetCollection<VectorDocument>("vectors");
 
             var (inlineDetected, mismatches) = InspectVectorIndex(db, "vectors", (snapshot, collation, metadata) =>
@@ -985,17 +984,16 @@ namespace LiteDB.Tests.QueryTest
 
     }
 }
-#else
-using Xunit;
-
-namespace LiteDB.Tests.QueryTest
-{
-    public class VectorIndex_Tests
-    {
-        [Fact(Skip = "Vector index tests are not supported on this target framework.")]
-        public void Vector_Index_Not_Supported_On_NetFramework()
-        {
-        }
-    }
-}
-#endif
+// #else
+// using Xunit;
+//
+// namespace LiteDB.Tests.QueryTest
+// {
+//     public class VectorIndex_Tests
+//     {
+//         [Fact(Skip = "Vector index tests are not supported on this target framework.")]
+//         public void Vector_Index_Not_Supported_On_NetFramework()
+//         {
+//         }
+//     }
+// }
