@@ -33,7 +33,7 @@ jobs:
         run: dotnet restore LiteDB.sln
 
       - name: Build
-        run: dotnet build LiteDB.sln --configuration Release --no-restore /p:DefineConstants=TESTING
+        run: dotnet build LiteDB.sln --configuration Release --no-restore /p:TestingEnabled=true
 
       - name: Package build outputs
         run: tar -czf tests-build-linux.tar.gz LiteDB/bin/Release LiteDB/obj/Release LiteDB.Tests/bin/Release LiteDB.Tests/obj/Release

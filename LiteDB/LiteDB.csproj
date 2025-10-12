@@ -1,72 +1,76 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFrameworks>netstandard2.0;net8.0</TargetFrameworks>
-    <Authors>Maurício David</Authors>
-    <Product>LiteDB</Product>
-    <Description>LiteDB - A lightweight embedded .NET NoSQL document store in a single datafile</Description>
-    <Copyright>MIT</Copyright>
-    <NeutralLanguage>en-US</NeutralLanguage>
-    <Title>LiteDB</Title>
-    <PackageId>LiteDB</PackageId>
-    <PackageTags>database nosql embedded</PackageTags>
-    <PackageIcon>icon_64x64.png</PackageIcon>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://www.litedb.org</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/litedb-org/LiteDB</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
-    <RootNamespace>LiteDB</RootNamespace>
-    <AssemblyName>LiteDB</AssemblyName>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>1701;1702;1705;1591;0618</NoWarn>
-    <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\LiteDB.xml</DocumentationFile>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <LangVersion>latest</LangVersion>
-  </PropertyGroup>
-  
-  <!--
-  == All variables ==
-  HAVE_APP_DOMAIN
-  HAVE_PROCESS
-  HAVE_ENVIRONMENT
-  HAVE_SHA1_MANAGED
-  -->
+    <PropertyGroup>
+        <TargetFrameworks>netstandard2.0;net8.0</TargetFrameworks>
+        <Authors>Maurício David</Authors>
+        <Product>LiteDB</Product>
+        <Description>LiteDB - A lightweight embedded .NET NoSQL document store in a single datafile</Description>
+        <Copyright>MIT</Copyright>
+        <NeutralLanguage>en-US</NeutralLanguage>
+        <Title>LiteDB</Title>
+        <PackageId>LiteDB</PackageId>
+        <PackageTags>database nosql embedded</PackageTags>
+        <PackageIcon>icon_64x64.png</PackageIcon>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageProjectUrl>https://www.litedb.org</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/litedb-org/LiteDB</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <RootNamespace>LiteDB</RootNamespace>
+        <AssemblyName>LiteDB</AssemblyName>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <NoWarn>1701;1702;1705;1591;0618</NoWarn>
+        <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\LiteDB.xml</DocumentationFile>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <LangVersion>latest</LangVersion>
+    </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU'">
-    <DefineConstants>$(DefineConstants);TRACE;DEBUG</DefineConstants>
-  </PropertyGroup>
+    <!--
+    == All variables ==
+    HAVE_APP_DOMAIN
+    HAVE_PROCESS
+    HAVE_ENVIRONMENT
+    HAVE_SHA1_MANAGED
+    -->
 
-  <PropertyGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-    <DefineConstants>$(DefineConstants);HAVE_SHA1_MANAGED</DefineConstants>
-  </PropertyGroup>
+    <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU'">
+        <DefineConstants>$(DefineConstants);TRACE;DEBUG</DefineConstants>
+    </PropertyGroup>
 
-  <PropertyGroup Condition="'$(TargetFramework)' == 'net8.0'">
-    <DefineConstants>$(DefineConstants);HAVE_SHA1_MANAGED;HAVE_APP_DOMAIN;HAVE_PROCESS;HAVE_ENVIRONMENT</DefineConstants>
-  </PropertyGroup>
+    <PropertyGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+        <DefineConstants>$(DefineConstants);HAVE_SHA1_MANAGED</DefineConstants>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(TargetFramework)' == 'net8.0'">
+        <DefineConstants>$(DefineConstants);HAVE_SHA1_MANAGED;HAVE_APP_DOMAIN;HAVE_PROCESS;HAVE_ENVIRONMENT</DefineConstants>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(TestingEnabled)' == 'true'">
+        <DefineConstants>$(DefineConstants);TESTING</DefineConstants>
+    </PropertyGroup>
     
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-    <Compile Remove="**\*.NetCore.cs" />
-    <None Remove="**\*.NetCore.cs" />
-  </ItemGroup>
+    <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+        <Compile Remove="**\*.NetCore.cs"/>
+        <None Remove="**\*.NetCore.cs"/>
+    </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
-    <Compile Remove="**\*.NetStd.cs" />
-    <None Remove="**\*.NetStd.cs" />
-  </ItemGroup>
+    <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+        <Compile Remove="**\*.NetStd.cs"/>
+        <None Remove="**\*.NetStd.cs"/>
+    </ItemGroup>
 
-  <!-- Begin References -->
-  <ItemGroup>
-    <None Include="..\LICENSE" Pack="true" PackagePath="" />
-    <None Include="..\icon_64x64.png" Pack="true" PackagePath="\" />
-  </ItemGroup>
+    <!-- Begin References -->
+    <ItemGroup>
+        <None Include="..\LICENSE" Pack="true" PackagePath=""/>
+        <None Include="..\icon_64x64.png" Pack="true" PackagePath="\"/>
+    </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-    <PackageReference Include="System.Buffers" Version="4.5.1" />
-    <PackageReference Include="System.Memory" Version="4.5.0" />
-    <PackageReference Include="System.ComponentModel.TypeConverter" Version="4.3.0" />
-  </ItemGroup>
-  
-  <!-- End References -->
+    <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+        <PackageReference Include="System.Buffers" Version="4.5.1"/>
+        <PackageReference Include="System.Memory" Version="4.5.0"/>
+        <PackageReference Include="System.ComponentModel.TypeConverter" Version="4.3.0"/>
+    </ItemGroup>
+
+    <!-- End References -->
 
 </Project>
