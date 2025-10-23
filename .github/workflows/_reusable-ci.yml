@@ -159,7 +159,6 @@ jobs:
           dotnet build LiteDB.Tests/LiteDB.Tests.csproj
           --configuration Release
           --framework ${{ matrix.item.framework }}
-          --arch ${{ matrix.arch }}
           --no-dependencies
           ${{ matrix.item.msbuildProps }}
 
@@ -170,7 +169,6 @@ jobs:
           --configuration Release
           --no-build
           --framework ${{ matrix.item.framework }}
-          --arch ${{ matrix.arch }}
           --verbosity normal
           --settings tests.runsettings
           --logger "trx;LogFileName=TestResults-${{ matrix.arch }}.trx"
@@ -211,7 +209,6 @@ jobs:
           dotnet build LiteDB.Tests/LiteDB.Tests.csproj
           --configuration Release
           --framework ${{ matrix.item.framework }}
-          --arch ${{ matrix.arch }}
           --no-dependencies
           ${{ matrix.item.msbuildProps }}
 
@@ -222,7 +219,6 @@ jobs:
           --configuration Release
           --no-build
           --framework ${{ matrix.item.framework }}
-          --arch ${{ matrix.arch }}
           --filter "FullyQualifiedName~CrossProcess_Shared_Tests"
           --verbosity normal
           --logger "trx;LogFileName=CrossProcessTestResults-${{ matrix.arch }}.trx"
@@ -275,7 +271,6 @@ jobs:
           dotnet build LiteDB.Tests/LiteDB.Tests.csproj
           --configuration Release
           --framework ${{ matrix.item.framework }}
-          --arch arm64
           --no-dependencies
           ${{ matrix.item.msbuildProps }}
 
@@ -286,7 +281,6 @@ jobs:
           --configuration Release
           --no-build
           --framework ${{ matrix.item.framework }}
-          --arch arm64
           --verbosity normal
           --logger "trx;LogFileName=TestResults-arm64.trx"
           --logger "console;verbosity=detailed"
