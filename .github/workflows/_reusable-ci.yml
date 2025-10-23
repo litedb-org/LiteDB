@@ -115,15 +115,15 @@ jobs:
       - name: Build
         run: dotnet build LiteDB.sln --configuration Release --no-restore /p:TestingEnabled=true
 
-      - name: Package build outputs
-        shell: pwsh
-        run: Compress-Archive -Path LiteDB/bin/Release, LiteDB/obj/Release, LiteDB.Tests/bin/Release, LiteDB.Tests/obj/Release -DestinationPath tests-build-windows.zip
-
       - name: Upload windows test build
         uses: actions/upload-artifact@v4
         with:
           name: tests-build-windows
-          path: tests-build-windows.zip
+          path: |
+            LiteDB/bin/Release
+            LiteDB/obj/Release
+            LiteDB.Tests/bin/Release
+            LiteDB.Tests/obj/Release
 
   test-windows:
     name: Test (Windows ${{ matrix.os }} - ${{ matrix.item.display }})
@@ -151,10 +151,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: tests-build-windows
-
-      - name: Extract build artifacts
-        shell: pwsh
-        run: Expand-Archive -Path tests-build-windows.zip -DestinationPath . -Force
+          path: .
 
       - name: Build test project for target framework
         run: >-
