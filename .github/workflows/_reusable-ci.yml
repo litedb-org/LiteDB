@@ -174,6 +174,62 @@ jobs:
           --logger "console;verbosity=detailed"
           ${{ matrix.item.msbuildProps }}
 
+  test-windows-crossprocess:
+    name: Cross-Process Tests (Windows ${{ matrix.os }} - ${{ matrix.item.display }})
+    runs-on: ${{ matrix.os }}
+    needs: build-windows
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, windows-2022]
+        item: ${{ fromJson(inputs.sdk-matrix) }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET SDK ${{ matrix.item.display }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ matrix.item.sdk }}
+          include-prerelease: ${{ matrix.item.includePrerelease }}
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: tests-build-windows
+          path: .
+
+      - name: Build test project for target framework
+        run: >-
+          dotnet build LiteDB.Tests/LiteDB.Tests.csproj
+          --configuration Release
+          --framework ${{ matrix.item.framework }}
+          --no-dependencies
+          ${{ matrix.item.msbuildProps }}
+
+      - name: Run cross-process shared mode tests
+        timeout-minutes: 10
+        run: >-
+          dotnet test LiteDB.Tests/LiteDB.Tests.csproj
+          --configuration Release
+          --no-build
+          --framework ${{ matrix.item.framework }}
+          --filter "FullyQualifiedName~CrossProcess_Shared_Tests"
+          --verbosity normal
+          --logger "trx;LogFileName=CrossProcessTestResults.trx"
+          --logger "console;verbosity=detailed"
+          ${{ matrix.item.msbuildProps }}
+
+      - name: Upload cross-process test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crossprocess-test-results-${{ matrix.os }}-${{ matrix.item.display }}
+          path: LiteDB.Tests/TestResults/CrossProcessTestResults.trx
+
   repro-runner:
     runs-on: ubuntu-latest
     needs: build-linux
