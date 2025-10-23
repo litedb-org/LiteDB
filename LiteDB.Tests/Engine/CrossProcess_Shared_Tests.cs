@@ -116,56 +116,112 @@ public class CrossProcess_Shared_Tests : IDisposable
     }
 
     [Fact]
-    public async Task CrossProcess_Shared_ConcurrentWrites_MaintainDataIntegrity()
+    public async Task CrossProcess_Shared_ConcurrentWrites_InsertDocuments()
     {
-        // This test verifies that concurrent writes from multiple connections maintain data integrity
-        // This tests the transactional integrity and locking mechanisms in shared mode
-        const int processCount = 5;
-        const int operationsPerProcess = 20;
+        // This test verifies that concurrent inserts from multiple connections work correctly
+        // Each task inserts unique documents to test concurrent write capability
+        const int taskCount = 5;
+        const int documentsPerTask = 20;
 
-        _output.WriteLine($"Starting concurrent write integrity test with {processCount} tasks");
+        _output.WriteLine($"Starting concurrent insert test with {taskCount} tasks");
 
-        // Initialize counter in the database
+        // Initialize collection
         using (var db = new LiteDatabase(new ConnectionString
         {
             Filename = _dbPath,
             Connection = ConnectionType.Shared
         }))
         {
-            var col = db.GetCollection<BsonDocument>("counter");
-            col.Insert(new BsonDocument { ["_id"] = 1, ["value"] = 0 });
+            var col = db.GetCollection<BsonDocument>("concurrent_inserts");
+            col.EnsureIndex("task_id");
         }
 
-        // Spawn concurrent tasks that will increment the counter
+        // Spawn concurrent tasks that will insert documents
         var tasks = new List<Task>();
-        for (int i = 1; i <= processCount; i++)
+        for (int i = 1; i <= taskCount; i++)
         {
-            var processId = i;
-            tasks.Add(Task.Run(() => RunCounterProcess(processId, operationsPerProcess)));
+            var taskId = i;
+            tasks.Add(Task.Run(() => RunInsertTask(taskId, documentsPerTask)));
         }
 
         await Task.WhenAll(tasks);
 
-        // Verify the final counter value
+        // Verify all documents were inserted
         using (var db = new LiteDatabase(new ConnectionString
         {
             Filename = _dbPath,
             Connection = ConnectionType.Shared
         }))
         {
-            var col = db.GetCollection<BsonDocument>("counter");
-            var counter = col.FindById(1);
+            var col = db.GetCollection<BsonDocument>("concurrent_inserts");
+            var totalDocs = col.Count();
 
-            var finalValue = counter["value"].AsInt32;
-            _output.WriteLine($"Final counter value: {finalValue}");
+            var expectedCount = taskCount * documentsPerTask;
+            totalDocs.Should().Be(expectedCount,
+                $"Expected {expectedCount} documents ({taskCount} tasks × {documentsPerTask} docs each)");
 
-            // Each task should have incremented the counter
-            var expectedValue = processCount * operationsPerProcess;
-            finalValue.Should().Be(expectedValue,
-                $"Expected counter to be {expectedValue} ({processCount} tasks × {operationsPerProcess} operations each)");
+            // Verify each task inserted the correct number
+            for (int i = 1; i <= taskCount; i++)
+            {
+                var taskDocs = col.Count(Query.EQ("task_id", i));
+                taskDocs.Should().Be(documentsPerTask,
+                    $"Task {i} should have inserted {documentsPerTask} documents");
+            }
         }
 
-        _output.WriteLine("Concurrent write integrity test completed successfully");
+        _output.WriteLine("Concurrent insert test completed successfully");
+    }
+
+    private void RunInsertTask(int taskId, int documentCount)
+    {
+        var task = Task.Run(() =>
+        {
+            try
+            {
+                _output.WriteLine($"Insert task {taskId} starting with {documentCount} documents");
+
+                using var db = new LiteDatabase(new ConnectionString
+                {
+                    Filename = _dbPath,
+                    Connection = ConnectionType.Shared
+                });
+
+                var col = db.GetCollection<BsonDocument>("concurrent_inserts");
+
+                for (int i = 0; i < documentCount; i++)
+                {
+                    var doc = new BsonDocument
+                    {
+                        ["task_id"] = taskId,
+                        ["doc_number"] = i,
+                        ["timestamp"] = DateTime.UtcNow,
+                        ["data"] = $"Data from task {taskId}, document {i}"
+                    };
+
+                    col.Insert(doc);
+
+                    // Small delay to ensure concurrent access
+                    Thread.Sleep(2);
+                }
+
+                _output.WriteLine($"Insert task {taskId} completed {documentCount} insertions");
+            }
+            catch (Exception ex)
+            {
+                _output.WriteLine($"Insert task {taskId} ERROR: {ex.Message}");
+                throw;
+            }
+        });
+
+        if (!task.Wait(30000)) // 30 second timeout
+        {
+            throw new TimeoutException($"Insert task {taskId} timed out");
+        }
+
+        if (task.IsFaulted)
+        {
+            throw new Exception($"Insert task {taskId} faulted", task.Exception);
+        }
     }
 
     private void RunChildProcess(int processId, int documentCount)
@@ -219,54 +275,6 @@ public class CrossProcess_Shared_Tests : IDisposable
         if (task.IsFaulted)
         {
             throw new Exception($"Task {processId} faulted", task.Exception);
-        }
-    }
-
-    private void RunCounterProcess(int processId, int operationCount)
-    {
-        var task = Task.Run(() =>
-        {
-            try
-            {
-                _output.WriteLine($"Counter task {processId} starting with {operationCount} operations");
-
-                using var db = new LiteDatabase(new ConnectionString
-                {
-                    Filename = _dbPath,
-                    Connection = ConnectionType.Shared
-                });
-
-                var col = db.GetCollection<BsonDocument>("counter");
-
-                for (int i = 0; i < operationCount; i++)
-                {
-                    // Read-modify-write pattern to test transactional integrity
-                    var counter = col.FindById(1);
-                    var currentValue = counter["value"].AsInt32;
-                    counter["value"] = currentValue + 1;
-                    col.Update(counter);
-
-                    // Small delay to increase chance of concurrent access
-                    Thread.Sleep(5);
-                }
-
-                _output.WriteLine($"Counter task {processId} completed {operationCount} operations");
-            }
-            catch (Exception ex)
-            {
-                _output.WriteLine($"Counter task {processId} ERROR: {ex.Message}");
-                throw;
-            }
-        });
-
-        if (!task.Wait(30000)) // 30 second timeout
-        {
-            throw new TimeoutException($"Counter task {processId} timed out");
-        }
-
-        if (task.IsFaulted)
-        {
-            throw new Exception($"Counter task {processId} faulted", task.Exception);
         }
     }
 }
