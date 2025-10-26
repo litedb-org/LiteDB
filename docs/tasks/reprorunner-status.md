@@ -113,12 +113,13 @@ Each reprorunner **repro** should automatically fan out into its own CI jobs acr
 - Wired `ci.yml` to invoke the new workflow after the reusable build/test step.
 - Removed the legacy repro job from `_reusable-ci.yml`.
 - Documented the new behavior in `docs/reprorunner.md`.
+- Taught the ReproRunner CLI to emit a JSON inventory (`list --json --filter`) with validated `supports`/`os` constraints.
+- Marked `Issue_2614_DiskServiceDispose` as Linux-only so the matrix skips unsupported Windows runners.
 
 ## Remaining Actions
 
-1. `git add` + `git commit` + `git push` (not yet run).
-2. Monitor GitHub Actions (`ci.yml`) to confirm the `Repro Runner` job completes successfully.
+None – latest CI run `18820376006` finished green with the reprorunner fan-out.
 
 ## Notes
 
-Current working tree contains the updated workflow plus the new helper script and documentation. No tests executed locally; waiting on CI once the branch is pushed.***
+CI evidence: https://github.com/litedb-org/LiteDB/actions/runs/18820376006 shows all build/test and ReproRunner jobs succeeding.***
