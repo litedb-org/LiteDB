@@ -6,3 +6,8 @@ on:
 jobs:
   build-and-test:
     uses: ./.github/workflows/_reusable-ci.yml
+
+  repro-runner:
+    needs: build-and-test
+    uses: ./.github/workflows/reprorunner.yml
+    secrets: inherit
