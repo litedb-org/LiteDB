@@ -43,13 +43,16 @@ jobs:
       - name: Restore ReproRunner CLI
         run: dotnet restore LiteDB.ReproRunner/LiteDB.ReproRunner.Cli/LiteDB.ReproRunner.Cli.csproj
 
+      - name: Build ReproRunner CLI
+        run: dotnet build LiteDB.ReproRunner/LiteDB.ReproRunner.Cli/LiteDB.ReproRunner.Cli.csproj --configuration Release --no-restore
+
       - name: Capture repro inventory
         id: list
         shell: bash
         run: |
           set -euo pipefail
           filter_input="${{ inputs.filter }}"
-          cmd=(dotnet run --project LiteDB.ReproRunner/LiteDB.ReproRunner.Cli --configuration Release -- list --json)
+          cmd=(dotnet run --project LiteDB.ReproRunner/LiteDB.ReproRunner.Cli --configuration Release --no-build --no-restore -- list --json)
           if [ -n "${filter_input}" ]; then
             cmd+=("--filter" "${filter_input}")
           fi
