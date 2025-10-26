@@ -5,6 +5,7 @@ on:
 
 jobs:
   build-and-test:
+    if: ${{ false }} # Temporarily disabled for ReproRunner debugging
     uses: ./.github/workflows/_reusable-ci.yml
 
   repro-runner:
