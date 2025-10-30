@@ -1,8 +1,6 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Threading;
 using static LiteDB.Constants;
 
@@ -105,9 +103,10 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// Release current thread transaction
+        /// Dispose and remove transaction from monitor
+        /// without releasing thread lock
         /// </summary>
-        public void ReleaseTransaction(TransactionService transaction)
+        public bool RemoveTransaction(TransactionService transaction)
         {
             // dispose current transaction
             transaction.Dispose();
@@ -123,8 +122,16 @@ namespace LiteDB.Engine
                 _freePages += transaction.MaxTransactionSize;
 
                 // check if current thread contains more query transactions
-                keepLocked = _transactions.Values.Any(x => x.ThreadID == Environment.CurrentManagedThreadId);
+                return keepLocked = _transactions.Values.Any(x => x.ThreadID == Environment.CurrentManagedThreadId);
             }
+        }
+
+        /// <summary>
+        /// Release current thread transaction
+        /// </summary>
+        public void ReleaseTransaction(TransactionService transaction)
+        {
+            var keepLocked = RemoveTransaction(transaction);
 
             // unlock thread-transaction only if there is no more transactions
             if (keepLocked == false)
@@ -150,7 +157,7 @@ namespace LiteDB.Engine
         {
             lock (_transactions)
             {
-                return 
+                return
                     _slot.Value ??
                     _transactions.Values.FirstOrDefault(x => x.ThreadID == Environment.CurrentManagedThreadId);
             }
@@ -191,7 +198,7 @@ namespace LiteDB.Engine
         /// </summary>
         private bool TryExtend(TransactionService trans)
         {
-            lock(_transactions)
+            lock (_transactions)
             {
                 if (_freePages >= _initialSize)
                 {
@@ -211,7 +218,7 @@ namespace LiteDB.Engine
         /// </summary>
         public bool CheckSafepoint(TransactionService trans)
         {
-            return 
+            return
                 trans.Pages.TransactionSize >= trans.MaxTransactionSize &&
                 this.TryExtend(trans) == false;
         }

@@ -1,9 +1,6 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.InteropServices;
-using System.Threading;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -444,7 +441,7 @@ namespace LiteDB.Engine
             if (!dispose)
             {
                 // Remove transaction monitor's dictionary
-                _monitor.ReleaseTransaction(this);
+                _monitor.RemoveTransaction(this);
             }
         }
     }
