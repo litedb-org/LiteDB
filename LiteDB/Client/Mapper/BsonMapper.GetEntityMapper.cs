@@ -1,6 +1,10 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+#if NET8_0_OR_GREATER
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+#endif
 using System.Linq;
 using System.Reflection;
 using System.Threading;
@@ -58,8 +62,14 @@ public partial class BsonMapper
     /// </summary>
     protected void BuildEntityMapper(EntityMapper mapper)
     {
-        var idAttr = typeof(BsonIdAttribute);
-        var ignoreAttr = typeof(BsonIgnoreAttribute);
+#if NET8_0_OR_GREATER
+        var idAttrs = new List<Type> { typeof(BsonIdAttribute), typeof(KeyAttribute) };
+        var ignoreAttrs = new List<Type> { typeof(BsonIgnoreAttribute), typeof(NotMappedAttribute) };
+#else
+        // in netstandard2.0 KeyAttribute and NotMappedAttribute are not available without adding extra dependencies
+        var idAttrs = new List<Type> { typeof(BsonIdAttribute) };
+        var ignoreAttrs = new List<Type> { typeof(BsonIgnoreAttribute) };
+#endif
         var fieldAttr = typeof(BsonFieldAttribute);
         var dbrefAttr = typeof(BsonRefAttribute);
 
@@ -69,7 +79,7 @@ public partial class BsonMapper
         foreach (var memberInfo in members)
         {
             // checks [BsonIgnore]
-            if (CustomAttributeExtensions.IsDefined(memberInfo, ignoreAttr, true)) continue;
+            if (ignoreAttrs.Any(ia => CustomAttributeExtensions.IsDefined(memberInfo, ia, true))) continue;
 
             // checks field name conversion
             var name = this.ResolveFieldName(memberInfo.Name);
@@ -95,8 +105,25 @@ public partial class BsonMapper
             var setter = Reflection.CreateGenericSetter(mapper.ForType, memberInfo);
 
             // check if property has [BsonId] to get with was setted AutoId = true
-            var autoId = (BsonIdAttribute)CustomAttributeExtensions.GetCustomAttributes(memberInfo, idAttr, true)
-                .FirstOrDefault();
+            bool autoId = true;
+            foreach (var idAttr in idAttrs)
+            {
+                var identifierAttribute = CustomAttributeExtensions.GetCustomAttributes(memberInfo, idAttr, true)
+                    .FirstOrDefault();
+
+                if(identifierAttribute is BsonIdAttribute bsonIdAttribute)
+                {
+                    autoId = bsonIdAttribute.AutoId;
+                    break;
+                }
+#if NET8_0_OR_GREATER
+                if(identifierAttribute is KeyAttribute)
+                {
+                    autoId = false;
+                    break;
+                }
+#endif
+            }
 
             // get data type
             var dataType = memberInfo is PropertyInfo
@@ -109,7 +136,7 @@ public partial class BsonMapper
             // create a property mapper
             var member = new MemberMapper
             {
-                AutoId = autoId == null ? true : autoId.AutoId,
+                AutoId = autoId,
                 FieldName = name,
                 MemberName = memberInfo.Name,
                 DataType = dataType,
@@ -148,8 +175,12 @@ public partial class BsonMapper
     /// </summary>
     protected virtual MemberInfo GetIdMember(IEnumerable<MemberInfo> members)
     {
+        // check for [Key] attribute as well in .NET 8 or greater
         return Reflection.SelectMember(members,
             x => CustomAttributeExtensions.IsDefined(x, typeof(BsonIdAttribute), true),
+#if NET8_0_OR_GREATER
+            x => CustomAttributeExtensions.IsDefined(x, typeof(KeyAttribute), true),
+#endif
             x => x.Name.Equals("Id", StringComparison.OrdinalIgnoreCase),
             x => x.Name.Equals(x.DeclaringType.Name + "Id", StringComparison.OrdinalIgnoreCase));
     }
