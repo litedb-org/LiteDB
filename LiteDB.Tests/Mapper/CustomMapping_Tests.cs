@@ -33,7 +33,7 @@ namespace LiteDB.Tests.Mapper
 
             var user = mapper.ToObject<UserWithCustomId>(doc);
 
-            user.Key.Should().Be(10); //     Expected user.Key to be 10, but found 0.
+            user.Key.Should().Be(10); // Ensure that the custom mapping sets the Key property from the _id field.
             user.Name.Should().Be("John");
         }
 
