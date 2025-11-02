@@ -105,25 +105,25 @@ public partial class BsonMapper
             var setter = Reflection.CreateGenericSetter(mapper.ForType, memberInfo);
 
             // check if property has [BsonId] to get with was setted AutoId = true
+            // BsonIdAttribute takes precedence over KeyAttribute if both are present
             bool autoId = true;
-            foreach (var idAttr in idAttrs)
+            var bsonIdAttribute = (BsonIdAttribute)CustomAttributeExtensions.GetCustomAttributes(memberInfo, typeof(BsonIdAttribute), true)
+                .FirstOrDefault();
+            if (bsonIdAttribute != null)
             {
-                var identifierAttribute = CustomAttributeExtensions.GetCustomAttributes(memberInfo, idAttr, true)
-                    .FirstOrDefault();
-
-                if(identifierAttribute is BsonIdAttribute bsonIdAttribute)
-                {
-                    autoId = bsonIdAttribute.AutoId;
-                    break;
-                }
+                autoId = bsonIdAttribute.AutoId;
+            }
 #if NET8_0_OR_GREATER
-                if(identifierAttribute is KeyAttribute)
+            else
+            {
+                var keyAttribute = (KeyAttribute)CustomAttributeExtensions.GetCustomAttributes(memberInfo, typeof(KeyAttribute), true)
+                    .FirstOrDefault();
+                if (keyAttribute != null)
                 {
                     autoId = false;
-                    break;
                 }
-#endif
             }
+#endif
 
             // get data type
             var dataType = memberInfo is PropertyInfo
