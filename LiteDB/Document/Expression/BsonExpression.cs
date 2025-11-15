@@ -23,64 +23,80 @@ namespace LiteDB
     internal delegate BsonValue BsonExpressionScalarDelegate(IEnumerable<BsonDocument> source, BsonDocument root, BsonValue current, Collation collation, BsonDocument parameters);
 
     /// <summary>
-    /// Compile and execute string expressions using BsonDocuments. Used in all document manipulation (transform, filter, indexes, updates). See https://github.com/mbdavid/LiteDB/wiki/Expressions
+    /// Represents a compiled expression that can be executed against BSON documents for querying, filtering, transforming, and indexing data.
     /// </summary>
+    /// <remarks>
+    /// <see cref="BsonExpression"/> provides a powerful query language for LiteDB, supporting document transformation, filtering,
+    /// index creation, and updates. Expressions are parsed from strings, compiled to LINQ expressions, and cached for performance.
+    /// For detailed syntax and examples, see: https://github.com/mbdavid/LiteDB/wiki/Expressions
+    /// </remarks>
     public sealed class BsonExpression
     {
         /// <summary>
-        /// Get formatted expression
+        /// Gets the formatted string representation of the expression as it was parsed.
         /// </summary>
         public string Source { get; internal set; }
 
         /// <summary>
-        /// Indicate expression type
+        /// Gets the type of expression, indicating its operation or purpose.
         /// </summary>
         public BsonExpressionType Type { get; internal set; }
 
         /// <summary>
-        /// If true, this expression do not change if same document/paramter are passed (only few methods change - like NOW() - or parameters)
+        /// Gets a value indicating whether this expression produces the same result for the same input document and parameters.
         /// </summary>
+        /// <remarks>
+        /// Immutable expressions can be cached and optimized more aggressively. Non-immutable expressions include those using
+        /// functions like NOW() or expressions that depend on parameters that may change between evaluations.
+        /// </remarks>
         public bool IsImmutable { get; internal set; }
 
         /// <summary>
-        /// Get/Set parameter values that will be used on expression execution
+        /// Gets or sets the parameter values that will be used during expression execution.
         /// </summary>
         public BsonDocument Parameters { get; internal set; }
 
         /// <summary>
-        /// In predicate expressions, indicate Left side
+        /// Gets the left-hand side expression in binary predicate expressions (e.g., equals, greater than).
         /// </summary>
         internal BsonExpression Left { get; set; }
 
         /// <summary>
-        /// In predicate expressions, indicate Rigth side
+        /// Gets the right-hand side expression in binary predicate expressions (e.g., equals, greater than).
         /// </summary>
         internal BsonExpression Right { get; set; }
 
         /// <summary>
-        /// Get/Set this expression (or any inner expression) use global Source (*)
+        /// Gets or sets a value indicating whether this expression or any nested expression references the global source using the wildcard (<c>*</c>).
         /// </summary>
         internal bool UseSource { get; set; }
 
         /// <summary>
-        /// Get transformed LINQ expression
+        /// Gets the compiled LINQ expression tree representation of this BSON expression.
         /// </summary>
         internal Expression Expression { get; set; }
 
         /// <summary>
-        /// Fill this hashset with all fields used in root level of document (be used to partial deserialize) - "$" means all fields
+        /// Gets the set of field names used at the root level of the document for partial deserialization optimization.
         /// </summary>
+        /// <remarks>
+        /// The special value <c>$</c> indicates all fields are required. This set is used to optimize document loading
+        /// by only deserializing the fields actually needed by the expression.
+        /// </remarks>
         public HashSet<string> Fields { get; internal set; }
 
         /// <summary>
-        /// Indicate if this expressions returns a single value or IEnumerable value
+        /// Gets a value indicating whether this expression returns a single value (<see langword="true"/>) or an enumerable collection (<see langword="false"/>).
         /// </summary>
         public bool IsScalar { get; internal set; }
 
         /// <summary>
-        /// Indicate that expression evaluate to TRUE or FALSE (=, >, ...). OR and AND are not considered Predicate expressions
-        /// Predicate expressions must have Left/Right expressions
+        /// Gets a value indicating whether this expression is a predicate that evaluates to <see langword="true"/> or <see langword="false"/>.
         /// </summary>
+        /// <remarks>
+        /// Predicate expressions include comparison operators (=, &gt;, &lt;, etc.) but exclude logical operators (AND, OR).
+        /// Predicate expressions always have both <see cref="Left"/> and <see cref="Right"/> sub-expressions.
+        /// </remarks>
         internal bool IsPredicate =>
             this.Type == BsonExpressionType.Equal ||
             this.Type == BsonExpressionType.Like ||
@@ -93,29 +109,34 @@ namespace LiteDB
             this.Type == BsonExpressionType.In;
 
         /// <summary>
-        /// This expression can be indexed? To index some expression must contains fields (at least 1) and
-        /// must use only immutable methods and no parameters
+        /// Gets a value indicating whether this expression can be used for creating an index.
         /// </summary>
+        /// <remarks>
+        /// An expression is indexable when it references at least one field, contains only immutable methods, and has no parameters.
+        /// </remarks>
         internal bool IsIndexable =>
             this.Fields.Count > 0 &&
             this.IsImmutable == true &&
             this.Parameters.Count == 0;
 
         /// <summary>
-        /// This expression has no dependency of BsonDocument so can be used as user value (when select index)
+        /// Gets a value indicating whether this expression has no document dependencies and can be used as a constant value.
         /// </summary>
+        /// <remarks>
+        /// Value expressions contain no field references and can be evaluated independently of any document.
+        /// </remarks>
         internal bool IsValue =>
             this.Fields.Count == 0;
 
         /// <summary>
-        /// Indicate when predicate expression uses ANY keywork for filter array items
+        /// Gets a value indicating whether this predicate expression uses the ANY keyword for filtering array items.
         /// </summary>
         internal bool IsANY =>
             this.IsPredicate &&
             this.Expression.ToString().Contains("_ANY");
 
         /// <summary>
-        /// Compiled Expression into a function to be executed: func(source[], root, current, parameters)[]
+        /// The compiled delegate for enumerable expressions that return multiple values.
         /// </summary>
         private BsonExpressionEnumerableDelegate _funcEnumerable;
 
@@ -135,23 +156,25 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Only internal ctor (from BsonParserExpression)
+        /// Initializes a new instance of the <see cref="BsonExpression"/> class. Only used internally by the parser.
         /// </summary>
         internal BsonExpression()
         {
         }
 
         /// <summary>
-        /// Implicit string converter
+        /// Implicitly converts a <see cref="BsonExpression"/> to its string representation.
         /// </summary>
+        /// <param name="expr">The expression to convert.</param>
         public static implicit operator String(BsonExpression expr)
         {
             return expr.Source;
         }
 
         /// <summary>
-        /// Implicit string converter
+        /// Implicitly converts a string to a <see cref="BsonExpression"/> by parsing it.
         /// </summary>
+        /// <param name="expr">The expression string to parse.</param>
         public static implicit operator BsonExpression(String expr)
         {
             return BsonExpression.Create(expr);
@@ -160,8 +183,10 @@ namespace LiteDB
         #region Execute Enumerable
 
         /// <summary>
-        /// Execute expression with an empty document (used only for resolve math/functions).
+        /// Executes the expression with an empty document context, used for evaluating math expressions and functions without document dependencies.
         /// </summary>
+        /// <param name="collation">The collation to use for string comparisons. If <see langword="null"/>, uses <see cref="Collation.Binary"/>.</param>
+        /// <returns>An enumerable collection of <see cref="BsonValue"/> results.</returns>
         public IEnumerable<BsonValue> Execute(Collation collation = null)
         {
             var root = new BsonDocument();
@@ -171,8 +196,12 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Execute expression and returns IEnumerable values
+        /// Executes the expression against a single document and returns an enumerable collection of results.
         /// </summary>
+        /// <param name="root">The document to evaluate the expression against.</param>
+        /// <param name="collation">The collation to use for string comparisons. If <see langword="null"/>, uses <see cref="Collation.Binary"/>.</param>
+        /// <returns>An enumerable collection of <see cref="BsonValue"/> results.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="root"/> is <see langword="null"/>.</exception>
         public IEnumerable<BsonValue> Execute(BsonDocument root, Collation collation = null)
         {
             if (root == null) throw new ArgumentNullException(nameof(root));
@@ -183,8 +212,12 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Execute expression and returns IEnumerable values
+        /// Executes the expression against a collection of documents and returns an enumerable collection of results.
         /// </summary>
+        /// <param name="source">The collection of documents to evaluate the expression against.</param>
+        /// <param name="collation">The collation to use for string comparisons. If <see langword="null"/>, uses <see cref="Collation.Binary"/>.</param>
+        /// <returns>An enumerable collection of <see cref="BsonValue"/> results.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="source"/> is <see langword="null"/>.</exception>
         public IEnumerable<BsonValue> Execute(IEnumerable<BsonDocument> source, Collation collation = null)
         {
             if (source == null) throw new ArgumentNullException(nameof(source));
@@ -193,8 +226,13 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Execute expression and returns IEnumerable values - returns NULL if no elements
+        /// Executes the expression with full context and returns an enumerable collection of results.
         /// </summary>
+        /// <param name="source">The source collection of documents.</param>
+        /// <param name="root">The root document context.</param>
+        /// <param name="current">The current value being processed.</param>
+        /// <param name="collation">The collation to use for string comparisons.</param>
+        /// <returns>An enumerable collection of <see cref="BsonValue"/> results.</returns>
         internal IEnumerable<BsonValue> Execute(IEnumerable<BsonDocument> source, BsonDocument root, BsonValue current, Collation collation)
         {
             if (this.IsScalar)
@@ -215,9 +253,11 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Execute expression over document to get all index keys. 
-        /// Return distinct value (no duplicate key to same document)
+        /// Executes the expression against a document to extract all unique index keys.
         /// </summary>
+        /// <param name="doc">The document to extract index keys from.</param>
+        /// <param name="collation">The collation to use for string comparisons.</param>
+        /// <returns>A distinct collection of <see cref="BsonValue"/> index keys (no duplicate keys for the same document).</returns>
         internal IEnumerable<BsonValue> GetIndexKeys(BsonDocument doc, Collation collation)
         {
             return this.Execute(doc, collation).Distinct();
@@ -228,8 +268,10 @@ namespace LiteDB
         #region ExecuteScalar
 
         /// <summary>
-        /// Execute scalar expression with an blank document and empty source (used only for resolve math/functions).
+        /// Executes a scalar expression with an empty document context, used for evaluating math expressions and functions without document dependencies.
         /// </summary>
+        /// <param name="collation">The collation to use for string comparisons. If <see langword="null"/>, uses <see cref="Collation.Binary"/>.</param>
+        /// <returns>A single <see cref="BsonValue"/> result, or <see cref="BsonValue.Null"/> if the expression produces no result.</returns>
         public BsonValue ExecuteScalar(Collation collation = null)
         {
             var root = new BsonDocument();
@@ -239,8 +281,13 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Execute scalar expression over single document and return a single value (or BsonNull when empty). Throws exception if expression are not scalar expression
+        /// Executes a scalar expression against a single document and returns a single value.
         /// </summary>
+        /// <param name="root">The document to evaluate the expression against.</param>
+        /// <param name="collation">The collation to use for string comparisons. If <see langword="null"/>, uses <see cref="Collation.Binary"/>.</param>
+        /// <returns>A single <see cref="BsonValue"/> result, or <see cref="BsonValue.Null"/> if the expression produces no result.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="root"/> is <see langword="null"/>.</exception>
+        /// <exception cref="LiteException">Thrown when the expression is not scalar and can return multiple results.</exception>
         public BsonValue ExecuteScalar(BsonDocument root, Collation collation = null)
         {
             if (root == null) throw new ArgumentNullException(nameof(root));
@@ -251,8 +298,13 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Execute scalar expression over multiple documents and return a single value (or BsonNull when empty). Throws exception if expression are not scalar expression
+        /// Executes a scalar expression against a collection of documents and returns a single value.
         /// </summary>
+        /// <param name="source">The collection of documents to evaluate the expression against.</param>
+        /// <param name="collation">The collation to use for string comparisons. If <see langword="null"/>, uses <see cref="Collation.Binary"/>.</param>
+        /// <returns>A single <see cref="BsonValue"/> result, or <see cref="BsonValue.Null"/> if the expression produces no result.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="source"/> is <see langword="null"/>.</exception>
+        /// <exception cref="LiteException">Thrown when the expression is not scalar and can return multiple results.</exception>
         public BsonValue ExecuteScalar(IEnumerable<BsonDocument> source, Collation collation = null)
         {
             if (source == null) throw new ArgumentNullException(nameof(source));
@@ -261,8 +313,14 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Execute expression and returns IEnumerable values - returns NULL if no elements
+        /// Executes a scalar expression with full context and returns a single value.
         /// </summary>
+        /// <param name="source">The source collection of documents.</param>
+        /// <param name="root">The root document context.</param>
+        /// <param name="current">The current value being processed.</param>
+        /// <param name="collation">The collation to use for string comparisons.</param>
+        /// <returns>A single <see cref="BsonValue"/> result.</returns>
+        /// <exception cref="LiteException">Thrown when the expression is not scalar and can return multiple results.</exception>
         internal BsonValue ExecuteScalar(IEnumerable<BsonDocument> source, BsonDocument root, BsonValue current, Collation collation)
         {
             if (this.IsScalar)
@@ -283,16 +341,27 @@ namespace LiteDB
         private static readonly ConcurrentDictionary<string, BsonExpressionScalarDelegate> _cacheScalar = new ConcurrentDictionary<string, BsonExpressionScalarDelegate>();
 
         /// <summary>
-        /// Parse string and create new instance of BsonExpression - can be cached
+        /// Parses a string expression and creates a new <see cref="BsonExpression"/> instance with no parameters.
         /// </summary>
+        /// <param name="expression">The expression string to parse.</param>
+        /// <returns>A compiled <see cref="BsonExpression"/> instance.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="expression"/> is <see langword="null"/> or whitespace.</exception>
+        /// <remarks>
+        /// Compiled expressions are cached for performance. Subsequent calls with the same expression string will return
+        /// a cached compiled version.
+        /// </remarks>
         public static BsonExpression Create(string expression)
         {
             return Create(expression, new BsonDocument());
         }
 
         /// <summary>
-        /// Parse string and create new instance of BsonExpression - can be cached
+        /// Parses a string expression and creates a new <see cref="BsonExpression"/> instance with positional parameters.
         /// </summary>
+        /// <param name="expression">The expression string to parse, using <c>@0</c>, <c>@1</c>, etc. for parameter placeholders.</param>
+        /// <param name="args">The parameter values to substitute into the expression.</param>
+        /// <returns>A compiled <see cref="BsonExpression"/> instance with parameters set.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="expression"/> is <see langword="null"/> or whitespace.</exception>
         public static BsonExpression Create(string expression, params BsonValue[] args)
         {
             var parameters = new BsonDocument();
@@ -306,8 +375,15 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Parse string and create new instance of BsonExpression - can be cached
+        /// Parses a string expression and creates a new <see cref="BsonExpression"/> instance with named parameters.
         /// </summary>
+        /// <param name="expression">The expression string to parse.</param>
+        /// <param name="parameters">A document containing named parameter values to use in the expression.</param>
+        /// <returns>A compiled <see cref="BsonExpression"/> instance with parameters set.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="expression"/> is <see langword="null"/> or whitespace.</exception>
+        /// <remarks>
+        /// Compiled expressions are cached for performance based on the expression string.
+        /// </remarks>
         public static BsonExpression Create(string expression, BsonDocument parameters)
         {
             if (string.IsNullOrWhiteSpace(expression)) throw new ArgumentNullException(nameof(expression));
@@ -322,8 +398,13 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Parse tokenizer and create new instance of BsonExpression - for now, do not use cache
+        /// Parses a tokenizer stream and creates a new <see cref="BsonExpression"/> instance.
         /// </summary>
+        /// <param name="tokenizer">The tokenizer containing the expression tokens to parse.</param>
+        /// <param name="mode">The parsing mode that determines how the expression is interpreted.</param>
+        /// <param name="parameters">A document containing parameter values to use in the expression.</param>
+        /// <returns>A compiled <see cref="BsonExpression"/> instance.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="tokenizer"/> is <see langword="null"/>.</exception>
         internal static BsonExpression Create(Tokenizer tokenizer, BsonExpressionParserMode mode, BsonDocument parameters)
         {
             if (tokenizer == null) throw new ArgumentNullException(nameof(tokenizer));
@@ -332,8 +413,14 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Parse and compile string expression and return BsonExpression
+        /// Parses and compiles a tokenized expression into a <see cref="BsonExpression"/> instance.
         /// </summary>
+        /// <param name="tokenizer">The tokenizer containing the expression tokens.</param>
+        /// <param name="mode">The parsing mode that determines how the expression is interpreted.</param>
+        /// <param name="parameters">Parameter values to use in the expression.</param>
+        /// <param name="scope">The document scope context for parsing nested expressions.</param>
+        /// <returns>A compiled <see cref="BsonExpression"/> instance.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="tokenizer"/> is <see langword="null"/>.</exception>
         internal static BsonExpression ParseAndCompile(Tokenizer tokenizer, BsonExpressionParserMode mode, BsonDocument parameters, DocumentScope scope)
         {
             if (tokenizer == null) throw new ArgumentNullException(nameof(tokenizer));
@@ -352,6 +439,11 @@ namespace LiteDB
             return expr;
         }
 
+        /// <summary>
+        /// Compiles a <see cref="BsonExpression"/> and its child expressions into cached delegate functions.
+        /// </summary>
+        /// <param name="expr">The expression to compile.</param>
+        /// <param name="context">The expression context containing parameter definitions.</param>
         internal static void Compile(BsonExpression expr, ExpressionContext context)
         {
             // compile linq expression according with return type (scalar or enumerable)
@@ -385,8 +477,10 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Set same parameter referente to all expression child (left, right)
+        /// Sets the same parameter document reference on the expression and all its child expressions (left, right).
         /// </summary>
+        /// <param name="expr">The expression to update.</param>
+        /// <param name="parameters">The parameters document to set.</param>
         internal static void SetParameters(BsonExpression expr, BsonDocument parameters)
         {
             expr.Parameters = parameters;
@@ -396,7 +490,7 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Get root document $ expression
+        /// Gets a predefined expression that references the root document using the <c>$</c> symbol.
         /// </summary>
         public static BsonExpression Root = Create("$");
 
@@ -405,20 +499,23 @@ namespace LiteDB
         #region MethodCall quick access
 
         /// <summary>
-        /// Get all registered methods for BsonExpressions
+        /// Gets all registered methods available for use in BSON expressions.
         /// </summary>
         public static IEnumerable<MethodInfo> Methods => _methods.Values;
 
         /// <summary>
-        /// Load all static methods from BsonExpressionMethods class. Use a dictionary using name + parameter count
+        /// Dictionary containing all static methods from <see cref="BsonExpressionMethods"/>, indexed by name and parameter count.
         /// </summary>
         private static readonly Dictionary<string, MethodInfo> _methods =
             typeof(BsonExpressionMethods).GetMethods(BindingFlags.Public | BindingFlags.Static)
             .ToDictionary(m => m.Name.ToUpperInvariant() + "~" + m.GetParameters().Where(p => p.ParameterType != typeof(Collation)).Count());
 
         /// <summary>
-        /// Get expression method with same name and same parameter - return null if not found
+        /// Gets an expression method with the specified name and parameter count.
         /// </summary>
+        /// <param name="name">The method name (case-insensitive).</param>
+        /// <param name="parameterCount">The number of parameters the method accepts (excluding collation parameter).</param>
+        /// <returns>The <see cref="MethodInfo"/> for the matching method, or <see langword="null"/> if not found.</returns>
         internal static MethodInfo GetMethod(string name, int parameterCount)
         {
             var key = name.ToUpperInvariant() + "~" + parameterCount;
@@ -431,12 +528,12 @@ namespace LiteDB
         #region FunctionCall quick access
 
         /// <summary>
-        /// Get all registered functions for BsonExpressions
+        /// Gets all registered functions available for use in BSON expressions.
         /// </summary>
         public static IEnumerable<MethodInfo> Functions => _functions.Values;
 
         /// <summary>
-        /// Load all static methods from BsonExpressionFunctions class. Use a dictionary using name + parameter count
+        /// Dictionary containing all static functions from <see cref="BsonExpressionFunctions"/>, indexed by name and parameter count.
         /// </summary>
         private static readonly Dictionary<string, MethodInfo> _functions =
             typeof(BsonExpressionFunctions).GetMethods(BindingFlags.Public | BindingFlags.Static)
@@ -444,8 +541,11 @@ namespace LiteDB
             .Skip(5).Count());
 
         /// <summary>
-        /// Get expression function with same name and same parameter - return null if not found
+        /// Gets an expression function with the specified name and parameter count.
         /// </summary>
+        /// <param name="name">The function name (case-insensitive).</param>
+        /// <param name="parameterCount">The number of parameters the function accepts. Default is 0.</param>
+        /// <returns>The <see cref="MethodInfo"/> for the matching function, or <see langword="null"/> if not found.</returns>
         internal static MethodInfo GetFunction(string name, int parameterCount = 0)
         {
             var key = name.ToUpperInvariant() + "~" + parameterCount;
@@ -455,6 +555,10 @@ namespace LiteDB
 
         #endregion
 
+        /// <summary>
+        /// Returns a string representation of this expression including its source and type.
+        /// </summary>
+        /// <returns>A string in the format: `source` [type].</returns>
         public override string ToString()
         {
             return $"`{this.Source}` [{this.Type}]";
