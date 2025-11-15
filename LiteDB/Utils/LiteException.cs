@@ -8,69 +8,173 @@ using static LiteDB.Constants;
 namespace LiteDB
 {
     /// <summary>
-    /// The main exception for LiteDB
+    /// Represents errors that occur during LiteDB operations.
     /// </summary>
+    /// <remarks>
+    /// <see cref="LiteException"/> is the primary exception type thrown by LiteDB for both user errors and internal failures.
+    /// <para>The <see cref="ErrorCode"/> property provides a specific error code for programmatic error handling.</para>
+    /// </remarks>
     public class LiteException : Exception
     {
         #region Errors code
 
+        /// <summary>File not found error code.</summary>
         public const int FILE_NOT_FOUND = 101;
+        
+        /// <summary>Database is shutting down error code.</summary>
         public const int DATABASE_SHUTDOWN = 102;
+        
+        /// <summary>Invalid database format or password error code.</summary>
         public const int INVALID_DATABASE = 103;
+        
+        /// <summary>Database size limit exceeded error code.</summary>
         public const int FILE_SIZE_EXCEEDED = 105;
+        
+        /// <summary>Collection name size limit exceeded error code.</summary>
         public const int COLLECTION_LIMIT_EXCEEDED = 106;
+        
+        /// <summary>Attempt to drop primary key index error code.</summary>
         public const int INDEX_DROP_ID = 108;
+        
+        /// <summary>Duplicate key in unique index error code.</summary>
         public const int INDEX_DUPLICATE_KEY = 110;
+        
+        /// <summary>Invalid index key error code.</summary>
         public const int INVALID_INDEX_KEY = 111;
+        
+        /// <summary>Index not found error code.</summary>
         public const int INDEX_NOT_FOUND = 112;
+        
+        /// <summary>Invalid database reference format error code.</summary>
         public const int INVALID_DBREF = 113;
+        
+        /// <summary>Lock acquisition timeout error code.</summary>
         public const int LOCK_TIMEOUT = 120;
+        
+        /// <summary>Invalid shell command error code.</summary>
         public const int INVALID_COMMAND = 121;
+        
+        /// <summary>Collection name already exists error code.</summary>
         public const int ALREADY_EXISTS_COLLECTION_NAME = 122;
+        
+        /// <summary>Database file already open in another process error code.</summary>
         public const int ALREADY_OPEN_DATAFILE = 124;
+        
+        /// <summary>Invalid transaction state error code.</summary>
         public const int INVALID_TRANSACTION_STATE = 126;
+        
+        /// <summary>Index name size limit exceeded error code.</summary>
         public const int INDEX_NAME_LIMIT_EXCEEDED = 128;
+        
+        /// <summary>Invalid index name error code.</summary>
         public const int INVALID_INDEX_NAME = 129;
+        
+        /// <summary>Invalid collection name error code.</summary>
         public const int INVALID_COLLECTION_NAME = 130;
+        
+        /// <summary>Temporary engine already defined error code.</summary>
         public const int TEMP_ENGINE_ALREADY_DEFINED = 131;
+        
+        /// <summary>Invalid expression type error code.</summary>
         public const int INVALID_EXPRESSION_TYPE = 132;
+        
+        /// <summary>Collection not found error code.</summary>
         public const int COLLECTION_NOT_FOUND = 133;
+        
+        /// <summary>Collection already exists error code.</summary>
         public const int COLLECTION_ALREADY_EXIST = 134;
+        
+        /// <summary>Index already exists error code.</summary>
         public const int INDEX_ALREADY_EXIST = 135;
+        
+        /// <summary>Invalid field in UPDATE command error code.</summary>
         public const int INVALID_UPDATE_FIELD = 136;
+        
+        /// <summary>Engine instance already disposed error code.</summary>
         public const int ENGINE_DISPOSED = 137;
 
+        /// <summary>Invalid format error code.</summary>
         public const int INVALID_FORMAT = 200;
+        
+        /// <summary>Document nesting depth exceeded error code.</summary>
         public const int DOCUMENT_MAX_DEPTH = 201;
+        
+        /// <summary>Invalid constructor for type instantiation error code.</summary>
         public const int INVALID_CTOR = 202;
+        
+        /// <summary>Unexpected token in expression parsing error code.</summary>
         public const int UNEXPECTED_TOKEN = 203;
+        
+        /// <summary>Invalid BSON data type error code.</summary>
         public const int INVALID_DATA_TYPE = 204;
+        
+        /// <summary>Property not mapped to BSON document error code.</summary>
         public const int PROPERTY_NOT_MAPPED = 206;
+        
+        /// <summary>Invalid type name for deserialization error code.</summary>
         public const int INVALID_TYPED_NAME = 207;
+        
+        /// <summary>Property requires public getter and setter error code.</summary>
         public const int PROPERTY_READ_WRITE = 209;
+        
+        /// <summary>Initial size not supported for encrypted databases error code.</summary>
         public const int INITIALSIZE_CRYPTO_NOT_SUPPORTED = 210;
+        
+        /// <summary>Invalid initial size value error code.</summary>
         public const int INVALID_INITIALSIZE = 211;
+        
+        /// <summary>Null character in string error code.</summary>
         public const int INVALID_NULL_CHAR_STRING = 212;
+        
+        /// <summary>Invalid free space on page error code.</summary>
         public const int INVALID_FREE_SPACE_PAGE = 213;
+        
+        /// <summary>Data type not assignable error code.</summary>
         public const int DATA_TYPE_NOT_ASSIGNABLE = 214;
+        
+        /// <summary>Avoid use of process error code.</summary>
         public const int AVOID_USE_OF_PROCESS = 215;
+        
+        /// <summary>File not encrypted error code.</summary>
         public const int NOT_ENCRYPTED = 216;
+        
+        /// <summary>Invalid password error code.</summary>
         public const int INVALID_PASSWORD = 217;
+        
+        /// <summary>Illegal deserialization type error code.</summary>
         public const int ILLEGAL_DESERIALIZATION_TYPE = 218;
+        
+        /// <summary>Entity initialization failed error code.</summary>
         public const int ENTITY_INITIALIZATION_FAILED = 219;
+        
+        /// <summary>Mapper not found error code.</summary>
         public const int MAPPER_NOT_FOUND = 220;
+        
+        /// <summary>Mapping error code.</summary>
         public const int MAPPING_ERROR = 221;
         
-
+        /// <summary>Invalid datafile state error code.</summary>
         public const int INVALID_DATAFILE_STATE = 999;
 
         #endregion
 
         #region Ctor
 
+        /// <summary>
+        /// Gets the error code that identifies the type of error.
+        /// </summary>
         public int ErrorCode { get; private set; }
+        
+        /// <summary>
+        /// Gets the position in the input where the error occurred (primarily used for parsing errors).
+        /// </summary>
         public long Position { get; private set; }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="LiteException"/> class with a specified error code and message.
+        /// </summary>
+        /// <param name="code">The error code that identifies the type of error.</param>
+        /// <param name="message">The message that describes the error.</param>
         public LiteException(int code, string message)
             : base(message)
         {
@@ -90,8 +194,12 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Critical error should be stop engine and release data files and all memory allocation
+        /// Gets a value indicating whether this error is critical and requires the engine to shut down and release all resources.
         /// </summary>
+        /// <remarks>
+        /// Critical errors (error code >= 900) indicate severe failures that compromise database integrity or engine state.
+        /// When a critical error occurs, the engine should be stopped and all data files and memory should be released.
+        /// </remarks>
         public bool IsCritical => this.ErrorCode >= 900;
 
         #endregion
