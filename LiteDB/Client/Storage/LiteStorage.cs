@@ -7,15 +7,22 @@ using static LiteDB.Constants;
 
 namespace LiteDB
 {
-    /// <summary>
-    /// Storage is a special collection to store files and streams.
-    /// </summary>
+    /// <inheritdoc cref="ILiteStorage{TFileId}"/>
     public class LiteStorage<TFileId> : ILiteStorage<TFileId>
     {
         private readonly ILiteDatabase _db;
         private readonly ILiteCollection<LiteFileInfo<TFileId>> _files;
         private readonly ILiteCollection<BsonDocument> _chunks;
 
+        /// <summary>
+        /// Initializes a new instance of the LiteStorage class using the specified database and collection names for
+        /// files and chunks.
+        /// </summary>
+        /// <remarks>This constructor does not create the collections if they do not exist;
+        /// they will be created automatically when files or chunks are added.</remarks>
+        /// <param name="db">The database instance used to store file metadata and chunk data. Cannot be null.</param>
+        /// <param name="filesCollection">The name of the collection in the database where file metadata is stored. Cannot be null or empty.</param>
+        /// <param name="chunksCollection">The name of the collection in the database where file chunks are stored. Cannot be null or empty.</param>
         public LiteStorage(ILiteDatabase db, string filesCollection, string chunksCollection)
         {
             _db = db;
@@ -25,9 +32,7 @@ namespace LiteDB
 
         #region Find Files
 
-        /// <summary>
-        /// Find a file inside datafile and returns LiteFileInfo instance. Returns null if not found
-        /// </summary>
+        /// <inheritdoc/>
         public LiteFileInfo<TFileId> FindById(TFileId id)
         {
             if (id == null) throw new ArgumentNullException(nameof(id));
@@ -43,9 +48,7 @@ namespace LiteDB
             return file;
         }
 
-        /// <summary>
-        /// Find all files that match with predicate expression.
-        /// </summary>
+        /// <inheritdoc/>
         public IEnumerable<LiteFileInfo<TFileId>> Find(BsonExpression predicate)
         {
             var query = _files.Query();
@@ -65,29 +68,19 @@ namespace LiteDB
             }
         }
 
-        /// <summary>
-        /// Find all files that match with predicate expression.
-        /// </summary>
+        /// <inheritdoc/>
         public IEnumerable<LiteFileInfo<TFileId>> Find(string predicate, BsonDocument parameters) => this.Find(BsonExpression.Create(predicate, parameters));
 
-        /// <summary>
-        /// Find all files that match with predicate expression.
-        /// </summary>
+        /// <inheritdoc/>
         public IEnumerable<LiteFileInfo<TFileId>> Find(string predicate, params BsonValue[] args) => this.Find(BsonExpression.Create(predicate, args));
 
-        /// <summary>
-        /// Find all files that match with predicate expression.
-        /// </summary>
+        /// <inheritdoc/>
         public IEnumerable<LiteFileInfo<TFileId>> Find(Expression<Func<LiteFileInfo<TFileId>, bool>> predicate) => this.Find(_db.Mapper.GetExpression(predicate));
 
-        /// <summary>
-        /// Find all files inside file collections
-        /// </summary>
+        /// <inheritdoc/>
         public IEnumerable<LiteFileInfo<TFileId>> FindAll() => this.Find((BsonExpression)null);
 
-        /// <summary>
-        /// Returns if a file exisits in database
-        /// </summary>
+        /// <inheritdoc/>
         public bool Exists(TFileId id)
         {
             if (id == null) throw new ArgumentNullException(nameof(id));
@@ -101,9 +94,7 @@ namespace LiteDB
 
         #region Upload
 
-        /// <summary>
-        /// Open/Create new file storage and returns linked Stream to write operations.
-        /// </summary>
+        /// <inheritdoc/>
         public LiteFileStream<TFileId> OpenWrite(TFileId id, string filename, BsonDocument metadata = null)
         {
             // get _id as BsonValue
@@ -136,9 +127,7 @@ namespace LiteDB
             return file.OpenWrite();
         }
 
-        /// <summary>
-        /// Upload a file based on stream data
-        /// </summary>
+        /// <inheritdoc/>
         public LiteFileInfo<TFileId> Upload(TFileId id, string filename, Stream stream, BsonDocument metadata = null)
         {
             using (var writer = this.OpenWrite(id, filename, metadata))
@@ -149,9 +138,7 @@ namespace LiteDB
             }
         }
 
-        /// <summary>
-        /// Upload a file based on file system data
-        /// </summary>
+        /// <inheritdoc/>
         public LiteFileInfo<TFileId> Upload(TFileId id, string filename)
         {
             if (filename.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(filename));
@@ -162,9 +149,7 @@ namespace LiteDB
             }
         }
 
-        /// <summary>
-        /// Update metadata on a file. File must exist.
-        /// </summary>
+        /// <inheritdoc/>
         public bool SetMetadata(TFileId id, BsonDocument metadata)
         {
             var file = this.FindById(id);
@@ -182,9 +167,7 @@ namespace LiteDB
 
         #region Download
 
-        /// <summary>
-        /// Load data inside storage and returns as Stream
-        /// </summary>
+        /// <inheritdoc/>
         public LiteFileStream<TFileId> OpenRead(TFileId id)
         {
             var file = this.FindById(id);
@@ -194,9 +177,7 @@ namespace LiteDB
             return file.OpenRead();
         }
 
-        /// <summary>
-        /// Copy all file content to a steam
-        /// </summary>
+        /// <inheritdoc/>
         public LiteFileInfo<TFileId> Download(TFileId id, Stream stream)
         {
             var file = this.FindById(id) ?? throw LiteException.FileNotFound(id.ToString());
@@ -206,9 +187,7 @@ namespace LiteDB
             return file;
         }
 
-        /// <summary>
-        /// Copy all file content to a file
-        /// </summary>
+        /// <inheritdoc/>
         public LiteFileInfo<TFileId> Download(TFileId id, string filename, bool overwritten)
         {
             var file = this.FindById(id) ?? throw LiteException.FileNotFound(id.ToString());
@@ -222,9 +201,7 @@ namespace LiteDB
 
         #region Delete
 
-        /// <summary>
-        /// Delete a file inside datafile and all metadata related
-        /// </summary>
+        /// <inheritdoc/>
         public bool Delete(TFileId id)
         {
             if (id == null) throw new ArgumentNullException(nameof(id));

@@ -5,10 +5,15 @@ using static LiteDB.Constants;
 
 namespace LiteDB
 {
+    /// <summary>
+    /// Provides a stream interface for reading from or writing to files stored in chunks within a LiteDB database.
+    /// Supports sequential access to file data using a file identifier of type <typeparamref name="TFileId"/>.
+    /// </summary>
+    /// <typeparam name="TFileId">The type used to uniquely identify files within the LiteDB file storage system.</typeparam>
     public partial class LiteFileStream<TFileId> : Stream
     {
         /// <summary>
-        /// Number of bytes on each chunk document to store
+        /// Represents the maximum allowed chunk size, in bytes, for data segments. This value is set to 255 kilobytes.
         /// </summary>
         public const int MAX_CHUNK_SIZE = 255 * 1024; // 255kb like GridFS
 
@@ -56,24 +61,30 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Get file information
+        /// Gets information about the associated file, including its identifier and metadata.
         /// </summary>
         public LiteFileInfo<TFileId> FileInfo { get { return _file; } }
 
+        /// <inheritdoc/>
         public override long Length { get { return _file.Length; } }
 
+        /// <inheritdoc/>
         public override bool CanRead { get { return _mode == FileAccess.Read; } }
 
+        /// <inheritdoc/>
         public override bool CanWrite { get { return _mode == FileAccess.Write; } }
 
+        /// <inheritdoc/>
         public override bool CanSeek { get { return _mode == FileAccess.Read; } }
 
+        /// <inheritdoc/>
         public override long Position
         {
             get { return _streamPosition; }
             set { if (_mode == FileAccess.Read) { this.SetReadStreamPosition(value); } else { throw new NotSupportedException(); } }
         }
 
+        /// <inheritdoc/>
         public override long Seek(long offset, SeekOrigin origin)
         {
             if (_mode == FileAccess.Write)
@@ -119,6 +130,15 @@ namespace LiteDB
 
         #region Not supported operations
 
+        /// <summary>
+        /// Throws a <see cref="NotSupportedException"/> to indicate that setting the length of the stream is not
+        /// supported.
+        /// </summary>
+        /// <remarks>This method is not supported and cannot be used to change the length of the stream.
+        /// Attempting to call this method will always result in a <see cref="NotSupportedException"/> being
+        /// thrown.</remarks>
+        /// <param name="value">The desired length of the stream in bytes. This parameter is not used, as the operation is not supported.</param>
+        /// <exception cref="NotSupportedException">Always thrown to indicate that setting the length of the stream is not supported.</exception>
         public override void SetLength(long value)
         {
             throw new NotSupportedException();

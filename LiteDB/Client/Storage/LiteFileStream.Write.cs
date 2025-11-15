@@ -7,6 +7,7 @@ namespace LiteDB
 {
     public partial class LiteFileStream<TFileId> : Stream
     {
+        /// <inheritdoc/>
         public override void Write(byte[] buffer, int offset, int count)
         {
             _streamPosition += count;
@@ -19,6 +20,7 @@ namespace LiteDB
             }
         }
 
+        /// <inheritdoc/>
         public override void Flush()
         {
             // write last unsaved chunks
