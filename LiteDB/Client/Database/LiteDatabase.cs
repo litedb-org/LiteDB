@@ -10,8 +10,13 @@ using static LiteDB.Constants;
 namespace LiteDB
 {
     /// <summary>
-    /// The LiteDB database. Used for create a LiteDB instance and use all storage resources. It's the database connection
+    /// Represents a connection to a LiteDB database, providing methods for managing collections, transactions, file storage, and executing SQL commands.
     /// </summary>
+    /// <remarks>
+    /// <para>Use this class to interact with a LiteDB database file or stream. The database supports NoSQL operations with BSON document storage.</para>
+    /// <para>The LiteDatabase instance is thread-safe and supports concurrent read operations. Write operations are automatically serialized through internal locking mechanisms.</para>
+    /// <para>Call <see cref="Dispose()"/> when finished to release resources and ensure all changes are committed.</para>
+    /// </remarks>
     public partial class LiteDatabase : ILiteDatabase
     {
         #region Properties
@@ -22,7 +27,7 @@ namespace LiteDB
         private readonly int? _checkpointOverride;
 
         /// <summary>
-        /// Get current instance of BsonMapper used in this database instance (can be BsonMapper.Global)
+        /// Gets the current instance of <see cref="BsonMapper"/> used in this database instance (may be <see cref="BsonMapper.Global"/>).
         /// </summary>
         public BsonMapper Mapper => _mapper;
 
@@ -31,16 +36,21 @@ namespace LiteDB
         #region Ctor
 
         /// <summary>
-        /// Starts LiteDB database using a connection string for file system database
+        /// Initializes a new instance of the <see cref="LiteDatabase"/> class using a connection string for a file-based database.
         /// </summary>
+        /// <param name="connectionString">The connection string specifying database settings.</param>
+        /// <param name="mapper">Optional custom <see cref="BsonMapper"/> instance. If <see langword="null"/>, uses <see cref="BsonMapper.Global"/>.</param>
         public LiteDatabase(string connectionString, BsonMapper mapper = null)
             : this(new ConnectionString(connectionString), mapper)
         {
         }
 
         /// <summary>
-        /// Starts LiteDB database using a connection string for file system database
+        /// Initializes a new instance of the <see cref="LiteDatabase"/> class using a <see cref="ConnectionString"/> for a file-based database.
         /// </summary>
+        /// <param name="connectionString">The <see cref="ConnectionString"/> object containing database settings.</param>
+        /// <param name="mapper">Optional custom <see cref="BsonMapper"/> instance. If <see langword="null"/>, uses <see cref="BsonMapper.Global"/>.</param>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="connectionString"/> is <see langword="null"/>.</exception>
         public LiteDatabase(ConnectionString connectionString, BsonMapper mapper = null)
         {
             if (connectionString == null) throw new ArgumentNullException(nameof(connectionString));
@@ -51,11 +61,12 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Starts LiteDB database using a generic Stream implementation (mostly MemoryStream).
+        /// Initializes a new instance of the <see cref="LiteDatabase"/> class using a generic <see cref="Stream"/> implementation (typically <see cref="MemoryStream"/>).
         /// </summary>
-        /// <param name="stream">DataStream reference </param>
-        /// <param name="mapper">BsonMapper mapper reference</param>
-        /// <param name="logStream">LogStream reference </param>
+        /// <param name="stream">The stream to use for data storage.</param>
+        /// <param name="mapper">Optional custom <see cref="BsonMapper"/> instance. If <see langword="null"/>, uses <see cref="BsonMapper.Global"/>.</param>
+        /// <param name="logStream">Optional stream for write-ahead logging.</param>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> is <see langword="null"/>.</exception>
         public LiteDatabase(Stream stream, BsonMapper mapper = null, Stream logStream = null)
         {
             var settings = new EngineSettings
@@ -74,7 +85,7 @@ namespace LiteDB
                 {
                     // Read-only streams cannot participate in eager checkpointing because the process
                     // writes pages back to the underlying data stream immediately.
-                }
+        }
                 else
                 {
                     // Without a dedicated log stream the WAL lives purely in memory; force
@@ -91,8 +102,12 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Start LiteDB database using a pre-exiting engine. When LiteDatabase instance dispose engine instance will be disposed too
+        /// Initializes a new instance of the <see cref="LiteDatabase"/> class using a pre-existing <see cref="ILiteEngine"/> instance.
         /// </summary>
+        /// <param name="engine">The engine instance to use.</param>
+        /// <param name="mapper">Optional custom <see cref="BsonMapper"/> instance. If <see langword="null"/>, uses <see cref="BsonMapper.Global"/>.</param>
+        /// <param name="disposeOnClose">If <see langword="true"/>, the engine will be disposed when this database instance is disposed.</param>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="engine"/> is <see langword="null"/>.</exception>
         public LiteDatabase(ILiteEngine engine, BsonMapper mapper = null, bool disposeOnClose = true)
         {
             _engine = engine ?? throw new ArgumentNullException(nameof(engine));
@@ -105,36 +120,45 @@ namespace LiteDB
         #region Collections
 
         /// <summary>
-        /// Get a collection using an entity class as strong typed document. If collection does not exist, create a new one.
+        /// Gets a strongly-typed collection using an entity class. Creates the collection if it does not exist.
         /// </summary>
-        /// <param name="name">Collection name (case insensitive)</param>
-        /// <param name="autoId">Define autoId data type (when object contains no id field)</param>
+        /// <typeparam name="T">The entity type for the collection.</typeparam>
+        /// <param name="name">The collection name (case insensitive). If <see langword="null"/>, uses the type name resolved by <see cref="BsonMapper.ResolveCollectionName"/>.</param>
+        /// <param name="autoId">The auto-ID strategy to use when a document has no <c>_id</c> field. Default is <see cref="BsonAutoId.ObjectId"/>.</param>
+        /// <returns>An <see cref="ILiteCollection{T}"/> instance for the specified collection.</returns>
         public ILiteCollection<T> GetCollection<T>(string name, BsonAutoId autoId = BsonAutoId.ObjectId)
         {
             return new LiteCollection<T>(name, autoId, _engine, _mapper);
         }
 
         /// <summary>
-        /// Get a collection using a name based on typeof(T).Name (BsonMapper.ResolveCollectionName function)
+        /// Gets a strongly-typed collection using the type name as the collection name (resolved by <see cref="BsonMapper.ResolveCollectionName"/>).
         /// </summary>
+        /// <typeparam name="T">The entity type for the collection.</typeparam>
+        /// <returns>An <see cref="ILiteCollection{T}"/> instance for the specified collection.</returns>
         public ILiteCollection<T> GetCollection<T>()
         {
             return this.GetCollection<T>(null);
         }
 
         /// <summary>
-        /// Get a collection using a name based on typeof(T).Name (BsonMapper.ResolveCollectionName function)
+        /// Gets a strongly-typed collection using the type name as the collection name (resolved by <see cref="BsonMapper.ResolveCollectionName"/>).
         /// </summary>
+        /// <typeparam name="T">The entity type for the collection.</typeparam>
+        /// <param name="autoId">The auto-ID strategy to use when a document has no <c>_id</c> field.</param>
+        /// <returns>An <see cref="ILiteCollection{T}"/> instance for the specified collection.</returns>
         public ILiteCollection<T> GetCollection<T>(BsonAutoId autoId)
         {
             return this.GetCollection<T>(null, autoId);
         }
 
         /// <summary>
-        /// Get a collection using a generic BsonDocument. If collection does not exist, create a new one.
+        /// Gets a collection using generic <see cref="BsonDocument"/>. Creates the collection if it does not exist.
         /// </summary>
-        /// <param name="name">Collection name (case insensitive)</param>
-        /// <param name="autoId">Define autoId data type (when document contains no _id field)</param>
+        /// <param name="name">The collection name (case insensitive).</param>
+        /// <param name="autoId">The auto-ID strategy to use when a document has no <c>_id</c> field. Default is <see cref="BsonAutoId.ObjectId"/>.</param>
+        /// <returns>An <see cref="ILiteCollection{BsonDocument}"/> instance for the specified collection.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="name"/> is <see langword="null"/> or whitespace.</exception>
         public ILiteCollection<BsonDocument> GetCollection(string name, BsonAutoId autoId = BsonAutoId.ObjectId)
         {
             if (name.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(name));
@@ -147,19 +171,21 @@ namespace LiteDB
         #region Transaction
 
         /// <summary>
-        /// Initialize a new transaction. Transaction are created "per-thread". There is only one single transaction per thread.
-        /// Return true if transaction was created or false if current thread already in a transaction.
+        /// Begins a new transaction on the current thread. Transactions are created per-thread; only one transaction can exist per thread.
         /// </summary>
+        /// <returns><see langword="true"/> if a new transaction was created; <see langword="false"/> if the current thread already has an active transaction.</returns>
         public bool BeginTrans() => _engine.BeginTrans();
 
         /// <summary>
-        /// Commit current transaction
+        /// Commits the current transaction, persisting all changes to the database.
         /// </summary>
+        /// <returns><see langword="true"/> if the transaction was committed; <see langword="false"/> if no active transaction exists.</returns>
         public bool Commit() => _engine.Commit();
 
         /// <summary>
-        /// Rollback current transaction
+        /// Rolls back the current transaction, discarding all uncommitted changes.
         /// </summary>
+        /// <returns><see langword="true"/> if the transaction was rolled back; <see langword="false"/> if no active transaction exists.</returns>
         public bool Rollback() => _engine.Rollback();
 
         #endregion
@@ -169,7 +195,8 @@ namespace LiteDB
         private ILiteStorage<string> _fs = null;
 
         /// <summary>
-        /// Returns a special collection for storage files/stream inside datafile. Use _files and _chunks collection names. FileId is implemented as string. Use "GetStorage" for custom options
+        /// Gets a special collection for storing files/streams inside the database using default collections <c>_files</c> and <c>_chunks</c>.
+        /// <para>Use <see cref="GetStorage{TFileId}"/> for custom options.</para>
         /// </summary>
         public ILiteStorage<string> FileStorage
         {
@@ -177,8 +204,13 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Get new instance of Storage using custom FileId type, custom "_files" collection name and custom "_chunks" collection. LiteDB support multiples file storages (using different files/chunks collection names)
+        /// Gets a new instance of <see cref="ILiteStorage{TFileId}"/> using a custom file ID type and custom collection names.
+        /// <para>LiteDB supports multiple file storages using different collection names.</para>
         /// </summary>
+        /// <typeparam name="TFileId">The type to use for file identifiers.</typeparam>
+        /// <param name="filesCollection">The collection name for file metadata. Default is <c>_files</c>.</param>
+        /// <param name="chunksCollection">The collection name for file chunks. Default is <c>_chunks</c>.</param>
+        /// <returns>An <see cref="ILiteStorage{TFileId}"/> instance.</returns>
         public ILiteStorage<TFileId> GetStorage<TFileId>(string filesCollection = "_files", string chunksCollection = "_chunks")
         {
             return new LiteStorage<TFileId>(this, filesCollection, chunksCollection);
@@ -189,8 +221,9 @@ namespace LiteDB
         #region Shortcut
 
         /// <summary>
-        /// Get all collections name inside this database.
+        /// Gets all user collection names in this database (does not include system collections).
         /// </summary>
+        /// <returns>An enumerable of collection names.</returns>
         public IEnumerable<string> GetCollectionNames()
         {
             // use $cols system collection with type = user only
@@ -205,8 +238,11 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Checks if a collection exists on database. Collection name is case insensitive
+        /// Checks if a collection exists in the database (collection names are case insensitive).
         /// </summary>
+        /// <param name="name">The collection name to check.</param>
+        /// <returns><see langword="true"/> if the collection exists; otherwise, <see langword="false"/>.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="name"/> is <see langword="null"/> or whitespace.</exception>
         public bool CollectionExists(string name)
         {
             if (name.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(name));
@@ -215,8 +251,11 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Drop a collection and all data + indexes
+        /// Drops a collection and all its data and indexes.
         /// </summary>
+        /// <param name="name">The collection name to drop.</param>
+        /// <returns><see langword="true"/> if the collection was dropped; <see langword="false"/> if the collection does not exist.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="name"/> is <see langword="null"/> or whitespace.</exception>
         public bool DropCollection(string name)
         {
             if (name.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(name));
@@ -225,8 +264,12 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Rename a collection. Returns false if oldName does not exists or newName already exists
+        /// Renames a collection.
         /// </summary>
+        /// <param name="oldName">The current collection name.</param>
+        /// <param name="newName">The new collection name.</param>
+        /// <returns><see langword="true"/> if the collection was renamed; <see langword="false"/> if <paramref name="oldName"/> does not exist or <paramref name="newName"/> already exists.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="oldName"/> or <paramref name="newName"/> is <see langword="null"/> or whitespace.</exception>
         public bool RenameCollection(string oldName, string newName)
         {
             if (oldName.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(oldName));
@@ -240,8 +283,12 @@ namespace LiteDB
         #region Execute SQL
 
         /// <summary>
-        /// Execute SQL commands and return as data reader.
+        /// Executes SQL commands from a <see cref="TextReader"/> and returns a data reader.
         /// </summary>
+        /// <param name="commandReader">The text reader containing SQL commands.</param>
+        /// <param name="parameters">Optional parameters for the SQL command.</param>
+        /// <returns>An <see cref="IBsonDataReader"/> containing the query results.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="commandReader"/> is <see langword="null"/>.</exception>
         public IBsonDataReader Execute(TextReader commandReader, BsonDocument parameters = null)
         {
             if (commandReader == null) throw new ArgumentNullException(nameof(commandReader));
@@ -254,8 +301,12 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Execute SQL commands and return as data reader
+        /// Executes a SQL command string and returns a data reader.
         /// </summary>
+        /// <param name="command">The SQL command string to execute.</param>
+        /// <param name="parameters">Optional parameters for the SQL command.</param>
+        /// <returns>An <see cref="IBsonDataReader"/> containing the query results.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="command"/> is <see langword="null"/>.</exception>
         public IBsonDataReader Execute(string command, BsonDocument parameters = null)
         {
             if (command == null) throw new ArgumentNullException(nameof(command));
@@ -268,8 +319,11 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Execute SQL commands and return as data reader
+        /// Executes a SQL command string with positional parameters and returns a data reader.
         /// </summary>
+        /// <param name="command">The SQL command string to execute.</param>
+        /// <param name="args">Positional parameters referenced as @0, @1, @2, etc. in the SQL command.</param>
+        /// <returns>An <see cref="IBsonDataReader"/> containing the query results.</returns>
         public IBsonDataReader Execute(string command, params BsonValue[] args)
         {
             var p = new BsonDocument();
@@ -289,7 +343,7 @@ namespace LiteDB
         #region Checkpoint/Rebuild
 
         /// <summary>
-        /// Do database checkpoint. Copy all commited transaction from log file into datafile.
+        /// Performs a database checkpoint, copying all committed transactions from the log file to the data file.
         /// </summary>
         public void Checkpoint()
         {
@@ -297,8 +351,10 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Rebuild all database to remove unused pages - reduce data file
+        /// Rebuilds the entire database to remove unused pages and reduce the data file size.
         /// </summary>
+        /// <param name="options">Optional rebuild options. If <see langword="null"/>, uses default options.</param>
+        /// <returns>The number of bytes saved by the rebuild operation.</returns>
         public long Rebuild(RebuildOptions options = null)
         {
             return _engine.Rebuild(options ?? new RebuildOptions());
@@ -309,23 +365,28 @@ namespace LiteDB
         #region Pragmas
 
         /// <summary>
-        /// Get value from internal engine variables
+        /// Gets the value of an internal engine variable (pragma).
         /// </summary>
+        /// <param name="name">The pragma name.</param>
+        /// <returns>The current value of the pragma.</returns>
         public BsonValue Pragma(string name)
         {
             return _engine.Pragma(name);
         }
 
         /// <summary>
-        /// Set new value to internal engine variables
+        /// Sets the value of an internal engine variable (pragma).
         /// </summary>
+        /// <param name="name">The pragma name.</param>
+        /// <param name="value">The new value for the pragma.</param>
+        /// <returns>The previous value of the pragma.</returns>
         public BsonValue Pragma(string name, BsonValue value)
         {
             return _engine.Pragma(name, value);
         }
 
         /// <summary>
-        /// Get/Set database user version - use this version number to control database change model
+        /// Gets or sets the database user version. Use this version number to track schema changes or migrations.
         /// </summary>
         public int UserVersion
         {
@@ -334,7 +395,7 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Get/Set database timeout - this timeout is used to wait for unlock using transactions
+        /// Gets or sets the database timeout used when waiting for locks during transactions.
         /// </summary>
         public TimeSpan Timeout
         {
@@ -343,7 +404,7 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Get/Set if database will deserialize dates in UTC timezone or Local timezone (default: Local)
+        /// Gets or sets whether the database deserializes dates in UTC timezone or local timezone (default is local timezone).
         /// </summary>
         public bool UtcDate
         {
@@ -352,7 +413,7 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Get/Set database limit size (in bytes). New value must be equals or larger than current database size
+        /// Gets or sets the database size limit in bytes. The new value must be equal to or larger than the current database size.
         /// </summary>
         public long LimitSize
         {
@@ -361,8 +422,9 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Get/Set in how many pages (8 Kb each page) log file will auto checkpoint (copy from log file to data file). Use 0 to manual-only checkpoint (and no checkpoint on dispose)
-        /// Default: 1000 pages
+        /// Gets or sets the auto-checkpoint threshold in pages (8 KB per page). 
+        /// When the log file reaches this size, an automatic checkpoint occurs. 
+        /// Set to 0 for manual-only checkpoints (no checkpoint on dispose). Default is 1000 pages.
         /// </summary>
         public int CheckpointSize
         {
@@ -371,7 +433,8 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Get database collection (this options can be changed only in rebuild proces)
+        /// Gets the database collation.
+        /// <para>This option can only be changed during a rebuild process.</para>
         /// </summary>
         public Collation Collation
         {
@@ -380,17 +443,27 @@ namespace LiteDB
 
         #endregion
 
+        /// <summary>
+        /// Releases all resources used by the database. Commits any pending transactions and closes all file handles.
+        /// </summary>
         public void Dispose()
         {
             this.Dispose(true);
             GC.SuppressFinalize(this);
         }
 
+        /// <summary>
+        /// Finalizer for the <see cref="LiteDatabase"/> class.
+        /// </summary>
         ~LiteDatabase()
         {
             this.Dispose(false);
         }
 
+        /// <summary>
+        /// Releases resources used by the database.
+        /// </summary>
+        /// <param name="disposing"><see langword="true"/> to release both managed and unmanaged resources; <see langword="false"/> to release only unmanaged resources.</param>
         protected virtual void Dispose(bool disposing)
         {
             if (disposing && _disposeOnClose)
