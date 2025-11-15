@@ -9,39 +9,63 @@ using static LiteDB.Constants;
 namespace LiteDB
 {
     /// <summary>
-    /// Represent a Bson Value used in BsonDocument
+    /// Represents a strongly-typed BSON (Binary JSON) value that can hold data of various BSON types, such as numbers,
+    /// strings, arrays, documents, binary data, and more. Provides type-safe access, conversion, and comparison
+    /// operations for BSON values.
     /// </summary>
+    /// <remarks>Use the BsonValue class to encapsulate and manipulate values stored in BSON format, commonly
+    /// used in document databases and serialization scenarios. BsonValue supports implicit conversions from and to
+    /// common .NET types, allowing seamless assignment and retrieval. It provides type-checking properties (such as
+    /// IsInt32, IsString, IsArray) and conversion properties (such as AsInt32, AsString, AsArray) to facilitate working
+    /// with different BSON types. BsonValue instances are immutable and thread-safe. Comparison and equality operations
+    /// are supported, enabling sorting and searching of BSON values. For complex types such as documents and arrays,
+    /// use the BsonDocument and BsonArray derived types.</remarks>
     public class BsonValue : IComparable<BsonValue>, IEquatable<BsonValue>
     {
         public static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         /// <summary>
-        /// Represent a Null bson type
+        /// Represents a BSON null value.
         /// </summary>
+        /// <remarks>Use this static field to assign or compare against BSON values that represent null.
+        /// This is equivalent to a BSON value with type Null and no associated data.</remarks>
         public static BsonValue Null = new BsonValue(BsonType.Null, null);
 
         /// <summary>
-        /// Represent a MinValue bson type
+        /// Represents the minimum possible value for a BSON element.
         /// </summary>
+        /// <remarks>This value is used as a sentinel to indicate the lowest value in BSON comparisons and
+        /// sorting operations. It is typically used when a value less than any other BSON value is required, such as in
+        /// range queries or as a lower bound.</remarks>
         public static BsonValue MinValue = new BsonValue(BsonType.MinValue, "-oo");
 
         /// <summary>
-        /// Represent a MaxValue bson type
+        /// Represents the maximum possible value for a BSON element.
         /// </summary>
+        /// <remarks>This value is used as a sentinel to indicate an upper bound in BSON comparisons and
+        /// sorting operations. It is greater than any other BSON value.</remarks>
         public static BsonValue MaxValue = new BsonValue(BsonType.MaxValue, "+oo");
 
         /// <summary>
-        /// Create a new document used in DbRef => { $id: id, $ref: collection }
+        /// Creates a BSON document representing a LiteDB database reference (DbRef) to a specified collection and
+        /// document identifier.
         /// </summary>
+        /// <remarks>The returned document follows the LiteDB DbRef convention, which can be used to
+        /// reference documents in other collections. This method does not validate the existence of the referenced
+        /// document or collection.</remarks>
+        /// <param name="id">The identifier of the referenced document. Typically corresponds to the value of the document's '_id' field.</param>
+        /// <param name="collection">The name of the collection containing the referenced document. Cannot be null.</param>
+        /// <returns>A <see cref="BsonDocument"/> containing the DBRef fields '$id' and '$ref' that reference the specified
+        /// document and collection.</returns>
         public static BsonDocument DbRef(BsonValue id, string collection) => new BsonDocument { ["$id"] = id, ["$ref"] = collection };
 
         /// <summary>
-        /// Indicate BsonType of this BsonValue
+        /// Gets the BSON type of the current value.
         /// </summary>
         public BsonType Type { get; }
 
         /// <summary>
-        /// Get internal .NET value object
+        /// Gets the underlying value represented by the current instance.
         /// </summary>
         public virtual object RawValue { get; }
 
