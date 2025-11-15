@@ -8,8 +8,18 @@ using static LiteDB.Constants;
 namespace LiteDB
 {
     /// <summary>
-    /// Get CultureInfo object from LCID code (not avaiable in .net standard 1.3)
+    /// Provides mapping between Locale Identifier (LCID) codes and culture names for cross-platform compatibility.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This class provides LCID to culture name mapping for platforms where <see cref="CultureInfo"/> constructors
+    /// that accept LCID are not available (e.g., .NET Standard 1.3).
+    /// </para>
+    /// <para>
+    /// LCIDs are numeric identifiers for cultures used in Windows and .NET Framework. This class maintains a
+    /// comprehensive mapping to support database collation across different platforms.
+    /// </para>
+    /// </remarks>
     internal class LCID
     {
         private static readonly IDictionary<int, string> _mappings = new Dictionary<int, string>()
@@ -446,6 +456,12 @@ namespace LiteDB
             #endregion
         };
 
+        /// <summary>
+        /// Gets a <see cref="CultureInfo"/> instance from an LCID code.
+        /// </summary>
+        /// <param name="lcid">The locale identifier code.</param>
+        /// <returns>A <see cref="CultureInfo"/> instance corresponding to the LCID.</returns>
+        /// <exception cref="ArgumentException">Thrown when the LCID code is not found in the mapping.</exception>
         public static CultureInfo GetCulture(int lcid)
         {
             if (_mappings.TryGetValue(lcid, out var name))
@@ -458,6 +474,12 @@ namespace LiteDB
             }
         }
 
+        /// <summary>
+        /// Gets the LCID code for a specific culture name.
+        /// </summary>
+        /// <param name="culture">The culture name (e.g., "en-US", "pt-BR").</param>
+        /// <returns>The LCID code corresponding to the culture name.</returns>
+        /// <exception cref="LiteException">Thrown when the culture name is not found in the mapping.</exception>
         public static int GetLCID(string culture)
         {
             foreach(var item in _mappings)
@@ -472,8 +494,16 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Get current system operation LCID culture
+        /// Gets the LCID code for the current system culture.
         /// </summary>
+        /// <value>
+        /// The LCID code of <see cref="CultureInfo.CurrentCulture"/>, or 127 (invariant culture) if the current culture
+        /// has LCID 4096 (custom/user-defined culture).
+        /// </value>
+        /// <remarks>
+        /// Windows uses LCID 4096 for custom or user-defined cultures that don't have a standard LCID.
+        /// In such cases, this property returns 127 (the invariant culture LCID) as a fallback.
+        /// </remarks>
         public static int Current
         {
             get
