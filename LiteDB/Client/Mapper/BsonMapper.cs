@@ -11,25 +11,37 @@ using static LiteDB.Constants;
 namespace LiteDB
 {
     /// <summary>
-    /// Class that converts your entity class to/from BsonDocument
-    /// If you prefer use a new instance of BsonMapper (not Global), be sure cache this instance for better performance
-    /// Serialization rules:
-    ///     - Classes must be "public" with a public constructor (without parameters)
-    ///     - Properties must have public getter (can be read-only)
-    ///     - Entity class must have Id property, [ClassName]Id property or [BsonId] attribute
-    ///     - No circular references
-    ///     - Fields are not valid
-    ///     - IList, Array supports
-    ///     - IDictionary supports (Key must be a simple datatype - converted by ChangeType)
+    /// Provides mapping functionality to convert entity classes to and from <see cref="BsonDocument"/>.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// For optimal performance when using a custom instance (instead of <see cref="Global"/>), cache the instance for reuse.
+    /// </para>
+    /// <para>Serialization requirements:</para>
+    /// <list type="bullet">
+    /// <item><description>Classes must be public with a public parameterless constructor.</description></item>
+    /// <item><description>Properties must have a public getter (can be read-only).</description></item>
+    /// <item><description>Entity classes must have an Id property, [ClassName]Id property, or <c>[BsonId]</c> attribute.</description></item>
+    /// <item><description>Circular references are not supported.</description></item>
+    /// <item><description>Fields are not serialized by default (use <see cref="IncludeFields"/> to enable).</description></item>
+    /// <item><description><see cref="IList"/> and arrays are supported.</description></item>
+    /// <item><description><see cref="IDictionary"/> is supported (keys must be simple data types convertible via <see cref="Convert.ChangeType(object, Type)"/>).</description></item>
+    /// </list>
+    /// </remarks>
     public partial class BsonMapper
     {
         #region Properties
+        
         /// <summary>
-        /// Map serializer/deserialize for custom types
+        /// Provides a thread-safe mapping of types to custom serialization functions for converting objects to
+        /// BsonValue instances.
         /// </summary>
         private readonly ConcurrentDictionary<Type, Func<object, BsonValue>> _customSerializer = new ConcurrentDictionary<Type, Func<object, BsonValue>>();
-
+        
+        /// <summary>
+        /// Provides a thread-safe mapping of types to custom deserializer functions for converting BsonValue instances
+        /// to objects of the specified type.
+        /// </summary>
         private readonly ConcurrentDictionary<Type, Func<BsonValue, object>> _customDeserializer = new ConcurrentDictionary<Type, Func<BsonValue, object>>();
 
         /// <summary>
@@ -43,65 +55,78 @@ namespace LiteDB
         private readonly ITypeNameBinder _typeNameBinder;
 
         /// <summary>
-        /// Global instance used when no BsonMapper are passed in LiteDatabase ctor
+        /// Gets the global <see cref="BsonMapper"/> instance used when no custom mapper is provided to the <see cref="LiteDatabase"/> constructor.
         /// </summary>
         public static BsonMapper Global = new BsonMapper();
 
         /// <summary>
-        /// A resolver name for field
+        /// Gets or sets the field name resolver function that transforms property names to field names.
         /// </summary>
         public Func<string, string> ResolveFieldName;
 
         /// <summary>
-        /// Indicate that mapper do not serialize null values (default false)
+        /// Gets or sets whether the mapper should serialize <see langword="null"/> values.
+        /// <para>Default is <see langword="false"/>.</para>
         /// </summary>
         public bool SerializeNullValues { get; set; }
 
         /// <summary>
-        /// Apply .Trim() in strings when serialize (default true)
+        /// Gets or sets whether to apply <see cref="string.Trim()"/> to strings during serialization.
+        /// <para>Default is <see langword="true"/>.</para>
         /// </summary>
         public bool TrimWhitespace { get; set; }
 
         /// <summary>
-        /// Convert EmptyString to Null (default true)
+        /// Gets or sets whether to convert empty strings to <see langword="null"/> during serialization.
+        /// <para>Default is <see langword="true"/>.</para>
         /// </summary>
         public bool EmptyStringToNull { get; set; }
 
         /// <summary>
-        /// Get/Set if enum must be converted into Integer value. If false, enum will be converted into String value.
-        /// MUST BE "true" to support LINQ expressions (default false)
+        /// Gets or sets whether enums should be converted to integer values. If <see langword="false"/>, enums are converted to strings.
+        /// <para>Must be <see langword="true"/> to support LINQ expressions.</para>
+        /// <para>Default is <see langword="false"/>.</para>
         /// </summary>
         public bool EnumAsInteger { get; set; }
 
         /// <summary>
-        /// Get/Set that mapper must include fields (default: false)
+        /// Gets or sets whether the mapper should include fields in serialization.
+        /// <para>Default is <see langword="false"/>.</para>
         /// </summary>
         public bool IncludeFields { get; set; }
 
         /// <summary>
-        /// Get/Set that mapper must include non public (private, protected and internal) (default: false)
+        /// Gets or sets whether the mapper should include non-public members (private, protected, and internal).
+        /// <para>Default is <see langword="false"/>.</para>
         /// </summary>
         public bool IncludeNonPublic { get; set; }
 
         /// <summary>
-        /// Get/Set maximum depth for nested object (default 20)
+        /// Gets or sets the maximum depth for nested object serialization.
+        /// <para>Default is 20.</para>
         /// </summary>
         public int MaxDepth { get; set; }
 
         /// <summary>
-        /// A custom callback to change MemberInfo behavior when converting to MemberMapper.
-        /// Use mapper.ResolveMember(Type entity, MemberInfo property, MemberMapper documentMappedField)
-        /// Set FieldName to null if you want remove from mapped document
+        /// Gets or sets a custom callback to modify <see cref="MemberMapper"/> behavior when converting <see cref="MemberInfo"/> to field mappings.
         /// </summary>
+        /// <remarks>
+        /// Set <see cref="MemberMapper.FieldName"/> to <see langword="null"/> to exclude a member from the mapped document.
+        /// </remarks>
         public Action<Type, MemberInfo, MemberMapper> ResolveMember;
 
         /// <summary>
-        /// Custom resolve name collection based on Type 
+        /// Gets or sets a custom function to resolve collection names based on entity type.
         /// </summary>
         public Func<Type, string> ResolveCollectionName;
 
         #endregion
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="BsonMapper"/> class.
+        /// </summary>
+        /// <param name="customTypeInstantiator">Optional custom type instantiator function for IoC support.</param>
+        /// <param name="typeNameBinder">Optional custom type name binder for controlling type name serialization.</param>
         public BsonMapper(Func<Type, object> customTypeInstantiator = null, ITypeNameBinder typeNameBinder = null)
         {
             this.SerializeNullValues = false;
@@ -135,8 +160,11 @@ namespace LiteDB
         #region Register CustomType
 
         /// <summary>
-        /// Register a custom type serializer/deserialize function
+        /// Registers custom serialization and deserialization functions for a specific type.
         /// </summary>
+        /// <typeparam name="T">The type to register custom serialization for.</typeparam>
+        /// <param name="serialize">Function to convert type <typeparamref name="T"/> to <see cref="BsonValue"/>.</param>
+        /// <param name="deserialize">Function to convert <see cref="BsonValue"/> back to type <typeparamref name="T"/>.</param>
         public void RegisterType<T>(Func<T, BsonValue> serialize, Func<BsonValue, T> deserialize)
         {
             _customSerializer[typeof(T)] = (o) => serialize((T)o);
@@ -144,8 +172,11 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Register a custom type serializer/deserialize function
+        /// Registers custom serialization and deserialization functions for a specific type.
         /// </summary>
+        /// <param name="type">The type to register custom serialization for.</param>
+        /// <param name="serialize">Function to convert the type to <see cref="BsonValue"/>.</param>
+        /// <param name="deserialize">Function to convert <see cref="BsonValue"/> back to the type.</param>
         public void RegisterType(Type type, Func<object, BsonValue> serialize, Func<BsonValue, object> deserialize)
         {
             _customSerializer[type] = (o) => serialize(o);
@@ -155,8 +186,10 @@ namespace LiteDB
         #endregion
 
         /// <summary>
-        /// Map your entity class to BsonDocument using fluent API
+        /// Creates a fluent API entity builder for configuring how type <typeparamref name="T"/> is mapped to BSON documents.
         /// </summary>
+        /// <typeparam name="T">The entity type to configure.</typeparam>
+        /// <returns>An <see cref="EntityBuilder{T}"/> instance for fluent configuration.</returns>
         public EntityBuilder<T> Entity<T>()
         {
             return new EntityBuilder<T>(this, _typeNameBinder);
@@ -165,8 +198,12 @@ namespace LiteDB
         #region Get LinqVisitor processor
 
         /// <summary>
-        /// Resolve LINQ expression into BsonExpression
+        /// Resolves a LINQ expression into a <see cref="BsonExpression"/>.
         /// </summary>
+        /// <typeparam name="T">The source entity type.</typeparam>
+        /// <typeparam name="K">The result type of the expression.</typeparam>
+        /// <param name="predicate">The LINQ expression to resolve.</param>
+        /// <returns>A <see cref="BsonExpression"/> representing the LINQ expression.</returns>
         public BsonExpression GetExpression<T, K>(Expression<Func<T, K>> predicate)
         {
             var visitor = new LinqExpressionVisitor(this, predicate);
@@ -179,8 +216,12 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Resolve LINQ expression into BsonExpression (for index only)
+        /// Resolves a LINQ expression into a <see cref="BsonExpression"/> for index creation.
         /// </summary>
+        /// <typeparam name="T">The source entity type.</typeparam>
+        /// <typeparam name="K">The result type of the expression.</typeparam>
+        /// <param name="predicate">The LINQ expression to resolve.</param>
+        /// <returns>A <see cref="BsonExpression"/> representing the index expression.</returns>
         public BsonExpression GetIndexExpression<T, K>(Expression<Func<T, K>> predicate)
         {
             var visitor = new LinqExpressionVisitor(this, predicate);
@@ -197,8 +238,12 @@ namespace LiteDB
         #region Predefinded Property Resolvers
 
         /// <summary>
-        /// Use lower camel case resolution for convert property names to field names
+        /// Configures the mapper to use lower camel case for converting property names to field names.
         /// </summary>
+        /// <returns>The current <see cref="BsonMapper"/> instance for method chaining.</returns>
+        /// <example>
+        /// <c>PropertyName</c> becomes <c>propertyName</c>.
+        /// </example>
         public BsonMapper UseCamelCase()
         {
             this.ResolveFieldName = (s) => char.ToLower(s[0]) + s.Substring(1);
@@ -209,8 +254,13 @@ namespace LiteDB
         private readonly Regex _lowerCaseDelimiter = new Regex("(?!(^[A-Z]))([A-Z])", RegexOptions.Compiled);
 
         /// <summary>
-        /// Uses lower camel case with delimiter to convert property names to field names
+        /// Configures the mapper to use lower case with a delimiter for converting property names to field names.
         /// </summary>
+        /// <param name="delimiter">The delimiter character to use between words. Default is underscore (<c>_</c>).</param>
+        /// <returns>The current <see cref="BsonMapper"/> instance for method chaining.</returns>
+        /// <example>
+        /// With default delimiter: <c>PropertyName</c> becomes <c>property_name</c>.
+        /// </example>
         public BsonMapper UseLowerCaseDelimiter(char delimiter = '_')
         {
             this.ResolveFieldName = (s) => _lowerCaseDelimiter.Replace(s, delimiter + "$2").ToLower();

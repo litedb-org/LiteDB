@@ -8,8 +8,15 @@ namespace LiteDB
     public partial class BsonMapper
     {
         /// <summary>
-        /// Serialize a entity class to BsonDocument
+        /// Serializes an entity instance to a <see cref="BsonDocument"/>.
         /// </summary>
+        /// <param name="type">The type of the entity being serialized.</param>
+        /// <param name="entity">The entity instance to serialize.</param>
+        /// <returns>A <see cref="BsonDocument"/> containing the serialized entity data.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="entity"/> is <see langword="null"/>.</exception>
+        /// <remarks>
+        /// If the entity is already a <see cref="BsonDocument"/>, it is returned as-is without re-serialization.
+        /// </remarks>
         public virtual BsonDocument ToDocument(Type type, object entity)
         {
             if (entity == null) throw new ArgumentNullException(nameof(entity));
@@ -21,24 +28,36 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Serialize a entity class to BsonDocument
+        /// Serializes an entity instance of type <typeparamref name="T"/> to a <see cref="BsonDocument"/>.
         /// </summary>
+        /// <typeparam name="T">The type of the entity being serialized.</typeparam>
+        /// <param name="entity">The entity instance to serialize.</param>
+        /// <returns>
+        /// A <see cref="BsonDocument"/> containing the serialized entity data.
+        /// </returns>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="entity"/> is <see langword="null"/>.</exception>
         public virtual BsonDocument ToDocument<T>(T entity)
         {
             return this.ToDocument(typeof(T), entity)?.AsDocument;
         }
 
         /// <summary>
-        /// Serialize to BsonValue any .NET object based on T type (using mapping rules)
+        /// Serializes a .NET object of type <typeparamref name="T"/> to a <see cref="BsonValue"/> using configured mapping rules.
         /// </summary>
+        /// <typeparam name="T">The type of the object being serialized.</typeparam>
+        /// <param name="obj">The object to serialize.</param>
+        /// <returns>A <see cref="BsonValue"/> representing the serialized object.</returns>
         public BsonValue Serialize<T>(T obj)
         {
             return this.Serialize(typeof(T), obj, 0);
         }
 
         /// <summary>
-        /// Serialize to BsonValue any .NET object based on type parameter (using mapping rules)
+        /// Serializes a .NET object to a <see cref="BsonValue"/> based on the specified type using configured mapping rules.
         /// </summary>
+        /// <param name="type">The type to use for serialization.</param>
+        /// <param name="obj">The object to serialize.</param>
+        /// <returns>A <see cref="BsonValue"/> representing the serialized object.</returns>
         public BsonValue Serialize(Type type, object obj)
         {
             return this.Serialize(type, obj, 0);

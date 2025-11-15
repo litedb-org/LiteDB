@@ -12,17 +12,20 @@ namespace LiteDB
         #region Deserialization Hooks
 
         /// <summary>
-        /// Delegate for deserialization callback.
+        /// Delegate for deserialization callback to customize deserialization behavior.
         /// </summary>
-        /// <param name="sender">The BsonMapper instance that triggered the deserialization.</param>
+        /// <param name="sender">The <see cref="BsonMapper"/> instance triggering the deserialization.</param>
         /// <param name="target">The target type for deserialization.</param>
-        /// <param name="value">The BsonValue to be deserialized.</param>
-        /// <returns>The deserialized BsonValue.</returns>
+        /// <param name="value">The <see cref="BsonValue"/> to be deserialized.</param>
+        /// <returns>The customized <see cref="BsonValue"/> to use for deserialization, or <see langword="null"/> to use default deserialization.</returns>
         public delegate BsonValue DeserializationCallback(BsonMapper sender, Type target, BsonValue value);
 
         /// <summary>
-        /// Gets called before deserialization of a value
+        /// Gets or sets a callback invoked before deserialization of a value, allowing custom deserialization logic.
         /// </summary>
+        /// <remarks>
+        /// Return a non-<see langword="null"/> <see cref="BsonValue"/> from the callback to override the default deserialization behavior.
+        /// </remarks>
         public DeserializationCallback? OnDeserialization { get; set; }
 
         #endregion Deserialization Hooks
@@ -59,8 +62,12 @@ namespace LiteDB
         #endregion
 
         /// <summary>
-        /// Deserialize a BsonDocument to entity class
+        /// Deserializes a <see cref="BsonDocument"/> to an entity instance of the specified type.
         /// </summary>
+        /// <param name="type">The target type for deserialization.</param>
+        /// <param name="doc">The <see cref="BsonDocument"/> to deserialize.</param>
+        /// <returns>An instance of the specified type populated with data from the document.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="doc"/> is <see langword="null"/>.</exception>
         public virtual object ToObject(Type type, BsonDocument doc)
         {
             if (doc == null) throw new ArgumentNullException(nameof(doc));
@@ -72,16 +79,23 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Deserialize a BsonDocument to entity class
+        /// Deserializes a <see cref="BsonDocument"/> to an entity instance of type <typeparamref name="T"/>.
         /// </summary>
+        /// <typeparam name="T">The target type for deserialization.</typeparam>
+        /// <param name="doc">The <see cref="BsonDocument"/> to deserialize.</param>
+        /// <returns>An instance of type <typeparamref name="T"/> populated with data from the document.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="doc"/> is <see langword="null"/>.</exception>
         public virtual T ToObject<T>(BsonDocument doc)
         {
             return (T)this.ToObject(typeof(T), doc);
         }
 
         /// <summary>
-        /// Deserialize a BsonValue to .NET object typed in T
+        /// Deserializes a <see cref="BsonValue"/> to a .NET object of type <typeparamref name="T"/>.
         /// </summary>
+        /// <typeparam name="T">The target type for deserialization.</typeparam>
+        /// <param name="value">The <see cref="BsonValue"/> to deserialize.</param>
+        /// <returns>An instance of type <typeparamref name="T"/>, or <see langword="default"/> if <paramref name="value"/> is <see langword="null"/>.</returns>
         public T Deserialize<T>(BsonValue value)
         {
             if (value == null) return default(T);
@@ -92,8 +106,23 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Deserilize a BsonValue to .NET object based on type parameter
+        /// Deserializes a <see cref="BsonValue"/> to a .NET object based on the specified type.
         /// </summary>
+        /// <param name="type">The target type for deserialization.</param>
+        /// <param name="value">The <see cref="BsonValue"/> to deserialize.</param>
+        /// <returns>An instance of the specified type, or <see langword="null"/> if <paramref name="value"/> is <see langword="null"/>.</returns>
+        /// <remarks>
+        /// <para>This method supports various deserialization scenarios:</para>
+        /// <list type="bullet">
+        /// <item><description>Null values return <see langword="null"/>.</description></item>
+        /// <item><description>Nullable types are unwrapped to their underlying type.</description></item>
+        /// <item><description>Custom deserializers registered via <see cref="RegisterType{T}"/> take precedence.</description></item>
+        /// <item><description>Native BSON types are converted directly to their .NET equivalents.</description></item>
+        /// <item><description>Arrays and lists are deserialized recursively.</description></item>
+        /// <item><description>Documents with a <c>_type</c> field support polymorphic deserialization.</description></item>
+        /// <item><description>Dictionaries and complex objects are deserialized with their member values.</description></item>
+        /// </list>
+        /// </remarks>
         public object Deserialize(Type type, BsonValue value)
         {
             if (OnDeserialization is not null)
