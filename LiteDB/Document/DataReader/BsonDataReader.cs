@@ -8,8 +8,12 @@ using static LiteDB.Constants;
 namespace LiteDB
 {
     /// <summary>
-    /// Class to read void, one or a collection of BsonValues. Used in SQL execution commands and query returns. Use local data source (IEnumerable[BsonDocument])
+    /// Provides a data reader implementation for reading BSON values from local data sources.
     /// </summary>
+    /// <remarks>
+    /// <see cref="BsonDataReader"/> is used internally for SQL execution commands and query results.
+    /// It supports reading void (no results), a single value, or a collection of values from an <see cref="IEnumerable{BsonValue}"/> data source.
+    /// </remarks>
     public class BsonDataReader : IBsonDataReader
     {
         private readonly IEnumerator<BsonValue> _source = null;
@@ -23,7 +27,7 @@ namespace LiteDB
 
 
         /// <summary>
-        /// Initialize with no value
+        /// Initializes a new instance of the <see cref="BsonDataReader"/> class with no values (empty result set).
         /// </summary>
         internal BsonDataReader()
         {
@@ -31,8 +35,10 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Initialize with a single value
+        /// Initializes a new instance of the <see cref="BsonDataReader"/> class with a single value.
         /// </summary>
+        /// <param name="value">The single <see cref="BsonValue"/> to read.</param>
+        /// <param name="collection">The collection name from which the value originated. Default is <see langword="null"/>.</param>
         internal BsonDataReader(BsonValue value, string collection = null)
         {
             _current = value;
@@ -41,8 +47,11 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Initialize with an IEnumerable data source
+        /// Initializes a new instance of the <see cref="BsonDataReader"/> class with an enumerable collection of values.
         /// </summary>
+        /// <param name="values">The enumerable collection of <see cref="BsonValue"/> to read.</param>
+        /// <param name="collection">The collection name from which the values originated.</param>
+        /// <param name="state">The engine state for validation and read transformation.</param>
         internal BsonDataReader(IEnumerable<BsonValue> values, string collection, EngineState state)
         {
             _collection = collection;
@@ -66,24 +75,16 @@ namespace LiteDB
             }
         }
 
-        /// <summary>
-        /// Return if has any value in result
-        /// </summary>
+        /// <inheritdoc/>
         public bool HasValues => _hasValues;
 
-        /// <summary>
-        /// Return current value
-        /// </summary>
+        /// <inheritdoc/>
         public BsonValue Current => _current;
 
-        /// <summary>
-        /// Return collection name
-        /// </summary>
+        /// <inheritdoc/>
         public string Collection => _collection;
 
-        /// <summary>
-        /// Move cursor to next result. Returns true if read was possible
-        /// </summary>
+        /// <inheritdoc/>
         public bool Read()
         {
             if (!_hasValues) return false;
@@ -108,6 +109,7 @@ namespace LiteDB
                     catch (Exception ex)
                     {
                         _state.Handle(ex);
+                        // TODO: re-throw using only the "throw;" pattern to preserve stack trace
                         throw ex;
                     }
                 }
@@ -118,6 +120,7 @@ namespace LiteDB
             }
         }
 
+        /// <inheritdoc/>
         public BsonValue this[string field]
         {
             get
@@ -126,12 +129,18 @@ namespace LiteDB
             }
         }
 
+        /// <summary>
+        /// Releases all resources used by the <see cref="BsonDataReader"/>.
+        /// </summary>
         public void Dispose()
         {
             this.Dispose(true);
             GC.SuppressFinalize(this);
         }
 
+        /// <summary>
+        /// Finalizer for <see cref="BsonDataReader"/>.
+        /// </summary>
         ~BsonDataReader()
         {
             this.Dispose(false);
