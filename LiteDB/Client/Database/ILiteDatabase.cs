@@ -199,6 +199,7 @@ namespace LiteDB
 
         /// <summary>
         /// Gets or sets the user-defined version number for the database.
+        /// <para>Default is 0.</para>
         /// </summary>
         /// <remarks>
         /// Use this property to track your application's database schema version for migration and upgrade scenarios.
@@ -208,6 +209,7 @@ namespace LiteDB
 
         /// <summary>
         /// Gets or sets the timeout for acquiring locks during transactions.
+        /// <para>Default is 1 minute.</para>
         /// </summary>
         /// <remarks>
         /// This timeout applies when waiting for locks to be released by other transactions. If a lock cannot be
@@ -216,7 +218,8 @@ namespace LiteDB
         TimeSpan Timeout { get; set; }
 
         /// <summary>
-        /// Gets or sets whether dates are deserialized in UTC timezone or local timezone. Default is local.
+        /// Gets or sets whether dates are deserialized in UTC timezone or local timezone.
+        /// <para>Default is local.</para>
         /// </summary>
         /// <remarks>
         /// When <see langword="true"/>, dates are returned in UTC. When <see langword="false"/>, dates are converted to local timezone.
@@ -226,25 +229,29 @@ namespace LiteDB
 
         /// <summary>
         /// Gets or sets the maximum database size in bytes.
+        /// <para>Default is <seealso cref="long.MaxValue"/>.</para>
         /// </summary>
         /// <remarks>
         /// The new value must be equal to or larger than the current database size. Setting this limit prevents the
-        /// database from growing beyond the specified size. Use 0 for no limit (default).
+        /// database from growing beyond the specified size.
+        /// <para>Use 0 or <seealso cref="long.MaxValue"/> for no limit.</para>
         /// </remarks>
         long LimitSize { get; set; }
 
         /// <summary>
         /// Gets or sets the auto-checkpoint threshold in pages (8 KB per page).
+        /// <para>Default is 1000 pages (8 MB).</para>
         /// </summary>
         /// <remarks>
         /// When the log file reaches this many pages, an automatic checkpoint is triggered to copy changes from the log file
-        /// to the data file. Set to 0 for manual-only checkpointing (no automatic checkpoint or checkpoint on dispose).
-        /// Default is 1000 pages (8 MB).
+        /// to the data file.
+        /// <para>Set to 0 for manual-only checkpointing (no automatic checkpoint or checkpoint on dispose).</para>
         /// </remarks>
         int CheckpointSize { get; set; }
 
         /// <summary>
         /// Gets the collation used for string comparisons and sorting in this database.
+        /// <para>Default is <see cref="Collation.Default"/> (current culture, case-insensitive).</para>
         /// </summary>
         /// <remarks>
         /// The collation is set when the database is created and can only be changed through the rebuild process.

@@ -73,6 +73,9 @@ namespace LiteDB
         /// <summary>
         /// Gets the default collation using the current culture with case-insensitive comparison.
         /// </summary>
+        /// <remarks>
+        /// If the current culture is not supported, it falls back to the invariant culture (<seealso cref="CultureInfo.InvariantCulture"/>).
+        /// </remarks>
         public static Collation Default = new Collation(LiteDB.LCID.Current, CompareOptions.IgnoreCase);
 
         /// <summary>
