@@ -12,10 +12,17 @@ using static LiteDB.Constants;
 namespace LiteDB.Engine
 {
     /// <summary>
-    /// A public class that take care of all engine data structure access - it´s basic implementation of a NoSql database
-    /// Its isolated from complete solution - works on low level only (no linq, no poco... just BSON objects)
-    /// [ThreadSafe]
+    /// Provides the main database engine implementation for LiteDB, managing all low-level data structure operations.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <see cref="LiteEngine"/> is the core implementation of the NoSQL database engine, operating at a low level
+    /// with BSON objects (no LINQ or POCO support at this layer).
+    /// </para>
+    /// <para>
+    /// This class is thread-safe and can handle concurrent operations through internal locking mechanisms.
+    /// </para>
+    /// </remarks>
     public partial class LiteEngine : ILiteEngine
     {
         #region Services instances
@@ -38,12 +45,12 @@ namespace LiteDB.Engine
         private readonly EngineSettings _settings;
 
         /// <summary>
-        /// All system read-only collections for get metadata database information
+        /// All system read-only collections for retrieving metadata database information.
         /// </summary>
         private Dictionary<string, SystemCollection> _systemCollections;
 
         /// <summary>
-        /// Sequence cache for collections last ID (for int/long numbers only)
+        /// Sequence cache for collections last ID (for int/long numbers only).
         /// </summary>
         private ConcurrentDictionary<string, long> _sequences;
 
@@ -52,7 +59,7 @@ namespace LiteDB.Engine
         #region Ctor
 
         /// <summary>
-        /// Initialize LiteEngine using connection memory database
+        /// Initializes a new instance of the <see cref="LiteEngine"/> class using an in-memory database.
         /// </summary>
         public LiteEngine()
             : this(new EngineSettings { DataStream = new MemoryStream() })
@@ -60,16 +67,19 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// Initialize LiteEngine using connection string using key=value; parser
+        /// Initializes a new instance of the <see cref="LiteEngine"/> class using a filename.
         /// </summary>
+        /// <param name="filename">The path to the database file.</param>
         public LiteEngine(string filename)
             : this (new EngineSettings { Filename = filename })
         {
         }
 
         /// <summary>
-        /// Initialize LiteEngine using initial engine settings
+        /// Initializes a new instance of the <see cref="LiteEngine"/> class using the specified engine settings.
         /// </summary>
+        /// <param name="settings">The engine settings for database configuration.</param>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="settings"/> is <see langword="null"/>.</exception>
         public LiteEngine(EngineSettings settings)
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
@@ -250,11 +260,12 @@ namespace LiteDB.Engine
         internal Action<PageBuffer> SimulateDiskWriteFail { set => _state.SimulateDiskWriteFail = value; }
 #endif
 
-        /// <summary>
-        /// Run checkpoint command to copy log file into data file
-        /// </summary>
+        /// <inheritdoc/>
         public int Checkpoint() => _walIndex.Checkpoint();
 
+        /// <summary>
+        /// Releases all resources used by the <see cref="LiteEngine"/>.
+        /// </summary>
         public void Dispose()
         {
             this.Dispose(true);

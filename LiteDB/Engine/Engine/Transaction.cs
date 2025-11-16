@@ -8,10 +8,7 @@ namespace LiteDB.Engine
 {
     public partial class LiteEngine
     {
-        /// <summary>
-        /// Initialize a new transaction. Transaction are created "per-thread". There is only one single transaction per thread.
-        /// Return true if transaction was created or false if current thread already in a transaction.
-        /// </summary>
+        /// <inheritdoc/>
         public bool BeginTrans()
         {
             _state.Validate();
@@ -27,9 +24,7 @@ namespace LiteDB.Engine
             return isNew;
         }
 
-        /// <summary>
-        /// Persist all dirty pages into LOG file
-        /// </summary>
+        /// <inheritdoc/>
         public bool Commit()
         {
             _state.Validate();
@@ -52,9 +47,7 @@ namespace LiteDB.Engine
             return false;
         }
 
-        /// <summary>
-        /// Do rollback to current transaction. Clear dirty pages in memory and return new pages to main empty linked-list
-        /// </summary>
+        /// <inheritdoc/>
         public bool Rollback()
         {
             _state.Validate();

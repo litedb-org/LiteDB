@@ -11,11 +11,7 @@ namespace LiteDB.Engine
 {
     public partial class LiteEngine
     {
-        /// <summary>
-        /// Implement a full rebuild database. Engine will be closed and re-created in another instance.
-        /// A backup copy will be created with -backup extention. All data will be readed and re created in another database
-        /// After run, will re-open database
-        /// </summary>
+        /// <inheritdoc/>
         public long Rebuild(RebuildOptions options)
         {
             if (string.IsNullOrEmpty(_settings.Filename)) return 0; // works only with os file
@@ -37,8 +33,12 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// Implement a full rebuild database. A backup copy will be created with -backup extention. All data will be readed and re created in another database
+        /// Rebuilds the underlying database using the current collation and password settings.
         /// </summary>
+        /// <remarks>This method applies the current collation and password configuration when rebuilding
+        /// the database. Use this method to refresh the database structure after changes to collation or password
+        /// settings. The operation may be resource-intensive depending on the size of the database.</remarks>
+        /// <returns>The number of bytes reduced from the data file after the rebuild operation.</returns>
         public long Rebuild()
         {
             var collation = new Collation(this.Pragma(Pragmas.COLLATION));

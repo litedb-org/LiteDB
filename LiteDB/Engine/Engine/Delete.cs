@@ -7,9 +7,7 @@ namespace LiteDB.Engine
 {
     public partial class LiteEngine
     {
-        /// <summary>
-        /// Implements delete based on IDs enumerable
-        /// </summary>
+        /// <inheritdoc/>
         public int Delete(string collection, IEnumerable<BsonValue> ids)
         {
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
@@ -59,9 +57,7 @@ namespace LiteDB.Engine
             });
         }
 
-        /// <summary>
-        /// Implements delete based on filter expression
-        /// </summary>
+        /// <inheritdoc/>
         public int DeleteMany(string collection, BsonExpression predicate)
         {
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));

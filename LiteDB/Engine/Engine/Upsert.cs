@@ -6,11 +6,7 @@ namespace LiteDB.Engine
 {
     public partial class LiteEngine
     {
-        /// <summary>
-        /// Implement upsert command to documents in a collection. Calls update on all documents,
-        /// then any documents not updated are then attempted to insert.
-        /// This will have the side effect of throwing if duplicate items are attempted to be inserted.
-        /// </summary>
+        /// <inheritdoc/>
         public int Upsert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId)
         {
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));

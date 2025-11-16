@@ -8,17 +8,13 @@ namespace LiteDB.Engine
 {
     public partial class LiteEngine
     {
-        /// <summary>
-        /// Returns all collection inside datafile
-        /// </summary>
+        /// <inheritdoc/>
         public IEnumerable<string> GetCollectionNames()
         {
             return _header.GetCollections().Select(x => x.Key);
         }
 
-        /// <summary>
-        /// Drop collection including all documents, indexes and extended pages (do not support transactions)
-        /// </summary>
+        /// <inheritdoc/>
         public bool DropCollection(string name)
         {
             if (name.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(name));
@@ -45,9 +41,7 @@ namespace LiteDB.Engine
             });
         }
 
-        /// <summary>
-        /// Rename a collection (do not support transactions)
-        /// </summary>
+        /// <inheritdoc/>
         public bool RenameCollection(string collection, string newName)
         {
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));

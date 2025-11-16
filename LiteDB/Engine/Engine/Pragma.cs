@@ -8,17 +8,13 @@ namespace LiteDB.Engine
 {
     public partial class LiteEngine
     {
-        /// <summary>
-        /// Get engine internal pragma value
-        /// </summary>
+        /// <inheritdoc/>
         public BsonValue Pragma(string name)
         {
             return _header.Pragmas.Get(name);
         }
 
-        /// <summary>
-        /// Set engine pragma new value (some pragmas will be affected only after realod)
-        /// </summary>
+        /// <inheritdoc/>
         public bool Pragma(string name, BsonValue value)
         {
             if (this.Pragma(name) == value) return false;

@@ -9,9 +9,7 @@ namespace LiteDB.Engine
 {
     public partial class LiteEngine
     {
-        /// <summary>
-        /// Insert all documents in collection. If document has no _id, use AutoId generation.
-        /// </summary>
+        /// <inheritdoc/>
         public int Insert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId)
         {
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));

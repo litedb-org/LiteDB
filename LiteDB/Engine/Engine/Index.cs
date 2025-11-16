@@ -9,9 +9,7 @@ namespace LiteDB.Engine
 {
     public partial class LiteEngine
     {
-        /// <summary>
-        /// Create a new index (or do nothing if already exists) to a collection/field
-        /// </summary>
+        /// <inheritdoc/>
         public bool EnsureIndex(string collection, string name, BsonExpression expression, bool unique)
         {
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
@@ -95,9 +93,7 @@ namespace LiteDB.Engine
             });
         }
 
-        /// <summary>
-        /// Create a new vector index (or do nothing if already exists) for a collection/field.
-        /// </summary>
+        /// <inheritdoc/>
         public bool EnsureVectorIndex(string collection, string name, BsonExpression expression, VectorIndexOptions options)
         {
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
@@ -162,9 +158,7 @@ namespace LiteDB.Engine
             });
         }
 
-        /// <summary>
-        /// Drop an index from a collection
-        /// </summary>
+        /// <inheritdoc/>
         public bool DropIndex(string collection, string name)
         {
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));

@@ -7,9 +7,7 @@ namespace LiteDB.Engine
 {
     public partial class LiteEngine
     {
-        /// <summary>
-        /// Implement update command to a document inside a collection. Return number of documents updated
-        /// </summary>
+        /// <inheritdoc/>
         public int Update(string collection, IEnumerable<BsonDocument> docs)
         {
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
@@ -44,9 +42,7 @@ namespace LiteDB.Engine
             });
         }
 
-        /// <summary>
-        /// Update documents using transform expression (must return a scalar/document value) using predicate as filter
-        /// </summary>
+        /// <inheritdoc/>
         public int UpdateMany(string collection, BsonExpression transform, BsonExpression predicate)
         {
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
