@@ -7,10 +7,7 @@ namespace LiteDB
 {
     public partial class LiteCollection<T>
     {
-        /// <summary>
-        /// Run an include action in each document returned by Find(), FindById(), FindOne() and All() methods to load DbRef documents
-        /// Returns a new Collection with this action included
-        /// </summary>
+        /// <inheritdoc/>
         public ILiteCollection<T> Include<K>(Expression<Func<T, K>> keySelector)
         {
             if (keySelector == null) throw new ArgumentNullException(nameof(keySelector));
@@ -20,10 +17,7 @@ namespace LiteDB
             return this.Include(path);
         }
 
-        /// <summary>
-        /// Run an include action in each document returned by Find(), FindById(), FindOne() and All() methods to load DbRef documents
-        /// Returns a new Collection with this action included
-        /// </summary>
+        /// <inheritdoc/>
         public ILiteCollection<T> Include(BsonExpression keySelector)
         {
             if (string.IsNullOrEmpty(keySelector)) throw new ArgumentNullException(nameof(keySelector));

@@ -7,9 +7,7 @@ namespace LiteDB
 {
     public partial class LiteCollection<T>
     {
-        /// <summary>
-        /// Insert or Update a document in this collection.
-        /// </summary>
+        /// <inheritdoc/>
         public bool Upsert(T entity)
         {
             if (entity == null) throw new ArgumentNullException(nameof(entity));
@@ -17,9 +15,7 @@ namespace LiteDB
             return this.Upsert(new T[] { entity }) == 1;
         }
 
-        /// <summary>
-        /// Insert or Update all documents
-        /// </summary>
+        /// <inheritdoc/>
         public int Upsert(IEnumerable<T> entities)
         {
             if (entities == null) throw new ArgumentNullException(nameof(entities));
@@ -27,9 +23,7 @@ namespace LiteDB
             return _engine.Upsert(_collection, this.GetBsonDocs(entities), _autoId);
         }
 
-        /// <summary>
-        /// Insert or Update a document in this collection.
-        /// </summary>
+        /// <inheritdoc/>
         public bool Upsert(BsonValue id, T entity)
         {
             if (entity == null) throw new ArgumentNullException(nameof(entity));

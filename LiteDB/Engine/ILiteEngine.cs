@@ -84,7 +84,7 @@ namespace LiteDB.Engine
         /// <param name="collection">The collection name.</param>
         /// <param name="docs">The documents to upsert.</param>
         /// <param name="autoId">The auto-ID generation strategy for new documents without an <c>_id</c> field.</param>
-        /// <returns>The number of documents inserted or updated.</returns>
+        /// <returns>The number of documents inserted (the updated documents are not counted).</returns>
         int Upsert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId);
 
         /// <summary>

@@ -7,9 +7,7 @@ namespace LiteDB
 {
     public partial class LiteCollection<T>
     {
-        /// <summary>
-        /// Insert a new entity to this collection. Document Id must be a new value in collection - Returns document Id
-        /// </summary>
+        /// <inheritdoc/>
         public BsonValue Insert(T entity)
         {
             if (entity == null) throw new ArgumentNullException(nameof(entity));
@@ -30,9 +28,7 @@ namespace LiteDB
             return id;
         }
 
-        /// <summary>
-        /// Insert a new document to this collection using passed id value.
-        /// </summary>
+        /// <inheritdoc/>
         public void Insert(BsonValue id, T entity)
         {
             if (entity == null) throw new ArgumentNullException(nameof(entity));
@@ -45,9 +41,7 @@ namespace LiteDB
             _engine.Insert(_collection, new [] { doc }, _autoId);
         }
 
-        /// <summary>
-        /// Insert an array of new documents to this collection. Document Id must be a new value in collection. Can be set buffer size to commit at each N documents
-        /// </summary>
+        /// <inheritdoc/>
         public int Insert(IEnumerable<T> entities)
         {
             if (entities == null) throw new ArgumentNullException(nameof(entities));
@@ -55,10 +49,8 @@ namespace LiteDB
             return _engine.Insert(_collection, this.GetBsonDocs(entities), _autoId);
         }
 
-        /// <summary>
-        /// Implements bulk insert documents in a collection. Usefull when need lots of documents.
-        /// </summary>
-        [Obsolete("Use normal Insert()")]
+        /// <inheritdoc/>
+        [Obsolete("Use Insert(IEnumerable<T> entities) instead. Batch size is no longer used.")]
         public int InsertBulk(IEnumerable<T> entities, int batchSize = 5000)
         {
             if (entities == null) throw new ArgumentNullException(nameof(entities));
@@ -67,8 +59,14 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Convert each T document in a BsonDocument, setting autoId for each one
+        /// Converts a collection of objects of type T to a sequence of BsonDocument instances, mapping each object
+        /// according to the configured mapper.
         /// </summary>
+        /// <remarks>If an object in the collection has an identifier property configured, its value will
+        /// be updated with the corresponding '_id' from the resulting BsonDocument. The returned sequence does not
+        /// include the identifier property in the BsonDocument if it was removed during mapping.</remarks>
+        /// <param name="documents">The collection of objects to convert to BsonDocument instances. Cannot be null.</param>
+        /// <returns>An enumerable sequence of BsonDocument objects representing the mapped documents.</returns>
         private IEnumerable<BsonDocument> GetBsonDocs(IEnumerable<T> documents)
         {
             foreach (var document in documents)

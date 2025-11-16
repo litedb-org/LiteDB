@@ -8,9 +8,7 @@ namespace LiteDB
 {
     public partial class LiteCollection<T>
     {
-        /// <summary>
-        /// Update a document in this collection. Returns false if not found document in collection
-        /// </summary>
+        /// <inheritdoc/>
         public bool Update(T entity)
         {
             if (entity == null) throw new ArgumentNullException(nameof(entity));
@@ -21,9 +19,7 @@ namespace LiteDB
             return _engine.Update(_collection, new BsonDocument[] { doc }) > 0;
         }
 
-        /// <summary>
-        /// Update a document in this collection. Returns false if not found document in collection
-        /// </summary>
+        /// <inheritdoc/>
         public bool Update(BsonValue id, T entity)
         {
             if (entity == null) throw new ArgumentNullException(nameof(entity));
@@ -38,9 +34,7 @@ namespace LiteDB
             return _engine.Update(_collection, new BsonDocument[] { doc }) > 0;
         }
 
-        /// <summary>
-        /// Update all documents
-        /// </summary>
+        /// <inheritdoc/>
         public int Update(IEnumerable<T> entities)
         {
             if (entities == null) throw new ArgumentNullException(nameof(entities));
@@ -48,10 +42,7 @@ namespace LiteDB
             return _engine.Update(_collection, entities.Select(x => _mapper.ToDocument(x)));
         }
 
-        /// <summary>
-        /// Update many documents based on transform expression. This expression must return a new document that will be replaced over current document (according with predicate).
-        /// Eg: col.UpdateMany("{ Name: UPPER($.Name), Age }", "_id > 0")
-        /// </summary>
+        /// <inheritdoc/>
         public int UpdateMany(BsonExpression transform, BsonExpression predicate)
         {
             if (transform == null) throw new ArgumentNullException(nameof(transform));
@@ -65,10 +56,7 @@ namespace LiteDB
             return _engine.UpdateMany(_collection, transform, predicate);
         }
 
-        /// <summary>
-        /// Update many document based on merge current document with extend expression. Use your class with initializers. 
-        /// Eg: col.UpdateMany(x => new Customer { Name = x.Name.ToUpper(), Salary: 100 }, x => x.Name == "John")
-        /// </summary>
+        /// <inheritdoc/>
         public int UpdateMany(Expression<Func<T, T>> extend, Expression<Func<T, bool>> predicate)
         {
             if (extend == null) throw new ArgumentNullException(nameof(extend));
