@@ -266,6 +266,11 @@ namespace LiteDB
         /// <inheritdoc/>
         public long Rebuild(RebuildOptions options = null)
         {
+            // TODO: Consider changing Rebuild behavior
+            // Since the underlying engine Rebuild has two overloads (one with options, one without) and the parameterless one
+            // uses the current collation and password, we might want to call that one when options is null.
+            // As the current implementation, calling Rebuild with null options will create a new RebuildOptions instance with default values,
+            // which means no password and default collation.
             return _engine.Rebuild(options ?? new RebuildOptions());
         }
 
