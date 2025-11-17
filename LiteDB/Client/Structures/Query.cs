@@ -115,8 +115,20 @@ namespace LiteDB
             if (field.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(field));
             if (value.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(value));
 
-            return BsonExpression.Create($"{field} LIKE {(new BsonValue(value + "%"))}");
+            return BsonExpression.Create($"{field} LIKE {new BsonValue(value + "%")}");
         }
+        
+        /// <summary>
+        /// Returns all documents that ends with value (LIKE)
+        /// </summary>as
+        public static BsonExpression EndsWith(string field, string value)
+        {
+            if (field.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(field));
+            if (value.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(value));
+
+            return BsonExpression.Create($"{field} LIKE {new BsonValue("%" + value)}");
+        }
+
 
         /// <summary>
         /// Returns all documents that contains value (CONTAINS) - string Contains
@@ -126,7 +138,7 @@ namespace LiteDB
             if (field.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(field));
             if (value.IsNullOrEmpty()) throw new ArgumentNullException(nameof(value));
 
-            return BsonExpression.Create($"{field} LIKE {(new BsonValue("%" + value + "%"))}");
+            return BsonExpression.Create($"{field} LIKE {new BsonValue("%" + value + "%")}");
         }
 
         /// <summary>
