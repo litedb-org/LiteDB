@@ -1,4 +1,4 @@
-﻿using LiteDB.Engine;
+using LiteDB.Engine;
 
 using System;
 using System.Collections.Generic;
@@ -120,7 +120,7 @@ namespace LiteDB
         
         /// <summary>
         /// Returns all documents that ends with value (LIKE)
-        /// </summary>as
+        /// </summary>
         public static BsonExpression EndsWith(string field, string value)
         {
             if (field.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(field));
