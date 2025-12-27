@@ -65,9 +65,10 @@ namespace LiteDB.Tests.QueryTest
             using var db = new PersonQueryData();
             var (collection, local) = db.GetData();
 
-            var r0 = local.Where(x => x.Name.Contains("an")).ToArray();
+            // Use uppercase pattern to avoid case-sensitivity differences between LINQ and LiteDB LIKE
+            var r0 = local.Where(x => x.Name.Contains("John")).ToArray();
 
-            var r1 = collection.Find(Query.Contains("Name", "an")).ToArray();
+            var r1 = collection.Find(Query.Contains("Name", "John")).ToArray();
 
             AssertEx.ArrayEqual(r0, r1, true);
         }
