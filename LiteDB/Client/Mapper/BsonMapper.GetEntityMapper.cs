@@ -1,10 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-#if NET8_0_OR_GREATER
-using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
-#endif
 using System.Linq;
 using System.Reflection;
 using System.Threading;
@@ -13,10 +9,115 @@ namespace LiteDB;
 
 public partial class BsonMapper
 {
+    protected static List<Type> idAttrs = [typeof(BsonIdAttribute)];
+    protected static List<Type> ignoreAttrs = [typeof(BsonIgnoreAttribute)];
+    protected static Type fieldAttr = typeof(BsonFieldAttribute);
+    protected static Type dbrefAttr = typeof(BsonRefAttribute);
+
+    // Qualified names for optional DataAnnotations attributes
+    private static readonly List<string> customIdAttributeNames = [KeyAttributeName];
+    private static readonly List<string> customIgnoreAttributeNames = [NotMappedAttributeName];
+    
+    private const string KeyAttributeName = "System.ComponentModel.DataAnnotations.KeyAttribute";
+    private const string NotMappedAttributeName = "System.ComponentModel.DataAnnotations.Schema.NotMappedAttribute";
+
     /// <summary>
     /// Mapping cache between Class/BsonDocument
     /// </summary>
     private readonly ConcurrentDictionary<Type, EntityMapper> _entities = new();
+
+    /// <summary>
+    /// Register a custom attribute type to be recognized as ID attribute.
+    /// Use this method to add support for custom or third-party attributes.
+    /// </summary>
+    /// <param name="attributeType">The attribute type to register</param>
+    public static void RegisterIdAttribute(Type attributeType)
+    {
+        if (attributeType == null)
+            throw new ArgumentNullException(nameof(attributeType));
+        
+        if (!typeof(Attribute).IsAssignableFrom(attributeType))
+            throw new ArgumentException("Type must be an Attribute type", nameof(attributeType));
+
+        lock (idAttrs)
+        {
+            if (!idAttrs.Contains(attributeType))
+            {
+                idAttrs.Add(attributeType);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Register a custom attribute by its full name to be recognized as ID attribute.
+    /// Use this method when you don't have a direct reference to the attribute type.
+    /// </summary>
+    /// <param name="attributeFullName">The full name of the attribute (e.g., "MyNamespace.MyIdAttribute")</param>
+    public static void RegisterIdAttributeByName(string attributeFullName)
+    {
+        if (string.IsNullOrWhiteSpace(attributeFullName))
+            throw new ArgumentException("Attribute name cannot be null or empty", nameof(attributeFullName));
+
+        lock (customIdAttributeNames)
+        {
+            if (!customIdAttributeNames.Contains(attributeFullName))
+            {
+                customIdAttributeNames.Add(attributeFullName);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Register a custom attribute type to be recognized as Ignore attribute.
+    /// Use this method to add support for custom or third-party attributes.
+    /// </summary>
+    /// <param name="attributeType">The attribute type to register</param>
+    public static void RegisterIgnoreAttribute(Type attributeType)
+    {
+        if (attributeType == null)
+            throw new ArgumentNullException(nameof(attributeType));
+        
+        if (!typeof(Attribute).IsAssignableFrom(attributeType))
+            throw new ArgumentException("Type must be an Attribute type", nameof(attributeType));
+
+        lock (ignoreAttrs)
+        {
+            if (!ignoreAttrs.Contains(attributeType))
+            {
+                ignoreAttrs.Add(attributeType);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Register a custom attribute by its full name to be recognized as Ignore attribute.
+    /// Use this method when you don't have a direct reference to the attribute type.
+    /// </summary>
+    /// <param name="attributeFullName">The full name of the attribute (e.g., "MyNamespace.MyIgnoreAttribute")</param>
+    public static void RegisterIgnoreAttributeByName(string attributeFullName)
+    {
+        if (string.IsNullOrWhiteSpace(attributeFullName))
+            throw new ArgumentException("Attribute name cannot be null or empty", nameof(attributeFullName));
+
+        lock (customIgnoreAttributeNames)
+        {
+            if (!customIgnoreAttributeNames.Contains(attributeFullName))
+            {
+                customIgnoreAttributeNames.Add(attributeFullName);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Helper method to search for attributes by their fully qualified name.
+    /// Allows support for KeyAttribute and NotMappedAttribute without direct dependencies.
+    /// </summary>
+    private static bool HasAttributeByName(MemberInfo member, IEnumerable<string> attributeFullNames)
+    {
+        var attrs = member.GetCustomAttributes(false);
+        var attrTypeNames = new HashSet<string>(attrs.Select(a => a.GetType().FullName));
+        return attributeFullNames.Any(name => attrTypeNames.Contains(name));
+    }
 
     /// <summary>
     /// Get property mapper between typed .NET class and BsonDocument - Cache results
@@ -62,24 +163,18 @@ public partial class BsonMapper
     /// </summary>
     protected void BuildEntityMapper(EntityMapper mapper)
     {
-#if NET8_0_OR_GREATER
-        var idAttrs = new List<Type> { typeof(BsonIdAttribute), typeof(KeyAttribute) };
-        var ignoreAttrs = new List<Type> { typeof(BsonIgnoreAttribute), typeof(NotMappedAttribute) };
-#else
-        // in netstandard2.0 KeyAttribute and NotMappedAttribute are not available without adding extra dependencies
-        var idAttrs = new List<Type> { typeof(BsonIdAttribute) };
-        var ignoreAttrs = new List<Type> { typeof(BsonIgnoreAttribute) };
-#endif
-        var fieldAttr = typeof(BsonFieldAttribute);
-        var dbrefAttr = typeof(BsonRefAttribute);
 
         var members = this.GetTypeMembers(mapper.ForType);
         var id = this.GetIdMember(members);
 
         foreach (var memberInfo in members)
         {
-            // checks [BsonIgnore]
-            if (ignoreAttrs.Any(ia => CustomAttributeExtensions.IsDefined(memberInfo, ia, true))) continue;
+            // checks [BsonIgnore], [NotMapped] and custom ignore attributes
+            if (ignoreAttrs.Any(ia => CustomAttributeExtensions.IsDefined(memberInfo, ia, true)) ||
+                HasAttributeByName(memberInfo, customIgnoreAttributeNames))
+            {
+                continue;
+            }
 
             // checks field name conversion
             var name = this.ResolveFieldName(memberInfo.Name);
@@ -105,7 +200,7 @@ public partial class BsonMapper
             var setter = Reflection.CreateGenericSetter(mapper.ForType, memberInfo);
 
             // check if property has [BsonId] to get with was setted AutoId = true
-            // BsonIdAttribute takes precedence over KeyAttribute if both are present
+            // BsonIdAttribute takes precedence over custom attributes
             bool autoId = true;
             var bsonIdAttribute = (BsonIdAttribute)CustomAttributeExtensions.GetCustomAttributes(memberInfo, typeof(BsonIdAttribute), true)
                 .FirstOrDefault();
@@ -113,17 +208,11 @@ public partial class BsonMapper
             {
                 autoId = bsonIdAttribute.AutoId;
             }
-#if NET8_0_OR_GREATER
-            else
+            else if (HasAttributeByName(memberInfo, customIdAttributeNames))
             {
-                var keyAttribute = (KeyAttribute)CustomAttributeExtensions.GetCustomAttributes(memberInfo, typeof(KeyAttribute), true)
-                    .FirstOrDefault();
-                if (keyAttribute != null)
-                {
-                    autoId = false;
-                }
+                // Custom ID attributes don't support AutoId, so set to false
+                autoId = false;
             }
-#endif
 
             // get data type
             var dataType = memberInfo is PropertyInfo
@@ -175,12 +264,11 @@ public partial class BsonMapper
     /// </summary>
     protected virtual MemberInfo GetIdMember(IEnumerable<MemberInfo> members)
     {
-        // check for [Key] attribute as well in .NET 8 or greater
+        // check for [BsonId], custom ID attributes, and naming conventions
         return Reflection.SelectMember(members,
             x => CustomAttributeExtensions.IsDefined(x, typeof(BsonIdAttribute), true),
-#if NET8_0_OR_GREATER
-            x => CustomAttributeExtensions.IsDefined(x, typeof(KeyAttribute), true),
-#endif
+            x => idAttrs.Any(attr => CustomAttributeExtensions.IsDefined(x, attr, true)),
+            x => HasAttributeByName(x, customIdAttributeNames),
             x => x.Name.Equals("Id", StringComparison.OrdinalIgnoreCase),
             x => x.Name.Equals(x.DeclaringType.Name + "Id", StringComparison.OrdinalIgnoreCase));
     }
@@ -202,7 +290,7 @@ public partial class BsonMapper
 
         var shouldIncludeFields = members.Count == 0
                                   && type.GetTypeInfo().IsValueType;
-                                  
+
         if (shouldIncludeFields || this.IncludeFields)
         {
             members.AddRange(type.GetFields(flags).Where(x => !x.Name.EndsWith("k__BackingField") && x.IsStatic == false)
@@ -221,7 +309,7 @@ public partial class BsonMapper
     protected virtual CreateObject GetTypeCtor(EntityMapper mapper)
     {
         Type type = mapper.ForType;
-        List<CreateObject> Mappings = new List<CreateObject>();
+        List<CreateObject> Mappings = [];
         bool returnZeroParamNull = false;
         foreach (ConstructorInfo ctor in type.GetConstructors())
         {
