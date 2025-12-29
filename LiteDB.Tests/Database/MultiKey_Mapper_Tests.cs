@@ -63,8 +63,12 @@ namespace LiteDB.Tests.Database
                 col.Count(Query.Any().EQ("Keys", 2)).Should().Be(2);
                 col.Count(x => x.Keys.Contains(2)).Should().Be(2);
 
-                col.Count(Query.Any().StartsWith("Customers[*].Name", "Ana")).Should().Be(2);
-                col.Count(x => x.Customers.Select(z => z.Name).Any(z => z.StartsWith("Ana"))).Should().Be(2);
+                col.Count(Query.Any().StartsWith("Customers[*].Name", "An")).Should().Be(2);
+                col.Count(Query.Any().EndsWith("Customers[*].Name", "na")).Should().Be(2);
+                col.Count(Query.Any().Contains("Customers[*].Name", "Ana")).Should().Be(2);
+                col.Count(x => x.Customers.Select(z => z.Name).Any(z => z.StartsWith("An"))).Should().Be(2);
+                col.Count(x => x.Customers.Select(z => z.Name).Any(z => z.EndsWith("na"))).Should().Be(2);
+                col.Count(x => x.Customers.Select(z => z.Name).Any(z => z.Contains("Ana"))).Should().Be(2);
 
                 col.Count(Query.Any().StartsWith("Customers[*].Name", "D")).Should().Be(1);
                 col.Count(x => x.Customers.Select(z => z.Name).Any(z => z.StartsWith("D"))).Should().Be(1);
