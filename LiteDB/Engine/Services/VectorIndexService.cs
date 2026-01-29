@@ -293,11 +293,16 @@ namespace LiteDB.Engine
                     candidates.Where(x => x.Address != newAddress).ToList(),
                     VectorIndexNode.MaxNeighborsPerLevel);
 
-                node.SetNeighbors(level, selected.Select(x => x.Address).ToList());
+                var selectedAddresses = selected.Select(x => x.Address).ToList();
 
-                foreach (var neighbor in selected)
+                node.SetNeighbors(level, selectedAddresses);
+
+                foreach (var neighbor in selectedAddresses)
                 {
-                    this.EnsureBidirectional(metadata, neighbor.Address, newAddress, level, vectorCache);
+                    if (!this.EnsureBidirectional(metadata, neighbor, newAddress, level, vectorCache))
+                    {
+                        node.RemoveNeighbor(level, neighbor);
+                    }
                 }
 
                 if (selected.Count > 0)
@@ -420,10 +425,11 @@ namespace LiteDB.Engine
             return this.SelectNeighbors(results, Math.Max(1, maxResults));
         }
 
-        private void EnsureBidirectional(VectorIndexMetadata metadata, PageAddress source, PageAddress target, int level, Dictionary<PageAddress, float[]> vectorCache)
+        private bool EnsureBidirectional(VectorIndexMetadata metadata, PageAddress source, PageAddress target, int level, Dictionary<PageAddress, float[]> vectorCache)
         {
             var node = this.GetNode(source);
-            var neighbors = node.GetNeighbors(level).ToList();
+            var neighbors = node.GetNeighbors(level).Where(x => !x.IsEmpty).ToList();
+            var before = neighbors.ToList();
 
             if (!neighbors.Contains(target))
             {
@@ -432,6 +438,33 @@ namespace LiteDB.Engine
 
             var pruned = this.PruneNeighbors(metadata, source, neighbors, vectorCache);
             node.SetNeighbors(level, pruned);
+
+            foreach (var removed in before)
+            {
+                if (!pruned.Contains(removed))
+                {
+                    this.RemoveBackLink(removed, source, level);
+                }
+            }
+
+            return pruned.Contains(target);
+        }
+
+        private void RemoveBackLink(PageAddress source, PageAddress target, int level)
+        {
+            if (source.IsEmpty || target.IsEmpty)
+            {
+                return;
+            }
+
+            var node = this.GetNode(source);
+
+            if (level < 0 || level >= node.LevelCount)
+            {
+                return;
+            }
+
+            node.RemoveNeighbor(level, target);
         }
 
         private IReadOnlyList<PageAddress> PruneNeighbors(VectorIndexMetadata metadata, PageAddress source, List<PageAddress> neighbors, Dictionary<PageAddress, float[]> vectorCache)

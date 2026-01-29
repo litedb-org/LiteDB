@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 using FluentAssertions;
 using LiteDB;
 using LiteDB.Engine;
@@ -209,6 +210,56 @@ namespace LiteDB.Tests.Engine
                 }
 
                 db.GetCollectionNames().Should().NotContain("docs");
+            }
+        }
+
+        /// <summary>
+        /// Regression test for LiteDB issue #2724.
+        /// </summary>
+        /// <remarks>
+        /// https://github.com/litedb-org/LiteDB/issues/2724
+        /// </remarks>
+        [Fact]
+        public void DropCollection_WithVectorIndex_AfterParallelUpserts_DoesNotThrow()
+        {
+            using var file = new TempFile();
+
+            const int documentCount = 64;
+            const int updateCount = 256;
+            const ushort dimensions = 32;
+
+            using (var db = DatabaseFactory.Create(
+                TestDatabaseType.Disk,
+                $"Filename={file.Filename};Connection=Shared"))
+            {
+                var collection = db.GetCollection<VectorDocument>("docs");
+                var options = new VectorIndexOptions(dimensions, VectorDistanceMetric.Cosine);
+
+                collection.EnsureIndex(VectorIndexName, x => x.Embedding, options);
+
+                var initial = Enumerable.Range(1, documentCount)
+                    .Select(i => new VectorDocument
+                    {
+                        Id = i,
+                        Embedding = CreateLargeVector(i, dimensions)
+                    })
+                    .ToList();
+
+                collection.Insert(initial);
+
+                Parallel.For(0, updateCount, i =>
+                {
+                    var id = (i % documentCount) + 1;
+                    collection.Upsert(new VectorDocument
+                    {
+                        Id = id,
+                        Embedding = CreateLargeVector(i + 5000, dimensions)
+                    });
+                });
+
+                Action drop = () => db.DropCollection("docs");
+
+                drop.Should().NotThrow();
             }
         }
 
