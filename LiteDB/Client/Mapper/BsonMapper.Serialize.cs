@@ -186,7 +186,7 @@ namespace LiteDB
             // adding _type only where property Type is not same as object instance type
             if (type != t)
             {
-                doc["_type"] = new BsonValue(_typeNameBinder.GetName(t));
+                doc["_type"] = SerializeTypeName(t);
             }
 
             foreach (var member in entity.Members.Where(x => x.Getter != null))
@@ -208,6 +208,14 @@ namespace LiteDB
             }
 
             return doc;
+        }
+
+        /// <summary>
+        /// Returns the name of the given type for serialization (type discriminator).
+        /// </summary>
+        internal BsonValue SerializeTypeName(Type type)
+        {
+            return new BsonValue(_typeNameBinder.GetName(type));
         }
     }
 }

@@ -227,22 +227,22 @@ namespace LiteDB
         /// </summary>
         internal static void RegisterDbRef(BsonMapper mapper, MemberMapper member, ITypeNameBinder typeNameBinder, string collection)
         {
-            member.IsDbRef = true;
+            member.DbRefCollectionName = collection;
 
             if (member.IsEnumerable)
             {
-                RegisterDbRefList(mapper, member, typeNameBinder, collection);
+                RegisterDbRefList(mapper, member, typeNameBinder);
             }
             else
             {
-                RegisterDbRefItem(mapper, member, typeNameBinder, collection);
+                RegisterDbRefItem(mapper, member, typeNameBinder);
             }
         }
 
         /// <summary>
         /// Register a property as a DbRef - implement a custom Serialize/Deserialize actions to convert entity to $id, $ref only
         /// </summary>
-        private static void RegisterDbRefItem(BsonMapper mapper, MemberMapper member, ITypeNameBinder typeNameBinder, string collection)
+        private static void RegisterDbRefItem(BsonMapper mapper, MemberMapper member, ITypeNameBinder typeNameBinder)
         {
             // get entity
             var entity = mapper.GetEntityMapper(member.DataType);
@@ -263,12 +263,12 @@ namespace LiteDB
                 var bsonDocument = new BsonDocument
                 {
                     ["$id"] = m.Serialize(id.GetType(), id, 0),
-                    ["$ref"] = collection
+                    ["$ref"] = member.DbRefCollectionName
                 };
 
                 if (member.DataType != obj.GetType())
                 {
-                    bsonDocument["$type"] = typeNameBinder.GetName(obj.GetType());
+                    bsonDocument["$type"] = mapper.SerializeTypeName(obj.GetType());
                 }
 
                 return bsonDocument;
@@ -311,7 +311,7 @@ namespace LiteDB
         /// <summary>
         /// Register a property as a DbRefList - implement a custom Serialize/Deserialize actions to convert entity to $id, $ref only
         /// </summary>
-        private static void RegisterDbRefList(BsonMapper mapper, MemberMapper member, ITypeNameBinder typeNameBinder, string collection)
+        private static void RegisterDbRefList(BsonMapper mapper, MemberMapper member, ITypeNameBinder typeNameBinder)
         {
             // get entity from list item type
             var entity = mapper.GetEntityMapper(member.UnderlyingType);
@@ -334,12 +334,12 @@ namespace LiteDB
                     var bsonDocument = new BsonDocument
                     {
                         ["$id"] = m.Serialize(id.GetType(), id, 0),
-                        ["$ref"] = collection
+                        ["$ref"] = member.DbRefCollectionName
                     };
 
                     if (member.UnderlyingType != item.GetType())
                     {
-                        bsonDocument["$type"] = typeNameBinder.GetName(item.GetType());
+                        bsonDocument["$type"] = mapper.SerializeTypeName(item.GetType());
                     }
 
                     result.Add(bsonDocument);
