@@ -28,6 +28,6 @@ public sealed class BsonRefId<T>
 
     public static implicit operator T(BsonRefId<T> _)
     {
-        throw new NotSupportedException($"The type {nameof(BsonRefId<>)} can only be used in LiteDB LINQ expressions.");
+        throw new NotSupportedException("The type BsonRefId<T> can only be used in LiteDB LINQ expressions.");
     }
 }

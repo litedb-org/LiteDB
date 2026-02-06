@@ -753,7 +753,7 @@ namespace LiteDB
             switch (node)
             {
                 // Implicit convert from BsonRefId<T> to T
-                case UnaryExpression { NodeType: ExpressionType.Convert, Method.Name: "op_Implicit", Operand: var operand }:
+                case UnaryExpression { NodeType: ExpressionType.Convert, Method: { Name: "op_Implicit" }, Operand: var operand }:
                     return TryVisitDbRefIdExpression(operand, memberMapper, isInList);
 
                 // The actual new BsonRefId<T>
@@ -832,7 +832,7 @@ namespace LiteDB
         /// </summary>
         private void ResolveDbRefId(NewExpression node, MemberMapper memberMapper)
         {
-            _builder.Append("{$id:");
+            _builder.Append("{ $id:");
 
             ResolvePattern("@0", null, node.Arguments);
 
@@ -846,7 +846,7 @@ namespace LiteDB
                 Visit(Expression.Constant(_mapper.SerializeTypeName(refType)));
             }
 
-            _builder.Append("}");
+            _builder.Append(" }");
         }
 
         /// <summary>
