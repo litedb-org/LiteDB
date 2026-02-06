@@ -88,7 +88,10 @@ namespace LiteDB.Tests.Mapper
             public Product[] Products { get; set; }
         }
 
-        public class OrderCustomer : Customer;
+        public class OrderCustomer : Customer
+        {
+            // Just used to test derived types serialization in BsonRefId tests
+        }
 
         public class Account
         {
