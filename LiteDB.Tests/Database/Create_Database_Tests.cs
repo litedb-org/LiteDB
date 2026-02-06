@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using FluentAssertions;
 using LiteDB.Engine;
+using LiteDB.Tests.Utils;
 using Xunit;
 
 namespace LiteDB.Tests.Database
@@ -17,7 +18,7 @@ namespace LiteDB.Tests.Database
 
             using (var file = new TempFile())
             {
-                using (var db = new LiteDatabase("filename=" + file.Filename + ";initial size=" + initial))
+                using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, "filename=" + file.Filename + ";initial size=" + initial))
                 {
                     var col = db.GetCollection("col");
 

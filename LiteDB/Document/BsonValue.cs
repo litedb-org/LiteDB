@@ -119,6 +119,12 @@ namespace LiteDB
             this.RawValue = rawValue;
         }
 
+        protected BsonValue(float[] value)
+        {
+            this.Type = BsonType.Vector;
+            this.RawValue = value;
+        }
+
         public BsonValue(object value)
         {
             this.RawValue = value;
@@ -135,6 +141,7 @@ namespace LiteDB
             else if (value is ObjectId) this.Type = BsonType.ObjectId;
             else if (value is Guid) this.Type = BsonType.Guid;
             else if (value is Boolean) this.Type = BsonType.Boolean;
+            else if (value is float[]) this.Type = BsonType.Vector;
             else if (value is DateTime)
             {
                 this.Type = BsonType.DateTime;
@@ -246,6 +253,10 @@ namespace LiteDB
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         public Guid AsGuid => (Guid)this.RawValue;
 
+        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        public float[] AsVector => (float[])this.RawValue;
+
+
         #endregion
 
         #region IsTypes
@@ -288,6 +299,9 @@ namespace LiteDB
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         public bool IsGuid => this.Type == BsonType.Guid;
+
+        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        public bool IsVector => this.Type == BsonType.Vector;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         public bool IsDateTime => this.Type == BsonType.DateTime;
@@ -408,6 +422,18 @@ namespace LiteDB
         public static implicit operator BsonValue(Guid value)
         {
             return new BsonValue(value);
+        }
+
+        // Vector
+        public static implicit operator float[](BsonValue value)
+        {
+            return value.AsVector;
+        }
+
+        // Vector
+        public static implicit operator BsonValue(float[] value)
+        {
+            return new BsonVector(value);
         }
 
         // Boolean
@@ -567,6 +593,25 @@ namespace LiteDB
                 case BsonType.Guid: return this.AsGuid.CompareTo(other.AsGuid);
 
                 case BsonType.Boolean: return this.AsBoolean.CompareTo(other.AsBoolean);
+                case BsonType.Vector:
+                    {
+                        var left = this.AsVector;
+                        var right = other.AsVector;
+                        var length = Math.Min(left.Length, right.Length);
+
+                        for (var i = 0; i < length; i++)
+                        {
+                            var result = left[i].CompareTo(right[i]);
+                            if (result != 0)
+                            {
+                                return result;
+                            }
+                        }
+
+                        if (left.Length == right.Length) return 0;
+
+                        return left.Length < right.Length ? -1 : 1;
+                    }
                 case BsonType.DateTime:
                     var d0 = this.AsDateTime;
                     var d1 = other.AsDateTime;
@@ -667,6 +712,7 @@ namespace LiteDB
 
                 case BsonType.Boolean: return 1;
                 case BsonType.DateTime: return 8;
+                case BsonType.Vector: return 2 + (4 * this.AsVector.Length);
 
                 case BsonType.Document: return this.AsDocument.GetBytesCount(recalc);
                 case BsonType.Array: return this.AsArray.GetBytesCount(recalc);

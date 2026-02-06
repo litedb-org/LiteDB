@@ -154,24 +154,63 @@ namespace LiteDB.Engine
         /// <summary>
         /// ORDER BY: Sort documents according orderby expression and order asc/desc
         /// </summary>
-        protected IEnumerable<BsonDocument> OrderBy(IEnumerable<BsonDocument> source, BsonExpression expr, int order, int offset, int limit)
+        protected IEnumerable<BsonDocument> OrderBy(IEnumerable<BsonDocument> source, OrderBy orderBy, int offset, int limit)
         {
-            var keyValues = source
-                .Select(x => new KeyValuePair<BsonValue, PageAddress>(expr.ExecuteScalar(x, _pragmas.Collation), x.RawId));
+            var segments = orderBy.Segments;
 
-            using (var sorter = new SortService(_tempDisk, order, _pragmas))
+            if (segments.Count == 1)
             {
-                sorter.Insert(keyValues);
+                var segment = segments[0];
+                var keyValues = source
+                    .Select(doc => new KeyValuePair<BsonValue, PageAddress>(segment.Expression.ExecuteScalar(doc, _pragmas.Collation), doc.RawId));
 
-                LOG($"sort {sorter.Count} keys in {sorter.Containers.Count} containers", "SORT");
-
-                var result = sorter.Sort().Skip(offset).Take(limit);
-
-                foreach (var keyValue in result)
+                using (var sorter = new SortService(_tempDisk, new[] { segment.Order }, _pragmas))
                 {
-                    var doc = _lookup.Load(keyValue.Value);
+                    sorter.Insert(keyValues);
 
-                    yield return doc;
+                    LOG($"sort {sorter.Count} keys in {sorter.Containers.Count} containers", "SORT");
+
+                    var result = sorter.Sort().Skip(offset).Take(limit);
+
+                    foreach (var keyValue in result)
+                    {
+                        var doc = _lookup.Load(keyValue.Value);
+
+                        yield return doc;
+                    }
+                }
+            }
+            else
+            {
+                var orders = segments.Select(x => x.Order).ToArray();
+
+                var keyValues = source
+                    .Select(doc =>
+                    {
+                        var values = new BsonValue[segments.Count];
+
+                        for (var i = 0; i < segments.Count; i++)
+                        {
+                            values[i] = segments[i].Expression.ExecuteScalar(doc, _pragmas.Collation);
+                        }
+
+                        return new KeyValuePair<BsonValue, PageAddress>(SortKey.FromValues(values, orders), doc.RawId);
+                    });
+
+                using (var sorter = new SortService(_tempDisk, orders, _pragmas))
+                {
+                    sorter.Insert(keyValues);
+
+                    LOG($"sort {sorter.Count} keys in {sorter.Containers.Count} containers", "SORT");
+
+                    var result = sorter.Sort().Skip(offset).Take(limit);
+
+                    foreach (var keyValue in result)
+                    {
+                        var doc = _lookup.Load(keyValue.Value);
+
+                        yield return doc;
+                    }
                 }
             }
         }

@@ -24,7 +24,9 @@ namespace LiteDB
             [typeof(Decimal)] = new NumberResolver("DECIMAL"),
             [typeof(Double)] = new NumberResolver("DOUBLE"),
             [typeof(ICollection)] = new ICollectionResolver(),
+            [typeof(IGrouping<,>)] = new GroupingResolver(),
             [typeof(Enumerable)] = new EnumerableResolver(),
+            [typeof(MemoryExtensions)] = new MemoryExtensionsResolver(),
             [typeof(Guid)] = new GuidResolver(),
             [typeof(Math)] = new MathResolver(),
             [typeof(Regex)] = new RegexResolver(),
@@ -177,6 +179,13 @@ namespace LiteDB
         /// </summary>
         protected override Expression VisitMethodCall(MethodCallExpression node)
         {
+            if (this.IsSpanImplicitConversion(node.Method))
+            {
+                this.Visit(node.Arguments[0]);
+
+                return node;
+            }
+
             // if special method for index access, eval index value (do not use parameters)
             if (this.IsMethodIndexEval(node, out var obj, out var idx))
             {
@@ -198,7 +207,20 @@ namespace LiteDB
             }
 
             // if not found in resolver, try run method
-            if (!TryGetResolver(node.Method.DeclaringType, out var type))
+            var hasResolver = TryGetResolver(node.Method.DeclaringType, out var type);
+
+            if (node.Method.DeclaringType == typeof(Enumerable) && node.Arguments.Count > 0)
+            {
+                var first = node.Arguments[0].Type;
+
+                if (first.IsGenericType && first.GetGenericTypeDefinition() == typeof(IGrouping<,>))
+                {
+                    type = _resolver[typeof(IGrouping<,>)];
+                    hasResolver = true;
+                }
+            }
+
+            if (!hasResolver)
             {
                 // if method are called by parameter expression and it's not exists, throw error
                 var isParam = ParameterExpressionVisitor.Test(node);
@@ -833,17 +855,44 @@ namespace LiteDB
         private static bool TryGetResolver(Type declaringType, out ITypeResolver typeResolver)
         {
             // get method declaring type - if is from any kind of list, read as Enumerable
+            var isGrouping = declaringType?.IsGenericType == true && declaringType.GetGenericTypeDefinition() == typeof(IGrouping<,>);
             var isCollection = Reflection.IsCollection(declaringType);
             var isEnumerable = Reflection.IsEnumerable(declaringType);
             var isNullable = Reflection.IsNullable(declaringType);
 
             var type =
+                isGrouping ? typeof(IGrouping<,>) :
                 isCollection ? typeof(ICollection) :
                 isEnumerable ? typeof(Enumerable) :
                 isNullable ? typeof(Nullable) :
                 declaringType;
 
             return _resolver.TryGetValue(type, out typeResolver);
+        }
+
+        private bool IsSpanImplicitConversion(MethodInfo method)
+        {
+            if (method == null || method.Name != "op_Implicit" || method.GetParameters().Length != 1)
+            {
+                return false;
+            }
+
+            var returnType = method.ReturnType;
+
+            return this.IsSpanLike(returnType);
+        }
+
+        private bool IsSpanLike(Type type)
+        {
+            if (type == null || !type.IsGenericType)
+            {
+                return false;
+            }
+
+            var definition = type.GetGenericTypeDefinition();
+            var name = definition.FullName;
+
+            return name == "System.Span`1" || name == "System.ReadOnlySpan`1";
         }
     }
 }

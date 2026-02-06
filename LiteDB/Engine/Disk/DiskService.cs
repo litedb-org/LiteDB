@@ -190,7 +190,7 @@ namespace LiteDB.Engine
                     // set log stream position to page
                     stream.Position = page.Position;
 
-#if DEBUG
+#if DEBUG || TESTING
                     _state.SimulateDiskWriteFail?.Invoke(page);
 #endif
 
@@ -202,6 +202,7 @@ namespace LiteDB.Engine
 
                     count++;
                 }
+                stream.Flush();
             }
 
             return count;

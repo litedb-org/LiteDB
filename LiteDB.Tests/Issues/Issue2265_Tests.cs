@@ -1,5 +1,6 @@
 ﻿using System;
 
+using LiteDB.Tests.Utils;
 using Xunit;
 
 namespace LiteDB.Tests.Issues;
@@ -31,7 +32,7 @@ public class Issue2265_Tests
     [Fact]
     public void Test()
     {
-        using (var db = new LiteDatabase(":memory:"))
+        using (var db = DatabaseFactory.Create())
         {
             var c = db.GetCollection<Weights>("weights");
             Weights? w = c.FindOne(x => true);

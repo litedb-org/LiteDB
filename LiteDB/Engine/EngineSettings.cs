@@ -71,6 +71,11 @@ namespace LiteDB.Engine
         /// Is used to transform a <see cref="BsonValue"/> from the database on read. This can be used to upgrade data from older versions.
         /// </summary>
         public Func<string, BsonValue, BsonValue> ReadTransform { get; set; }
+        
+        /// <summary>
+        /// Determines how the mutex name is generated.
+        /// </summary>
+        public SharedMutexNameStrategy SharedMutexNameStrategy { get; set; }
 
         /// <summary>
         /// Create new IStreamFactory for datafile

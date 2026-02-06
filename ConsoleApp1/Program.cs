@@ -1,98 +1,66 @@
-﻿using LiteDB;
+using System.IO;
+using System.Reflection;
+using System.Threading;
 using LiteDB.Engine;
 
-using System.Reflection.Emit;
-using System.Reflection.PortableExecutable;
+const string DatabaseName = "issue-2561-repro.db";
+var databasePath = Path.Combine(AppContext.BaseDirectory, DatabaseName);
 
-var password = "46jLz5QWd5fI3m4LiL2r";
-var path = $"C:\\LiteDB\\Examples\\CrashDB_{DateTime.Now.Ticks}.db";
+if (File.Exists(databasePath))
+{
+    File.Delete(databasePath);
+}
 
 var settings = new EngineSettings
 {
-    AutoRebuild = true,
-    Filename = path,
-    Password = password
+    Filename = databasePath
 };
 
-var data = Enumerable.Range(1, 10_000).Select(i => new BsonDocument
+Console.WriteLine($"LiteDB engine file: {databasePath}");
+Console.WriteLine("Creating an explicit transaction on the main thread...");
+
+using var engine = new LiteEngine(settings);
+engine.BeginTrans();
+
+var monitorField = typeof(LiteEngine).GetField("_monitor", BindingFlags.NonPublic | BindingFlags.Instance) ??
+    throw new InvalidOperationException("Could not locate the transaction monitor field.");
+
+var monitor = monitorField.GetValue(engine) ??
+    throw new InvalidOperationException("Failed to extract the transaction monitor instance.");
+
+var getTransaction = monitor.GetType().GetMethod(
+    "GetTransaction",
+    BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance,
+    binder: null,
+    types: new[] { typeof(bool), typeof(bool), typeof(bool).MakeByRefType() },
+    modifiers: null) ??
+    throw new InvalidOperationException("Could not locate GetTransaction on the monitor.");
+
+var getTransactionArgs = new object[] { false, false, null! };
+var transaction = getTransaction.Invoke(monitor, getTransactionArgs) ??
+    throw new InvalidOperationException("LiteDB did not return the thread-bound transaction.");
+
+Console.WriteLine("Main thread transaction captured. Launching a worker thread to mimic the finalizer...");
+
+var releaseTransaction = monitor.GetType().GetMethod(
+    "ReleaseTransaction",
+    BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance,
+    binder: null,
+    types: new[] { transaction.GetType() },
+    modifiers: null) ??
+    throw new InvalidOperationException("Could not locate ReleaseTransaction on the monitor.");
+
+var worker = new Thread(() =>
 {
-    ["_id"] = i,
-    ["name"] = Faker.Fullname(),
-    ["age"] = Faker.Age(),
-    ["created"] = Faker.Birthday(),
-    ["lorem"] = Faker.Lorem(5, 25)
-}).ToArray();
+    Console.WriteLine($"Worker thread {Environment.CurrentManagedThreadId} releasing the transaction...");
 
-try
-{
-    using (var db = new LiteEngine(settings))
-    {
-#if DEBUG
-        db.SimulateDiskWriteFail = (page) =>
-        {
-            var p = new BasePage(page);
+    // This invocation throws LiteException("current thread must contains transaction parameter")
+    // because the worker thread never registered the transaction in its ThreadLocal slot.
+    releaseTransaction.Invoke(monitor, new[] { transaction });
+});
 
-            if (p.PageID == 248)
-            {
-                page.Write((uint)123123123, 8192-4);
-            }
-        };
-#endif
+worker.Start();
+worker.Join();
 
-        db.Pragma("USER_VERSION", 123);
+Console.WriteLine("If you see this message the repro did not trigger the crash.");
 
-        db.EnsureIndex("col1", "idx_age", "$.age", false);
-
-        db.Insert("col1", data, BsonAutoId.Int32);
-        db.Insert("col2", data, BsonAutoId.Int32);
-
-        var col1 = db.Query("col1", Query.All()).ToList().Count;
-        var col2 = db.Query("col2", Query.All()).ToList().Count;
-
-        Console.WriteLine("Inserted Col1: " + col1);
-        Console.WriteLine("Inserted Col2: " + col2);
-    }
-}
-catch (Exception ex)
-{
-    Console.WriteLine("ERROR: " + ex.Message);
-}
-
-Console.WriteLine("Recovering database...");
-
-using (var db = new LiteEngine(settings))
-{
-    var col1 = db.Query("col1", Query.All()).ToList().Count;
-    var col2 = db.Query("col2", Query.All()).ToList().Count;
-
-    Console.WriteLine($"Col1: {col1}");
-    Console.WriteLine($"Col2: {col2}");
-
-    var errors = new BsonArray(db.Query("_rebuild_errors", Query.All()).ToList()).ToString();
-
-    Console.WriteLine("Errors: " + errors);
-
-}
-
-/*
-var errors = new List<FileReaderError>();
-var fr = new FileReaderV8(settings, errors);
-
-fr.Open();
-var pragmas = fr.GetPragmas();
-var cols = fr.GetCollections().ToArray();
-var indexes = fr.GetIndexes(cols[0]);
-
-var docs1 = fr.GetDocuments("col1").ToArray();
-var docs2 = fr.GetDocuments("col2").ToArray();
-
-
-Console.WriteLine("Recovered Col1: " + docs1.Length);
-Console.WriteLine("Recovered Col2: " + docs2.Length);
-
-Console.WriteLine("# Errors: ");
-errors.ForEach(x => Console.WriteLine($"PageID: {x.PageID}/{x.Origin}/#{x.Position}[{x.Collection}]: " + x.Message));
-*/
-
-Console.WriteLine("\n\nEnd.");
-Console.ReadKey();
