@@ -750,6 +750,11 @@ namespace LiteDB
                 return false;
             }
 
+            if (string.IsNullOrWhiteSpace(memberMapper.DbRefCollectionName))
+            {
+                throw new NotSupportedException($"BsonRefId<T> requires a DbRef collection name. Member '{memberMapper.MemberName}' is missing it (use [BsonRef] or Entity<T>().DbRef(...)).");
+            }
+
             switch (node)
             {
                 // Implicit convert from BsonRefId<T> to T
@@ -832,6 +837,11 @@ namespace LiteDB
         /// </summary>
         private void ResolveDbRefId(NewExpression node, MemberMapper memberMapper)
         {
+            if (string.IsNullOrWhiteSpace(memberMapper.DbRefCollectionName))
+            {
+                throw new NotSupportedException($"BsonRefId<T> requires a DbRef collection name. Member '{memberMapper.MemberName}' is missing it (use [BsonRef] or Entity<T>().DbRef(...)).");
+            }
+
             _builder.Append("{ $id:");
 
             ResolvePattern("@0", null, node.Arguments);

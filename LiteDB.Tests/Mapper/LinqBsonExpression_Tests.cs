@@ -93,6 +93,14 @@ namespace LiteDB.Tests.Mapper
             // Just used to test derived types serialization in BsonRefId tests
         }
 
+        public class OrderMissingDbRefCollectionName
+        {
+            [BsonId]
+            public int Id { get; set; }
+
+            public Product Product { get; set; }
+        }
+
         public class Account
         {
             [BsonId]
@@ -580,6 +588,29 @@ namespace LiteDB.Tests.Mapper
                     p2Id,
                     "products",
                 ]);
+        }
+
+        [Fact]
+        public void Linq_MemberInit_DbRef_Throws_When_CollectionName_Is_Missing()
+        {
+            var mapper = new BsonMapper();
+
+            mapper.ResolveMember = (type, _, member) =>
+            {
+                if (type == typeof(OrderMissingDbRefCollectionName) && member.MemberName == nameof(OrderMissingDbRefCollectionName.Product))
+                {
+                    member.IsDbRef = true;
+                }
+            };
+
+            mapper.Invoking(x => x.GetExpression<OrderMissingDbRefCollectionName, object>(o => new OrderMissingDbRefCollectionName
+                {
+                    Id = 1,
+                    Product = new BsonRefId<Product>(ObjectId.NewObjectId())
+                }))
+                .Should()
+                .Throw<NotSupportedException>()
+                .WithMessage("*DbRef collection name*");
         }
 
         #region Test helper
