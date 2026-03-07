@@ -22,8 +22,7 @@ namespace LiteDB.Tests.Issues
 
                 ZipFile.ExtractToDirectory(
                     Path.Combine(AppContext.BaseDirectory, "Resources", "Issue1940_CorruptFreeEmptyList.zip"),
-                    tempDirectory,
-                    overwriteFiles: true);
+                    tempDirectory);
 
                 Action firstOpen = () =>
                 {
