@@ -12,20 +12,12 @@ namespace LiteDB.Tests.Issues
         [Fact]
         public void OpeningDatabaseWithLegacyCorruptFreeListInWalShouldAutoHeal()
         {
-            var tempDirectory = Path.Combine(Path.GetTempPath(), $"litedb-issue1940-{Guid.NewGuid():N}");
-            Directory.CreateDirectory(tempDirectory);
+            var tempDirectory = this.ExtractFixture();
 
             try
             {
-                ZipFile.ExtractToDirectory(
-                    Path.Combine(AppContext.BaseDirectory, "Resources", "Issue1940_CorruptFreeEmptyList.zip"),
-                    tempDirectory);
-
                 var databasePath = Path.Combine(tempDirectory, "Issue1940_CorruptFreeEmptyList.db");
                 var logPath = Path.Combine(tempDirectory, "Issue1940_CorruptFreeEmptyList-log.db");
-
-                File.Exists(databasePath).Should().BeTrue();
-                File.Exists(logPath).Should().BeTrue();
 
                 Action firstOpen = () =>
                 {
@@ -57,10 +49,72 @@ namespace LiteDB.Tests.Issues
             }
             finally
             {
-                if (Directory.Exists(tempDirectory))
+                this.DeleteTempDirectory(tempDirectory);
+            }
+        }
+
+        [Fact]
+        public void OpeningDatabaseWithoutAllocatingPagesShouldStillHealBeforeCheckpoint()
+        {
+            var tempDirectory = this.ExtractFixture();
+
+            try
+            {
+                var databasePath = Path.Combine(tempDirectory, "Issue1940_CorruptFreeEmptyList.db");
+                var logPath = Path.Combine(tempDirectory, "Issue1940_CorruptFreeEmptyList-log.db");
+
+                Action openWithoutAllocations = () =>
                 {
-                    Directory.Delete(tempDirectory, true);
+                    using var db = new LiteDatabase(databasePath);
+                    db.GetCollectionNames().Should().NotBeNull();
+                };
+
+                openWithoutAllocations.Should().NotThrow();
+
+                if (File.Exists(logPath))
+                {
+                    new FileInfo(logPath).Length.Should().Be(0);
                 }
+
+                Action reopenAndWrite = () =>
+                {
+                    using var db = new LiteDatabase(databasePath);
+                    var col = db.GetCollection<LegacyCorruptWalDoc>("verify");
+
+                    col.Insert(this.CreateDocs());
+                };
+
+                reopenAndWrite.Should().NotThrow();
+            }
+            finally
+            {
+                this.DeleteTempDirectory(tempDirectory);
+            }
+        }
+
+        private string ExtractFixture()
+        {
+            var tempDirectory = Path.Combine(Path.GetTempPath(), $"litedb-issue1940-{Guid.NewGuid():N}");
+            Directory.CreateDirectory(tempDirectory);
+
+            ZipFile.ExtractToDirectory(
+                Path.Combine(AppContext.BaseDirectory, "Resources", "Issue1940_CorruptFreeEmptyList.zip"),
+                tempDirectory);
+
+            var databasePath = Path.Combine(tempDirectory, "Issue1940_CorruptFreeEmptyList.db");
+            var logPath = Path.Combine(tempDirectory, "Issue1940_CorruptFreeEmptyList-log.db");
+
+            File.Exists(databasePath).Should().BeTrue();
+            File.Exists(logPath).Should().BeTrue();
+
+            return tempDirectory;
+        }
+
+        private void DeleteTempDirectory(string tempDirectory)
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, true);
             }
         }
 

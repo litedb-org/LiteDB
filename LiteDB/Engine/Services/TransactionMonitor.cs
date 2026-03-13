@@ -19,7 +19,6 @@ namespace LiteDB.Engine
         private readonly LockService _locker;
         private readonly DiskService _disk;
         private readonly WalIndexService _walIndex;
-        private readonly Action _ensureFreeEmptyPageListIsHealthy;
 
         private int _freePages;
         private readonly int _initialSize;
@@ -29,13 +28,12 @@ namespace LiteDB.Engine
         public int FreePages => _freePages;
         public int InitialSize => _initialSize;
 
-        public TransactionMonitor(HeaderPage header, LockService locker, DiskService disk, WalIndexService walIndex, Action ensureFreeEmptyPageListIsHealthy)
+        public TransactionMonitor(HeaderPage header, LockService locker, DiskService disk, WalIndexService walIndex)
         {
             _header = header;
             _locker = locker;
             _disk = disk;
             _walIndex = walIndex;
-            _ensureFreeEmptyPageListIsHealthy = ensureFreeEmptyPageListIsHealthy;
 
             // initialize free pages with all avaiable pages in memory
             _freePages = MAX_TRANSACTION_SIZE;
@@ -64,7 +62,7 @@ namespace LiteDB.Engine
                     // check if current thread contains any transaction
                     alreadyLock = _transactions.Values.Any(x => x.ThreadID == Environment.CurrentManagedThreadId);
 
-                    transaction = new TransactionService(_header, _locker, _disk, _walIndex, _ensureFreeEmptyPageListIsHealthy, initialSize, this, queryOnly);
+                    transaction = new TransactionService(_header, _locker, _disk, _walIndex, initialSize, this, queryOnly);
 
                     // add transaction to execution transaction dict
                     _transactions[transaction.TransactionID] = transaction;

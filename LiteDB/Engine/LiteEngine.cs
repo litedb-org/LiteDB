@@ -34,8 +34,6 @@ namespace LiteDB.Engine
 
         private EngineState _state;
 
-        private int _deferFreeEmptyPageListValidation;
-
         // immutable settings
         private readonly EngineSettings _settings;
 
@@ -146,18 +144,14 @@ namespace LiteDB.Engine
                 {
                     _walIndex.RestoreIndex(ref _header);
 
-                    _deferFreeEmptyPageListValidation = _header.FreeEmptyPageList != uint.MaxValue ? 1 : 0;
-                }
-                else
-                {
-                    _deferFreeEmptyPageListValidation = 0;
+                    this.HealCorruptedFreeEmptyPageList();
                 }
 
                 // initialize sort temp disk
                 _sortDisk = new SortDisk(_settings.CreateTempFactory(), CONTAINER_SORT_SIZE, _header.Pragmas);
 
                 // initialize transaction monitor as last service
-                _monitor = new TransactionMonitor(_header, _locker, _disk, _walIndex, this.EnsureFreeEmptyPageListIsHealthy);
+                _monitor = new TransactionMonitor(_header, _locker, _disk, _walIndex);
 
                 // register system collections
                 this.InitializeSystemCollections();

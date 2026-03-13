@@ -10,16 +10,6 @@ namespace LiteDB.Engine
 {
     public partial class LiteEngine
     {
-        internal void EnsureFreeEmptyPageListIsHealthy()
-        {
-            if (System.Threading.Interlocked.Exchange(ref _deferFreeEmptyPageListValidation, 0) == 0)
-            {
-                return;
-            }
-
-            this.HealCorruptedFreeEmptyPageList();
-        }
-
         private void HealCorruptedFreeEmptyPageList()
         {
             if (_header.FreeEmptyPageList == uint.MaxValue)
