@@ -17,12 +17,15 @@ namespace LiteDB.Tests.Issues
 
             try
             {
-                var databasePath = Path.Combine(tempDirectory, "issue1940.db");
-                var logPath = Path.Combine(tempDirectory, "issue1940-log.db");
-
                 ZipFile.ExtractToDirectory(
                     Path.Combine(AppContext.BaseDirectory, "Resources", "Issue1940_CorruptFreeEmptyList.zip"),
                     tempDirectory);
+
+                var databasePath = Path.Combine(tempDirectory, "Issue1940_CorruptFreeEmptyList.db");
+                var logPath = Path.Combine(tempDirectory, "Issue1940_CorruptFreeEmptyList-log.db");
+
+                File.Exists(databasePath).Should().BeTrue();
+                File.Exists(logPath).Should().BeTrue();
 
                 Action firstOpen = () =>
                 {
