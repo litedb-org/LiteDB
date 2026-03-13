@@ -19,6 +19,7 @@ namespace LiteDB.Engine
         private readonly DiskReader _reader;
         private readonly DiskService _disk;
         private readonly WalIndexService _walIndex;
+        private readonly Action _ensureFreeEmptyPageListIsHealthy;
 
         // instances from transaction
         private readonly uint _transactionID;
@@ -52,6 +53,7 @@ namespace LiteDB.Engine
             WalIndexService walIndex, 
             DiskReader reader, 
             DiskService disk,
+            Action ensureFreeEmptyPageListIsHealthy,
             bool addIfNotExists)
         {
             _mode = mode;
@@ -63,6 +65,7 @@ namespace LiteDB.Engine
             _walIndex = walIndex;
             _reader = reader;
             _disk = disk;
+            _ensureFreeEmptyPageListIsHealthy = ensureFreeEmptyPageListIsHealthy;
 
             // enter in lock mode according initial mode
             if (mode == LockMode.Write)
@@ -374,6 +377,11 @@ namespace LiteDB.Engine
                 // if any problem occurs here, rollback will catch this changes
 
                 // try get page from Empty free list
+                if (_header.FreeEmptyPageList != uint.MaxValue)
+                {
+                    _ensureFreeEmptyPageListIsHealthy();
+                }
+
                 if (_header.FreeEmptyPageList != uint.MaxValue)
                 {
                     var free = this.GetPage<BasePage>(_header.FreeEmptyPageList, useLatestVersion: true);

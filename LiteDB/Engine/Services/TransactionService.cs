@@ -18,6 +18,7 @@ namespace LiteDB.Engine
         private readonly DiskReader _reader;
         private readonly WalIndexService _walIndex;
         private readonly TransactionMonitor _monitor;
+        private readonly Action _ensureFreeEmptyPageListIsHealthy;
 
         // transaction controls
         private readonly Dictionary<string, Snapshot> _snapshots = new Dictionary<string, Snapshot>(StringComparer.OrdinalIgnoreCase);
@@ -53,7 +54,7 @@ namespace LiteDB.Engine
         /// </summary>
         public bool ExplicitTransaction { get; set; } = false;
 
-        public TransactionService(HeaderPage header, LockService locker, DiskService disk, WalIndexService walIndex, int maxTransactionSize, TransactionMonitor monitor, bool queryOnly)
+        public TransactionService(HeaderPage header, LockService locker, DiskService disk, WalIndexService walIndex, Action ensureFreeEmptyPageListIsHealthy, int maxTransactionSize, TransactionMonitor monitor, bool queryOnly)
         {
             // retain instances
             _header = header;
@@ -61,6 +62,7 @@ namespace LiteDB.Engine
             _disk = disk;
             _walIndex = walIndex;
             _monitor = monitor;
+            _ensureFreeEmptyPageListIsHealthy = ensureFreeEmptyPageListIsHealthy;
 
             this.QueryOnly = queryOnly;
             this.MaxTransactionSize = maxTransactionSize;
@@ -86,7 +88,7 @@ namespace LiteDB.Engine
         {
             ENSURE(_state == TransactionState.Active, "transaction must be active to create new snapshot");
 
-            Snapshot create() => new Snapshot(mode, collection, _header, _transactionID, _transPages, _locker, _walIndex, _reader, _disk, addIfNotExists);
+            Snapshot create() => new Snapshot(mode, collection, _header, _transactionID, _transPages, _locker, _walIndex, _reader, _disk, _ensureFreeEmptyPageListIsHealthy, addIfNotExists);
 
             if (_snapshots.TryGetValue(collection, out var snapshot))
             {

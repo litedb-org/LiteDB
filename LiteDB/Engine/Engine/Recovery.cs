@@ -10,6 +10,16 @@ namespace LiteDB.Engine
 {
     public partial class LiteEngine
     {
+        internal void EnsureFreeEmptyPageListIsHealthy()
+        {
+            if (System.Threading.Interlocked.Exchange(ref _deferFreeEmptyPageListValidation, 0) == 0)
+            {
+                return;
+            }
+
+            this.HealCorruptedFreeEmptyPageList();
+        }
+
         private void HealCorruptedFreeEmptyPageList()
         {
             if (_header.FreeEmptyPageList == uint.MaxValue)
@@ -30,10 +40,12 @@ namespace LiteDB.Engine
                     return;
                 }
 
-                var page = this.ReadLatestPage(current, reader);
+                BasePage page = null;
 
                 try
                 {
+                    page = this.ReadLatestPage(current, reader);
+
                     if (page.PageType != PageType.Empty)
                     {
                         this.RepairFreeEmptyPageList(current, page.PageType);
@@ -42,9 +54,14 @@ namespace LiteDB.Engine
 
                     current = page.NextPageID;
                 }
+                catch
+                {
+                    this.RepairFreeEmptyPageList(current, page?.PageType);
+                    return;
+                }
                 finally
                 {
-                    page.Buffer.Release();
+                    page?.Buffer.Release();
                 }
             }
         }
