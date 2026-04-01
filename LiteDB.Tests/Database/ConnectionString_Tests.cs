@@ -26,12 +26,12 @@ namespace LiteDB.Tests.Database
 
             // file with spaces with " and ;
             var full = new ConnectionString(
-                @"filename=""c:\only;file\""d\""emo.db""; 
+                @"filename=""c:\only;file\""d\""e=mo.db""; 
                   password =   ""john-doe "" ;
                   initial size = 10 MB ;
                   readONLY =  TRUE;");
 
-            full.Filename.Should().Be(@"c:\only;file""d""emo.db");
+            full.Filename.Should().Be(@"c:\only;file""d""e=mo.db");
             full.Password.Should().Be("john-doe ");
             full.ReadOnly.Should().BeTrue();
             full.InitialSize.Should().Be(10 * 1024 * 1024);
@@ -46,6 +46,44 @@ namespace LiteDB.Tests.Database
             cn.Filename.Length.Should().Be(49);
             cn.Password.Length.Should().Be(512);
 
+        }
+
+        [Fact]
+        public void ConnectionString_ToString()
+        {
+            var empty = new ConnectionString();
+
+            empty.ToString().Should().BeEmpty();
+
+            var onlyfile = new ConnectionString
+            {
+                Filename = @"c:\only file\demo.db",
+            };
+
+            onlyfile.ToString().Should().Be(@"c:\only file\demo.db");
+
+            // filename with =
+            var fileWithSpecials = new ConnectionString
+            {
+                Filename = @"c:\only file\d""e=mo.db",
+            };
+
+            fileWithSpecials.ToString().Should().Be(@"Filename=""c:\only file\d\""e=mo.db""");
+
+            // file with spaces with " and ;
+            var full = new ConnectionString
+            {
+                Filename = @"c:\only;file""d""emo.db",
+                Password = "john-doe ",
+                ReadOnly = true,
+                InitialSize = 10_485_760,
+            };
+
+            full.ToString().Should().Be(@"Filename=""c:\only;file\""d\""emo.db"";Password=""john-doe "";Initial Size=10485760;ReadOnly=True");
+
+            // ToString/Parse round trips
+            var parsed = new ConnectionString(full.ToString());
+            parsed.Should().BeEquivalentTo(full);
         }
     }
 }
