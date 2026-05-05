@@ -193,15 +193,32 @@ namespace LiteDB
             // check if left side is an enum and convert to string before return
             Func<Type, object, BsonValue> convert = (type, value) =>
             {
-                var enumType = (left as UnaryExpression) == null ? null : (left as UnaryExpression).Operand.Type;
-
-                if (enumType != null && enumType.GetTypeInfo().IsEnum)
+                Type enumType = null;
+                try
                 {
-                    var str = Enum.GetName(enumType, value);
-                    return _mapper.Serialize(typeof(string), str, 0);
-                }
+                    enumType = (left as UnaryExpression) == null ? null : (left as UnaryExpression).Operand.Type;
 
-                return _mapper.Serialize(type, value, 0);
+                    if (enumType != null && enumType.GetTypeInfo().IsEnum)
+                    {
+                        var str = Enum.GetName(enumType, value);
+                        return _mapper.Serialize(typeof(string), str, 0);
+                    }
+
+                    return _mapper.Serialize(type, value, 0);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(
+                        "Failed to serialize value in QueryVisitor. Type={0}, Value={1}, EnumType={2}, LeftNodeType={3}, Exception={4}",
+                        type?.FullName,
+                        value,
+                        enumType?.FullName,
+                        left?.NodeType,
+                        ex
+                    );
+
+                    throw;
+                }
             };
 
             // its a constant; Eg: "fixed string"
@@ -229,11 +246,28 @@ namespace LiteDB
             }
 
             // execute expression
-            var objectMember = Expression.Convert(expr, typeof(object));
-            var getterLambda = Expression.Lambda<Func<object>>(objectMember);
-            var getter = getterLambda.Compile();
+            object getterValue = null;
+            try
+            {
+                var objectMember = Expression.Convert(expr, typeof(object));
+                var getterLambda = Expression.Lambda<Func<object>>(objectMember);
+                var getter = getterLambda.Compile();
 
-            return convert(typeof(object), getter());
+                getterValue = getter();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(
+                    "QueryVisitor getter failed. ExprType={0}, Expr={1}, ExprNodeType={2}, exception {3}",
+                    expr?.Type,
+                    expr,
+                    expr?.NodeType,
+                    ex
+                );
+                throw;
+            }
+
+            return convert(typeof(object), getterValue);
         }
 
         private Query CreateAndQuery(ref Query[] queries, int startIndex = 0)
