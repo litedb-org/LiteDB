@@ -46,12 +46,36 @@ namespace LiteDB
                 else if (expr.NodeType == ExpressionType.Not)
                 {
                     var unary = expr as UnaryExpression;
+
+                    if (unary == null)
+                    {
+                        Console.WriteLine("Conversion expression {0} to Unary failed (Not)", expr);
+                    }
+                    else if (unary.Operand == null)
+                    {
+                        Console.WriteLine("Operand of Unary {0} expression {1} is null", unary, expr);
+                    }
+
                     return Query.Not(this.VisitExpression(unary.Operand, prefix));
                 }
                 // Equals: x.Id == 1
                 else if (expr.NodeType == ExpressionType.Equal)
                 {
                     var bin = expr as BinaryExpression;
+
+                    if (bin == null)
+                    {
+                        Console.WriteLine("Conversion expression {0} to Binary failed (Equal)", expr);
+                    }
+                    else if (bin.Right == null)
+                    {
+                        Console.WriteLine("Right side of binary expression {0} and expression {1} is null", bin, expr);
+                    }
+                    else if (bin.Left == null)
+                    {
+                        Console.WriteLine("Left side of binary expression {0} and expression {1} is null", bin, expr);
+                    }
+
                     return new QueryEquals(this.GetField(bin.Left, prefix), this.VisitValue(bin.Right, bin.Left));
                 }
                 // NotEquals: x.Id != 1
@@ -88,8 +112,32 @@ namespace LiteDB
                 else if (expr.NodeType == ExpressionType.AndAlso)
                 {
                     var bin = expr as BinaryExpression;
+
+                    if (bin == null)
+                    {
+                        Console.WriteLine("Conversion expression {0} to Binary failed (AndAlso)", expr);
+                    }
+                    else if (bin.Right == null)
+                    {
+                        Console.WriteLine("Right side of binary expression {0} and expression {1} is null (AndAlso)", bin, expr);
+                    }
+                    else if (bin.Left == null)
+                    {
+                        Console.WriteLine("Left side of binary expression {0} and expression {1} is null (AndAlso)", bin, expr);
+                    }
+
                     var left = this.VisitExpression(bin.Left, prefix);
                     var right = this.VisitExpression(bin.Right, prefix);
+
+                    if (left == null)
+                    {
+                        Console.WriteLine("Conversion left of Binary {0} expression {1} to Query failed", bin.Left, expr);
+                    }
+
+                    if (right == null)
+                    {
+                        Console.WriteLine("Conversion right of Binary {0} expression {1} to Query failed", bin.Right, expr);
+                    }
 
                     return Query.And(left, right);
                 }
@@ -131,9 +179,7 @@ namespace LiteDB
 // #else
 //                     var type = met.Method.ReflectedType;
 // #endif
-                    var paramType = met.Arguments[0] is MemberExpression ?
-                        (ExpressionType?)(met.Arguments[0] as MemberExpression).Expression.NodeType :
-                        null;
+                    var paramType = met.Arguments[0] is MemberExpression ? (ExpressionType?)(met.Arguments[0] as MemberExpression).Expression.NodeType : null;
 
                     // StartsWith
                     if (method == "StartsWith")
@@ -181,7 +227,7 @@ namespace LiteDB
 
                 return new QueryLinq<T>(expr, _param, _mapper);
             }
-            catch(NotSupportedException)
+            catch (NotSupportedException)
             {
                 // when there is no linq implementation, use QueryLinq
                 return new QueryLinq<T>(expr, _param, _mapper);
