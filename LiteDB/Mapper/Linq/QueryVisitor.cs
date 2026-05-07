@@ -453,7 +453,7 @@ namespace LiteDB
 
                 if (mExpr.Expression == null)
                 {
-                    Console.WriteLine( "Conversion to MemberExpression succeed, but expression is null, {0}", expr);
+                    Console.WriteLine( "Conversion to MemberExpression {0} succeed, but expression is null, {1}", mExpr, expr);
                 }
 
                 var mValue = this.VisitValue(mExpr.Expression, left);
