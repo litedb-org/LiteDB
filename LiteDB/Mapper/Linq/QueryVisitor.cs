@@ -211,9 +211,26 @@ namespace LiteDB
 
                 return convert(value.Type, value.Value);
             }
-            else if (expr is MemberExpression && _parameters.Count > 0)
+            else if (expr is MemberExpression mExpr && _parameters.Count > 0)
             {
-                var mExpr = (MemberExpression)expr;
+                // XONE-7891 if Expression is null, it's a static member (like Guid.Empty)
+                if (mExpr.Expression == null)
+                {
+                    object staticValue = null;
+
+                    if (mExpr.Member is FieldInfo field)
+                    {
+                        staticValue = field.GetValue(null);
+                    }
+                    else if (mExpr.Member is PropertyInfo prop)
+                    {
+                        staticValue = prop.GetValue(null);
+                    }
+
+                    return convert(typeof(object), staticValue);
+                }
+
+                // XONE-7891 it's an instance member, proceed normally
                 var mValue = this.VisitValue(mExpr.Expression, left);
                 var value = mValue.AsDocument[mExpr.Member.Name];
 
