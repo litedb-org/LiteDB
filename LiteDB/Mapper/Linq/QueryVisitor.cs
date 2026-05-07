@@ -380,7 +380,9 @@ namespace LiteDB
             }
             catch (Exception ex )
             {
+                string stackTrace = Environment.StackTrace;
                 Console.WriteLine( "Critical, unhandled exception in QueryVisitor: " );
+                Console.WriteLine( "Stack trace: {0}", stackTrace );
                 Console.WriteLine( ex.ToString() );
                 throw;
             }
@@ -388,6 +390,20 @@ namespace LiteDB
 
         private BsonValue VisitValue(Expression expr, Expression left)
         {
+            if (expr == null)
+            {
+                string stackTrace = Environment.StackTrace;
+
+                Console.WriteLine("VisitValue: Expr is null. StackTrace: {0}", stackTrace);
+            }
+
+            if (left == null)
+            {
+                string stackTrace = Environment.StackTrace;
+
+                Console.WriteLine("VisitValue: Left is null. StackTrace: {0}", stackTrace);
+            }
+
             // check if left side is an enum and convert to string before return
             Func<Type, object, BsonValue> convert = (type, value) =>
             {
@@ -429,6 +445,17 @@ namespace LiteDB
             else if (expr is MemberExpression && _parameters.Count > 0)
             {
                 var mExpr = (MemberExpression)expr;
+
+                if (mExpr == null)
+                {
+                    Console.WriteLine( "Conversion to MemberExpression failed {0}", expr );
+                }
+
+                if (mExpr.Expression == null)
+                {
+                    Console.WriteLine( "Conversion to MemberExpression succeed, but expression is null, {0}", expr);
+                }
+
                 var mValue = this.VisitValue(mExpr.Expression, left);
                 var value = mValue.AsDocument[mExpr.Member.Name];
 
