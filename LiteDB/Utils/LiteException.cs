@@ -78,15 +78,20 @@ namespace LiteDB
         }
 
         internal LiteException(int code, string message, params object[] args)
-            : base(string.Format(message, args))
+            : base(FormatMessage(message, args))
         {
             this.ErrorCode = code;
         }
 
-        internal LiteException (int code, Exception inner, string message, params object[] args)
-        : base (string.Format (message, args), inner)
+        internal LiteException(int code, Exception inner, string message, params object[] args)
+            : base(FormatMessage(message, args), inner)
         {
             this.ErrorCode = code;
+        }
+
+        private static string FormatMessage(string message, object[] args)
+        {
+            return args == null || args.Length == 0 ? message : string.Format(message, args);
         }
 
         /// <summary>
