@@ -70,7 +70,7 @@ namespace LiteDB
             if (string.IsNullOrEmpty(connectionString)) throw new ArgumentNullException(nameof(connectionString));
 
             // create a dictionary from string name=value collection
-            if (connectionString.Contains("="))
+            if (IsKeyValueConnectionString(connectionString))
             {
                 _values.ParseKeyValue(connectionString);
             }
@@ -97,6 +97,28 @@ namespace LiteDB
 
             this.Upgrade = _values.GetValue("upgrade", this.Upgrade);
             this.AutoRebuild = _values.GetValue("auto-rebuild", this.AutoRebuild);
+        }
+
+        private static bool IsKeyValueConnectionString(string connectionString)
+        {
+            var separator = connectionString.IndexOf('=');
+
+            if (separator == -1)
+            {
+                return false;
+            }
+
+            var key = connectionString.Substring(0, separator).Trim();
+
+            return
+                key.Equals("filename", StringComparison.OrdinalIgnoreCase) ||
+                key.Equals("connection", StringComparison.OrdinalIgnoreCase) ||
+                key.Equals("password", StringComparison.OrdinalIgnoreCase) ||
+                key.Equals("initial size", StringComparison.OrdinalIgnoreCase) ||
+                key.Equals("readonly", StringComparison.OrdinalIgnoreCase) ||
+                key.Equals("upgrade", StringComparison.OrdinalIgnoreCase) ||
+                key.Equals("auto-rebuild", StringComparison.OrdinalIgnoreCase) ||
+                key.Equals("collation", StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
