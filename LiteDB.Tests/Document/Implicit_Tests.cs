@@ -19,11 +19,13 @@ namespace LiteDB.Tests.Document
 
             bi.IsInt32.Should().BeTrue();
             bl.IsInt64.Should().BeTrue();
-            bu.IsDouble.Should().BeTrue();
+            // ulong is stored as Int64 (unchecked) to keep all 64 bits - see #1224
+            bu.IsInt64.Should().BeTrue();
 
             bi.AsInt32.Should().Be(i);
             bl.AsInt64.Should().Be(l);
-            bu.AsDouble.Should().Be(u);
+            bu.AsInt64.Should().Be(unchecked((long)u));
+            ((ulong)bu).Should().Be(u);
         }
 
         [Fact]

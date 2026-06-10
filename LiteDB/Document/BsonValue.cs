@@ -364,16 +364,18 @@ namespace LiteDB
             return new BsonValue(value);
         }
 
-        // UInt64 (to avoid ambigous between Double-Decimal)
+        // UInt64 is stored as Int64 (see operator below + BsonMapper), so read it back
+        // through AsInt64 with an unchecked cast to recover the full 64-bit value.
         public static implicit operator UInt64(BsonValue value)
         {
-            return (UInt64)value.RawValue;
+            return unchecked((UInt64)value.AsInt64);
         }
 
-        // Decimal
+        // UInt64 -> store as Int64 (unchecked) to keep all 64 bits and the Int64 BsonType,
+        // matching BsonMapper.Serialize (ulong -> Int64) and BsonMapper.Deserialize (Int64 -> ulong).
         public static implicit operator BsonValue(UInt64 value)
         {
-            return new BsonValue((Double)value);
+            return new BsonValue(unchecked((Int64)value));
         }
 
         // String
