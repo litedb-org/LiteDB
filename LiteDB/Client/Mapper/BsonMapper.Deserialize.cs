@@ -135,6 +135,10 @@ namespace LiteDB
             {
                 return value.AsArray;
             }
+            else if (type.FullName == "System.Index" && value.IsDocument)
+            {
+                return DeserializeSystemIndex(type, value.AsDocument);
+            }
 
             // raw values to native bson values
             else if (_bsonTypes.Contains(type))
@@ -286,6 +290,14 @@ namespace LiteDB
             }
 
             return enumerable;
+        }
+
+        private static object DeserializeSystemIndex(Type type, BsonDocument value)
+        {
+            return Activator.CreateInstance(
+                type,
+                value["Value"].AsInt32,
+                value["IsFromEnd"].AsBoolean);
         }
 
         private void DeserializeDictionary(Type keyType, Type valueType, IDictionary dict, BsonDocument value)
