@@ -1,4 +1,5 @@
 using System.IO;
+using LiteDB.Tests;
 using Xunit;
 
 namespace LiteDB.Tests.Issues;
@@ -52,9 +53,79 @@ public class Issue1224_Tests
         Assert.Equal("x", found.Name);
     }
 
+    [Fact]
+    public void FindById_with_high_bit_ulong_key_round_trips_after_reopen()
+    {
+        using var tempFile = new TempFile();
+        ulong id = ulong.MaxValue;
+
+        using (var db = new LiteDatabase(tempFile.Filename))
+        {
+            var col = db.GetCollection<Entity>("entities");
+
+            col.Insert(new Entity { Id = id, Name = "high-bit" });
+            db.Checkpoint();
+        }
+
+        using (var db = new LiteDatabase(tempFile.Filename))
+        {
+            var found = db.GetCollection<Entity>("entities").FindById(id);
+
+            Assert.NotNull(found);
+            Assert.Equal(id, found.Id);
+            Assert.Equal("high-bit", found.Name);
+        }
+    }
+
+    [Fact]
+    public void FindById_with_legacy_double_ulong_key_returns_document()
+    {
+        using var db = new LiteDatabase(new MemoryStream());
+        var col = db.GetCollection<Entity>("entities");
+        ulong id = (1UL << 60) + 12345UL;
+        var legacyId = new BsonValue((double)id);
+
+        db.GetCollection("entities").Insert(new BsonDocument
+        {
+            ["_id"] = legacyId,
+            ["Name"] = "legacy"
+        });
+
+        var found = col.FindById(id);
+
+        Assert.NotNull(found);
+        Assert.Equal("legacy", found.Name);
+        // The old double representation had already lost precision; compat can only read the stored rounded key.
+        Assert.Equal(unchecked((ulong)legacyId.AsInt64), found.Id);
+    }
+
+    [Fact]
+    public void FindById_with_long_key_does_not_match_legacy_ulong_double_key()
+    {
+        using var db = new LiteDatabase(new MemoryStream());
+        var col = db.GetCollection<LongEntity>("longs");
+        ulong legacyUlong = (1UL << 60) + 12345UL;
+
+        db.GetCollection("longs").Insert(new BsonDocument
+        {
+            ["_id"] = new BsonValue((double)legacyUlong),
+            ["Name"] = "legacy"
+        });
+
+        var found = col.FindById(unchecked((long)legacyUlong));
+
+        Assert.Null(found);
+    }
+
     public class Entity
     {
         public ulong Id { get; set; }
+        public string Name { get; set; }
+    }
+
+    public class LongEntity
+    {
+        public long Id { get; set; }
         public string Name { get; set; }
     }
 }

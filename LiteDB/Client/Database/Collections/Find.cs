@@ -64,7 +64,33 @@ namespace LiteDB
         {
             if (id == null || id.IsNull) throw new ArgumentNullException(nameof(id));
 
+            var result = this.FindByIdValue(id);
+
+            if (result != null || IsLegacyUInt64IdLookup(id) == false)
+            {
+                return result;
+            }
+
+            var legacyId = new BsonValue((double)unchecked((UInt64)id.AsInt64));
+
+            return this.FindByIdValue(legacyId);
+        }
+
+        private T FindByIdValue(BsonValue id)
+        {
             return this.Find(BsonExpression.Create("_id = @0", id)).FirstOrDefault();
+        }
+
+        private bool IsLegacyUInt64IdLookup(BsonValue id)
+        {
+            if (id.IsInt64 == false || _id == null)
+            {
+                return false;
+            }
+
+            var idType = Nullable.GetUnderlyingType(_id.DataType) ?? _id.DataType;
+
+            return idType == typeof(UInt64);
         }
 
         /// <summary>
