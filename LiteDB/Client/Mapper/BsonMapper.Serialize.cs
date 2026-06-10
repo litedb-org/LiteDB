@@ -77,7 +77,10 @@ namespace LiteDB
             else if (obj is Int64) return new BsonValue((Int64)obj);
             else if (obj is Double) return new BsonValue((Double)obj);
             else if (obj is Decimal) return new BsonValue((Decimal)obj);
-            else if (obj is Byte[]) return new BsonValue((Byte[])obj);
+            // exact-type check: a byte/sbyte-backed enum array is `is Byte[]` (CLR array
+            // type-equivalence) but its runtime type is EnumX[], not Byte[]; let it fall
+            // through to the IEnumerable branch so it serializes as an Array, not Binary (#2376)
+            else if (obj is Byte[] && obj.GetType() == typeof(Byte[])) return new BsonValue((Byte[])obj);
             else if (obj is ObjectId) return new BsonValue((ObjectId)obj);
             else if (obj is Guid) return new BsonValue((Guid)obj);
             else if (obj is Boolean) return new BsonValue((Boolean)obj);
