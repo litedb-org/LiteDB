@@ -218,10 +218,17 @@ namespace LiteDB
         #region Convert types
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public BsonArray AsArray => this as BsonArray;
+        public BsonArray AsArray => this is BsonArray array
+            ? array
+            // new BsonValue(object) builds a plain BsonValue (Type=Array, RawValue=IList<BsonValue>)
+            // instead of a BsonArray; wrap it so callers (serialization, ToString, ...) still work.
+            : this.IsArray && this.RawValue is IEnumerable<BsonValue> items ? new BsonArray(items) : null;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public BsonDocument AsDocument => this as BsonDocument;
+        public BsonDocument AsDocument => this is BsonDocument document
+            ? document
+            // same as AsArray: wrap a plain BsonValue that carries a document payload.
+            : this.IsDocument && this.RawValue is IDictionary<string, BsonValue> dict ? new BsonDocument(dict) : null;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         public Byte[] AsBinary => this.RawValue as Byte[];
