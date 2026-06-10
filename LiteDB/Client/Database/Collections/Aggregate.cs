@@ -139,7 +139,10 @@ namespace LiteDB
                 .OrderBy(keySelector)
                 .Select(keySelector)
                 .ToDocuments()
-                .First();
+                .FirstOrDefault();
+
+            // empty collection/result: no min value
+            if (doc == null) return BsonValue.Null;
 
             // return first field of first document
             return doc[doc.Keys.First()];
@@ -161,6 +164,9 @@ namespace LiteDB
 
             var value = this.Min(expr);
 
+            // empty collection/result: avoid casting Null to a value type
+            if (value == null || value.IsNull) return default(K);
+
             return (K)_mapper.Deserialize(typeof(K), value);
         }
 
@@ -175,7 +181,10 @@ namespace LiteDB
                 .OrderByDescending(keySelector)
                 .Select(keySelector)
                 .ToDocuments()
-                .First();
+                .FirstOrDefault();
+
+            // empty collection/result: no max value
+            if (doc == null) return BsonValue.Null;
 
             // return first field of first document
             return doc[doc.Keys.First()];
@@ -196,6 +205,9 @@ namespace LiteDB
             var expr = _mapper.GetExpression(keySelector);
 
             var value = this.Max(expr);
+
+            // empty collection/result: avoid casting Null to a value type
+            if (value == null || value.IsNull) return default(K);
 
             return (K)_mapper.Deserialize(typeof(K), value);
         }
