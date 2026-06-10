@@ -164,10 +164,10 @@ namespace LiteDB
 
             var value = this.Min(expr);
 
-            // empty collection/result: avoid casting Null to a value type
-            if (value == null || value.IsNull) return default(K);
+            var result = _mapper.Deserialize(typeof(K), value);
 
-            return (K)_mapper.Deserialize(typeof(K), value);
+            // empty collection/result: avoid casting null to a value type
+            return result == null ? default(K) : (K)result;
         }
 
         /// <summary>
@@ -206,10 +206,10 @@ namespace LiteDB
 
             var value = this.Max(expr);
 
-            // empty collection/result: avoid casting Null to a value type
-            if (value == null || value.IsNull) return default(K);
+            var result = _mapper.Deserialize(typeof(K), value);
 
-            return (K)_mapper.Deserialize(typeof(K), value);
+            // empty collection/result: avoid casting null to a value type
+            return result == null ? default(K) : (K)result;
         }
 
         #endregion

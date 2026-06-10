@@ -15,6 +15,7 @@ public class Issue1986_Tests
     {
         public int Id { get; set; }
         public int Value { get; set; }
+        public string Name { get; set; }
     }
 
     private static ILiteCollection<Entity> EmptyCollection(LiteDatabase db)
@@ -60,6 +61,22 @@ public class Issue1986_Tests
         int min = -1;
         Assert.Null(Record.Exception(() => min = col.Min(x => x.Value)));
         Assert.Equal(0, min);
+    }
+
+    [Fact]
+    public void Generic_min_max_on_empty_collection_uses_deserialization_hook()
+    {
+        var mapper = new BsonMapper
+        {
+            OnDeserialization = (sender, target, value) =>
+                target == typeof(string) && value.IsNull ? new BsonValue("empty") : value
+        };
+
+        using var db = new LiteDatabase(new MemoryStream(), mapper);
+        var col = EmptyCollection(db);
+
+        Assert.Equal("empty", col.Max(x => x.Name));
+        Assert.Equal("empty", col.Min(x => x.Name));
     }
 
     [Fact]
