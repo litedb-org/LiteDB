@@ -36,6 +36,31 @@ public class Issue2376_Tests
     }
 
     [Fact]
+    public void Byte_enum_array_serializes_with_enum_as_integer()
+    {
+        var mapper = new BsonMapper
+        {
+            EnumAsInteger = true
+        };
+
+        var doc = mapper.ToDocument(new Holder
+        {
+            Id = 1,
+            Bytes = new[] { ByteEnum.A, ByteEnum.B },
+            Ints = new[] { IntEnum.B, IntEnum.C }
+        });
+
+        Assert.Equal(BsonType.Array, doc["Bytes"].Type);
+        Assert.Equal(1, doc["Bytes"].AsArray[0].AsInt32);
+        Assert.Equal(2, doc["Bytes"].AsArray[1].AsInt32);
+
+        var holder = mapper.Deserialize<Holder>(doc);
+
+        Assert.Equal(new[] { ByteEnum.A, ByteEnum.B }, holder.Bytes);
+        Assert.Equal(new[] { IntEnum.B, IntEnum.C }, holder.Ints);
+    }
+
+    [Fact]
     public void Byte_enum_array_round_trips_through_database()
     {
         using var db = new LiteDatabase(new MemoryStream());

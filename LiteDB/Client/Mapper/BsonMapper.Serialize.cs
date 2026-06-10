@@ -113,7 +113,7 @@ namespace LiteDB
             {
                 if (EnumAsInteger)
                 {
-                    return new BsonValue((int)obj);
+                    return new BsonValue(Convert.ToInt32(obj));
                 }
                 else
                 {
