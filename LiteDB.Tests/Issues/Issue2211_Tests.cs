@@ -51,6 +51,16 @@ namespace LiteDB.Tests.Issues
             Assert.Equal("sample=1.db", connectionString.Filename);
         }
 
+        [Fact]
+        public void ConnectionString_Should_Parse_Custom_Key_Before_Filename_Key()
+        {
+            var connectionString = new ConnectionString("tenant=acme;filename=sample=1.db;readonly=true");
+
+            Assert.Equal("sample=1.db", connectionString.Filename);
+            Assert.True(connectionString.ReadOnly);
+            Assert.Equal("acme", connectionString["tenant"]);
+        }
+
         private static string GetTempDatabasePathWithEqualSign()
         {
             var filename = "litedb-" + Guid.NewGuid().ToString("d").Substring(0, 5) + "=issue2211.db";

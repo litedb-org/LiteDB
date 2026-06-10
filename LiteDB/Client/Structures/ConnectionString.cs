@@ -70,11 +70,7 @@ namespace LiteDB
             if (string.IsNullOrEmpty(connectionString)) throw new ArgumentNullException(nameof(connectionString));
 
             // create a dictionary from string name=value collection
-            if (IsKeyValueConnectionString(connectionString))
-            {
-                _values.ParseKeyValue(connectionString);
-            }
-            else
+            if (TryParseKeyValueConnectionString(connectionString, _values) == false)
             {
                 _values["filename"] = connectionString;
             }
@@ -99,26 +95,48 @@ namespace LiteDB
             this.AutoRebuild = _values.GetValue("auto-rebuild", this.AutoRebuild);
         }
 
-        private static bool IsKeyValueConnectionString(string connectionString)
+        private static bool TryParseKeyValueConnectionString(string connectionString, Dictionary<string, string> values)
         {
-            var separator = connectionString.IndexOf('=');
-
-            if (separator == -1)
+            if (connectionString.IndexOf('=') == -1)
             {
                 return false;
             }
 
-            var key = connectionString.Substring(0, separator).Trim();
+            var parsed = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
+            try
+            {
+                parsed.ParseKeyValue(connectionString);
+            }
+            catch
+            {
+                return false;
+            }
+
+            if (ContainsConnectionStringKey(parsed) == false)
+            {
+                return false;
+            }
+
+            foreach (var item in parsed)
+            {
+                values[item.Key] = item.Value;
+            }
+
+            return true;
+        }
+
+        private static bool ContainsConnectionStringKey(Dictionary<string, string> values)
+        {
             return
-                key.Equals("filename", StringComparison.OrdinalIgnoreCase) ||
-                key.Equals("connection", StringComparison.OrdinalIgnoreCase) ||
-                key.Equals("password", StringComparison.OrdinalIgnoreCase) ||
-                key.Equals("initial size", StringComparison.OrdinalIgnoreCase) ||
-                key.Equals("readonly", StringComparison.OrdinalIgnoreCase) ||
-                key.Equals("upgrade", StringComparison.OrdinalIgnoreCase) ||
-                key.Equals("auto-rebuild", StringComparison.OrdinalIgnoreCase) ||
-                key.Equals("collation", StringComparison.OrdinalIgnoreCase);
+                values.ContainsKey("filename") ||
+                values.ContainsKey("connection") ||
+                values.ContainsKey("password") ||
+                values.ContainsKey("initial size") ||
+                values.ContainsKey("readonly") ||
+                values.ContainsKey("upgrade") ||
+                values.ContainsKey("auto-rebuild") ||
+                values.ContainsKey("collation");
         }
 
         /// <summary>
