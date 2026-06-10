@@ -27,6 +27,32 @@ namespace LiteDB.Tests.Issues
             Assert.Equal(person.Selection, result.Selection);
         }
 
+        [Fact]
+        public void Deserialize_Should_Handle_System_Index_With_Object_Type_Discriminator()
+        {
+            var mapper = new BsonMapper();
+            var expected = System.Index.FromEnd(3);
+
+            var value = mapper.Serialize(typeof(object), expected);
+            var result = mapper.Deserialize(typeof(object), value);
+
+            var index = Assert.IsType<System.Index>(result);
+            Assert.Equal(expected, index);
+        }
+
+        [Fact]
+        public void Deserialize_Should_Handle_System_Index_With_Lower_Case_Delimiter()
+        {
+            var mapper = new BsonMapper().UseLowerCaseDelimiter();
+            var expected = System.Index.FromEnd(4);
+
+            var value = mapper.Serialize(expected);
+            var result = mapper.Deserialize(typeof(System.Index), value);
+
+            var index = Assert.IsType<System.Index>(result);
+            Assert.Equal(expected, index);
+        }
+
         public class Person
         {
             public string Id { get; set; } = Guid.NewGuid().ToString();

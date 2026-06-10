@@ -216,6 +216,11 @@ namespace LiteDB
                     type = typeof(Dictionary<string, object>);
                 }
 
+                if (type.FullName == "System.Index")
+                {
+                    return DeserializeSystemIndex(type, doc);
+                }
+
                 var entity = this.GetEntityMapper(type);
                 entity.WaitForInitialization();
 
@@ -292,12 +297,24 @@ namespace LiteDB
             return enumerable;
         }
 
-        private static object DeserializeSystemIndex(Type type, BsonDocument value)
+        private object DeserializeSystemIndex(Type type, BsonDocument value)
         {
             return Activator.CreateInstance(
                 type,
-                value["Value"].AsInt32,
-                value["IsFromEnd"].AsBoolean);
+                GetSystemIndexField(value, "Value").AsInt32,
+                GetSystemIndexField(value, "IsFromEnd").AsBoolean);
+        }
+
+        private BsonValue GetSystemIndexField(BsonDocument value, string fieldName)
+        {
+            var resolvedFieldName = this.ResolveFieldName(fieldName);
+
+            if (value.TryGetValue(resolvedFieldName, out var resolvedValue))
+            {
+                return resolvedValue;
+            }
+
+            return value[fieldName];
         }
 
         private void DeserializeDictionary(Type keyType, Type valueType, IDictionary dict, BsonDocument value)
