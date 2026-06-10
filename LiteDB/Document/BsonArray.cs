@@ -36,6 +36,12 @@ namespace LiteDB
 
             this.AddRange(items);
         }
+
+        internal BsonArray(IList<BsonValue> items, bool useRawValue)
+            : base(BsonType.Array, items)
+        {
+            if (items == null) throw new ArgumentNullException(nameof(items));
+        }
         
         public BsonArray(BsonArray items)
             : this()

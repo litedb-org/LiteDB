@@ -200,8 +200,22 @@ namespace LiteDB
         /// </summary>
         public virtual BsonValue this[string name]
         {
-            get => throw new InvalidOperationException("Cannot access non-document type value on " + this.RawValue);
-            set => throw new InvalidOperationException("Cannot access non-document type value on " + this.RawValue);
+            get
+            {
+                if (this.IsDocument) return this.AsDocument[name];
+
+                throw new InvalidOperationException("Cannot access non-document type value on " + this.RawValue);
+            }
+            set
+            {
+                if (this.IsDocument)
+                {
+                    this.AsDocument[name] = value;
+                    return;
+                }
+
+                throw new InvalidOperationException("Cannot access non-document type value on " + this.RawValue);
+            }
         }
 
         /// <summary>
@@ -209,8 +223,22 @@ namespace LiteDB
         /// </summary>
         public virtual BsonValue this[int index]
         {
-            get => throw new InvalidOperationException("Cannot access non-array type value on " + this.RawValue);
-            set => throw new InvalidOperationException("Cannot access non-array type value on " + this.RawValue);
+            get
+            {
+                if (this.IsArray) return this.AsArray[index];
+
+                throw new InvalidOperationException("Cannot access non-array type value on " + this.RawValue);
+            }
+            set
+            {
+                if (this.IsArray)
+                {
+                    this.AsArray[index] = value;
+                    return;
+                }
+
+                throw new InvalidOperationException("Cannot access non-array type value on " + this.RawValue);
+            }
         }
 
         #endregion
@@ -222,13 +250,13 @@ namespace LiteDB
             ? array
             // new BsonValue(object) builds a plain BsonValue (Type=Array, RawValue=IList<BsonValue>)
             // instead of a BsonArray; wrap it so callers (serialization, ToString, ...) still work.
-            : this.IsArray && this.RawValue is IEnumerable<BsonValue> items ? new BsonArray(items) : null;
+            : this.IsArray && this.RawValue is IList<BsonValue> items ? new BsonArray(items, true) : null;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         public BsonDocument AsDocument => this is BsonDocument document
             ? document
             // same as AsArray: wrap a plain BsonValue that carries a document payload.
-            : this.IsDocument && this.RawValue is IDictionary<string, BsonValue> dict ? new BsonDocument(dict) : null;
+            : this.IsDocument && this.RawValue is IDictionary<string, BsonValue> dict ? new BsonDocument(dict, true) : null;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         public Byte[] AsBinary => this.RawValue as Byte[];

@@ -42,6 +42,31 @@ public class Issue2456_Tests
     }
 
     [Fact]
+    public void BsonValue_From_StringArray_AsArray_Mutations_Update_Value()
+    {
+        var value = new BsonValue(Items);
+
+        var array = value.AsArray;
+        array[1] = "changed";
+        array.Add("d");
+
+        Assert.Equal("changed", value.AsArray[1].AsString);
+        Assert.Equal("d", value.AsArray[3].AsString);
+        Assert.Equal("[\"a\",\"changed\",\"c\",\"d\"]", value.ToString());
+    }
+
+    [Fact]
+    public void BsonValue_From_StringArray_Direct_Indexer_Updates_Value()
+    {
+        var value = new BsonValue(Items);
+
+        value[1] = "changed";
+
+        Assert.Equal("changed", value[1].AsString);
+        Assert.Equal("changed", value.AsArray[1].AsString);
+    }
+
+    [Fact]
     public void BsonValue_From_Dictionary_Exposes_AsDocument()
     {
         var value = new BsonValue(new Dictionary<string, object>
@@ -56,6 +81,39 @@ public class Issue2456_Tests
         Assert.NotNull(doc);
         doc["x"].AsInt32.Should().Be(1);
         doc["y"].AsString.Should().Be("two");
+    }
+
+    [Fact]
+    public void BsonValue_From_Dictionary_AsDocument_Mutations_Update_Value()
+    {
+        var value = new BsonValue(new Dictionary<string, object>
+        {
+            ["x"] = 1
+        });
+
+        var doc = value.AsDocument;
+        doc["x"] = 2;
+        doc["y"] = "two";
+
+        Assert.Equal(2, value.AsDocument["x"].AsInt32);
+        Assert.Equal("two", value.AsDocument["y"].AsString);
+        Assert.Equal(2, value["x"].AsInt32);
+        Assert.Equal("two", value["y"].AsString);
+    }
+
+    [Fact]
+    public void BsonValue_From_Dictionary_Direct_Indexer_Updates_Value()
+    {
+        var value = new BsonValue(new Dictionary<string, object>
+        {
+            ["x"] = 1
+        });
+
+        value["x"] = 2;
+        value["y"] = "two";
+
+        Assert.Equal(2, value["x"].AsInt32);
+        Assert.Equal("two", value.AsDocument["y"].AsString);
     }
 
     [Fact]
