@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections;
+using System.ComponentModel;
+using System.Globalization;
 using System.Linq;
 using System.Reflection;
 
@@ -166,10 +168,22 @@ namespace LiteDB
             foreach (object key in dict.Keys)
             {
                 object value = dict[key];
-                
-                var stringKey = key is DateTime dateKey 
-                    ? dateKey.ToString("o") ?? string.Empty
-                    : key.ToString() ?? string.Empty;
+
+                // Keys must be serialized culture-invariantly so they round-trip through
+                // DeserializeDictionary, which parses keys with ConvertFromInvariantString.
+                // (e.g. a double key 9.9 must be stored as "9.9", never "9,9" under de-DE.)
+                string stringKey;
+                if (key is DateTime dateKey)
+                {
+                    stringKey = dateKey.ToString("o", CultureInfo.InvariantCulture) ?? string.Empty;
+                }
+                else
+                {
+                    var keyConverter = TypeDescriptor.GetConverter(key.GetType());
+                    stringKey = keyConverter.CanConvertTo(typeof(string))
+                        ? keyConverter.ConvertToInvariantString(key) ?? string.Empty
+                        : Convert.ToString(key, CultureInfo.InvariantCulture) ?? string.Empty;
+                }
 
                 BsonValue bsonValue = Serialize(valueType, value, depth);
                 bsonDocument[stringKey] = bsonValue;
