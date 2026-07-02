@@ -148,10 +148,10 @@ namespace LiteDB
                 return Convert.ChangeType(value.RawValue, type);
             }
 
-            // special cast to UInt64 to Int64
+            // special cast to UInt64 from current Int64 storage and legacy Double storage
             else if (type == typeof(UInt64))
             {
-                return unchecked((UInt64)value.AsInt64);
+                return value.AsUInt64;
             }
 
             // enum value is an int

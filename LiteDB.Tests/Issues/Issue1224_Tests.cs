@@ -37,6 +37,29 @@ public class Issue1224_Tests
     }
 
     [Fact]
+    public void Implicit_ulong_operator_reads_legacy_double_above_int64_max()
+    {
+        ulong value = 1UL << 63;
+        BsonValue legacy = new BsonValue((double)value);
+
+        ulong roundTrip = legacy;
+
+        Assert.Equal(value, roundTrip);
+    }
+
+    [Fact]
+    public void Mapper_deserializes_legacy_double_ulong_above_int64_max()
+    {
+        var mapper = new BsonMapper();
+        ulong value = 1UL << 63;
+        var legacy = new BsonValue((double)value);
+
+        ulong roundTrip = mapper.Deserialize<ulong>(legacy);
+
+        Assert.Equal(value, roundTrip);
+    }
+
+    [Fact]
     public void FindById_with_large_ulong_key_returns_document()
     {
         using var db = new LiteDatabase(new MemoryStream());
@@ -100,6 +123,25 @@ public class Issue1224_Tests
     }
 
     [Fact]
+    public void Legacy_high_bit_double_ulong_field_round_trips_through_database()
+    {
+        using var db = new LiteDatabase(new MemoryStream());
+        var col = db.GetCollection<LegacyValueEntity>("legacy_values");
+        ulong value = 1UL << 63;
+
+        db.GetCollection("legacy_values").Insert(new BsonDocument
+        {
+            ["_id"] = 1,
+            ["Value"] = new BsonValue((double)value)
+        });
+
+        var found = col.FindById(1);
+
+        Assert.NotNull(found);
+        Assert.Equal(value, found.Value);
+    }
+
+    [Fact]
     public void FindById_with_long_key_does_not_match_legacy_ulong_double_key()
     {
         using var db = new LiteDatabase(new MemoryStream());
@@ -127,5 +169,11 @@ public class Issue1224_Tests
     {
         public long Id { get; set; }
         public string Name { get; set; }
+    }
+
+    public class LegacyValueEntity
+    {
+        public int Id { get; set; }
+        public ulong Value { get; set; }
     }
 }

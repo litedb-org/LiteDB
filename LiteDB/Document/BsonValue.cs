@@ -239,6 +239,11 @@ namespace LiteDB
         public long AsInt64 => Convert.ToInt64(this.RawValue);
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        internal ulong AsUInt64 => this.IsDouble
+            ? unchecked((UInt64)this.AsDouble)
+            : unchecked((UInt64)this.AsInt64);
+
+        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         public double AsDouble => Convert.ToDouble(this.RawValue);
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
@@ -364,11 +369,11 @@ namespace LiteDB
             return new BsonValue(value);
         }
 
-        // UInt64 is stored as Int64 (see operator below + BsonMapper), so read it back
-        // through AsInt64 with an unchecked cast to recover the full 64-bit value.
+        // UInt64 is stored as Int64 now, but legacy direct writes used Double.
+        // Keep both readable so old files do not need a rewrite just to load values.
         public static implicit operator UInt64(BsonValue value)
         {
-            return unchecked((UInt64)value.AsInt64);
+            return value.AsUInt64;
         }
 
         // UInt64 -> store as Int64 (unchecked) to keep all 64 bits and the Int64 BsonType,
