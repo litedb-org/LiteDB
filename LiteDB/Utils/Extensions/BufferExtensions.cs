@@ -115,12 +115,20 @@ namespace LiteDB
         /// <summary>
         /// Copy Int64 bytes direct into buffer
         /// </summary>
-        public static unsafe void ToBytes(this Int64 value, byte[] array, int startIndex)
+        public static void ToBytes(this Int64 value, byte[] array, int startIndex)
         {
-            fixed (byte* ptr = &array[startIndex])
-            {
-                *(Int64*)ptr = value;
-            }
+            // NOTE (ARMv7/armeabi-v7a fix): the original code did *(Int64*)ptr = value,
+            // an unaligned 8-byte store. On 32-bit ARM the JIT/AOT (esp. Mono LLVM) emits
+            // STRD/STM which fault (SIGBUS/BUS_ADRALN) on non-word-aligned addresses.
+            // Byte-wise little-endian write is alignment-safe on every architecture.
+            array[startIndex]     = (byte)value;
+            array[startIndex + 1] = (byte)(value >> 8);
+            array[startIndex + 2] = (byte)(value >> 16);
+            array[startIndex + 3] = (byte)(value >> 24);
+            array[startIndex + 4] = (byte)(value >> 32);
+            array[startIndex + 5] = (byte)(value >> 40);
+            array[startIndex + 6] = (byte)(value >> 48);
+            array[startIndex + 7] = (byte)(value >> 56);
         }
 
         /// <summary>
@@ -148,12 +156,18 @@ namespace LiteDB
         /// <summary>
         /// Copy Int64 bytes direct into buffer
         /// </summary>
-        public static unsafe void ToBytes(this UInt64 value, byte[] array, int startIndex)
+        public static void ToBytes(this UInt64 value, byte[] array, int startIndex)
         {
-            fixed (byte* ptr = &array[startIndex])
-            {
-                *(UInt64*)ptr = value;
-            }
+            // ARMv7 alignment-safe write (see Int64 overload above). Double.ToBytes
+            // routes through this method, so this also fixes 8-byte double writes.
+            array[startIndex]     = (byte)value;
+            array[startIndex + 1] = (byte)(value >> 8);
+            array[startIndex + 2] = (byte)(value >> 16);
+            array[startIndex + 3] = (byte)(value >> 24);
+            array[startIndex + 4] = (byte)(value >> 32);
+            array[startIndex + 5] = (byte)(value >> 40);
+            array[startIndex + 6] = (byte)(value >> 48);
+            array[startIndex + 7] = (byte)(value >> 56);
         }
 
         /// <summary>
