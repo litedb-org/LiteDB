@@ -114,7 +114,7 @@ namespace LiteDB
                 yield return new KeyValuePair<string, BsonValue>("_id", id);
             }
 
-            foreach(var item in this.RawValue.Where(x => x.Key != "_id"))
+            foreach(var item in this.RawValue.Where(x => !x.Key.Equals("_id", StringComparison.OrdinalIgnoreCase)))
             {
                 yield return item;
             }
