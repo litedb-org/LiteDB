@@ -1,3 +1,5 @@
+using System;
+using System.Collections;
 using System.IO;
 using Xunit;
 
@@ -18,6 +20,11 @@ public class Issue2376_Tests
         public int Id { get; set; }
         public ByteEnum[] Bytes { get; set; }
         public IntEnum[] Ints { get; set; }
+    }
+
+    public class NonGenericHolder
+    {
+        public IEnumerable Values { get; set; }
     }
 
     [Fact]
@@ -97,5 +104,43 @@ public class Issue2376_Tests
 
         Assert.Equal(new[] { ByteEnum.A, ByteEnum.C }, holder.Bytes);
         Assert.Equal(new[] { IntEnum.B, IntEnum.C }, holder.Ints);
+    }
+
+    [Fact]
+    public void Plain_sbyte_array_should_remain_binary()
+    {
+        var mapper = new BsonMapper();
+
+        var bson = mapper.Serialize(new sbyte[] { -128, -1, 1, 127 });
+
+        Assert.Equal(BsonType.Binary, bson.Type);
+    }
+
+    [Fact]
+    public void Non_generic_collection_with_byte_enum_array_should_round_trip()
+    {
+        var mapper = new BsonMapper();
+        var original = new NonGenericHolder
+        {
+            Values = new[] { ByteEnum.A, ByteEnum.B }
+        };
+        var document = mapper.ToDocument(original);
+
+        var exception = Record.Exception(() => mapper.Deserialize<NonGenericHolder>(document));
+
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public void Explicit_byte_array_contract_should_round_trip_runtime_enum_array()
+    {
+        ByteEnum[] enumArray = { ByteEnum.A, ByteEnum.B };
+        byte[] bytes = (byte[])(Array)enumArray;
+        var mapper = new BsonMapper();
+
+        var bson = mapper.Serialize<byte[]>(bytes);
+        var result = mapper.Deserialize<byte[]>(bson);
+
+        Assert.Equal(new byte[] { 1, 2 }, result);
     }
 }
