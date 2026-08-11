@@ -128,14 +128,16 @@ namespace LiteDB
                     type = obj.GetType();
                 }
 
+                Type keyType = typeof(object);
                 Type valueType = typeof(object);
 
                 if (type.GetTypeInfo().IsGenericType) {
                     Type[] generics = type.GetGenericArguments();
+                    keyType = generics[0];
                     valueType = generics[1];
                 }
 
-                return SerializeDictionary(valueType, dict, depth);
+                return SerializeDictionary(keyType, valueType, dict, depth);
             }
             // check if is a list or array
             else if (obj is IEnumerable)
@@ -161,7 +163,7 @@ namespace LiteDB
             return bsonArray;
         }
 
-        private BsonDocument SerializeDictionary(Type valueType, IDictionary dict, int depth)
+        private BsonDocument SerializeDictionary(Type keyType, Type valueType, IDictionary dict, int depth)
         {
             BsonDocument bsonDocument = [];
 
@@ -177,12 +179,24 @@ namespace LiteDB
                 {
                     stringKey = dateKey.ToString("o", CultureInfo.InvariantCulture) ?? string.Empty;
                 }
+                else if (key is DateTimeOffset dateTimeOffsetKey)
+                {
+                    // Preserve the field spelling written by previous versions.
+                    stringKey = dateTimeOffsetKey.ToString(CultureInfo.CurrentCulture) ?? string.Empty;
+                }
                 else
                 {
-                    var keyConverter = TypeDescriptor.GetConverter(key.GetType());
+                    var converterType = keyType == typeof(object) ? key.GetType() : keyType;
+                    var keyConverter = TypeDescriptor.GetConverter(converterType);
                     stringKey = keyConverter.CanConvertTo(typeof(string))
                         ? keyConverter.ConvertToInvariantString(key) ?? string.Empty
                         : Convert.ToString(key, CultureInfo.InvariantCulture) ?? string.Empty;
+                }
+
+                if (bsonDocument.ContainsKey(stringKey))
+                {
+                    throw new LiteException(0,
+                        $"Dictionary keys serialize to the same BSON field name '{stringKey}'.");
                 }
 
                 BsonValue bsonValue = Serialize(valueType, value, depth);
