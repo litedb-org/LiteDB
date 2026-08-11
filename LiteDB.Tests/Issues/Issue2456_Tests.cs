@@ -135,4 +135,46 @@ public class Issue2456_Tests
         loaded["tags"].AsArray.Count.Should().Be(3);
         loaded["tags"].AsArray[2].AsString.Should().Be("c");
     }
+
+    [Fact]
+    public void Wrapped_dictionary_must_keep_id_and_index_in_sync()
+    {
+        using var db = new LiteDatabase(new MemoryStream());
+        var col = db.GetCollection("docs");
+        var wrapped = new BsonValue(new Dictionary<string, BsonValue>
+        {
+            ["_id"] = 1
+        });
+
+        // The wrapped Dictionary uses a case-sensitive comparer. A regular
+        // BsonDocument does not, so this spelling must update the same field.
+        wrapped["_ID"] = 2;
+        col.Insert(wrapped.AsDocument);
+
+        var loaded = col.FindById(1);
+
+        // The index says this is document 1. Its stored _id must agree.
+        loaded["_id"].AsInt32.Should().Be(1);
+    }
+
+    [Fact]
+    public void AsArray_should_return_one_stable_adapter()
+    {
+        var wrapped = new BsonValue(Items);
+
+        // Serializers cache the byte length on BsonArray. Returning a fresh
+        // adapter here discards that cache and makes nested arrays quadratic.
+        Assert.Same(wrapped.AsArray, wrapped.AsArray);
+    }
+
+    [Fact]
+    public void Null_inside_a_wrapped_array_should_serialize_as_Bson_null()
+    {
+        var wrapped = new BsonValue((object)new BsonValue[] { null });
+        var document = new BsonDocument { ["value"] = wrapped };
+
+        var exception = Record.Exception(() => BsonSerializer.Serialize(document));
+
+        exception.Should().BeNull();
+    }
 }
