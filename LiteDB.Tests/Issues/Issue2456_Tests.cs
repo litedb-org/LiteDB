@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using FluentAssertions;
 using Xunit;
 
@@ -151,10 +153,12 @@ public class Issue2456_Tests
         wrapped["_ID"] = 2;
         col.Insert(wrapped.AsDocument);
 
-        var loaded = col.FindById(1);
+        var stale = col.FindById(1);
+        var loaded = col.FindById(2);
 
-        // The index says this is document 1. Its stored _id must agree.
-        loaded["_id"].AsInt32.Should().Be(1);
+        Assert.Null(stale);
+        Assert.NotNull(loaded);
+        loaded["_id"].AsInt32.Should().Be(2);
     }
 
     [Fact]
@@ -176,5 +180,30 @@ public class Issue2456_Tests
         var exception = Record.Exception(() => BsonSerializer.Serialize(document));
 
         exception.Should().BeNull();
+    }
+
+    [Fact]
+    public void Wrapped_fixed_size_array_should_still_expose_a_mutable_BsonArray()
+    {
+        var wrapped = new BsonValue((object)new BsonValue[] { 1 });
+
+        var exception = Record.Exception(() => wrapped.AsArray.Add(2));
+
+        exception.Should().BeNull();
+        wrapped.AsArray.Select(value => value.AsInt32).Should().Equal(1, 2);
+    }
+
+    [Fact]
+    public void Wrapped_read_only_dictionary_should_expose_a_mutable_case_insensitive_document()
+    {
+        var source = new ReadOnlyDictionary<string, BsonValue>(
+            new Dictionary<string, BsonValue> { ["_id"] = 1 });
+        var wrapped = new BsonValue((object)source);
+
+        var exception = Record.Exception(() => wrapped.AsDocument["_ID"] = 2);
+
+        exception.Should().BeNull();
+        Assert.Single(wrapped.AsDocument);
+        wrapped.AsDocument["_id"].AsInt32.Should().Be(2);
     }
 }
