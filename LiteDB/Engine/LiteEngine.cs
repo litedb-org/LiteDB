@@ -143,8 +143,6 @@ namespace LiteDB.Engine
                 if (_disk.GetFileLength(FileOrigin.Log) > 0)
                 {
                     _walIndex.RestoreIndex(ref _header);
-
-                    this.HealCorruptedFreeEmptyPageList();
                 }
 
                 // initialize sort temp disk

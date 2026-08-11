@@ -365,7 +365,7 @@ namespace LiteDB.Engine
             ENSURE(typeof(T) == typeof(CollectionPage), _collectionPage == null, "there is no new collection page if page already exists");
 
             var pageID = 0u;
-            PageBuffer buffer;
+            PageBuffer buffer = null;
 
             // lock header instance to get new page
             lock (_header)
@@ -374,25 +374,35 @@ namespace LiteDB.Engine
                 // if any problem occurs here, rollback will catch this changes
 
                 // try get page from Empty free list
-                if (_header.FreeEmptyPageList != uint.MaxValue)
+                if (_header.FreeEmptyPageList != uint.MaxValue &&
+                    _header.FreeEmptyPageList <= _header.LastPageID)
                 {
                     var free = this.GetPage<BasePage>(_header.FreeEmptyPageList, useLatestVersion: true);
 
-                    ENSURE(free.PageType == PageType.Empty, "empty page must be defined as empty type");
-
-                    // set header free empty page to next free page
-                    _header.FreeEmptyPageList = free.NextPageID;
-
-                    // clear NextPageID
-                    free.NextPageID = uint.MaxValue;
-
-                    // get pageID from empty list
-                    pageID = free.PageID;
-
-                    // get buffer inside re-used page
-                    buffer = free.Buffer;
+                    if (free.PageType == PageType.Empty)
+                    {
+                        // Consume one verified page at a time. This keeps a valid
+                        // prefix reusable without scanning the whole list on open.
+                        _header.FreeEmptyPageList = free.NextPageID;
+                        free.NextPageID = uint.MaxValue;
+                        pageID = free.PageID;
+                        buffer = free.Buffer;
+                    }
+                    else
+                    {
+                        // Legacy databases can point the tail at a live page.
+                        // Drop only the invalid suffix; never reuse that page.
+                        _header.FreeEmptyPageList = uint.MaxValue;
+                    }
                 }
-                else
+
+                if (_header.FreeEmptyPageList > _header.LastPageID &&
+                    _header.FreeEmptyPageList != uint.MaxValue)
+                {
+                    _header.FreeEmptyPageList = uint.MaxValue;
+                }
+
+                if (pageID == 0)
                 {
                     // checks if not exceeded data file limit size
                     var newLength = (_header.LastPageID + 1) * PAGE_SIZE;
