@@ -1,4 +1,5 @@
 using System.IO;
+using System.Linq;
 using Xunit;
 
 namespace LiteDB.Tests.Issues;
@@ -91,5 +92,40 @@ public class Issue1986_Tests
 
         Assert.Equal(9, col.Max(x => x.Value));
         Assert.Equal(2, col.Min(x => x.Value));
+    }
+
+    [Fact]
+    public void Typed_min_should_not_turn_a_stored_BSON_null_into_zero()
+    {
+        using var db = new LiteDatabase(new MemoryStream());
+
+        db.GetCollection("e").Insert(new BsonDocument
+        {
+            ["_id"] = 1,
+            ["Value"] = BsonValue.Null
+        });
+
+        var typed = db.GetCollection<Entity>("e");
+
+        // Entity.Value is a non-nullable int. Returning 0 would invent a value
+        // which was never stored, so this incompatible read must fail visibly.
+        var exception = Record.Exception(() => typed.Min(x => x.Value));
+
+        Assert.NotNull(exception);
+    }
+
+    [Fact]
+    public void Filtered_Max_call_from_issue_1986_should_handle_no_matches()
+    {
+        using var db = new LiteDatabase(new MemoryStream());
+        var col = db.GetCollection<Entity>("e");
+        col.Insert(new Entity { Id = 1, Value = 10 });
+
+        int max = -1;
+        var exception = Record.Exception(() =>
+            max = col.Find(x => x.Id == 999).Max(x => x.Value));
+
+        Assert.Null(exception);
+        Assert.Equal(0, max);
     }
 }
