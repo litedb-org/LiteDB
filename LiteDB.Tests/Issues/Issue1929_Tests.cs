@@ -74,6 +74,25 @@ namespace LiteDB.Tests.Issues
         }
 
         [Fact]
+        public void Object_Type_Discriminator_Should_Still_Honor_The_Custom_Index_Constructor()
+        {
+            var mapper = new BsonMapper();
+            mapper.Entity<System.Index>().Ctor(document => new System.Index(
+                document["offset"].AsInt32,
+                document["fromEnd"].AsBoolean));
+            var stored = mapper.Serialize(typeof(object), System.Index.FromEnd(19)).AsDocument;
+
+            stored.Remove("Value");
+            stored.Remove("IsFromEnd");
+            stored["offset"] = 19;
+            stored["fromEnd"] = true;
+
+            var result = mapper.Deserialize(typeof(object), stored);
+
+            Assert.Equal(System.Index.FromEnd(19), Assert.IsType<System.Index>(result));
+        }
+
+        [Fact]
         public void A_User_Type_Merely_Named_System_Index_Should_Map_Normally()
         {
             var mapper = new BsonMapper();
