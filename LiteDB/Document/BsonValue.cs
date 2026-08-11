@@ -240,8 +240,10 @@ namespace LiteDB
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         internal ulong AsUInt64 => this.IsDouble
-            ? unchecked((UInt64)this.AsDouble)
-            : unchecked((UInt64)this.AsInt64);
+            ? Convert.ToUInt64(this.AsDouble)
+            : this.IsDecimal
+                ? checked((UInt64)this.AsDecimal)
+                : unchecked((UInt64)this.AsInt64);
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         public double AsDouble => Convert.ToDouble(this.RawValue);
@@ -376,11 +378,13 @@ namespace LiteDB
             return value.AsUInt64;
         }
 
-        // UInt64 -> store as Int64 (unchecked) to keep all 64 bits and the Int64 BsonType,
-        // matching BsonMapper.Serialize (ulong -> Int64) and BsonMapper.Deserialize (Int64 -> ulong).
+        // Preserve the existing Int64 representation while it is unambiguous.
+        // Decimal stores the high half without colliding with negative Int64 keys.
         public static implicit operator BsonValue(UInt64 value)
         {
-            return new BsonValue(unchecked((Int64)value));
+            return value <= Int64.MaxValue
+                ? new BsonValue((Int64)value)
+                : new BsonValue((Decimal)value);
         }
 
         // String
