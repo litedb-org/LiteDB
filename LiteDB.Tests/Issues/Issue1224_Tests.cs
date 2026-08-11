@@ -10,8 +10,9 @@ namespace LiteDB.Tests.Issues;
 /// <summary>
 /// #1224 - the implicit operator BsonValue(ulong) casts to Double, producing a
 /// BsonType.Double value (wrong type) and losing precision above 2^53. Every
-/// other ulong path in the library stores ulong as Int64 (BsonMapper). The
-/// operator must do the same, and the reverse operator must read it back.
+/// values that fit in the signed range should remain Int64 for compatibility.
+/// Values above Int64.MaxValue need a distinct, lossless BSON representation;
+/// otherwise ulong.MaxValue aliases the signed key -1.
 /// </summary>
 public class Issue1224_Tests
 {
@@ -179,6 +180,7 @@ public class Issue1224_Tests
         var found = raw.FindById(id);
 
         Assert.NotNull(found);
+        Assert.Equal("written by 5.0.21", found["Name"].AsString);
     }
 
     [Fact]
@@ -187,6 +189,7 @@ public class Issue1224_Tests
         BsonValue unsigned = ulong.MaxValue;
         BsonValue signed = -1L;
 
+        Assert.Equal(BsonType.Decimal, unsigned.Type);
         Assert.NotEqual(signed, unsigned);
     }
 
