@@ -90,6 +90,39 @@ public class Issue2255_Tests
         }
     }
 
+    [TypeConverter(typeof(CollidingKeyConverter))]
+    public sealed class CollidingKey
+    {
+        public CollidingKey(int number)
+        {
+            Number = number;
+        }
+
+        public int Number { get; }
+    }
+
+    public sealed class CollidingKeyConverter : TypeConverter
+    {
+        public override bool CanConvertTo(ITypeDescriptorContext context, Type destinationType)
+        {
+            return destinationType == typeof(string) || base.CanConvertTo(context, destinationType);
+        }
+
+        public override object ConvertTo(
+            ITypeDescriptorContext context,
+            CultureInfo culture,
+            object value,
+            Type destinationType)
+        {
+            if (destinationType == typeof(string) && value is CollidingKey key)
+            {
+                return key.Number == 1 ? "same" : "SAME";
+            }
+
+            return base.ConvertTo(context, culture, value, destinationType);
+        }
+    }
+
     private class Row
     {
         public int Id { get; set; }
@@ -172,6 +205,21 @@ public class Issue2255_Tests
         Assert.Equal(2, document.Count);
         Assert.Equal("first value", document["first:42"].AsString);
         Assert.Equal("second value", document["second:42"].AsString);
+    }
+
+    [Fact]
+    public void Dictionary_key_conversion_should_reject_case_insensitive_collisions()
+    {
+        var values = new Dictionary<CollidingKey, string>
+        {
+            [new CollidingKey(1)] = "first",
+            [new CollidingKey(2)] = "second"
+        };
+
+        var exception = Record.Exception(() => new BsonMapper().Serialize(values));
+
+        Assert.NotNull(exception);
+        Assert.Contains("same", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
