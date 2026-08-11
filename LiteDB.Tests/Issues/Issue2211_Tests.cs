@@ -61,6 +61,28 @@ namespace LiteDB.Tests.Issues
             Assert.Equal("acme", connectionString["tenant"]);
         }
 
+        [Fact]
+        public void Malformed_ConnectionString_Should_Not_Become_A_Filename()
+        {
+            const string malformed = "filename=encrypted.db;password=abc=def;readonly=";
+
+            // A typo in an option must be reported. Treating the whole input as
+            // a filename can silently create a database with that bizarre name.
+            var exception = Record.Exception(() => new ConnectionString(malformed));
+
+            Assert.NotNull(exception);
+        }
+
+        [Fact]
+        public void ConnectionString_Should_Parse_Custom_Options_Without_A_BuiltIn_Option()
+        {
+            var connectionString = new ConnectionString("tenant=acme;region=west");
+
+            Assert.Equal("acme", connectionString["tenant"]);
+            Assert.Equal("west", connectionString["region"]);
+            Assert.Equal(string.Empty, connectionString.Filename);
+        }
+
         private static string GetTempDatabasePathWithEqualSign()
         {
             var filename = "litedb-" + Guid.NewGuid().ToString("d").Substring(0, 5) + "=issue2211.db";
