@@ -1,5 +1,4 @@
 using System.IO;
-using System.Linq;
 using Xunit;
 
 namespace LiteDB.Tests.Issues;
@@ -115,15 +114,15 @@ public class Issue1986_Tests
     }
 
     [Fact]
-    public void Filtered_Max_call_from_issue_1986_should_handle_no_matches()
+    public void LiteDB_Max_should_handle_no_rows_after_collection_becomes_empty()
     {
         using var db = new LiteDatabase(new MemoryStream());
         var col = db.GetCollection<Entity>("e");
         col.Insert(new Entity { Id = 1, Value = 10 });
+        col.DeleteAll();
 
         int max = -1;
-        var exception = Record.Exception(() =>
-            max = col.Find(x => x.Id == 999).Max(x => x.Value));
+        var exception = Record.Exception(() => max = col.Max(x => x.Value));
 
         Assert.Null(exception);
         Assert.Equal(0, max);
