@@ -1,4 +1,7 @@
+using System;
+using System.Collections.Generic;
 using System.IO;
+using LiteDB.Engine;
 using LiteDB.Tests;
 using Xunit;
 
@@ -159,6 +162,70 @@ public class Issue1224_Tests
         Assert.Null(found);
     }
 
+    [Fact]
+    public void Raw_FindById_should_still_find_a_legacy_ulong_id_after_upgrade()
+    {
+        using var db = new LiteDatabase(new MemoryStream());
+        var raw = db.GetCollection("entities");
+        ulong id = (1UL << 60) + 12345UL;
+
+        // LiteDB 5.0.21 stored ulong IDs as BSON Double values.
+        raw.Insert(new BsonDocument
+        {
+            ["_id"] = new BsonValue((double)id),
+            ["Name"] = "written by 5.0.21"
+        });
+
+        var found = raw.FindById(id);
+
+        Assert.NotNull(found);
+    }
+
+    [Fact]
+    public void Ulong_max_value_should_not_be_the_same_BSON_key_as_signed_minus_one()
+    {
+        BsonValue unsigned = ulong.MaxValue;
+        BsonValue signed = -1L;
+
+        Assert.NotEqual(signed, unsigned);
+    }
+
+    [Fact]
+    public void Legacy_double_outside_the_ulong_range_should_fail_clearly()
+    {
+        var mapper = new BsonMapper();
+        var roundedTwoToThePowerOf64 = new BsonValue(Math.Pow(2, 64));
+
+        // ulong.MaxValue was rounded to exactly 2^64 by the legacy Double format.
+        // Silently turning that out-of-range value into 0 or ulong.MaxValue is unsafe.
+        Assert.Throws<OverflowException>(() => mapper.Deserialize<ulong>(roundedTwoToThePowerOf64));
+    }
+
+    [Fact]
+    public void Deserializing_an_in_range_double_to_ulong_should_keep_mapper_rounding()
+    {
+        var mapper = new BsonMapper();
+
+        var result = mapper.Deserialize<ulong>(new BsonValue(1.9));
+
+        Assert.Equal(2UL, result);
+    }
+
+    [Fact]
+    public void Legacy_ulong_FindById_fallback_should_use_one_query_snapshot()
+    {
+        var engine = new CountingEmptyEngine();
+        var collection = new LiteCollection<Entity>(
+            "entities",
+            BsonAutoId.ObjectId,
+            engine,
+            new BsonMapper());
+
+        collection.FindById(ulong.MaxValue);
+
+        Assert.Equal(1, engine.QueryCount);
+    }
+
     public class Entity
     {
         public ulong Id { get; set; }
@@ -175,5 +242,38 @@ public class Issue1224_Tests
     {
         public int Id { get; set; }
         public ulong Value { get; set; }
+    }
+
+    private sealed class CountingEmptyEngine : ILiteEngine
+    {
+        public int QueryCount { get; private set; }
+
+        public IBsonDataReader Query(string collection, Query query)
+        {
+            QueryCount++;
+            return new BsonDataReader();
+        }
+
+        public int Checkpoint() => throw new NotSupportedException();
+        public long Rebuild(RebuildOptions options) => throw new NotSupportedException();
+        public bool BeginTrans() => throw new NotSupportedException();
+        public bool Commit() => throw new NotSupportedException();
+        public bool Rollback() => throw new NotSupportedException();
+        public int Insert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId) => throw new NotSupportedException();
+        public int Update(string collection, IEnumerable<BsonDocument> docs) => throw new NotSupportedException();
+        public int UpdateMany(string collection, BsonExpression transform, BsonExpression predicate) => throw new NotSupportedException();
+        public int Upsert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId) => throw new NotSupportedException();
+        public int Delete(string collection, IEnumerable<BsonValue> ids) => throw new NotSupportedException();
+        public int DeleteMany(string collection, BsonExpression predicate) => throw new NotSupportedException();
+        public bool DropCollection(string name) => throw new NotSupportedException();
+        public bool RenameCollection(string name, string newName) => throw new NotSupportedException();
+        public bool EnsureIndex(string collection, string name, BsonExpression expression, bool unique) => throw new NotSupportedException();
+        public bool EnsureVectorIndex(string collection, string name, BsonExpression expression, LiteDB.Vector.VectorIndexOptions options) => throw new NotSupportedException();
+        public bool DropIndex(string collection, string name) => throw new NotSupportedException();
+        public BsonValue Pragma(string name) => throw new NotSupportedException();
+        public bool Pragma(string name, BsonValue value) => throw new NotSupportedException();
+        public void Dispose()
+        {
+        }
     }
 }
