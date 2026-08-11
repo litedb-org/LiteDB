@@ -97,26 +97,13 @@ namespace LiteDB
 
         private static bool TryParseKeyValueConnectionString(string connectionString, Dictionary<string, string> values)
         {
-            if (connectionString.IndexOf('=') == -1)
+            if (LooksLikeKeyValueConnectionString(connectionString) == false)
             {
                 return false;
             }
 
             var parsed = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-            try
-            {
-                parsed.ParseKeyValue(connectionString);
-            }
-            catch
-            {
-                return false;
-            }
-
-            if (ContainsConnectionStringKey(parsed) == false)
-            {
-                return false;
-            }
+            parsed.ParseKeyValue(connectionString);
 
             foreach (var item in parsed)
             {
@@ -126,17 +113,28 @@ namespace LiteDB
             return true;
         }
 
-        private static bool ContainsConnectionStringKey(Dictionary<string, string> values)
+        private static bool LooksLikeKeyValueConnectionString(string connectionString)
         {
-            return
-                values.ContainsKey("filename") ||
-                values.ContainsKey("connection") ||
-                values.ContainsKey("password") ||
-                values.ContainsKey("initial size") ||
-                values.ContainsKey("readonly") ||
-                values.ContainsKey("upgrade") ||
-                values.ContainsKey("auto-rebuild") ||
-                values.ContainsKey("collation");
+            var equals = connectionString.IndexOf('=');
+            if (equals == -1) return false;
+
+            var firstKey = connectionString.Substring(0, equals).Trim();
+
+            // A directory component before '=' identifies an ordinary path.
+            if (firstKey.IndexOf('/') >= 0 || firstKey.IndexOf('\\') >= 0 || firstKey.IndexOf(':') >= 0)
+            {
+                return false;
+            }
+
+            return connectionString.IndexOf(';') >= 0 ||
+                firstKey.Equals("filename", StringComparison.OrdinalIgnoreCase) ||
+                firstKey.Equals("connection", StringComparison.OrdinalIgnoreCase) ||
+                firstKey.Equals("password", StringComparison.OrdinalIgnoreCase) ||
+                firstKey.Equals("initial size", StringComparison.OrdinalIgnoreCase) ||
+                firstKey.Equals("readonly", StringComparison.OrdinalIgnoreCase) ||
+                firstKey.Equals("upgrade", StringComparison.OrdinalIgnoreCase) ||
+                firstKey.Equals("auto-rebuild", StringComparison.OrdinalIgnoreCase) ||
+                firstKey.Equals("collation", StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
