@@ -135,11 +135,6 @@ namespace LiteDB
             {
                 return value.AsArray;
             }
-            else if (type.FullName == "System.Index" && value.IsDocument)
-            {
-                return DeserializeSystemIndex(type, value.AsDocument);
-            }
-
             // raw values to native bson values
             else if (_bsonTypes.Contains(type))
             {
@@ -216,21 +211,27 @@ namespace LiteDB
                     type = typeof(Dictionary<string, object>);
                 }
 
-                if (type.FullName == "System.Index")
+                var entity = this.GetEntityMapper(type);
+                entity.WaitForInitialization();
+
+                object instance = _typeInstantiator(type);
+
+                if (instance == null && entity.CreateInstance != null)
+                {
+                    instance = entity.CreateInstance(doc);
+                }
+
+                if (instance == null && IsSystemIndexType(type))
                 {
                     return DeserializeSystemIndex(type, doc);
                 }
-
-                var entity = this.GetEntityMapper(type);
-                entity.WaitForInitialization();
 
                 // initialize CreateInstance
                 entity.CreateInstance = entity.CreateInstance
                     ?? GetTypeCtor(entity) 
                     ?? ((BsonDocument _) => Reflection.CreateInstance(entity.ForType));
 
-                object instance = _typeInstantiator(type) 
-                    ?? entity.CreateInstance(doc);
+                instance ??= entity.CreateInstance(doc);
 
                 if (instance is IDictionary dict)
                 {
@@ -303,6 +304,13 @@ namespace LiteDB
                 type,
                 GetSystemIndexField(value, "Value").AsInt32,
                 GetSystemIndexField(value, "IsFromEnd").AsBoolean);
+        }
+
+        private static bool IsSystemIndexType(Type type)
+        {
+            return type.FullName == "System.Index" &&
+                type.GetTypeInfo().IsValueType &&
+                type.Assembly == typeof(object).Assembly;
         }
 
         private BsonValue GetSystemIndexField(BsonDocument value, string fieldName)
