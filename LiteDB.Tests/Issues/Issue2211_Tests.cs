@@ -61,11 +61,11 @@ namespace LiteDB.Tests.Issues
             Assert.Equal("acme", connectionString["tenant"]);
         }
 
-        [Fact]
-        public void Malformed_ConnectionString_Should_Not_Become_A_Filename()
+        [Theory]
+        [InlineData("filename=encrypted.db;password=abc=def;readonly=")]
+        [InlineData("tenant=acme;readonly=")]
+        public void Malformed_ConnectionString_Should_Not_Become_A_Filename(string malformed)
         {
-            const string malformed = "filename=encrypted.db;password=abc=def;readonly=";
-
             // A typo in an option must be reported. Treating the whole input as
             // a filename can silently create a database with that bizarre name.
             var exception = Record.Exception(() => new ConnectionString(malformed));
