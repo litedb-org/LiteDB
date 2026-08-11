@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.IO;
+using System.Linq;
 using Xunit;
 
 namespace LiteDB.Tests.Issues;
@@ -25,6 +26,12 @@ public class Issue2376_Tests
     public class NonGenericHolder
     {
         public IEnumerable Values { get; set; }
+    }
+
+    public class SignedByteHolder
+    {
+        public int Id { get; set; }
+        public sbyte[] Values { get; set; }
     }
 
     [Fact]
@@ -126,9 +133,11 @@ public class Issue2376_Tests
         };
         var document = mapper.ToDocument(original);
 
-        var exception = Record.Exception(() => mapper.Deserialize<NonGenericHolder>(document));
+        NonGenericHolder loaded = null;
+        var exception = Record.Exception(() => loaded = mapper.Deserialize<NonGenericHolder>(document));
 
         Assert.Null(exception);
+        Assert.Equal(new[] { 1, 2 }, loaded.Values.Cast<object>().Select(Convert.ToInt32));
     }
 
     [Fact]
@@ -138,9 +147,44 @@ public class Issue2376_Tests
         byte[] bytes = (byte[])(Array)enumArray;
         var mapper = new BsonMapper();
 
+        // The CLR deliberately treats byte[] and byte-backed enum arrays as
+        // equivalent for this cast. The declared byte[] contract still wins.
+        Assert.Equal(typeof(ByteEnum[]), bytes.GetType());
+
         var bson = mapper.Serialize<byte[]>(bytes);
         var result = mapper.Deserialize<byte[]>(bson);
 
         Assert.Equal(new byte[] { 1, 2 }, result);
+    }
+
+    [Fact]
+    public void New_sbyte_rows_should_keep_the_legacy_binary_index_shape()
+    {
+        using var db = new LiteDatabase(new MemoryStream());
+        var raw = db.GetCollection("signed_bytes");
+        sbyte[] values = { -1, 1 };
+        byte[] binary = (byte[])(Array)values;
+
+        // Existing databases store sbyte[] as Binary.
+        raw.Insert(new BsonDocument
+        {
+            ["_id"] = 1,
+            ["Values"] = new BsonValue(binary)
+        });
+
+        db.GetCollection<SignedByteHolder>("signed_bytes").Insert(new SignedByteHolder
+        {
+            Id = 2,
+            Values = values
+        });
+
+        raw.EnsureIndex("Values");
+        var matchingIds = raw.Find(Query.EQ("Values", new BsonValue(binary)))
+            .Select(document => document["_id"].AsInt32)
+            .OrderBy(id => id)
+            .ToArray();
+
+        Assert.Equal(new[] { 1, 2 }, matchingIds);
+        Assert.All(raw.FindAll(), document => Assert.Equal(BsonType.Binary, document["Values"].Type));
     }
 }
