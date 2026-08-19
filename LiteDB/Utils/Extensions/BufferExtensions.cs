@@ -117,18 +117,10 @@ namespace LiteDB
         /// </summary>
         public static void ToBytes(this Int64 value, byte[] array, int startIndex)
         {
-            // NOTE (ARMv7/armeabi-v7a fix): the original code did *(Int64*)ptr = value,
-            // an unaligned 8-byte store. On 32-bit ARM the JIT/AOT (esp. Mono LLVM) emits
-            // STRD/STM which fault (SIGBUS/BUS_ADRALN) on non-word-aligned addresses.
-            // Byte-wise little-endian write is alignment-safe on every architecture.
-            array[startIndex]     = (byte)value;
-            array[startIndex + 1] = (byte)(value >> 8);
-            array[startIndex + 2] = (byte)(value >> 16);
-            array[startIndex + 3] = (byte)(value >> 24);
-            array[startIndex + 4] = (byte)(value >> 32);
-            array[startIndex + 5] = (byte)(value >> 40);
-            array[startIndex + 6] = (byte)(value >> 48);
-            array[startIndex + 7] = (byte)(value >> 56);
+            unchecked
+            {
+                ToBytes((UInt64)value, array, startIndex);
+            }
         }
 
         /// <summary>
@@ -158,16 +150,39 @@ namespace LiteDB
         /// </summary>
         public static void ToBytes(this UInt64 value, byte[] array, int startIndex)
         {
-            // ARMv7 alignment-safe write (see Int64 overload above). Double.ToBytes
-            // routes through this method, so this also fixes 8-byte double writes.
-            array[startIndex]     = (byte)value;
-            array[startIndex + 1] = (byte)(value >> 8);
-            array[startIndex + 2] = (byte)(value >> 16);
-            array[startIndex + 3] = (byte)(value >> 24);
-            array[startIndex + 4] = (byte)(value >> 32);
-            array[startIndex + 5] = (byte)(value >> 40);
-            array[startIndex + 6] = (byte)(value >> 48);
-            array[startIndex + 7] = (byte)(value >> 56);
+            // A single `*(UInt64*)ptr = value` store is lowered to STRD/STM on 32-bit ARM,
+            // which fault with SIGBUS/BUS_ADRALN when the destination is not word-aligned
+            // (see #1759). Byte stores have no alignment requirement.
+            //
+            // The byte order follows the running platform, so the bytes written here are
+            // identical to the ones the previous pointer store produced. That keeps the
+            // on-disk layout unchanged: the matching readers (ReadInt64/ReadUInt64/
+            // ReadDouble) use BitConverter, which is also native-endian.
+            unchecked
+            {
+                if (BitConverter.IsLittleEndian)
+                {
+                    array[startIndex] = (byte)value;
+                    array[startIndex + 1] = (byte)(value >> 8);
+                    array[startIndex + 2] = (byte)(value >> 16);
+                    array[startIndex + 3] = (byte)(value >> 24);
+                    array[startIndex + 4] = (byte)(value >> 32);
+                    array[startIndex + 5] = (byte)(value >> 40);
+                    array[startIndex + 6] = (byte)(value >> 48);
+                    array[startIndex + 7] = (byte)(value >> 56);
+                }
+                else
+                {
+                    array[startIndex] = (byte)(value >> 56);
+                    array[startIndex + 1] = (byte)(value >> 48);
+                    array[startIndex + 2] = (byte)(value >> 40);
+                    array[startIndex + 3] = (byte)(value >> 32);
+                    array[startIndex + 4] = (byte)(value >> 24);
+                    array[startIndex + 5] = (byte)(value >> 16);
+                    array[startIndex + 6] = (byte)(value >> 8);
+                    array[startIndex + 7] = (byte)value;
+                }
+            }
         }
 
         /// <summary>
