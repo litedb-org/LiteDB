@@ -13,6 +13,37 @@ public partial class BsonMapper
     /// Mapping cache between Class/BsonDocument
     /// </summary>
     private readonly ConcurrentDictionary<Type, EntityMapper> _entities = new();
+    private readonly ConcurrentDictionary<Type, EntityMapper> _aotEntities = new();
+
+    /// <summary>
+    /// Registers an entity mapper that was created without runtime member discovery for use by <see cref="LiteAotDatabase"/>.
+    /// </summary>
+    /// <param name="mapper">The complete explicit entity mapper.</param>
+    /// <returns>The registered mapper.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="mapper"/> is <see langword="null"/>.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when a mapper is already registered for the entity type.</exception>
+    public EntityMapper RegisterAotEntityMapper(EntityMapper mapper)
+    {
+        if (mapper == null) throw new ArgumentNullException(nameof(mapper));
+
+        if (_aotEntities.TryAdd(mapper.ForType, mapper) == false)
+        {
+            throw new InvalidOperationException($"An AOT entity mapper is already registered for '{mapper.ForType.FullName}'.");
+        }
+
+        if (_entities.TryAdd(mapper.ForType, mapper))
+        {
+            return mapper;
+        }
+
+        _aotEntities.TryRemove(mapper.ForType, out _);
+        throw new InvalidOperationException($"An entity mapper is already registered for '{mapper.ForType.FullName}'.");
+    }
+
+    internal bool HasAotEntityMapper(Type type)
+    {
+        return _aotEntities.ContainsKey(type);
+    }
 
     /// <summary>
     /// Get property mapper between typed .NET class and BsonDocument - Cache results
@@ -79,7 +110,7 @@ public partial class BsonMapper
                 .FirstOrDefault();
 
             // check if property has [BsonField] with a custom field name
-            if (field != null && field.Name != null)
+            if (field?.Name != null)
             {
                 name = field.Name;
             }
@@ -109,7 +140,7 @@ public partial class BsonMapper
             // create a property mapper
             var member = new MemberMapper
             {
-                AutoId = autoId == null ? true : autoId.AutoId,
+                AutoId = autoId?.AutoId != false,
                 FieldName = name,
                 MemberName = memberInfo.Name,
                 DataType = dataType,
@@ -171,7 +202,7 @@ public partial class BsonMapper
 
         var shouldIncludeFields = members.Count == 0
                                   && type.GetTypeInfo().IsValueType;
-                                  
+
         if (shouldIncludeFields || this.IncludeFields)
         {
             members.AddRange(type.GetFields(flags).Where(x => !x.Name.EndsWith("k__BackingField") && x.IsStatic == false)
@@ -190,7 +221,7 @@ public partial class BsonMapper
     protected virtual CreateObject GetTypeCtor(EntityMapper mapper)
     {
         Type type = mapper.ForType;
-        List<CreateObject> Mappings = new List<CreateObject>();
+        List<CreateObject> Mappings = [];
         bool returnZeroParamNull = false;
         foreach (ConstructorInfo ctor in type.GetConstructors())
         {
@@ -210,7 +241,7 @@ public partial class BsonMapper
                 MemberMapper mi = null;
                 foreach (MemberMapper member in mapper.Members)
                 {
-                    if (member.MemberName.ToLower() == par.Name.ToLower() && member.DataType == par.ParameterType)
+                    if (string.Equals(member.MemberName, par.Name, StringComparison.OrdinalIgnoreCase) && member.DataType == par.ParameterType)
                     {
                         mi = member;
                         break;
@@ -230,9 +261,9 @@ public partial class BsonMapper
                 continue;
             }
 
-            CreateObject toAdd = (BsonDocument value) =>
+            object toAdd(BsonDocument value) =>
                 Activator.CreateInstance(type, paramMap.Select(x =>
-                    this.Deserialize(x.Value, value[x.Key])).ToArray());
+                    this.Deserialize(x.Value, value[x.Key])));
             if (ctor.GetCustomAttribute<BsonCtorAttribute>() != null)
             {
                 return toAdd;

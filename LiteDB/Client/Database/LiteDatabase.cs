@@ -17,14 +17,13 @@ namespace LiteDB
         #region Properties
 
         private readonly ILiteEngine _engine;
-        private readonly BsonMapper _mapper;
         private readonly bool _disposeOnClose;
         private readonly int? _checkpointOverride;
 
         /// <summary>
         /// Get current instance of BsonMapper used in this database instance (can be BsonMapper.Global)
         /// </summary>
-        public BsonMapper Mapper => _mapper;
+        public BsonMapper Mapper { get; }
 
         #endregion
 
@@ -46,7 +45,7 @@ namespace LiteDB
             if (connectionString == null) throw new ArgumentNullException(nameof(connectionString));
 
             _engine = connectionString.CreateEngine();
-            _mapper = mapper ?? BsonMapper.Global;
+            Mapper = mapper ?? BsonMapper.Global;
             _disposeOnClose = true;
         }
 
@@ -65,7 +64,7 @@ namespace LiteDB
             };
 
             _engine = new LiteEngine(settings);
-            _mapper = mapper ?? BsonMapper.Global;
+            Mapper = mapper ?? BsonMapper.Global;
             _disposeOnClose = true;
 
             if (logStream == null && stream is not MemoryStream)
@@ -96,7 +95,7 @@ namespace LiteDB
         public LiteDatabase(ILiteEngine engine, BsonMapper mapper = null, bool disposeOnClose = true)
         {
             _engine = engine ?? throw new ArgumentNullException(nameof(engine));
-            _mapper = mapper ?? BsonMapper.Global;
+            Mapper = mapper ?? BsonMapper.Global;
             _disposeOnClose = disposeOnClose;
         }
 
@@ -113,7 +112,12 @@ namespace LiteDB
         [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
         public ILiteCollection<T> GetCollection<T>(string name, BsonAutoId autoId = BsonAutoId.ObjectId)
         {
-            return new LiteCollection<T>(name, autoId, _engine, _mapper);
+            return this.GetCollectionCore<T>(name, autoId);
+        }
+
+        internal ILiteCollection<T> GetCollectionCore<T>(string name, BsonAutoId autoId)
+        {
+            return new LiteCollection<T>(name, autoId, _engine, Mapper);
         }
 
         /// <summary>
@@ -145,7 +149,7 @@ namespace LiteDB
         {
             if (name.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(name));
 
-            return new LiteCollection<BsonDocument>(name, autoId, _engine, _mapper);
+            return new LiteCollection<BsonDocument>(name, autoId, _engine, Mapper);
         }
 
         #endregion
@@ -181,7 +185,7 @@ namespace LiteDB
         {
             [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
             [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
-            get { return _fs ?? (_fs = this.GetStorage<string>()); }
+            get { return _fs ??= this.GetStorage<string>(); }
         }
 
         /// <summary>
