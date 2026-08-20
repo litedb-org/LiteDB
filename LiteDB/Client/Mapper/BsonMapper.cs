@@ -22,6 +22,11 @@ namespace LiteDB
     ///     - IList, Array supports
     ///     - IDictionary supports (Key must be a simple datatype - converted by ChangeType)
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = AotCompatibility.RuntimeModelMapping)]
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2070", Justification = AotCompatibility.RuntimeModelMapping)]
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2072", Justification = AotCompatibility.RuntimeModelMapping)]
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2075", Justification = AotCompatibility.RuntimeModelMapping)]
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050", Justification = AotCompatibility.RuntimeTypeConstruction)]
     public partial class BsonMapper
     {
         #region Properties
@@ -41,6 +46,8 @@ namespace LiteDB
         /// Type name binder to control how type names are serialized to BSON documents
         /// </summary>
         private readonly ITypeNameBinder _typeNameBinder;
+
+        private Func<Type, string> _resolveCollectionName;
 
         /// <summary>
         /// Global instance used when no BsonMapper are passed in LiteDatabase ctor
@@ -96,9 +103,15 @@ namespace LiteDB
         public Action<Type, MemberInfo, MemberMapper> ResolveMember;
 
         /// <summary>
-        /// Custom resolve name collection based on Type 
+        /// Custom resolve name collection based on Type.
+        /// Reading the resolver invokes the default runtime type inspection path unless a custom resolver is assigned.
         /// </summary>
-        public Func<Type, string> ResolveCollectionName;
+        public Func<Type, string> ResolveCollectionName
+        {
+            [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeCollectionNameResolution)]
+            get => _resolveCollectionName;
+            set => _resolveCollectionName = value;
+        }
 
         #endregion
 
@@ -110,7 +123,7 @@ namespace LiteDB
             this.EnumAsInteger = false;
             this.ResolveFieldName = (s) => s;
             this.ResolveMember = (t, mi, mm) => { };
-            this.ResolveCollectionName = (t) => Reflection.IsEnumerable(t) ? Reflection.GetListItemType(t).Name : t.Name;
+            _resolveCollectionName = ResolveCollectionNameDefault;
             this.IncludeFields = false;
             this.MaxDepth = 20;
 
@@ -130,6 +143,18 @@ namespace LiteDB
 
             #endregion
 
+        }
+
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeCollectionNameResolution)]
+        private static string ResolveCollectionNameDefault(Type type)
+        {
+            return Reflection.IsEnumerable(type) ? Reflection.GetListItemType(type).Name : type.Name;
+        }
+
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeCollectionNameResolution)]
+        internal string GetCollectionName(Type type)
+        {
+            return _resolveCollectionName(type);
         }
 
         #region Register CustomType

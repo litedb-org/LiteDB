@@ -10,6 +10,7 @@ namespace LiteDB
         /// <summary>
         /// Serialize a entity class to BsonDocument
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         public virtual BsonDocument ToDocument(Type type, object entity)
         {
             if (entity == null) throw new ArgumentNullException(nameof(entity));
@@ -23,6 +24,7 @@ namespace LiteDB
         /// <summary>
         /// Serialize a entity class to BsonDocument
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         public virtual BsonDocument ToDocument<T>(T entity)
         {
             return this.ToDocument(typeof(T), entity)?.AsDocument;
@@ -31,6 +33,7 @@ namespace LiteDB
         /// <summary>
         /// Serialize to BsonValue any .NET object based on T type (using mapping rules)
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         public BsonValue Serialize<T>(T obj)
         {
             return this.Serialize(typeof(T), obj, 0);
@@ -39,6 +42,7 @@ namespace LiteDB
         /// <summary>
         /// Serialize to BsonValue any .NET object based on type parameter (using mapping rules)
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         public BsonValue Serialize(Type type, object obj)
         {
             return this.Serialize(type, obj, 0);

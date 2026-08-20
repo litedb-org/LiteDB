@@ -61,6 +61,8 @@ namespace LiteDB
         /// <summary>
         /// Deserialize a BsonDocument to entity class
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
         public virtual object ToObject(Type type, BsonDocument doc)
         {
             if (doc == null) throw new ArgumentNullException(nameof(doc));
@@ -74,6 +76,8 @@ namespace LiteDB
         /// <summary>
         /// Deserialize a BsonDocument to entity class
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
         public virtual T ToObject<T>(BsonDocument doc)
         {
             return (T)this.ToObject(typeof(T), doc);
@@ -82,6 +86,8 @@ namespace LiteDB
         /// <summary>
         /// Deserialize a BsonValue to .NET object typed in T
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
         public T Deserialize<T>(BsonValue value)
         {
             if (value == null) return default(T);
@@ -94,6 +100,8 @@ namespace LiteDB
         /// <summary>
         /// Deserilize a BsonValue to .NET object based on type parameter
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
         public object Deserialize(Type type, BsonValue value)
         {
             if (OnDeserialization is not null)
@@ -250,6 +258,8 @@ namespace LiteDB
             return value.RawValue;
         }
 
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
         private object DeserializeArray(Type type, BsonArray array)
         {
             var arr = Array.CreateInstance(type, array.Count);
@@ -263,6 +273,8 @@ namespace LiteDB
             return arr;
         }
 
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
         private object DeserializeList(Type type, BsonArray value)
         {
             var itemType = Reflection.GetListItemType(type);
@@ -288,6 +300,8 @@ namespace LiteDB
             return enumerable;
         }
 
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
         private void DeserializeDictionary(Type keyType, Type valueType, IDictionary dict, BsonDocument value)
         {
             foreach (KeyValuePair<string, BsonValue> element in value.GetElements())
@@ -314,6 +328,8 @@ namespace LiteDB
             }
         }
 
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
         private void DeserializeObject(EntityMapper entity, object obj, BsonDocument value)
         {
             foreach (var member in entity.Members.Where(x => x.Setter != null))
@@ -333,6 +349,8 @@ namespace LiteDB
             }
         }
 
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
         private object DeserializeAnonymousType(Type type, BsonDocument value)
         {
             var args = new List<object>();

@@ -12,6 +12,8 @@ namespace LiteDB
     /// <summary>
     /// An IQueryable-like class to write fluent query in documents in collection.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
     public class LiteQueryable<T> : ILiteQueryable<T>
     {
         protected readonly ILiteEngine _engine;

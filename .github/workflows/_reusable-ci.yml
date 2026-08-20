@@ -13,6 +13,9 @@ on:
             { "display": ".NET 10", "sdk": "10.0.x\n8.0.x",   "framework": "net10.0", "includePrerelease": true, "msbuildProps": "-p:LiteDBTestsEnableNet10=true" }
           ]
 
+permissions:
+  contents: read
+
 jobs:
   build-linux:
     name: Build (Linux)
@@ -93,6 +96,43 @@ jobs:
           --logger "trx;LogFileName=TestResults.trx"
           --logger "console;verbosity=detailed"
           ${{ matrix.item.msbuildProps }}
+
+  aot-smoke-linux:
+    name: Native AOT smoke (Linux)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install Native AOT prerequisites
+        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
+
+      - name: Publish and run Native AOT smoke test
+        run: >-
+          dotnet publish LiteDB.AotSmokeTests/LiteDB.AotSmokeTests.csproj
+          --configuration Release
+          --runtime linux-x64
+          --output ./artifacts/native-aot
+          && ./artifacts/native-aot/LiteDB.AotSmokeTests
+
+      - name: Publish and run managed single-file smoke test
+        run: >-
+          dotnet publish LiteDB.AotSmokeTests/LiteDB.AotSmokeTests.csproj
+          --configuration Release
+          --runtime linux-x64
+          --self-contained true
+          -p:PublishAot=false
+          -p:PublishSingleFile=true
+          --output ./artifacts/single-file
+          && ./artifacts/single-file/LiteDB.AotSmokeTests
 
   build-macos:
     name: Build (macOS)

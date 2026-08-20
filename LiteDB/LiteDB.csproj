@@ -42,6 +42,8 @@
 
     <PropertyGroup Condition="'$(TargetFramework)' == 'net8.0'">
         <DefineConstants>$(DefineConstants);HAVE_SHA1_MANAGED;HAVE_APP_DOMAIN;HAVE_PROCESS;HAVE_ENVIRONMENT</DefineConstants>
+        <IsAotCompatible>true</IsAotCompatible>
+        <WarningsAsErrors>$(WarningsAsErrors);IL2026;IL2046;IL2057;IL2067;IL2070;IL2072;IL2075;IL3050;IL3051</WarningsAsErrors>
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(TestingEnabled)' == 'true'">

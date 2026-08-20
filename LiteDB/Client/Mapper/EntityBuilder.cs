@@ -85,11 +85,12 @@ namespace LiteDB
         /// <summary>
         /// Define a subdocument (or a list of) as a reference
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeCollectionNameResolution)]
         public EntityBuilder<T> DbRef<K>(Expression<Func<T, K>> member, string collection = null)
         {
             return this.GetMember(member, (p) =>
             {
-                BsonMapper.RegisterDbRef(_mapper, p, _typeNameBinder, collection ?? _mapper.ResolveCollectionName(typeof(K)));
+                BsonMapper.RegisterDbRef(_mapper, p, _typeNameBinder, collection ?? _mapper.GetCollectionName(typeof(K)));
             });
         }
 

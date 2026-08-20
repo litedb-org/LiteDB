@@ -126,7 +126,7 @@ public partial class BsonMapper
             if (dbRef != null && memberInfo is PropertyInfo)
             {
                 BsonMapper.RegisterDbRef(this, member, _typeNameBinder,
-                    dbRef.Collection ?? this.ResolveCollectionName((memberInfo as PropertyInfo).PropertyType));
+                    dbRef.Collection ?? this.GetCollectionName((memberInfo as PropertyInfo).PropertyType));
             }
 
             // support callback to user modify member mapper

@@ -249,6 +249,7 @@ namespace LiteDB
         /// <summary>
         /// Visit :: x => x.Age + `10` (will create parameter:  `p0`, `p1`, ...)
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = AotCompatibility.RuntimeModelMapping)]
         protected override Expression VisitConstant(ConstantExpression node)
         {
             var value = node.Value;
