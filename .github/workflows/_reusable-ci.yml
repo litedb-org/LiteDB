@@ -115,6 +115,11 @@ jobs:
       - name: Install Native AOT prerequisites
         run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
 
+      - name: Compile source-generator external consumer
+        run: >-
+          dotnet build LiteDB.SourceGenerator.CompileTests/LiteDB.SourceGenerator.CompileTests.csproj
+          --configuration Release
+
       - name: Publish and run Native AOT smoke test
         run: >-
           dotnet publish LiteDB.AotSmokeTests/LiteDB.AotSmokeTests.csproj
