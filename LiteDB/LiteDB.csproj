@@ -21,6 +21,9 @@
         <NoWarn>1701;1702;1705;1591;0618</NoWarn>
         <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\LiteDB.xml</DocumentationFile>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <EnableAotAnalyzer>true</EnableAotAnalyzer>
+        <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
         <LangVersion>latest</LangVersion>
     </PropertyGroup>
 
