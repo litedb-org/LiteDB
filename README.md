@@ -46,6 +46,8 @@ New UI to manage and visualize your database:
 
 ## Documentation
 
+For Native AOT applications using explicit entity maps, see [Native AOT and Explicit Entity Mapping](docs/AOT.md).
+
 Visit [the Wiki](https://github.com/mbdavid/LiteDB/wiki) for full documentation. For simplified chinese version, [check here](https://github.com/lidanger/LiteDB.wiki_Translation_zh-cn).
 
 ## LiteDB Community
