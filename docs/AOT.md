@@ -6,7 +6,7 @@ LiteDB supports a typed collection workflow for applications that publish with *
 
 ## Configure the consuming application
 
-The LiteDB package targets `net8.0` with Native AOT compatibility analysis enabled. A consuming Native AOT application should target `net8.0` or later and enable AOT publishing in its project file.
+LiteDB targets `netstandard2.0` and `net8.0`. Native AOT compatibility analysis is enabled only for the `net8.0` target. An application that consumes LiteDB with Native AOT publishing should target `net8.0` or later and enable AOT publishing in its project file.
 
 ```xml
 <PropertyGroup>
