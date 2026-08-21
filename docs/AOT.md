@@ -74,7 +74,7 @@ The first source-generated mapping slice is intentionally narrow. The generator 
 
 | Supported | Not supported by the generated path |
 |---|---|
-| Scalar properties, enums, `byte[]`, `DateTime`, `DateTimeOffset`, `DateTimeOffset?`, `Guid`, and `ObjectId` | Parameterized and `[BsonCtor]` constructors |
+| Scalar properties and nullable scalar value types, enums, `byte[]`, `DateTime`, `DateTimeOffset`, `DateTimeOffset?`, `Guid`, and `ObjectId` | Parameterized and `[BsonCtor]` constructors |
 | `List<string>` | Arrays, other list element types, sets, dictionaries, nested entities, and `BsonRef` |
 | `[BsonId]`, `[BsonField]`, and `[BsonIgnore]` on direct and inherited properties | Fields, member hiding, duplicate BSON field names or IDs, generic or nested model/base classes |
 | Explicit collection names | Default collection-name resolution and runtime mapper callbacks |
@@ -85,11 +85,15 @@ The generated path preserves `DateTimeOffset` and nullable `DateTimeOffset` valu
 
 The outer DateTimeOffset property is therefore a BSON document rather than a sortable BSON date. Applications that need an index over its stored components must use an explicit BSON expression for the `DateTime` or `Offset` child field and choose the ordering semantics appropriate to their domain.
 
+### Nullable scalar values
+
+A nullable scalar value type is supported when its underlying value type is supported. With the default mapper setting, null members retain LiteDB's normal omission behavior. When `BsonMapper.SerializeNullValues` is enabled, a nullable scalar `null` is persisted as BSON Null and deserializes as `null` through the generated mapping path.
+
 Unsupported annotated shapes produce an `LDBSG001` build diagnostic. Use the existing runtime-mapped LiteDB APIs for dynamic or unsupported models.
 
 ## Contributor validation
 
-`LiteDB.AotTests` exercises generated registration, IDs, field and ignore attributes, scalar values, `DateTimeOffset` values, inherited properties, and `List<string>` round trips. `LiteDB.AotSmokeTests` publishes and runs a Native AOT executable with generated scalar, list, DateTimeOffset, and inherited-property mapping workflows alongside document, query, and stream scenarios.
+`LiteDB.AotTests` exercises generated registration, IDs, field and ignore attributes, scalar and nullable scalar values, `DateTimeOffset` values, inherited properties, and `List<string>` round trips. `LiteDB.AotSmokeTests` publishes and runs a Native AOT executable with generated scalar, nullable scalar, list, DateTimeOffset, and inherited-property mapping workflows alongside document, query, and stream scenarios.
 
 Run the focused tests with:
 

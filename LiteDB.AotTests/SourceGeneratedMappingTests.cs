@@ -440,6 +440,60 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
+        public void GetGeneratedCollection_RoundTripsNullableScalars()
+        {
+            var path = GetDatabasePath();
+            var expectedTimestamp = new DateTime(2024, 7, 6, 8, 9, 10, 123, DateTimeKind.Utc);
+            var expectedCorrelationId = new Guid("5e3e59bf-c079-46cf-98f6-8287ab7c69cc");
+
+            try
+            {
+                var mapper = new BsonMapper { SerializeNullValues = true };
+                LiteDbGeneratedMappings.Register(mapper);
+
+                using var database = new LiteDatabase(path, mapper);
+                var collection = database.GetGeneratedCollection<NullableScalarRecord>("nullableScalars");
+                collection.Insert(new NullableScalarRecord
+                {
+                    Id = 1,
+                    ProcessId = 8128,
+                    IsElevated = false,
+                    State = NativeScalarState.Captured,
+                    CorrelationId = expectedCorrelationId,
+                    RecordedAt = expectedTimestamp
+                });
+                collection.Insert(new NullableScalarRecord { Id = 2 });
+
+                var populated = collection.FindById(1);
+                var nulls = collection.FindById(2);
+                var nullDocument = database.GetCollection("nullableScalars").FindById(2);
+
+                Assert.IsNotNull(populated);
+                Assert.AreEqual(8128, populated.ProcessId);
+                Assert.AreEqual(false, populated.IsElevated);
+                Assert.AreEqual(NativeScalarState.Captured, populated.State);
+                Assert.AreEqual(expectedCorrelationId, populated.CorrelationId);
+                Assert.IsNotNull(populated.RecordedAt);
+                Assert.AreEqual(expectedTimestamp, populated.RecordedAt.Value.ToUniversalTime());
+                Assert.IsNotNull(nulls);
+                Assert.IsNull(nulls.ProcessId);
+                Assert.IsNull(nulls.IsElevated);
+                Assert.IsNull(nulls.State);
+                Assert.IsNull(nulls.CorrelationId);
+                Assert.IsNull(nulls.RecordedAt);
+                Assert.IsTrue(nullDocument[nameof(NullableScalarRecord.ProcessId)].IsNull);
+                Assert.IsTrue(nullDocument[nameof(NullableScalarRecord.IsElevated)].IsNull);
+                Assert.IsTrue(nullDocument[nameof(NullableScalarRecord.State)].IsNull);
+                Assert.IsTrue(nullDocument[nameof(NullableScalarRecord.CorrelationId)].IsNull);
+                Assert.IsTrue(nullDocument[nameof(NullableScalarRecord.RecordedAt)].IsNull);
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
         public void GetGeneratedCollection_RoundTripsInheritedProperties()
         {
             var path = GetDatabasePath();
@@ -536,6 +590,17 @@ namespace LiteDB.AotTests
         public DateTime Timestamp { get; set; }
         public Guid CorrelationId { get; set; }
         public byte[] Payload { get; set; } = [];
+    }
+
+    [BsonSourceGenerated]
+    public sealed class NullableScalarRecord
+    {
+        public int Id { get; set; }
+        public int? ProcessId { get; set; }
+        public bool? IsElevated { get; set; }
+        public NativeScalarState? State { get; set; }
+        public Guid? CorrelationId { get; set; }
+        public DateTime? RecordedAt { get; set; }
     }
 
     public abstract class InheritedRecordBase

@@ -280,6 +280,40 @@ namespace LiteDB.AotSmokeTests
                     inheritedRead.DerivedName == "derived-value",
                 "The source-generated Native AOT inherited-property round trip failed.");
             Console.WriteLine("        Passed: inherited ID, named field, ignored member, list, and derived property round trip.");
+
+            Console.WriteLine("  [3.8] Round-trip populated and null nullable scalar values.");
+            var expectedNullableTimestamp = new DateTime(2024, 7, 6, 8, 9, 10, 123, DateTimeKind.Utc);
+            var expectedNullableCorrelationId = new Guid("5e3e59bf-c079-46cf-98f6-8287ab7c69cc");
+            var nullableScalars = database.GetGeneratedCollection<AotNullableScalarRecord>("aot_nullable_scalars");
+            nullableScalars.Insert(new AotNullableScalarRecord
+            {
+                Id = 50,
+                ProcessId = 8128,
+                IsElevated = false,
+                State = AotNativeScalarState.Captured,
+                CorrelationId = expectedNullableCorrelationId,
+                RecordedAt = expectedNullableTimestamp
+            });
+            nullableScalars.Insert(new AotNullableScalarRecord { Id = 51 });
+
+            var populatedNullableScalars = nullableScalars.FindById(50);
+            var nullNullableScalars = nullableScalars.FindById(51);
+            Require(populatedNullableScalars is not null &&
+                    populatedNullableScalars.ProcessId == 8128 &&
+                    populatedNullableScalars.IsElevated == false &&
+                    populatedNullableScalars.State == AotNativeScalarState.Captured &&
+                    populatedNullableScalars.CorrelationId == expectedNullableCorrelationId &&
+                    populatedNullableScalars.RecordedAt.HasValue &&
+                    populatedNullableScalars.RecordedAt.Value.ToUniversalTime() == expectedNullableTimestamp,
+                "The source-generated Native AOT populated nullable-scalar round trip failed.");
+            Require(nullNullableScalars is not null &&
+                    nullNullableScalars.ProcessId is null &&
+                    nullNullableScalars.IsElevated is null &&
+                    nullNullableScalars.State is null &&
+                    nullNullableScalars.CorrelationId is null &&
+                    nullNullableScalars.RecordedAt is null,
+                "The source-generated Native AOT null nullable-scalar round trip failed.");
+            Console.WriteLine("        Passed: populated and BSON-null nullable integer, Boolean, enum, GUID, and DateTime values.");
         }
 
         private static void RunScenario(string name, Action scenario)
@@ -320,6 +354,17 @@ namespace LiteDB.AotSmokeTests
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
         public List<string> Values { get; set; } = [];
+    }
+
+    [BsonSourceGenerated]
+    public sealed class AotNullableScalarRecord
+    {
+        public int Id { get; set; }
+        public int? ProcessId { get; set; }
+        public bool? IsElevated { get; set; }
+        public AotNativeScalarState? State { get; set; }
+        public Guid? CorrelationId { get; set; }
+        public DateTime? RecordedAt { get; set; }
     }
 
     public abstract class AotInheritedRecordBase

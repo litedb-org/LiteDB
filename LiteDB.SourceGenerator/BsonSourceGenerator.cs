@@ -245,6 +245,18 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
 
         if (type is INamedTypeSymbol namedType)
         {
+            if (namedType.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T &&
+                namedType.TypeArguments.Length == 1)
+            {
+                var underlyingKind = GetPropertyKind(namedType.TypeArguments[0]);
+                return underlyingKind switch
+                {
+                    PropertyKind.Scalar => PropertyKind.Scalar,
+                    PropertyKind.DateTimeOffset => PropertyKind.NullableDateTimeOffset,
+                    _ => PropertyKind.Unsupported
+                };
+            }
+
             var metadataName = namedType.ToDisplayString();
             if (metadataName is "System.DateTime" or "System.Guid" or "LiteDB.ObjectId")
             {
@@ -261,13 +273,6 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
             if (metadataName == "System.DateTimeOffset")
             {
                 return PropertyKind.DateTimeOffset;
-            }
-
-            if (namedType.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T &&
-                namedType.TypeArguments.Length == 1 &&
-                namedType.TypeArguments[0].ToDisplayString() == "System.DateTimeOffset")
-            {
-                return PropertyKind.NullableDateTimeOffset;
             }
         }
 
