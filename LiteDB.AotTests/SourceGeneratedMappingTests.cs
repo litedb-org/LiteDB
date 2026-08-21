@@ -378,6 +378,67 @@ namespace LiteDB.AotTests
             }
         }
 
+        [TestMethod]
+        public void GetGeneratedCollection_RoundTripsNativeScalarBoundaries()
+        {
+            var path = GetDatabasePath();
+            var expectedObjectId = new ObjectId("64c61e5f18a9421a8862c71c");
+            var expectedDateTime = new DateTime(2024, 6, 7, 8, 9, 10, 123, DateTimeKind.Utc);
+            var expectedDateTimeOffset = new DateTimeOffset(2024, 6, 8, 9, 10, 11, TimeSpan.FromHours(-3)).AddTicks(4321);
+            var expectedPayload = new byte[] { 0, 1, 127, 128, 255 };
+
+            try
+            {
+                var mapper = new BsonMapper();
+                LiteDbGeneratedMappings.Register(mapper);
+
+                using var database = new LiteDatabase(path, mapper);
+                var collection = database.GetGeneratedCollection<NativeScalarRecord>("nativeScalars");
+                collection.Insert(new NativeScalarRecord
+                {
+                    Id = 1,
+                    ByteValue = 200,
+                    SignedByteValue = -100,
+                    Character = '\u03BB',
+                    SignedShort = -12_345,
+                    UnsignedShort = 54_321,
+                    UnsignedInteger = 3_000_000_000U,
+                    UnsignedLong = 9_000_000_000_000_000_000UL,
+                    SingleValue = 123.5f,
+                    State = NativeScalarState.Captured,
+                    ObjectId = expectedObjectId,
+                    Timestamp = expectedDateTime,
+                    TimestampWithOffset = expectedDateTimeOffset,
+                    Payload = expectedPayload,
+                    CorrelationId = new Guid("09e72680-2f4f-4eb3-a70c-f27d489b6068"),
+                    Name = "native-scalars"
+                });
+
+                var result = collection.FindById(1);
+
+                Assert.IsNotNull(result);
+                Assert.AreEqual((byte)200, result.ByteValue);
+                Assert.AreEqual((sbyte)-100, result.SignedByteValue);
+                Assert.AreEqual('\u03BB', result.Character);
+                Assert.AreEqual((short)-12_345, result.SignedShort);
+                Assert.AreEqual((ushort)54_321, result.UnsignedShort);
+                Assert.AreEqual(3_000_000_000U, result.UnsignedInteger);
+                Assert.AreEqual(9_000_000_000_000_000_000UL, result.UnsignedLong);
+                Assert.AreEqual(123.5f, result.SingleValue);
+                Assert.AreEqual(NativeScalarState.Captured, result.State);
+                Assert.AreEqual(expectedObjectId, result.ObjectId);
+                Assert.AreEqual(expectedDateTime, result.Timestamp.ToUniversalTime());
+                Assert.IsTrue(expectedDateTimeOffset.EqualsExact(result.TimestampWithOffset));
+                CollectionAssert.AreEqual(expectedPayload, result.Payload);
+                Assert.AreEqual(new Guid("09e72680-2f4f-4eb3-a70c-f27d489b6068"), result.CorrelationId);
+                Assert.AreEqual("native-scalars", result.Name);
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
         private static string GetDatabasePath()
         {
             return Path.Combine(Path.GetTempPath(), $"litedb-source-generated-test-{Guid.NewGuid():N}.db");
@@ -433,6 +494,33 @@ namespace LiteDB.AotTests
         public DateTime Timestamp { get; set; }
         public Guid CorrelationId { get; set; }
         public byte[] Payload { get; set; } = [];
+    }
+
+    [BsonSourceGenerated]
+    public sealed class NativeScalarRecord
+    {
+        public int Id { get; set; }
+        public byte ByteValue { get; set; }
+        public sbyte SignedByteValue { get; set; }
+        public char Character { get; set; }
+        public short SignedShort { get; set; }
+        public ushort UnsignedShort { get; set; }
+        public uint UnsignedInteger { get; set; }
+        public ulong UnsignedLong { get; set; }
+        public float SingleValue { get; set; }
+        public NativeScalarState State { get; set; }
+        public ObjectId ObjectId { get; set; } = ObjectId.Empty;
+        public DateTime Timestamp { get; set; }
+        public DateTimeOffset TimestampWithOffset { get; set; }
+        public byte[] Payload { get; set; } = [];
+        public Guid CorrelationId { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+
+    public enum NativeScalarState
+    {
+        Unknown = 0,
+        Captured = 17
     }
 
     [BsonSourceGenerated]
