@@ -277,9 +277,10 @@ namespace LiteDB.AotSmokeTests
                     inheritedRead.BaseName == "base-value" &&
                     inheritedRead.BaseTags.SequenceEqual(["first", "second"]) &&
                     inheritedRead.IgnoredBaseValue is null &&
-                    inheritedRead.DerivedName == "derived-value",
+                    inheritedRead.DerivedName == "derived-value" &&
+                    inheritedRead.Fingerprint == "base-value|derived-value",
                 "The source-generated Native AOT inherited-property round trip failed.");
-            Console.WriteLine("        Passed: inherited ID, named field, ignored member, list, and derived property round trip.");
+            Console.WriteLine("        Passed: inherited ID, named field, ignored member, list, derived property, and computed fingerprint round trip.");
 
             Console.WriteLine("  [3.8] Round-trip populated and null nullable scalar values.");
             var expectedNullableTimestamp = new DateTime(2024, 7, 6, 8, 9, 10, 123, DateTimeKind.Utc);
@@ -314,6 +315,27 @@ namespace LiteDB.AotSmokeTests
                     nullNullableScalars.RecordedAt is null,
                 "The source-generated Native AOT null nullable-scalar round trip failed.");
             Console.WriteLine("        Passed: populated and BSON-null nullable integer, Boolean, enum, GUID, and DateTime values.");
+
+            Console.WriteLine("  [3.9] Round-trip populated, null, and empty string arrays.");
+            var stringArrays = database.GetGeneratedCollection<AotStringArrayRecord>("aot_string_arrays");
+            stringArrays.Insert(new AotStringArrayRecord { Id = 60, StreamNames = ["primary", "metadata"] });
+            stringArrays.Insert(new AotStringArrayRecord { Id = 61, StreamNames = null });
+            stringArrays.Insert(new AotStringArrayRecord { Id = 62, StreamNames = [] });
+
+            var populatedStringArrays = stringArrays.FindById(60);
+            var nullStringArrays = stringArrays.FindById(61);
+            var emptyStringArrays = stringArrays.FindById(62);
+            Require(populatedStringArrays is not null &&
+                    populatedStringArrays.StreamNames is not null &&
+                    populatedStringArrays.StreamNames.SequenceEqual(["primary", "metadata"]),
+                "The source-generated Native AOT populated string-array round trip failed.");
+            Require(nullStringArrays is not null && nullStringArrays.StreamNames is null,
+                "The source-generated Native AOT null string-array round trip failed.");
+            Require(emptyStringArrays is not null &&
+                    emptyStringArrays.StreamNames is not null &&
+                    emptyStringArrays.StreamNames.Length == 0,
+                "The source-generated Native AOT empty string-array round trip failed.");
+            Console.WriteLine("        Passed: populated, BSON-null, and empty string-array round trips.");
         }
 
         private static void RunScenario(string name, Action scenario)
@@ -357,6 +379,13 @@ namespace LiteDB.AotSmokeTests
     }
 
     [BsonSourceGenerated]
+    public sealed class AotStringArrayRecord
+    {
+        public int Id { get; set; }
+        public string[] StreamNames { get; set; }
+    }
+
+    [BsonSourceGenerated]
     public sealed class AotNullableScalarRecord
     {
         public int Id { get; set; }
@@ -385,6 +414,7 @@ namespace LiteDB.AotSmokeTests
     public sealed class AotInheritedRecord : AotInheritedRecordBase
     {
         public string DerivedName { get; set; } = string.Empty;
+        public string Fingerprint => string.Join("|", BaseName, DerivedName);
     }
 
     [BsonSourceGenerated]

@@ -70,13 +70,13 @@ var customers = database.GetGeneratedCollection<Customer>("customers");
 
 The first source-generated mapping slice is intentionally narrow. The generator accepts a directly annotated, top-level, non-abstract, non-generic `public` or `internal` class with an accessible parameterless constructor. It can flatten supported public read/write instance properties declared by that class and its public or internal, top-level, non-generic base classes. A base class may be abstract; only the concrete derived class is marked and directly constructed.
 
-`[BsonId]`, `[BsonField]`, and `[BsonIgnore]` are supported on inherited and directly declared properties. The generator also applies LiteDB's `Id` and `<TypeName>Id` ID conventions. A `List<string>` is serialized and materialized through generated loops rather than reflection-based collection activation. Member hiding, duplicate effective BSON field names, and multiple resolved IDs across an inheritance hierarchy produce `LDBSG001` rather than an ambiguous map.
+`[BsonId]`, `[BsonField]`, and `[BsonIgnore]` are supported on inherited and directly declared properties. The generator also applies LiteDB's `Id` and `<TypeName>Id` ID conventions. A `List<string>` is serialized and materialized through generated loops rather than reflection-based collection activation. An unannotated public getter-only property that is not an ID convention is treated as a computed projection and is excluded from persistence; mark it with `[BsonIgnore]` if explicit documentation is preferred. A getter-only `[BsonId]`, `[BsonField]`, or conventional ID remains unsupported because the generated path cannot hydrate it. Member hiding, duplicate effective BSON field names, and multiple resolved IDs across an inheritance hierarchy produce `LDBSG001` rather than an ambiguous map.
 
 | Supported | Not supported by the generated path |
 |---|---|
 | Scalar properties and nullable scalar value types, enums, `byte[]`, `DateTime`, `DateTimeOffset`, `DateTimeOffset?`, `Guid`, and `ObjectId` | Parameterized and `[BsonCtor]` constructors |
-| `List<string>` | Arrays, other list element types, sets, dictionaries, nested entities, and `BsonRef` |
-| `[BsonId]`, `[BsonField]`, and `[BsonIgnore]` on direct and inherited properties | Fields, member hiding, duplicate BSON field names or IDs, generic or nested model/base classes |
+| `List<string>` and rank-one `string[]` | Other array element types, other list element types, sets, dictionaries, nested entities, and `BsonRef` |
+| `[BsonId]`, `[BsonField]`, and `[BsonIgnore]` on direct and inherited properties; unannotated computed getter-only projections | Fields, persisted getter-only or init-only properties, member hiding, duplicate BSON field names or IDs, generic or nested model/base classes |
 | Explicit collection names | Default collection-name resolution and runtime mapper callbacks |
 
 ### DateTimeOffset representation
@@ -84,6 +84,10 @@ The first source-generated mapping slice is intentionally narrow. The generator 
 The generated path preserves `DateTimeOffset` and nullable `DateTimeOffset` values as an embedded BSON document with two `Int64` fields: `DateTime` contains `DateTimeOffset.Ticks` and `Offset` contains `DateTimeOffset.Offset.Ticks`. This retains the original offset and 100-nanosecond ticks; it does not use LiteDB's BSON `DateTime` representation.
 
 The outer DateTimeOffset property is therefore a BSON document rather than a sortable BSON date. Applications that need an index over its stored components must use an explicit BSON expression for the `DateTime` or `Offset` child field and choose the ordering semantics appropriate to their domain.
+
+### String array representation
+
+Rank-one `string[]` properties use a BSON Array and generated indexed copy loops. With `BsonMapper.SerializeNullValues` enabled, a null string array is persisted as BSON Null and deserializes as null; an empty array remains a non-null, empty `string[]`. Other array element types remain unsupported.
 
 ### Nullable scalar values
 
@@ -93,7 +97,7 @@ Unsupported annotated shapes produce an `LDBSG001` build diagnostic. Use the exi
 
 ## Contributor validation
 
-`LiteDB.AotTests` exercises generated registration, IDs, field and ignore attributes, scalar and nullable scalar values, `DateTimeOffset` values, inherited properties, and `List<string>` round trips. `LiteDB.AotSmokeTests` publishes and runs a Native AOT executable with generated scalar, nullable scalar, list, DateTimeOffset, and inherited-property mapping workflows alongside document, query, and stream scenarios.
+`LiteDB.AotTests` exercises generated registration, IDs, field and ignore attributes, scalar and nullable scalar values, `DateTimeOffset` values, inherited properties, computed projections, `List<string>`, and `string[]` round trips. `LiteDB.AotSmokeTests` publishes and runs a Native AOT executable with generated scalar, nullable scalar, list, string-array, DateTimeOffset, inherited-property, and computed-projection workflows alongside document, query, and stream scenarios.
 
 Run the focused tests with:
 

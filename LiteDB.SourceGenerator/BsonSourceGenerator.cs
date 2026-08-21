@@ -121,6 +121,11 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
                     return ModelResult.Unsupported(typeName, $"property '{property.Name}' must be a non-static, non-indexed property");
                 }
 
+                if (IsComputedProperty(property, type))
+                {
+                    continue;
+                }
+
                 if (property.DeclaredAccessibility is not Accessibility.Public ||
                     property.GetMethod is null || property.GetMethod.DeclaredAccessibility is not Accessibility.Public ||
                     property.SetMethod is null || property.SetMethod.DeclaredAccessibility is not Accessibility.Public ||
@@ -219,6 +224,13 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
             return PropertyKind.Scalar;
         }
 
+        if (type is IArrayTypeSymbol arrayType &&
+            arrayType.Rank == 1 &&
+            arrayType.ElementType.SpecialType == SpecialType.System_String)
+        {
+            return PropertyKind.StringArray;
+        }
+
         if (type.SpecialType is
             SpecialType.System_Boolean or
             SpecialType.System_Byte or
@@ -245,8 +257,13 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
 
         if (type is INamedTypeSymbol namedType)
         {
+            if (IsStringObjectDictionary(namedType))
+            {
+                return PropertyKind.DynamicDictionary;
+            }
+
             if (namedType.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T &&
-                namedType.TypeArguments.Length == 1)
+            namedType.TypeArguments.Length == 1)
             {
                 var underlyingKind = GetPropertyKind(namedType.TypeArguments[0]);
                 return underlyingKind switch
@@ -278,6 +295,15 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
 
         return PropertyKind.Unsupported;
     }
+    private static bool IsStringObjectDictionary(INamedTypeSymbol type)
+    {
+        var definition = type.OriginalDefinition;
+        return definition.MetadataName == "Dictionary`2" &&
+            definition.ContainingNamespace.ToDisplayString() == "System.Collections.Generic" &&
+            type.TypeArguments.Length == 2 &&
+            type.TypeArguments[0].SpecialType == SpecialType.System_String &&
+            type.TypeArguments[1].SpecialType == SpecialType.System_Object;
+    }
 
     private static string GetFieldName(IPropertySymbol property)
     {
@@ -303,6 +329,22 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         }
 
         return property.Name;
+    }
+
+    private static bool IsComputedProperty(IPropertySymbol property, INamedTypeSymbol modelType)
+    {
+        if (property.GetMethod?.DeclaredAccessibility != Accessibility.Public || property.SetMethod is not null)
+        {
+            return false;
+        }
+
+        if (HasAttribute(property, BsonIdAttributeName) || HasAttribute(property, BsonFieldAttributeName))
+        {
+            return false;
+        }
+
+        return string.Equals(property.Name, "Id", StringComparison.OrdinalIgnoreCase) == false &&
+            string.Equals(property.Name, modelType.Name + "Id", StringComparison.OrdinalIgnoreCase) == false;
     }
 
     private static bool GetAutoId(AttributeData? attribute)
@@ -350,6 +392,11 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
 
         source.AppendLine("        }");
         AppendStringListHelpers(source);
+        if (HasStringArrayProperties(models))
+        {
+            AppendStringArrayHelpers(source);
+        }
+
         if (HasDateTimeOffsetProperties(models))
         {
             AppendDateTimeOffsetHelpers(source);
@@ -365,32 +412,32 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         return source.ToString();
     }
 
-        private static void AppendDateTimeOffsetHelpers(StringBuilder source)
-        {
-            source.AppendLine();
-            source.AppendLine("        private static global::LiteDB.BsonValue SerializeDateTimeOffset(object? value)");
-            source.AppendLine("        {");
-            source.AppendLine("            if (value is null) return global::LiteDB.BsonValue.Null;");
-            source.AppendLine("            var dateTimeOffset = (global::System.DateTimeOffset)value;");
-            source.AppendLine("            return new global::LiteDB.BsonDocument");
-            source.AppendLine("            {");
-            source.AppendLine("                [\"DateTime\"] = dateTimeOffset.Ticks,");
-            source.AppendLine("                [\"Offset\"] = dateTimeOffset.Offset.Ticks");
-            source.AppendLine("            };");
-            source.AppendLine("        }");
-            source.AppendLine();
-            source.AppendLine("        private static object DeserializeDateTimeOffset(global::LiteDB.BsonValue value)");
-            source.AppendLine("        {");
-            source.AppendLine("            if (value.IsNull) return null!;");
-            source.AppendLine("            var document = value.AsDocument;");
-            source.AppendLine("            return new global::System.DateTimeOffset(");
-            source.AppendLine("                document[\"DateTime\"].AsInt64,");
-            source.AppendLine("                new global::System.TimeSpan(document[\"Offset\"].AsInt64));");
-            source.AppendLine("        }");
-        }
+    private static void AppendDateTimeOffsetHelpers(StringBuilder source)
+    {
+        source.AppendLine();
+        source.AppendLine("        private static global::LiteDB.BsonValue SerializeDateTimeOffset(object? value)");
+        source.AppendLine("        {");
+        source.AppendLine("            if (value is null) return global::LiteDB.BsonValue.Null;");
+        source.AppendLine("            var dateTimeOffset = (global::System.DateTimeOffset)value;");
+        source.AppendLine("            return new global::LiteDB.BsonDocument");
+        source.AppendLine("            {");
+        source.AppendLine("                [\"DateTime\"] = dateTimeOffset.Ticks,");
+        source.AppendLine("                [\"Offset\"] = dateTimeOffset.Offset.Ticks");
+        source.AppendLine("            };");
+        source.AppendLine("        }");
+        source.AppendLine();
+        source.AppendLine("        private static object DeserializeDateTimeOffset(global::LiteDB.BsonValue value)");
+        source.AppendLine("        {");
+        source.AppendLine("            if (value.IsNull) return null!;");
+        source.AppendLine("            var document = value.AsDocument;");
+        source.AppendLine("            return new global::System.DateTimeOffset(");
+        source.AppendLine("                document[\"DateTime\"].AsInt64,");
+        source.AppendLine("                new global::System.TimeSpan(document[\"Offset\"].AsInt64));");
+        source.AppendLine("        }");
+    }
 
-        private static void AppendStringListHelpers(StringBuilder source)
-        {
+    private static void AppendStringListHelpers(StringBuilder source)
+    {
         source.AppendLine();
         source.AppendLine("        private static global::LiteDB.BsonValue SerializeStringList(global::System.Collections.Generic.List<string>? values)");
         source.AppendLine("        {");
@@ -415,14 +462,46 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         source.AppendLine("        }");
     }
 
-        private static bool HasDateTimeOffsetProperties(IReadOnlyList<ModelDescriptor> models)
-        {
-            return models.Any(static model => model.Properties.Any(static property =>
-                property.Kind is PropertyKind.DateTimeOffset or PropertyKind.NullableDateTimeOffset));
-        }
+    private static void AppendStringArrayHelpers(StringBuilder source)
+    {
+        source.AppendLine();
+        source.AppendLine("        private static global::LiteDB.BsonValue SerializeStringArray(string[]? values)");
+        source.AppendLine("        {");
+        source.AppendLine("            if (values is null) return global::LiteDB.BsonValue.Null;");
+        source.AppendLine("            var result = new global::LiteDB.BsonArray();");
+        source.AppendLine("            foreach (var value in values)");
+        source.AppendLine("            {");
+        source.AppendLine("                result.Add(value);");
+        source.AppendLine("            }");
+        source.AppendLine("            return result;");
+        source.AppendLine("        }");
+        source.AppendLine();
+        source.AppendLine("        private static string[]? DeserializeStringArray(global::LiteDB.BsonValue value)");
+        source.AppendLine("        {");
+        source.AppendLine("            if (value.IsNull) return null;");
+        source.AppendLine("            var array = value.AsArray;");
+        source.AppendLine("            var result = new string[array.Count];");
+        source.AppendLine("            for (var index = 0; index < array.Count; index++)");
+        source.AppendLine("            {");
+        source.AppendLine("                result[index] = array[index].AsString;");
+        source.AppendLine("            }");
+        source.AppendLine("            return result;");
+        source.AppendLine("        }");
+    }
 
-        private static void AppendFactory(StringBuilder source, ModelDescriptor model, int index)
-        {
+    private static bool HasStringArrayProperties(IReadOnlyList<ModelDescriptor> models)
+    {
+        return models.Any(static model => model.Properties.Any(static property => property.Kind == PropertyKind.StringArray));
+    }
+
+    private static bool HasDateTimeOffsetProperties(IReadOnlyList<ModelDescriptor> models)
+    {
+        return models.Any(static model => model.Properties.Any(static property =>
+            property.Kind is PropertyKind.DateTimeOffset or PropertyKind.NullableDateTimeOffset));
+    }
+
+    private static void AppendFactory(StringBuilder source, ModelDescriptor model, int index)
+    {
         source.AppendLine();
         source.Append("        private static global::LiteDB.EntityMapper Create").Append(index).AppendLine("()");
         source.AppendLine("        {");
@@ -440,13 +519,18 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
             source.Append("                FieldName = ").Append(SymbolDisplay.FormatLiteral(property.IsId ? "_id" : property.FieldName, true)).AppendLine(",");
             source.Append("                MemberName = ").Append(SymbolDisplay.FormatLiteral(property.Name, true)).AppendLine(",");
             source.Append("                DataType = typeof(").Append(property.TypeName).AppendLine("),");
-            source.Append("                UnderlyingType = typeof(").Append(property.Kind == PropertyKind.StringList ? "global::System.String" : property.TypeName).AppendLine("),");
-            source.Append("                IsEnumerable = ").Append(property.Kind == PropertyKind.StringList ? "true" : "false").AppendLine(",");
+            source.Append("                UnderlyingType = typeof(").Append(property.Kind is PropertyKind.StringList or PropertyKind.StringArray ? "global::System.String" : property.TypeName).AppendLine("),");
+            source.Append("                IsEnumerable = ").Append(property.Kind is PropertyKind.StringList or PropertyKind.StringArray ? "true" : "false").AppendLine(",");
 
             if (property.Kind == PropertyKind.StringList)
             {
                 source.Append("                Serialize = (value, _) => SerializeStringList((global::System.Collections.Generic.List<string>)value),").AppendLine();
                 source.Append("                Deserialize = (value, _) => DeserializeStringList(value)").AppendLine(",");
+            }
+            else if (property.Kind == PropertyKind.StringArray)
+            {
+                source.Append("                Serialize = (value, _) => SerializeStringArray((string[])value),").AppendLine();
+                source.Append("                Deserialize = (value, _) => DeserializeStringArray(value)").AppendLine(",");
             }
             else if (property.Kind is PropertyKind.DateTimeOffset or PropertyKind.NullableDateTimeOffset)
             {
@@ -497,8 +581,10 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
     {
         Scalar,
         StringList,
+        StringArray,
         DateTimeOffset,
         NullableDateTimeOffset,
+        DynamicDictionary,
         Unsupported
     }
 }

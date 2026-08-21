@@ -494,6 +494,76 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
+        public void GetGeneratedCollection_RoundTripsStringArrays()
+        {
+            var path = GetDatabasePath();
+
+            try
+            {
+                var mapper = new BsonMapper { SerializeNullValues = true };
+                LiteDbGeneratedMappings.Register(mapper);
+
+                using var database = new LiteDatabase(path, mapper);
+                var collection = database.GetGeneratedCollection<StringArrayRecord>("stringArrays");
+                collection.Insert(new StringArrayRecord { Id = 1, StreamNames = ["primary", "metadata"] });
+                collection.Insert(new StringArrayRecord { Id = 2, StreamNames = null });
+                collection.Insert(new StringArrayRecord { Id = 3, StreamNames = [] });
+
+                var populated = collection.FindById(1);
+                var nulls = collection.FindById(2);
+                var empty = collection.FindById(3);
+                var populatedDocument = database.GetCollection("stringArrays").FindById(1);
+                var nullDocument = database.GetCollection("stringArrays").FindById(2);
+
+                Assert.IsNotNull(populated);
+                CollectionAssert.AreEqual(new[] { "primary", "metadata" }, populated.StreamNames);
+                Assert.IsNotNull(nulls);
+                Assert.IsNull(nulls.StreamNames);
+                Assert.IsNotNull(empty);
+                Assert.IsNotNull(empty.StreamNames);
+                Assert.AreEqual(0, empty.StreamNames.Length);
+                Assert.AreEqual(2, populatedDocument[nameof(StringArrayRecord.StreamNames)].AsArray.Count);
+                Assert.IsTrue(nullDocument[nameof(StringArrayRecord.StreamNames)].IsNull);
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
+        public void GetGeneratedCollection_ExcludesComputedGetterOnlyProperties()
+        {
+            var path = GetDatabasePath();
+
+            try
+            {
+                var mapper = new BsonMapper();
+                LiteDbGeneratedMappings.Register(mapper);
+
+                using var database = new LiteDatabase(path, mapper);
+                var collection = database.GetGeneratedCollection<ComputedRecord>("computedRecords");
+                collection.Insert(new ComputedRecord
+                {
+                    Id = 1,
+                    NodeType = "file",
+                    ContentHash = "abc123"
+                });
+
+                var result = collection.FindById(1);
+                var document = database.GetCollection("computedRecords").FindById(1);
+
+                Assert.IsNotNull(result);
+                Assert.AreEqual("file|abc123", result.Fingerprint);
+                Assert.IsFalse(document.ContainsKey(nameof(ComputedRecord.Fingerprint)));
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
         public void GetGeneratedCollection_RoundTripsInheritedProperties()
         {
             var path = GetDatabasePath();
@@ -601,6 +671,22 @@ namespace LiteDB.AotTests
         public NativeScalarState? State { get; set; }
         public Guid? CorrelationId { get; set; }
         public DateTime? RecordedAt { get; set; }
+    }
+
+    [BsonSourceGenerated]
+    public sealed class StringArrayRecord
+    {
+        public int Id { get; set; }
+        public string[]? StreamNames { get; set; }
+    }
+
+    [BsonSourceGenerated]
+    public sealed class ComputedRecord
+    {
+        public int Id { get; set; }
+        public string NodeType { get; set; } = string.Empty;
+        public string ContentHash { get; set; } = string.Empty;
+        public string Fingerprint => string.Join("|", NodeType, ContentHash);
     }
 
     public abstract class InheritedRecordBase
