@@ -13,22 +13,22 @@ public partial class BsonMapper
     /// Mapping cache between Class/BsonDocument
     /// </summary>
     private readonly ConcurrentDictionary<Type, EntityMapper> _entities = new();
-    private readonly ConcurrentDictionary<Type, EntityMapper> _aotEntities = new();
+    private readonly ConcurrentDictionary<Type, EntityMapper> _generatedEntities = new();
 
     /// <summary>
-    /// Registers an entity mapper that was created without runtime member discovery for use by <see cref="LiteAotDatabase"/>.
+    /// Registers an entity mapper emitted by the LiteDB source generator.
     /// </summary>
-    /// <param name="mapper">The complete explicit entity mapper.</param>
+    /// <param name="mapper">The complete generated entity mapper.</param>
     /// <returns>The registered mapper.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="mapper"/> is <see langword="null"/>.</exception>
     /// <exception cref="InvalidOperationException">Thrown when a mapper is already registered for the entity type.</exception>
-    public EntityMapper RegisterAotEntityMapper(EntityMapper mapper)
+    public EntityMapper RegisterGeneratedEntityMapper(EntityMapper mapper)
     {
         if (mapper == null) throw new ArgumentNullException(nameof(mapper));
 
-        if (_aotEntities.TryAdd(mapper.ForType, mapper) == false)
+        if (_generatedEntities.TryAdd(mapper.ForType, mapper) == false)
         {
-            throw new InvalidOperationException($"An AOT entity mapper is already registered for '{mapper.ForType.FullName}'.");
+            throw new InvalidOperationException($"A source-generated entity mapper is already registered for '{mapper.ForType.FullName}'.");
         }
 
         if (_entities.TryAdd(mapper.ForType, mapper))
@@ -36,13 +36,13 @@ public partial class BsonMapper
             return mapper;
         }
 
-        _aotEntities.TryRemove(mapper.ForType, out _);
+        _generatedEntities.TryRemove(mapper.ForType, out _);
         throw new InvalidOperationException($"An entity mapper is already registered for '{mapper.ForType.FullName}'.");
     }
 
-    internal bool HasAotEntityMapper(Type type)
+    internal bool HasGeneratedEntityMapper(Type type)
     {
-        return _aotEntities.ContainsKey(type);
+        return _generatedEntities.ContainsKey(type);
     }
 
     /// <summary>

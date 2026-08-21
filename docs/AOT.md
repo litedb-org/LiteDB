@@ -1,129 +1,99 @@
-# Native AOT and Explicit Entity Mapping
+# Native AOT and source-generated entity mapping
 
-LiteDB supports a typed collection workflow for applications that publish with **.NET Native AOT** or that must avoid runtime discovery of application model types. Use `LiteAotDatabase` with explicitly registered `EntityMapper` instances instead of the runtime-mapped typed APIs on `LiteDatabase`.
+LiteDB supports an opt-in typed-collection path for applications that publish with **Native AOT** and need to avoid runtime discovery of application model members. The path uses a C# incremental source generator to emit `EntityMapper` definitions at compile time. It replaces the former `LiteAotDatabase` wrapper and manual `EntityMapper` construction.
 
-> Native AOT compiles an application to native code at publish time. Runtime reflection over constructors and members can be incompatible with trimming because the required metadata or generated code might not be preserved. [1]
+LiteDB itself targets `netstandard2.0` and `net8.0`; its AOT compatibility analysis is enabled only for the `net8.0` target. The consuming application must target **.NET 8 or later** when it publishes with Native AOT.
 
-## Configure the consuming application
+## Configure the consuming project
 
-LiteDB targets `netstandard2.0` and `net8.0`. Native AOT compatibility analysis is enabled only for the `net8.0` target. An application that consumes LiteDB with Native AOT publishing should target `net8.0` or later and enable AOT publishing in its project file.
+The generator is currently an in-repository analyzer project. A consuming project in this repository references it as an analyzer only; it is not a runtime dependency and adds no runtime assembly reference.
+
+```xml
+<ItemGroup>
+  <ProjectReference Include="..\LiteDB\LiteDB.csproj" />
+  <ProjectReference Include="..\LiteDB.SourceGenerator\LiteDB.SourceGenerator.csproj"
+                    OutputItemType="Analyzer"
+                    ReferenceOutputAssembly="false" />
+</ItemGroup>
+```
+
+For Native AOT, configure the executable project as follows. The runtime identifier must match the target platform you publish for.
 
 ```xml
 <PropertyGroup>
   <TargetFramework>net8.0</TargetFramework>
   <PublishAot>true</PublishAot>
+  <InvariantGlobalization>true</InvariantGlobalization>
+  <ILLinkTreatWarningsAsErrors>true</ILLinkTreatWarningsAsErrors>
 </PropertyGroup>
 ```
 
-Publish for a specific runtime identifier, for example:
+Publish, for example, with:
 
-```text
-dotnet publish -c Release -r linux-x64
+```bash
+dotnet publish -c Release -r linux-x64 --self-contained true
 ```
 
-Refer to the [official Native AOT deployment guidance][1] for platform prerequisites and publishing options.
+## Use generated mappings
 
-## Explicit mapping workflow
-
-Create one complete `EntityMapper` for each entity type used through `LiteAotDatabase`, register every map with a `BsonMapper`, and request collections by an explicit name. `LiteAotDatabase.GetCollection<T>` throws `InvalidOperationException` when no explicit map for `T` has been registered.
-
-The following minimal example maps an entity with scalar members.
+Mark each supported entity with `[BsonSourceGenerated]`. During compilation, the generator emits `LiteDB.Generated.LiteDbGeneratedMappings`. Register all generated maps with a mapper, then request a collection by an explicit name.
 
 ```csharp
+using System.Collections.Generic;
 using LiteDB;
+using LiteDB.Generated;
 
+[BsonSourceGenerated]
 public sealed class Customer
 {
     public int Id { get; set; }
+
+    [BsonField("name")]
     public string Name { get; set; } = string.Empty;
+
+    public List<string> Tags { get; set; } = [];
+
+    [BsonIgnore]
+    public string? TransientValue { get; set; }
 }
 
-public static class AotExample
-{
-    public static void Run()
-    {
-        var mapper = CreateMapper();
+var mapper = new BsonMapper();
+LiteDbGeneratedMappings.Register(mapper);
 
-        using var database = new LiteAotDatabase("customers.db", mapper);
-        var customers = database.GetCollection<Customer>("customers");
-    }
-
-    private static BsonMapper CreateMapper()
-    {
-        var mapper = new BsonMapper();
-        var map = new EntityMapper(typeof(Customer))
-        {
-            CreateInstance = _ => new Customer()
-        };
-
-        map.Members.Add(new MemberMapper
-        {
-            AutoId = true,
-            FieldName = "_id",
-            MemberName = nameof(Customer.Id),
-            DataType = typeof(int),
-            UnderlyingType = typeof(int),
-            Getter = entity => ((Customer)entity).Id,
-            Setter = (entity, value) => ((Customer)entity).Id = (int)value
-        });
-
-        map.Members.Add(new MemberMapper
-        {
-            FieldName = nameof(Customer.Name),
-            MemberName = nameof(Customer.Name),
-            DataType = typeof(string),
-            UnderlyingType = typeof(string),
-            Getter = entity => ((Customer)entity).Name,
-            Setter = (entity, value) => ((Customer)entity).Name = (string)value
-        });
-
-        mapper.RegisterAotEntityMapper(map);
-        return mapper;
-    }
-}
+using var database = new LiteDatabase("customers.db", mapper);
+var customers = database.GetGeneratedCollection<Customer>("customers");
 ```
 
-For collection-valued or custom members, supply the appropriate `Serialize` and `Deserialize` delegates in the `MemberMapper`. The repository’s [AOT smoke test][2] contains verified examples for a `List<string>` member.
+`Register` must run before `GetGeneratedCollection<T>`. Calling it twice for the same mapper throws `InvalidOperationException`. `GetGeneratedCollection<T>` also throws when no generated map for `T` has been registered. This is intentional: it prevents the generated path from silently falling back to automatic runtime mapping.
 
-## Supported AOT surface
+## Supported model subset
 
-| Supported workflow | Notes |
+The first source-generated mapping slice is intentionally narrow. The generator accepts a directly annotated, top-level, non-abstract, non-generic `public` or `internal` class with an accessible parameterless constructor. Supported members are public read/write instance properties of LiteDB scalar types and `List<string>`.
+
+`[BsonId]`, `[BsonField]`, and `[BsonIgnore]` are supported. The generator also applies LiteDB's `Id` and `<TypeName>Id` ID conventions. A `List<string>` is serialized and materialized through generated loops rather than reflection-based collection activation.
+
+| Supported | Not supported by the generated path |
 |---|---|
-| `LiteAotDatabase(string, BsonMapper)` | Opens a file-backed database with a non-null explicit mapper. |
-| `LiteAotDatabase(Stream, BsonMapper, Stream)` | Opens a stream-backed database with a non-null explicit mapper. |
-| `GetCollection<T>(string, BsonAutoId)` | Returns a typed collection when an explicit map for `T` is registered. The collection name is required. |
-| Explicit `EntityMapper` members | Maps entity construction, fields, getters, setters, and custom serialization behavior without runtime model discovery. |
+| Scalar properties, enums, `byte[]`, `DateTime`, `Guid`, and `ObjectId` | Parameterized and `[BsonCtor]` constructors |
+| `List<string>` | Arrays, other list element types, sets, dictionaries, nested entities, and `BsonRef` |
+| `[BsonId]`, `[BsonField]`, and `[BsonIgnore]` | Fields, inheritance, generic or nested model classes |
+| Explicit collection names | Default collection-name resolution and runtime mapper callbacks |
 
-## APIs outside this AOT workflow
+Unsupported annotated shapes produce an `LDBSG001` build diagnostic. Use the existing runtime-mapped LiteDB APIs for dynamic or unsupported models.
 
-The following APIs rely on runtime model discovery, runtime type construction, or runtime collection-name resolution and are not part of the explicit mapping workflow:
+## Contributor validation
 
-| Do not use for explicitly mapped Native AOT entities | Use instead |
-|---|---|
-| `LiteDatabase.GetCollection<T>(...)` | `LiteAotDatabase.GetCollection<T>("collection-name")` after registering an `EntityMapper` for `T`. |
-| `LiteDatabase.GetCollection<T>()` and `LiteDatabase.GetCollection<T>(BsonAutoId)` | Choose and pass an explicit collection name to `LiteAotDatabase.GetCollection<T>`. |
-| `LiteRepository`, `LiteQueryable`, and typed `GetStorage<TFileId>` | These APIs are not exposed through `LiteAotDatabase` and retain runtime-mapping or runtime-type-construction requirements. |
-| An unregistered entity type | Register a complete `EntityMapper` before requesting its collection. |
+`LiteDB.AotTests` exercises generated registration, IDs, field and ignore attributes, scalar values, and `List<string>` round trips. `LiteDB.AotSmokeTests` publishes and runs a Native AOT executable with the same generated scalar and list mapping workflow alongside document, query, and stream scenarios.
 
-The standard `LiteDatabase` APIs remain available for regular runtime-mapped applications. However, their Native AOT and trimming annotations identify the operations that require runtime discovery or dynamic type construction. Do not suppress those warnings as a substitute for explicit maps.
+Run the focused tests with:
 
-## Contributor smoke test
-
-`LiteDB.AotSmokeTests` is the repository’s Native AOT executable test application. It targets `net8.0`, sets `PublishAot` to `true`, and treats trimming and AOT warnings as errors. Its scenarios cover document operations and expressions, stream-backed databases, and explicitly mapped typed collections with both scalar and `List<string>` members. [2]
-
-When contributing a change that can affect AOT behavior, publish the smoke-test project for the runtime identifier you need to support:
-
-```text
-dotnet publish LiteDB.AotSmokeTests/LiteDB.AotSmokeTests.csproj -c Release -r <RID>
+```bash
+dotnet test LiteDB.AotTests/LiteDB.AotTests.csproj -c Release
 ```
 
-Run the native executable from `LiteDB.AotSmokeTests/bin/Release/net8.0/<RID>/publish/`. The application reports `LiteDB deployment smoke test passed.` only after every scenario succeeds. Native AOT publishing requires the platform prerequisites documented by .NET. [1]
+Run the Native AOT smoke test with:
 
-## Validate the application
-
-Build and publish the consuming application with Native AOT enabled. Treat trimming and AOT analyzer warnings as issues to resolve, then run a round-trip test for every mapped entity: insert a value, read it through the typed collection, and verify all mapped members. The repository’s AOT smoke test follows this pattern for both scalar and collection-valued members. [2]
-
-## References
-
-[1]: https://learn.microsoft.com/en-us/dotnet/core/deploying/native-aot/ "Native AOT deployment"
-[2]: ../LiteDB.AotSmokeTests/Program.cs "LiteDB AOT smoke test"
+```bash
+dotnet publish LiteDB.AotSmokeTests/LiteDB.AotSmokeTests.csproj -c Release -r linux-x64 --self-contained true
+./LiteDB.AotSmokeTests/bin/Release/net8.0/linux-x64/publish/LiteDB.AotSmokeTests
+```

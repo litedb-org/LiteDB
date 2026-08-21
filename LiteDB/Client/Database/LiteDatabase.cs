@@ -121,6 +121,27 @@ namespace LiteDB
         }
 
         /// <summary>
+        /// Gets a typed collection that uses a mapper emitted by the LiteDB source generator.
+        /// </summary>
+        /// <typeparam name="T">The explicitly generated entity type.</typeparam>
+        /// <param name="name">Collection name (case insensitive).</param>
+        /// <param name="autoId">The auto-id type when the entity map has no auto-id member.</param>
+        /// <returns>The typed collection.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="name"/> is missing.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when no generated mapper is registered for <typeparamref name="T"/>.</exception>
+        public ILiteCollection<T> GetGeneratedCollection<T>(string name, BsonAutoId autoId = BsonAutoId.ObjectId)
+        {
+            if (name.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(name));
+
+            if (Mapper.HasGeneratedEntityMapper(typeof(T)) == false)
+            {
+                throw new InvalidOperationException($"No source-generated entity mapper is registered for '{typeof(T).FullName}'.");
+            }
+
+            return this.GetCollectionCore<T>(name, autoId);
+        }
+
+        /// <summary>
         /// Get a collection using a name based on typeof(T).Name (BsonMapper.ResolveCollectionName function)
         /// </summary>
         [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
