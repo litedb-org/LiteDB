@@ -263,7 +263,7 @@ public partial class BsonMapper
 
             object toAdd(BsonDocument value) =>
                 Activator.CreateInstance(type, paramMap.Select(x =>
-                    this.Deserialize(x.Value, value[x.Key])));
+                    this.Deserialize(x.Value, value[x.Key])).ToArray());
             if (ctor.GetCustomAttribute<BsonCtorAttribute>() != null)
             {
                 return toAdd;
