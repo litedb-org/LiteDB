@@ -80,9 +80,9 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
             return ModelResult.Unsupported(typeName, "it must be public or internal");
         }
 
-        if (type.InstanceConstructors.Any(static constructor =>
+        if (!type.InstanceConstructors.Any(static constructor =>
                 constructor.Parameters.Length == 0 &&
-                (constructor.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal)) == false)
+                (constructor.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal)))
         {
             return ModelResult.Unsupported(typeName, "an accessible parameterless constructor is required");
         }
@@ -134,7 +134,7 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
                     return ModelResult.Unsupported(typeName, $"property '{property.Name}' must have public non-init getter and setter accessors");
                 }
 
-                if (memberNames.Add(property.Name) == false)
+                if (!memberNames.Add(property.Name))
                 {
                     return ModelResult.Unsupported(typeName, $"multiple mapped properties are named '{property.Name}' across the inheritance hierarchy");
                 }
@@ -208,7 +208,7 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         foreach (var property in properties)
         {
             var fieldName = property.IsId ? "_id" : property.FieldName;
-            if (fieldNames.Add(fieldName) == false)
+            if (!fieldNames.Add(fieldName))
             {
                 return ModelResult.Unsupported(typeName, $"multiple mapped properties use BSON field name '{fieldName}' across the inheritance hierarchy");
             }
@@ -263,7 +263,7 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
             }
 
             if (namedType.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T &&
-            namedType.TypeArguments.Length == 1)
+                namedType.TypeArguments.Length == 1)
             {
                 var underlyingKind = GetPropertyKind(namedType.TypeArguments[0]);
                 return underlyingKind switch
@@ -295,15 +295,6 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
 
         return PropertyKind.Unsupported;
     }
-    private static bool IsStringObjectDictionary(INamedTypeSymbol type)
-    {
-        var definition = type.OriginalDefinition;
-        return definition.MetadataName == "Dictionary`2" &&
-            definition.ContainingNamespace.ToDisplayString() == "System.Collections.Generic" &&
-            type.TypeArguments.Length == 2 &&
-            type.TypeArguments[0].SpecialType == SpecialType.System_String &&
-            type.TypeArguments[1].SpecialType == SpecialType.System_Object;
-    }
 
     private static string GetFieldName(IPropertySymbol property)
     {
@@ -312,7 +303,7 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         {
             if (fieldAttribute.ConstructorArguments.Length > 0 &&
                 fieldAttribute.ConstructorArguments[0].Value is string constructorName &&
-                string.IsNullOrEmpty(constructorName) == false)
+                !string.IsNullOrEmpty(constructorName))
             {
                 return constructorName;
             }
@@ -321,7 +312,7 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
             {
                 if (namedArgument.Key == "Name" &&
                     namedArgument.Value.Value is string namedName &&
-                    string.IsNullOrEmpty(namedName) == false)
+                    !string.IsNullOrEmpty(namedName))
                 {
                     return namedName;
                 }
@@ -329,6 +320,16 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         }
 
         return property.Name;
+    }
+
+    private static bool IsStringObjectDictionary(INamedTypeSymbol type)
+    {
+        var definition = type.OriginalDefinition;
+        return definition.MetadataName == "Dictionary`2" &&
+            definition.ContainingNamespace.ToDisplayString() == "System.Collections.Generic" &&
+            type.TypeArguments.Length == 2 &&
+            type.TypeArguments[0].SpecialType == SpecialType.System_String &&
+            type.TypeArguments[1].SpecialType == SpecialType.System_Object;
     }
 
     private static bool IsComputedProperty(IPropertySymbol property, INamedTypeSymbol modelType)
@@ -343,15 +344,14 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
             return false;
         }
 
-        return string.Equals(property.Name, "Id", StringComparison.OrdinalIgnoreCase) == false &&
-            string.Equals(property.Name, modelType.Name + "Id", StringComparison.OrdinalIgnoreCase) == false;
+        return !string.Equals(property.Name, "Id", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(property.Name, modelType.Name + "Id", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool GetAutoId(AttributeData? attribute)
     {
-        return attribute?.ConstructorArguments.Length == 1 && attribute.ConstructorArguments[0].Value is bool autoId
-            ? autoId
-            : true;
+        return attribute?.ConstructorArguments.Length != 1 || attribute.ConstructorArguments[0].Value is not bool autoId
+            || autoId;
     }
 
     private static AttributeData? GetAttribute(ISymbol symbol, string metadataName)
@@ -395,6 +395,11 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         if (HasStringArrayProperties(models))
         {
             AppendStringArrayHelpers(source);
+        }
+
+        if (HasDynamicDictionaryProperties(models))
+        {
+            AppendDynamicDictionaryHelpers(source);
         }
 
         if (HasDateTimeOffsetProperties(models))
@@ -489,6 +494,113 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         source.AppendLine("        }");
     }
 
+    private static void AppendDynamicDictionaryHelpers(StringBuilder source)
+    {
+        source.AppendLine();
+        source.AppendLine("        private static global::LiteDB.BsonValue SerializeDynamicDictionary(global::System.Collections.Generic.Dictionary<string, object?>? values)");
+        source.AppendLine("        {");
+        source.AppendLine("            if (values is null) return global::LiteDB.BsonValue.Null;");
+        source.AppendLine("            var result = new global::LiteDB.BsonDocument();");
+        source.AppendLine("            foreach (var pair in values)");
+        source.AppendLine("            {");
+        source.AppendLine("                result[pair.Key] = SerializeDynamicValue(pair.Value);");
+        source.AppendLine("            }");
+        source.AppendLine("            return result;");
+        source.AppendLine("        }");
+        source.AppendLine();
+        source.AppendLine("        private static global::LiteDB.BsonValue SerializeDynamicValue(object? value)");
+        source.AppendLine("        {");
+        source.AppendLine("            if (value is null) return global::LiteDB.BsonValue.Null;");
+        source.AppendLine("            return value switch");
+        source.AppendLine("            {");
+        source.AppendLine("                global::LiteDB.BsonValue bsonValue => bsonValue,");
+        source.AppendLine("                int integer => new global::LiteDB.BsonValue(integer),");
+        source.AppendLine("                long integer => new global::LiteDB.BsonValue(integer),");
+        source.AppendLine("                double number => new global::LiteDB.BsonValue(number),");
+        source.AppendLine("                decimal number => new global::LiteDB.BsonValue(number),");
+        source.AppendLine("                string text => new global::LiteDB.BsonValue(text),");
+        source.AppendLine("                byte[] bytes => new global::LiteDB.BsonValue(bytes),");
+        source.AppendLine("                global::LiteDB.ObjectId objectId => new global::LiteDB.BsonValue(objectId),");
+        source.AppendLine("                global::System.Guid guid => new global::LiteDB.BsonValue(guid),");
+        source.AppendLine("                bool boolean => new global::LiteDB.BsonValue(boolean),");
+        source.AppendLine("                global::System.DateTime dateTime => new global::LiteDB.BsonValue(dateTime),");
+        source.AppendLine("                short integer => new global::LiteDB.BsonValue((int)integer),");
+        source.AppendLine("                ushort integer => new global::LiteDB.BsonValue((int)integer),");
+        source.AppendLine("                byte integer => new global::LiteDB.BsonValue((int)integer),");
+        source.AppendLine("                sbyte integer => new global::LiteDB.BsonValue((int)integer),");
+        source.AppendLine("                uint integer => new global::LiteDB.BsonValue((long)integer),");
+        source.AppendLine("                ulong integer => new global::LiteDB.BsonValue(unchecked((long)integer)),");
+        source.AppendLine("                float number => new global::LiteDB.BsonValue((double)number),");
+        source.AppendLine("                char character => new global::LiteDB.BsonValue(character.ToString()),");
+        source.AppendLine("                global::System.Enum enumeration => new global::LiteDB.BsonValue(enumeration.ToString()),");
+        source.AppendLine("                global::System.Collections.IDictionary dictionary => SerializeDynamicDocument(dictionary),");
+        source.AppendLine("                global::System.Collections.IEnumerable values => SerializeDynamicArray(values),");
+        source.AppendLine("                _ => throw new global::System.InvalidOperationException($\"Unsupported dynamic dictionary value type '{value.GetType().FullName}'. Use BSON-native values, nested dictionaries, or nested enumerables.\")");
+        source.AppendLine("            };");
+        source.AppendLine("        }");
+        source.AppendLine();
+        source.AppendLine("        private static global::LiteDB.BsonValue SerializeDynamicDocument(global::System.Collections.IDictionary values)");
+        source.AppendLine("        {");
+        source.AppendLine("            var result = new global::LiteDB.BsonDocument();");
+        source.AppendLine("            foreach (global::System.Collections.DictionaryEntry entry in values)");
+        source.AppendLine("            {");
+        source.AppendLine("                result[entry.Key?.ToString() ?? string.Empty] = SerializeDynamicValue(entry.Value);");
+        source.AppendLine("            }");
+        source.AppendLine("            return result;");
+        source.AppendLine("        }");
+        source.AppendLine();
+        source.AppendLine("        private static global::LiteDB.BsonValue SerializeDynamicArray(global::System.Collections.IEnumerable values)");
+        source.AppendLine("        {");
+        source.AppendLine("            var result = new global::LiteDB.BsonArray();");
+        source.AppendLine("            foreach (var value in values)");
+        source.AppendLine("            {");
+        source.AppendLine("                result.Add(SerializeDynamicValue(value));");
+        source.AppendLine("            }");
+        source.AppendLine("            return result;");
+        source.AppendLine("        }");
+        source.AppendLine();
+        source.AppendLine("        private static global::System.Collections.Generic.Dictionary<string, object?>? DeserializeDynamicDictionary(global::LiteDB.BsonValue value)");
+        source.AppendLine("        {");
+        source.AppendLine("            return value.IsNull ? null : DeserializeDynamicDocument(value.AsDocument);");
+        source.AppendLine("        }");
+        source.AppendLine();
+        source.AppendLine("        private static global::System.Collections.Generic.Dictionary<string, object?> DeserializeDynamicDocument(global::LiteDB.BsonDocument values)");
+        source.AppendLine("        {");
+        source.AppendLine("            var result = new global::System.Collections.Generic.Dictionary<string, object?>();");
+        source.AppendLine("            foreach (var pair in values.GetElements())");
+        source.AppendLine("            {");
+        source.AppendLine("                result[pair.Key] = DeserializeDynamicValue(pair.Value);");
+        source.AppendLine("            }");
+        source.AppendLine("            return result;");
+        source.AppendLine("        }");
+        source.AppendLine();
+        source.AppendLine("        private static object?[] DeserializeDynamicArray(global::LiteDB.BsonArray values)");
+        source.AppendLine("        {");
+        source.AppendLine("            var result = new object?[values.Count];");
+        source.AppendLine("            for (var index = 0; index < values.Count; index++)");
+        source.AppendLine("            {");
+        source.AppendLine("                result[index] = DeserializeDynamicValue(values[index]);");
+        source.AppendLine("            }");
+        source.AppendLine("            return result;");
+        source.AppendLine("        }");
+        source.AppendLine();
+        source.AppendLine("        private static object? DeserializeDynamicValue(global::LiteDB.BsonValue value)");
+        source.AppendLine("        {");
+        source.AppendLine("            if (value.IsNull) return null;");
+        source.AppendLine("            return value.Type switch");
+        source.AppendLine("            {");
+        source.AppendLine("                global::LiteDB.BsonType.Document => DeserializeDynamicDocument(value.AsDocument),");
+        source.AppendLine("                global::LiteDB.BsonType.Array => DeserializeDynamicArray(value.AsArray),");
+        source.AppendLine("                _ => value.RawValue");
+        source.AppendLine("            };");
+        source.AppendLine("        }");
+    }
+
+    private static bool HasDynamicDictionaryProperties(IReadOnlyList<ModelDescriptor> models)
+    {
+        return models.Any(static model => model.Properties.Any(static property => property.Kind == PropertyKind.DynamicDictionary));
+    }
+
     private static bool HasStringArrayProperties(IReadOnlyList<ModelDescriptor> models)
     {
         return models.Any(static model => model.Properties.Any(static property => property.Kind == PropertyKind.StringArray));
@@ -524,22 +636,27 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
 
             if (property.Kind == PropertyKind.StringList)
             {
-                source.Append("                Serialize = (value, _) => SerializeStringList((global::System.Collections.Generic.List<string>)value),").AppendLine();
+                source.AppendLine("                Serialize = (value, _) => SerializeStringList((global::System.Collections.Generic.List<string>)value),");
                 source.Append("                Deserialize = (value, _) => DeserializeStringList(value)").AppendLine(",");
             }
             else if (property.Kind == PropertyKind.StringArray)
             {
-                source.Append("                Serialize = (value, _) => SerializeStringArray((string[])value),").AppendLine();
+                source.AppendLine("                Serialize = (value, _) => SerializeStringArray((string[])value),");
                 source.Append("                Deserialize = (value, _) => DeserializeStringArray(value)").AppendLine(",");
+            }
+            else if (property.Kind == PropertyKind.DynamicDictionary)
+            {
+                source.AppendLine("                Serialize = (value, _) => SerializeDynamicDictionary((global::System.Collections.Generic.Dictionary<string, object?>)value),");
+                source.Append("                Deserialize = (value, _) => DeserializeDynamicDictionary(value)").AppendLine(",");
             }
             else if (property.Kind is PropertyKind.DateTimeOffset or PropertyKind.NullableDateTimeOffset)
             {
-                source.Append("                Serialize = (value, _) => SerializeDateTimeOffset(value),").AppendLine();
+                source.AppendLine("                Serialize = (value, _) => SerializeDateTimeOffset(value),");
                 source.Append("                Deserialize = (value, _) => DeserializeDateTimeOffset(value)").AppendLine(",");
             }
 
             source.Append("                Getter = entity => ((").Append(model.TypeName).Append(")entity).").Append(property.Identifier).AppendLine(",");
-            source.Append("                Setter = (entity, value) => ((").Append(model.TypeName).Append(")entity).").Append(property.Identifier).Append(" = (").Append(property.TypeName).AppendLine(")value");
+            source.Append("                Setter = (entity, value) => ((").Append(model.TypeName).Append(")entity).").Append(property.Identifier).Append(" = (").Append(property.Kind == PropertyKind.DynamicDictionary ? "global::System.Collections.Generic.Dictionary<string, object?>" : property.TypeName).AppendLine(")value");
             source.AppendLine("            });");
         }
 
@@ -582,9 +699,9 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         Scalar,
         StringList,
         StringArray,
+        DynamicDictionary,
         DateTimeOffset,
         NullableDateTimeOffset,
-        DynamicDictionary,
         Unsupported
     }
 }

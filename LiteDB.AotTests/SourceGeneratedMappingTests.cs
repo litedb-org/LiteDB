@@ -494,6 +494,91 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
+        public void GetGeneratedCollection_RoundTripsDynamicDictionaries()
+        {
+            var path = GetDatabasePath();
+            var expectedObjectId = new ObjectId("64c61e5f18a9421a8862c71c");
+            var expectedTimestamp = new DateTime(2024, 7, 8, 9, 10, 11, 123, DateTimeKind.Utc);
+            var expectedCorrelationId = new Guid("cdac4923-b7b0-4e3a-af23-c0f65522af55");
+            var expectedPayload = new byte[] { 0, 127, 255 };
+
+            try
+            {
+                var mapper = new BsonMapper { SerializeNullValues = true };
+                LiteDbGeneratedMappings.Register(mapper);
+
+                using var database = new LiteDatabase(path, mapper);
+                var collection = database.GetGeneratedCollection<DynamicDictionaryRecord>("dynamicDictionaries");
+                collection.Insert(new DynamicDictionaryRecord
+                {
+                    Id = 1,
+                    Fields = new Dictionary<string, object?>
+                    {
+                        ["message"] = "payload",
+                        ["attempt"] = 3,
+                        ["total"] = 9_000_000_000L,
+                        ["enabled"] = false,
+                        ["amount"] = 12.5m,
+                        ["timestamp"] = expectedTimestamp,
+                        ["objectId"] = expectedObjectId,
+                        ["correlationId"] = expectedCorrelationId,
+                        ["payload"] = expectedPayload,
+                        ["missing"] = null,
+                        ["nested"] = new Dictionary<string, object?>
+                        {
+                            ["inner"] = "value",
+                            ["number"] = 7
+                        },
+                        ["items"] = new object?[] { "first", 2, null }
+                    }
+                });
+
+                collection.Insert(new DynamicDictionaryRecord { Id = 2, Fields = null! });
+
+                var result = collection.FindById(1);
+                var nullDictionary = collection.FindById(2);
+                var document = database.GetCollection("dynamicDictionaries").FindById(1);
+                var nullDocument = database.GetCollection("dynamicDictionaries").FindById(2);
+
+                Assert.IsNotNull(result);
+                Assert.IsNotNull(result.Fields);
+                Assert.AreEqual("payload", result.Fields["message"]);
+                Assert.AreEqual(3, result.Fields["attempt"]);
+                Assert.AreEqual(9_000_000_000L, result.Fields["total"]);
+                Assert.AreEqual(false, result.Fields["enabled"]);
+                Assert.AreEqual(12.5m, result.Fields["amount"]);
+                Assert.IsInstanceOfType(result.Fields["timestamp"], typeof(DateTime));
+                Assert.AreEqual(expectedTimestamp, ((DateTime)result.Fields["timestamp"]!).ToUniversalTime());
+                Assert.AreEqual(expectedObjectId, result.Fields["objectId"]);
+                Assert.AreEqual(expectedCorrelationId, result.Fields["correlationId"]);
+                CollectionAssert.AreEqual(expectedPayload, (byte[])result.Fields["payload"]!);
+                Assert.IsNull(result.Fields["missing"]);
+                var nested = (Dictionary<string, object?>)result.Fields["nested"]!;
+                Assert.AreEqual("value", nested["inner"]);
+                Assert.AreEqual(7, nested["number"]);
+                var items = (object?[])result.Fields["items"]!;
+                Assert.AreEqual("first", items[0]);
+                Assert.AreEqual(2, items[1]);
+                Assert.IsNull(items[2]);
+                Assert.AreEqual(3, document[nameof(DynamicDictionaryRecord.Fields)].AsDocument["attempt"].AsInt32);
+                Assert.IsTrue(document[nameof(DynamicDictionaryRecord.Fields)].AsDocument["missing"].IsNull);
+                Assert.IsNotNull(nullDictionary);
+                Assert.IsNull(nullDictionary.Fields);
+                Assert.IsTrue(nullDocument[nameof(DynamicDictionaryRecord.Fields)].IsNull);
+                var exception = Assert.ThrowsException<InvalidOperationException>(() => collection.Insert(new DynamicDictionaryRecord
+                {
+                    Id = 3,
+                    Fields = new Dictionary<string, object?> { ["unsupported"] = new UnsupportedDynamicDictionaryValue() }
+                }));
+                StringAssert.Contains(exception.Message, "Unsupported dynamic dictionary value type");
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
         public void GetGeneratedCollection_RoundTripsStringArrays()
         {
             var path = GetDatabasePath();
@@ -605,6 +690,304 @@ namespace LiteDB.AotTests
             }
         }
 
+        [TestMethod]
+        public void GetGeneratedCollection_RoundTripsDateTimeOffsetBoundariesAndRawShape()
+        {
+            var path = GetDatabasePath();
+            var expectedPositiveOffset = new DateTimeOffset(2024, 7, 8, 9, 10, 11, TimeSpan.FromHours(5.5)).AddTicks(1234);
+            var expectedNegativeOffset = new DateTimeOffset(2024, 7, 9, 10, 11, 12, TimeSpan.FromHours(-8)).AddTicks(4321);
+            var expectedNullableOffset = new DateTimeOffset(2024, 7, 10, 11, 12, 13, TimeSpan.Zero).AddTicks(9876);
+
+            try
+            {
+                var mapper = new BsonMapper { SerializeNullValues = true };
+                LiteDbGeneratedMappings.Register(mapper);
+
+                using var database = new LiteDatabase(path, mapper);
+                var collection = database.GetGeneratedCollection<DateTimeOffsetBoundaryRecord>("dateTimeOffsetBoundaries");
+                collection.Insert(new DateTimeOffsetBoundaryRecord
+                {
+                    Id = 1,
+                    PositiveOffset = expectedPositiveOffset,
+                    NegativeOffset = expectedNegativeOffset,
+                    NullableOffset = expectedNullableOffset
+                });
+
+                var result = collection.FindById(1);
+                var document = database.GetCollection("dateTimeOffsetBoundaries").FindById(1);
+
+                Assert.IsNotNull(result);
+                Assert.IsTrue(expectedPositiveOffset.EqualsExact(result.PositiveOffset));
+                Assert.IsTrue(expectedNegativeOffset.EqualsExact(result.NegativeOffset));
+                Assert.IsNotNull(result.NullableOffset);
+                Assert.IsTrue(expectedNullableOffset.EqualsExact(result.NullableOffset.Value));
+                AssertDateTimeOffsetDocument(document[nameof(DateTimeOffsetBoundaryRecord.PositiveOffset)], expectedPositiveOffset);
+                AssertDateTimeOffsetDocument(document[nameof(DateTimeOffsetBoundaryRecord.NegativeOffset)], expectedNegativeOffset);
+                AssertDateTimeOffsetDocument(document[nameof(DateTimeOffsetBoundaryRecord.NullableOffset)], expectedNullableOffset);
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
+        public void GetGeneratedCollection_RoundTripsNullableScalarBoundariesAndAbsentMembers()
+        {
+            var path = GetDatabasePath();
+            var expectedDateTimeOffset = new DateTimeOffset(2024, 7, 11, 12, 13, 14, TimeSpan.FromHours(-3)).AddTicks(5678);
+
+            try
+            {
+                var mapper = new BsonMapper();
+                LiteDbGeneratedMappings.Register(mapper);
+
+                using var database = new LiteDatabase(path, mapper);
+                var collection = database.GetGeneratedCollection<NullableScalarBoundaryRecord>("nullableScalarBoundaries");
+                collection.Insert(new NullableScalarBoundaryRecord
+                {
+                    Id = 1,
+                    SignedShort = -12_345,
+                    UnsignedLong = 9_000_000_000_000_000_000UL,
+                    Ratio = 123.5d,
+                    Amount = 456.789m,
+                    TimestampWithOffset = expectedDateTimeOffset
+                });
+                collection.Insert(new NullableScalarBoundaryRecord { Id = 2 });
+
+                var populated = collection.FindById(1);
+                var absent = collection.FindById(2);
+                var absentDocument = database.GetCollection("nullableScalarBoundaries").FindById(2);
+
+                Assert.IsNotNull(populated);
+                Assert.AreEqual((short)-12_345, populated.SignedShort);
+                Assert.AreEqual(9_000_000_000_000_000_000UL, populated.UnsignedLong);
+                Assert.AreEqual(123.5d, populated.Ratio);
+                Assert.AreEqual(456.789m, populated.Amount);
+                Assert.IsNotNull(populated.TimestampWithOffset);
+                Assert.IsTrue(expectedDateTimeOffset.EqualsExact(populated.TimestampWithOffset.Value));
+                Assert.IsNotNull(absent);
+                Assert.IsNull(absent.SignedShort);
+                Assert.IsNull(absent.UnsignedLong);
+                Assert.IsNull(absent.Ratio);
+                Assert.IsNull(absent.Amount);
+                Assert.IsNull(absent.TimestampWithOffset);
+                Assert.IsFalse(absentDocument.ContainsKey(nameof(NullableScalarBoundaryRecord.SignedShort)));
+                Assert.IsFalse(absentDocument.ContainsKey(nameof(NullableScalarBoundaryRecord.UnsignedLong)));
+                Assert.IsFalse(absentDocument.ContainsKey(nameof(NullableScalarBoundaryRecord.Ratio)));
+                Assert.IsFalse(absentDocument.ContainsKey(nameof(NullableScalarBoundaryRecord.Amount)));
+                Assert.IsFalse(absentDocument.ContainsKey(nameof(NullableScalarBoundaryRecord.TimestampWithOffset)));
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
+        public void GetGeneratedCollection_RoundTripsMultiLevelInheritedProperties()
+        {
+            var path = GetDatabasePath();
+
+            try
+            {
+                var mapper = new BsonMapper();
+                LiteDbGeneratedMappings.Register(mapper);
+
+                using var database = new LiteDatabase(path, mapper);
+                var collection = database.GetGeneratedCollection<MultiLevelInheritedRecord>("multiLevelInheritedRecords");
+                collection.Insert(new MultiLevelInheritedRecord
+                {
+                    RootId = 73,
+                    Origin = "grandparent",
+                    ParentName = "parent",
+                    IgnoredParentValue = "not persisted",
+                    DerivedName = "derived"
+                });
+
+                var result = collection.FindById(73);
+                var document = database.GetCollection("multiLevelInheritedRecords").FindById(73);
+
+                Assert.IsNotNull(result);
+                Assert.AreEqual(73, result.RootId);
+                Assert.AreEqual("grandparent", result.Origin);
+                Assert.AreEqual("parent", result.ParentName);
+                Assert.IsNull(result.IgnoredParentValue);
+                Assert.AreEqual("derived", result.DerivedName);
+                Assert.AreEqual(73, document["_id"].AsInt32);
+                Assert.AreEqual("grandparent", document["origin"].AsString);
+                Assert.AreEqual("parent", document[nameof(MultiLevelInheritedRecord.ParentName)].AsString);
+                Assert.IsFalse(document.ContainsKey(nameof(MultiLevelInheritedRecord.IgnoredParentValue)));
+                Assert.AreEqual("derived", document[nameof(MultiLevelInheritedRecord.DerivedName)].AsString);
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
+        public void GetGeneratedCollection_ExcludesMultipleComputedProjectionsAndRecomputesThem()
+        {
+            var path = GetDatabasePath();
+
+            try
+            {
+                var mapper = new BsonMapper();
+                LiteDbGeneratedMappings.Register(mapper);
+
+                using var database = new LiteDatabase(path, mapper);
+                var collection = database.GetGeneratedCollection<ComputedProjectionRecord>("computedProjectionRecords");
+                collection.Insert(new ComputedProjectionRecord
+                {
+                    Id = 1,
+                    NodeType = "file",
+                    Values = ["content", "acl", "streams"]
+                });
+
+                var result = collection.FindById(1);
+                var document = database.GetCollection("computedProjectionRecords").FindById(1);
+
+                Assert.IsNotNull(result);
+                Assert.AreEqual("file|content|acl|streams", result.Fingerprint);
+                Assert.AreEqual(3, result.ValueCount);
+                Assert.AreEqual("content,acl,streams", result.ValueSummary);
+                Assert.IsFalse(document.ContainsKey(nameof(ComputedProjectionRecord.Fingerprint)));
+                Assert.IsFalse(document.ContainsKey(nameof(ComputedProjectionRecord.ValueCount)));
+                Assert.IsFalse(document.ContainsKey(nameof(ComputedProjectionRecord.ValueSummary)));
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
+        public void GetGeneratedCollection_RoundTripsStringArrayElementBoundariesAndOrder()
+        {
+            var path = GetDatabasePath();
+            var expectedMany = Enumerable.Range(0, 64)
+                .Select(index => index == 0 ? string.Empty : index == 63 ? "last" : $"value-{index:D2}")
+                .ToArray();
+
+            try
+            {
+                var mapper = new BsonMapper { SerializeNullValues = true };
+                LiteDbGeneratedMappings.Register(mapper);
+
+                using var database = new LiteDatabase(path, mapper);
+                var collection = database.GetGeneratedCollection<StringArrayRecord>("stringArrayBoundaries");
+                collection.Insert(new StringArrayRecord { Id = 1, StreamNames = [string.Empty] });
+                collection.Insert(new StringArrayRecord { Id = 2, StreamNames = expectedMany });
+
+                var single = collection.FindById(1);
+                var many = collection.FindById(2);
+                var singleDocument = database.GetCollection("stringArrayBoundaries").FindById(1);
+                var manyDocument = database.GetCollection("stringArrayBoundaries").FindById(2);
+
+                Assert.IsNotNull(single);
+                CollectionAssert.AreEqual(new[] { string.Empty }, single.StreamNames);
+                Assert.IsNotNull(many);
+                CollectionAssert.AreEqual(expectedMany, many.StreamNames);
+                Assert.AreEqual(string.Empty, singleDocument[nameof(StringArrayRecord.StreamNames)].AsArray[0].AsString);
+                Assert.AreEqual(expectedMany.Length, manyDocument[nameof(StringArrayRecord.StreamNames)].AsArray.Count);
+                Assert.AreEqual("last", manyDocument[nameof(StringArrayRecord.StreamNames)].AsArray[63].AsString);
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
+        public void GetGeneratedCollection_RoundTripsDynamicDictionaryBoundariesAndRejectsUnsupportedValues()
+        {
+            var path = GetDatabasePath();
+
+            try
+            {
+                var mapper = new BsonMapper { SerializeNullValues = true };
+                LiteDbGeneratedMappings.Register(mapper);
+
+                using var database = new LiteDatabase(path, mapper);
+                var collection = database.GetGeneratedCollection<DynamicDictionaryRecord>("dynamicDictionaryBoundaries");
+                collection.Insert(new DynamicDictionaryRecord { Id = 1, Fields = [] });
+                collection.Insert(new DynamicDictionaryRecord
+                {
+                    Id = 2,
+                    Fields = new Dictionary<string, object?>
+                    {
+                        ["int32"] = 12,
+                        ["int64"] = 9_000_000_000L,
+                        ["double"] = 3.5d,
+                        ["decimal"] = 6.75m,
+                        ["rawDocument"] = new BsonDocument { ["kind"] = "raw" },
+                        ["rawArray"] = new BsonArray { "first", 2 },
+                        ["nestedArray"] = new object?[]
+                        {
+                            new Dictionary<string, object?> { ["inner"] = "value" },
+                            new object?[] { "nested", 4 }
+                        }
+                    }
+                });
+
+                var empty = collection.FindById(1);
+                var populated = collection.FindById(2);
+                var document = database.GetCollection("dynamicDictionaryBoundaries").FindById(2);
+                var fields = document[nameof(DynamicDictionaryRecord.Fields)].AsDocument;
+
+                Assert.IsNotNull(empty);
+                Assert.IsNotNull(empty.Fields);
+                Assert.AreEqual(0, empty.Fields.Count);
+                Assert.IsNotNull(populated);
+                Assert.AreEqual(12, populated.Fields["int32"]);
+                Assert.AreEqual(9_000_000_000L, populated.Fields["int64"]);
+                Assert.AreEqual(3.5d, populated.Fields["double"]);
+                Assert.AreEqual(6.75m, populated.Fields["decimal"]);
+                var rawDocument = (Dictionary<string, object?>)populated.Fields["rawDocument"]!;
+                Assert.AreEqual("raw", rawDocument["kind"]);
+                var rawArray = (object?[])populated.Fields["rawArray"]!;
+                Assert.AreEqual("first", rawArray[0]);
+                Assert.AreEqual(2, rawArray[1]);
+                var nestedArray = (object?[])populated.Fields["nestedArray"]!;
+                Assert.AreEqual("value", ((Dictionary<string, object?>)nestedArray[0]!)["inner"]);
+                Assert.AreEqual("nested", ((object?[])nestedArray[1]!)[0]);
+                Assert.AreEqual(4, ((object?[])nestedArray[1]!)[1]);
+                Assert.AreEqual(BsonType.Int32, fields["int32"].Type);
+                Assert.AreEqual(BsonType.Int64, fields["int64"].Type);
+                Assert.AreEqual(BsonType.Double, fields["double"].Type);
+                Assert.AreEqual(BsonType.Decimal, fields["decimal"].Type);
+                Assert.AreEqual("raw", fields["rawDocument"].AsDocument["kind"].AsString);
+                Assert.AreEqual(2, fields["rawArray"].AsArray.Count);
+                var pocoException = Assert.ThrowsException<InvalidOperationException>(() => collection.Insert(new DynamicDictionaryRecord
+                {
+                    Id = 3,
+                    Fields = new Dictionary<string, object?> { ["unsupported"] = new UnsupportedDynamicDictionaryValue() }
+                }));
+                var dateTimeOffsetException = Assert.ThrowsException<InvalidOperationException>(() => collection.Insert(new DynamicDictionaryRecord
+                {
+                    Id = 4,
+                    Fields = new Dictionary<string, object?>
+                    {
+                        ["unsupported"] = new DateTimeOffset(2024, 7, 12, 13, 14, 15, TimeSpan.Zero)
+                    }
+                }));
+                StringAssert.Contains(pocoException.Message, "Unsupported dynamic dictionary value type");
+                StringAssert.Contains(dateTimeOffsetException.Message, "Unsupported dynamic dictionary value type");
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        private static void AssertDateTimeOffsetDocument(BsonValue value, DateTimeOffset expected)
+        {
+            Assert.IsTrue(value.IsDocument);
+            Assert.AreEqual(expected.Ticks, value.AsDocument["DateTime"].AsInt64);
+            Assert.AreEqual(expected.Offset.Ticks, value.AsDocument["Offset"].AsInt64);
+        }
+
         private static string GetDatabasePath()
         {
             return Path.Combine(Path.GetTempPath(), $"litedb-source-generated-test-{Guid.NewGuid():N}.db");
@@ -671,6 +1054,17 @@ namespace LiteDB.AotTests
         public NativeScalarState? State { get; set; }
         public Guid? CorrelationId { get; set; }
         public DateTime? RecordedAt { get; set; }
+    }
+
+    [BsonSourceGenerated]
+    public sealed class DynamicDictionaryRecord
+    {
+        public int Id { get; set; }
+        public Dictionary<string, object?> Fields { get; set; } = [];
+    }
+
+    internal sealed class UnsupportedDynamicDictionaryValue
+    {
     }
 
     [BsonSourceGenerated]
@@ -742,6 +1136,60 @@ namespace LiteDB.AotTests
         public int Id { get; set; }
         public DateTimeOffset OccurredAt { get; set; }
         public DateTimeOffset? DeliveredAt { get; set; }
+    }
+
+    [BsonSourceGenerated]
+    public sealed class DateTimeOffsetBoundaryRecord
+    {
+        public int Id { get; set; }
+        public DateTimeOffset PositiveOffset { get; set; }
+        public DateTimeOffset NegativeOffset { get; set; }
+        public DateTimeOffset? NullableOffset { get; set; }
+    }
+
+    [BsonSourceGenerated]
+    public sealed class NullableScalarBoundaryRecord
+    {
+        public int Id { get; set; }
+        public short? SignedShort { get; set; }
+        public ulong? UnsignedLong { get; set; }
+        public double? Ratio { get; set; }
+        public decimal? Amount { get; set; }
+        public DateTimeOffset? TimestampWithOffset { get; set; }
+    }
+
+    public abstract class MultiLevelInheritedGrandparent
+    {
+        [BsonId(false)]
+        public int RootId { get; set; }
+
+        [BsonField("origin")]
+        public string Origin { get; set; } = string.Empty;
+    }
+
+    public abstract class MultiLevelInheritedParent : MultiLevelInheritedGrandparent
+    {
+        public string ParentName { get; set; } = string.Empty;
+
+        [BsonIgnore]
+        public string? IgnoredParentValue { get; set; }
+    }
+
+    [BsonSourceGenerated]
+    public sealed class MultiLevelInheritedRecord : MultiLevelInheritedParent
+    {
+        public string DerivedName { get; set; } = string.Empty;
+    }
+
+    [BsonSourceGenerated]
+    public sealed class ComputedProjectionRecord
+    {
+        public int Id { get; set; }
+        public string NodeType { get; set; } = string.Empty;
+        public List<string> Values { get; set; } = [];
+        public string Fingerprint => string.Join("|", NodeType, string.Join("|", Values));
+        public int ValueCount => Values.Count;
+        public string ValueSummary => string.Join(",", Values);
     }
 
     [BsonSourceGenerated]
