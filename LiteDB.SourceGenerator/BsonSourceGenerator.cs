@@ -32,7 +32,9 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         var models = context.SyntaxProvider.ForAttributeWithMetadataName(
             fullyQualifiedMetadataName: SourceGeneratedAttributeName,
             predicate: static (node, _) => node is ClassDeclarationSyntax,
-            transform: static (attributeContext, _) => DescribeModel((INamedTypeSymbol)attributeContext.TargetSymbol));
+            transform: static (attributeContext, _) => DescribeModel(
+                (INamedTypeSymbol)attributeContext.TargetSymbol,
+                GetDiagnosticLocation(attributeContext.TargetNode)));
 
         context.RegisterSourceOutput(models.Collect(), static (productionContext, results) =>
         {
@@ -48,7 +50,7 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
                 {
                     productionContext.ReportDiagnostic(Diagnostic.Create(
                         UnsupportedModel,
-                        Location.None,
+                        result.DiagnosticLocation!.Create(),
                         result.TypeName,
                         result.Error));
                 }
@@ -66,25 +68,25 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         });
     }
 
-    private static ModelResult DescribeModel(INamedTypeSymbol type)
+    private static ModelResult DescribeModel(INamedTypeSymbol type, DiagnosticLocationDescriptor diagnosticLocation)
     {
         var typeName = GetTypeName(type);
 
         if (type.TypeKind != TypeKind.Class || type.IsAbstract || type.IsGenericType || type.ContainingType is not null)
         {
-            return ModelResult.Unsupported(typeName, "it must be a non-abstract, non-generic, top-level class");
+            return ModelResult.Unsupported(typeName, diagnosticLocation, "it must be a non-abstract, non-generic, top-level class");
         }
 
         if (type.DeclaredAccessibility is not Accessibility.Public and not Accessibility.Internal)
         {
-            return ModelResult.Unsupported(typeName, "it must be public or internal");
+            return ModelResult.Unsupported(typeName, diagnosticLocation, "it must be public or internal");
         }
 
         if (!type.InstanceConstructors.Any(static constructor =>
                 constructor.Parameters.Length == 0 &&
                 (constructor.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal)))
         {
-            return ModelResult.Unsupported(typeName, "an accessible parameterless constructor is required");
+            return ModelResult.Unsupported(typeName, diagnosticLocation, "an accessible parameterless constructor is required");
         }
 
         var hierarchy = new List<INamedTypeSymbol>();
@@ -92,12 +94,12 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         {
             if (current.TypeKind != TypeKind.Class || current.IsGenericType || current.ContainingType is not null)
             {
-                return ModelResult.Unsupported(typeName, "all base classes must be non-generic, top-level classes");
+                return ModelResult.Unsupported(typeName, diagnosticLocation, "all base classes must be non-generic, top-level classes");
             }
 
             if (current.DeclaredAccessibility is not Accessibility.Public and not Accessibility.Internal)
             {
-                return ModelResult.Unsupported(typeName, "all base classes must be public or internal");
+                return ModelResult.Unsupported(typeName, diagnosticLocation, "all base classes must be public or internal");
             }
 
             hierarchy.Add(current);
@@ -118,7 +120,7 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
 
                 if (property.IsStatic || property.IsIndexer)
                 {
-                    return ModelResult.Unsupported(typeName, $"property '{property.Name}' must be a non-static, non-indexed property");
+                    return ModelResult.Unsupported(typeName, diagnosticLocation, $"property '{property.Name}' must be a non-static, non-indexed property");
                 }
 
                 if (IsComputedProperty(property, type))
@@ -131,18 +133,18 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
                     property.SetMethod is null || property.SetMethod.DeclaredAccessibility is not Accessibility.Public ||
                     property.SetMethod.IsInitOnly)
                 {
-                    return ModelResult.Unsupported(typeName, $"property '{property.Name}' must have public non-init getter and setter accessors");
+                    return ModelResult.Unsupported(typeName, diagnosticLocation, $"property '{property.Name}' must have public non-init getter and setter accessors");
                 }
 
                 if (!memberNames.Add(property.Name))
                 {
-                    return ModelResult.Unsupported(typeName, $"multiple mapped properties are named '{property.Name}' across the inheritance hierarchy");
+                    return ModelResult.Unsupported(typeName, diagnosticLocation, $"multiple mapped properties are named '{property.Name}' across the inheritance hierarchy");
                 }
 
                 var kind = GetPropertyKind(property.Type);
                 if (kind == PropertyKind.Unsupported)
                 {
-                    return ModelResult.Unsupported(typeName, $"property '{property.Name}' has an unsupported type '{property.Type.ToDisplayString()}'");
+                    return ModelResult.Unsupported(typeName, diagnosticLocation, $"property '{property.Name}' has an unsupported type '{property.Type.ToDisplayString()}'");
                 }
 
                 var idAttribute = GetAttribute(property, BsonIdAttributeName);
@@ -161,13 +163,13 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
 
         if (properties.Count == 0)
         {
-            return ModelResult.Unsupported(typeName, "at least one supported property is required");
+            return ModelResult.Unsupported(typeName, diagnosticLocation, "at least one supported property is required");
         }
 
         var explicitIds = properties.Where(static property => property.HasBsonId).ToArray();
         if (explicitIds.Length > 1)
         {
-            return ModelResult.Unsupported(typeName, "multiple properties are marked with BsonId");
+            return ModelResult.Unsupported(typeName, diagnosticLocation, "multiple properties are marked with BsonId");
         }
 
         PropertyDescriptor? id = null;
@@ -183,7 +185,7 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
 
             if (conventionalIds.Length > 1)
             {
-                return ModelResult.Unsupported(typeName, "multiple properties match generated ID conventions across the inheritance hierarchy");
+                return ModelResult.Unsupported(typeName, diagnosticLocation, "multiple properties match generated ID conventions across the inheritance hierarchy");
             }
 
             if (conventionalIds.Length == 1)
@@ -210,7 +212,7 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
             var fieldName = property.IsId ? "_id" : property.FieldName;
             if (!fieldNames.Add(fieldName))
             {
-                return ModelResult.Unsupported(typeName, $"multiple mapped properties use BSON field name '{fieldName}' across the inheritance hierarchy");
+                return ModelResult.Unsupported(typeName, diagnosticLocation, $"multiple mapped properties use BSON field name '{fieldName}' across the inheritance hierarchy");
             }
         }
 
@@ -294,6 +296,16 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         }
 
         return PropertyKind.Unsupported;
+    }
+
+    private static DiagnosticLocationDescriptor GetDiagnosticLocation(SyntaxNode targetNode)
+    {
+        var location = targetNode is ClassDeclarationSyntax classDeclaration
+            ? classDeclaration.Identifier.GetLocation()
+            : targetNode.GetLocation();
+        var lineSpan = location.GetLineSpan();
+
+        return new DiagnosticLocationDescriptor(lineSpan.Path, location.SourceSpan, lineSpan.Span);
     }
 
     private static string GetFieldName(IPropertySymbol property)
@@ -676,10 +688,23 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
             .ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat.WithMiscellaneousOptions(SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers));
     }
 
-    private sealed record ModelResult(ModelDescriptor? Model, string TypeName, string? Error)
+    private sealed record ModelResult(
+        ModelDescriptor? Model,
+        string TypeName,
+        DiagnosticLocationDescriptor? DiagnosticLocation,
+        string? Error)
     {
-        public static ModelResult Supported(ModelDescriptor model) => new(model, model.TypeName, null);
-        public static ModelResult Unsupported(string typeName, string error) => new(null, typeName, error);
+        public static ModelResult Supported(ModelDescriptor model) => new(model, model.TypeName, null, null);
+        public static ModelResult Unsupported(string typeName, DiagnosticLocationDescriptor diagnosticLocation, string error) =>
+            new(null, typeName, diagnosticLocation, error);
+    }
+
+    private sealed record DiagnosticLocationDescriptor(
+        string FilePath,
+        TextSpan SourceSpan,
+        LinePositionSpan LineSpan)
+    {
+        public Location Create() => Location.Create(FilePath, SourceSpan, LineSpan);
     }
 
     private sealed record ModelDescriptor(string TypeName, ImmutableArray<PropertyDescriptor> Properties);
