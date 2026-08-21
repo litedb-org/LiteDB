@@ -68,15 +68,15 @@ var customers = database.GetGeneratedCollection<Customer>("customers");
 
 ## Supported model subset
 
-The first source-generated mapping slice is intentionally narrow. The generator accepts a directly annotated, top-level, non-abstract, non-generic `public` or `internal` class with an accessible parameterless constructor. Supported members are public read/write instance properties of LiteDB scalar types and `List<string>`.
+The first source-generated mapping slice is intentionally narrow. The generator accepts a directly annotated, top-level, non-abstract, non-generic `public` or `internal` class with an accessible parameterless constructor. It can flatten supported public read/write instance properties declared by that class and its public or internal, top-level, non-generic base classes. A base class may be abstract; only the concrete derived class is marked and directly constructed.
 
-`[BsonId]`, `[BsonField]`, and `[BsonIgnore]` are supported. The generator also applies LiteDB's `Id` and `<TypeName>Id` ID conventions. A `List<string>` is serialized and materialized through generated loops rather than reflection-based collection activation.
+`[BsonId]`, `[BsonField]`, and `[BsonIgnore]` are supported on inherited and directly declared properties. The generator also applies LiteDB's `Id` and `<TypeName>Id` ID conventions. A `List<string>` is serialized and materialized through generated loops rather than reflection-based collection activation. Member hiding, duplicate effective BSON field names, and multiple resolved IDs across an inheritance hierarchy produce `LDBSG001` rather than an ambiguous map.
 
 | Supported | Not supported by the generated path |
 |---|---|
 | Scalar properties, enums, `byte[]`, `DateTime`, `DateTimeOffset`, `DateTimeOffset?`, `Guid`, and `ObjectId` | Parameterized and `[BsonCtor]` constructors |
 | `List<string>` | Arrays, other list element types, sets, dictionaries, nested entities, and `BsonRef` |
-| `[BsonId]`, `[BsonField]`, and `[BsonIgnore]` | Fields, inheritance, generic or nested model classes |
+| `[BsonId]`, `[BsonField]`, and `[BsonIgnore]` on direct and inherited properties | Fields, member hiding, duplicate BSON field names or IDs, generic or nested model/base classes |
 | Explicit collection names | Default collection-name resolution and runtime mapper callbacks |
 
 ### DateTimeOffset representation
@@ -89,7 +89,7 @@ Unsupported annotated shapes produce an `LDBSG001` build diagnostic. Use the exi
 
 ## Contributor validation
 
-`LiteDB.AotTests` exercises generated registration, IDs, field and ignore attributes, scalar values, `DateTimeOffset` values, and `List<string>` round trips. `LiteDB.AotSmokeTests` publishes and runs a Native AOT executable with generated scalar, list, and DateTimeOffset mapping workflows alongside document, query, and stream scenarios.
+`LiteDB.AotTests` exercises generated registration, IDs, field and ignore attributes, scalar values, `DateTimeOffset` values, inherited properties, and `List<string>` round trips. `LiteDB.AotSmokeTests` publishes and runs a Native AOT executable with generated scalar, list, DateTimeOffset, and inherited-property mapping workflows alongside document, query, and stream scenarios.
 
 Run the focused tests with:
 

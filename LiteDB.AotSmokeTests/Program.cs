@@ -259,6 +259,27 @@ namespace LiteDB.AotSmokeTests
             RequireNativeScalar("CorrelationId", nativeScalarRead.CorrelationId == new Guid("09e72680-2f4f-4eb3-a70c-f27d489b6068"), "09e72680-2f4f-4eb3-a70c-f27d489b6068", nativeScalarRead.CorrelationId.ToString());
             RequireNativeScalar("Name", nativeScalarRead.Name == "native-scalars", "native-scalars", nativeScalarRead.Name);
             Console.WriteLine("        Passed: all native scalar conversion boundaries.");
+
+            Console.WriteLine("  [3.7] Round-trip inherited generated properties and mapping attributes.");
+            var inheritedRecords = database.GetGeneratedCollection<AotInheritedRecord>("aot_inherited_records");
+            inheritedRecords.Insert(new AotInheritedRecord
+            {
+                BaseId = 40,
+                BaseName = "base-value",
+                BaseTags = ["first", "second"],
+                IgnoredBaseValue = "not persisted",
+                DerivedName = "derived-value"
+            });
+
+            var inheritedRead = inheritedRecords.FindById(40);
+            Require(inheritedRead is not null &&
+                    inheritedRead.BaseId == 40 &&
+                    inheritedRead.BaseName == "base-value" &&
+                    inheritedRead.BaseTags.SequenceEqual(["first", "second"]) &&
+                    inheritedRead.IgnoredBaseValue is null &&
+                    inheritedRead.DerivedName == "derived-value",
+                "The source-generated Native AOT inherited-property round trip failed.");
+            Console.WriteLine("        Passed: inherited ID, named field, ignored member, list, and derived property round trip.");
         }
 
         private static void RunScenario(string name, Action scenario)
@@ -299,6 +320,26 @@ namespace LiteDB.AotSmokeTests
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
         public List<string> Values { get; set; } = [];
+    }
+
+    public abstract class AotInheritedRecordBase
+    {
+        [BsonId(false)]
+        public int BaseId { get; set; }
+
+        [BsonField("base_name")]
+        public string BaseName { get; set; } = string.Empty;
+
+        public List<string> BaseTags { get; set; } = [];
+
+        [BsonIgnore]
+        public string IgnoredBaseValue { get; set; }
+    }
+
+    [BsonSourceGenerated]
+    public sealed class AotInheritedRecord : AotInheritedRecordBase
+    {
+        public string DerivedName { get; set; } = string.Empty;
     }
 
     [BsonSourceGenerated]

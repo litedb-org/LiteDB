@@ -439,6 +439,48 @@ namespace LiteDB.AotTests
             }
         }
 
+        [TestMethod]
+        public void GetGeneratedCollection_RoundTripsInheritedProperties()
+        {
+            var path = GetDatabasePath();
+
+            try
+            {
+                var mapper = new BsonMapper();
+                LiteDbGeneratedMappings.Register(mapper);
+
+                using var database = new LiteDatabase(path, mapper);
+                var collection = database.GetGeneratedCollection<InheritedRecord>("inheritedRecords");
+                collection.Insert(new InheritedRecord
+                {
+                    BaseId = 42,
+                    BaseName = "base-value",
+                    BaseTags = ["first", "second"],
+                    IgnoredBaseValue = "not persisted",
+                    DerivedName = "derived-value"
+                });
+
+                var result = collection.FindById(42);
+                var document = database.GetCollection("inheritedRecords").FindById(42);
+
+                Assert.IsNotNull(result);
+                Assert.AreEqual(42, result.BaseId);
+                Assert.AreEqual("base-value", result.BaseName);
+                CollectionAssert.AreEqual(new[] { "first", "second" }, result.BaseTags);
+                Assert.IsNull(result.IgnoredBaseValue);
+                Assert.AreEqual("derived-value", result.DerivedName);
+                Assert.AreEqual(42, document["_id"].AsInt32);
+                Assert.AreEqual("base-value", document["base_name"].AsString);
+                Assert.AreEqual(2, document[nameof(InheritedRecord.BaseTags)].AsArray.Count);
+                Assert.IsFalse(document.ContainsKey(nameof(InheritedRecord.IgnoredBaseValue)));
+                Assert.AreEqual("derived-value", document[nameof(InheritedRecord.DerivedName)].AsString);
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
         private static string GetDatabasePath()
         {
             return Path.Combine(Path.GetTempPath(), $"litedb-source-generated-test-{Guid.NewGuid():N}.db");
@@ -494,6 +536,26 @@ namespace LiteDB.AotTests
         public DateTime Timestamp { get; set; }
         public Guid CorrelationId { get; set; }
         public byte[] Payload { get; set; } = [];
+    }
+
+    public abstract class InheritedRecordBase
+    {
+        [BsonId(false)]
+        public int BaseId { get; set; }
+
+        [BsonField("base_name")]
+        public string BaseName { get; set; } = string.Empty;
+
+        public List<string> BaseTags { get; set; } = [];
+
+        [BsonIgnore]
+        public string? IgnoredBaseValue { get; set; }
+    }
+
+    [BsonSourceGenerated]
+    public sealed class InheritedRecord : InheritedRecordBase
+    {
+        public string DerivedName { get; set; } = string.Empty;
     }
 
     [BsonSourceGenerated]

@@ -75,11 +75,6 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
             return ModelResult.Unsupported(typeName, "it must be a non-abstract, non-generic, top-level class");
         }
 
-        if (type.BaseType?.SpecialType != SpecialType.System_Object)
-        {
-            return ModelResult.Unsupported(typeName, "inheritance is not supported by the generated mapping path");
-        }
-
         if (type.DeclaredAccessibility is not Accessibility.Public and not Accessibility.Internal)
         {
             return ModelResult.Unsupported(typeName, "it must be public or internal");
@@ -92,44 +87,71 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
             return ModelResult.Unsupported(typeName, "an accessible parameterless constructor is required");
         }
 
-        var properties = new List<PropertyDescriptor>();
-        foreach (var property in type.GetMembers().OfType<IPropertySymbol>().OrderBy(static property => property.Locations.FirstOrDefault()?.SourceSpan.Start ?? int.MaxValue))
+        var hierarchy = new List<INamedTypeSymbol>();
+        for (var current = type; current is not null && current.SpecialType != SpecialType.System_Object; current = current.BaseType)
         {
-            if (HasAttribute(property, BsonIgnoreAttributeName))
+            if (current.TypeKind != TypeKind.Class || current.IsGenericType || current.ContainingType is not null)
             {
-                continue;
+                return ModelResult.Unsupported(typeName, "all base classes must be non-generic, top-level classes");
             }
 
-            if (property.IsStatic || property.IsIndexer)
+            if (current.DeclaredAccessibility is not Accessibility.Public and not Accessibility.Internal)
             {
-                return ModelResult.Unsupported(typeName, $"property '{property.Name}' must be a non-static, non-indexed property");
+                return ModelResult.Unsupported(typeName, "all base classes must be public or internal");
             }
 
-            if (property.DeclaredAccessibility is not Accessibility.Public ||
-                property.GetMethod is null || property.GetMethod.DeclaredAccessibility is not Accessibility.Public ||
-                property.SetMethod is null || property.SetMethod.DeclaredAccessibility is not Accessibility.Public ||
-                property.SetMethod.IsInitOnly)
-            {
-                return ModelResult.Unsupported(typeName, $"property '{property.Name}' must have public non-init getter and setter accessors");
-            }
+            hierarchy.Add(current);
+        }
 
-            var kind = GetPropertyKind(property.Type);
-            if (kind == PropertyKind.Unsupported)
-            {
-                return ModelResult.Unsupported(typeName, $"property '{property.Name}' has an unsupported type '{property.Type.ToDisplayString()}'");
-            }
+        hierarchy.Reverse();
 
-            var idAttribute = GetAttribute(property, BsonIdAttributeName);
-            var fieldName = GetFieldName(property);
-            properties.Add(new PropertyDescriptor(
-                Name: property.Name,
-                Identifier: EscapeIdentifier(property.Name),
-                TypeName: GetTypeName(property.Type),
-                FieldName: fieldName,
-                Kind: kind,
-                HasBsonId: idAttribute is not null,
-                AutoId: GetAutoId(idAttribute),
-                IsId: false));
+        var properties = new List<PropertyDescriptor>();
+        var memberNames = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var level in hierarchy)
+        {
+            foreach (var property in level.GetMembers().OfType<IPropertySymbol>().OrderBy(static property => property.Locations.FirstOrDefault()?.SourceSpan.Start ?? int.MaxValue))
+            {
+                if (HasAttribute(property, BsonIgnoreAttributeName))
+                {
+                    continue;
+                }
+
+                if (property.IsStatic || property.IsIndexer)
+                {
+                    return ModelResult.Unsupported(typeName, $"property '{property.Name}' must be a non-static, non-indexed property");
+                }
+
+                if (property.DeclaredAccessibility is not Accessibility.Public ||
+                    property.GetMethod is null || property.GetMethod.DeclaredAccessibility is not Accessibility.Public ||
+                    property.SetMethod is null || property.SetMethod.DeclaredAccessibility is not Accessibility.Public ||
+                    property.SetMethod.IsInitOnly)
+                {
+                    return ModelResult.Unsupported(typeName, $"property '{property.Name}' must have public non-init getter and setter accessors");
+                }
+
+                if (memberNames.Add(property.Name) == false)
+                {
+                    return ModelResult.Unsupported(typeName, $"multiple mapped properties are named '{property.Name}' across the inheritance hierarchy");
+                }
+
+                var kind = GetPropertyKind(property.Type);
+                if (kind == PropertyKind.Unsupported)
+                {
+                    return ModelResult.Unsupported(typeName, $"property '{property.Name}' has an unsupported type '{property.Type.ToDisplayString()}'");
+                }
+
+                var idAttribute = GetAttribute(property, BsonIdAttributeName);
+                var fieldName = GetFieldName(property);
+                properties.Add(new PropertyDescriptor(
+                    Name: property.Name,
+                    Identifier: EscapeIdentifier(property.Name),
+                    TypeName: GetTypeName(property.Type),
+                    FieldName: fieldName,
+                    Kind: kind,
+                    HasBsonId: idAttribute is not null,
+                    AutoId: GetAutoId(idAttribute),
+                    IsId: false));
+            }
         }
 
         if (properties.Count == 0)
@@ -143,10 +165,27 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
             return ModelResult.Unsupported(typeName, "multiple properties are marked with BsonId");
         }
 
-        var id = explicitIds.Length == 1
-            ? explicitIds[0]
-            : properties.FirstOrDefault(property => string.Equals(property.Name, "Id", StringComparison.OrdinalIgnoreCase))
-              ?? properties.FirstOrDefault(property => string.Equals(property.Name, type.Name + "Id", StringComparison.OrdinalIgnoreCase));
+        PropertyDescriptor? id = null;
+        if (explicitIds.Length == 1)
+        {
+            id = explicitIds[0];
+        }
+        else
+        {
+            var conventionalIds = properties.Where(property =>
+                string.Equals(property.Name, "Id", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(property.Name, type.Name + "Id", StringComparison.OrdinalIgnoreCase)).ToArray();
+
+            if (conventionalIds.Length > 1)
+            {
+                return ModelResult.Unsupported(typeName, "multiple properties match generated ID conventions across the inheritance hierarchy");
+            }
+
+            if (conventionalIds.Length == 1)
+            {
+                id = conventionalIds[0];
+            }
+        }
 
         if (id is not null)
         {
@@ -157,6 +196,16 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
                     properties[index] = properties[index] with { IsId = true };
                     break;
                 }
+            }
+        }
+
+        var fieldNames = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var property in properties)
+        {
+            var fieldName = property.IsId ? "_id" : property.FieldName;
+            if (fieldNames.Add(fieldName) == false)
+            {
+                return ModelResult.Unsupported(typeName, $"multiple mapped properties use BSON field name '{fieldName}' across the inheritance hierarchy");
             }
         }
 
