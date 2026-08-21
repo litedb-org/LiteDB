@@ -208,6 +208,18 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
             {
                 return PropertyKind.StringList;
             }
+
+            if (metadataName == "System.DateTimeOffset")
+            {
+                return PropertyKind.DateTimeOffset;
+            }
+
+            if (namedType.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T &&
+                namedType.TypeArguments.Length == 1 &&
+                namedType.TypeArguments[0].ToDisplayString() == "System.DateTimeOffset")
+            {
+                return PropertyKind.NullableDateTimeOffset;
+            }
         }
 
         return PropertyKind.Unsupported;
@@ -284,6 +296,10 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
 
         source.AppendLine("        }");
         AppendStringListHelpers(source);
+        if (HasDateTimeOffsetProperties(models))
+        {
+            AppendDateTimeOffsetHelpers(source);
+        }
 
         for (var index = 0; index < models.Count; index++)
         {
@@ -295,8 +311,32 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         return source.ToString();
     }
 
-    private static void AppendStringListHelpers(StringBuilder source)
-    {
+        private static void AppendDateTimeOffsetHelpers(StringBuilder source)
+        {
+            source.AppendLine();
+            source.AppendLine("        private static global::LiteDB.BsonValue SerializeDateTimeOffset(object? value)");
+            source.AppendLine("        {");
+            source.AppendLine("            if (value is null) return global::LiteDB.BsonValue.Null;");
+            source.AppendLine("            var dateTimeOffset = (global::System.DateTimeOffset)value;");
+            source.AppendLine("            return new global::LiteDB.BsonDocument");
+            source.AppendLine("            {");
+            source.AppendLine("                [\"DateTime\"] = dateTimeOffset.Ticks,");
+            source.AppendLine("                [\"Offset\"] = dateTimeOffset.Offset.Ticks");
+            source.AppendLine("            };");
+            source.AppendLine("        }");
+            source.AppendLine();
+            source.AppendLine("        private static object DeserializeDateTimeOffset(global::LiteDB.BsonValue value)");
+            source.AppendLine("        {");
+            source.AppendLine("            if (value.IsNull) return null!;");
+            source.AppendLine("            var document = value.AsDocument;");
+            source.AppendLine("            return new global::System.DateTimeOffset(");
+            source.AppendLine("                document[\"DateTime\"].AsInt64,");
+            source.AppendLine("                new global::System.TimeSpan(document[\"Offset\"].AsInt64));");
+            source.AppendLine("        }");
+        }
+
+        private static void AppendStringListHelpers(StringBuilder source)
+        {
         source.AppendLine();
         source.AppendLine("        private static global::LiteDB.BsonValue SerializeStringList(global::System.Collections.Generic.List<string>? values)");
         source.AppendLine("        {");
@@ -321,8 +361,14 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         source.AppendLine("        }");
     }
 
-    private static void AppendFactory(StringBuilder source, ModelDescriptor model, int index)
-    {
+        private static bool HasDateTimeOffsetProperties(IReadOnlyList<ModelDescriptor> models)
+        {
+            return models.Any(static model => model.Properties.Any(static property =>
+                property.Kind is PropertyKind.DateTimeOffset or PropertyKind.NullableDateTimeOffset));
+        }
+
+        private static void AppendFactory(StringBuilder source, ModelDescriptor model, int index)
+        {
         source.AppendLine();
         source.Append("        private static global::LiteDB.EntityMapper Create").Append(index).AppendLine("()");
         source.AppendLine("        {");
@@ -347,6 +393,11 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
             {
                 source.Append("                Serialize = (value, _) => SerializeStringList((global::System.Collections.Generic.List<string>)value),").AppendLine();
                 source.Append("                Deserialize = (value, _) => DeserializeStringList(value)").AppendLine(",");
+            }
+            else if (property.Kind is PropertyKind.DateTimeOffset or PropertyKind.NullableDateTimeOffset)
+            {
+                source.Append("                Serialize = (value, _) => SerializeDateTimeOffset(value),").AppendLine();
+                source.Append("                Deserialize = (value, _) => DeserializeDateTimeOffset(value)").AppendLine(",");
             }
 
             source.Append("                Getter = entity => ((").Append(model.TypeName).Append(")entity).").Append(property.Identifier).AppendLine(",");
@@ -392,6 +443,8 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
     {
         Scalar,
         StringList,
+        DateTimeOffset,
+        NullableDateTimeOffset,
         Unsupported
     }
 }

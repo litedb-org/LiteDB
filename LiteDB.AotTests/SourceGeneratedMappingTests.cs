@@ -340,6 +340,44 @@ namespace LiteDB.AotTests
             CollectionAssert.AreEqual(new[] { "value" }, result.Values);
         }
 
+        [TestMethod]
+        public void GetGeneratedCollection_RoundTripsDateTimeOffsetAndNullableValues()
+        {
+            var path = GetDatabasePath();
+            var expectedOccurredAt = new DateTimeOffset(2024, 6, 7, 8, 9, 10, TimeSpan.FromHours(5.5)).AddTicks(4321);
+
+            try
+            {
+                var mapper = new BsonMapper { SerializeNullValues = true };
+                LiteDbGeneratedMappings.Register(mapper);
+
+                using var database = new LiteDatabase(path, mapper);
+                var collection = database.GetGeneratedCollection<DateTimeOffsetRecord>("dateTimeOffsets");
+                collection.Insert(new DateTimeOffsetRecord
+                {
+                    Id = 1,
+                    OccurredAt = expectedOccurredAt,
+                    DeliveredAt = null
+                });
+
+                var result = collection.FindById(1);
+                var document = database.GetCollection("dateTimeOffsets").FindById(1);
+                var occurredAt = document[nameof(DateTimeOffsetRecord.OccurredAt)].AsDocument;
+
+                Assert.IsNotNull(result);
+                Assert.IsTrue(expectedOccurredAt.EqualsExact(result.OccurredAt));
+                Assert.IsNull(result.DeliveredAt);
+                Assert.AreEqual(expectedOccurredAt.Ticks, occurredAt["DateTime"].AsInt64);
+                Assert.AreEqual(expectedOccurredAt.Offset.Ticks, occurredAt["Offset"].AsInt64);
+                Assert.IsTrue(document.ContainsKey(nameof(DateTimeOffsetRecord.DeliveredAt)));
+                Assert.IsTrue(document[nameof(DateTimeOffsetRecord.DeliveredAt)].IsNull);
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
         private static string GetDatabasePath()
         {
             return Path.Combine(Path.GetTempPath(), $"litedb-source-generated-test-{Guid.NewGuid():N}.db");
@@ -395,6 +433,14 @@ namespace LiteDB.AotTests
         public DateTime Timestamp { get; set; }
         public Guid CorrelationId { get; set; }
         public byte[] Payload { get; set; } = [];
+    }
+
+    [BsonSourceGenerated]
+    public sealed class DateTimeOffsetRecord
+    {
+        public int Id { get; set; }
+        public DateTimeOffset OccurredAt { get; set; }
+        public DateTimeOffset? DeliveredAt { get; set; }
     }
 
     [BsonSourceGenerated]

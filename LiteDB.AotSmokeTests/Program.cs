@@ -179,6 +179,25 @@ namespace LiteDB.AotSmokeTests
             Require(secondary.FindById(10)?.Description == "secondary",
                 "The source-generated Native AOT multi-model registration failed.");
             Console.WriteLine("        Passed: multiple generated models registered and used with one mapper.");
+
+            Console.WriteLine("  [3.5] Round-trip DateTimeOffset values with exact ticks and offsets.");
+            var expectedOccurredAt = new DateTimeOffset(2024, 6, 7, 8, 9, 10, TimeSpan.FromHours(-4)).AddTicks(4321);
+            var expectedDeliveredAt = new DateTimeOffset(2024, 6, 8, 9, 10, 11, TimeSpan.FromHours(2)).AddTicks(1234);
+            var dateTimeOffsets = database.GetGeneratedCollection<AotDateTimeOffsetRecord>("aot_date_time_offsets");
+            dateTimeOffsets.Insert(new AotDateTimeOffsetRecord
+            {
+                Id = 20,
+                OccurredAt = expectedOccurredAt,
+                DeliveredAt = expectedDeliveredAt
+            });
+
+            var dateTimeOffsetRead = dateTimeOffsets.FindById(20);
+            Require(dateTimeOffsetRead is not null &&
+                    expectedOccurredAt.EqualsExact(dateTimeOffsetRead.OccurredAt) &&
+                    dateTimeOffsetRead.DeliveredAt.HasValue &&
+                    expectedDeliveredAt.EqualsExact(dateTimeOffsetRead.DeliveredAt.Value),
+                "The source-generated Native AOT DateTimeOffset round trip failed.");
+            Console.WriteLine("        Passed: required and nullable DateTimeOffset values retain their ticks and offsets.");
         }
 
         private static void RunScenario(string name, Action scenario)
@@ -212,6 +231,14 @@ namespace LiteDB.AotSmokeTests
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
         public List<string> Values { get; set; } = [];
+    }
+
+    [BsonSourceGenerated]
+    public sealed class AotDateTimeOffsetRecord
+    {
+        public int Id { get; set; }
+        public DateTimeOffset OccurredAt { get; set; }
+        public DateTimeOffset? DeliveredAt { get; set; }
     }
 
     [BsonSourceGenerated]
