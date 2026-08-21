@@ -4,6 +4,17 @@
         <LangVersion>latest</LangVersion>
         <Nullable>enable</Nullable>
         <IsPackable>false</IsPackable>
+        <PackageId>LiteDB.SourceGenerator</PackageId>
+        <Authors>Maurício David</Authors>
+        <Product>LiteDB Source Generator</Product>
+        <Description>Compile-time source generator for LiteDB Native AOT mappings.</Description>
+        <PackageTags>litedb database nosql embedded source-generator analyzer nativeaot</PackageTags>
+        <PackageIcon>icon_64x64.png</PackageIcon>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageProjectUrl>https://www.litedb.org</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/litedb-org/LiteDB</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <DevelopmentDependency>true</DevelopmentDependency>
         <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
         <NoWarn>$(NoWarn);RS2008</NoWarn>
         <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
