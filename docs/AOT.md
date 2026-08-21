@@ -75,7 +75,7 @@ The first source-generated mapping slice is intentionally narrow. The generator 
 | Supported | Not supported by the generated path |
 |---|---|
 | Scalar properties and nullable scalar value types, enums, `byte[]`, `DateTime`, `DateTimeOffset`, `DateTimeOffset?`, `Guid`, and `ObjectId` | Parameterized and `[BsonCtor]` constructors |
-| `List<string>` and rank-one `string[]` | Other array element types, other list element types, sets, dictionaries, nested entities, and `BsonRef` |
+| `List<string>`, rank-one `string[]`, and `Dictionary<string, object?>` containing BSON-native dynamic values | Other array element types, other list element types, sets, typed or custom dictionaries, nested entities, and `BsonRef` |
 | `[BsonId]`, `[BsonField]`, and `[BsonIgnore]` on direct and inherited properties; unannotated computed getter-only projections | Fields, persisted getter-only or init-only properties, member hiding, duplicate BSON field names or IDs, generic or nested model/base classes |
 | Explicit collection names | Default collection-name resolution and runtime mapper callbacks |
 
@@ -93,11 +93,17 @@ Rank-one `string[]` properties use a BSON Array and generated indexed copy loops
 
 A nullable scalar value type is supported when its underlying value type is supported. With the default mapper setting, null members retain LiteDB's normal omission behavior. When `BsonMapper.SerializeNullValues` is enabled, a nullable scalar `null` is persisted as BSON Null and deserializes as `null` through the generated mapping path.
 
-Unsupported annotated shapes produce an `LDBSG001` build diagnostic. Use the existing runtime-mapped LiteDB APIs for dynamic or unsupported models.
+### Dynamic dictionary representation
+
+`Dictionary<string, object?>` is supported as a constrained BSON-native dynamic document. The generated path stores it as a BSON Document. It accepts null, `BsonValue`, BSON-native scalar values, and recursively nested dictionaries or arrays/enumerables. On materialization, nested BSON documents become `Dictionary<string, object?>` and nested BSON arrays become `object?[]`; other BSON values retain their raw CLR values.
+
+With the default mapper setting, a null dictionary member follows LiteDB's normal omission behavior. When `BsonMapper.SerializeNullValues` is enabled, a null dictionary is persisted as BSON Null and deserializes as `null`. Arbitrary CLR objects, including `DateTimeOffset` values inside the dictionary, are intentionally rejected with `InvalidOperationException`. Typed dictionaries, dictionary interfaces, custom dictionary types, and arbitrary nested entity graphs remain unsupported by the generated path.
+
+Unsupported annotated shapes produce an `LDBSG001` build diagnostic. Use the existing runtime-mapped LiteDB APIs for models outside the supported generated subset.
 
 ## Contributor validation
 
-`LiteDB.AotTests` exercises generated registration, IDs, field and ignore attributes, scalar and nullable scalar values, `DateTimeOffset` values, inherited properties, computed projections, `List<string>`, and `string[]` round trips. `LiteDB.AotSmokeTests` publishes and runs a Native AOT executable with generated scalar, nullable scalar, list, string-array, DateTimeOffset, inherited-property, and computed-projection workflows alongside document, query, and stream scenarios.
+`LiteDB.AotTests` exercises generated registration, IDs, field and ignore attributes, scalar and nullable scalar values, `DateTimeOffset` values, inherited properties, computed projections, `List<string>`, `string[]`, and dynamic-dictionary round trips. `LiteDB.AotSmokeTests` publishes and runs a Native AOT executable with generated scalar, nullable scalar, list, string-array, DateTimeOffset, inherited-property, computed-projection, and dynamic-dictionary workflows alongside document, query, and stream scenarios.
 
 Run the focused tests with:
 
