@@ -171,7 +171,6 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
 
             var scalarKind = GetScalarConversionKind(property.Type, out var isNullableScalar);
             var idAttribute = GetAttribute(property, BsonIdAttributeName);
-            var fieldAttribute = GetAttribute(property, BsonFieldAttributeName);
             var fieldName = GetFieldName(property);
             properties.Add(new PropertyDescriptor(
                 Name: property.Name,
@@ -183,7 +182,6 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
                 ScalarTypeName: GetScalarTypeName(property.Type),
                 IsNullableScalar: isNullableScalar,
                 HasBsonId: idAttribute is not null,
-                HasBsonField: fieldAttribute is not null,
                 AutoId: GetAutoId(idAttribute),
                 IsId: false));
         }
@@ -227,7 +225,7 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
             {
                 if (string.Equals(properties[index].Name, id.Name, StringComparison.Ordinal))
                 {
-                    properties[index] = properties[index] with { IsId = true };
+                    properties[index] = properties[index] with { FieldName = "_id", IsId = true };
                     break;
                 }
             }
@@ -236,10 +234,9 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         var fieldNames = new HashSet<string>(StringComparer.Ordinal);
         foreach (var property in properties)
         {
-            var fieldName = property.IsId ? "_id" : property.FieldName;
-            if (!fieldNames.Add(fieldName))
+            if (!fieldNames.Add(property.FieldName))
             {
-                return ModelResult.MappingConflict(typeName, diagnosticLocation, $"multiple mapped properties use BSON field name '{fieldName}' across the inheritance hierarchy");
+                return ModelResult.MappingConflict(typeName, diagnosticLocation, $"multiple mapped properties use BSON field name '{property.FieldName}' across the inheritance hierarchy");
             }
         }
 
@@ -498,9 +495,7 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         return hasInheritance == false &&
             properties.All(property =>
                 property.Kind == PropertyKind.Scalar &&
-                property.ScalarKind != ScalarConversionKind.None &&
-                property.HasBsonId == false &&
-                property.HasBsonField == false);
+                property.ScalarKind != ScalarConversionKind.None);
     }
 
     private static string GenerateSource(IReadOnlyList<ModelDescriptor> models)
@@ -782,7 +777,7 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
             source.AppendLine("            map.Members.Add(new global::LiteDB.MemberMapper");
             source.AppendLine("            {");
             source.Append("                AutoId = ").Append(property.IsId && property.AutoId ? "true" : "false").AppendLine(",");
-            source.Append("                FieldName = ").Append(SymbolDisplay.FormatLiteral(property.IsId ? "_id" : property.FieldName, true)).AppendLine(",");
+            source.Append("                FieldName = ").Append(SymbolDisplay.FormatLiteral(property.FieldName, true)).AppendLine(",");
             source.Append("                MemberName = ").Append(SymbolDisplay.FormatLiteral(property.Name, true)).AppendLine(",");
             source.Append("                DataType = typeof(").Append(property.TypeName).AppendLine("),");
             source.Append("                UnderlyingType = typeof(").Append(property.Kind is PropertyKind.StringList or PropertyKind.StringArray ? "global::System.String" : property.TypeName).AppendLine("),");
@@ -833,8 +828,7 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
 
         foreach (var property in model.Properties)
         {
-            var fieldName = property.IsId ? "_id" : property.FieldName;
-            AppendSerializeExecutionProperty(source, property, SymbolDisplay.FormatLiteral(fieldName, true));
+            AppendSerializeExecutionProperty(source, property, SymbolDisplay.FormatLiteral(property.FieldName, true));
         }
 
         source.AppendLine("            return document;");
@@ -847,8 +841,7 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         for (var propertyIndex = 0; propertyIndex < model.Properties.Length; propertyIndex++)
         {
             var property = model.Properties[propertyIndex];
-            var fieldName = property.IsId ? "_id" : property.FieldName;
-            AppendDeserializeExecutionProperty(source, property, SymbolDisplay.FormatLiteral(fieldName, true), propertyIndex);
+            AppendDeserializeExecutionProperty(source, property, SymbolDisplay.FormatLiteral(property.FieldName, true), propertyIndex);
         }
 
         source.AppendLine("            return entity;");
@@ -1035,7 +1028,6 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         string ScalarTypeName,
         bool IsNullableScalar,
         bool HasBsonId,
-        bool HasBsonField,
         bool AutoId,
         bool IsId);
 

@@ -250,7 +250,7 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
-        public void GetGeneratedCollection_UsesLegacyBridgeForC2AttributeModel()
+        public void GetGeneratedCollection_AutomaticallyRegistersDirectMapForC2AttributeModel()
         {
             var path = GetDatabasePath();
 
@@ -260,9 +260,20 @@ namespace LiteDB.AotTests
                 LiteDbGeneratedMappings.Register(mapper);
 
                 using var database = new LiteDatabase(path, mapper);
-                var collection = database.GetGeneratedCollection<PhaseCAttributedScalarRecord>("phaseCAttributeBridge");
-                Assert.ThrowsException<AssertFailedException>(() =>
-                    collection.Insert(new PhaseCAttributedScalarRecord { Id = 1, Score = 8 }));
+                var collection = database.GetGeneratedCollection<PhaseCAttributedScalarRecord>("phaseCAttributes");
+                var record = new PhaseCAttributedScalarRecord { Id = 1, Score = 8 };
+
+                collection.Insert(record);
+
+                var document = database.GetCollection("phaseCAttributes").FindById(1);
+                var read = collection.FindById(1);
+                Assert.AreEqual(1, document["_id"].AsInt32);
+                Assert.AreEqual(8, document["score"].AsInt32);
+                Assert.IsNotNull(read);
+                Assert.AreEqual(1, read.Id);
+                Assert.AreEqual(8, read.Score);
+                Assert.AreEqual(2, document.Count);
+                Assert.ThrowsException<NotSupportedException>(() => collection.FindAll());
             }
             finally
             {
@@ -419,7 +430,7 @@ namespace LiteDB.AotTests
 
             try
             {
-                var mapper = new BsonMapper();
+                var mapper = new ThrowingConversionMapper();
                 LiteDbGeneratedMappings.Register(mapper);
 
                 using var database = new LiteDatabase(path, mapper);
@@ -430,6 +441,7 @@ namespace LiteDB.AotTests
 
                 Assert.IsNotNull(result);
                 Assert.AreEqual("manual", result.Name);
+                Assert.ThrowsException<NotSupportedException>(() => collection.FindAll());
             }
             finally
             {
@@ -479,7 +491,7 @@ namespace LiteDB.AotTests
 
             try
             {
-                var mapper = new BsonMapper();
+                var mapper = new ThrowingConversionMapper();
                 LiteDbGeneratedMappings.Register(mapper);
 
                 using var database = new LiteDatabase(path, mapper);
@@ -504,6 +516,7 @@ namespace LiteDB.AotTests
                 Assert.AreEqual("named-field", document["stored_name"].AsString);
                 Assert.IsFalse(document.ContainsKey(nameof(ConventionIdRecord.IgnoredText)));
                 Assert.IsFalse(document.ContainsKey(nameof(ConventionIdRecord.IgnoredNumber)));
+                Assert.ThrowsException<NotSupportedException>(() => collection.FindAll());
             }
             finally
             {
@@ -521,7 +534,7 @@ namespace LiteDB.AotTests
 
             try
             {
-                var mapper = new BsonMapper();
+                var mapper = new ThrowingConversionMapper();
                 LiteDbGeneratedMappings.Register(mapper);
 
                 using var database = new LiteDatabase(path, mapper);
@@ -1024,7 +1037,7 @@ namespace LiteDB.AotTests
 
             try
             {
-                var mapper = new BsonMapper();
+                var mapper = new ThrowingConversionMapper();
                 LiteDbGeneratedMappings.Register(mapper);
 
                 using var database = new LiteDatabase(path, mapper);
@@ -1042,6 +1055,7 @@ namespace LiteDB.AotTests
                 Assert.IsNotNull(result);
                 Assert.AreEqual("file|abc123", result.Fingerprint);
                 Assert.IsFalse(document.ContainsKey(nameof(ComputedRecord.Fingerprint)));
+                Assert.ThrowsException<NotSupportedException>(() => collection.FindAll());
             }
             finally
             {
