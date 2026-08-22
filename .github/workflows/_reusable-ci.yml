@@ -120,6 +120,9 @@ jobs:
           dotnet build LiteDB.SourceGenerator.CompileTests/LiteDB.SourceGenerator.CompileTests.csproj
           --configuration Release
 
+      - name: Validate packaged source-generator consumer
+        run: ./scripts/validate-source-generator-package-consumer.sh
+
       - name: Publish and run Native AOT smoke test
         run: >-
           dotnet publish LiteDB.AotSmokeTests/LiteDB.AotSmokeTests.csproj
