@@ -140,7 +140,20 @@ namespace LiteDB.AotSmokeTests
                 "The source-generated Native AOT simple typed round trip failed.");
             Console.WriteLine("        Passed: generated mapper registration, direct execution-map registration, and scalar typed round trip.");
 
-            Console.WriteLine("  [3.1a] Evaluate a static-member LINQ expression through the generated mapper.");
+            Console.WriteLine("  [3.1a] Automatically register and execute a C1 scalar generated map.");
+            var automatic = database.GetGeneratedCollection<AotPhaseCScalarRecord>("aot_phase_c_scalar");
+            automatic.Insert(new AotPhaseCScalarRecord { Score = 8 });
+            var automaticRead = automatic.FindById(1);
+            Require(automaticRead is not null && automaticRead.Id == 1 && automaticRead.Name is null && automaticRead.Score == 8,
+            "The source-generated Native AOT C1 automatic scalar execution map failed.");
+            Require(automatic.Update(new AotPhaseCScalarRecord { Id = 1, Name = "automatic", Score = 9 }) &&
+            automatic.FindById(1)?.Name == "automatic" &&
+            automatic.Count() == 1 &&
+            automatic.Delete(1),
+            "The source-generated Native AOT C1 automatic scalar execution-map CRUD failed.");
+            Console.WriteLine("        Passed: automatic execution-map registration and direct scalar CRUD without manual registration.");
+
+            Console.WriteLine("  [3.1b] Evaluate a static-member LINQ expression through the generated mapper.");
             var staticMemberExpression = mapper.GetExpression<AotSimpleRecord, bool>(record => record.Score < DateTime.Today.Day + 1);
             var staticMemberResults = staticMemberExpression.Execute(new BsonDocument
             {
@@ -162,6 +175,59 @@ namespace LiteDB.AotSmokeTests
             Console.WriteLine("        Passed: generated typed update, count, and delete.");
 
             mapper.SerializeNullValues = true;
+
+            Console.WriteLine("  [3.2a] Persist a null C1 scalar string through the automatic execution map.");
+            var automaticNulls = database.GetGeneratedCollection<AotPhaseCScalarRecord>("aot_phase_c_scalar_nulls");
+            automaticNulls.Insert(new AotPhaseCScalarRecord { Score = 10 });
+            var automaticNullDocument = database.GetCollection("aot_phase_c_scalar_nulls").FindById(1);
+            Require(automaticNullDocument[nameof(AotPhaseCScalarRecord.Name)].IsNull &&
+                    automaticNulls.FindById(1)?.Name is null,
+                "The source-generated Native AOT C1 automatic map did not persist a configured null string.");
+            Console.WriteLine("        Passed: automatic execution map persisted and materialized configured BSON null.");
+
+            Console.WriteLine("  [3.2b] Automatically round-trip the C2 scalar compatibility matrix without a manual execution map.");
+            var expectedC2ObjectId = new ObjectId("64c61e5f18a9421a8862c71c");
+            var expectedC2CorrelationId = new Guid("d29368bb-9669-4f84-9384-c8eb15caa0a8");
+            var automaticC2 = database.GetGeneratedCollection<AotPhaseCScalarCompatibilityRecord>("aot_phase_c_scalar_compatibility");
+            automaticC2.Insert(new AotPhaseCScalarCompatibilityRecord
+            {
+                Id = 1,
+                BooleanValue = true,
+                UnsignedInteger = uint.MaxValue,
+                SignedLong = -9_000_000_000L,
+                UnsignedLong = ulong.MaxValue,
+                DecimalValue = 7.75m,
+                State = AotNativeScalarState.Captured,
+                Timestamp = new DateTime(2024, 8, 1, 12, 34, 56, 789, DateTimeKind.Utc),
+                ObjectId = expectedC2ObjectId,
+                CorrelationId = expectedC2CorrelationId,
+                Payload = [0, 1, 127, 128, 255],
+                Name = "  c2 compatibility  ",
+                NullableState = null,
+                NullablePayload = null
+            });
+            var automaticC2Document = database.GetCollection("aot_phase_c_scalar_compatibility").FindById(1);
+            var automaticC2Read = automaticC2.FindById(1);
+            Require(automaticC2Document[nameof(AotPhaseCScalarCompatibilityRecord.UnsignedInteger)].Type == BsonType.Int64 &&
+                    automaticC2Document[nameof(AotPhaseCScalarCompatibilityRecord.State)].Type == BsonType.String &&
+                    automaticC2Document[nameof(AotPhaseCScalarCompatibilityRecord.State)].AsString == nameof(AotNativeScalarState.Captured) &&
+                    automaticC2Document[nameof(AotPhaseCScalarCompatibilityRecord.NullableState)].IsNull &&
+                    automaticC2Document[nameof(AotPhaseCScalarCompatibilityRecord.NullablePayload)].IsNull &&
+                    automaticC2Read is not null &&
+                    automaticC2Read.BooleanValue &&
+                    automaticC2Read.UnsignedInteger == uint.MaxValue &&
+                    automaticC2Read.SignedLong == -9_000_000_000L &&
+                    automaticC2Read.UnsignedLong == ulong.MaxValue &&
+                    automaticC2Read.DecimalValue == 7.75m &&
+                    automaticC2Read.State == AotNativeScalarState.Captured &&
+                    automaticC2Read.ObjectId == expectedC2ObjectId &&
+                    automaticC2Read.CorrelationId == expectedC2CorrelationId &&
+                    automaticC2Read.Payload.SequenceEqual(new byte[] { 0, 1, 127, 128, 255 }) &&
+                    automaticC2Read.Name == "c2 compatibility" &&
+                    automaticC2Read.NullableState is null &&
+                    automaticC2Read.NullablePayload is null,
+                "The source-generated Native AOT C2 automatic scalar compatibility map failed.");
+            Console.WriteLine("        Passed: automatic C2 scalar conversion, BSON shape, nullable values, and mapper options without manual registration.");
 
             Console.WriteLine("  [3.3] Round-trip populated, null, and empty List<string> values.");
             Console.WriteLine("        Null values are persisted explicitly so the generated null-list mapping path is exercised.");
@@ -652,7 +718,7 @@ namespace LiteDB.AotSmokeTests
                 {
                     Id = document["_id"].AsInt32,
                     Name = document[nameof(AotSimpleRecord.Name)].AsString,
-                    Score = document[nameof(AotSimpleRecord.Score)].AsInt32
+                    Score = document[nameof(AotSimpleRecord.Score)].AsInt64
                 });
         }
 
@@ -709,7 +775,10 @@ namespace LiteDB.AotSmokeTests
     {
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
-        public int Score { get; set; }
+        public long Score { get; set; }
+
+        // Keeps this retained manual Phase B smoke fixture outside C2 automatic scalar-map emission.
+        public DateTimeOffset LegacyProbe { get; set; }
     }
 
     [BsonSourceGenerated]
@@ -764,6 +833,33 @@ namespace LiteDB.AotSmokeTests
     {
         public string DerivedName { get; set; } = string.Empty;
         public string Fingerprint => string.Join("|", BaseName, DerivedName);
+    }
+
+    [BsonSourceGenerated]
+    public sealed class AotPhaseCScalarRecord
+    {
+        public int Id { get; set; }
+        public string? Name { get; set; }
+        public int Score { get; set; }
+    }
+
+    [BsonSourceGenerated]
+    public sealed class AotPhaseCScalarCompatibilityRecord
+    {
+        public int Id { get; set; }
+        public bool BooleanValue { get; set; }
+        public uint UnsignedInteger { get; set; }
+        public long SignedLong { get; set; }
+        public ulong UnsignedLong { get; set; }
+        public decimal DecimalValue { get; set; }
+        public AotNativeScalarState State { get; set; }
+        public DateTime Timestamp { get; set; }
+        public ObjectId ObjectId { get; set; } = ObjectId.Empty;
+        public Guid CorrelationId { get; set; }
+        public byte[] Payload { get; set; } = [];
+        public string Name { get; set; } = string.Empty;
+        public AotNativeScalarState? NullableState { get; set; }
+        public byte[] NullablePayload { get; set; }
     }
 
     [BsonSourceGenerated]

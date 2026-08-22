@@ -106,7 +106,7 @@ namespace LiteDB.AotTests
 
                 using var database = new LiteDatabase(path, mapper);
                 var collection = database.GetGeneratedCollection<PhaseBGeneratedRecord>("phaseB");
-                var record = new PhaseBGeneratedRecord { Name = "inserted", Score = 7 };
+                var record = new PhaseBGeneratedRecord { Name = "inserted", Score = 7L };
 
                 var id = collection.Insert(record);
                 Assert.AreEqual(1, id.AsInt32);
@@ -118,7 +118,7 @@ namespace LiteDB.AotTests
                 var read = collection.FindById(record.Id);
                 Assert.IsNotNull(read);
                 Assert.AreEqual("updated", read.Name);
-                Assert.AreEqual(7, read.Score);
+                Assert.AreEqual(7L, read.Score);
                 Assert.AreEqual(1, collection.Count());
                 Assert.IsTrue(collection.Delete(record.Id));
                 Assert.AreEqual(0, collection.Count());
@@ -127,7 +127,142 @@ namespace LiteDB.AotTests
 
                 var ordinaryCollection = database.GetCollection<PhaseBGeneratedRecord>("ordinaryPhaseB");
                 Assert.ThrowsException<AssertFailedException>(() =>
-                    ordinaryCollection.Insert(new PhaseBGeneratedRecord { Name = "legacy", Score = 1 }));
+                    ordinaryCollection.Insert(new PhaseBGeneratedRecord { Name = "legacy", Score = 1L }));
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
+        public void GetGeneratedCollection_AutomaticallyRegistersC1ScalarExecutionMap()
+        {
+            var path = GetDatabasePath();
+
+            try
+            {
+                var mapper = new ThrowingConversionMapper();
+                LiteDbGeneratedMappings.Register(mapper);
+
+                using var database = new LiteDatabase(path, mapper);
+                var collection = database.GetGeneratedCollection<PhaseCScalarRecord>("phaseC");
+                var record = new PhaseCScalarRecord { Score = 7 };
+
+                var id = collection.Insert(record);
+                var document = database.GetCollection("phaseC").FindById(id);
+                Assert.AreEqual(1, id.AsInt32);
+                Assert.AreEqual(1, record.Id);
+                Assert.AreEqual(1, document["_id"].AsInt32);
+                Assert.AreEqual(7, document[nameof(PhaseCScalarRecord.Score)].AsInt32);
+                Assert.IsFalse(document.ContainsKey(nameof(PhaseCScalarRecord.Name)));
+
+                record.Name = "updated";
+                Assert.IsTrue(collection.Update(record));
+                var read = collection.FindById(id);
+                Assert.IsNotNull(read);
+                Assert.AreEqual("updated", read.Name);
+                Assert.AreEqual(7, read.Score);
+                Assert.AreEqual(1, collection.Count());
+                Assert.IsTrue(collection.Delete(id));
+                Assert.AreEqual(0, collection.Count());
+                Assert.ThrowsException<NotSupportedException>(() => collection.FindAll());
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
+        public void GetGeneratedCollection_AutomaticC1ScalarMap_AcceptsSerializeNullValuesChangedAfterAcquisition()
+        {
+            var path = GetDatabasePath();
+
+            try
+            {
+                var mapper = new BsonMapper();
+                LiteDbGeneratedMappings.Register(mapper);
+
+                using var database = new LiteDatabase(path, mapper);
+                var collection = database.GetGeneratedCollection<PhaseCScalarRecord>("phaseCNulls");
+                mapper.SerializeNullValues = true;
+                var id = collection.Insert(new PhaseCScalarRecord { Score = 8 });
+                var document = database.GetCollection("phaseCNulls").FindById(id);
+
+                Assert.IsTrue(document.ContainsKey(nameof(PhaseCScalarRecord.Name)));
+                Assert.IsTrue(document[nameof(PhaseCScalarRecord.Name)].IsNull);
+                Assert.IsNull(collection.FindById(id)?.Name);
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
+        public void GetGeneratedCollection_AutomaticC2ScalarMap_AppliesTrimWhitespaceAndEmptyStringToNullWithoutMapperFallback()
+        {
+            var path = GetDatabasePath();
+
+            try
+            {
+                var mapper = new ThrowingConversionMapper
+                {
+                    TrimWhitespace = true,
+                    EmptyStringToNull = true
+                };
+                LiteDbGeneratedMappings.Register(mapper);
+
+                using var database = new LiteDatabase(path, mapper);
+                var collection = database.GetGeneratedCollection<PhaseCScalarRecord>("phaseCTrimmedString");
+                var id = collection.Insert(new PhaseCScalarRecord { Name = "  ", Score = 8 });
+                var document = database.GetCollection("phaseCTrimmedString").FindById(id);
+
+                Assert.IsTrue(document[nameof(PhaseCScalarRecord.Name)].IsNull);
+                Assert.IsNull(collection.FindById(id)?.Name);
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
+        public void GetGeneratedCollection_UsesLegacyBridgeForC1IneligibleModel()
+        {
+            var path = GetDatabasePath();
+
+            try
+            {
+                var mapper = new ThrowingConversionMapper();
+                LiteDbGeneratedMappings.Register(mapper);
+
+                using var database = new LiteDatabase(path, mapper);
+                var collection = database.GetGeneratedCollection<PhaseBGeneratedRecord>("phaseBBridge");
+                Assert.ThrowsException<AssertFailedException>(() =>
+                    collection.Insert(new PhaseBGeneratedRecord { Name = "legacy", Score = 1L }));
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
+        public void GetGeneratedCollection_UsesLegacyBridgeForC2AttributeModel()
+        {
+            var path = GetDatabasePath();
+
+            try
+            {
+                var mapper = new ThrowingConversionMapper();
+                LiteDbGeneratedMappings.Register(mapper);
+
+                using var database = new LiteDatabase(path, mapper);
+                var collection = database.GetGeneratedCollection<PhaseCAttributedScalarRecord>("phaseCAttributeBridge");
+                Assert.ThrowsException<AssertFailedException>(() =>
+                    collection.Insert(new PhaseCAttributedScalarRecord { Id = 1, Score = 8 }));
             }
             finally
             {
@@ -157,11 +292,9 @@ namespace LiteDB.AotTests
                     Assert.ThrowsException<NotSupportedException>(() => generated.FindAll());
                 }
 
-                using (var secondDatabase = new LiteDatabase(path, secondMapper))
-                {
-                    var legacyBridge = secondDatabase.GetGeneratedCollection<PhaseBGeneratedRecord>("phaseB");
-                    Assert.IsNotNull(legacyBridge.FindAll());
-                }
+                using var secondDatabase = new LiteDatabase(path, secondMapper);
+                var legacyBridge = secondDatabase.GetGeneratedCollection<PhaseBGeneratedRecord>("phaseB");
+                Assert.IsNotNull(legacyBridge.FindAll());
             }
             finally
             {
@@ -187,7 +320,7 @@ namespace LiteDB.AotTests
                 var exception = Assert.ThrowsException<InvalidOperationException>(() =>
                     database.GetGeneratedCollection<PhaseBGeneratedRecord>("phaseB"));
 
-                StringAssert.Contains(exception.Message, "default BsonMapper configuration");
+                StringAssert.Contains(exception.Message, "does not support the active BsonMapper configuration");
             }
             finally
             {
@@ -212,7 +345,7 @@ namespace LiteDB.AotTests
                 var exception = Assert.ThrowsException<InvalidOperationException>(() =>
                     database.GetGeneratedCollection<PhaseBGeneratedRecord>("phaseB"));
 
-                StringAssert.Contains(exception.Message, "default BsonMapper configuration");
+                StringAssert.Contains(exception.Message, "does not support the active BsonMapper configuration");
             }
             finally
             {
@@ -236,7 +369,7 @@ namespace LiteDB.AotTests
                 mapper.SerializeNullValues = true;
 
                 var exception = Assert.ThrowsException<InvalidOperationException>(() => collection.Count());
-                StringAssert.Contains(exception.Message, "default BsonMapper configuration");
+                StringAssert.Contains(exception.Message, "does not support the active BsonMapper configuration");
             }
             finally
             {
@@ -1249,6 +1382,244 @@ namespace LiteDB.AotTests
             }
         }
 
+        [TestMethod]
+        public void GetGeneratedCollection_AutomaticC2ScalarMap_RoundTripsSupportedScalarMatrixWithoutMapperFallback()
+        {
+            var path = GetDatabasePath();
+            var expectedObjectId = new ObjectId("64c61e5f18a9421a8862c71c");
+            var expectedCorrelationId = new Guid("d29368bb-9669-4f84-9384-c8eb15caa0a8");
+            var expectedTimestamp = new DateTime(2024, 8, 1, 12, 34, 56, 789, DateTimeKind.Utc);
+            var expectedPayload = new byte[] { 0, 1, 127, 128, 255 };
+
+            try
+            {
+                var mapper = new ThrowingConversionMapper
+                {
+                    SerializeNullValues = true,
+                    TrimWhitespace = true,
+                    EmptyStringToNull = true,
+                    EnumAsInteger = false
+                };
+                LiteDbGeneratedMappings.Register(mapper);
+
+                using var database = new LiteDatabase(path, mapper);
+                var collection = database.GetGeneratedCollection<PhaseCScalarCompatibilityRecord>("phaseCScalarCompatibility");
+                collection.Insert(new PhaseCScalarCompatibilityRecord
+                {
+                    Id = 1,
+                    BooleanValue = true,
+                    ByteValue = byte.MaxValue,
+                    SignedByteValue = sbyte.MinValue,
+                    Character = 'Q',
+                    SignedShort = short.MinValue,
+                    UnsignedShort = ushort.MaxValue,
+                    SignedInteger = -123_456,
+                    UnsignedInteger = uint.MaxValue,
+                    SignedLong = -9_000_000_000L,
+                    UnsignedLong = ulong.MaxValue,
+                    SingleValue = 3.25f,
+                    DoubleValue = 6.5d,
+                    DecimalValue = 7.75m,
+                    State = PhaseCScalarState.Completed,
+                    Timestamp = expectedTimestamp,
+                    ObjectId = expectedObjectId,
+                    CorrelationId = expectedCorrelationId,
+                    Payload = expectedPayload,
+                    Name = "  scalar compatibility  ",
+                    NullableInteger = null,
+                    NullableState = null,
+                    NullableObjectId = null,
+                    NullableCorrelationId = null,
+                    NullableTimestamp = null,
+                    NullablePayload = null
+                });
+
+                var document = database.GetCollection("phaseCScalarCompatibility").FindById(1);
+                Assert.AreEqual(BsonType.Boolean, document[nameof(PhaseCScalarCompatibilityRecord.BooleanValue)].Type);
+                Assert.AreEqual(BsonType.Int32, document[nameof(PhaseCScalarCompatibilityRecord.ByteValue)].Type);
+                Assert.AreEqual(BsonType.Int32, document[nameof(PhaseCScalarCompatibilityRecord.SignedByteValue)].Type);
+                Assert.AreEqual(BsonType.String, document[nameof(PhaseCScalarCompatibilityRecord.Character)].Type);
+                Assert.AreEqual(BsonType.Int32, document[nameof(PhaseCScalarCompatibilityRecord.SignedShort)].Type);
+                Assert.AreEqual(BsonType.Int32, document[nameof(PhaseCScalarCompatibilityRecord.UnsignedShort)].Type);
+                Assert.AreEqual(BsonType.Int32, document[nameof(PhaseCScalarCompatibilityRecord.SignedInteger)].Type);
+                Assert.AreEqual(BsonType.Int64, document[nameof(PhaseCScalarCompatibilityRecord.UnsignedInteger)].Type);
+                Assert.AreEqual(BsonType.Int64, document[nameof(PhaseCScalarCompatibilityRecord.SignedLong)].Type);
+                Assert.AreEqual(BsonType.Int64, document[nameof(PhaseCScalarCompatibilityRecord.UnsignedLong)].Type);
+                Assert.AreEqual(BsonType.Double, document[nameof(PhaseCScalarCompatibilityRecord.SingleValue)].Type);
+                Assert.AreEqual(BsonType.Double, document[nameof(PhaseCScalarCompatibilityRecord.DoubleValue)].Type);
+                Assert.AreEqual(BsonType.Decimal, document[nameof(PhaseCScalarCompatibilityRecord.DecimalValue)].Type);
+                Assert.AreEqual(BsonType.String, document[nameof(PhaseCScalarCompatibilityRecord.State)].Type);
+                Assert.AreEqual("Completed", document[nameof(PhaseCScalarCompatibilityRecord.State)].AsString);
+                Assert.AreEqual(BsonType.DateTime, document[nameof(PhaseCScalarCompatibilityRecord.Timestamp)].Type);
+                Assert.AreEqual(BsonType.ObjectId, document[nameof(PhaseCScalarCompatibilityRecord.ObjectId)].Type);
+                Assert.AreEqual(BsonType.Guid, document[nameof(PhaseCScalarCompatibilityRecord.CorrelationId)].Type);
+                Assert.AreEqual(BsonType.Binary, document[nameof(PhaseCScalarCompatibilityRecord.Payload)].Type);
+                Assert.AreEqual("scalar compatibility", document[nameof(PhaseCScalarCompatibilityRecord.Name)].AsString);
+                Assert.IsTrue(document[nameof(PhaseCScalarCompatibilityRecord.NullableInteger)].IsNull);
+                Assert.IsTrue(document[nameof(PhaseCScalarCompatibilityRecord.NullableState)].IsNull);
+                Assert.IsTrue(document[nameof(PhaseCScalarCompatibilityRecord.NullableObjectId)].IsNull);
+                Assert.IsTrue(document[nameof(PhaseCScalarCompatibilityRecord.NullableCorrelationId)].IsNull);
+                Assert.IsTrue(document[nameof(PhaseCScalarCompatibilityRecord.NullableTimestamp)].IsNull);
+                Assert.IsTrue(document[nameof(PhaseCScalarCompatibilityRecord.NullablePayload)].IsNull);
+
+                var actual = collection.FindById(1);
+                Assert.IsNotNull(actual);
+                Assert.AreEqual(true, actual.BooleanValue);
+                Assert.AreEqual(byte.MaxValue, actual.ByteValue);
+                Assert.AreEqual(sbyte.MinValue, actual.SignedByteValue);
+                Assert.AreEqual('Q', actual.Character);
+                Assert.AreEqual(short.MinValue, actual.SignedShort);
+                Assert.AreEqual(ushort.MaxValue, actual.UnsignedShort);
+                Assert.AreEqual(-123_456, actual.SignedInteger);
+                Assert.AreEqual(uint.MaxValue, actual.UnsignedInteger);
+                Assert.AreEqual(-9_000_000_000L, actual.SignedLong);
+                Assert.AreEqual(ulong.MaxValue, actual.UnsignedLong);
+                Assert.AreEqual(3.25f, actual.SingleValue);
+                Assert.AreEqual(6.5d, actual.DoubleValue);
+                Assert.AreEqual(7.75m, actual.DecimalValue);
+                Assert.AreEqual(PhaseCScalarState.Completed, actual.State);
+                Assert.AreEqual(expectedTimestamp, actual.Timestamp.ToUniversalTime());
+                Assert.AreEqual(expectedObjectId, actual.ObjectId);
+                Assert.AreEqual(expectedCorrelationId, actual.CorrelationId);
+                CollectionAssert.AreEqual(expectedPayload, actual.Payload);
+                Assert.AreEqual("scalar compatibility", actual.Name);
+                Assert.IsNull(actual.NullableInteger);
+                Assert.IsNull(actual.NullableState);
+                Assert.IsNull(actual.NullableObjectId);
+                Assert.IsNull(actual.NullableCorrelationId);
+                Assert.IsNull(actual.NullableTimestamp);
+                Assert.IsNull(actual.NullablePayload);
+
+                mapper.EnumAsInteger = true;
+                collection.Insert(new PhaseCScalarCompatibilityRecord { Id = 2, State = PhaseCScalarState.Ready });
+                var integerEnumDocument = database.GetCollection("phaseCScalarCompatibility").FindById(2);
+                Assert.AreEqual(BsonType.Int32, integerEnumDocument[nameof(PhaseCScalarCompatibilityRecord.State)].Type);
+                Assert.AreEqual((int)PhaseCScalarState.Ready, integerEnumDocument[nameof(PhaseCScalarCompatibilityRecord.State)].AsInt32);
+                Assert.AreEqual(PhaseCScalarState.Ready, collection.FindById(2)?.State);
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
+        public void GetGeneratedCollection_AutomaticC2ScalarMap_CrossReadsWithOrdinaryCollection()
+        {
+            var path = GetDatabasePath();
+            var expectedObjectId = new ObjectId("64c61e5f18a9421a8862c71c");
+            var expectedCorrelationId = new Guid("d29368bb-9669-4f84-9384-c8eb15caa0a8");
+            var ordinaryTimestamp = new DateTime(2024, 8, 1, 12, 34, 56, 789, DateTimeKind.Utc);
+            var ordinaryNullableTimestamp = new DateTime(2024, 8, 2, 12, 34, 56, 789, DateTimeKind.Utc);
+            var directTimestamp = new DateTime(2024, 8, 3, 12, 34, 56, 789, DateTimeKind.Utc);
+            var directNullableTimestamp = new DateTime(2024, 8, 4, 12, 34, 56, 789, DateTimeKind.Utc);
+
+            try
+            {
+                var ordinaryWriterMapper = new BsonMapper
+                {
+                    SerializeNullValues = true,
+                    TrimWhitespace = true,
+                    EmptyStringToNull = true,
+                    EnumAsInteger = false
+                };
+                LiteDbGeneratedMappings.Register(ordinaryWriterMapper);
+                using (var database = new LiteDatabase(path, ordinaryWriterMapper))
+                {
+                    database.GetCollection<PhaseCScalarCompatibilityRecord>("phaseCScalarCrossRead").Insert(new PhaseCScalarCompatibilityRecord
+                    {
+                        Id = 1,
+                        Name = "  ordinary writer  ",
+                        UnsignedInteger = uint.MaxValue,
+                        State = PhaseCScalarState.Completed,
+                        NullableState = PhaseCScalarState.Ready,
+                        ObjectId = expectedObjectId,
+                        NullableObjectId = expectedObjectId,
+                        CorrelationId = expectedCorrelationId,
+                        NullableCorrelationId = expectedCorrelationId,
+                        Payload = [1, 2, 3],
+                        NullablePayload = [4, 5],
+                        Timestamp = ordinaryTimestamp,
+                        NullableTimestamp = ordinaryNullableTimestamp
+                    });
+                }
+
+                var directMapper = new ThrowingConversionMapper
+                {
+                    SerializeNullValues = true,
+                    TrimWhitespace = true,
+                    EmptyStringToNull = true,
+                    EnumAsInteger = false
+                };
+                LiteDbGeneratedMappings.Register(directMapper);
+                using (var database = new LiteDatabase(path, directMapper))
+                {
+                    var direct = database.GetGeneratedCollection<PhaseCScalarCompatibilityRecord>("phaseCScalarCrossRead");
+                    var ordinaryWritten = direct.FindById(1);
+                    Assert.IsNotNull(ordinaryWritten);
+                    Assert.AreEqual("ordinary writer", ordinaryWritten.Name);
+                    Assert.AreEqual(uint.MaxValue, ordinaryWritten.UnsignedInteger);
+                    Assert.AreEqual(PhaseCScalarState.Completed, ordinaryWritten.State);
+                    Assert.AreEqual(PhaseCScalarState.Ready, ordinaryWritten.NullableState);
+                    Assert.AreEqual(expectedObjectId, ordinaryWritten.ObjectId);
+                    Assert.AreEqual(expectedObjectId, ordinaryWritten.NullableObjectId);
+                    Assert.AreEqual(expectedCorrelationId, ordinaryWritten.CorrelationId);
+                    Assert.AreEqual(expectedCorrelationId, ordinaryWritten.NullableCorrelationId);
+                    Assert.AreEqual(ordinaryTimestamp, ordinaryWritten.Timestamp.ToUniversalTime());
+                    Assert.IsTrue(ordinaryWritten.NullableTimestamp.HasValue);
+                    Assert.AreEqual(ordinaryNullableTimestamp, ordinaryWritten.NullableTimestamp.Value.ToUniversalTime());
+                    CollectionAssert.AreEqual(new byte[] { 1, 2, 3 }, ordinaryWritten.Payload);
+                    CollectionAssert.AreEqual(new byte[] { 4, 5 }, ordinaryWritten.NullablePayload);
+
+                    direct.Insert(new PhaseCScalarCompatibilityRecord
+                    {
+                        Id = 2,
+                        Name = "  direct writer  ",
+                        UnsignedInteger = uint.MaxValue - 1,
+                        State = PhaseCScalarState.Ready,
+                        NullableState = PhaseCScalarState.Completed,
+                        ObjectId = expectedObjectId,
+                        NullableObjectId = expectedObjectId,
+                        CorrelationId = expectedCorrelationId,
+                        NullableCorrelationId = expectedCorrelationId,
+                        Payload = [6, 7, 8],
+                        NullablePayload = [9],
+                        Timestamp = directTimestamp,
+                        NullableTimestamp = directNullableTimestamp
+                    });
+                }
+
+                var ordinaryReaderMapper = new BsonMapper
+                {
+                    SerializeNullValues = true,
+                    TrimWhitespace = true,
+                    EmptyStringToNull = true,
+                    EnumAsInteger = false
+                };
+                LiteDbGeneratedMappings.Register(ordinaryReaderMapper);
+                using var readerDatabase = new LiteDatabase(path, ordinaryReaderMapper);
+                var directWritten = readerDatabase.GetCollection<PhaseCScalarCompatibilityRecord>("phaseCScalarCrossRead").FindById(2);
+                Assert.IsNotNull(directWritten);
+                Assert.AreEqual("direct writer", directWritten.Name);
+                Assert.AreEqual(uint.MaxValue - 1, directWritten.UnsignedInteger);
+                Assert.AreEqual(PhaseCScalarState.Ready, directWritten.State);
+                Assert.AreEqual(PhaseCScalarState.Completed, directWritten.NullableState);
+                Assert.AreEqual(expectedObjectId, directWritten.ObjectId);
+                Assert.AreEqual(expectedObjectId, directWritten.NullableObjectId);
+                Assert.AreEqual(expectedCorrelationId, directWritten.CorrelationId);
+                Assert.AreEqual(expectedCorrelationId, directWritten.NullableCorrelationId);
+                Assert.AreEqual(directTimestamp, directWritten.Timestamp.ToUniversalTime());
+                Assert.IsTrue(directWritten.NullableTimestamp.HasValue);
+                Assert.AreEqual(directNullableTimestamp, directWritten.NullableTimestamp.Value.ToUniversalTime());
+                CollectionAssert.AreEqual(new byte[] { 6, 7, 8 }, directWritten.Payload);
+                CollectionAssert.AreEqual("\t"u8.ToArray(), directWritten.NullablePayload);
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
         private static void AssertDateTimeOffsetDocument(BsonValue value, DateTimeOffset expected)
         {
             Assert.IsTrue(value.IsDocument);
@@ -1276,7 +1647,7 @@ namespace LiteDB.AotTests
                 {
                     Id = document["_id"].AsInt32,
                     Name = document[nameof(PhaseBGeneratedRecord.Name)].AsString,
-                    Score = document[nameof(PhaseBGeneratedRecord.Score)].AsInt32
+                    Score = document[nameof(PhaseBGeneratedRecord.Score)].AsInt64
                 });
         }
 
@@ -1287,13 +1658,72 @@ namespace LiteDB.AotTests
     }
 
     [BsonSourceGenerated]
+    public sealed class PhaseCScalarRecord
+    {
+        public int Id { get; set; }
+
+        public string? Name { get; set; }
+
+        public int Score { get; set; }
+    }
+
+    public enum PhaseCScalarState
+    {
+        Ready = 1,
+        Completed = 5
+    }
+
+    [BsonSourceGenerated]
+    public sealed class PhaseCScalarCompatibilityRecord
+    {
+        public int Id { get; set; }
+        public bool BooleanValue { get; set; }
+        public byte ByteValue { get; set; }
+        public sbyte SignedByteValue { get; set; }
+        public char Character { get; set; }
+        public short SignedShort { get; set; }
+        public ushort UnsignedShort { get; set; }
+        public int SignedInteger { get; set; }
+        public uint UnsignedInteger { get; set; }
+        public long SignedLong { get; set; }
+        public ulong UnsignedLong { get; set; }
+        public float SingleValue { get; set; }
+        public double DoubleValue { get; set; }
+        public decimal DecimalValue { get; set; }
+        public PhaseCScalarState State { get; set; }
+        public DateTime Timestamp { get; set; }
+        public ObjectId ObjectId { get; set; } = LiteDB.ObjectId.Empty;
+        public Guid CorrelationId { get; set; }
+        public byte[] Payload { get; set; } = [];
+        public string? Name { get; set; }
+        public int? NullableInteger { get; set; }
+        public PhaseCScalarState? NullableState { get; set; }
+        public ObjectId? NullableObjectId { get; set; }
+        public Guid? NullableCorrelationId { get; set; }
+        public DateTime? NullableTimestamp { get; set; }
+        public byte[]? NullablePayload { get; set; }
+    }
+
+    [BsonSourceGenerated]
+    public sealed class PhaseCAttributedScalarRecord
+    {
+        public int Id { get; set; }
+
+        [BsonField("score")]
+        public int Score { get; set; }
+    }
+
+    [BsonSourceGenerated]
     public sealed class PhaseBGeneratedRecord
     {
         public int Id { get; set; }
 
         public string Name { get; set; } = string.Empty;
 
-        public int Score { get; set; }
+        public long Score { get; set; }
+
+        // Keeps the retained manual Phase B registry fixture outside C2 automatic scalar-map emission.
+        public DateTimeOffset LegacyProbe { get; set; }
     }
 
     internal sealed class ThrowingConversionMapper : BsonMapper
@@ -1423,9 +1853,7 @@ namespace LiteDB.AotTests
         public Dictionary<string, object?> Fields { get; set; } = [];
     }
 
-    internal sealed class UnsupportedDynamicDictionaryValue
-    {
-    }
+    internal sealed class UnsupportedDynamicDictionaryValue;
 
     [BsonSourceGenerated]
     public sealed class StringArrayRecord

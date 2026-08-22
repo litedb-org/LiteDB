@@ -169,7 +169,9 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
                 return ModelResult.InvalidProperty(typeName, diagnosticLocation, $"property '{property.Name}' has an unsupported type '{property.Type.ToDisplayString()}'");
             }
 
+            var scalarKind = GetScalarConversionKind(property.Type, out var isNullableScalar);
             var idAttribute = GetAttribute(property, BsonIdAttributeName);
+            var fieldAttribute = GetAttribute(property, BsonFieldAttributeName);
             var fieldName = GetFieldName(property);
             properties.Add(new PropertyDescriptor(
                 Name: property.Name,
@@ -177,7 +179,11 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
                 TypeName: GetTypeName(property.Type),
                 FieldName: fieldName,
                 Kind: kind,
+                ScalarKind: scalarKind,
+                ScalarTypeName: GetScalarTypeName(property.Type),
+                IsNullableScalar: isNullableScalar,
                 HasBsonId: idAttribute is not null,
+                HasBsonField: fieldAttribute is not null,
                 AutoId: GetAutoId(idAttribute),
                 IsId: false));
         }
@@ -237,7 +243,10 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
             }
         }
 
-        return ModelResult.Supported(new ModelDescriptor(typeName, properties.ToImmutableArray()));
+        return ModelResult.Supported(new ModelDescriptor(
+            typeName,
+            properties.ToImmutableArray(),
+            CanEmitExecutionMap(properties, hierarchy.Count != 1)));
     }
 
     private static PropertyKind GetPropertyKind(ITypeSymbol type)
@@ -297,7 +306,7 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
                 };
             }
 
-            var metadataName = namedType.ToDisplayString();
+            var metadataName = namedType.WithNullableAnnotation(NullableAnnotation.None).ToDisplayString();
             if (metadataName is "System.DateTime" or "System.Guid" or "LiteDB.ObjectId")
             {
                 return PropertyKind.Scalar;
@@ -436,6 +445,64 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         return GetAttribute(property, metadataName) is not null;
     }
 
+    private static string GetScalarTypeName(ITypeSymbol type)
+    {
+        if (type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T, TypeArguments.Length: 1 } nullableType)
+        {
+            type = nullableType.TypeArguments[0];
+        }
+
+        return GetTypeName(type);
+    }
+
+    private static ScalarConversionKind GetScalarConversionKind(ITypeSymbol type, out bool isNullableScalar)
+    {
+        isNullableScalar = false;
+        if (type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T, TypeArguments.Length: 1 } nullableType)
+        {
+            isNullableScalar = true;
+            type = nullableType.TypeArguments[0];
+        }
+
+        if (type.TypeKind == TypeKind.Enum) return ScalarConversionKind.Enum;
+
+        if (type is IArrayTypeSymbol { Rank: 1, ElementType.SpecialType: SpecialType.System_Byte }) return ScalarConversionKind.ByteArray;
+
+        var specialType = type.SpecialType;
+        if (specialType == SpecialType.System_Boolean) return ScalarConversionKind.Boolean;
+        if (specialType == SpecialType.System_Byte) return ScalarConversionKind.Byte;
+        if (specialType == SpecialType.System_SByte) return ScalarConversionKind.SByte;
+        if (specialType == SpecialType.System_Char) return ScalarConversionKind.Char;
+        if (specialType == SpecialType.System_Int16) return ScalarConversionKind.Int16;
+        if (specialType == SpecialType.System_UInt16) return ScalarConversionKind.UInt16;
+        if (specialType == SpecialType.System_Int32) return ScalarConversionKind.Int32;
+        if (specialType == SpecialType.System_UInt32) return ScalarConversionKind.UInt32;
+        if (specialType == SpecialType.System_Int64) return ScalarConversionKind.Int64;
+        if (specialType == SpecialType.System_UInt64) return ScalarConversionKind.UInt64;
+        if (specialType == SpecialType.System_Single) return ScalarConversionKind.Single;
+        if (specialType == SpecialType.System_Double) return ScalarConversionKind.Double;
+        if (specialType == SpecialType.System_Decimal) return ScalarConversionKind.Decimal;
+        if (specialType == SpecialType.System_String) return ScalarConversionKind.String;
+
+        return type.WithNullableAnnotation(NullableAnnotation.None).ToDisplayString() switch
+        {
+            "System.DateTime" => ScalarConversionKind.DateTime,
+            "System.Guid" => ScalarConversionKind.Guid,
+            "LiteDB.ObjectId" => ScalarConversionKind.ObjectId,
+            _ => ScalarConversionKind.None
+        };
+    }
+
+    private static bool CanEmitExecutionMap(IReadOnlyList<PropertyDescriptor> properties, bool hasInheritance)
+    {
+        return hasInheritance == false &&
+            properties.All(property =>
+                property.Kind == PropertyKind.Scalar &&
+                property.ScalarKind != ScalarConversionKind.None &&
+                property.HasBsonId == false &&
+                property.HasBsonField == false);
+    }
+
     private static string GenerateSource(IReadOnlyList<ModelDescriptor> models)
     {
         var source = new StringBuilder();
@@ -461,6 +528,14 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
             source.Append("            mapper.RegisterGeneratedEntityMapper(map").Append(index).AppendLine(");");
         }
 
+        for (var index = 0; index < models.Count; index++)
+        {
+            if (models[index].CanEmitExecutionMap)
+            {
+                source.Append("            mapper.RegisterGeneratedExecutionMap(CreateExecutionMap").Append(index).AppendLine("());");
+            }
+        }
+
         source.AppendLine("        }");
         AppendStringListHelpers(source);
         if (HasStringArrayProperties(models))
@@ -481,6 +556,10 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         for (var index = 0; index < models.Count; index++)
         {
             AppendFactory(source, models[index], index);
+            if (models[index].CanEmitExecutionMap)
+            {
+                AppendExecutionMapFactory(source, models[index], index);
+            }
         }
 
         source.AppendLine("    }");
@@ -740,6 +819,164 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         source.AppendLine("        }");
     }
 
+    private static void AppendExecutionMapFactory(StringBuilder source, ModelDescriptor model, int index)
+    {
+        source.AppendLine();
+        source.Append("        private static global::LiteDB.GeneratedEntityMap<").Append(model.TypeName).Append("> CreateExecutionMap").Append(index).AppendLine("()");
+        source.AppendLine("        {");
+        source.Append("            return new global::LiteDB.GeneratedEntityMap<").Append(model.TypeName).Append(">(SerializeExecution").Append(index).Append(", DeserializeExecution").Append(index).AppendLine(");");
+        source.AppendLine("        }");
+        source.AppendLine();
+        source.Append("        private static global::LiteDB.BsonDocument SerializeExecution").Append(index).Append("(").Append(model.TypeName).AppendLine(" entity, global::LiteDB.GeneratedExecutionOptions options)");
+        source.AppendLine("        {");
+        source.AppendLine("            var document = new global::LiteDB.BsonDocument();");
+
+        foreach (var property in model.Properties)
+        {
+            var fieldName = property.IsId ? "_id" : property.FieldName;
+            AppendSerializeExecutionProperty(source, property, SymbolDisplay.FormatLiteral(fieldName, true));
+        }
+
+        source.AppendLine("            return document;");
+        source.AppendLine("        }");
+        source.AppendLine();
+        source.Append("        private static ").Append(model.TypeName).Append(" DeserializeExecution").Append(index).Append("(global::LiteDB.BsonDocument document, global::LiteDB.GeneratedExecutionOptions _)").AppendLine();
+        source.AppendLine("        {");
+        source.Append("            var entity = new ").Append(model.TypeName).AppendLine("();");
+
+        for (var propertyIndex = 0; propertyIndex < model.Properties.Length; propertyIndex++)
+        {
+            var property = model.Properties[propertyIndex];
+            var fieldName = property.IsId ? "_id" : property.FieldName;
+            AppendDeserializeExecutionProperty(source, property, SymbolDisplay.FormatLiteral(fieldName, true), propertyIndex);
+        }
+
+        source.AppendLine("            return entity;");
+        source.AppendLine("        }");
+    }
+
+    private static void AppendSerializeExecutionProperty(StringBuilder source, PropertyDescriptor property, string fieldLiteral)
+    {
+        var access = "entity." + property.Identifier;
+        if (property.ScalarKind == ScalarConversionKind.String)
+        {
+            source.Append("            if (").Append(access).AppendLine(" is null)");
+            source.AppendLine("            {");
+            if (property.IsId)
+            {
+                source.Append("                document[").Append(fieldLiteral).AppendLine("] = global::LiteDB.BsonValue.Null;");
+            }
+            else
+            {
+                source.Append("                if (options.SerializeNullValues) document[").Append(fieldLiteral).AppendLine("] = global::LiteDB.BsonValue.Null;");
+            }
+            source.AppendLine("            }");
+            source.AppendLine("            else");
+            source.AppendLine("            {");
+            source.Append("                var text = options.TrimWhitespace ? ").Append(access).Append(".Trim() : ").Append(access).AppendLine(";");
+            source.Append("                document[").Append(fieldLiteral).Append("] = options.EmptyStringToNull && text.Length == 0 ? global::LiteDB.BsonValue.Null : new global::LiteDB.BsonValue(text);").AppendLine();
+            source.AppendLine("            }");
+            return;
+        }
+
+        if (property.IsNullableScalar || IsReferenceScalar(property.ScalarKind))
+        {
+            source.Append("            if (").Append(access).AppendLine(" is null)");
+            source.AppendLine("            {");
+            if (property.IsId)
+            {
+                source.Append("                document[").Append(fieldLiteral).AppendLine("] = global::LiteDB.BsonValue.Null;");
+            }
+            else
+            {
+                source.Append("                if (options.SerializeNullValues) document[").Append(fieldLiteral).AppendLine("] = global::LiteDB.BsonValue.Null;");
+            }
+            source.AppendLine("            }");
+            source.AppendLine("            else");
+            source.AppendLine("            {");
+            var value = property.IsNullableScalar ? access + ".Value" : access;
+            source.Append("                document[").Append(fieldLiteral).Append("] = ").Append(GetSerializeExpression(property, value)).AppendLine(";");
+            source.AppendLine("            }");
+            return;
+        }
+
+        source.Append("            document[").Append(fieldLiteral).Append("] = ").Append(GetSerializeExpression(property, access)).AppendLine(";");
+    }
+
+    private static void AppendDeserializeExecutionProperty(StringBuilder source, PropertyDescriptor property, string fieldLiteral, int propertyIndex)
+    {
+        var value = "value" + propertyIndex;
+        source.Append("            if (document.TryGetValue(").Append(fieldLiteral).Append(", out var ").Append(value).AppendLine(") && " + value + ".IsNull == false)");
+        source.AppendLine("            {");
+        source.Append("                entity.").Append(property.Identifier).Append(" = ").Append(GetDeserializeExpression(property, value)).AppendLine(";");
+        source.AppendLine("            }");
+        if (property.IsNullableScalar || IsReferenceScalar(property.ScalarKind))
+        {
+            source.Append("            else if (document.TryGetValue(").Append(fieldLiteral).Append(", out ").Append(value).Append(") && ").Append(value).AppendLine(".IsNull)");
+            source.AppendLine("            {");
+            source.Append("                entity.").Append(property.Identifier).AppendLine(" = null!;");
+            source.AppendLine("            }");
+        }
+    }
+
+    private static bool IsReferenceScalar(ScalarConversionKind kind)
+    {
+        return kind is ScalarConversionKind.String or ScalarConversionKind.ByteArray or ScalarConversionKind.ObjectId;
+    }
+
+    private static string GetSerializeExpression(PropertyDescriptor property, string value)
+    {
+        return property.ScalarKind switch
+        {
+            ScalarConversionKind.Boolean => "new global::LiteDB.BsonValue(" + value + ")",
+            ScalarConversionKind.Byte => "new global::LiteDB.BsonValue((int)" + value + ")",
+            ScalarConversionKind.SByte => "new global::LiteDB.BsonValue((int)" + value + ")",
+            ScalarConversionKind.Char => "new global::LiteDB.BsonValue(" + value + ".ToString())",
+            ScalarConversionKind.Int16 => "new global::LiteDB.BsonValue((int)" + value + ")",
+            ScalarConversionKind.UInt16 => "new global::LiteDB.BsonValue((int)" + value + ")",
+            ScalarConversionKind.Int32 => "new global::LiteDB.BsonValue(" + value + ")",
+            ScalarConversionKind.UInt32 => "new global::LiteDB.BsonValue((long)" + value + ")",
+            ScalarConversionKind.Int64 => "new global::LiteDB.BsonValue(" + value + ")",
+            ScalarConversionKind.UInt64 => "new global::LiteDB.BsonValue(unchecked((long)" + value + "))",
+            ScalarConversionKind.Single => "new global::LiteDB.BsonValue((double)" + value + ")",
+            ScalarConversionKind.Double => "new global::LiteDB.BsonValue(" + value + ")",
+            ScalarConversionKind.Decimal => "new global::LiteDB.BsonValue(" + value + ")",
+            ScalarConversionKind.ByteArray => "new global::LiteDB.BsonValue(" + value + ")",
+            ScalarConversionKind.DateTime => "new global::LiteDB.BsonValue(" + value + ")",
+            ScalarConversionKind.Guid => "new global::LiteDB.BsonValue(" + value + ")",
+            ScalarConversionKind.ObjectId => "new global::LiteDB.BsonValue(" + value + ")",
+            ScalarConversionKind.Enum => "options.EnumAsInteger ? new global::LiteDB.BsonValue((int)" + value + ") : new global::LiteDB.BsonValue(" + value + ".ToString())",
+            _ => throw new InvalidOperationException("Unsupported generated execution scalar conversion.")
+        };
+    }
+
+    private static string GetDeserializeExpression(PropertyDescriptor property, string value)
+    {
+        return property.ScalarKind switch
+        {
+            ScalarConversionKind.Boolean => value + ".AsBoolean",
+            ScalarConversionKind.Byte => "(byte)" + value + ".AsInt32",
+            ScalarConversionKind.SByte => "(sbyte)" + value + ".AsInt32",
+            ScalarConversionKind.Char => value + ".AsString[0]",
+            ScalarConversionKind.Int16 => "(short)" + value + ".AsInt32",
+            ScalarConversionKind.UInt16 => "(ushort)" + value + ".AsInt32",
+            ScalarConversionKind.Int32 => value + ".AsInt32",
+            ScalarConversionKind.UInt32 => "(uint)" + value + ".AsInt64",
+            ScalarConversionKind.Int64 => value + ".AsInt64",
+            ScalarConversionKind.UInt64 => "unchecked((global::System.UInt64)" + value + ".AsInt64)",
+            ScalarConversionKind.Single => "(float)" + value + ".AsDouble",
+            ScalarConversionKind.Double => value + ".AsDouble",
+            ScalarConversionKind.Decimal => value + ".AsDecimal",
+            ScalarConversionKind.String => value + ".AsString",
+            ScalarConversionKind.ByteArray => value + ".AsBinary",
+            ScalarConversionKind.DateTime => value + ".AsDateTime",
+            ScalarConversionKind.Guid => value + ".AsGuid",
+            ScalarConversionKind.ObjectId => value + ".AsObjectId",
+            ScalarConversionKind.Enum => value + ".IsInt32 ? (" + property.ScalarTypeName + ")" + value + ".AsInt32 : global::System.Enum.Parse<" + property.ScalarTypeName + ">(" + value + ".AsString)",
+            _ => throw new InvalidOperationException("Unsupported generated execution scalar conversion.")
+        };
+    }
+
     private static string EscapeIdentifier(string identifier)
     {
         return SyntaxFacts.GetKeywordKind(identifier) == SyntaxKind.None ? identifier : "@" + identifier;
@@ -783,7 +1020,10 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         public Location Create() => Location.Create(FilePath, SourceSpan, LineSpan);
     }
 
-    private sealed record ModelDescriptor(string TypeName, ImmutableArray<PropertyDescriptor> Properties);
+    private sealed record ModelDescriptor(
+        string TypeName,
+        ImmutableArray<PropertyDescriptor> Properties,
+        bool CanEmitExecutionMap);
 
     private sealed record PropertyDescriptor(
         string Name,
@@ -791,9 +1031,37 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         string TypeName,
         string FieldName,
         PropertyKind Kind,
+        ScalarConversionKind ScalarKind,
+        string ScalarTypeName,
+        bool IsNullableScalar,
         bool HasBsonId,
+        bool HasBsonField,
         bool AutoId,
         bool IsId);
+
+    private enum ScalarConversionKind
+    {
+        None,
+        Boolean,
+        Byte,
+        SByte,
+        Char,
+        Int16,
+        UInt16,
+        Int32,
+        UInt32,
+        Int64,
+        UInt64,
+        Single,
+        Double,
+        Decimal,
+        String,
+        ByteArray,
+        DateTime,
+        Guid,
+        ObjectId,
+        Enum
+    }
 
     private enum PropertyKind
     {

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using LiteDB;
 using LiteDB.Generated;
 
@@ -13,7 +14,45 @@ public sealed class PackagedExecutionRecord
 
     public string Name { get; set; } = string.Empty;
 
+    public long Score { get; set; }
+
+    // Keeps this retained manual Phase B package fixture outside C2 automatic scalar-map emission.
+    public DateTimeOffset LegacyProbe { get; set; }
+}
+
+[BsonSourceGenerated]
+public sealed class PackagedC1ScalarRecord
+{
+    public int Id { get; set; }
+
+    public string? Name { get; set; }
+
     public int Score { get; set; }
+}
+
+[BsonSourceGenerated]
+public sealed class PackagedC2ScalarRecord
+{
+    public int Id { get; set; }
+    public bool BooleanValue { get; set; }
+    public uint UnsignedInteger { get; set; }
+    public long SignedLong { get; set; }
+    public ulong UnsignedLong { get; set; }
+    public decimal DecimalValue { get; set; }
+    public PackagedScalarState State { get; set; }
+    public DateTime Timestamp { get; set; }
+    public ObjectId ObjectId { get; set; } = ObjectId.Empty;
+    public Guid CorrelationId { get; set; }
+    public byte[] Payload { get; set; } = [];
+    public string? Name { get; set; }
+    public PackagedScalarState? NullableState { get; set; }
+    public byte[]? NullablePayload { get; set; }
+}
+
+public enum PackagedScalarState
+{
+    Ready = 1,
+    Completed = 5
 }
 
 [BsonSourceGenerated]
@@ -84,16 +123,72 @@ internal static class Program
         using var stream = new MemoryStream();
         using var database = new LiteDatabase(stream, mapper);
         var executionCollection = database.GetGeneratedCollection<PackagedExecutionRecord>("packaged_execution_records");
-        executionCollection.Insert(new PackagedExecutionRecord { Name = "package-execution", Score = 7 });
+        executionCollection.Insert(new PackagedExecutionRecord { Name = "package-execution", Score = 7L });
         var executionRecord = executionCollection.FindById(1)
             ?? throw new InvalidOperationException("The packaged generated execution map did not return its scalar record.");
-        Require(executionRecord.Name == "package-execution" && executionRecord.Score == 7,
+        Require(executionRecord.Name == "package-execution" && executionRecord.Score == 7L,
             "The packaged generated execution map did not round trip its scalar record.");
         executionRecord.Name = "package-updated";
         Require(executionCollection.Update(executionRecord), "The packaged generated execution map did not update its scalar record.");
         Require(executionCollection.FindById(1)?.Name == "package-updated", "The packaged generated execution map did not read its updated scalar record.");
         Require(executionCollection.Delete(1) && executionCollection.Count() == 0,
             "The packaged generated execution map did not complete delete/count operations.");
+
+        var automaticC1Collection = database.GetGeneratedCollection<PackagedC1ScalarRecord>("packaged_c1_scalar_records");
+        automaticC1Collection.Insert(new PackagedC1ScalarRecord { Score = 8 });
+        var automaticC1Record = automaticC1Collection.FindById(1);
+        Require(automaticC1Record is not null &&
+                automaticC1Record.Id == 1 &&
+                automaticC1Record.Name is null &&
+                automaticC1Record.Score == 8,
+            "The packaged C1 automatic execution map did not round trip its scalar record.");
+        Require(automaticC1Collection.Update(new PackagedC1ScalarRecord { Id = 1, Name = "automatic", Score = 9 }) &&
+                automaticC1Collection.FindById(1)?.Name == "automatic" &&
+                automaticC1Collection.Count() == 1 &&
+                automaticC1Collection.Delete(1),
+            "The packaged C1 automatic execution map did not complete direct scalar CRUD.");
+
+        var expectedC2ObjectId = new ObjectId("64c61e5f18a9421a8862c71c");
+        var expectedC2CorrelationId = new Guid("d29368bb-9669-4f84-9384-c8eb15caa0a8");
+        var automaticC2Collection = database.GetGeneratedCollection<PackagedC2ScalarRecord>("packaged_c2_scalar_records");
+        automaticC2Collection.Insert(new PackagedC2ScalarRecord
+        {
+            Id = 1,
+            BooleanValue = true,
+            UnsignedInteger = uint.MaxValue,
+            SignedLong = -9_000_000_000L,
+            UnsignedLong = ulong.MaxValue,
+            DecimalValue = 7.75m,
+            State = PackagedScalarState.Completed,
+            Timestamp = new DateTime(2024, 8, 1, 12, 34, 56, 789, DateTimeKind.Utc),
+            ObjectId = expectedC2ObjectId,
+            CorrelationId = expectedC2CorrelationId,
+            Payload = [0, 1, 127, 128, 255],
+            Name = "  package c2  ",
+            NullableState = null,
+            NullablePayload = null
+        });
+        var automaticC2Document = database.GetCollection("packaged_c2_scalar_records").FindById(1);
+        var automaticC2Record = automaticC2Collection.FindById(1);
+        Require(automaticC2Document[nameof(PackagedC2ScalarRecord.UnsignedInteger)].Type == BsonType.Int64 &&
+                automaticC2Document[nameof(PackagedC2ScalarRecord.State)].Type == BsonType.String &&
+                automaticC2Document[nameof(PackagedC2ScalarRecord.State)].AsString == nameof(PackagedScalarState.Completed) &&
+                automaticC2Document[nameof(PackagedC2ScalarRecord.NullableState)].IsNull &&
+                automaticC2Document[nameof(PackagedC2ScalarRecord.NullablePayload)].IsNull &&
+                automaticC2Record is not null &&
+                automaticC2Record.BooleanValue &&
+                automaticC2Record.UnsignedInteger == uint.MaxValue &&
+                automaticC2Record.SignedLong == -9_000_000_000L &&
+                automaticC2Record.UnsignedLong == ulong.MaxValue &&
+                automaticC2Record.DecimalValue == 7.75m &&
+                automaticC2Record.State == PackagedScalarState.Completed &&
+                automaticC2Record.ObjectId == expectedC2ObjectId &&
+                automaticC2Record.CorrelationId == expectedC2CorrelationId &&
+                automaticC2Record.Payload.SequenceEqual(new byte[] { 0, 1, 127, 128, 255 }) &&
+                automaticC2Record.Name == "package c2" &&
+                automaticC2Record.NullableState is null &&
+                automaticC2Record.NullablePayload is null,
+            "The packaged C2 automatic scalar compatibility map did not round trip without a manual execution map.");
 
         var mutableRecords = database.GetGeneratedCollection<PackagedMutableRecord>("packaged_mutable_records");
         mutableRecords.Insert(new PackagedMutableRecord { Name = "record" });
@@ -110,6 +205,13 @@ internal static class Program
             "The packaged generated virtual override did not materialize through the most-derived setter.");
 
         mapper.SerializeNullValues = true;
+
+        var automaticC1Nulls = database.GetGeneratedCollection<PackagedC1ScalarRecord>("packaged_c1_scalar_nulls");
+        automaticC1Nulls.Insert(new PackagedC1ScalarRecord { Score = 10 });
+        var automaticC1NullDocument = database.GetCollection("packaged_c1_scalar_nulls").FindById(1);
+        Require(automaticC1NullDocument[nameof(PackagedC1ScalarRecord.Name)].IsNull &&
+                automaticC1Nulls.FindById(1)?.Name is null,
+            "The packaged C1 automatic execution map did not persist a configured null string.");
 
         var collection = database.GetGeneratedCollection<PackagedGeneratedRecord>("packaged_generated_records");
         collection.Insert(new PackagedGeneratedRecord
@@ -172,7 +274,7 @@ internal static class Program
             {
                 Id = document["_id"].AsInt32,
                 Name = document[nameof(PackagedExecutionRecord.Name)].AsString,
-                Score = document[nameof(PackagedExecutionRecord.Score)].AsInt32
+                Score = document[nameof(PackagedExecutionRecord.Score)].AsInt64
             });
     }
 

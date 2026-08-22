@@ -13,7 +13,7 @@ namespace LiteDB
         private readonly MemberMapper _id;
         private readonly BsonAutoId _autoId;
         private readonly GeneratedEntityMap<T> _map;
-        private readonly Action _validateConfiguration;
+        private readonly Func<GeneratedExecutionOptions> _getExecutionOptions;
 
         public string Name => _collection;
 
@@ -27,23 +27,23 @@ namespace LiteDB
             ILiteEngine engine,
             EntityMapper entity,
             GeneratedEntityMap<T> map,
-            Action validateConfiguration)
+            Func<GeneratedExecutionOptions> getExecutionOptions)
         {
             _collection = name ?? throw new ArgumentNullException(nameof(name));
             _engine = engine ?? throw new ArgumentNullException(nameof(engine));
             _entity = entity ?? throw new ArgumentNullException(nameof(entity));
             _map = map ?? throw new ArgumentNullException(nameof(map));
-            _validateConfiguration = validateConfiguration ?? throw new ArgumentNullException(nameof(validateConfiguration));
+            _getExecutionOptions = getExecutionOptions ?? throw new ArgumentNullException(nameof(getExecutionOptions));
             _id = entity.Id;
             _autoId = ResolveAutoId(_id, autoId);
         }
 
         public BsonValue Insert(T entity)
         {
-            _validateConfiguration();
+            var options = _getExecutionOptions();
             if (entity == null) throw new ArgumentNullException(nameof(entity));
 
-            var document = _map.Serialize(entity);
+            var document = _map.Serialize(entity, options);
             var removedId = RemoveEmptyId(document);
 
             _engine.Insert(_collection, new[] { document }, _autoId);
@@ -59,27 +59,27 @@ namespace LiteDB
 
         public bool Update(T entity)
         {
-            _validateConfiguration();
+            var options = _getExecutionOptions();
             if (entity == null) throw new ArgumentNullException(nameof(entity));
 
-            return _engine.Update(_collection, new[] { _map.Serialize(entity) }) > 0;
+            return _engine.Update(_collection, new[] { _map.Serialize(entity, options) }) > 0;
         }
 
         public T FindById(BsonValue id)
         {
-            _validateConfiguration();
+            var options = _getExecutionOptions();
             if (id == null || id.IsNull) throw new ArgumentNullException(nameof(id));
 
             var query = new Query { Limit = 1 };
             query.Where.Add(BsonExpression.Create("_id = @0", id));
 
             using var reader = _engine.Query(_collection, query);
-            return reader.Read() ? _map.Deserialize(reader.Current.AsDocument) : default;
+            return reader.Read() ? _map.Deserialize(reader.Current.AsDocument, options) : default;
         }
 
         public bool Delete(BsonValue id)
         {
-            _validateConfiguration();
+            _getExecutionOptions();
             if (id == null || id.IsNull) throw new ArgumentNullException(nameof(id));
 
             return _engine.Delete(_collection, new[] { id }) > 0;
@@ -87,7 +87,7 @@ namespace LiteDB
 
         public int Count()
         {
-            _validateConfiguration();
+            _getExecutionOptions();
             var count = 0;
             using var reader = _engine.Query(_collection, new Query());
             while (reader.Read()) count++;

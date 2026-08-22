@@ -86,7 +86,9 @@ using var database = new LiteDatabase("customers.db", mapper);
 var customers = database.GetGeneratedCollection<Customer>("customers");
 ```
 
-`Register` must run before `GetGeneratedCollection<T>`. Calling it twice for the same mapper throws `InvalidOperationException`. `GetGeneratedCollection<T>` also throws when no generated map for `T` has been registered. This is intentional: it prevents the generated path from silently falling back to automatic runtime mapping. See [SourceGeneratorPackage.md](SourceGeneratorPackage.md) for package-version policy, contributor package checks, and release requirements.
+`Register` must run before `GetGeneratedCollection<T>`. Calling it twice for the same mapper throws `InvalidOperationException`. `GetGeneratedCollection<T>` also throws when no generated entity map for `T` has been registered. This is intentional: it prevents the generated entry point from silently constructing an entity map at runtime.
+
+Phase C C2.1 automatically registers a direct execution map when **every persisted member** is an admitted scalar: Boolean, the signed and unsigned integer widths, Single, Double, Decimal, Char, String, enum, `byte[]`, `DateTime`, `Guid`, `ObjectId`, or a nullable value-type form of one of those values. `LiteDbGeneratedMappings.Register(mapper)` is the only registration call required. Such collections execute `Insert`, `Update`, `FindById`, `Count`, and `Delete` through generated document conversion; no consumer calls `RegisterGeneratedExecutionMap` manually. The direct path reproduces `SerializeNullValues`, `TrimWhitespace`, `EmptyStringToNull`, and `EnumAsInteger`; it rejects other mapper-shaping settings before data access. `DateTimeOffset`, lists, string arrays, dynamic dictionaries, inheritance/attribute shapes, and other valid generated models currently retain the temporary generated-entity-map bridge until their independent Phase C compatibility rows are complete. Batch, explicit-ID, and upsert direct operations are also deferred. Ordinary `GetCollection<T>` remains the reflection-capable LiteDB API. See [SourceGeneratorPackage.md](SourceGeneratorPackage.md) for package-version policy, contributor package checks, and release requirements.
 
 ## Supported model subset
 
@@ -131,7 +133,7 @@ Unsupported annotated shapes produce a fail-closed **error** diagnostic; the gen
 
 ## Contributor validation
 
-`LiteDB.AotTests` exercises generated registration, mutable record classes, IDs, field and ignore attributes, scalar and nullable scalar values, `DateTimeOffset` values and cross-path reads, inherited and overridden properties, computed projections, `List<string>`, `string[]`, and dynamic-dictionary round trips. `LiteDB.AotSmokeTests` publishes and runs a Native AOT executable with generated scalar, nullable scalar, list, string-array, DateTimeOffset, inherited-property, computed-projection, and dynamic-dictionary workflows alongside document, query, and stream scenarios.
+`LiteDB.AotTests` exercises generated registration, C2 direct scalar conversion with option-sensitive BSON golden documents and ordinary/direct cross-reads, mutable record classes, IDs, field and ignore attributes, `DateTimeOffset` values and cross-path reads, inherited and overridden properties, computed projections, `List<string>`, `string[]`, and dynamic-dictionary round trips. `LiteDB.AotSmokeTests` publishes and runs a Native AOT executable with an automatic C2 scalar execution checkpoint alongside generated scalar, nullable scalar, list, string-array, DateTimeOffset, inherited-property, computed-projection, and dynamic-dictionary workflows plus document, query, and stream scenarios.
 
 Run the focused tests with:
 

@@ -158,6 +158,76 @@ namespace LiteDB.AotTests
                 "Setter = (entity, value) => ((global::SnapshotConsumer.HelperSnapshotRecord)entity).Fields = (global::System.Collections.Generic.Dictionary<string, object?>)value");
         }
 
+
+        [TestMethod]
+        public void BsonSourceGenerator_C2Scalar_EmitsAutomaticExecutionMapSemanticSnapshot()
+        {
+            const string source = """
+                using LiteDB;
+
+                namespace SnapshotConsumer;
+
+                [BsonSourceGenerated]
+                public sealed class C1ScalarRecord
+                {
+                    public int Id { get; set; }
+                    public string? Name { get; set; }
+                    public int Score { get; set; }
+                }
+                """;
+
+            var generatedSource = GenerateSource(source);
+
+            AssertContainsInOrder(
+                generatedSource,
+                "mapper.RegisterGeneratedExecutionMap(CreateExecutionMap0());",
+                "private static global::LiteDB.GeneratedEntityMap<global::SnapshotConsumer.C1ScalarRecord> CreateExecutionMap0()",
+                "document[\"_id\"] = new global::LiteDB.BsonValue(entity.Id);",
+                "if (entity.Name is null)",
+                "var text = options.TrimWhitespace ? entity.Name.Trim() : entity.Name;",
+                "document[\"Name\"] = options.EmptyStringToNull && text.Length == 0 ? global::LiteDB.BsonValue.Null : new global::LiteDB.BsonValue(text);",
+                "entity.Score = value2.AsInt32;");
+        }
+
+        [TestMethod]
+        public void BsonSourceGenerator_C2ScalarMatrix_EmitsDirectScalarCompatibilityConversions()
+        {
+            const string source = """
+                using LiteDB;
+
+                namespace SnapshotConsumer;
+
+                public enum ScalarState
+                {
+                    Ready = 1
+                }
+
+                [BsonSourceGenerated]
+                public sealed class ScalarCompatibilityRecord
+                {
+                    public int Id { get; set; }
+                    public uint Unsigned { get; set; }
+                    public ScalarState State { get; set; }
+                    public ScalarState? NullableState { get; set; }
+                    public ObjectId? NullableObjectId { get; set; }
+                    public byte[]? Payload { get; set; }
+                }
+                """;
+
+            var generatedSource = GenerateSource(source);
+
+            AssertContainsInOrder(
+                generatedSource,
+                "document[\"Unsigned\"] = new global::LiteDB.BsonValue((long)entity.Unsigned);",
+                "document[\"State\"] = options.EnumAsInteger ? new global::LiteDB.BsonValue((int)entity.State) : new global::LiteDB.BsonValue(entity.State.ToString());",
+                "if (entity.NullableState is null)",
+                "document[\"NullableState\"] = options.EnumAsInteger ? new global::LiteDB.BsonValue((int)entity.NullableState.Value) : new global::LiteDB.BsonValue(entity.NullableState.Value.ToString());",
+                "if (entity.NullableObjectId is null)",
+                "entity.NullableState = value3.IsInt32 ? (global::SnapshotConsumer.ScalarState)value3.AsInt32 : global::System.Enum.Parse<global::SnapshotConsumer.ScalarState>(value3.AsString);",
+                "entity.NullableObjectId = value4.AsObjectId;");
+        }
+
+
         private static string GenerateSource(string source)
         {
             var sourceTree = CSharpSyntaxTree.ParseText(source, path: "SnapshotConsumer.cs");

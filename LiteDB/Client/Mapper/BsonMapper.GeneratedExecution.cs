@@ -75,12 +75,14 @@ namespace LiteDB
             throw new InvalidOperationException($"No source-generated entity mapper is registered for '{type.FullName}'.");
         }
 
-        internal void ValidateGeneratedExecutionConfiguration()
+        internal GeneratedExecutionOptions ValidateGeneratedExecutionConfiguration<T>(GeneratedEntityMap<T> map)
         {
-            if (SerializeNullValues ||
-                TrimWhitespace == false ||
-                EmptyStringToNull == false ||
-                EnumAsInteger ||
+            if (map == null) throw new ArgumentNullException(nameof(map));
+
+            if (((SerializeNullValues ||
+                    TrimWhitespace == false ||
+                    EmptyStringToNull == false ||
+                    EnumAsInteger) && map.SupportsScalarOptions == false) ||
                 MaxDepth != 20 ||
                 IncludeFields ||
                 IncludeNonPublic ||
@@ -92,9 +94,15 @@ namespace LiteDB
                 ResolveMember != ResolveMemberDefault)
             {
                 throw new InvalidOperationException(
-                    "The registered source-generated execution map requires the default BsonMapper configuration. " +
+                    "The registered source-generated execution map does not support the active BsonMapper configuration. " +
                     "Use GetCollection<T> for customized mapper behavior until the generated execution contract supports that configuration.");
             }
+
+            return new GeneratedExecutionOptions(
+                SerializeNullValues,
+                TrimWhitespace,
+                EmptyStringToNull,
+                EnumAsInteger);
         }
     }
 }

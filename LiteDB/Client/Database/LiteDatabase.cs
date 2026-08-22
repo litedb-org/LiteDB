@@ -140,8 +140,14 @@ namespace LiteDB
 
             if (Mapper.TryGetGeneratedExecutionMap<T>(out var generatedMap))
             {
-                Mapper.ValidateGeneratedExecutionConfiguration();
-                return new GeneratedLiteCollection<T>(name, autoId, _engine, Mapper.GetGeneratedEntityMapper(typeof(T)), generatedMap, Mapper.ValidateGeneratedExecutionConfiguration);
+                Mapper.ValidateGeneratedExecutionConfiguration(generatedMap);
+                return new GeneratedLiteCollection<T>(
+                    name,
+                    autoId,
+                    _engine,
+                    Mapper.GetGeneratedEntityMapper(typeof(T)),
+                    generatedMap,
+                    () => Mapper.ValidateGeneratedExecutionConfiguration(generatedMap));
             }
 
             return this.GetCollectionCore<T>(name, autoId);
