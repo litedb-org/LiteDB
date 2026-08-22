@@ -35,6 +35,57 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
+        public void BsonSourceGenerator_RecordClassWithInitOnlyProperty_ReportsLdbsg002OnRecordIdentifier()
+        {
+            const string source = """
+                using LiteDB;
+
+                namespace ExternalConsumer;
+
+                [BsonSourceGenerated]
+                public record InvalidRecordDiagnostic
+                {
+                    public int Id { get; init; }
+                }
+                """;
+
+            AssertDiagnostic(
+                source,
+                "InvalidRecordDiagnostic.cs",
+                "LDBSG002",
+                "InvalidRecordDiagnostic",
+                "public non-init getter and setter");
+        }
+
+        [TestMethod]
+        public void BsonSourceGenerator_HiddenMappedProperty_ReportsLdbsg003OnAnnotatedClassIdentifier()
+        {
+            const string source = """
+                using LiteDB;
+
+                namespace ExternalConsumer;
+
+                public class HiddenBaseRecord
+                {
+                    public int Id { get; set; }
+                }
+
+                [BsonSourceGenerated]
+                public sealed class HiddenDerivedRecord : HiddenBaseRecord
+                {
+                    public new int Id { get; set; }
+                }
+                """;
+
+            AssertDiagnostic(
+                source,
+                "HiddenDerivedRecord.cs",
+                "LDBSG003",
+                "HiddenDerivedRecord",
+                "multiple mapped properties are named");
+        }
+
+        [TestMethod]
         public void BsonSourceGenerator_UnsupportedDirectProperty_ReportsLdbsg002OnAnnotatedClassIdentifier()
         {
             const string source = """

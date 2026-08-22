@@ -214,6 +214,21 @@ namespace LiteDB.AotSmokeTests
                 "The source-generated Native AOT DateTimeOffset round trip failed.");
             Console.WriteLine("        Passed: required and nullable DateTimeOffset values retain their ticks and offsets.");
 
+            Console.WriteLine("  [3.5a] Read a legacy BSON DateTime through the generated DateTimeOffset map.");
+            var legacyDateTimeOffset = new DateTimeOffset(2024, 6, 9, 10, 11, 12, TimeSpan.FromHours(5.5)).AddTicks(4321);
+            database.GetCollection("aot_date_time_offsets").Insert(new BsonDocument
+            {
+                ["_id"] = 21,
+                [nameof(AotDateTimeOffsetRecord.OccurredAt)] = legacyDateTimeOffset.UtcDateTime
+            });
+            var legacyDateTimeOffsetRead = dateTimeOffsets.FindById(21);
+            var expectedLegacyTicks = legacyDateTimeOffset.UtcDateTime.Ticks - (legacyDateTimeOffset.UtcDateTime.Ticks % TimeSpan.TicksPerMillisecond);
+            Require(legacyDateTimeOffsetRead is not null &&
+                    legacyDateTimeOffsetRead.OccurredAt.UtcDateTime.Ticks == expectedLegacyTicks &&
+                    legacyDateTimeOffsetRead.OccurredAt.Offset == TimeSpan.Zero,
+                "The source-generated Native AOT DateTimeOffset legacy BSON DateTime read failed.");
+            Console.WriteLine("        Passed: legacy BSON DateTime materializes as a UTC DateTimeOffset at BSON DateTime precision.");
+
             Console.WriteLine("  [3.6] Round-trip the remaining native scalar conversion boundaries.");
             var expectedObjectId = new ObjectId("64c61e5f18a9421a8862c71c");
             var expectedTimestamp = new DateTime(2024, 6, 9, 10, 11, 12, 123, DateTimeKind.Utc);
@@ -296,6 +311,20 @@ namespace LiteDB.AotSmokeTests
                     inheritedRead.Fingerprint == "base-value|derived-value",
                 "The source-generated Native AOT inherited-property round trip failed.");
             Console.WriteLine("        Passed: inherited ID, named field, ignored member, list, derived property, and computed fingerprint round trip.");
+
+            Console.WriteLine("  [3.7a] Round-trip a mutable record and a multi-level virtual override.");
+            var mutableRecords = database.GetGeneratedCollection<AotMutableRecord>("aot_mutable_records");
+            mutableRecords.Insert(new AotMutableRecord { Name = "record" });
+            var overrideRecords = database.GetGeneratedCollection<AotOverrideRecord>("aot_override_records");
+            overrideRecords.Insert(new AotOverrideRecord { OverrideId = 41, Name = "override" });
+            var overrideRead = overrideRecords.FindById(41);
+            Require(mutableRecords.FindById(1)?.Name == "record" &&
+                    overrideRead is not null &&
+                    overrideRead.OverrideId == 41 &&
+                    overrideRead.SetterCalls == 1 &&
+                    overrideRead.Name == "override",
+                "The source-generated Native AOT record or virtual-override round trip failed.");
+            Console.WriteLine("        Passed: mutable record construction and most-derived virtual-property materialization.");
 
             Console.WriteLine("  [3.8] Round-trip populated and null nullable scalar values.");
             var expectedNullableTimestamp = new DateTime(2024, 7, 6, 8, 9, 10, 123, DateTimeKind.Utc);
@@ -634,6 +663,45 @@ namespace LiteDB.AotSmokeTests
                 throw new InvalidOperationException(message);
             }
         }
+    }
+
+    [BsonSourceGenerated]
+    public sealed record AotMutableRecord
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+
+    public class AotOverrideBase
+    {
+        [BsonId(false)]
+        public virtual int OverrideId { get; set; }
+    }
+
+    public class AotOverrideMiddle : AotOverrideBase
+    {
+        public override int OverrideId { get; set; }
+    }
+
+    [BsonSourceGenerated]
+    public sealed class AotOverrideRecord : AotOverrideMiddle
+    {
+        private int _overrideId;
+
+        public override int OverrideId
+        {
+            get => _overrideId;
+            set
+            {
+                _overrideId = value;
+                SetterCalls++;
+            }
+        }
+
+        public string Name { get; set; } = string.Empty;
+
+        [BsonIgnore]
+        public int SetterCalls { get; private set; }
     }
 
     [BsonSourceGenerated]

@@ -543,6 +543,110 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
+        public void GetGeneratedCollection_RoundTripsMutableRecordClass()
+        {
+            var path = GetDatabasePath();
+
+            try
+            {
+                var mapper = new BsonMapper();
+                LiteDbGeneratedMappings.Register(mapper);
+
+                using var database = new LiteDatabase(path, mapper);
+                var collection = database.GetGeneratedCollection<MutableGeneratedRecord>("mutableRecords");
+                collection.Insert(new MutableGeneratedRecord { Name = "record" });
+
+                var result = collection.FindById(1);
+
+                Assert.IsNotNull(result);
+                Assert.AreEqual(1, result.Id);
+                Assert.AreEqual("record", result.Name);
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
+        public void GetGeneratedCollection_UsesMostDerivedOverrideForInheritedId()
+        {
+            var path = GetDatabasePath();
+
+            try
+            {
+                var mapper = new BsonMapper();
+                LiteDbGeneratedMappings.Register(mapper);
+
+                using var database = new LiteDatabase(path, mapper);
+                var collection = database.GetGeneratedCollection<OverrideRecord>("overrideRecords");
+                collection.Insert(new OverrideRecord { OverrideId = 42, Name = "override", Ignored = "not persisted" });
+
+                var result = collection.FindById(42);
+                var document = database.GetCollection("overrideRecords").FindById(42);
+
+                Assert.IsNotNull(result);
+                Assert.AreEqual(42, result.OverrideId);
+                Assert.AreEqual(1, result.SetterCalls);
+                Assert.AreEqual("override", result.Name);
+                Assert.IsNull(result.Ignored);
+                Assert.AreEqual(42, document["_id"].AsInt32);
+                Assert.AreEqual("override", document["stored_name"].AsString);
+                Assert.AreEqual(2, document.Count);
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
+        public void GeneratedAndRuntimeMappings_CrossReadDateTimeOffsetDocuments()
+        {
+            var path = GetDatabasePath();
+            var legacyValue = new DateTimeOffset(2024, 7, 6, 8, 9, 10, TimeSpan.FromHours(5.5)).AddTicks(4321);
+            var generatedValue = new DateTimeOffset(2024, 7, 7, 8, 9, 10, TimeSpan.FromHours(-8)).AddTicks(1234);
+            var expectedLegacyUtcTicks = legacyValue.UtcDateTime.Ticks - (legacyValue.UtcDateTime.Ticks % TimeSpan.TicksPerMillisecond);
+
+            try
+            {
+                using (var runtimeDatabase = new LiteDatabase(path, new BsonMapper()))
+                {
+                    runtimeDatabase.GetCollection<DateTimeOffsetRecord>("dateTimeOffsetCrossRead")
+                        .Insert(new DateTimeOffsetRecord { Id = 1, OccurredAt = legacyValue });
+                }
+
+                using (var generatedDatabase = new LiteDatabase(path, CreateGeneratedMapper()))
+                {
+                    var generatedCollection = generatedDatabase.GetGeneratedCollection<DateTimeOffsetRecord>("dateTimeOffsetCrossRead");
+                    var generatedRead = generatedCollection.FindById(1);
+
+                    Assert.IsNotNull(generatedRead);
+                    Assert.AreEqual(expectedLegacyUtcTicks, generatedRead.OccurredAt.UtcDateTime.Ticks);
+                    Assert.AreEqual(TimeSpan.Zero, generatedRead.OccurredAt.Offset);
+
+                    generatedCollection.Insert(new DateTimeOffsetRecord { Id = 2, OccurredAt = generatedValue });
+                }
+
+                using (var runtimeDatabase = new LiteDatabase(path, new BsonMapper()))
+                {
+                    var runtimeCollection = runtimeDatabase.GetCollection<DateTimeOffsetRecord>("dateTimeOffsetCrossRead");
+                    var runtimeRead = runtimeCollection.FindById(2);
+                    var documents = runtimeDatabase.GetCollection("dateTimeOffsetCrossRead");
+
+                    Assert.IsNotNull(runtimeRead);
+                    Assert.IsTrue(generatedValue.EqualsExact(runtimeRead.OccurredAt));
+                    Assert.IsTrue(documents.FindById(1)[nameof(DateTimeOffsetRecord.OccurredAt)].IsDateTime);
+                    Assert.IsTrue(documents.FindById(2)[nameof(DateTimeOffsetRecord.OccurredAt)].IsDocument);
+                }
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
         public void GetGeneratedCollection_RoundTripsNativeScalarBoundaries()
         {
             var path = GetDatabasePath();
@@ -1152,6 +1256,13 @@ namespace LiteDB.AotTests
             Assert.AreEqual(expected.Offset.Ticks, value.AsDocument["Offset"].AsInt64);
         }
 
+        private static BsonMapper CreateGeneratedMapper()
+        {
+            var mapper = new BsonMapper();
+            LiteDbGeneratedMappings.Register(mapper);
+            return mapper;
+        }
+
         private static GeneratedEntityMap<PhaseBGeneratedRecord> CreatePhaseBExecutionMap()
         {
             return new GeneratedEntityMap<PhaseBGeneratedRecord>(
@@ -1192,6 +1303,55 @@ namespace LiteDB.AotTests
 
         public override object ToObject(Type type, BsonDocument document) =>
             throw new AssertFailedException($"Generated execution must not call {nameof(ToObject)}.");
+    }
+
+    [BsonSourceGenerated]
+    public sealed record MutableGeneratedRecord
+    {
+        public int Id { get; set; }
+
+        public string Name { get; set; } = string.Empty;
+    }
+
+    public class OverrideRecordBase
+    {
+        [BsonId(false)]
+        public virtual int OverrideId { get; set; }
+
+        [BsonField("stored_name")]
+        public virtual string Name { get; set; } = string.Empty;
+
+        [BsonIgnore]
+        public virtual string? Ignored { get; set; }
+    }
+
+    public class OverrideRecordMiddle : OverrideRecordBase
+    {
+        public override int OverrideId { get; set; }
+        public override string Name { get; set; } = string.Empty;
+        public override string? Ignored { get; set; }
+    }
+
+    [BsonSourceGenerated]
+    public sealed class OverrideRecord : OverrideRecordMiddle
+    {
+        private int _overrideId;
+
+        public override int OverrideId
+        {
+            get => _overrideId;
+            set
+            {
+                _overrideId = value;
+                SetterCalls++;
+            }
+        }
+
+        public override string Name { get; set; } = string.Empty;
+        public override string? Ignored { get; set; }
+
+        [BsonIgnore]
+        public int SetterCalls { get; private set; }
     }
 
     [BsonSourceGenerated]

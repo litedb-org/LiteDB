@@ -138,7 +138,7 @@ namespace LiteDB
             try
             {
                 RegisterType<Uri>(uri => uri.IsAbsoluteUri ? uri.AbsoluteUri : uri.ToString(), bson => new Uri(bson.AsString));
-                RegisterType<DateTimeOffset>(value => new BsonValue(value.UtcDateTime), bson => bson.AsDateTime.ToUniversalTime());
+                RegisterType<DateTimeOffset>(value => new BsonValue(value.UtcDateTime), DeserializeDateTimeOffset);
                 RegisterType<TimeSpan>(value => new BsonValue(value.Ticks), bson => new TimeSpan(bson.AsInt64));
                 RegisterType<Regex>(
                     r => r.Options == RegexOptions.None ? new BsonValue(r.ToString()) : new BsonDocument { { "p", r.ToString() }, { "o", (int)r.Options } },
@@ -152,6 +152,19 @@ namespace LiteDB
 
             #endregion
 
+        }
+
+        private static DateTimeOffset DeserializeDateTimeOffset(BsonValue value)
+        {
+            if (value.IsDateTime)
+            {
+                return new DateTimeOffset(value.AsDateTime.ToUniversalTime());
+            }
+
+            var document = value.AsDocument;
+            return new DateTimeOffset(
+                document["DateTime"].AsInt64,
+                new TimeSpan(document["Offset"].AsInt64));
         }
 
         [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeCollectionNameResolution)]

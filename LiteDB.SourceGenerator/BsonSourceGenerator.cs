@@ -47,7 +47,7 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
     {
         var models = context.SyntaxProvider.ForAttributeWithMetadataName(
             fullyQualifiedMetadataName: SourceGeneratedAttributeName,
-            predicate: static (node, _) => node is ClassDeclarationSyntax,
+            predicate: static (node, _) => node is ClassDeclarationSyntax or RecordDeclarationSyntax,
             transform: static (attributeContext, _) => DescribeModel(
                 (INamedTypeSymbol)attributeContext.TargetSymbol,
                 GetDiagnosticLocation(attributeContext.TargetNode)));
@@ -133,56 +133,53 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
 
         var properties = new List<PropertyDescriptor>();
         var memberNames = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var level in hierarchy)
+        foreach (var property in GetSelectedProperties(hierarchy))
         {
-            foreach (var property in level.GetMembers().OfType<IPropertySymbol>().OrderBy(static property => property.Locations.FirstOrDefault()?.SourceSpan.Start ?? int.MaxValue))
+            if (HasAttribute(property, BsonIgnoreAttributeName))
             {
-                if (HasAttribute(property, BsonIgnoreAttributeName))
-                {
-                    continue;
-                }
-
-                if (property.IsStatic || property.IsIndexer)
-                {
-                    return ModelResult.InvalidProperty(typeName, diagnosticLocation, $"property '{property.Name}' must be a non-static, non-indexed property");
-                }
-
-                if (IsComputedProperty(property, type))
-                {
-                    continue;
-                }
-
-                if (property.DeclaredAccessibility is not Accessibility.Public ||
-                    property.GetMethod is null || property.GetMethod.DeclaredAccessibility is not Accessibility.Public ||
-                    property.SetMethod is null || property.SetMethod.DeclaredAccessibility is not Accessibility.Public ||
-                    property.SetMethod.IsInitOnly)
-                {
-                    return ModelResult.InvalidProperty(typeName, diagnosticLocation, $"property '{property.Name}' must have public non-init getter and setter accessors");
-                }
-
-                if (!memberNames.Add(property.Name))
-                {
-                    return ModelResult.MappingConflict(typeName, diagnosticLocation, $"multiple mapped properties are named '{property.Name}' across the inheritance hierarchy");
-                }
-
-                var kind = GetPropertyKind(property.Type);
-                if (kind == PropertyKind.Unsupported)
-                {
-                    return ModelResult.InvalidProperty(typeName, diagnosticLocation, $"property '{property.Name}' has an unsupported type '{property.Type.ToDisplayString()}'");
-                }
-
-                var idAttribute = GetAttribute(property, BsonIdAttributeName);
-                var fieldName = GetFieldName(property);
-                properties.Add(new PropertyDescriptor(
-                    Name: property.Name,
-                    Identifier: EscapeIdentifier(property.Name),
-                    TypeName: GetTypeName(property.Type),
-                    FieldName: fieldName,
-                    Kind: kind,
-                    HasBsonId: idAttribute is not null,
-                    AutoId: GetAutoId(idAttribute),
-                    IsId: false));
+                continue;
             }
+
+            if (property.IsStatic || property.IsIndexer)
+            {
+                return ModelResult.InvalidProperty(typeName, diagnosticLocation, $"property '{property.Name}' must be a non-static, non-indexed property");
+            }
+
+            if (IsComputedProperty(property, type))
+            {
+                continue;
+            }
+
+            if (property.DeclaredAccessibility is not Accessibility.Public ||
+                property.GetMethod is null || property.GetMethod.DeclaredAccessibility is not Accessibility.Public ||
+                property.SetMethod is null || property.SetMethod.DeclaredAccessibility is not Accessibility.Public ||
+                property.SetMethod.IsInitOnly)
+            {
+                return ModelResult.InvalidProperty(typeName, diagnosticLocation, $"property '{property.Name}' must have public non-init getter and setter accessors");
+            }
+
+            if (!memberNames.Add(property.Name))
+            {
+                return ModelResult.MappingConflict(typeName, diagnosticLocation, $"multiple mapped properties are named '{property.Name}' across the inheritance hierarchy");
+            }
+
+            var kind = GetPropertyKind(property.Type);
+            if (kind == PropertyKind.Unsupported)
+            {
+                return ModelResult.InvalidProperty(typeName, diagnosticLocation, $"property '{property.Name}' has an unsupported type '{property.Type.ToDisplayString()}'");
+            }
+
+            var idAttribute = GetAttribute(property, BsonIdAttributeName);
+            var fieldName = GetFieldName(property);
+            properties.Add(new PropertyDescriptor(
+                Name: property.Name,
+                Identifier: EscapeIdentifier(property.Name),
+                TypeName: GetTypeName(property.Type),
+                FieldName: fieldName,
+                Kind: kind,
+                HasBsonId: idAttribute is not null,
+                AutoId: GetAutoId(idAttribute),
+                IsId: false));
         }
 
         if (properties.Count == 0)
@@ -322,10 +319,39 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         return PropertyKind.Unsupported;
     }
 
+    private static IReadOnlyList<IPropertySymbol> GetSelectedProperties(IReadOnlyList<INamedTypeSymbol> hierarchy)
+    {
+        var overriddenAncestors = new HashSet<IPropertySymbol>(SymbolEqualityComparer.Default);
+        foreach (var level in hierarchy)
+        {
+            foreach (var property in level.GetMembers().OfType<IPropertySymbol>())
+            {
+                for (var overridden = property.OverriddenProperty; overridden is not null; overridden = overridden.OverriddenProperty)
+                {
+                    overriddenAncestors.Add(overridden);
+                }
+            }
+        }
+
+        var selected = new List<IPropertySymbol>();
+        foreach (var level in hierarchy)
+        {
+            foreach (var property in level.GetMembers().OfType<IPropertySymbol>().OrderBy(static property => property.Locations.FirstOrDefault()?.SourceSpan.Start ?? int.MaxValue))
+            {
+                if (property.IsImplicitlyDeclared == false && overriddenAncestors.Contains(property) == false)
+                {
+                    selected.Add(property);
+                }
+            }
+        }
+
+        return selected;
+    }
+
     private static DiagnosticLocationDescriptor GetDiagnosticLocation(SyntaxNode targetNode)
     {
-        var location = targetNode is ClassDeclarationSyntax classDeclaration
-            ? classDeclaration.Identifier.GetLocation()
+        var location = targetNode is TypeDeclarationSyntax typeDeclaration
+            ? typeDeclaration.Identifier.GetLocation()
             : targetNode.GetLocation();
         var lineSpan = location.GetLineSpan();
 
@@ -390,15 +416,24 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
             || autoId;
     }
 
-    private static AttributeData? GetAttribute(ISymbol symbol, string metadataName)
+    private static AttributeData? GetAttribute(IPropertySymbol property, string metadataName)
     {
-        return symbol.GetAttributes().FirstOrDefault(attribute =>
-            string.Equals(attribute.AttributeClass?.ToDisplayString(), metadataName, StringComparison.Ordinal));
+        for (var current = property; current is not null; current = current.OverriddenProperty)
+        {
+            var attribute = current.GetAttributes().FirstOrDefault(candidate =>
+                string.Equals(candidate.AttributeClass?.ToDisplayString(), metadataName, StringComparison.Ordinal));
+            if (attribute is not null)
+            {
+                return attribute;
+            }
+        }
+
+        return null;
     }
 
-    private static bool HasAttribute(ISymbol symbol, string metadataName)
+    private static bool HasAttribute(IPropertySymbol property, string metadataName)
     {
-        return GetAttribute(symbol, metadataName) is not null;
+        return GetAttribute(property, metadataName) is not null;
     }
 
     private static string GenerateSource(IReadOnlyList<ModelDescriptor> models)
@@ -470,6 +505,10 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         source.AppendLine("        private static object DeserializeDateTimeOffset(global::LiteDB.BsonValue value)");
         source.AppendLine("        {");
         source.AppendLine("            if (value.IsNull) return null!;");
+        source.AppendLine("            if (value.IsDateTime)");
+        source.AppendLine("            {");
+        source.AppendLine("                return new global::System.DateTimeOffset(value.AsDateTime.ToUniversalTime());");
+        source.AppendLine("            }");
         source.AppendLine("            var document = value.AsDocument;");
         source.AppendLine("            return new global::System.DateTimeOffset(");
         source.AppendLine("                document[\"DateTime\"].AsInt64,");

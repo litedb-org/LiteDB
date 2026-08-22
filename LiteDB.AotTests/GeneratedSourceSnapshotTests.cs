@@ -56,6 +56,70 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
+        public void BsonSourceGenerator_MutableRecordClass_EmitsDeclaredPropertyMappingsOnly()
+        {
+            const string source = """
+                using LiteDB;
+
+                namespace SnapshotConsumer;
+
+                [BsonSourceGenerated]
+                public sealed record SnapshotMutableRecord
+                {
+                    public int Id { get; set; }
+                    public string Name { get; set; } = string.Empty;
+                }
+                """;
+
+            var generatedSource = GenerateSource(source);
+
+            AssertContainsInOrder(
+                generatedSource,
+                "CreateInstance = _ => new global::SnapshotConsumer.SnapshotMutableRecord()",
+                "MemberName = \"Id\",",
+                "MemberName = \"Name\",");
+            Assert.IsFalse(generatedSource.Contains("MemberName = \"EqualityContract\"", StringComparison.Ordinal));
+        }
+
+        [TestMethod]
+        public void BsonSourceGenerator_OverrideChain_EmitsOnlyTheMostDerivedProperty()
+        {
+            const string source = """
+                using LiteDB;
+
+                namespace SnapshotConsumer;
+
+                public class OverrideBase
+                {
+                    [BsonId(false)]
+                    public virtual int Key { get; set; }
+                }
+
+                public class OverrideMiddle : OverrideBase
+                {
+                    public override int Key { get; set; }
+                }
+
+                [BsonSourceGenerated]
+                public sealed class OverrideSnapshotRecord : OverrideMiddle
+                {
+                    public override int Key { get; set; }
+                    public string Name { get; set; } = string.Empty;
+                }
+                """;
+
+            var generatedSource = GenerateSource(source);
+
+            AssertContainsInOrder(
+                generatedSource,
+                "FieldName = \"_id\",",
+                "MemberName = \"Key\",",
+                "Setter = (entity, value) => ((global::SnapshotConsumer.OverrideSnapshotRecord)entity).Key = (global::System.Int32)value",
+                "MemberName = \"Name\",");
+            Assert.AreEqual(1, generatedSource.Split("MemberName = \"Key\"", StringSplitOptions.None).Length - 1);
+        }
+
+        [TestMethod]
         public void BsonSourceGenerator_ConditionalHelpers_EmitsDateTimeOffsetStringArrayAndDynamicDictionarySemanticSnapshot()
         {
             const string source = """
@@ -86,6 +150,8 @@ namespace LiteDB.AotTests
                 "private static global::System.Collections.Generic.Dictionary<string, object?>? DeserializeDynamicDictionary(global::LiteDB.BsonValue value)",
                 "private static global::LiteDB.BsonValue SerializeDateTimeOffset(object? value)",
                 "private static object DeserializeDateTimeOffset(global::LiteDB.BsonValue value)",
+                "if (value.IsDateTime)",
+                "return new global::System.DateTimeOffset(value.AsDateTime.ToUniversalTime());",
                 "Serialize = (value, _) => SerializeDateTimeOffset(value),",
                 "Serialize = (value, _) => SerializeStringArray((string[])value),",
                 "Serialize = (value, _) => SerializeDynamicDictionary((global::System.Collections.Generic.Dictionary<string, object?>)value),",

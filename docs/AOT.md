@@ -90,22 +90,22 @@ var customers = database.GetGeneratedCollection<Customer>("customers");
 
 ## Supported model subset
 
-The first source-generated mapping slice is intentionally narrow. The generator accepts a directly annotated, top-level, non-abstract, non-generic `public` or `internal` class with an accessible parameterless constructor. It can flatten supported public read/write instance properties declared by that class and its public or internal, top-level, non-generic base classes. A base class may be abstract; only the concrete derived class is marked and directly constructed.
+The first source-generated mapping slice is intentionally narrow. The generator accepts a directly annotated, top-level, non-abstract, non-generic `public` or `internal` class or mutable record class with an accessible parameterless constructor. It can flatten supported public read/write instance properties declared by that class and its public or internal, top-level, non-generic base classes. Compiler-generated record members, such as `EqualityContract`, are not persisted. A base class may be abstract; only the concrete derived class is marked and directly constructed.
 
-`[BsonId]`, `[BsonField]`, and `[BsonIgnore]` are supported on inherited and directly declared properties. The generator also applies LiteDB's `Id` and `<TypeName>Id` ID conventions. A `List<string>` is serialized and materialized through generated loops rather than reflection-based collection activation. An unannotated public getter-only property that is not an ID convention is treated as a computed projection and is excluded from persistence; mark it with `[BsonIgnore]` if explicit documentation is preferred. A getter-only `[BsonId]`, `[BsonField]`, or conventional ID remains unsupported because the generated path cannot hydrate it. Member hiding, duplicate effective BSON field names, and multiple resolved IDs across an inheritance hierarchy produce `LDBSG003` rather than an ambiguous map.
+`[BsonId]`, `[BsonField]`, and `[BsonIgnore]` are supported on inherited and directly declared properties. For a virtual override chain, the generator maps only the most-derived property and resolves a mapping attribute from that declaration first, then from the nearest overridden declaration. The generator also applies LiteDB's `Id` and `<TypeName>Id` ID conventions. A `List<string>` is serialized and materialized through generated loops rather than reflection-based collection activation. An unannotated public getter-only property that is not an ID convention is treated as a computed projection and is excluded from persistence; mark it with `[BsonIgnore]` if explicit documentation is preferred. A getter-only `[BsonId]`, `[BsonField]`, or conventional ID remains unsupported because the generated path cannot hydrate it. Mapped `new`-hidden members, duplicate effective BSON field names, and multiple resolved IDs across an inheritance hierarchy produce `LDBSG003` rather than an ambiguous map.
 
 | Supported | Not supported by the generated path |
 |---|---|
 | Scalar properties and nullable scalar value types, enums, `byte[]`, `DateTime`, `DateTimeOffset`, `DateTimeOffset?`, `Guid`, and `ObjectId` | Parameterized and `[BsonCtor]` constructors |
 | `List<string>`, rank-one `string[]`, and `Dictionary<string, object?>` containing BSON-native dynamic values | Other array element types, other list element types, sets, typed or custom dictionaries, nested entities, and `BsonRef` |
-| `[BsonId]`, `[BsonField]`, and `[BsonIgnore]` on direct and inherited properties; unannotated computed getter-only projections | Fields, persisted getter-only or init-only properties, member hiding, duplicate BSON field names or IDs, generic or nested model/base classes |
+| `[BsonId]`, `[BsonField]`, and `[BsonIgnore]` on direct and inherited properties; mutable record classes; unannotated computed getter-only projections; virtual override chains | Fields, persisted getter-only or init-only properties, mapped `new`-hidden members, duplicate BSON field names or IDs, generic or nested model/base classes |
 | Explicit collection names | Default collection-name resolution and runtime mapper callbacks |
 
 ### DateTimeOffset representation
 
-The generated path preserves `DateTimeOffset` and nullable `DateTimeOffset` values as an embedded BSON document with two `Int64` fields: `DateTime` contains `DateTimeOffset.Ticks` and `Offset` contains `DateTimeOffset.Offset.Ticks`. This retains the original offset and 100-nanosecond ticks; it does not use LiteDB's BSON `DateTime` representation.
+Generated writes preserve `DateTimeOffset` and nullable `DateTimeOffset` values as an embedded BSON document with two `Int64` fields: `DateTime` contains `DateTimeOffset.Ticks` and `Offset` contains `DateTimeOffset.Offset.Ticks`. This retains the original offset and 100-nanosecond ticks.
 
-The outer DateTimeOffset property is therefore a BSON document rather than a sortable BSON date. Applications that need an index over its stored components must use an explicit BSON expression for the `DateTime` or `Offset` child field and choose the ordering semantics appropriate to their domain.
+Ordinary `BsonMapper` writes retain LiteDB's existing BSON `DateTime` representation, using the UTC instant. That representation loses the original offset and is limited to its BSON DateTime precision. Both mapping paths can read either representation: a generated reader interprets an ordinary BSON DateTime as a UTC `DateTimeOffset`, while the ordinary mapper reads the generated ticks-and-offset document exactly. The writer representation therefore remains observable. A field written through both paths can contain both BSON types, so applications must not assume that an existing date index or range query has representation-independent behavior. Use a deliberate collection migration or a representation-specific BSON expression when query/index semantics matter.
 
 ### String array representation
 
@@ -131,7 +131,7 @@ Unsupported annotated shapes produce a fail-closed **error** diagnostic; the gen
 
 ## Contributor validation
 
-`LiteDB.AotTests` exercises generated registration, IDs, field and ignore attributes, scalar and nullable scalar values, `DateTimeOffset` values, inherited properties, computed projections, `List<string>`, `string[]`, and dynamic-dictionary round trips. `LiteDB.AotSmokeTests` publishes and runs a Native AOT executable with generated scalar, nullable scalar, list, string-array, DateTimeOffset, inherited-property, computed-projection, and dynamic-dictionary workflows alongside document, query, and stream scenarios.
+`LiteDB.AotTests` exercises generated registration, mutable record classes, IDs, field and ignore attributes, scalar and nullable scalar values, `DateTimeOffset` values and cross-path reads, inherited and overridden properties, computed projections, `List<string>`, `string[]`, and dynamic-dictionary round trips. `LiteDB.AotSmokeTests` publishes and runs a Native AOT executable with generated scalar, nullable scalar, list, string-array, DateTimeOffset, inherited-property, computed-projection, and dynamic-dictionary workflows alongside document, query, and stream scenarios.
 
 Run the focused tests with:
 

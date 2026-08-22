@@ -17,6 +17,46 @@ public sealed class PackagedExecutionRecord
 }
 
 [BsonSourceGenerated]
+public sealed record PackagedMutableRecord
+{
+    public int Id { get; set; }
+
+    public string Name { get; set; } = string.Empty;
+}
+
+public class PackagedOverrideBase
+{
+    [BsonId(false)]
+    public virtual int OverrideId { get; set; }
+}
+
+public class PackagedOverrideMiddle : PackagedOverrideBase
+{
+    public override int OverrideId { get; set; }
+}
+
+[BsonSourceGenerated]
+public sealed class PackagedOverrideRecord : PackagedOverrideMiddle
+{
+    private int _overrideId;
+
+    public override int OverrideId
+    {
+        get => _overrideId;
+        set
+        {
+            _overrideId = value;
+            SetterCalls++;
+        }
+    }
+
+    public string Name { get; set; } = string.Empty;
+
+    [BsonIgnore]
+    public int SetterCalls { get; private set; }
+}
+
+[BsonSourceGenerated]
 public sealed class PackagedGeneratedRecord
 {
     public int Id { get; set; }
@@ -55,6 +95,20 @@ internal static class Program
         Require(executionCollection.Delete(1) && executionCollection.Count() == 0,
             "The packaged generated execution map did not complete delete/count operations.");
 
+        var mutableRecords = database.GetGeneratedCollection<PackagedMutableRecord>("packaged_mutable_records");
+        mutableRecords.Insert(new PackagedMutableRecord { Name = "record" });
+        Require(mutableRecords.FindById(1)?.Name == "record",
+            "The packaged generated mutable record did not round trip.");
+
+        var overrideRecords = database.GetGeneratedCollection<PackagedOverrideRecord>("packaged_override_records");
+        overrideRecords.Insert(new PackagedOverrideRecord { OverrideId = 9, Name = "override" });
+        var overrideRecord = overrideRecords.FindById(9);
+        Require(overrideRecord is not null &&
+                overrideRecord.OverrideId == 9 &&
+                overrideRecord.SetterCalls == 1 &&
+                overrideRecord.Name == "override",
+            "The packaged generated virtual override did not materialize through the most-derived setter.");
+
         mapper.SerializeNullValues = true;
 
         var collection = database.GetGeneratedCollection<PackagedGeneratedRecord>("packaged_generated_records");
@@ -87,6 +141,19 @@ internal static class Program
         Require((int)fields["attempt"]! == 3, "The packaged generated dynamic dictionary numeric value did not round trip.");
         Require(fields["missing"] is null, "The packaged generated dynamic dictionary null value did not round trip.");
         Require(fields["nested"] is Dictionary<string, object?> nested && (bool)nested["enabled"]!, "The packaged generated nested dynamic dictionary did not round trip.");
+
+        var legacyDateTimeOffset = new DateTimeOffset(2024, 7, 8, 8, 9, 10, TimeSpan.FromHours(5.5)).AddTicks(4321);
+        database.GetCollection("packaged_generated_records").Insert(new BsonDocument
+        {
+            ["_id"] = 18,
+            [nameof(PackagedGeneratedRecord.OccurredAt)] = legacyDateTimeOffset.UtcDateTime
+        });
+        var legacyRead = collection.FindById(18);
+        var expectedLegacyTicks = legacyDateTimeOffset.UtcDateTime.Ticks - (legacyDateTimeOffset.UtcDateTime.Ticks % TimeSpan.TicksPerMillisecond);
+        Require(legacyRead is not null &&
+                legacyRead.OccurredAt.UtcDateTime.Ticks == expectedLegacyTicks &&
+                legacyRead.OccurredAt.Offset == TimeSpan.Zero,
+            "The packaged generated DateTimeOffset mapping did not read the legacy BSON DateTime representation.");
 
         Console.WriteLine("[PASS] Packaged LiteDB.SourceGenerator restore, generation, registration, Native AOT publish, and real LiteDB round trip succeeded.");
         return 0;

@@ -32,6 +32,17 @@ namespace LiteDB
         ILiteCollection<T> GetCollection<T>(string name, BsonAutoId autoId = BsonAutoId.ObjectId);
 
         /// <summary>
+        /// Gets a typed collection for a source-generated entity mapper. A registered generated execution map selects the direct execution path; otherwise the generated-registration collection behavior is retained.
+        /// </summary>
+        /// <typeparam name="T">The explicitly generated entity type.</typeparam>
+        /// <param name="name">The required case-insensitive collection name.</param>
+        /// <param name="autoId">The auto-ID type when the entity map has no auto-ID member.</param>
+        /// <returns>The typed collection.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="name"/> is missing.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when no generated mapper is registered or a registered generated execution map requires an unsupported mapper configuration.</exception>
+        ILiteCollection<T> GetGeneratedCollection<T>(string name, BsonAutoId autoId = BsonAutoId.ObjectId);
+
+        /// <summary>
         /// Get a collection using a name based on typeof(T).Name (BsonMapper.ResolveCollectionName function)
         /// </summary>
         [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
@@ -126,10 +137,9 @@ namespace LiteDB
         BsonValue Pragma(string name);
 
         /// <summary>
-        /// Set new value to internal engine variables for AOT setups
+        /// Set new value to internal engine variables
         /// </summary>
         BsonValue Pragma(string name, BsonValue value);
-        ILiteCollection<T> GetGeneratedCollection<T>(string name, BsonAutoId autoId = BsonAutoId.ObjectId);
 
         /// <summary>
         /// Get/Set database user version - use this version number to control database change model
