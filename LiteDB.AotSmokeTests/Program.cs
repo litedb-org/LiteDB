@@ -139,6 +139,18 @@ namespace LiteDB.AotSmokeTests
                 "The source-generated Native AOT simple typed round trip failed.");
             Console.WriteLine("        Passed: generated mapper registration and scalar typed round trip.");
 
+            Console.WriteLine("  [3.1a] Evaluate a static-member LINQ expression through the generated mapper.");
+            var staticMemberExpression = mapper.GetExpression<AotSimpleRecord, bool>(record => record.Score < DateTime.Today.Day + 1);
+            var staticMemberResults = staticMemberExpression.Execute(new BsonDocument
+            {
+                ["_id"] = 2,
+                ["Name"] = "interpreter",
+                ["Score"] = 0
+            }).ToArray();
+            Require(staticMemberResults.Length == 1 && staticMemberResults[0].AsBoolean,
+                "The source-generated Native AOT static-member LINQ expression evaluation failed.");
+            Console.WriteLine("        Passed: static-member LINQ expression evaluation without runtime code generation.");
+
             Console.WriteLine("  [3.2] Update, count, and delete a generated typed record.");
             simpleRead.Name = "updated";
             Require(simple.Update(simpleRead), "The source-generated Native AOT typed update failed.");

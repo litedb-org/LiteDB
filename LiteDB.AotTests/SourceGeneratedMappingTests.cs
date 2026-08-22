@@ -13,6 +13,19 @@ namespace LiteDB.AotTests
     public sealed class SourceGeneratedMappingTests
     {
         [TestMethod]
+        public void GetExpression_EvaluatesStaticMembersWithoutRuntimeCodeGeneration()
+        {
+            var mapper = new BsonMapper();
+            var document = mapper.ToDocument(new GeneratedRecord { Id = 0, Name = "interpreter" });
+            var expression = mapper.GetExpression<GeneratedRecord, bool>(record => record.Id < DateTime.Today.Day + 1);
+
+            var results = expression.Execute(document).ToArray();
+
+            Assert.AreEqual(1, results.Length);
+            Assert.IsTrue(results[0].AsBoolean);
+        }
+
+        [TestMethod]
         public void GetGeneratedCollection_WithoutRegistration_Throws()
         {
             var path = GetDatabasePath();

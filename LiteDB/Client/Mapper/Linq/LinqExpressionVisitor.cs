@@ -721,9 +721,12 @@ namespace LiteDB
             }
             else
             {
-                var func = Expression.Lambda(expr).Compile();
+                // Prefer compiled interpretation for AOT
+                var func = Expression.Lambda<Func<object>>(
+                    Expression.Convert(expr, typeof(object)))
+                    .Compile(preferInterpretation: true);
 
-                value = func.DynamicInvoke();
+                value = func();
             }
 
             // do some type validation to be ease to debug
