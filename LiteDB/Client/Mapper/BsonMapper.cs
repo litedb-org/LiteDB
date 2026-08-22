@@ -121,25 +121,34 @@ namespace LiteDB
             this.TrimWhitespace = true;
             this.EmptyStringToNull = true;
             this.EnumAsInteger = false;
-            this.ResolveFieldName = (s) => s;
-            this.ResolveMember = (t, mi, mm) => { };
+            this.ResolveFieldName = ResolveFieldNameDefault;
+            this.ResolveMember = ResolveMemberDefault;
             _resolveCollectionName = ResolveCollectionNameDefault;
             this.IncludeFields = false;
             this.MaxDepth = 20;
 
+            _hasCustomTypeInstantiator = customTypeInstantiator is not null;
+            _hasCustomTypeNameBinder = typeNameBinder is not null;
             _typeInstantiator = customTypeInstantiator ?? ((Type t) => null);
             _typeNameBinder = typeNameBinder ?? DefaultTypeNameBinder.Instance;
 
             #region Register CustomTypes
 
-            RegisterType<Uri>(uri => uri.IsAbsoluteUri ? uri.AbsoluteUri : uri.ToString(), bson => new Uri(bson.AsString));
-            RegisterType<DateTimeOffset>(value => new BsonValue(value.UtcDateTime), bson => bson.AsDateTime.ToUniversalTime());
-            RegisterType<TimeSpan>(value => new BsonValue(value.Ticks), bson => new TimeSpan(bson.AsInt64));
-            RegisterType<Regex>(
-                r => r.Options == RegexOptions.None ? new BsonValue(r.ToString()) : new BsonDocument { { "p", r.ToString() }, { "o", (int)r.Options } },
-                value => value.IsString ? new Regex(value) : new Regex(value.AsDocument["p"].AsString, (RegexOptions)value.AsDocument["o"].AsInt32)
-            );
-
+            _registeringBuiltInTypes = true;
+            try
+            {
+                RegisterType<Uri>(uri => uri.IsAbsoluteUri ? uri.AbsoluteUri : uri.ToString(), bson => new Uri(bson.AsString));
+                RegisterType<DateTimeOffset>(value => new BsonValue(value.UtcDateTime), bson => bson.AsDateTime.ToUniversalTime());
+                RegisterType<TimeSpan>(value => new BsonValue(value.Ticks), bson => new TimeSpan(bson.AsInt64));
+                RegisterType<Regex>(
+                    r => r.Options == RegexOptions.None ? new BsonValue(r.ToString()) : new BsonDocument { { "p", r.ToString() }, { "o", (int)r.Options } },
+                    value => value.IsString ? new Regex(value) : new Regex(value.AsDocument["p"].AsString, (RegexOptions)value.AsDocument["o"].AsInt32)
+                );
+            }
+            finally
+            {
+                _registeringBuiltInTypes = false;
+            }
 
             #endregion
 
@@ -164,6 +173,7 @@ namespace LiteDB
         /// </summary>
         public void RegisterType<T>(Func<T, BsonValue> serialize, Func<BsonValue, T> deserialize)
         {
+            RecordCustomTypeRegistration();
             _customSerializer[typeof(T)] = (o) => serialize((T)o);
             _customDeserializer[typeof(T)] = (b) => (T)deserialize(b);
         }
@@ -173,6 +183,7 @@ namespace LiteDB
         /// </summary>
         public void RegisterType(Type type, Func<object, BsonValue> serialize, Func<BsonValue, object> deserialize)
         {
+            RecordCustomTypeRegistration();
             _customSerializer[type] = (o) => serialize(o);
             _customDeserializer[type] = (b) => deserialize(b);
         }

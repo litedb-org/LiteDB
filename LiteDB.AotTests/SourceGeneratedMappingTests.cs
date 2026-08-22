@@ -94,6 +94,157 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
+        public void GetGeneratedCollection_UsesRegisteredExecutionMapForScalarCrudWithoutGenericMapperConversion()
+        {
+            var path = GetDatabasePath();
+
+            try
+            {
+                var mapper = new ThrowingConversionMapper();
+                LiteDbGeneratedMappings.Register(mapper);
+                mapper.RegisterGeneratedExecutionMap(CreatePhaseBExecutionMap());
+
+                using var database = new LiteDatabase(path, mapper);
+                var collection = database.GetGeneratedCollection<PhaseBGeneratedRecord>("phaseB");
+                var record = new PhaseBGeneratedRecord { Name = "inserted", Score = 7 };
+
+                var id = collection.Insert(record);
+                Assert.AreEqual(1, id.AsInt32);
+                Assert.AreEqual(1, record.Id);
+
+                record.Name = "updated";
+                Assert.IsTrue(collection.Update(record));
+
+                var read = collection.FindById(record.Id);
+                Assert.IsNotNull(read);
+                Assert.AreEqual("updated", read.Name);
+                Assert.AreEqual(7, read.Score);
+                Assert.AreEqual(1, collection.Count());
+                Assert.IsTrue(collection.Delete(record.Id));
+                Assert.AreEqual(0, collection.Count());
+
+                Assert.ThrowsException<NotSupportedException>(() => collection.FindAll());
+
+                var ordinaryCollection = database.GetCollection<PhaseBGeneratedRecord>("ordinaryPhaseB");
+                Assert.ThrowsException<AssertFailedException>(() =>
+                    ordinaryCollection.Insert(new PhaseBGeneratedRecord { Name = "legacy", Score = 1 }));
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
+        public void GeneratedExecutionMap_IsMapperOwnedAndRejectsDuplicateRegistration()
+        {
+            var firstMapper = new BsonMapper();
+            var secondMapper = new BsonMapper();
+            LiteDbGeneratedMappings.Register(firstMapper);
+            LiteDbGeneratedMappings.Register(secondMapper);
+
+            firstMapper.RegisterGeneratedExecutionMap(CreatePhaseBExecutionMap());
+
+            Assert.ThrowsException<InvalidOperationException>(() =>
+                firstMapper.RegisterGeneratedExecutionMap(CreatePhaseBExecutionMap()));
+
+            var path = GetDatabasePath();
+            try
+            {
+                using (var firstDatabase = new LiteDatabase(path, firstMapper))
+                {
+                    var generated = firstDatabase.GetGeneratedCollection<PhaseBGeneratedRecord>("phaseB");
+                    Assert.ThrowsException<NotSupportedException>(() => generated.FindAll());
+                }
+
+                using (var secondDatabase = new LiteDatabase(path, secondMapper))
+                {
+                    var legacyBridge = secondDatabase.GetGeneratedCollection<PhaseBGeneratedRecord>("phaseB");
+                    Assert.IsNotNull(legacyBridge.FindAll());
+                }
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
+        public void GeneratedExecutionMap_RequiresGeneratedEntityMapperAndDefaultConfiguration()
+        {
+            var unregisteredMapper = new BsonMapper();
+            Assert.ThrowsException<InvalidOperationException>(() =>
+                unregisteredMapper.RegisterGeneratedExecutionMap(CreatePhaseBExecutionMap()));
+
+            var mapper = new BsonMapper { SerializeNullValues = true };
+            LiteDbGeneratedMappings.Register(mapper);
+            mapper.RegisterGeneratedExecutionMap(CreatePhaseBExecutionMap());
+
+            var path = GetDatabasePath();
+            try
+            {
+                using var database = new LiteDatabase(path, mapper);
+                var exception = Assert.ThrowsException<InvalidOperationException>(() =>
+                    database.GetGeneratedCollection<PhaseBGeneratedRecord>("phaseB"));
+
+                StringAssert.Contains(exception.Message, "default BsonMapper configuration");
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
+        public void GeneratedExecutionMap_RejectsCustomTypeConverters()
+        {
+            var mapper = new BsonMapper();
+            mapper.RegisterType<Uri>(
+                value => new BsonValue(value.AbsoluteUri),
+                value => new Uri(value.AsString));
+            LiteDbGeneratedMappings.Register(mapper);
+            mapper.RegisterGeneratedExecutionMap(CreatePhaseBExecutionMap());
+
+            var path = GetDatabasePath();
+            try
+            {
+                using var database = new LiteDatabase(path, mapper);
+                var exception = Assert.ThrowsException<InvalidOperationException>(() =>
+                    database.GetGeneratedCollection<PhaseBGeneratedRecord>("phaseB"));
+
+                StringAssert.Contains(exception.Message, "default BsonMapper configuration");
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
+        public void GeneratedExecutionMap_RejectsConfigurationChangedAfterCollectionAcquisition()
+        {
+            var mapper = new BsonMapper();
+            LiteDbGeneratedMappings.Register(mapper);
+            mapper.RegisterGeneratedExecutionMap(CreatePhaseBExecutionMap());
+
+            var path = GetDatabasePath();
+            try
+            {
+                using var database = new LiteDatabase(path, mapper);
+                var collection = database.GetGeneratedCollection<PhaseBGeneratedRecord>("phaseB");
+
+                mapper.SerializeNullValues = true;
+
+                var exception = Assert.ThrowsException<InvalidOperationException>(() => collection.Count());
+                StringAssert.Contains(exception.Message, "default BsonMapper configuration");
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
         public void GetGeneratedCollection_RoundTripsScalarAttributesAndList()
         {
             var path = GetDatabasePath();
@@ -1001,10 +1152,46 @@ namespace LiteDB.AotTests
             Assert.AreEqual(expected.Offset.Ticks, value.AsDocument["Offset"].AsInt64);
         }
 
+        private static GeneratedEntityMap<PhaseBGeneratedRecord> CreatePhaseBExecutionMap()
+        {
+            return new GeneratedEntityMap<PhaseBGeneratedRecord>(
+                record => new BsonDocument
+                {
+                    ["_id"] = record.Id,
+                    [nameof(PhaseBGeneratedRecord.Name)] = record.Name,
+                    [nameof(PhaseBGeneratedRecord.Score)] = record.Score
+                },
+                document => new PhaseBGeneratedRecord
+                {
+                    Id = document["_id"].AsInt32,
+                    Name = document[nameof(PhaseBGeneratedRecord.Name)].AsString,
+                    Score = document[nameof(PhaseBGeneratedRecord.Score)].AsInt32
+                });
+        }
+
         private static string GetDatabasePath()
         {
             return Path.Combine(Path.GetTempPath(), $"litedb-source-generated-test-{Guid.NewGuid():N}.db");
         }
+    }
+
+    [BsonSourceGenerated]
+    public sealed class PhaseBGeneratedRecord
+    {
+        public int Id { get; set; }
+
+        public string Name { get; set; } = string.Empty;
+
+        public int Score { get; set; }
+    }
+
+    internal sealed class ThrowingConversionMapper : BsonMapper
+    {
+        public override BsonDocument ToDocument(Type type, object entity) =>
+            throw new AssertFailedException($"Generated execution must not call {nameof(ToDocument)}.");
+
+        public override object ToObject(Type type, BsonDocument document) =>
+            throw new AssertFailedException($"Generated execution must not call {nameof(ToObject)}.");
     }
 
     [BsonSourceGenerated]

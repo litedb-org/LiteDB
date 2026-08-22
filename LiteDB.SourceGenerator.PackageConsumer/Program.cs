@@ -7,6 +7,16 @@ using LiteDB.Generated;
 namespace LiteDB.SourceGenerator.PackageConsumer;
 
 [BsonSourceGenerated]
+public sealed class PackagedExecutionRecord
+{
+    public int Id { get; set; }
+
+    public string Name { get; set; } = string.Empty;
+
+    public int Score { get; set; }
+}
+
+[BsonSourceGenerated]
 public sealed class PackagedGeneratedRecord
 {
     public int Id { get; set; }
@@ -26,12 +36,27 @@ internal static class Program
     {
         var occurredAt = new DateTimeOffset(2024, 7, 6, 8, 9, 10, TimeSpan.FromHours(5.5));
         var deliveredAt = new DateTimeOffset(2024, 7, 7, 8, 9, 10, TimeSpan.FromHours(-8));
-        var mapper = new BsonMapper { SerializeNullValues = true };
+        var mapper = new BsonMapper();
 
         LiteDbGeneratedMappings.Register(mapper);
+        mapper.RegisterGeneratedExecutionMap(CreatePackagedExecutionMap());
 
         using var stream = new MemoryStream();
         using var database = new LiteDatabase(stream, mapper);
+        var executionCollection = database.GetGeneratedCollection<PackagedExecutionRecord>("packaged_execution_records");
+        executionCollection.Insert(new PackagedExecutionRecord { Name = "package-execution", Score = 7 });
+        var executionRecord = executionCollection.FindById(1)
+            ?? throw new InvalidOperationException("The packaged generated execution map did not return its scalar record.");
+        Require(executionRecord.Name == "package-execution" && executionRecord.Score == 7,
+            "The packaged generated execution map did not round trip its scalar record.");
+        executionRecord.Name = "package-updated";
+        Require(executionCollection.Update(executionRecord), "The packaged generated execution map did not update its scalar record.");
+        Require(executionCollection.FindById(1)?.Name == "package-updated", "The packaged generated execution map did not read its updated scalar record.");
+        Require(executionCollection.Delete(1) && executionCollection.Count() == 0,
+            "The packaged generated execution map did not complete delete/count operations.");
+
+        mapper.SerializeNullValues = true;
+
         var collection = database.GetGeneratedCollection<PackagedGeneratedRecord>("packaged_generated_records");
         collection.Insert(new PackagedGeneratedRecord
         {
@@ -65,6 +90,23 @@ internal static class Program
 
         Console.WriteLine("[PASS] Packaged LiteDB.SourceGenerator restore, generation, registration, Native AOT publish, and real LiteDB round trip succeeded.");
         return 0;
+    }
+
+    private static GeneratedEntityMap<PackagedExecutionRecord> CreatePackagedExecutionMap()
+    {
+        return new GeneratedEntityMap<PackagedExecutionRecord>(
+            record => new BsonDocument
+            {
+                ["_id"] = record.Id,
+                [nameof(PackagedExecutionRecord.Name)] = record.Name,
+                [nameof(PackagedExecutionRecord.Score)] = record.Score
+            },
+            document => new PackagedExecutionRecord
+            {
+                Id = document["_id"].AsInt32,
+                Name = document[nameof(PackagedExecutionRecord.Name)].AsString,
+                Score = document[nameof(PackagedExecutionRecord.Score)].AsInt32
+            });
     }
 
     private static void Require(bool condition, string message)

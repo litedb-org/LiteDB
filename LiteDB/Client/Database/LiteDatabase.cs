@@ -121,7 +121,7 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Gets a typed collection that uses a mapper emitted by the LiteDB source generator. Use with AOT setups.
+        /// Gets a typed collection for a source-generated entity mapper. A registered generated execution map selects the direct execution proof path; otherwise the current generated-registration collection behavior is retained.
         /// </summary>
         /// <typeparam name="T">The explicitly generated entity type.</typeparam>
         /// <param name="name">Collection name (case insensitive).</param>
@@ -136,6 +136,12 @@ namespace LiteDB
             if (Mapper.HasGeneratedEntityMapper(typeof(T)) == false)
             {
                 throw new InvalidOperationException($"No source-generated entity mapper is registered for '{typeof(T).FullName}'.");
+            }
+
+            if (Mapper.TryGetGeneratedExecutionMap<T>(out var generatedMap))
+            {
+                Mapper.ValidateGeneratedExecutionConfiguration();
+                return new GeneratedLiteCollection<T>(name, autoId, _engine, Mapper.GetGeneratedEntityMapper(typeof(T)), generatedMap, Mapper.ValidateGeneratedExecutionConfiguration);
             }
 
             return this.GetCollectionCore<T>(name, autoId);

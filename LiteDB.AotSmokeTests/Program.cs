@@ -126,9 +126,10 @@ namespace LiteDB.AotSmokeTests
 
         private static void RunGeneratedTypedMappingScenario(string databasePath)
         {
-            Console.WriteLine("  [3.1] Register generated mappings and round-trip a scalar typed record.");
-            var mapper = new BsonMapper { SerializeNullValues = true };
+            Console.WriteLine("  [3.1] Register generated mappings plus a direct scalar execution map and round-trip a scalar typed record.");
+            var mapper = new BsonMapper();
             LiteDbGeneratedMappings.Register(mapper);
+            mapper.RegisterGeneratedExecutionMap(CreateAotSimpleExecutionMap());
 
             using var database = new LiteDatabase(databasePath, mapper);
             var simple = database.GetGeneratedCollection<AotSimpleRecord>("aot_simple");
@@ -137,7 +138,7 @@ namespace LiteDB.AotSmokeTests
             var simpleRead = simple.FindById(1);
             Require(simpleRead?.Name == "simple" && simpleRead.Score == 7,
                 "The source-generated Native AOT simple typed round trip failed.");
-            Console.WriteLine("        Passed: generated mapper registration and scalar typed round trip.");
+            Console.WriteLine("        Passed: generated mapper registration, direct execution-map registration, and scalar typed round trip.");
 
             Console.WriteLine("  [3.1a] Evaluate a static-member LINQ expression through the generated mapper.");
             var staticMemberExpression = mapper.GetExpression<AotSimpleRecord, bool>(record => record.Score < DateTime.Today.Day + 1);
@@ -159,6 +160,8 @@ namespace LiteDB.AotSmokeTests
             Require(simple.Delete(1) && simple.Count() == 0,
                 "The source-generated Native AOT typed delete failed.");
             Console.WriteLine("        Passed: generated typed update, count, and delete.");
+
+            mapper.SerializeNullValues = true;
 
             Console.WriteLine("  [3.3] Round-trip populated, null, and empty List<string> values.");
             Console.WriteLine("        Null values are persisted explicitly so the generated null-list mapping path is exercised.");
@@ -605,6 +608,23 @@ namespace LiteDB.AotSmokeTests
             Require(condition,
                 $"The source-generated Native AOT native scalar round trip failed for '{field}'. Expected: '{expected}'. Actual: '{actual}'.");
             Console.WriteLine($"        Passed: {field}.");
+        }
+
+        private static GeneratedEntityMap<AotSimpleRecord> CreateAotSimpleExecutionMap()
+        {
+            return new GeneratedEntityMap<AotSimpleRecord>(
+                record => new BsonDocument
+                {
+                    ["_id"] = record.Id,
+                    [nameof(AotSimpleRecord.Name)] = record.Name,
+                    [nameof(AotSimpleRecord.Score)] = record.Score
+                },
+                document => new AotSimpleRecord
+                {
+                    Id = document["_id"].AsInt32,
+                    Name = document[nameof(AotSimpleRecord.Name)].AsString,
+                    Score = document[nameof(AotSimpleRecord.Score)].AsInt32
+                });
         }
 
         private static void Require(bool condition, string message)
