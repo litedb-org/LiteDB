@@ -1680,6 +1680,62 @@ namespace LiteDB.AotTests
         }
 
 
+        [TestMethod]
+        public void GetGeneratedCollection_AutomaticC2ScalarMap_ExecutesUpsertsWithoutMapperFallback()
+        {
+            var path = GetDatabasePath();
+
+            try
+            {
+                var mapper = new ThrowingConversionMapper();
+                LiteDbGeneratedMappings.Register(mapper);
+
+                using var database = new LiteDatabase(path, mapper);
+                var collection = database.GetGeneratedCollection<PhaseCScalarRecord>("phaseCScalarUpserts");
+
+                var automatic = new PhaseCScalarRecord { Name = "automatic", Score = 1 };
+                Assert.IsTrue(collection.Upsert(automatic));
+                Assert.AreNotEqual(0, automatic.Id);
+                automatic.Name = "automatic-updated";
+                automatic.Score = 2;
+                Assert.IsFalse(collection.Upsert(automatic));
+                Assert.AreEqual(1, collection.Count());
+                Assert.AreEqual("automatic-updated", collection.FindById(automatic.Id)?.Name);
+                Assert.AreEqual(2, collection.FindById(automatic.Id)?.Score);
+
+                var batch = new[]
+                {
+                    new PhaseCScalarRecord { Name = "batch-first", Score = 3 },
+                    new PhaseCScalarRecord { Name = "batch-second", Score = 4 }
+                };
+                Assert.AreEqual(2, collection.Upsert(batch));
+                Assert.AreNotEqual(0, batch[0].Id);
+                Assert.AreNotEqual(0, batch[1].Id);
+                Assert.AreNotEqual(batch[0].Id, batch[1].Id);
+                batch[0].Score = 30;
+                batch[1].Score = 40;
+                Assert.AreEqual(0, collection.Upsert(batch));
+                Assert.AreEqual(30, collection.FindById(batch[0].Id)?.Score);
+                Assert.AreEqual(40, collection.FindById(batch[1].Id)?.Score);
+
+                var explicitEntity = new PhaseCScalarRecord { Id = 900, Name = "explicit", Score = 5 };
+                Assert.IsTrue(collection.Upsert(41, explicitEntity));
+                Assert.AreEqual(900, explicitEntity.Id);
+                Assert.AreEqual("explicit", collection.FindById(41)?.Name);
+                explicitEntity.Name = "explicit-updated";
+                explicitEntity.Score = 50;
+                Assert.IsFalse(collection.Upsert(41, explicitEntity));
+                Assert.AreEqual(900, explicitEntity.Id);
+                Assert.AreEqual("explicit-updated", collection.FindById(41)?.Name);
+                Assert.AreEqual(50, collection.FindById(41)?.Score);
+                Assert.AreEqual(4, collection.Count());
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
         private static void AssertDateTimeOffsetDocument(BsonValue value, DateTimeOffset expected)
         {
             Assert.IsTrue(value.IsDocument);

@@ -257,6 +257,45 @@ namespace LiteDB.AotSmokeTests
                 "The source-generated Native AOT C2.2a explicit-ID or batch scalar write failed.");
             Console.WriteLine("        Passed: automatic C2.2a explicit-ID insert/update and lazy batch insert/update without manual registration.");
 
+            Console.WriteLine("  [3.2d] Execute C2.2b automatic-ID, batch, and explicit-ID upserts without a manual execution map.");
+            var automaticC2Upserts = database.GetGeneratedCollection<AotPhaseCScalarRecord>("aot_phase_c_scalar_upserts");
+            var automaticC2Upsert = new AotPhaseCScalarRecord { Name = "automatic", Score = 1 };
+            var c2AutomaticInsert = automaticC2Upserts.Upsert(automaticC2Upsert);
+            automaticC2Upsert.Name = "automatic-updated";
+            automaticC2Upsert.Score = 2;
+            var c2AutomaticUpdate = automaticC2Upserts.Upsert(automaticC2Upsert);
+            var c2BatchUpserts = new[]
+            {
+                new AotPhaseCScalarRecord { Name = "batch-first", Score = 3 },
+                new AotPhaseCScalarRecord { Name = "batch-second", Score = 4 }
+            };
+            var c2BatchInsertCount = automaticC2Upserts.Upsert(c2BatchUpserts);
+            c2BatchUpserts[0].Score = 30;
+            c2BatchUpserts[1].Score = 40;
+            var c2UpsertBatchUpdateCount = automaticC2Upserts.Upsert(c2BatchUpserts);
+            var explicitC2Upsert = new AotPhaseCScalarRecord { Id = 900, Name = "explicit", Score = 5 };
+            var c2ExplicitInsert = automaticC2Upserts.Upsert(41, explicitC2Upsert);
+            explicitC2Upsert.Name = "explicit-updated";
+            explicitC2Upsert.Score = 50;
+            var c2ExplicitUpsertUpdate = automaticC2Upserts.Upsert(41, explicitC2Upsert);
+            Require(c2AutomaticInsert &&
+                    !c2AutomaticUpdate &&
+                    automaticC2Upsert.Id != 0 &&
+                    automaticC2Upserts.FindById(automaticC2Upsert.Id)?.Score == 2 &&
+                    c2BatchInsertCount == 2 &&
+                    c2UpsertBatchUpdateCount == 0 &&
+                    c2BatchUpserts[0].Id != 0 &&
+                    c2BatchUpserts[1].Id != 0 &&
+                    c2BatchUpserts[0].Id != c2BatchUpserts[1].Id &&
+                    automaticC2Upserts.FindById(c2BatchUpserts[0].Id)?.Score == 30 &&
+                    automaticC2Upserts.FindById(c2BatchUpserts[1].Id)?.Score == 40 &&
+                    c2ExplicitInsert &&
+                    !c2ExplicitUpsertUpdate &&
+                    explicitC2Upsert.Id == 900 &&
+                    automaticC2Upserts.FindById(41)?.Name == "explicit-updated",
+                "The source-generated Native AOT C2.2b scalar upsert behavior failed.");
+            Console.WriteLine("        Passed: automatic C2.2b scalar upserts preserve generated IDs, explicit IDs, and insert-count return semantics.");
+
             Console.WriteLine("  [3.3] Round-trip populated, null, and empty List<string> values.");
             Console.WriteLine("        Null values are persisted explicitly so the generated null-list mapping path is exercised.");
             var list = database.GetGeneratedCollection<AotListRecord>("aot_list");

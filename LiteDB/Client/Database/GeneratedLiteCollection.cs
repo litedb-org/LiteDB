@@ -145,13 +145,47 @@ namespace LiteDB
         }
 
         private static NotSupportedException Unsupported(string operation) => new NotSupportedException(
-            $"Generated execution maps currently support Insert, InsertBulk, Update, FindById, Count, and Delete only. '{operation}' is not available during the generated execution proof of concept.");
+            $"Generated execution maps currently support Insert, InsertBulk, Update, Upsert, FindById, Count, and Delete only. '{operation}' is not available during the generated execution proof of concept.");
 
         public ILiteCollection<T> Include<K>(Expression<Func<T, K>> keySelector) => throw Unsupported(nameof(Include));
         public ILiteCollection<T> Include(BsonExpression keySelector) => throw Unsupported(nameof(Include));
-        public bool Upsert(T entity) => throw Unsupported(nameof(Upsert));
-        public int Upsert(IEnumerable<T> entities) => throw Unsupported(nameof(Upsert));
-        public bool Upsert(BsonValue id, T entity) => throw Unsupported(nameof(Upsert));
+
+        public bool Upsert(T entity)
+        {
+            var options = _getExecutionOptions();
+            if (entity == null) throw new ArgumentNullException(nameof(entity));
+
+            var document = _map.Serialize(entity, options);
+            var removedId = RemoveEmptyId(document);
+            var count = _engine.Upsert(_collection, new[] { document }, _autoId);
+
+            if (removedId && _id is not null)
+            {
+                _id.Setter(entity, document["_id"].RawValue);
+            }
+
+            return count == 1;
+        }
+
+        public int Upsert(IEnumerable<T> entities)
+        {
+            var options = _getExecutionOptions();
+            if (entities == null) throw new ArgumentNullException(nameof(entities));
+
+            return _engine.Upsert(_collection, SerializeForInsert(entities, options), _autoId);
+        }
+
+        public bool Upsert(BsonValue id, T entity)
+        {
+            var options = _getExecutionOptions();
+            if (entity == null) throw new ArgumentNullException(nameof(entity));
+            if (id == null || id.IsNull) throw new ArgumentNullException(nameof(id));
+
+            var document = _map.Serialize(entity, options);
+            document["_id"] = id;
+
+            return _engine.Upsert(_collection, new[] { document }, _autoId) > 0;
+        }
 
         public bool Update(BsonValue id, T entity)
         {

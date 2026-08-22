@@ -216,6 +216,43 @@ internal static class Program
                 c2ExplicitUpdate,
             "The packaged C2.2a explicit-ID or batch scalar write did not complete without a manual execution map.");
 
+        var automaticC2Upserts = database.GetGeneratedCollection<PackagedC1ScalarRecord>("packaged_c2_scalar_upserts");
+        var automaticC2Upsert = new PackagedC1ScalarRecord { Name = "automatic", Score = 1 };
+        var c2AutomaticInsert = automaticC2Upserts.Upsert(automaticC2Upsert);
+        automaticC2Upsert.Name = "automatic-updated";
+        automaticC2Upsert.Score = 2;
+        var c2AutomaticUpdate = automaticC2Upserts.Upsert(automaticC2Upsert);
+        var c2BatchUpserts = new[]
+        {
+            new PackagedC1ScalarRecord { Name = "batch-first", Score = 3 },
+            new PackagedC1ScalarRecord { Name = "batch-second", Score = 4 }
+        };
+        var c2BatchInsertCount = automaticC2Upserts.Upsert(c2BatchUpserts);
+        c2BatchUpserts[0].Score = 30;
+        c2BatchUpserts[1].Score = 40;
+        var c2UpsertBatchUpdateCount = automaticC2Upserts.Upsert(c2BatchUpserts);
+        var explicitC2Upsert = new PackagedC1ScalarRecord { Id = 900, Name = "explicit", Score = 5 };
+        var c2ExplicitInsert = automaticC2Upserts.Upsert(41, explicitC2Upsert);
+        explicitC2Upsert.Name = "explicit-updated";
+        explicitC2Upsert.Score = 50;
+        var c2ExplicitUpsertUpdate = automaticC2Upserts.Upsert(41, explicitC2Upsert);
+        Require(c2AutomaticInsert &&
+                !c2AutomaticUpdate &&
+                automaticC2Upsert.Id != 0 &&
+                automaticC2Upserts.FindById(automaticC2Upsert.Id)?.Score == 2 &&
+                c2BatchInsertCount == 2 &&
+                c2UpsertBatchUpdateCount == 0 &&
+                c2BatchUpserts[0].Id != 0 &&
+                c2BatchUpserts[1].Id != 0 &&
+                c2BatchUpserts[0].Id != c2BatchUpserts[1].Id &&
+                automaticC2Upserts.FindById(c2BatchUpserts[0].Id)?.Score == 30 &&
+                automaticC2Upserts.FindById(c2BatchUpserts[1].Id)?.Score == 40 &&
+                c2ExplicitInsert &&
+                !c2ExplicitUpsertUpdate &&
+                explicitC2Upsert.Id == 900 &&
+                automaticC2Upserts.FindById(41)?.Name == "explicit-updated",
+            "The packaged C2.2b scalar upsert behavior did not complete without a manual execution map.");
+
         var mutableRecords = database.GetGeneratedCollection<PackagedMutableRecord>("packaged_mutable_records");
         mutableRecords.Insert(new PackagedMutableRecord { Name = "record" });
         Require(mutableRecords.FindById(1)?.Name == "record",
