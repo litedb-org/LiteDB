@@ -46,7 +46,7 @@ New UI to manage and visualize your database:
 
 ## Documentation
 
-For Native AOT applications targeting .NET 8.0 or later and using source-generated entity maps, see [Native AOT and Source-Generated Entity Mapping](docs/AOT.md).
+For Native AOT applications targeting .NET 8.0 or later and using source-generated entity maps, see [Native AOT and Source-Generated Entity Mapping](docs/AOT.md). For the separate analyzer package, matching-version requirement, and contributor validation workflow, see the [LiteDB.SourceGenerator package contract](docs/SourceGeneratorPackage.md).
 
 Visit [the Wiki](https://github.com/mbdavid/LiteDB/wiki) for full documentation. For simplified chinese version, [check here](https://github.com/lidanger/LiteDB.wiki_Translation_zh-cn).
 

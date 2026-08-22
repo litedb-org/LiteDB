@@ -19,13 +19,29 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
     private const string BsonFieldAttributeName = "LiteDB.BsonFieldAttribute";
     private const string BsonIgnoreAttributeName = "LiteDB.BsonIgnoreAttribute";
 
-    private static readonly DiagnosticDescriptor UnsupportedModel = new(
-        id: "LDBSG001",
-        title: "Unsupported source-generated LiteDB model",
-        messageFormat: "Type '{0}' cannot use BsonSourceGenerated: {1}",
-        category: "LiteDB.SourceGeneration",
-        defaultSeverity: DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        private static readonly DiagnosticDescriptor InvalidModel = new(
+            id: "LDBSG001",
+            title: "Invalid source-generated model",
+            messageFormat: "Type '{0}' cannot use BsonSourceGenerated: {1}",
+            category: "LiteDB.SourceGenerator",
+            defaultSeverity: DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+        private static readonly DiagnosticDescriptor InvalidProperty = new(
+            id: "LDBSG002",
+            title: "Invalid source-generated property",
+            messageFormat: "Type '{0}' cannot use BsonSourceGenerated: {1}",
+            category: "LiteDB.SourceGenerator",
+            defaultSeverity: DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+        private static readonly DiagnosticDescriptor MappingConflict = new(
+            id: "LDBSG003",
+            title: "Conflicting source-generated mapping",
+            messageFormat: "Type '{0}' cannot use BsonSourceGenerated: {1}",
+            category: "LiteDB.SourceGenerator",
+            defaultSeverity: DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -49,7 +65,7 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
                 else
                 {
                     productionContext.ReportDiagnostic(Diagnostic.Create(
-                        UnsupportedModel,
+                        GetDiagnosticDescriptor(result.DiagnosticKind),
                         result.DiagnosticLocation!.Create(),
                         result.TypeName,
                         result.Error));
@@ -68,25 +84,33 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         });
     }
 
+    private static DiagnosticDescriptor GetDiagnosticDescriptor(DiagnosticKind kind) => kind switch
+    {
+        DiagnosticKind.InvalidModel => InvalidModel,
+        DiagnosticKind.InvalidProperty => InvalidProperty,
+        DiagnosticKind.MappingConflict => MappingConflict,
+        _ => throw new InvalidOperationException($"Unsupported diagnostic kind '{kind}'.")
+    };
+
     private static ModelResult DescribeModel(INamedTypeSymbol type, DiagnosticLocationDescriptor diagnosticLocation)
     {
         var typeName = GetTypeName(type);
 
         if (type.TypeKind != TypeKind.Class || type.IsAbstract || type.IsGenericType || type.ContainingType is not null)
         {
-            return ModelResult.Unsupported(typeName, diagnosticLocation, "it must be a non-abstract, non-generic, top-level class");
+            return ModelResult.InvalidModel(typeName, diagnosticLocation, "it must be a non-abstract, non-generic, top-level class");
         }
 
         if (type.DeclaredAccessibility is not Accessibility.Public and not Accessibility.Internal)
         {
-            return ModelResult.Unsupported(typeName, diagnosticLocation, "it must be public or internal");
+            return ModelResult.InvalidModel(typeName, diagnosticLocation, "it must be public or internal");
         }
 
         if (!type.InstanceConstructors.Any(static constructor =>
                 constructor.Parameters.Length == 0 &&
                 (constructor.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal)))
         {
-            return ModelResult.Unsupported(typeName, diagnosticLocation, "an accessible parameterless constructor is required");
+            return ModelResult.InvalidModel(typeName, diagnosticLocation, "an accessible parameterless constructor is required");
         }
 
         var hierarchy = new List<INamedTypeSymbol>();
@@ -94,12 +118,12 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         {
             if (current.TypeKind != TypeKind.Class || current.IsGenericType || current.ContainingType is not null)
             {
-                return ModelResult.Unsupported(typeName, diagnosticLocation, "all base classes must be non-generic, top-level classes");
+                return ModelResult.InvalidModel(typeName, diagnosticLocation, "all base classes must be non-generic, top-level classes");
             }
 
             if (current.DeclaredAccessibility is not Accessibility.Public and not Accessibility.Internal)
             {
-                return ModelResult.Unsupported(typeName, diagnosticLocation, "all base classes must be public or internal");
+                return ModelResult.InvalidModel(typeName, diagnosticLocation, "all base classes must be public or internal");
             }
 
             hierarchy.Add(current);
@@ -120,7 +144,7 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
 
                 if (property.IsStatic || property.IsIndexer)
                 {
-                    return ModelResult.Unsupported(typeName, diagnosticLocation, $"property '{property.Name}' must be a non-static, non-indexed property");
+                    return ModelResult.InvalidProperty(typeName, diagnosticLocation, $"property '{property.Name}' must be a non-static, non-indexed property");
                 }
 
                 if (IsComputedProperty(property, type))
@@ -133,18 +157,18 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
                     property.SetMethod is null || property.SetMethod.DeclaredAccessibility is not Accessibility.Public ||
                     property.SetMethod.IsInitOnly)
                 {
-                    return ModelResult.Unsupported(typeName, diagnosticLocation, $"property '{property.Name}' must have public non-init getter and setter accessors");
+                    return ModelResult.InvalidProperty(typeName, diagnosticLocation, $"property '{property.Name}' must have public non-init getter and setter accessors");
                 }
 
                 if (!memberNames.Add(property.Name))
                 {
-                    return ModelResult.Unsupported(typeName, diagnosticLocation, $"multiple mapped properties are named '{property.Name}' across the inheritance hierarchy");
+                    return ModelResult.MappingConflict(typeName, diagnosticLocation, $"multiple mapped properties are named '{property.Name}' across the inheritance hierarchy");
                 }
 
                 var kind = GetPropertyKind(property.Type);
                 if (kind == PropertyKind.Unsupported)
                 {
-                    return ModelResult.Unsupported(typeName, diagnosticLocation, $"property '{property.Name}' has an unsupported type '{property.Type.ToDisplayString()}'");
+                    return ModelResult.InvalidProperty(typeName, diagnosticLocation, $"property '{property.Name}' has an unsupported type '{property.Type.ToDisplayString()}'");
                 }
 
                 var idAttribute = GetAttribute(property, BsonIdAttributeName);
@@ -163,13 +187,13 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
 
         if (properties.Count == 0)
         {
-            return ModelResult.Unsupported(typeName, diagnosticLocation, "at least one supported property is required");
+            return ModelResult.InvalidModel(typeName, diagnosticLocation, "at least one supported property is required");
         }
 
         var explicitIds = properties.Where(static property => property.HasBsonId).ToArray();
         if (explicitIds.Length > 1)
         {
-            return ModelResult.Unsupported(typeName, diagnosticLocation, "multiple properties are marked with BsonId");
+            return ModelResult.MappingConflict(typeName, diagnosticLocation, "multiple properties are marked with BsonId");
         }
 
         PropertyDescriptor? id = null;
@@ -185,7 +209,7 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
 
             if (conventionalIds.Length > 1)
             {
-                return ModelResult.Unsupported(typeName, diagnosticLocation, "multiple properties match generated ID conventions across the inheritance hierarchy");
+                return ModelResult.MappingConflict(typeName, diagnosticLocation, "multiple properties match generated ID conventions across the inheritance hierarchy");
             }
 
             if (conventionalIds.Length == 1)
@@ -212,7 +236,7 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
             var fieldName = property.IsId ? "_id" : property.FieldName;
             if (!fieldNames.Add(fieldName))
             {
-                return ModelResult.Unsupported(typeName, diagnosticLocation, $"multiple mapped properties use BSON field name '{fieldName}' across the inheritance hierarchy");
+                return ModelResult.MappingConflict(typeName, diagnosticLocation, $"multiple mapped properties use BSON field name '{fieldName}' across the inheritance hierarchy");
             }
         }
 
@@ -692,11 +716,24 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         ModelDescriptor? Model,
         string TypeName,
         DiagnosticLocationDescriptor? DiagnosticLocation,
+        DiagnosticKind DiagnosticKind,
         string? Error)
     {
-        public static ModelResult Supported(ModelDescriptor model) => new(model, model.TypeName, null, null);
-        public static ModelResult Unsupported(string typeName, DiagnosticLocationDescriptor diagnosticLocation, string error) =>
-            new(null, typeName, diagnosticLocation, error);
+        public static ModelResult Supported(ModelDescriptor model) => new(model, model.TypeName, null, DiagnosticKind.None, null);
+        public static ModelResult InvalidModel(string typeName, DiagnosticLocationDescriptor diagnosticLocation, string error) =>
+            new(null, typeName, diagnosticLocation, DiagnosticKind.InvalidModel, error);
+        public static ModelResult InvalidProperty(string typeName, DiagnosticLocationDescriptor diagnosticLocation, string error) =>
+            new(null, typeName, diagnosticLocation, DiagnosticKind.InvalidProperty, error);
+        public static ModelResult MappingConflict(string typeName, DiagnosticLocationDescriptor diagnosticLocation, string error) =>
+            new(null, typeName, diagnosticLocation, DiagnosticKind.MappingConflict, error);
+    }
+
+    private enum DiagnosticKind
+    {
+        None,
+        InvalidModel,
+        InvalidProperty,
+        MappingConflict
     }
 
     private sealed record DiagnosticLocationDescriptor(

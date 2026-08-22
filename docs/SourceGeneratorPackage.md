@@ -1,67 +1,78 @@
-# LiteDB Source Generator package contract
+# LiteDB.SourceGenerator package contract
 
-## Purpose
+`LiteDB.SourceGenerator` is a **development-time Roslyn analyzer** that emits LiteDB entity-mapper registration code for explicitly annotated models. It is distributed separately from the LiteDB runtime package. The analyzer package contains no LiteDB runtime implementation, no Roslyn compiler assemblies, and no runtime deployment asset.
 
-`LiteDB.SourceGenerator` is the separately distributed **compile-time** companion for LiteDB source-generated mappings. It analyzes models marked with `[BsonSourceGenerated]` and emits `LiteDB.Generated.LiteDbGeneratedMappings` for registration with `BsonMapper`.
+## Version and ownership contract
 
-> The source generator is not a runtime replacement for LiteDB. It does not contain the LiteDB runtime implementation and must not become a runtime deployment dependency.
+`LiteDB` and `LiteDB.SourceGenerator` are a matching release pair. Both use the version calculated from the same source revision by the repository’s GitVersion configuration. Only exact matching versions are supported; a mixed pair is unsupported even if it happens to compile.
 
-This document records the package contract approved before package asset layout and publication are enabled. It is primarily a contributor and release-owner contract. Consumer installation instructions are deferred until package contents and local-feed consumption are implemented and validated.
+The analyzer package is a development dependency with the same MIT license, project URL, icon, and repository provenance as LiteDB. It packages exactly one analyzer assembly, `analyzers/dotnet/cs/LiteDB.SourceGenerator.dll`, built for `netstandard2.0`. The repository retains the generator’s `net8.0` target for local build and analyzer validation, but it is not a distributed analyzer asset.
 
-## Package identity and ownership
+> The analyzer package is compile-time only. It does not add LiteDB or Roslyn implementation assemblies to a published application.
 
-| Contract item | Decision |
-| --- | --- |
-| Package ID | `LiteDB.SourceGenerator` |
-| Product | LiteDB Source Generator |
-| License | MIT |
-| Project URL | `https://www.litedb.org` |
-| Repository | `https://github.com/litedb-org/LiteDB` |
-| Package role | Development-time Roslyn analyzer only |
-| Runtime package | `LiteDB` remains a separate runtime package |
-| Ownership | The LiteDB release process owns both packages as one paired release |
+## Consumer configuration
 
-The package uses the same repository provenance, license expression, icon, and GitVersion source as the LiteDB runtime package. It is marked as a development dependency. A consuming **library** should keep its analyzer reference private so the analyzer does not flow transitively to unrelated downstream projects.
+A Native AOT application targets `net8.0` or later and references the matching package pair. The source-generator reference is private so reusable libraries do not flow an analyzer reference transitively.
 
-## Compatibility contract
+```xml
+<PropertyGroup>
+  <LiteDbPackageVersion>YOUR_MATCHING_LITEDB_VERSION</LiteDbPackageVersion>
+</PropertyGroup>
 
-The future published analyzer asset will use the generator's `netstandard2.0` output under the standard `analyzers/dotnet/cs` package path. The repository retains the generator's `net8.0` target for build and analyzer validation, but that target is not the distributed analyzer asset.
+<ItemGroup>
+  <PackageReference Include="LiteDB" Version="$(LiteDbPackageVersion)" />
+  <PackageReference Include="LiteDB.SourceGenerator"
+                    Version="$(LiteDbPackageVersion)"
+                    PrivateAssets="all" />
+</ItemGroup>
+```
 
-The supported application path is a `net8.0` or later application that references a matching LiteDB runtime package, attaches the source generator at compile time, registers the generated mappings, and uses `GetGeneratedCollection<T>`. Native AOT support remains constrained by the generated mapping subset described in [AOT.md](AOT.md). The analyzer package must not introduce runtime Roslyn or LiteDB implementation assets into a published application.
+Annotate supported model classes with `[BsonSourceGenerated]`, then register the generated mappings once for each `BsonMapper` before calling `GetGeneratedCollection<T>`:
 
-Compiler-host compatibility is defined by the source generator's `IIncrementalGenerator` implementation and Roslyn API usage. A clean package-consumer build will establish the released compiler support baseline before the first package publication. The project must not claim broader compiler compatibility merely because an analyzer package is built for `netstandard2.0`.
+```csharp
+using LiteDB;
+using LiteDB.Generated;
 
-## Versioning policy
+var mapper = new BsonMapper();
+LiteDbGeneratedMappings.Register(mapper);
 
-`LiteDB` and `LiteDB.SourceGenerator` are an **exact version pair**. They are built from the same GitVersion-derived version and the same source revision. The source generator has no independent version prefix, version override, release train, or compatibility range.
+using var database = new LiteDatabase("app.db", mapper: mapper);
+var records = database.GetGeneratedCollection<GeneratedRecord>("records");
+```
 
-A consumer must use matching package versions. A mismatched pair is unsupported even if it happens to compile, because generated source depends on LiteDB runtime mapping seams. The release process must not represent accidental mixed-version behavior as a supported compatibility guarantee.
+The generated mapping subset, Native AOT application configuration, diagnostics, and dynamic-dictionary contract are documented in the [Native AOT and Source-Generated Entity Mapping guide](https://github.com/litedb-org/LiteDB/blob/master/docs/AOT.md).
 
-| Situation | Support decision |
-| --- | --- |
-| Matching LiteDB and LiteDB.SourceGenerator versions from one release | Supported, subject to the documented generated-mapping subset |
-| Analyzer version newer or older than LiteDB runtime version | Unsupported |
-| Independent analyzer-only patch release | Not permitted under the current policy |
-| Corrected generator behavior | Publish a corrected paired version of both packages |
+For repository development, continue to use the analyzer-only project reference documented in that guide. External consumers should use the package references above; they must not attach analyzer DLLs manually or use local project references to simulate package discovery.
 
-## Consumer ownership model
+## Contributor validation
 
-The eventual consumer configuration requires two explicit references: the LiteDB runtime package and the matching source-generator analyzer package. The runtime package does not silently install the analyzer package, and the analyzer package does not bring LiteDB runtime implementation assets into an application.
+The following command builds matching local packages, verifies their archive contract, restores a package-only consumer from a clean local feed, confirms generated source discovery, and publishes/runs the consumer with self-contained Linux x64 Native AOT:
 
-For application projects, the analyzer is a direct compile-time dependency. For reusable libraries, the analyzer should be private to the library project unless the library intentionally wants its consumers to compile that library's annotated model source. Exact installation syntax is deferred to P1.4, after local-feed validation proves the package layout.
+```bash
+./scripts/validate-source-generator-package-consumer.sh
+```
+
+The validator uses NuGet.org only for standard Native AOT/ILLink toolchain packages. The exact LiteDB runtime and source-generator versions are created in, and restored from, the script’s local feed. It verifies those exact package IDs and the analyzer asset path in the restored assets file.
+
+To inspect already-created paired archives without building or executing them, run:
+
+```bash
+./scripts/validate-source-generator-package-archive.sh artifacts YOUR_MATCHING_LITEDB_VERSION
+```
+
+The archive validator requires both `LiteDB.<version>.nupkg` and `LiteDB.SourceGenerator.<version>.nupkg`. It verifies matching IDs/versions, development dependency metadata, icon/readme, the sole C# analyzer asset, and absence of runtime, compiler, dependency, build, `net8.0` analyzer, or library assets.
 
 ## Release and rollback policy
 
-Release automation must pack, inspect, validate, and publish both packages from the same validated source revision. The package archive for the analyzer must be inspected before publication to verify that only intended analyzer/build metadata assets are present and that no LiteDB runtime DLL or Roslyn runtime dependency is shipped inadvertently.
+Prerelease publishing inherits the package-consumer and source-project Native AOT gates from the reusable Linux CI workflow. The manual stable-release workflow runs those gates directly before it packs both packages and validates the final archive pair. Both workflows create matching archives in `artifacts`, validate them with `validate-source-generator-package-archive.sh`, and only then reach their existing NuGet push or GitHub release-artifact step.
 
-A defective analyzer package must never be replaced in place under the same version. When a registry permits it, the affected package version may be unlisted; the remediation is always a newly published corrected **paired** version. The LiteDB runtime package must not be republished with different contents under an existing version.
+A defective analyzer package version must be corrected through a new matching LiteDB/runtime and analyzer pair. Do not replace or republish archive contents under an existing version. When a package must be withdrawn, unlist it where the registry permits and publish a corrected paired version.
 
-## Implementation gates
-
-| Gate | Required work before publication |
+| Release gate | Required evidence |
 | --- | --- |
-| P1.2 | Enable packing and explicitly place only the `netstandard2.0` generator DLL in `analyzers/dotnet/cs`; inspect the `.nupkg` contents. |
-| P1.3 | Restore a clean external consumer from a local feed, build the matching package pair, register generated mappings, and publish/run a Native AOT consumer. |
-| P1.4 | Add validated consumer installation commands, contributor package-validation commands, and release checklist entries. |
-
-Until these gates pass, `LiteDB.SourceGenerator` remains non-packable. This prevents an incomplete package contract from being published before analyzer discovery, asset hygiene, and consumer behavior are proven.
+| Exact pair | One GitVersion-derived version names both LiteDB and LiteDB.SourceGenerator archives. |
+| Archive hygiene | `validate-source-generator-package-archive.sh artifacts <version>` passes after both pack operations. |
+| Package consumer | The Linux Native AOT CI job passed `validate-source-generator-package-consumer.sh`; the manual stable-release workflow runs it directly. |
+| Source regressions | Focused generated-mapping tests and source-project Native AOT smoke tests passed in CI; the manual stable-release workflow runs the source-project smoke directly. |
+| Security/release advisories | The runtime package’s current NuGet audit advisory and package-readme advisory have been remediated or explicitly accepted by the runtime package security/release owner. They are not suppressed or attributed to the analyzer package. |
+| Publication immutability | Neither package archive is replaced under an existing version; corrections use a new paired version. |

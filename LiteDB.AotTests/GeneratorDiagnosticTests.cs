@@ -12,7 +12,7 @@ namespace LiteDB.AotTests
     public sealed class GeneratorDiagnosticTests
     {
         [TestMethod]
-        public void BsonSourceGenerator_UnsupportedModel_ReportsLdbsg001OnAnnotatedClassIdentifier()
+        public void BsonSourceGenerator_AbstractModel_ReportsLdbsg001OnAnnotatedClassIdentifier()
         {
             const string source = """
                 using LiteDB;
@@ -20,13 +20,134 @@ namespace LiteDB.AotTests
                 namespace ExternalConsumer;
 
                 [BsonSourceGenerated]
-                public sealed class InvalidDiagnosticRecord
+                public abstract class InvalidDiagnosticRecord
+                {
+                    public int Id { get; set; }
+                }
+                """;
+
+            AssertDiagnostic(
+                source,
+                "InvalidDiagnosticRecord.cs",
+                "LDBSG001",
+                "InvalidDiagnosticRecord",
+                "non-abstract");
+        }
+
+        [TestMethod]
+        public void BsonSourceGenerator_UnsupportedDirectProperty_ReportsLdbsg002OnAnnotatedClassIdentifier()
+        {
+            const string source = """
+                using LiteDB;
+
+                namespace ExternalConsumer;
+
+                [BsonSourceGenerated]
+                public sealed class InvalidDirectPropertyRecord
                 {
                     public int Id { get; set; }
                     public int[] UnsupportedValues { get; set; } = System.Array.Empty<int>();
                 }
                 """;
-            const string sourcePath = "InvalidDiagnosticRecord.cs";
+
+            AssertDiagnostic(
+                source,
+                "InvalidDirectPropertyRecord.cs",
+                "LDBSG002",
+                "InvalidDirectPropertyRecord",
+                "unsupported type");
+        }
+
+        [TestMethod]
+        public void BsonSourceGenerator_UnsupportedInheritedProperty_ReportsLdbsg002OnAnnotatedClassIdentifier()
+        {
+            const string source = """
+                using LiteDB;
+
+                namespace ExternalConsumer;
+
+                public class UnsupportedBaseRecord
+                {
+                    public int[] UnsupportedValues { get; set; } = System.Array.Empty<int>();
+                }
+
+                [BsonSourceGenerated]
+                public sealed class InvalidInheritedPropertyRecord : UnsupportedBaseRecord
+                {
+                    public int Id { get; set; }
+                }
+                """;
+
+            AssertDiagnostic(
+                source,
+                "InvalidInheritedPropertyRecord.cs",
+                "LDBSG002",
+                "InvalidInheritedPropertyRecord",
+                "unsupported type");
+        }
+
+        [TestMethod]
+        public void BsonSourceGenerator_PersistedGetterOnlyProperty_ReportsLdbsg002OnAnnotatedClassIdentifier()
+        {
+            const string source = """
+                using LiteDB;
+
+                namespace ExternalConsumer;
+
+                [BsonSourceGenerated]
+                public sealed class GetterOnlyPropertyRecord
+                {
+                    public int Id { get; set; }
+
+                    [BsonField("fingerprint")]
+                    public string Fingerprint => Id.ToString();
+                }
+                """;
+
+            AssertDiagnostic(
+                source,
+                "GetterOnlyPropertyRecord.cs",
+                "LDBSG002",
+                "GetterOnlyPropertyRecord",
+                "public non-init getter and setter");
+        }
+
+        [TestMethod]
+        public void BsonSourceGenerator_DuplicateBsonFieldNames_ReportsLdbsg003OnAnnotatedClassIdentifier()
+        {
+            const string source = """
+                using LiteDB;
+
+                namespace ExternalConsumer;
+
+                [BsonSourceGenerated]
+                public sealed class DuplicateFieldRecord
+                {
+                    public int Id { get; set; }
+
+                    [BsonField("duplicate")]
+                    public string First { get; set; } = string.Empty;
+
+                    [BsonField("duplicate")]
+                    public string Second { get; set; } = string.Empty;
+                }
+                """;
+
+            AssertDiagnostic(
+                source,
+                "DuplicateFieldRecord.cs",
+                "LDBSG003",
+                "DuplicateFieldRecord",
+                "BSON field name");
+        }
+
+        private static void AssertDiagnostic(
+            string source,
+            string sourcePath,
+            string expectedDiagnosticId,
+            string expectedIdentifier,
+            string expectedMessageFragment)
+        {
             var sourceTree = CSharpSyntaxTree.ParseText(source, path: sourcePath);
             var compilation = CSharpCompilation.Create(
                 assemblyName: "ExternalConsumer",
@@ -38,14 +159,15 @@ namespace LiteDB.AotTests
             driver = driver.RunGenerators(compilation);
 
             var diagnostics = driver.GetRunResult().Results.Single().Diagnostics;
-            var diagnostic = diagnostics.Single(item => item.Id == "LDBSG001");
-            var expectedStart = source.IndexOf("InvalidDiagnosticRecord", StringComparison.Ordinal);
+            var diagnostic = diagnostics.Single(item => item.Id == expectedDiagnosticId);
+            var expectedStart = source.IndexOf(expectedIdentifier, StringComparison.Ordinal);
 
             Assert.AreEqual(DiagnosticSeverity.Error, diagnostic.Severity);
             Assert.IsFalse(diagnostic.Location.IsInMetadata);
             Assert.AreEqual(sourcePath, diagnostic.Location.GetLineSpan().Path);
             Assert.AreEqual(expectedStart, diagnostic.Location.SourceSpan.Start);
-            Assert.AreEqual("InvalidDiagnosticRecord", source.Substring(diagnostic.Location.SourceSpan.Start, diagnostic.Location.SourceSpan.Length));
+            Assert.AreEqual(expectedIdentifier, source.Substring(diagnostic.Location.SourceSpan.Start, diagnostic.Location.SourceSpan.Length));
+            StringAssert.Contains(diagnostic.GetMessage(), expectedMessageFragment);
         }
 
         private static MetadataReference[] GetMetadataReferences()
