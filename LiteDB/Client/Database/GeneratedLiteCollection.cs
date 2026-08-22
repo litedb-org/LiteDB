@@ -145,7 +145,7 @@ namespace LiteDB
         }
 
         private static NotSupportedException Unsupported(string operation) => new NotSupportedException(
-            $"Generated execution maps currently support Insert, InsertBulk, Update, Upsert, FindById, Count, and Delete only. '{operation}' is not available during the generated execution proof of concept.");
+            $"Generated collections support only Insert (single, explicit-ID, enumerable, and bulk), Update (single, explicit-ID, and enumerable), Upsert (single, explicit-ID, and enumerable), FindById, parameterless Count, and Delete. Operation '{operation}' is not supported.");
 
         public ILiteCollection<T> Include<K>(Expression<Func<T, K>> keySelector) => throw Unsupported(nameof(Include));
         public ILiteCollection<T> Include(BsonExpression keySelector) => throw Unsupported(nameof(Include));
@@ -234,8 +234,30 @@ namespace LiteDB
         {
             var options = _getExecutionOptions();
             if (entities == null) throw new ArgumentNullException(nameof(entities));
+            if (batchSize <= 0) throw new ArgumentOutOfRangeException(nameof(batchSize));
 
-            return _engine.Insert(_collection, SerializeForInsert(entities, options), _autoId);
+            var count = 0;
+            // Do not use batchSize as the initial capacity: every positive value is
+            // valid, including values too large to preallocate for a small source.
+            var batch = new List<T>();
+
+            foreach (var entity in entities)
+            {
+                batch.Add(entity);
+
+                if (batch.Count == batchSize)
+                {
+                    count += _engine.Insert(_collection, SerializeForInsert(batch, options), _autoId);
+                    batch.Clear();
+                }
+            }
+
+            if (batch.Count > 0)
+            {
+                count += _engine.Insert(_collection, SerializeForInsert(batch, options), _autoId);
+            }
+
+            return count;
         }
         public bool EnsureIndex(string name, BsonExpression expression, bool unique = false) => throw Unsupported(nameof(EnsureIndex));
         public bool EnsureIndex(BsonExpression expression, bool unique = false) => throw Unsupported(nameof(EnsureIndex));

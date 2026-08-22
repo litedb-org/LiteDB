@@ -1679,6 +1679,72 @@ namespace LiteDB.AotTests
             }
         }
 
+        [TestMethod]
+        public void GetGeneratedCollection_InsertBulk_HonorsBatchSizeAndValidatesItBeforeEnumeration()
+        {
+            var path = GetDatabasePath();
+
+            try
+            {
+                var mapper = new ThrowingConversionMapper();
+                LiteDbGeneratedMappings.Register(mapper);
+
+                using var database = new LiteDatabase(path, mapper);
+                var collection = database.GetGeneratedCollection<PhaseCScalarRecord>("phaseCScalarBulkBatches");
+                var enumerationCount = 0;
+
+#pragma warning disable CS0618
+                var invalid = Assert.ThrowsException<ArgumentOutOfRangeException>(() =>
+                    collection.InsertBulk(CountEnumeration(), batchSize: 0));
+                Assert.AreEqual("batchSize", invalid.ParamName);
+                Assert.AreEqual(0, enumerationCount);
+
+                var records = Enumerable.Range(1, 5)
+                    .Select(value => new PhaseCScalarRecord { Name = $"bulk-{value}", Score = value })
+                    .ToArray();
+                Assert.AreEqual(5, collection.InsertBulk(records, batchSize: 2));
+#pragma warning restore CS0618
+
+                Assert.AreEqual(5, collection.Count());
+                Assert.IsTrue(records.All(record => record.Id != 0));
+
+                IEnumerable<PhaseCScalarRecord> CountEnumeration()
+                {
+                    enumerationCount++;
+                    yield return new PhaseCScalarRecord();
+                }
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
+        public void GetGeneratedCollection_UnsupportedOperation_DescribesApprovedOverloads()
+        {
+            var path = GetDatabasePath();
+
+            try
+            {
+                var mapper = new ThrowingConversionMapper();
+                LiteDbGeneratedMappings.Register(mapper);
+
+                using var database = new LiteDatabase(path, mapper);
+                var collection = database.GetGeneratedCollection<PhaseCScalarRecord>("phaseCUnsupported");
+                var exception = Assert.ThrowsException<NotSupportedException>(() => collection.FindAll());
+
+                Assert.AreEqual(
+                    "Generated collections support only Insert (single, explicit-ID, enumerable, and bulk), Update (single, explicit-ID, and enumerable), Upsert (single, explicit-ID, and enumerable), FindById, parameterless Count, and Delete. Operation 'FindAll' is not supported.",
+                    exception.Message);
+                Assert.AreEqual(0, database.GetCollection("phaseCUnsupported").Count());
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
 
         [TestMethod]
         public void GetGeneratedCollection_AutomaticC2ScalarMap_ExecutesUpsertsWithoutMapperFallback()
