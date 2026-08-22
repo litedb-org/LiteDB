@@ -190,6 +190,32 @@ internal static class Program
                 automaticC2Record.NullablePayload is null,
             "The packaged C2 automatic scalar compatibility map did not round trip without a manual execution map.");
 
+        var automaticC2Writes = database.GetGeneratedCollection<PackagedC1ScalarRecord>("packaged_c2_scalar_writes");
+        var explicitC2Write = new PackagedC1ScalarRecord { Id = 900, Name = "explicit", Score = 1 };
+        automaticC2Writes.Insert(41, explicitC2Write);
+        var batchC2Writes = new[]
+        {
+            new PackagedC1ScalarRecord { Name = "batch-first", Score = 2 },
+            new PackagedC1ScalarRecord { Name = "batch-second", Score = 3 }
+        };
+        automaticC2Writes.Insert(batchC2Writes);
+        batchC2Writes[0].Score = 20;
+        batchC2Writes[1].Score = 30;
+        var c2BatchUpdateCount = automaticC2Writes.Update(batchC2Writes);
+        var explicitC2Update = new PackagedC1ScalarRecord { Id = 999, Name = "explicit-update", Score = 40 };
+        var c2ExplicitUpdate = automaticC2Writes.Update(41, explicitC2Update);
+        Require(explicitC2Write.Id == 900 &&
+                automaticC2Writes.FindById(41)?.Name == "explicit-update" &&
+                explicitC2Update.Id == 999 &&
+                batchC2Writes[0].Id != 0 &&
+                batchC2Writes[1].Id != 0 &&
+                batchC2Writes[0].Id != batchC2Writes[1].Id &&
+                c2BatchUpdateCount == 2 &&
+                automaticC2Writes.FindById(batchC2Writes[0].Id)?.Score == 20 &&
+                automaticC2Writes.FindById(batchC2Writes[1].Id)?.Score == 30 &&
+                c2ExplicitUpdate,
+            "The packaged C2.2a explicit-ID or batch scalar write did not complete without a manual execution map.");
+
         var mutableRecords = database.GetGeneratedCollection<PackagedMutableRecord>("packaged_mutable_records");
         mutableRecords.Insert(new PackagedMutableRecord { Name = "record" });
         Require(mutableRecords.FindById(1)?.Name == "record",

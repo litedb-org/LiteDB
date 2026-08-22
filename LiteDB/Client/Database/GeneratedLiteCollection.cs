@@ -120,21 +120,89 @@ namespace LiteDB
             return true;
         }
 
+        private IEnumerable<BsonDocument> SerializeForInsert(IEnumerable<T> entities, GeneratedExecutionOptions options)
+        {
+            foreach (var entity in entities)
+            {
+                var document = _map.Serialize(entity, options);
+                var removedId = RemoveEmptyId(document);
+
+                yield return document;
+
+                if (removedId && _id is not null)
+                {
+                    _id.Setter(entity, document["_id"].RawValue);
+                }
+            }
+        }
+
+        private IEnumerable<BsonDocument> SerializeForUpdate(IEnumerable<T> entities, GeneratedExecutionOptions options)
+        {
+            foreach (var entity in entities)
+            {
+                yield return _map.Serialize(entity, options);
+            }
+        }
+
         private static NotSupportedException Unsupported(string operation) => new NotSupportedException(
-            $"Generated execution maps currently support Insert, Update, FindById, Count, and Delete only. '{operation}' is not available during the generated execution proof of concept.");
+            $"Generated execution maps currently support Insert, InsertBulk, Update, FindById, Count, and Delete only. '{operation}' is not available during the generated execution proof of concept.");
 
         public ILiteCollection<T> Include<K>(Expression<Func<T, K>> keySelector) => throw Unsupported(nameof(Include));
         public ILiteCollection<T> Include(BsonExpression keySelector) => throw Unsupported(nameof(Include));
         public bool Upsert(T entity) => throw Unsupported(nameof(Upsert));
         public int Upsert(IEnumerable<T> entities) => throw Unsupported(nameof(Upsert));
         public bool Upsert(BsonValue id, T entity) => throw Unsupported(nameof(Upsert));
-        public bool Update(BsonValue id, T entity) => throw Unsupported(nameof(Update));
-        public int Update(IEnumerable<T> entities) => throw Unsupported(nameof(Update));
+
+        public bool Update(BsonValue id, T entity)
+        {
+            var options = _getExecutionOptions();
+            if (entity == null) throw new ArgumentNullException(nameof(entity));
+            if (id == null || id.IsNull) throw new ArgumentNullException(nameof(id));
+
+            var document = _map.Serialize(entity, options);
+            document["_id"] = id;
+
+            return _engine.Update(_collection, new[] { document }) > 0;
+        }
+
+        public int Update(IEnumerable<T> entities)
+        {
+            var options = _getExecutionOptions();
+            if (entities == null) throw new ArgumentNullException(nameof(entities));
+
+            return _engine.Update(_collection, SerializeForUpdate(entities, options));
+        }
+
         public int UpdateMany(BsonExpression transform, BsonExpression predicate) => throw Unsupported(nameof(UpdateMany));
         public int UpdateMany(Expression<Func<T, T>> extend, Expression<Func<T, bool>> predicate) => throw Unsupported(nameof(UpdateMany));
-        public void Insert(BsonValue id, T entity) => throw Unsupported(nameof(Insert));
-        public int Insert(IEnumerable<T> entities) => throw Unsupported(nameof(Insert));
-        public int InsertBulk(IEnumerable<T> entities, int batchSize = 5000) => throw Unsupported(nameof(InsertBulk));
+
+        public void Insert(BsonValue id, T entity)
+        {
+            var options = _getExecutionOptions();
+            if (entity == null) throw new ArgumentNullException(nameof(entity));
+            if (id == null || id.IsNull) throw new ArgumentNullException(nameof(id));
+
+            var document = _map.Serialize(entity, options);
+            document["_id"] = id;
+
+            _engine.Insert(_collection, new[] { document }, _autoId);
+        }
+
+        public int Insert(IEnumerable<T> entities)
+        {
+            var options = _getExecutionOptions();
+            if (entities == null) throw new ArgumentNullException(nameof(entities));
+
+            return _engine.Insert(_collection, SerializeForInsert(entities, options), _autoId);
+        }
+
+        public int InsertBulk(IEnumerable<T> entities, int batchSize = 5000)
+        {
+            var options = _getExecutionOptions();
+            if (entities == null) throw new ArgumentNullException(nameof(entities));
+
+            return _engine.Insert(_collection, SerializeForInsert(entities, options), _autoId);
+        }
         public bool EnsureIndex(string name, BsonExpression expression, bool unique = false) => throw Unsupported(nameof(EnsureIndex));
         public bool EnsureIndex(BsonExpression expression, bool unique = false) => throw Unsupported(nameof(EnsureIndex));
         public bool EnsureIndex<K>(Expression<Func<T, K>> keySelector, bool unique = false) => throw Unsupported(nameof(EnsureIndex));

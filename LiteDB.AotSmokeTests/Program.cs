@@ -229,6 +229,34 @@ namespace LiteDB.AotSmokeTests
                 "The source-generated Native AOT C2 automatic scalar compatibility map failed.");
             Console.WriteLine("        Passed: automatic C2 scalar conversion, BSON shape, nullable values, and mapper options without manual registration.");
 
+            Console.WriteLine("  [3.2c] Execute C2.2a explicit-ID and batch scalar writes without a manual execution map.");
+            var automaticC2Writes = database.GetGeneratedCollection<AotPhaseCScalarRecord>("aot_phase_c_scalar_writes");
+            var explicitC2Write = new AotPhaseCScalarRecord { Id = 900, Name = "explicit", Score = 1 };
+            automaticC2Writes.Insert(41, explicitC2Write);
+            var batchC2Writes = new[]
+            {
+                new AotPhaseCScalarRecord { Name = "batch-first", Score = 2 },
+                new AotPhaseCScalarRecord { Name = "batch-second", Score = 3 }
+            };
+            automaticC2Writes.Insert(batchC2Writes);
+            batchC2Writes[0].Score = 20;
+            batchC2Writes[1].Score = 30;
+            var c2BatchUpdateCount = automaticC2Writes.Update(batchC2Writes);
+            var explicitC2Update = new AotPhaseCScalarRecord { Id = 999, Name = "explicit-update", Score = 40 };
+            var c2ExplicitUpdate = automaticC2Writes.Update(41, explicitC2Update);
+            Require(explicitC2Write.Id == 900 &&
+                    automaticC2Writes.FindById(41)?.Name == "explicit-update" &&
+                    explicitC2Update.Id == 999 &&
+                    batchC2Writes[0].Id != 0 &&
+                    batchC2Writes[1].Id != 0 &&
+                    batchC2Writes[0].Id != batchC2Writes[1].Id &&
+                    c2BatchUpdateCount == 2 &&
+                    automaticC2Writes.FindById(batchC2Writes[0].Id)?.Score == 20 &&
+                    automaticC2Writes.FindById(batchC2Writes[1].Id)?.Score == 30 &&
+                    c2ExplicitUpdate,
+                "The source-generated Native AOT C2.2a explicit-ID or batch scalar write failed.");
+            Console.WriteLine("        Passed: automatic C2.2a explicit-ID insert/update and lazy batch insert/update without manual registration.");
+
             Console.WriteLine("  [3.3] Round-trip populated, null, and empty List<string> values.");
             Console.WriteLine("        Null values are persisted explicitly so the generated null-list mapping path is exercised.");
             var list = database.GetGeneratedCollection<AotListRecord>("aot_list");

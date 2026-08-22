@@ -1620,6 +1620,66 @@ namespace LiteDB.AotTests
             }
         }
 
+        [TestMethod]
+        public void GetGeneratedCollection_AutomaticC2ScalarMap_ExecutesExplicitIdAndBatchWritesWithoutMapperFallback()
+        {
+            var path = GetDatabasePath();
+
+            try
+            {
+                var mapper = new ThrowingConversionMapper();
+                LiteDbGeneratedMappings.Register(mapper);
+
+                using var database = new LiteDatabase(path, mapper);
+                var collection = database.GetGeneratedCollection<PhaseCScalarRecord>("phaseCScalarBatchWrites");
+                var explicitInsert = new PhaseCScalarRecord { Id = 900, Name = "explicit-insert", Score = 1 };
+                collection.Insert(41, explicitInsert);
+
+                Assert.AreEqual(900, explicitInsert.Id);
+                Assert.AreEqual("explicit-insert", collection.FindById(41)?.Name);
+
+                var inserted = new[]
+                {
+                    new PhaseCScalarRecord { Name = "batch-first", Score = 2 },
+                    new PhaseCScalarRecord { Name = "batch-second", Score = 3 }
+                };
+                Assert.AreEqual(2, collection.Insert(inserted));
+                Assert.AreNotEqual(0, inserted[0].Id);
+                Assert.AreNotEqual(0, inserted[1].Id);
+                Assert.AreNotEqual(inserted[0].Id, inserted[1].Id);
+
+#pragma warning disable CS0618
+                var bulkInserted = new[]
+                {
+                    new PhaseCScalarRecord { Name = "bulk-first", Score = 4 },
+                    new PhaseCScalarRecord { Name = "bulk-second", Score = 5 }
+                };
+                Assert.AreEqual(2, collection.InsertBulk(bulkInserted, batchSize: 1));
+#pragma warning restore CS0618
+                Assert.AreNotEqual(0, bulkInserted[0].Id);
+                Assert.AreNotEqual(0, bulkInserted[1].Id);
+
+                inserted[0].Score = 20;
+                inserted[1].Score = 30;
+                Assert.AreEqual(2, collection.Update(inserted));
+                Assert.AreEqual(20, collection.FindById(inserted[0].Id)?.Score);
+                Assert.AreEqual(30, collection.FindById(inserted[1].Id)?.Score);
+
+                var explicitUpdate = new PhaseCScalarRecord { Id = 999, Name = "explicit-update", Score = 40 };
+                Assert.IsTrue(collection.Update(41, explicitUpdate));
+                Assert.AreEqual(999, explicitUpdate.Id);
+                var updated = collection.FindById(41);
+                Assert.IsNotNull(updated);
+                Assert.AreEqual("explicit-update", updated.Name);
+                Assert.AreEqual(40, updated.Score);
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+
         private static void AssertDateTimeOffsetDocument(BsonValue value, DateTimeOffset expected)
         {
             Assert.IsTrue(value.IsDocument);
