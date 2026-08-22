@@ -190,6 +190,39 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
+        public void BsonSourceGenerator_StringCollections_EmitDirectExecutionLoopsAndKnownMaterializers()
+        {
+            const string source = """
+                using System.Collections.Generic;
+                using LiteDB;
+
+                namespace SnapshotConsumer;
+
+                [BsonSourceGenerated]
+                public sealed class StringCollectionsRecord
+                {
+                    public int Id { get; set; }
+                    public List<string>? Names { get; set; }
+                    public string[]? Aliases { get; set; }
+                }
+                """;
+
+            var generatedSource = GenerateSource(source);
+
+            AssertContainsInOrder(
+                generatedSource,
+                "mapper.RegisterGeneratedExecutionMap(CreateExecutionMap0());",
+                "foreach (var item in entity.Names)",
+                "var text = options.TrimWhitespace ? item.Trim() : item;",
+                "document[\"Names\"] = array;",
+                "foreach (var item in entity.Aliases)",
+                "document[\"Aliases\"] = array;",
+                "new global::System.Collections.Generic.List<string>(value1.AsArray.Count)",
+                "result1.Add(item.IsNull ? null! : item.AsString);",
+                "var result2 = new string[array2.Count];");
+        }
+
+        [TestMethod]
         public void BsonSourceGenerator_C2ScalarMatrix_EmitsDirectScalarCompatibilityConversions()
         {
             const string source = """

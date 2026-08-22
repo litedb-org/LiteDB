@@ -494,8 +494,8 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
     {
         return hasInheritance == false &&
             properties.All(property =>
-                property.Kind == PropertyKind.Scalar &&
-                property.ScalarKind != ScalarConversionKind.None);
+                (property.Kind == PropertyKind.Scalar && property.ScalarKind != ScalarConversionKind.None) ||
+                property.Kind is PropertyKind.StringList or PropertyKind.StringArray);
     }
 
     private static string GenerateSource(IReadOnlyList<ModelDescriptor> models)
@@ -851,6 +851,32 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
     private static void AppendSerializeExecutionProperty(StringBuilder source, PropertyDescriptor property, string fieldLiteral)
     {
         var access = "entity." + property.Identifier;
+        if (property.Kind is PropertyKind.StringList or PropertyKind.StringArray)
+        {
+            source.Append("            if (").Append(access).AppendLine(" is null)");
+            source.AppendLine("            {");
+            source.Append("                if (options.SerializeNullValues) document[").Append(fieldLiteral).AppendLine("] = global::LiteDB.BsonValue.Null;");
+            source.AppendLine("            }");
+            source.AppendLine("            else");
+            source.AppendLine("            {");
+            source.AppendLine("                var array = new global::LiteDB.BsonArray();");
+            source.Append("                foreach (var item in ").Append(access).AppendLine(")");
+            source.AppendLine("                {");
+            source.AppendLine("                    if (item is null)");
+            source.AppendLine("                    {");
+            source.AppendLine("                        array.Add(global::LiteDB.BsonValue.Null);");
+            source.AppendLine("                    }");
+            source.AppendLine("                    else");
+            source.AppendLine("                    {");
+            source.AppendLine("                        var text = options.TrimWhitespace ? item.Trim() : item;");
+            source.AppendLine("                        array.Add(options.EmptyStringToNull && text.Length == 0 ? global::LiteDB.BsonValue.Null : new global::LiteDB.BsonValue(text));");
+            source.AppendLine("                    }");
+            source.AppendLine("                }");
+            source.Append("                document[").Append(fieldLiteral).AppendLine("] = array;");
+            source.AppendLine("            }");
+            return;
+        }
+
         if (property.ScalarKind == ScalarConversionKind.String)
         {
             source.Append("            if (").Append(access).AppendLine(" is null)");
@@ -901,9 +927,33 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         var value = "value" + propertyIndex;
         source.Append("            if (document.TryGetValue(").Append(fieldLiteral).Append(", out var ").Append(value).AppendLine(") && " + value + ".IsNull == false)");
         source.AppendLine("            {");
-        source.Append("                entity.").Append(property.Identifier).Append(" = ").Append(GetDeserializeExpression(property, value)).AppendLine(";");
+        if (property.Kind == PropertyKind.StringList)
+        {
+            source.Append("                var result").Append(propertyIndex).Append(" = new global::System.Collections.Generic.List<string>(").Append(value).AppendLine(".AsArray.Count);");
+            source.Append("                foreach (var item in ").Append(value).AppendLine(".AsArray)");
+            source.AppendLine("                {");
+            source.Append("                    result").Append(propertyIndex).AppendLine(".Add(item.IsNull ? null! : item.AsString);");
+            source.AppendLine("                }");
+            source.Append("                entity.").Append(property.Identifier).Append(" = result").Append(propertyIndex).AppendLine(";");
+        }
+        else if (property.Kind == PropertyKind.StringArray)
+        {
+            source.Append("                var array").Append(propertyIndex).Append(" = ").Append(value).AppendLine(".AsArray;");
+            source.Append("                var result").Append(propertyIndex).Append(" = new string[array").Append(propertyIndex).AppendLine(".Count];");
+            source.Append("                for (var index = 0; index < array").Append(propertyIndex).AppendLine(".Count; index++)");
+            source.AppendLine("                {");
+            source.Append("                    var item = array").Append(propertyIndex).AppendLine("[index];");
+            source.Append("                    result").Append(propertyIndex).AppendLine("[index] = item.IsNull ? null! : item.AsString;");
+            source.AppendLine("                }");
+            source.Append("                entity.").Append(property.Identifier).Append(" = result").Append(propertyIndex).AppendLine(";");
+        }
+        else
+        {
+            source.Append("                entity.").Append(property.Identifier).Append(" = ").Append(GetDeserializeExpression(property, value)).AppendLine(";");
+        }
         source.AppendLine("            }");
-        if (property.IsNullableScalar || IsReferenceScalar(property.ScalarKind))
+        if (property.IsNullableScalar || IsReferenceScalar(property.ScalarKind) ||
+            property.Kind is PropertyKind.StringList or PropertyKind.StringArray)
         {
             source.Append("            else if (document.TryGetValue(").Append(fieldLiteral).Append(", out ").Append(value).Append(") && ").Append(value).AppendLine(".IsNull)");
             source.AppendLine("            {");

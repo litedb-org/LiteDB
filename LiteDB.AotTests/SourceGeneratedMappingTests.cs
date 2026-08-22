@@ -456,7 +456,7 @@ namespace LiteDB.AotTests
 
             try
             {
-                var mapper = new BsonMapper { SerializeNullValues = true };
+                var mapper = new ThrowingConversionMapper { SerializeNullValues = true };
                 LiteDbGeneratedMappings.Register(mapper);
 
                 using var database = new LiteDatabase(path, mapper);
@@ -585,11 +585,11 @@ namespace LiteDB.AotTests
                 var secondaryRecords = database.GetGeneratedCollection<SecondaryRecord>("secondaryRecords");
                 var documents = database.GetCollection("documents");
 
-                records.Insert(new GeneratedRecord { Name = "before", Values = [] });
+                var record = new GeneratedRecord { Name = "before", Values = [] };
+                records.Insert(record);
                 secondaryRecords.Insert(new SecondaryRecord { Id = 10, Description = "secondary" });
                 documents.Insert(new BsonDocument { ["_id"] = 100, ["kind"] = "document" });
 
-                var record = records.FindAll().Single();
                 record.Name = "after";
 
                 Assert.AreEqual(1, records.Count());
@@ -1284,10 +1284,12 @@ namespace LiteDB.AotTests
             var expectedMany = Enumerable.Range(0, 64)
                 .Select(index => index == 0 ? string.Empty : index == 63 ? "last" : $"value-{index:D2}")
                 .ToArray();
+            var normalizedMany = expectedMany.ToArray();
+            normalizedMany[0] = null!;
 
             try
             {
-                var mapper = new BsonMapper { SerializeNullValues = true };
+                var mapper = new ThrowingConversionMapper { SerializeNullValues = true };
                 LiteDbGeneratedMappings.Register(mapper);
 
                 using var database = new LiteDatabase(path, mapper);
@@ -1301,10 +1303,10 @@ namespace LiteDB.AotTests
                 var manyDocument = database.GetCollection("stringArrayBoundaries").FindById(2);
 
                 Assert.IsNotNull(single);
-                CollectionAssert.AreEqual(new[] { string.Empty }, single.StreamNames);
+                CollectionAssert.AreEqual(new string?[] { null }, single.StreamNames);
                 Assert.IsNotNull(many);
-                CollectionAssert.AreEqual(expectedMany, many.StreamNames);
-                Assert.AreEqual(string.Empty, singleDocument[nameof(StringArrayRecord.StreamNames)].AsArray[0].AsString);
+                CollectionAssert.AreEqual(normalizedMany, many.StreamNames);
+                Assert.IsTrue(singleDocument[nameof(StringArrayRecord.StreamNames)].AsArray[0].IsNull);
                 Assert.AreEqual(expectedMany.Length, manyDocument[nameof(StringArrayRecord.StreamNames)].AsArray.Count);
                 Assert.AreEqual("last", manyDocument[nameof(StringArrayRecord.StreamNames)].AsArray[63].AsString);
             }
