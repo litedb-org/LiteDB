@@ -121,7 +121,7 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Gets a typed collection that uses a mapper emitted by the LiteDB source generator.
+        /// Gets a typed collection that uses a mapper emitted by the LiteDB source generator. Use with AOT setups.
         /// </summary>
         /// <typeparam name="T">The explicitly generated entity type.</typeparam>
         /// <param name="name">Collection name (case insensitive).</param>

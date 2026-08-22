@@ -126,9 +126,10 @@ namespace LiteDB
         BsonValue Pragma(string name);
 
         /// <summary>
-        /// Set new value to internal engine variables
+        /// Set new value to internal engine variables for AOT setups
         /// </summary>
         BsonValue Pragma(string name, BsonValue value);
+        ILiteCollection<T> GetGeneratedCollection<T>(string name, BsonAutoId autoId = BsonAutoId.ObjectId);
 
         /// <summary>
         /// Get/Set database user version - use this version number to control database change model
