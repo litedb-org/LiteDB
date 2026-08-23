@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
+using System.Text.RegularExpressions;
 using LiteDB.Engine;
 
 namespace LiteDB
@@ -13,6 +14,7 @@ namespace LiteDB
         private readonly MemberMapper _id;
         private readonly BsonAutoId _autoId;
         private readonly GeneratedEntityMap<T> _map;
+        private readonly BsonMapper _mapper;
         private readonly Func<GeneratedExecutionOptions> _getExecutionOptions;
 
         public string Name => _collection;
@@ -27,12 +29,14 @@ namespace LiteDB
             ILiteEngine engine,
             EntityMapper entity,
             GeneratedEntityMap<T> map,
+            BsonMapper mapper,
             Func<GeneratedExecutionOptions> getExecutionOptions)
         {
             _collection = name ?? throw new ArgumentNullException(nameof(name));
             _engine = engine ?? throw new ArgumentNullException(nameof(engine));
             _entity = entity ?? throw new ArgumentNullException(nameof(entity));
             _map = map ?? throw new ArgumentNullException(nameof(map));
+            _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
             _getExecutionOptions = getExecutionOptions ?? throw new ArgumentNullException(nameof(getExecutionOptions));
             _id = entity.Id;
             _autoId = ResolveAutoId(_id, autoId);
@@ -145,7 +149,7 @@ namespace LiteDB
         }
 
         private static NotSupportedException Unsupported(string operation) => new NotSupportedException(
-            $"Generated collections support only Insert (single, explicit-ID, enumerable, and bulk), Update (single, explicit-ID, and enumerable), Upsert (single, explicit-ID, and enumerable), FindById, parameterless Count, and Delete. Operation '{operation}' is not supported.");
+            $"Generated collections support only Insert (single, explicit-ID, enumerable, and bulk), Update (single, explicit-ID, and enumerable), Upsert (single, explicit-ID, and enumerable), FindById, parameterless Count, Delete, and EnsureIndex. Operation '{operation}' is not supported.");
 
         public ILiteCollection<T> Include<K>(Expression<Func<T, K>> keySelector) => throw Unsupported(nameof(Include));
         public ILiteCollection<T> Include(BsonExpression keySelector) => throw Unsupported(nameof(Include));
@@ -259,10 +263,50 @@ namespace LiteDB
 
             return count;
         }
-        public bool EnsureIndex(string name, BsonExpression expression, bool unique = false) => throw Unsupported(nameof(EnsureIndex));
-        public bool EnsureIndex(BsonExpression expression, bool unique = false) => throw Unsupported(nameof(EnsureIndex));
-        public bool EnsureIndex<K>(Expression<Func<T, K>> keySelector, bool unique = false) => throw Unsupported(nameof(EnsureIndex));
-        public bool EnsureIndex<K>(string name, Expression<Func<T, K>> keySelector, bool unique = false) => throw Unsupported(nameof(EnsureIndex));
+        public bool EnsureIndex(string name, BsonExpression expression, bool unique = false)
+        {
+            _getExecutionOptions();
+            if (string.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
+            if (expression == null) throw new ArgumentNullException(nameof(expression));
+
+            return _engine.EnsureIndex(_collection, name, expression, unique);
+        }
+
+        public bool EnsureIndex(BsonExpression expression, bool unique = false)
+        {
+            if (expression == null) throw new ArgumentNullException(nameof(expression));
+
+            var name = Regex.Replace(expression.Source, @"[^a-z0-9]", "", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            return EnsureIndex(name, expression, unique);
+        }
+
+        public bool EnsureIndex<K>(Expression<Func<T, K>> keySelector, bool unique = false)
+        {
+            return EnsureIndex(GetIndexExpression(keySelector), unique);
+        }
+
+        public bool EnsureIndex<K>(string name, Expression<Func<T, K>> keySelector, bool unique = false)
+        {
+            return EnsureIndex(name, GetIndexExpression(keySelector), unique);
+        }
+
+        private BsonExpression GetIndexExpression<K>(Expression<Func<T, K>> keySelector)
+        {
+            if (keySelector == null) throw new ArgumentNullException(nameof(keySelector));
+
+            var expression = _mapper.GetGeneratedIndexExpression(keySelector);
+            if (typeof(K).IsEnumerable() && expression.IsScalar)
+            {
+                if (expression.Type != BsonExpressionType.Path)
+                {
+                    throw new LiteException(0, $"Expression `{expression.Source}` must return a enumerable expression");
+                }
+
+                expression = expression.Source + "[*]";
+            }
+
+            return expression;
+        }
         public bool DropIndex(string name) => throw Unsupported(nameof(DropIndex));
         public ILiteQueryable<T> Query() => throw Unsupported(nameof(Query));
         public IEnumerable<T> Find(BsonExpression predicate, int skip = 0, int limit = int.MaxValue) => throw Unsupported(nameof(Find));

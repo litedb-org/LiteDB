@@ -1854,7 +1854,7 @@ namespace LiteDB.AotTests
                 var exception = Assert.ThrowsException<NotSupportedException>(() => collection.FindAll());
 
                 Assert.AreEqual(
-                    "Generated collections support only Insert (single, explicit-ID, enumerable, and bulk), Update (single, explicit-ID, and enumerable), Upsert (single, explicit-ID, and enumerable), FindById, parameterless Count, and Delete. Operation 'FindAll' is not supported.",
+                    "Generated collections support only Insert (single, explicit-ID, enumerable, and bulk), Update (single, explicit-ID, and enumerable), Upsert (single, explicit-ID, and enumerable), FindById, parameterless Count, Delete, and EnsureIndex. Operation 'FindAll' is not supported.",
                     exception.Message);
                 Assert.AreEqual(0, database.GetCollection("phaseCUnsupported").Count());
             }
@@ -1864,6 +1864,30 @@ namespace LiteDB.AotTests
             }
         }
 
+        [TestMethod]
+        public void GetGeneratedCollection_EnsuresIndexesFromGeneratedMapping()
+        {
+            var path = GetDatabasePath();
+
+            try
+            {
+                var mapper = new ThrowingConversionMapper();
+                LiteDbGeneratedMappings.Register(mapper);
+
+                using var database = new LiteDatabase(path, mapper);
+                var collection = database.GetGeneratedCollection<PhaseCScalarRecord>("phaseCIndexes");
+
+                Assert.IsTrue(collection.EnsureIndex(record => record.Name));
+                Assert.IsFalse(collection.EnsureIndex(record => record.Name));
+                Assert.IsTrue(collection.EnsureIndex("score_idx", record => record.Score));
+                Assert.IsTrue(collection.EnsureIndex(BsonExpression.Create("LOWER($.Name)")));
+                Assert.IsTrue(collection.EnsureIndex("score_plus_one", BsonExpression.Create("$.Score + 1")));
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
 
         [TestMethod]
         public void GetGeneratedCollection_AutomaticC2ScalarMap_ExecutesUpsertsWithoutMapperFallback()

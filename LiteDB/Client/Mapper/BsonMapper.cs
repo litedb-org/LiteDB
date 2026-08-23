@@ -241,6 +241,13 @@ namespace LiteDB
             return expr;
         }
 
+        internal BsonExpression GetGeneratedIndexExpression<T, K>(Expression<Func<T, K>> predicate)
+        {
+            var visitor = new LinqExpressionVisitor(this, predicate, useGeneratedMappers: true);
+
+            return visitor.Resolve(false);
+        }
+
         #endregion
 
         #region Predefinded Property Resolvers

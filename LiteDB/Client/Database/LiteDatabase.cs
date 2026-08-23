@@ -150,6 +150,7 @@ namespace LiteDB
                 _engine,
                 Mapper.GetGeneratedEntityMapper(typeof(T)),
                 generatedMap,
+                Mapper,
                 () => Mapper.ValidateGeneratedExecutionConfiguration(generatedMap));
         }
 

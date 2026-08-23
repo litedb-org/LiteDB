@@ -36,6 +36,7 @@ namespace LiteDB
         };
 
         private readonly BsonMapper _mapper;
+        private readonly bool _useGeneratedMappers;
         private readonly Expression _expr;
         private readonly ParameterExpression _rootParameter = null;
 
@@ -46,10 +47,11 @@ namespace LiteDB
         private readonly StringBuilder _builder = new StringBuilder();
         private readonly Stack<MemberExpression> _memberAccessNodes = new();
 
-        public LinqExpressionVisitor(BsonMapper mapper, Expression expr)
+        public LinqExpressionVisitor(BsonMapper mapper, Expression expr, bool useGeneratedMappers = false)
         {
             _mapper = mapper;
             _expr = expr;
+            _useGeneratedMappers = useGeneratedMappers;
 
             if (expr is LambdaExpression lambda)
             {
@@ -635,7 +637,9 @@ namespace LiteDB
             var isParentDbRef = _dbRefType != null && member.DeclaringType.IsAssignableFrom(_dbRefType);
 
             // get class entity from mapper
-            var entity = _mapper.GetEntityMapper(member.DeclaringType);
+            var entity = _useGeneratedMappers && _mapper.HasGeneratedEntityMapper(member.DeclaringType)
+                ? _mapper.GetGeneratedEntityMapper(member.DeclaringType)
+                : _mapper.GetEntityMapper(member.DeclaringType);
             entity.WaitForInitialization();
 
             // get mapped field from entity
