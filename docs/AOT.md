@@ -133,7 +133,9 @@ Unsupported annotated shapes produce a fail-closed **error** diagnostic; the gen
 
 ## Contributor validation
 
-`LiteDB.AotTests` exercises generated registration, C2 direct scalar conversion with option-sensitive BSON golden documents and ordinary/direct cross-reads, mutable record classes, IDs, field and ignore attributes, `DateTimeOffset` values and cross-path reads, inherited and overridden properties, computed projections, `List<string>`, `string[]`, and dynamic-dictionary round trips. `LiteDB.AotSmokeTests` publishes and runs a Native AOT executable with an automatic C2 scalar execution checkpoint alongside generated scalar, nullable scalar, list, string-array, DateTimeOffset, inherited-property, computed-projection, and dynamic-dictionary workflows plus document, query, and stream scenarios.
+`LiteDB.AotTests` exercises generated registration, C2 direct scalar conversion with option-sensitive BSON golden documents and ordinary/direct cross-reads, mutable record classes, IDs, field and ignore attributes, `DateTimeOffset` values and cross-path reads, inherited and overridden properties, computed projections, `List<string>`, `string[]`, and dynamic-dictionary round trips. `LiteDB.AotSmokeTests` exercises an automatic C2 scalar execution checkpoint alongside generated scalar, nullable scalar, list, string-array, DateTimeOffset, inherited-property, computed-projection, and dynamic-dictionary workflows plus document, query, and stream scenarios.
+
+The smoke project is also the feature-parity contract between publish modes. The parity script publishes it as an ordinary untrimmed application, a trimmed managed single-file application, and a Native AOT application; it runs all three and requires their complete scenario transcripts to match byte for byte. A new smoke scenario therefore expands the regular, trimmed, and Native AOT gates together rather than relying on three independently maintained test lists. This verifies reachable behavior, not every public LiteDB API: reflection-based ordinary typed mapping remains intentionally outside the trimming-safe generated mapping contract described above.
 
 Run the focused tests with:
 
@@ -147,6 +149,14 @@ Run the Native AOT smoke test with:
 dotnet publish LiteDB.AotSmokeTests/LiteDB.AotSmokeTests.csproj -c Release -r linux-x64 --self-contained true
 ./LiteDB.AotSmokeTests/bin/Release/net8.0/linux-x64/publish/LiteDB.AotSmokeTests
 ```
+
+Run the complete regular-versus-published feature-parity gate with:
+
+```bash
+./scripts/validate-aot-feature-parity.sh
+```
+
+The script needs the Native AOT toolchain (`clang` and the platform development libraries). Set `RUNTIME_IDENTIFIER` to test a different runtime identifier or `AOT_PARITY_OUTPUT_ROOT` to retain the three publish trees and transcripts in another location.
 
 Run the separate trimmed, non-AOT gate with:
 

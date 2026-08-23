@@ -129,25 +129,8 @@ jobs:
       - name: Validate packaged source-generator consumer
         run: ./scripts/validate-source-generator-package-consumer.sh
 
-      - name: Publish and run Native AOT smoke test
-        run: >-
-          dotnet publish LiteDB.AotSmokeTests/LiteDB.AotSmokeTests.csproj
-          --configuration Release
-          --runtime linux-x64
-          --output ./artifacts/native-aot
-          && ./artifacts/native-aot/LiteDB.AotSmokeTests
-
-      - name: Publish and run trimmed managed smoke test
-        run: >-
-          dotnet publish LiteDB.AotSmokeTests/LiteDB.AotSmokeTests.csproj
-          --configuration Release
-          --runtime linux-x64
-          --self-contained true
-          -p:PublishAot=false
-          -p:PublishTrimmed=true
-          -p:PublishSingleFile=true
-          --output ./artifacts/trimmed
-          && ./artifacts/trimmed/LiteDB.AotSmokeTests
+      - name: Compare regular, trimmed, and Native AOT feature coverage
+        run: ./scripts/validate-aot-feature-parity.sh
 
   build-macos:
     name: Build (macOS)
