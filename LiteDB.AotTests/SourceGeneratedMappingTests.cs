@@ -102,7 +102,6 @@ namespace LiteDB.AotTests
             {
                 var mapper = new ThrowingConversionMapper();
                 LiteDbGeneratedMappings.Register(mapper);
-                mapper.RegisterGeneratedExecutionMap(CreatePhaseBExecutionMap());
 
                 using var database = new LiteDatabase(path, mapper);
                 var collection = database.GetGeneratedCollection<PhaseBGeneratedRecord>("phaseB");
@@ -229,7 +228,7 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
-        public void GetGeneratedCollection_UsesLegacyBridgeForC1IneligibleModel()
+        public void GetGeneratedCollection_AutomaticallyRegistersInheritedExecutionMap()
         {
             var path = GetDatabasePath();
 
@@ -240,8 +239,12 @@ namespace LiteDB.AotTests
 
                 using var database = new LiteDatabase(path, mapper);
                 var collection = database.GetGeneratedCollection<PhaseBGeneratedRecord>("phaseBBridge");
-                Assert.ThrowsException<AssertFailedException>(() =>
-                    collection.Insert(new PhaseBGeneratedRecord { Name = "legacy", Score = 1L }));
+                var id = collection.Insert(new PhaseBGeneratedRecord { Name = "generated", Score = 1L });
+                var read = collection.FindById(id);
+
+                Assert.IsNotNull(read);
+                Assert.AreEqual("generated", read.Name);
+                Assert.AreEqual(1L, read.Score);
             }
             finally
             {
@@ -289,8 +292,6 @@ namespace LiteDB.AotTests
             LiteDbGeneratedMappings.Register(firstMapper);
             LiteDbGeneratedMappings.Register(secondMapper);
 
-            firstMapper.RegisterGeneratedExecutionMap(CreatePhaseBExecutionMap());
-
             Assert.ThrowsException<InvalidOperationException>(() =>
                 firstMapper.RegisterGeneratedExecutionMap(CreatePhaseBExecutionMap()));
 
@@ -304,8 +305,8 @@ namespace LiteDB.AotTests
                 }
 
                 using var secondDatabase = new LiteDatabase(path, secondMapper);
-                var legacyBridge = secondDatabase.GetGeneratedCollection<PhaseBGeneratedRecord>("phaseB");
-                Assert.IsNotNull(legacyBridge.FindAll());
+                var secondGenerated = secondDatabase.GetGeneratedCollection<PhaseBGeneratedRecord>("phaseB");
+                Assert.ThrowsException<NotSupportedException>(() => secondGenerated.FindAll());
             }
             finally
             {
@@ -314,7 +315,7 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
-        public void GeneratedExecutionMap_RequiresGeneratedEntityMapperAndDefaultConfiguration()
+        public void GeneratedExecutionMap_RequiresGeneratedEntityMapperAndSupportsNullSerialization()
         {
             var unregisteredMapper = new BsonMapper();
             Assert.ThrowsException<InvalidOperationException>(() =>
@@ -322,16 +323,16 @@ namespace LiteDB.AotTests
 
             var mapper = new BsonMapper { SerializeNullValues = true };
             LiteDbGeneratedMappings.Register(mapper);
-            mapper.RegisterGeneratedExecutionMap(CreatePhaseBExecutionMap());
 
             var path = GetDatabasePath();
             try
             {
                 using var database = new LiteDatabase(path, mapper);
-                var exception = Assert.ThrowsException<InvalidOperationException>(() =>
-                    database.GetGeneratedCollection<PhaseBGeneratedRecord>("phaseB"));
+                var collection = database.GetGeneratedCollection<PhaseBGeneratedRecord>("phaseB");
+                var id = collection.Insert(new PhaseBGeneratedRecord { Name = null!, Score = 1L });
+                var document = database.GetCollection("phaseB").FindById(id);
 
-                StringAssert.Contains(exception.Message, "does not support the active BsonMapper configuration");
+                Assert.IsTrue(document[nameof(PhaseBGeneratedRecord.Name)].IsNull);
             }
             finally
             {
@@ -347,7 +348,6 @@ namespace LiteDB.AotTests
                 value => new BsonValue(value.AbsoluteUri),
                 value => new Uri(value.AsString));
             LiteDbGeneratedMappings.Register(mapper);
-            mapper.RegisterGeneratedExecutionMap(CreatePhaseBExecutionMap());
 
             var path = GetDatabasePath();
             try
@@ -365,11 +365,10 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
-        public void GeneratedExecutionMap_RejectsConfigurationChangedAfterCollectionAcquisition()
+        public void GeneratedExecutionMap_AcceptsNullSerializationChangedAfterCollectionAcquisition()
         {
             var mapper = new BsonMapper();
             LiteDbGeneratedMappings.Register(mapper);
-            mapper.RegisterGeneratedExecutionMap(CreatePhaseBExecutionMap());
 
             var path = GetDatabasePath();
             try
@@ -379,8 +378,7 @@ namespace LiteDB.AotTests
 
                 mapper.SerializeNullValues = true;
 
-                var exception = Assert.ThrowsException<InvalidOperationException>(() => collection.Count());
-                StringAssert.Contains(exception.Message, "does not support the active BsonMapper configuration");
+                Assert.AreEqual(0, collection.Count());
             }
             finally
             {

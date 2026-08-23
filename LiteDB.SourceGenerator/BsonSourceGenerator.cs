@@ -244,7 +244,7 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         return ModelResult.Supported(new ModelDescriptor(
             typeName,
             properties.ToImmutableArray(),
-            CanEmitExecutionMap(properties, hierarchy.Count != 1)));
+            CanEmitExecutionMap(properties)));
     }
 
     private static PropertyKind GetPropertyKind(ITypeSymbol type)
@@ -492,13 +492,12 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         };
     }
 
-    private static bool CanEmitExecutionMap(IReadOnlyList<PropertyDescriptor> properties, bool hasInheritance)
+    private static bool CanEmitExecutionMap(IReadOnlyList<PropertyDescriptor> properties)
     {
-        return hasInheritance == false &&
-            properties.All(property =>
-                (property.Kind is PropertyKind.Scalar or PropertyKind.DateTimeOffset or PropertyKind.NullableDateTimeOffset &&
-                    property.ScalarKind != ScalarConversionKind.None) ||
-                property.Kind is PropertyKind.StringList or PropertyKind.StringArray or PropertyKind.DynamicDictionary);
+        return properties.All(property =>
+            (property.Kind is PropertyKind.Scalar or PropertyKind.DateTimeOffset or PropertyKind.NullableDateTimeOffset &&
+                property.ScalarKind != ScalarConversionKind.None) ||
+            property.Kind is PropertyKind.StringList or PropertyKind.StringArray or PropertyKind.DynamicDictionary);
     }
 
     private static string GenerateSource(IReadOnlyList<ModelDescriptor> models)

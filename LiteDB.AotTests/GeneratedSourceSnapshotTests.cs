@@ -46,14 +46,22 @@ namespace LiteDB.AotTests
                 "public static void Register(global::LiteDB.BsonMapper mapper)",
                 "var map0 = Create0();",
                 "mapper.RegisterGeneratedEntityMapper(map0);",
+                "mapper.RegisterGeneratedExecutionMap(CreateExecutionMap0());",
                 "private static global::LiteDB.EntityMapper Create0()",
                 "FieldName = \"_id\",",
                 "MemberName = \"Id\",",
                 "FieldName = \"name\",",
                 "MemberName = \"Name\",",
                 "MemberName = \"RetryCount\",",
-                "DataType = typeof(global::System.Int32?),");
+                "DataType = typeof(global::System.Int32?),",
+                "private static global::LiteDB.GeneratedEntityMap<global::SnapshotConsumer.SnapshotRecord> CreateExecutionMap0()",
+                "document[\"_id\"] = new global::LiteDB.BsonValue(entity.Id);",
+                "document[\"name\"] = options.EmptyStringToNull",
+                "entity.RetryCount = value2.AsInt32;");
             Assert.IsFalse(generatedSource.Contains("MemberName = \"Fingerprint\"", StringComparison.Ordinal));
+            Assert.IsFalse(generatedSource.Contains("BaseType", StringComparison.Ordinal));
+            Assert.IsFalse(generatedSource.Contains("GetMembers", StringComparison.Ordinal));
+            Assert.IsFalse(generatedSource.Contains("Activator", StringComparison.Ordinal));
         }
 
         [TestMethod]
@@ -113,11 +121,15 @@ namespace LiteDB.AotTests
 
             AssertContainsInOrder(
                 generatedSource,
+                "mapper.RegisterGeneratedExecutionMap(CreateExecutionMap0());",
                 "FieldName = \"_id\",",
                 "MemberName = \"Key\",",
                 "Setter = (entity, value) => ((global::SnapshotConsumer.OverrideSnapshotRecord)entity).Key = (global::System.Int32)value",
-                "MemberName = \"Name\",");
+                "MemberName = \"Name\"",
+                "document[\"_id\"] = new global::LiteDB.BsonValue(entity.Key);",
+                "entity.Key = value0.AsInt32;");
             Assert.AreEqual(1, generatedSource.Split("MemberName = \"Key\"", StringSplitOptions.None).Length - 1);
+            Assert.AreEqual(2, generatedSource.Split("entity.Key", StringSplitOptions.None).Length - 1);
         }
 
         [TestMethod]
