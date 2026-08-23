@@ -484,6 +484,7 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         return type.WithNullableAnnotation(NullableAnnotation.None).ToDisplayString() switch
         {
             "System.DateTime" => ScalarConversionKind.DateTime,
+            "System.DateTimeOffset" => ScalarConversionKind.DateTimeOffset,
             "System.Guid" => ScalarConversionKind.Guid,
             "LiteDB.ObjectId" => ScalarConversionKind.ObjectId,
             _ => ScalarConversionKind.None
@@ -494,7 +495,8 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
     {
         return hasInheritance == false &&
             properties.All(property =>
-                (property.Kind == PropertyKind.Scalar && property.ScalarKind != ScalarConversionKind.None) ||
+                (property.Kind is PropertyKind.Scalar or PropertyKind.DateTimeOffset or PropertyKind.NullableDateTimeOffset &&
+                    property.ScalarKind != ScalarConversionKind.None) ||
                 property.Kind is PropertyKind.StringList or PropertyKind.StringArray);
     }
 
@@ -569,11 +571,7 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         source.AppendLine("        {");
         source.AppendLine("            if (value is null) return global::LiteDB.BsonValue.Null;");
         source.AppendLine("            var dateTimeOffset = (global::System.DateTimeOffset)value;");
-        source.AppendLine("            return new global::LiteDB.BsonDocument");
-        source.AppendLine("            {");
-        source.AppendLine("                [\"DateTime\"] = dateTimeOffset.Ticks,");
-        source.AppendLine("                [\"Offset\"] = dateTimeOffset.Offset.Ticks");
-        source.AppendLine("            };");
+        source.AppendLine("            return new global::LiteDB.BsonValue(dateTimeOffset.UtcDateTime);");
         source.AppendLine("        }");
         source.AppendLine();
         source.AppendLine("        private static object DeserializeDateTimeOffset(global::LiteDB.BsonValue value)");
@@ -986,6 +984,7 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
             ScalarConversionKind.Decimal => "new global::LiteDB.BsonValue(" + value + ")",
             ScalarConversionKind.ByteArray => "new global::LiteDB.BsonValue(" + value + ")",
             ScalarConversionKind.DateTime => "new global::LiteDB.BsonValue(" + value + ")",
+            ScalarConversionKind.DateTimeOffset => "SerializeDateTimeOffset(" + value + ")",
             ScalarConversionKind.Guid => "new global::LiteDB.BsonValue(" + value + ")",
             ScalarConversionKind.ObjectId => "new global::LiteDB.BsonValue(" + value + ")",
             ScalarConversionKind.Enum => "options.EnumAsInteger ? new global::LiteDB.BsonValue((int)" + value + ") : new global::LiteDB.BsonValue(" + value + ".ToString())",
@@ -1013,6 +1012,7 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
             ScalarConversionKind.String => value + ".AsString",
             ScalarConversionKind.ByteArray => value + ".AsBinary",
             ScalarConversionKind.DateTime => value + ".AsDateTime",
+            ScalarConversionKind.DateTimeOffset => "(global::System.DateTimeOffset)DeserializeDateTimeOffset(" + value + ")",
             ScalarConversionKind.Guid => value + ".AsGuid",
             ScalarConversionKind.ObjectId => value + ".AsObjectId",
             ScalarConversionKind.Enum => value + ".IsInt32 ? (" + property.ScalarTypeName + ")" + value + ".AsInt32 : global::System.Enum.Parse<" + property.ScalarTypeName + ">(" + value + ".AsString)",
@@ -1100,6 +1100,7 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
         String,
         ByteArray,
         DateTime,
+        DateTimeOffset,
         Guid,
         ObjectId,
         Enum

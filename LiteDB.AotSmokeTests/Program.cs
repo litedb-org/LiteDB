@@ -328,7 +328,7 @@ namespace LiteDB.AotSmokeTests
                 "The source-generated Native AOT multi-model registration failed.");
             Console.WriteLine("        Passed: multiple generated models registered and used with one mapper.");
 
-            Console.WriteLine("  [3.5] Round-trip DateTimeOffset values with exact ticks and offsets.");
+            Console.WriteLine("  [3.5] Round-trip DateTimeOffset values using canonical UTC BSON precision.");
             var expectedOccurredAt = new DateTimeOffset(2024, 6, 7, 8, 9, 10, TimeSpan.FromHours(-4)).AddTicks(4321);
             var expectedDeliveredAt = new DateTimeOffset(2024, 6, 8, 9, 10, 11, TimeSpan.FromHours(2)).AddTicks(1234);
             var dateTimeOffsets = database.GetGeneratedCollection<AotDateTimeOffsetRecord>("aot_date_time_offsets");
@@ -341,11 +341,11 @@ namespace LiteDB.AotSmokeTests
 
             var dateTimeOffsetRead = dateTimeOffsets.FindById(20);
             Require(dateTimeOffsetRead is not null &&
-                    expectedOccurredAt.EqualsExact(dateTimeOffsetRead.OccurredAt) &&
+                    IsCanonicalDateTimeOffset(expectedOccurredAt, dateTimeOffsetRead.OccurredAt) &&
                     dateTimeOffsetRead.DeliveredAt.HasValue &&
-                    expectedDeliveredAt.EqualsExact(dateTimeOffsetRead.DeliveredAt.Value),
+                    IsCanonicalDateTimeOffset(expectedDeliveredAt, dateTimeOffsetRead.DeliveredAt.Value),
                 "The source-generated Native AOT DateTimeOffset round trip failed.");
-            Console.WriteLine("        Passed: required and nullable DateTimeOffset values retain their ticks and offsets.");
+            Console.WriteLine("        Passed: required and nullable DateTimeOffset values use canonical UTC BSON precision.");
 
             Console.WriteLine("  [3.5a] Read a legacy BSON DateTime through the generated DateTimeOffset map.");
             var legacyDateTimeOffset = new DateTimeOffset(2024, 6, 9, 10, 11, 12, TimeSpan.FromHours(5.5)).AddTicks(4321);
@@ -417,7 +417,7 @@ namespace LiteDB.AotSmokeTests
                 nativeScalarRead.Timestamp.ToUniversalTime() == expectedTimestamp,
                 expectedTimestamp.ToString("O"),
                 $"{nativeScalarRead.Timestamp:O} (UTC: {nativeScalarRead.Timestamp.ToUniversalTime():O})");
-            RequireNativeScalar("TimestampWithOffset", expectedTimestampWithOffset.EqualsExact(nativeScalarRead.TimestampWithOffset), expectedTimestampWithOffset.ToString("O"), nativeScalarRead.TimestampWithOffset.ToString("O"));
+            RequireNativeScalar("TimestampWithOffset", IsCanonicalDateTimeOffset(expectedTimestampWithOffset, nativeScalarRead.TimestampWithOffset), expectedTimestampWithOffset.ToString("O"), nativeScalarRead.TimestampWithOffset.ToString("O"));
             RequireNativeScalar("Payload", nativeScalarRead.Payload.SequenceEqual(expectedPayload), Convert.ToHexString(expectedPayload), Convert.ToHexString(nativeScalarRead.Payload));
             RequireNativeScalar("CorrelationId", nativeScalarRead.CorrelationId == new Guid("09e72680-2f4f-4eb3-a70c-f27d489b6068"), "09e72680-2f4f-4eb3-a70c-f27d489b6068", nativeScalarRead.CorrelationId.ToString());
             RequireNativeScalar("Name", nativeScalarRead.Name == "native-scalars", "native-scalars", nativeScalarRead.Name);
@@ -546,7 +546,7 @@ namespace LiteDB.AotSmokeTests
                 "The source-generated Native AOT dynamic dictionary round trip failed.");
             Console.WriteLine("        Passed: BSON-native scalar, null, nested document, and nested array dictionary values.");
 
-            Console.WriteLine("  [3.11] Round-trip DateTimeOffset offset directions and raw BSON document shape.");
+            Console.WriteLine("  [3.11] Round-trip DateTimeOffset offset directions and canonical raw BSON DateTime values.");
             var expectedPositiveOffset = new DateTimeOffset(2024, 7, 8, 9, 10, 11, TimeSpan.FromHours(5.5)).AddTicks(1234);
             var expectedNegativeOffset = new DateTimeOffset(2024, 7, 9, 10, 11, 12, TimeSpan.FromHours(-8)).AddTicks(4321);
             var expectedNullableOffset = new DateTimeOffset(2024, 7, 10, 11, 12, 13, TimeSpan.Zero).AddTicks(9876);
@@ -570,17 +570,17 @@ namespace LiteDB.AotSmokeTests
             var nullDateTimeOffsetBoundaryRead = dateTimeOffsetBoundaries.FindById(81);
             var dateTimeOffsetBoundaryDocument = database.GetCollection("aot_date_time_offset_boundaries").FindById(80);
             Require(dateTimeOffsetBoundaryRead is not null &&
-                    expectedPositiveOffset.EqualsExact(dateTimeOffsetBoundaryRead.PositiveOffset) &&
-                    expectedNegativeOffset.EqualsExact(dateTimeOffsetBoundaryRead.NegativeOffset) &&
+                    IsCanonicalDateTimeOffset(expectedPositiveOffset, dateTimeOffsetBoundaryRead.PositiveOffset) &&
+                    IsCanonicalDateTimeOffset(expectedNegativeOffset, dateTimeOffsetBoundaryRead.NegativeOffset) &&
                     dateTimeOffsetBoundaryRead.NullableOffset.HasValue &&
-                    expectedNullableOffset.EqualsExact(dateTimeOffsetBoundaryRead.NullableOffset.Value),
+                    IsCanonicalDateTimeOffset(expectedNullableOffset, dateTimeOffsetBoundaryRead.NullableOffset.Value),
                 "The source-generated Native AOT DateTimeOffset boundary round trip failed.");
             Require(nullDateTimeOffsetBoundaryRead is not null && nullDateTimeOffsetBoundaryRead.NullableOffset is null,
                 "The source-generated Native AOT nullable DateTimeOffset BSON-null round trip failed.");
-            RequireDateTimeOffsetDocument(dateTimeOffsetBoundaryDocument[nameof(AotDateTimeOffsetBoundaryRecord.PositiveOffset)], expectedPositiveOffset);
-            RequireDateTimeOffsetDocument(dateTimeOffsetBoundaryDocument[nameof(AotDateTimeOffsetBoundaryRecord.NegativeOffset)], expectedNegativeOffset);
-            RequireDateTimeOffsetDocument(dateTimeOffsetBoundaryDocument[nameof(AotDateTimeOffsetBoundaryRecord.NullableOffset)], expectedNullableOffset);
-            Console.WriteLine("        Passed: positive, negative, and nullable offsets retain exact ticks, offsets, and BSON document fields.");
+            RequireCanonicalDateTimeOffsetValue(dateTimeOffsetBoundaryDocument[nameof(AotDateTimeOffsetBoundaryRecord.PositiveOffset)], expectedPositiveOffset);
+            RequireCanonicalDateTimeOffsetValue(dateTimeOffsetBoundaryDocument[nameof(AotDateTimeOffsetBoundaryRecord.NegativeOffset)], expectedNegativeOffset);
+            RequireCanonicalDateTimeOffsetValue(dateTimeOffsetBoundaryDocument[nameof(AotDateTimeOffsetBoundaryRecord.NullableOffset)], expectedNullableOffset);
+            Console.WriteLine("        Passed: positive, negative, and nullable offsets canonicalize to UTC BSON DateTime values.");
 
             Console.WriteLine("  [3.12] Round-trip additional populated and BSON-null nullable scalar boundaries.");
             var expectedNullableOffsetScalar = new DateTimeOffset(2024, 7, 11, 12, 13, 14, TimeSpan.FromHours(-3)).AddTicks(5678);
@@ -605,7 +605,7 @@ namespace LiteDB.AotSmokeTests
                     populatedNullableScalarBoundaries.Ratio == 123.5d &&
                     populatedNullableScalarBoundaries.Amount == 456.789m &&
                     populatedNullableScalarBoundaries.TimestampWithOffset.HasValue &&
-                    expectedNullableOffsetScalar.EqualsExact(populatedNullableScalarBoundaries.TimestampWithOffset.Value),
+                    IsCanonicalDateTimeOffset(expectedNullableOffsetScalar, populatedNullableScalarBoundaries.TimestampWithOffset.Value),
                 "The source-generated Native AOT populated nullable-scalar boundary round trip failed.");
             Require(nullNullableScalarBoundaries is not null &&
                     nullNullableScalarBoundaries.SignedShort is null &&
@@ -654,6 +654,8 @@ namespace LiteDB.AotSmokeTests
             var expectedStringArrayBoundary = Enumerable.Range(0, 64)
                 .Select(index => index == 0 ? string.Empty : index == 63 ? "last" : $"value-{index:D2}")
                 .ToArray();
+            var normalizedStringArrayBoundary = expectedStringArrayBoundary.ToArray();
+            normalizedStringArrayBoundary[0] = null;
             var stringArrayBoundaries = database.GetGeneratedCollection<AotStringArrayRecord>("aot_string_array_boundaries");
             stringArrayBoundaries.Insert(new AotStringArrayRecord { Id = 110, StreamNames = [string.Empty] });
             stringArrayBoundaries.Insert(new AotStringArrayRecord { Id = 111, StreamNames = expectedStringArrayBoundary });
@@ -663,14 +665,16 @@ namespace LiteDB.AotSmokeTests
             var manyStringArrayBoundaryDocument = database.GetCollection("aot_string_array_boundaries").FindById(111);
             Require(singleStringArrayBoundary is not null &&
                     singleStringArrayBoundary.StreamNames is not null &&
-                    singleStringArrayBoundary.StreamNames.SequenceEqual([string.Empty]) &&
+                    singleStringArrayBoundary.StreamNames.Length == 1 &&
+                    singleStringArrayBoundary.StreamNames[0] is null &&
                     manyStringArrayBoundary is not null &&
                     manyStringArrayBoundary.StreamNames is not null &&
-                    manyStringArrayBoundary.StreamNames.SequenceEqual(expectedStringArrayBoundary) &&
+                    manyStringArrayBoundary.StreamNames.SequenceEqual(normalizedStringArrayBoundary) &&
                     manyStringArrayBoundaryDocument[nameof(AotStringArrayRecord.StreamNames)].AsArray.Count == expectedStringArrayBoundary.Length &&
+                    manyStringArrayBoundaryDocument[nameof(AotStringArrayRecord.StreamNames)].AsArray[0].IsNull &&
                     manyStringArrayBoundaryDocument[nameof(AotStringArrayRecord.StreamNames)].AsArray[63].AsString == "last",
-                "The source-generated Native AOT string-array boundary round trip failed.");
-            Console.WriteLine("        Passed: single empty-string element, bounded array length, BSON array shape, and element order.");
+                "The source-generated Native AOT string-array boundary normalization round trip failed.");
+            Console.WriteLine("        Passed: empty-string normalization, bounded array length, BSON array shape, and element order.");
 
             Console.WriteLine("  [3.15] Round-trip recursive dynamic dictionaries and reject unsupported values.");
             var dynamicDictionaryBoundaries = database.GetGeneratedCollection<AotDynamicDictionaryRecord>("aot_dynamic_dictionary_boundaries");
@@ -742,13 +746,23 @@ namespace LiteDB.AotSmokeTests
             Console.WriteLine();
         }
 
-        private static void RequireDateTimeOffsetDocument(BsonValue value, DateTimeOffset expected)
+        private static void RequireCanonicalDateTimeOffsetValue(BsonValue value, DateTimeOffset expected)
         {
-            Require(value.IsDocument &&
-                    value.AsDocument["DateTime"].AsInt64 == expected.Ticks &&
-                    value.AsDocument["Offset"].AsInt64 == expected.Offset.Ticks,
-                "The source-generated Native AOT DateTimeOffset BSON document shape was not preserved.");
+            Require(value.IsDateTime &&
+                    value.AsDateTime.ToUniversalTime().Ticks == GetCanonicalDateTimeOffsetTicks(expected),
+                "The source-generated Native AOT DateTimeOffset BSON DateTime value did not match ordinary mapping.");
         }
+
+        private static bool IsCanonicalDateTimeOffset(DateTimeOffset expected, DateTimeOffset actual)
+        {
+            return actual.Offset == TimeSpan.Zero &&
+                actual.UtcTicks == GetCanonicalDateTimeOffsetTicks(expected);
+        }
+
+        private static long GetCanonicalDateTimeOffsetTicks(DateTimeOffset value) =>
+            value == DateTimeOffset.MinValue || value == DateTimeOffset.MaxValue
+                ? DateTime.SpecifyKind(value.UtcDateTime, DateTimeKind.Unspecified).ToUniversalTime().Ticks
+                : value.UtcTicks - (value.UtcTicks % TimeSpan.TicksPerMillisecond);
 
         private static void RequireThrows<TException>(Action action, string message)
             where TException : Exception
@@ -844,8 +858,8 @@ namespace LiteDB.AotSmokeTests
         public string Name { get; set; } = string.Empty;
         public long Score { get; set; }
 
-        // Keeps this retained manual Phase B smoke fixture outside C2 automatic scalar-map emission.
-        public DateTimeOffset LegacyProbe { get; set; }
+        // Keeps this retained manual Phase B smoke fixture outside automatic scalar-map emission.
+        public Dictionary<string, object> LegacyProbe { get; set; } = [];
     }
 
     [BsonSourceGenerated]

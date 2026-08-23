@@ -149,6 +149,7 @@ namespace LiteDB.AotTests
                 "private static global::LiteDB.BsonValue SerializeDynamicDictionary(global::System.Collections.Generic.Dictionary<string, object?>? values)",
                 "private static global::System.Collections.Generic.Dictionary<string, object?>? DeserializeDynamicDictionary(global::LiteDB.BsonValue value)",
                 "private static global::LiteDB.BsonValue SerializeDateTimeOffset(object? value)",
+                "return new global::LiteDB.BsonValue(dateTimeOffset.UtcDateTime);",
                 "private static object DeserializeDateTimeOffset(global::LiteDB.BsonValue value)",
                 "if (value.IsDateTime)",
                 "return new global::System.DateTimeOffset(value.AsDateTime.ToUniversalTime());",
@@ -156,6 +157,37 @@ namespace LiteDB.AotTests
                 "Serialize = (value, _) => SerializeStringArray((string[])value),",
                 "Serialize = (value, _) => SerializeDynamicDictionary((global::System.Collections.Generic.Dictionary<string, object?>)value),",
                 "Setter = (entity, value) => ((global::SnapshotConsumer.HelperSnapshotRecord)entity).Fields = (global::System.Collections.Generic.Dictionary<string, object?>)value");
+        }
+
+
+        [TestMethod]
+        public void BsonSourceGenerator_DateTimeOffset_EmitsAutomaticCanonicalExecutionMap()
+        {
+            const string source = """
+                using System;
+                using LiteDB;
+
+                namespace SnapshotConsumer;
+
+                [BsonSourceGenerated]
+                public sealed class DateTimeOffsetSnapshotRecord
+                {
+                    public int Id { get; set; }
+                    public DateTimeOffset OccurredAt { get; set; }
+                    public DateTimeOffset? DeliveredAt { get; set; }
+                }
+                """;
+
+            var generatedSource = GenerateSource(source);
+
+            AssertContainsInOrder(
+                generatedSource,
+                "mapper.RegisterGeneratedExecutionMap(CreateExecutionMap0());",
+                "document[\"OccurredAt\"] = SerializeDateTimeOffset(entity.OccurredAt);",
+                "if (entity.DeliveredAt is null)",
+                "document[\"DeliveredAt\"] = SerializeDateTimeOffset(entity.DeliveredAt.Value);",
+                "entity.OccurredAt = (global::System.DateTimeOffset)DeserializeDateTimeOffset(value1);",
+                "entity.DeliveredAt = (global::System.DateTimeOffset)DeserializeDateTimeOffset(value2);");
         }
 
 

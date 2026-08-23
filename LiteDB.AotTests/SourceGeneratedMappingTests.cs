@@ -672,13 +672,12 @@ namespace LiteDB.AotTests
 
                 var result = collection.FindById(1);
                 var document = database.GetCollection("dateTimeOffsets").FindById(1);
-                var occurredAt = document[nameof(DateTimeOffsetRecord.OccurredAt)].AsDocument;
+                var occurredAt = document[nameof(DateTimeOffsetRecord.OccurredAt)];
 
                 Assert.IsNotNull(result);
-                Assert.IsTrue(expectedOccurredAt.EqualsExact(result.OccurredAt));
+                AssertCanonicalDateTimeOffset(expectedOccurredAt, result.OccurredAt);
                 Assert.IsNull(result.DeliveredAt);
-                Assert.AreEqual(expectedOccurredAt.Ticks, occurredAt["DateTime"].AsInt64);
-                Assert.AreEqual(expectedOccurredAt.Offset.Ticks, occurredAt["Offset"].AsInt64);
+                AssertCanonicalDateTimeOffsetValue(occurredAt, expectedOccurredAt);
                 Assert.IsTrue(document.ContainsKey(nameof(DateTimeOffsetRecord.DeliveredAt)));
                 Assert.IsTrue(document[nameof(DateTimeOffsetRecord.DeliveredAt)].IsNull);
             }
@@ -772,6 +771,19 @@ namespace LiteDB.AotTests
                     Assert.AreEqual(TimeSpan.Zero, generatedRead.OccurredAt.Offset);
 
                     generatedCollection.Insert(new DateTimeOffsetRecord { Id = 2, OccurredAt = generatedValue });
+                    generatedDatabase.GetCollection("dateTimeOffsetCrossRead").Insert(new BsonDocument
+                    {
+                        ["_id"] = 3,
+                        [nameof(DateTimeOffsetRecord.OccurredAt)] = new BsonDocument
+                        {
+                            ["DateTime"] = generatedValue.Ticks,
+                            ["Offset"] = generatedValue.Offset.Ticks
+                        }
+                    });
+                    var legacyGeneratedRead = generatedCollection.FindById(3);
+
+                    Assert.IsNotNull(legacyGeneratedRead);
+                    Assert.IsTrue(generatedValue.EqualsExact(legacyGeneratedRead.OccurredAt));
                 }
 
                 using (var runtimeDatabase = new LiteDatabase(path, new BsonMapper()))
@@ -781,9 +793,9 @@ namespace LiteDB.AotTests
                     var documents = runtimeDatabase.GetCollection("dateTimeOffsetCrossRead");
 
                     Assert.IsNotNull(runtimeRead);
-                    Assert.IsTrue(generatedValue.EqualsExact(runtimeRead.OccurredAt));
+                    AssertCanonicalDateTimeOffset(generatedValue, runtimeRead.OccurredAt);
                     Assert.IsTrue(documents.FindById(1)[nameof(DateTimeOffsetRecord.OccurredAt)].IsDateTime);
-                    Assert.IsTrue(documents.FindById(2)[nameof(DateTimeOffsetRecord.OccurredAt)].IsDocument);
+                    Assert.IsTrue(documents.FindById(2)[nameof(DateTimeOffsetRecord.OccurredAt)].IsDateTime);
                 }
             }
             finally
@@ -842,7 +854,7 @@ namespace LiteDB.AotTests
                 Assert.AreEqual(NativeScalarState.Captured, result.State);
                 Assert.AreEqual(expectedObjectId, result.ObjectId);
                 Assert.AreEqual(expectedDateTime, result.Timestamp.ToUniversalTime());
-                Assert.IsTrue(expectedDateTimeOffset.EqualsExact(result.TimestampWithOffset));
+                AssertCanonicalDateTimeOffset(expectedDateTimeOffset, result.TimestampWithOffset);
                 CollectionAssert.AreEqual(expectedPayload, result.Payload);
                 Assert.AreEqual(new Guid("09e72680-2f4f-4eb3-a70c-f27d489b6068"), result.CorrelationId);
                 Assert.AreEqual("native-scalars", result.Name);
@@ -1112,6 +1124,15 @@ namespace LiteDB.AotTests
             var expectedPositiveOffset = new DateTimeOffset(2024, 7, 8, 9, 10, 11, TimeSpan.FromHours(5.5)).AddTicks(1234);
             var expectedNegativeOffset = new DateTimeOffset(2024, 7, 9, 10, 11, 12, TimeSpan.FromHours(-8)).AddTicks(4321);
             var expectedNullableOffset = new DateTimeOffset(2024, 7, 10, 11, 12, 13, TimeSpan.Zero).AddTicks(9876);
+            var ordinaryGolden = new BsonMapper().ToDocument(new DateTimeOffsetBoundaryRecord
+            {
+                Id = 1,
+                PositiveOffset = expectedPositiveOffset,
+                NegativeOffset = expectedNegativeOffset,
+                NullableOffset = expectedNullableOffset,
+                Minimum = DateTimeOffset.MinValue,
+                Maximum = DateTimeOffset.MaxValue
+            });
 
             try
             {
@@ -1125,20 +1146,29 @@ namespace LiteDB.AotTests
                     Id = 1,
                     PositiveOffset = expectedPositiveOffset,
                     NegativeOffset = expectedNegativeOffset,
-                    NullableOffset = expectedNullableOffset
+                    NullableOffset = expectedNullableOffset,
+                    Minimum = DateTimeOffset.MinValue,
+                    Maximum = DateTimeOffset.MaxValue
                 });
 
                 var result = collection.FindById(1);
                 var document = database.GetCollection("dateTimeOffsetBoundaries").FindById(1);
 
                 Assert.IsNotNull(result);
-                Assert.IsTrue(expectedPositiveOffset.EqualsExact(result.PositiveOffset));
-                Assert.IsTrue(expectedNegativeOffset.EqualsExact(result.NegativeOffset));
+                AssertCanonicalDateTimeOffset(expectedPositiveOffset, result.PositiveOffset);
+                AssertCanonicalDateTimeOffset(expectedNegativeOffset, result.NegativeOffset);
                 Assert.IsNotNull(result.NullableOffset);
-                Assert.IsTrue(expectedNullableOffset.EqualsExact(result.NullableOffset.Value));
-                AssertDateTimeOffsetDocument(document[nameof(DateTimeOffsetBoundaryRecord.PositiveOffset)], expectedPositiveOffset);
-                AssertDateTimeOffsetDocument(document[nameof(DateTimeOffsetBoundaryRecord.NegativeOffset)], expectedNegativeOffset);
-                AssertDateTimeOffsetDocument(document[nameof(DateTimeOffsetBoundaryRecord.NullableOffset)], expectedNullableOffset);
+                AssertCanonicalDateTimeOffset(expectedNullableOffset, result.NullableOffset.Value);
+                AssertCanonicalDateTimeOffsetValue(document[nameof(DateTimeOffsetBoundaryRecord.PositiveOffset)], expectedPositiveOffset);
+                AssertCanonicalDateTimeOffsetValue(document[nameof(DateTimeOffsetBoundaryRecord.NegativeOffset)], expectedNegativeOffset);
+                AssertCanonicalDateTimeOffsetValue(document[nameof(DateTimeOffsetBoundaryRecord.NullableOffset)], expectedNullableOffset);
+                AssertCanonicalDateTimeOffset(DateTimeOffset.MinValue, result.Minimum);
+                AssertCanonicalDateTimeOffset(DateTimeOffset.MaxValue, result.Maximum);
+                Assert.AreEqual(ordinaryGolden[nameof(DateTimeOffsetBoundaryRecord.PositiveOffset)], document[nameof(DateTimeOffsetBoundaryRecord.PositiveOffset)]);
+                Assert.AreEqual(ordinaryGolden[nameof(DateTimeOffsetBoundaryRecord.NegativeOffset)], document[nameof(DateTimeOffsetBoundaryRecord.NegativeOffset)]);
+                Assert.AreEqual(ordinaryGolden[nameof(DateTimeOffsetBoundaryRecord.NullableOffset)], document[nameof(DateTimeOffsetBoundaryRecord.NullableOffset)]);
+                AssertCanonicalDateTimeOffsetValue(document[nameof(DateTimeOffsetBoundaryRecord.Minimum)], DateTimeOffset.MinValue);
+                AssertCanonicalDateTimeOffsetValue(document[nameof(DateTimeOffsetBoundaryRecord.Maximum)], DateTimeOffset.MaxValue);
             }
             finally
             {
@@ -1180,7 +1210,7 @@ namespace LiteDB.AotTests
                 Assert.AreEqual(123.5d, populated.Ratio);
                 Assert.AreEqual(456.789m, populated.Amount);
                 Assert.IsNotNull(populated.TimestampWithOffset);
-                Assert.IsTrue(expectedDateTimeOffset.EqualsExact(populated.TimestampWithOffset.Value));
+                AssertCanonicalDateTimeOffset(expectedDateTimeOffset, populated.TimestampWithOffset.Value);
                 Assert.IsNotNull(absent);
                 Assert.IsNull(absent.SignedShort);
                 Assert.IsNull(absent.UnsignedLong);
@@ -1818,12 +1848,22 @@ namespace LiteDB.AotTests
             }
         }
 
-        private static void AssertDateTimeOffsetDocument(BsonValue value, DateTimeOffset expected)
+        private static void AssertCanonicalDateTimeOffsetValue(BsonValue value, DateTimeOffset expected)
         {
-            Assert.IsTrue(value.IsDocument);
-            Assert.AreEqual(expected.Ticks, value.AsDocument["DateTime"].AsInt64);
-            Assert.AreEqual(expected.Offset.Ticks, value.AsDocument["Offset"].AsInt64);
+            Assert.IsTrue(value.IsDateTime);
+            Assert.AreEqual(GetCanonicalDateTimeOffsetTicks(expected), value.AsDateTime.ToUniversalTime().Ticks);
         }
+
+        private static void AssertCanonicalDateTimeOffset(DateTimeOffset expected, DateTimeOffset actual)
+        {
+            Assert.AreEqual(GetCanonicalDateTimeOffsetTicks(expected), actual.UtcTicks);
+            Assert.AreEqual(TimeSpan.Zero, actual.Offset);
+        }
+
+        private static long GetCanonicalDateTimeOffsetTicks(DateTimeOffset value) =>
+            value == DateTimeOffset.MinValue || value == DateTimeOffset.MaxValue
+                ? DateTime.SpecifyKind(value.UtcDateTime, DateTimeKind.Unspecified).ToUniversalTime().Ticks
+                : value.UtcTicks - (value.UtcTicks % TimeSpan.TicksPerMillisecond);
 
         private static BsonMapper CreateGeneratedMapper()
         {
@@ -1920,8 +1960,8 @@ namespace LiteDB.AotTests
 
         public long Score { get; set; }
 
-        // Keeps the retained manual Phase B registry fixture outside C2 automatic scalar-map emission.
-        public DateTimeOffset LegacyProbe { get; set; }
+        // Keeps the retained manual Phase B registry fixture outside automatic scalar-map emission.
+        public Dictionary<string, object?> LegacyProbe { get; set; } = [];
     }
 
     internal sealed class ThrowingConversionMapper : BsonMapper
@@ -2131,6 +2171,8 @@ namespace LiteDB.AotTests
         public DateTimeOffset PositiveOffset { get; set; }
         public DateTimeOffset NegativeOffset { get; set; }
         public DateTimeOffset? NullableOffset { get; set; }
+        public DateTimeOffset Minimum { get; set; }
+        public DateTimeOffset Maximum { get; set; }
     }
 
     [BsonSourceGenerated]
