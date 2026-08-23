@@ -10,7 +10,7 @@ on:
           [
             { "display": ".NET 8",  "sdk": "8.0.x",           "framework": "net8.0", "includePrerelease": false, "msbuildProps": "" },
             { "display": ".NET 9",  "sdk": "9.0.x\n8.0.x",    "framework": "net8.0", "includePrerelease": true,  "msbuildProps": "" },
-            { "display": ".NET 10", "sdk": "10.0.x\n8.0.x",   "framework": "net10.0", "includePrerelease": true, "msbuildProps": "-p:LiteDBTestsEnableNet10=true" }
+            { "display": ".NET 10", "sdk": "10.0.x",          "framework": "net10.0", "includePrerelease": false, "msbuildProps": "" }
           ]
 
 jobs:
@@ -27,7 +27,9 @@ jobs:
       - name: Set up .NET SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: |
+            10.0.x
+            8.0.x
 
       - name: Restore
         run: dotnet restore LiteDB.sln
@@ -107,7 +109,9 @@ jobs:
       - name: Set up .NET SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: |
+            10.0.x
+            8.0.x
 
       - name: Restore
         run: dotnet restore LiteDB.sln
@@ -187,7 +191,9 @@ jobs:
       - name: Set up .NET SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: |
+            10.0.x
+            8.0.x
 
       - name: Restore
         run: dotnet restore LiteDB.sln
@@ -365,4 +371,3 @@ jobs:
           --logger "trx;LogFileName=TestResults-arm64.trx"
           --logger "console;verbosity=detailed"
           ${{ matrix.item.msbuildProps }}
-

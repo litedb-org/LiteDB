@@ -18,7 +18,7 @@ namespace LiteDB.Engine
         private readonly EnginePragmas _pragmas;
 
         private readonly ReaderWriterLockSlim _transaction = new ReaderWriterLockSlim(LockRecursionPolicy.NoRecursion);
-        private readonly ConcurrentDictionary<string, object> _collections = new ConcurrentDictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+        private readonly ConcurrentDictionary<string, CollectionLock> _collections = new ConcurrentDictionary<string, CollectionLock>(StringComparer.OrdinalIgnoreCase);
 
         internal LockService(EnginePragmas pragmas)
         {
@@ -72,10 +72,10 @@ namespace LiteDB.Engine
         {
             ENSURE(_transaction.IsReadLockHeld || _transaction.IsWriteLockHeld, "Use EnterTransaction() before EnterLock(name)");
 
-            // get collection object lock from dictionary (or create new if doesnt exists)
-            var collection = _collections.GetOrAdd(collectionName, (s) => new object());
+            // get collection lock from dictionary (or create new if it does not exist)
+            var collection = _collections.GetOrAdd(collectionName, (s) => new CollectionLock());
 
-            if (Monitor.TryEnter(collection, _pragmas.Timeout) == false) throw LiteException.LockTimeout("write", collectionName, _pragmas.Timeout);
+            if (collection.TryEnter(_pragmas.Timeout) == false) throw LiteException.LockTimeout("write", collectionName, _pragmas.Timeout);
         }
 
         /// <summary>
@@ -85,7 +85,7 @@ namespace LiteDB.Engine
         {
             if (_collections.TryGetValue(collectionName, out var collection) == false) throw LiteException.CollectionLockerNotFound(collectionName);
 
-            Monitor.Exit(collection);
+            collection.Exit();
         }
 
         /// <summary>
