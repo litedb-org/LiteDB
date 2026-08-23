@@ -26,12 +26,17 @@ namespace LiteDB.Tests.Engine
                     collectionLock.Exit();
                 });
 
-                acquired.Wait();
+                try
+                {
+                    acquired.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
 
-                collectionLock.TryEnter(TimeSpan.FromMilliseconds(100)).Should().BeFalse();
-
-                release.Set();
-                await holder;
+                    collectionLock.TryEnter(TimeSpan.FromMilliseconds(100)).Should().BeFalse();
+                }
+                finally
+                {
+                    release.Set();
+                    await holder;
+                }
             }
 
             collectionLock.TryEnter(TimeSpan.FromSeconds(1)).Should().BeTrue();
