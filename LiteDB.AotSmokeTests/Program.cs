@@ -227,7 +227,7 @@ namespace LiteDB.AotSmokeTests
             Console.WriteLine("        Passed: static-member LINQ expression evaluation without runtime code generation.");
 
             Console.WriteLine("  [3.2] Update, count, and delete a generated typed record.");
-            simpleRead.Name = "updated";
+            simpleRead!.Name = "updated";
             Require(simple.Update(simpleRead), "The source-generated Native AOT typed update failed.");
             Require(simple.FindById(1)?.Name == "updated" && simple.Count() == 1,
                 "The source-generated Native AOT typed update verification failed.");
@@ -458,7 +458,7 @@ namespace LiteDB.AotSmokeTests
             Require(nativeScalarRead is not null,
                 "The source-generated Native AOT native scalar record was not found after insertion.");
 
-            RequireNativeScalar("BooleanValue", nativeScalarRead.BooleanValue, "True", nativeScalarRead.BooleanValue.ToString());
+            RequireNativeScalar("BooleanValue", nativeScalarRead!.BooleanValue, "True", nativeScalarRead.BooleanValue.ToString());
             RequireNativeScalar("ByteValue", nativeScalarRead.ByteValue == 200, "200", nativeScalarRead.ByteValue.ToString());
             RequireNativeScalar("SignedByteValue", nativeScalarRead.SignedByteValue == -100, "-100", nativeScalarRead.SignedByteValue.ToString());
             RequireNativeScalar("Character", nativeScalarRead.Character == '\u03BB', "U+03BB", $"U+{(int)nativeScalarRead.Character:X4}");
@@ -580,7 +580,7 @@ namespace LiteDB.AotSmokeTests
             dynamicDictionaries.Insert(new AotDynamicDictionaryRecord
             {
                 Id = 70,
-                Fields = new Dictionary<string, object>
+                Fields = new Dictionary<string, object?>
                 {
                     ["message"] = "payload",
                     ["attempt"] = 3,
@@ -590,20 +590,20 @@ namespace LiteDB.AotSmokeTests
                     {
                         ["inner"] = "value"
                     },
-                    ["items"] = new object[] { "first", 2, null }
+                    ["items"] = new object?[] { "first", 2, null }
                 }
             });
 
             var dynamicDictionaryRead = dynamicDictionaries.FindById(70);
             Require(dynamicDictionaryRead is not null &&
-                    dynamicDictionaryRead.Fields["message"] as string == "payload" &&
+                    (dynamicDictionaryRead.Fields["message"] as string) == "payload" &&
                     (int)dynamicDictionaryRead.Fields["attempt"] == 3 &&
                     (bool)dynamicDictionaryRead.Fields["enabled"] == false &&
                     dynamicDictionaryRead.Fields["missing"] is null &&
-                    ((Dictionary<string, object>)dynamicDictionaryRead.Fields["nested"])["inner"] as string == "value" &&
-                    ((object[])dynamicDictionaryRead.Fields["items"])[0] as string == "first" &&
-                    (int)((object[])dynamicDictionaryRead.Fields["items"])[1] == 2 &&
-                    ((object[])dynamicDictionaryRead.Fields["items"])[2] is null,
+                    (((Dictionary<string, object>?)dynamicDictionaryRead.Fields["nested"])["inner"] as string) == "value" &&
+                    (((object[]?)dynamicDictionaryRead.Fields["items"])[0] as string) == "first" &&
+                    (int)((object[]?)dynamicDictionaryRead.Fields["items"])[1] == 2 &&
+                    ((object[]?)dynamicDictionaryRead.Fields["items"])[2] is null,
                 "The source-generated Native AOT dynamic dictionary round trip failed.");
             Console.WriteLine("        Passed: BSON-native scalar, null, nested document, and nested array dictionary values.");
 
@@ -715,7 +715,7 @@ namespace LiteDB.AotSmokeTests
             var expectedStringArrayBoundary = Enumerable.Range(0, 64)
                 .Select(index => index == 0 ? string.Empty : index == 63 ? "last" : $"value-{index:D2}")
                 .ToArray();
-            var normalizedStringArrayBoundary = expectedStringArrayBoundary.ToArray();
+            var normalizedStringArrayBoundary = expectedStringArrayBoundary.ToArray() as string?[];
             normalizedStringArrayBoundary[0] = null;
             var stringArrayBoundaries = database.GetGeneratedCollection<AotStringArrayRecord>("aot_string_array_boundaries");
             stringArrayBoundaries.Insert(new AotStringArrayRecord { Id = 110, StreamNames = [string.Empty] });
@@ -743,7 +743,7 @@ namespace LiteDB.AotSmokeTests
             dynamicDictionaryBoundaries.Insert(new AotDynamicDictionaryRecord
             {
                 Id = 121,
-                Fields = new Dictionary<string, object>
+                Fields = new Dictionary<string, object?>
                 {
                     ["int32"] = 12,
                     ["int64"] = 9_000_000_000L,
@@ -770,12 +770,12 @@ namespace LiteDB.AotSmokeTests
                     (long)populatedDynamicDictionary.Fields["int64"] == 9_000_000_000L &&
                     (double)populatedDynamicDictionary.Fields["double"] == 3.5d &&
                     (decimal)populatedDynamicDictionary.Fields["decimal"] == 6.75m &&
-                    ((Dictionary<string, object>)populatedDynamicDictionary.Fields["rawDocument"])["kind"] as string == "raw" &&
-                    ((object[])populatedDynamicDictionary.Fields["rawArray"])[0] as string == "first" &&
-                    (int)((object[])populatedDynamicDictionary.Fields["rawArray"])[1] == 2 &&
-                    ((Dictionary<string, object>)((object[])populatedDynamicDictionary.Fields["nestedArray"])[0])["inner"] as string == "value" &&
-                    ((object[])((object[])populatedDynamicDictionary.Fields["nestedArray"])[1])[0] as string == "nested" &&
-                    (int)((object[])((object[])populatedDynamicDictionary.Fields["nestedArray"])[1])[1] == 4 &&
+                    (((Dictionary<string, object>?)populatedDynamicDictionary.Fields["rawDocument"])["kind"] as string) == "raw" &&
+                    (((object[]?)populatedDynamicDictionary.Fields["rawArray"])[0] as string) == "first" &&
+                    (int)((object[]?)populatedDynamicDictionary.Fields["rawArray"])[1] == 2 &&
+                    (((Dictionary<string, object>)((object[]?)populatedDynamicDictionary.Fields["nestedArray"])[0])["inner"] as string) == "value" &&
+                    (((object[])((object[]?)populatedDynamicDictionary.Fields["nestedArray"])[1])[0] as string) == "nested" &&
+                    (int)((object[])((object[]?)populatedDynamicDictionary.Fields["nestedArray"])[1])[1] == 4 &&
                     dynamicFields["int32"].Type == BsonType.Int32 &&
                     dynamicFields["int64"].Type == BsonType.Int64 &&
                     dynamicFields["double"].Type == BsonType.Double &&
@@ -791,7 +791,7 @@ namespace LiteDB.AotSmokeTests
             RequireThrows<InvalidOperationException>(() => dynamicDictionaryBoundaries.Insert(new AotDynamicDictionaryRecord
             {
                 Id = 123,
-                Fields = new Dictionary<string, object>
+                Fields = new Dictionary<string, object?>
                 {
                     ["unsupported"] = new DateTimeOffset(2024, 7, 12, 13, 14, 15, TimeSpan.Zero)
                 }
@@ -929,21 +929,21 @@ namespace LiteDB.AotSmokeTests
     {
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
-        public List<string> Values { get; set; } = [];
+        public List<string>? Values { get; set; } = [];
     }
 
     [BsonSourceGenerated]
     public sealed class AotDynamicDictionaryRecord
     {
         public int Id { get; set; }
-        public Dictionary<string, object> Fields { get; set; } = [];
+        public Dictionary<string, object?> Fields { get; set; } = [];
     }
 
     [BsonSourceGenerated]
     public sealed class AotStringArrayRecord
     {
         public int Id { get; set; }
-        public string[] StreamNames { get; set; }
+        public string[]? StreamNames { get; set; }
     }
 
     [BsonSourceGenerated]
@@ -968,7 +968,7 @@ namespace LiteDB.AotSmokeTests
         public List<string> BaseTags { get; set; } = [];
 
         [BsonIgnore]
-        public string IgnoredBaseValue { get; set; }
+        public string? IgnoredBaseValue { get; set; }
     }
 
     [BsonSourceGenerated]
@@ -1002,7 +1002,7 @@ namespace LiteDB.AotSmokeTests
         public byte[] Payload { get; set; } = [];
         public string Name { get; set; } = string.Empty;
         public AotNativeScalarState? NullableState { get; set; }
-        public byte[] NullablePayload { get; set; }
+        public byte[]? NullablePayload { get; set; }
     }
 
     [BsonSourceGenerated]
@@ -1080,7 +1080,7 @@ namespace LiteDB.AotSmokeTests
         public List<string> Values { get; set; } = [];
 
         [BsonIgnore]
-        public string IgnoredParentValue { get; set; }
+        public string? IgnoredParentValue { get; set; }
     }
 
     [BsonSourceGenerated]
