@@ -102,6 +102,11 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
             return ModelResult.InvalidModel(typeName, diagnosticLocation, "it must be a non-abstract, non-generic, top-level class");
         }
 
+        if (type.IsSealed == false)
+        {
+            return ModelResult.InvalidModel(typeName, diagnosticLocation, "it must be sealed because generated collections do not support derived runtime types");
+        }
+
         if (type.DeclaredAccessibility is not Accessibility.Public and not Accessibility.Internal)
         {
             return ModelResult.InvalidModel(typeName, diagnosticLocation, "it must be public or internal");

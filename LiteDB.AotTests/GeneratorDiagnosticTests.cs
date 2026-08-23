@@ -35,6 +35,29 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
+        public void BsonSourceGenerator_UnsealedModel_ReportsLdbsg001OnAnnotatedClassIdentifier()
+        {
+            const string source = """
+                using LiteDB;
+
+                namespace ExternalConsumer;
+
+                [BsonSourceGenerated]
+                public class InvalidDiagnosticRecord
+                {
+                    public int Id { get; set; }
+                }
+                """;
+
+            AssertDiagnostic(
+                source,
+                "InvalidDiagnosticRecord.cs",
+                "LDBSG001",
+                "InvalidDiagnosticRecord",
+                "must be sealed");
+        }
+
+        [TestMethod]
         public void BsonSourceGenerator_RecordClassWithInitOnlyProperty_ReportsLdbsg002OnRecordIdentifier()
         {
             const string source = """
@@ -43,7 +66,7 @@ namespace LiteDB.AotTests
                 namespace ExternalConsumer;
 
                 [BsonSourceGenerated]
-                public record InvalidRecordDiagnostic
+                public sealed record InvalidRecordDiagnostic
                 {
                     public int Id { get; init; }
                 }

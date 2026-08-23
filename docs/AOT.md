@@ -92,7 +92,7 @@ The generator automatically registers a direct execution map for every supported
 
 ## Supported model subset
 
-The first source-generated mapping slice is intentionally narrow. The generator accepts a directly annotated, top-level, non-abstract, non-generic `public` or `internal` class or mutable record class with an accessible parameterless constructor. It can flatten supported public read/write instance properties declared by that class and its public or internal, top-level, non-generic base classes. Compiler-generated record members, such as `EqualityContract`, are not persisted. A base class may be abstract; only the concrete derived class is marked and directly constructed.
+The first source-generated mapping slice is intentionally narrow. The generator accepts a directly annotated, top-level, sealed, non-generic `public` or `internal` class or mutable record class with an accessible parameterless constructor. Sealing the annotated type prevents a generated collection from receiving a derived runtime type whose additional members are absent from the generated map. The generator can flatten supported public read/write instance properties declared by the annotated class and its public or internal, top-level, non-generic base classes. Compiler-generated record members, such as `EqualityContract`, are not persisted. A base class may be abstract; only the sealed concrete derived class is marked and directly constructed.
 
 `[BsonId]`, `[BsonField]`, and `[BsonIgnore]` are supported on inherited and directly declared properties. For a virtual override chain, the generator maps only the most-derived property and resolves a mapping attribute from that declaration first, then from the nearest overridden declaration. The generator also applies LiteDB's `Id` and `<TypeName>Id` ID conventions. A `List<string>` is serialized and materialized through generated loops rather than reflection-based collection activation. An unannotated public getter-only property that is not an ID convention is treated as a computed projection and is excluded from persistence; mark it with `[BsonIgnore]` if explicit documentation is preferred. A getter-only `[BsonId]`, `[BsonField]`, or conventional ID remains unsupported because the generated path cannot hydrate it. Mapped `new`-hidden members, duplicate effective BSON field names, and multiple resolved IDs across an inheritance hierarchy produce `LDBSG003` rather than an ambiguous map.
 
@@ -127,7 +127,7 @@ Unsupported annotated shapes produce a fail-closed **error** diagnostic; the gen
 
 | Diagnostic | Meaning | Typical remediation |
 | --- | --- | --- |
-| `LDBSG001` | Invalid source-generated model or inheritance hierarchy | Use a top-level public/internal concrete class with an accessible parameterless constructor and supported base classes. |
+| `LDBSG001` | Invalid source-generated model or inheritance hierarchy | Use a top-level, sealed, public/internal concrete class with an accessible parameterless constructor and supported base classes. |
 | `LDBSG002` | Invalid source-generated property | Change, ignore, or remove an unsupported, inaccessible, indexed/static, or persisted getter-only property. |
 | `LDBSG003` | Conflicting source-generated mapping | Remove duplicate mapped member names, IDs, conventional IDs, or effective BSON field names across the hierarchy. |
 

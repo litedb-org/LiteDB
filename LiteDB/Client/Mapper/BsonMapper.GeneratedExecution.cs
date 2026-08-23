@@ -102,9 +102,14 @@ namespace LiteDB
                 typeof(T).IsSealed == false ||
                 GetGeneratedEntityMapper(typeof(T)).Members.Exists(member => member.IsDbRef))
             {
+                var detail = typeof(T).IsSealed
+                    ? string.Empty
+                    : $" Entity type '{typeof(T).FullName}' must be sealed because generated collections do not support derived runtime types.";
+
                 throw new InvalidOperationException(
                     "The registered source-generated execution map does not support the active BsonMapper configuration. " +
-                    "Use GetCollection<T> for customized mapper behavior until the generated execution contract supports that configuration.");
+                    "Use GetCollection<T> for customized mapper behavior until the generated execution contract supports that configuration." +
+                    detail);
             }
 
             return new GeneratedExecutionOptions(
