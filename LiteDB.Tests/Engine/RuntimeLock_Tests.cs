@@ -44,13 +44,38 @@ namespace LiteDB.Tests.Engine
         }
 
         [Fact]
-        public void MemoryCache_Extends_Once_Per_Concurrent_Request()
+        public async Task MemoryCache_Extends_Once_Per_Concurrent_Request()
         {
             const int pageCount = 32;
+            const int workerCount = 8;
             var cache = new MemoryCache(new[] { 1 });
             var pages = new ConcurrentBag<PageBuffer>();
+            using (var ready = new CountdownEvent(workerCount))
+            using (var start = new ManualResetEventSlim())
+            {
+                var workers = Enumerable.Range(0, workerCount)
+                    .Select(_ => Task.Factory.StartNew(() =>
+                    {
+                        ready.Signal();
+                        start.Wait();
 
-            Parallel.For(0, pageCount, _ => pages.Add(cache.NewPage()));
+                        for (var i = 0; i < pageCount / workerCount; i++)
+                        {
+                            pages.Add(cache.NewPage());
+                        }
+                    }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default))
+                    .ToArray();
+
+                try
+                {
+                    ready.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                }
+                finally
+                {
+                    start.Set();
+                    await Task.WhenAll(workers);
+                }
+            }
 
             pages.Should().HaveCount(pageCount);
             pages.Select(x => x.UniqueID).Should().OnlyHaveUniqueItems();
