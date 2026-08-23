@@ -123,7 +123,7 @@ namespace LiteDB.AotTests
                 Assert.IsTrue(collection.Delete(record.Id));
                 Assert.AreEqual(0, collection.Count());
 
-                Assert.ThrowsException<NotSupportedException>(() => collection.FindAll());
+                Assert.AreEqual(0, collection.FindAll().Count());
 
                 var ordinaryCollection = database.GetCollection<PhaseBGeneratedRecord>("ordinaryPhaseB");
                 Assert.ThrowsException<AssertFailedException>(() =>
@@ -166,7 +166,7 @@ namespace LiteDB.AotTests
                 Assert.AreEqual(1, collection.Count());
                 Assert.IsTrue(collection.Delete(id));
                 Assert.AreEqual(0, collection.Count());
-                Assert.ThrowsException<NotSupportedException>(() => collection.FindAll());
+                Assert.AreEqual(0, collection.FindAll().Count());
             }
             finally
             {
@@ -290,7 +290,7 @@ namespace LiteDB.AotTests
                 Assert.AreEqual(1, read.Id);
                 Assert.AreEqual(8, read.Score);
                 Assert.AreEqual(2, document.Count);
-                Assert.ThrowsException<NotSupportedException>(() => collection.FindAll());
+                Assert.AreEqual(1, collection.FindAll().Count());
             }
             finally
             {
@@ -315,12 +315,12 @@ namespace LiteDB.AotTests
                 using (var firstDatabase = new LiteDatabase(path, firstMapper))
                 {
                     var generated = firstDatabase.GetGeneratedCollection<PhaseBGeneratedRecord>("phaseB");
-                    Assert.ThrowsException<NotSupportedException>(() => generated.FindAll());
+                    Assert.AreEqual(0, generated.FindAll().Count());
                 }
 
                 using var secondDatabase = new LiteDatabase(path, secondMapper);
                 var secondGenerated = secondDatabase.GetGeneratedCollection<PhaseBGeneratedRecord>("phaseB");
-                Assert.ThrowsException<NotSupportedException>(() => secondGenerated.FindAll());
+                Assert.AreEqual(0, secondGenerated.FindAll().Count());
             }
             finally
             {
@@ -514,7 +514,7 @@ namespace LiteDB.AotTests
 
                 Assert.IsNotNull(result);
                 Assert.AreEqual("manual", result.Name);
-                Assert.ThrowsException<NotSupportedException>(() => collection.FindAll());
+                Assert.AreEqual(1, collection.FindAll().Count());
             }
             finally
             {
@@ -589,7 +589,7 @@ namespace LiteDB.AotTests
                 Assert.AreEqual("named-field", document["stored_name"].AsString);
                 Assert.IsFalse(document.ContainsKey(nameof(ConventionIdRecord.IgnoredText)));
                 Assert.IsFalse(document.ContainsKey(nameof(ConventionIdRecord.IgnoredNumber)));
-                Assert.ThrowsException<NotSupportedException>(() => collection.FindAll());
+                Assert.AreEqual(1, collection.FindAll().Count());
             }
             finally
             {
@@ -1140,7 +1140,7 @@ namespace LiteDB.AotTests
                 Assert.IsNotNull(result);
                 Assert.AreEqual("file|abc123", result.Fingerprint);
                 Assert.IsFalse(document.ContainsKey(nameof(ComputedRecord.Fingerprint)));
-                Assert.ThrowsException<NotSupportedException>(() => collection.FindAll());
+                Assert.AreEqual(1, collection.FindAll().Count());
             }
             finally
             {
@@ -1840,7 +1840,7 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
-        public void GetGeneratedCollection_UnsupportedOperation_DescribesApprovedOverloads()
+        public void GetGeneratedCollection_ExecutesQueryAggregateAndMutationParityWithoutMapperFallback()
         {
             var path = GetDatabasePath();
 
@@ -1850,13 +1850,86 @@ namespace LiteDB.AotTests
                 LiteDbGeneratedMappings.Register(mapper);
 
                 using var database = new LiteDatabase(path, mapper);
-                var collection = database.GetGeneratedCollection<PhaseCScalarRecord>("phaseCUnsupported");
-                var exception = Assert.ThrowsException<NotSupportedException>(() => collection.FindAll());
+                var collection = database.GetGeneratedCollection<PhaseCScalarRecord>("phaseCParity");
+                collection.Insert(new[]
+                {
+                    new PhaseCScalarRecord { Name = "first", Score = 1 },
+                    new PhaseCScalarRecord { Name = "second", Score = 2 },
+                    new PhaseCScalarRecord { Name = "third", Score = 3 }
+                });
 
+                Assert.AreEqual(3, collection.FindAll().Count());
+                Assert.AreEqual("second", collection.Find(record => record.Score >= 2, 0, 1).Single().Name);
+                Assert.AreEqual("third", collection.FindOne("Score = @0", 3).Name);
+                Assert.AreEqual(2, collection.Count(record => record.Score >= 2));
+                Assert.AreEqual(2L, collection.LongCount("Score >= @0", 2));
+                Assert.IsTrue(collection.Exists(record => record.Name == "first"));
+                Assert.AreEqual(1, collection.Min(record => record.Score));
+                Assert.AreEqual(3, collection.Max(record => record.Score));
+
+                var projectedScores = collection.Query()
+                    .Where(record => record.Score >= 2)
+                    .OrderByDescending(record => record.Score)
+                    .Select(record => record.Score)
+                    .ToArray();
+                CollectionAssert.AreEqual(new[] { 3, 2 }, projectedScores);
+
+                var projectedEntities = collection.Query()
+                    .Where(record => record.Score >= 2)
+                    .Select(record => new PhaseCScalarRecord
+                    {
+                        Name = record.Name,
+                        Score = record.Score + 1
+                    })
+                    .ToArray();
+                Assert.AreEqual(2, projectedEntities.Length);
+                CollectionAssert.AreEquivalent(new[] { 3, 4 }, projectedEntities.Select(record => record.Score).ToArray());
+
+                var projectionException = Assert.ThrowsException<NotSupportedException>(() =>
+                    collection.Query().Select(record => new { record.Name }).ToArray());
+                StringAssert.Contains(projectionException.Message, "requires a registered generated execution map");
+
+                var grouped = collection.Query()
+                    .GroupBy(record => record.Score >= 2)
+                    .ToList();
+                Assert.AreEqual(2, grouped.Count);
+                Assert.AreEqual(2, grouped.Single(group => group.Key).Count());
+
+                var groupedKeys = collection.Query()
+                    .GroupBy(record => record.Score >= 2)
+                    .Select(group => group.Key)
+                    .ToArray();
+                CollectionAssert.AreEquivalent(new[] { false, true }, groupedKeys);
+
+                Assert.AreEqual(2, collection.UpdateMany(
+                    record => new PhaseCScalarRecord { Score = record.Score + 10 },
+                    record => record.Score >= 2));
+                Assert.AreEqual(2, collection.DeleteMany(record => record.Score >= 12));
+
+                Assert.IsTrue(collection.EnsureIndex("score_parity", BsonExpression.Create("Score")));
+                Assert.IsTrue(collection.DropIndex("score_parity"));
+                Assert.AreEqual(1, collection.DeleteAll());
+
+                var scalarCollection = database.GetGeneratedCollection<PhaseCScalarCompatibilityRecord>("phaseCScalarProjection");
+                scalarCollection.Insert(new PhaseCScalarCompatibilityRecord
+                {
+                    State = PhaseCScalarState.Completed,
+                    NullableInteger = 42,
+                    NullableState = PhaseCScalarState.Ready
+                });
                 Assert.AreEqual(
-                    "Generated collections support only Insert (single, explicit-ID, enumerable, and bulk), Update (single, explicit-ID, and enumerable), Upsert (single, explicit-ID, and enumerable), FindById, parameterless Count, Delete, and Query. Operation 'FindAll' is not supported.",
-                    exception.Message);
-                Assert.AreEqual(0, database.GetCollection("phaseCUnsupported").Count());
+                    PhaseCScalarState.Completed,
+                    scalarCollection.Query().Select(record => record.State).Single());
+                Assert.AreEqual(
+                    42,
+                    scalarCollection.Query().Select(record => record.NullableInteger).Single());
+                Assert.AreEqual(
+                    PhaseCScalarState.Ready,
+                    scalarCollection.Query().Select(record => record.NullableState).Single());
+
+                var includeException = Assert.ThrowsException<NotSupportedException>(() =>
+                    collection.Query().Include(BsonExpression.Create("$.Reference")));
+                StringAssert.Contains(includeException.Message, "DbRef");
             }
             finally
             {

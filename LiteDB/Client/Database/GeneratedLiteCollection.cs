@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Linq.Expressions;
 using System.Text.RegularExpressions;
 using LiteDB.Engine;
@@ -91,11 +92,7 @@ namespace LiteDB
 
         public int Count()
         {
-            _getExecutionOptions();
-            var count = 0;
-            using var reader = _engine.Query(_collection, new Query());
-            while (reader.Read()) count++;
-            return count;
+            return this.Query().Count();
         }
 
         private static BsonAutoId ResolveAutoId(MemberMapper id, BsonAutoId requestedAutoId)
@@ -149,7 +146,7 @@ namespace LiteDB
         }
 
         private static NotSupportedException Unsupported(string operation) => new NotSupportedException(
-            $"Generated collections support only Insert (single, explicit-ID, enumerable, and bulk), Update (single, explicit-ID, and enumerable), Upsert (single, explicit-ID, and enumerable), FindById, parameterless Count, Delete, and Query. Operation '{operation}' is not supported.");
+            $"Generated relationship serialization and hydration are required for operation '{operation}'.");
         public ILiteCollection<T> Include<K>(Expression<Func<T, K>> keySelector) => throw Unsupported(nameof(Include));
         public ILiteCollection<T> Include(BsonExpression keySelector) => throw Unsupported(nameof(Include));
 
@@ -210,8 +207,26 @@ namespace LiteDB
             return _engine.Update(_collection, SerializeForUpdate(entities, options));
         }
 
-        public int UpdateMany(BsonExpression transform, BsonExpression predicate) => throw Unsupported(nameof(UpdateMany));
-        public int UpdateMany(Expression<Func<T, T>> extend, Expression<Func<T, bool>> predicate) => throw Unsupported(nameof(UpdateMany));
+        public int UpdateMany(BsonExpression transform, BsonExpression predicate)
+        {
+            _getExecutionOptions();
+            if (transform == null) throw new ArgumentNullException(nameof(transform));
+            if (predicate == null) throw new ArgumentNullException(nameof(predicate));
+            if (transform.Type != BsonExpressionType.Document)
+            {
+                throw new ArgumentException("Extend expression must return a document. Eg: `col.UpdateMany('{ Name: UPPER(Name) }', 'Age > 10')`");
+            }
+
+            return _engine.UpdateMany(_collection, transform, predicate);
+        }
+
+        public int UpdateMany(Expression<Func<T, T>> extend, Expression<Func<T, bool>> predicate)
+        {
+            if (extend == null) throw new ArgumentNullException(nameof(extend));
+            if (predicate == null) throw new ArgumentNullException(nameof(predicate));
+
+            return this.UpdateMany(_mapper.GetGeneratedExpression(extend), _mapper.GetGeneratedExpression(predicate));
+        }
 
         public void Insert(BsonValue id, T entity)
         {
@@ -306,51 +321,118 @@ namespace LiteDB
 
             return expression;
         }
-        public bool DropIndex(string name) => throw Unsupported(nameof(DropIndex));
+        public bool DropIndex(string name)
+        {
+            _getExecutionOptions();
+            if (string.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
+            return _engine.DropIndex(_collection, name);
+        }
 
         [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Generated query results use the statically registered deserializer instead of runtime model mapping.")]
         [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Generated query results use the statically registered deserializer instead of runtime type construction.")]
         public ILiteQueryable<T> Query()
         {
-            var options = _getExecutionOptions();
-            return new LiteQueryable<T>(_engine, _mapper, _collection, new Query(), document => _map.Deserialize(document, options));
+            return CreateQueryable(new Query());
         }
 
-        public IEnumerable<T> Find(BsonExpression predicate, int skip = 0, int limit = int.MaxValue) => throw Unsupported(nameof(Find));
-        public IEnumerable<T> Find(Query query, int skip = 0, int limit = int.MaxValue) => throw Unsupported(nameof(Find));
-        public IEnumerable<T> Find(Expression<Func<T, bool>> predicate, int skip = 0, int limit = int.MaxValue) => throw Unsupported(nameof(Find));
-        public T FindOne(BsonExpression predicate) => throw Unsupported(nameof(FindOne));
-        public T FindOne(string predicate, BsonDocument parameters) => throw Unsupported(nameof(FindOne));
-        public T FindOne(BsonExpression predicate, params BsonValue[] args) => throw Unsupported(nameof(FindOne));
-        public T FindOne(Expression<Func<T, bool>> predicate) => throw Unsupported(nameof(FindOne));
-        public T FindOne(Query query) => throw Unsupported(nameof(FindOne));
-        public IEnumerable<T> FindAll() => throw Unsupported(nameof(FindAll));
-        public int DeleteAll() => throw Unsupported(nameof(DeleteAll));
-        public int DeleteMany(BsonExpression predicate) => throw Unsupported(nameof(DeleteMany));
-        public int DeleteMany(string predicate, BsonDocument parameters) => throw Unsupported(nameof(DeleteMany));
-        public int DeleteMany(string predicate, params BsonValue[] args) => throw Unsupported(nameof(DeleteMany));
-        public int DeleteMany(Expression<Func<T, bool>> predicate) => throw Unsupported(nameof(DeleteMany));
-        public int Count(BsonExpression predicate) => throw Unsupported(nameof(Count));
-        public int Count(string predicate, BsonDocument parameters) => throw Unsupported(nameof(Count));
-        public int Count(string predicate, params BsonValue[] args) => throw Unsupported(nameof(Count));
-        public int Count(Expression<Func<T, bool>> predicate) => throw Unsupported(nameof(Count));
-        public int Count(Query query) => throw Unsupported(nameof(Count));
-        public long LongCount() => throw Unsupported(nameof(LongCount));
-        public long LongCount(BsonExpression predicate) => throw Unsupported(nameof(LongCount));
-        public long LongCount(string predicate, BsonDocument parameters) => throw Unsupported(nameof(LongCount));
-        public long LongCount(string predicate, params BsonValue[] args) => throw Unsupported(nameof(LongCount));
-        public long LongCount(Expression<Func<T, bool>> predicate) => throw Unsupported(nameof(LongCount));
-        public long LongCount(Query query) => throw Unsupported(nameof(LongCount));
-        public bool Exists(BsonExpression predicate) => throw Unsupported(nameof(Exists));
-        public bool Exists(string predicate, BsonDocument parameters) => throw Unsupported(nameof(Exists));
-        public bool Exists(string predicate, params BsonValue[] args) => throw Unsupported(nameof(Exists));
-        public bool Exists(Expression<Func<T, bool>> predicate) => throw Unsupported(nameof(Exists));
-        public bool Exists(Query query) => throw Unsupported(nameof(Exists));
-        public BsonValue Min(BsonExpression keySelector) => throw Unsupported(nameof(Min));
-        public BsonValue Min() => throw Unsupported(nameof(Min));
-        public K Min<K>(Expression<Func<T, K>> keySelector) => throw Unsupported(nameof(Min));
-        public BsonValue Max(BsonExpression keySelector) => throw Unsupported(nameof(Max));
-        public BsonValue Max() => throw Unsupported(nameof(Max));
-        public K Max<K>(Expression<Func<T, K>> keySelector) => throw Unsupported(nameof(Max));
+        public IEnumerable<T> Find(BsonExpression predicate, int skip = 0, int limit = int.MaxValue)
+        {
+            if (predicate == null) throw new ArgumentNullException(nameof(predicate));
+            return this.Query().Where(predicate).Skip(skip).Limit(limit).ToEnumerable();
+        }
+
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Generated query results use the statically registered deserializer.")]
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Generated query results use the statically registered deserializer.")]
+        public IEnumerable<T> Find(Query query, int skip = 0, int limit = int.MaxValue)
+        {
+            if (query == null) throw new ArgumentNullException(nameof(query));
+            if (skip != 0) query.Offset = skip;
+            if (limit != int.MaxValue) query.Limit = limit;
+            return CreateQueryable(query).ToEnumerable();
+        }
+
+        public IEnumerable<T> Find(Expression<Func<T, bool>> predicate, int skip = 0, int limit = int.MaxValue) =>
+            this.Find(_mapper.GetGeneratedExpression(predicate), skip, limit);
+
+        public T FindOne(BsonExpression predicate) => this.Find(predicate, 0, 1).FirstOrDefault();
+        public T FindOne(string predicate, BsonDocument parameters) => this.FindOne(BsonExpression.Create(predicate, parameters));
+        public T FindOne(BsonExpression predicate, params BsonValue[] args) => this.FindOne(BsonExpression.Create(predicate, args));
+        public T FindOne(Expression<Func<T, bool>> predicate) => this.FindOne(_mapper.GetGeneratedExpression(predicate));
+        public T FindOne(Query query) => this.Find(query, 0, 1).FirstOrDefault();
+        public IEnumerable<T> FindAll() => this.Query().ToEnumerable();
+
+        public int DeleteAll()
+        {
+            _getExecutionOptions();
+            return _engine.DeleteMany(_collection, null);
+        }
+
+        public int DeleteMany(BsonExpression predicate)
+        {
+            _getExecutionOptions();
+            if (predicate == null) throw new ArgumentNullException(nameof(predicate));
+            return _engine.DeleteMany(_collection, predicate);
+        }
+
+        public int DeleteMany(string predicate, BsonDocument parameters) => this.DeleteMany(BsonExpression.Create(predicate, parameters));
+        public int DeleteMany(string predicate, params BsonValue[] args) => this.DeleteMany(BsonExpression.Create(predicate, args));
+        public int DeleteMany(Expression<Func<T, bool>> predicate) => this.DeleteMany(_mapper.GetGeneratedExpression(predicate));
+
+        public int Count(BsonExpression predicate)
+        {
+            if (predicate == null) throw new ArgumentNullException(nameof(predicate));
+            return this.Query().Where(predicate).Count();
+        }
+
+        public int Count(string predicate, BsonDocument parameters) => this.Count(BsonExpression.Create(predicate, parameters));
+        public int Count(string predicate, params BsonValue[] args) => this.Count(BsonExpression.Create(predicate, args));
+        public int Count(Expression<Func<T, bool>> predicate) => this.Count(_mapper.GetGeneratedExpression(predicate));
+        public int Count(Query query) => CreateQueryable(query).Count();
+        public long LongCount() => this.Query().LongCount();
+
+        public long LongCount(BsonExpression predicate)
+        {
+            if (predicate == null) throw new ArgumentNullException(nameof(predicate));
+            return this.Query().Where(predicate).LongCount();
+        }
+
+        public long LongCount(string predicate, BsonDocument parameters) => this.LongCount(BsonExpression.Create(predicate, parameters));
+        public long LongCount(string predicate, params BsonValue[] args) => this.LongCount(BsonExpression.Create(predicate, args));
+        public long LongCount(Expression<Func<T, bool>> predicate) => this.LongCount(_mapper.GetGeneratedExpression(predicate));
+        public long LongCount(Query query) => CreateQueryable(query).LongCount();
+
+        public bool Exists(BsonExpression predicate)
+        {
+            if (predicate == null) throw new ArgumentNullException(nameof(predicate));
+            return this.Query().Where(predicate).Exists();
+        }
+
+        public bool Exists(string predicate, BsonDocument parameters) => this.Exists(BsonExpression.Create(predicate, parameters));
+        public bool Exists(string predicate, params BsonValue[] args) => this.Exists(BsonExpression.Create(predicate, args));
+        public bool Exists(Expression<Func<T, bool>> predicate) => this.Exists(_mapper.GetGeneratedExpression(predicate));
+        public bool Exists(Query query) => CreateQueryable(query).Exists();
+
+        public BsonValue Min(BsonExpression keySelector) => ExecuteExtreme(keySelector, LiteDB.Query.Ascending);
+        public BsonValue Min() => this.Min("_id");
+        public K Min<K>(Expression<Func<T, K>> keySelector) => GeneratedScalarConverter.Convert<K>(this.Min(_mapper.GetGeneratedExpression(keySelector)));
+        public BsonValue Max(BsonExpression keySelector) => ExecuteExtreme(keySelector, LiteDB.Query.Descending);
+        public BsonValue Max() => this.Max("_id");
+        public K Max<K>(Expression<Func<T, K>> keySelector) => GeneratedScalarConverter.Convert<K>(this.Max(_mapper.GetGeneratedExpression(keySelector)));
+
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Generated query results use the statically registered deserializer.")]
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Generated query results use the statically registered deserializer.")]
+        private ILiteQueryable<T> CreateQueryable(Query query)
+        {
+            var options = _getExecutionOptions();
+            if (query == null) throw new ArgumentNullException(nameof(query));
+            return new LiteQueryable<T>(_engine, _mapper, _collection, query, document => _map.Deserialize(document, options), true);
+        }
+
+        private BsonValue ExecuteExtreme(BsonExpression keySelector, int order)
+        {
+            if (keySelector == null) throw new ArgumentNullException(nameof(keySelector));
+            var document = this.Query().OrderBy(keySelector, order).Select(keySelector).Limit(1).ToDocuments().First();
+            return document[document.Keys.First()];
+        }
     }
 }

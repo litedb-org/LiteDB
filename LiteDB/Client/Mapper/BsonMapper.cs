@@ -1,8 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text.RegularExpressions;
@@ -243,9 +241,21 @@ namespace LiteDB
 
         internal BsonExpression GetGeneratedIndexExpression<T, K>(Expression<Func<T, K>> predicate)
         {
-            var visitor = new LinqExpressionVisitor(this, predicate, useGeneratedMappers: true);
+            return this.GetGeneratedExpression(predicate, false);
+        }
 
-            return visitor.Resolve(false);
+        internal BsonExpression GetGeneratedExpression<T, K>(Expression<Func<T, K>> expression)
+        {
+            return this.GetGeneratedExpression(expression, typeof(K) == typeof(bool));
+        }
+
+        internal BsonExpression GetGeneratedExpression(Expression expression, bool ensurePredicate)
+        {
+            if (expression == null) throw new ArgumentNullException(nameof(expression));
+
+            var visitor = new LinqExpressionVisitor(this, expression, useGeneratedMappers: true);
+
+            return visitor.Resolve(ensurePredicate);
         }
 
         #endregion

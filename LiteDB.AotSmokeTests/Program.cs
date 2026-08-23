@@ -5,6 +5,7 @@ using System.Linq;
 
 using LiteDB.Generated;
 
+#nullable enable
 namespace LiteDB.AotSmokeTests
 {
     internal static class Program
@@ -124,6 +125,57 @@ namespace LiteDB.AotSmokeTests
             Console.WriteLine("        Passed: stream-backed persistence and readback.");
         }
 
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
+            "Trimming",
+            "IL2026",
+            Justification = "The source generator emits direct access to every member used by these expression trees, so their accessors remain rooted.")]
+        private static void RunGeneratedQueryParity(LiteDatabase database)
+        {
+            Console.WriteLine("  [3.1r] Execute generated fluent, aggregate, and bulk mutation parity APIs.");
+            var parity = database.GetGeneratedCollection<AotSimpleRecord>("aot_query_parity");
+            parity.Insert(new[]
+            {
+                new AotSimpleRecord { Name = "low", Score = 1 },
+                new AotSimpleRecord { Name = "high", Score = 2 }
+            });
+
+            var scores = parity.Query()
+                .Where(record => record.Score >= 1)
+                .OrderByDescending(record => record.Score)
+                .Select(record => record.Score)
+                .ToArray();
+            var groups = parity.Query()
+                .GroupBy(record => record.Score >= 2)
+                .ToArray();
+            var groupKeys = parity.Query()
+                .GroupBy(record => record.Score >= 2)
+                .Select(group => group.Key)
+                .ToArray();
+            var entities = parity.Query()
+                .Select(record => new AotSimpleRecord
+                {
+                    Name = record.Name,
+                    Score = record.Score + 1
+                })
+                .ToArray();
+
+            Require(scores.SequenceEqual(new long[] { 2, 1 }) &&
+                    groups.Length == 2 &&
+                    groups.Single(group => group.Key).Count() == 1 &&
+                    groupKeys.OrderBy(key => key).SequenceEqual(new[] { false, true }) &&
+                    entities.Select(record => record.Score).OrderBy(score => score).SequenceEqual(new long[] { 2, 3 }) &&
+                    parity.Count(record => record.Score >= 1) == 2 &&
+                    parity.Min(record => record.Score) == 1 &&
+                    parity.Max(record => record.Score) == 2 &&
+                    parity.UpdateMany(
+                        record => new AotSimpleRecord { Score = record.Score + 10 },
+                        record => record.Score == 2) == 1 &&
+                    parity.DeleteMany(record => record.Score == 12) == 1 &&
+                    parity.DeleteAll() == 1,
+                "The generated Native AOT parity operations failed.");
+            Console.WriteLine("        Passed: generated LINQ, grouping, projections, aggregates, update-many, and deletion APIs.");
+        }
+
         private static void RunGeneratedTypedMappingScenario(string databasePath)
         {
             Console.WriteLine("  [3.1] Automatically register generated execution maps and round-trip an inherited scalar typed record.");
@@ -146,6 +198,8 @@ namespace LiteDB.AotSmokeTests
             Require(queryRead?.Name == "simple" && queryRead.Score == 7,
                 "The source-generated Native AOT query did not use the generated deserializer.");
             Console.WriteLine("        Passed: generated query filtering and typed materialization.");
+
+            RunGeneratedQueryParity(database);
 
             Console.WriteLine("  [3.1a] Automatically register and execute a C1 scalar generated map.");
             var automatic = database.GetGeneratedCollection<AotPhaseCScalarRecord>("aot_phase_c_scalar");
