@@ -40,6 +40,7 @@ namespace LiteDB.AotTests
 
             var generatedSource = GenerateSource(source);
 
+            Assert.IsFalse(generatedSource.Contains("SerializeDynamicDictionary(global::System.Collections.Generic.Dictionary<string, object?>? values, global::LiteDB.GeneratedExecutionOptions?", StringComparison.Ordinal));
             AssertContainsInOrder(
                 generatedSource,
                 "public static void Register(global::LiteDB.BsonMapper mapper)",
@@ -146,7 +147,9 @@ namespace LiteDB.AotTests
                 generatedSource,
                 "private static global::LiteDB.BsonValue SerializeStringArray(string[]? values)",
                 "private static string[]? DeserializeStringArray(global::LiteDB.BsonValue value)",
-                "private static global::LiteDB.BsonValue SerializeDynamicDictionary(global::System.Collections.Generic.Dictionary<string, object?>? values)",
+                "private static global::LiteDB.BsonValue SerializeDynamicDictionaryForMap(global::System.Collections.Generic.Dictionary<string, object?>? values)",
+                "return SerializeDynamicDictionaryCore(values, null, 1);",
+                "private static global::LiteDB.BsonValue SerializeDynamicDictionaryCore(global::System.Collections.Generic.Dictionary<string, object?>? values, global::LiteDB.GeneratedExecutionOptions? options, int depth)",
                 "private static global::System.Collections.Generic.Dictionary<string, object?>? DeserializeDynamicDictionary(global::LiteDB.BsonValue value)",
                 "private static global::LiteDB.BsonValue SerializeDateTimeOffset(object? value)",
                 "return new global::LiteDB.BsonValue(dateTimeOffset.UtcDateTime);",
@@ -155,8 +158,35 @@ namespace LiteDB.AotTests
                 "return new global::System.DateTimeOffset(value.AsDateTime.ToUniversalTime());",
                 "Serialize = (value, _) => SerializeDateTimeOffset(value),",
                 "Serialize = (value, _) => SerializeStringArray((string[])value),",
-                "Serialize = (value, _) => SerializeDynamicDictionary((global::System.Collections.Generic.Dictionary<string, object?>)value),",
+                "Serialize = (value, _) => SerializeDynamicDictionaryForMap((global::System.Collections.Generic.Dictionary<string, object?>)value),",
                 "Setter = (entity, value) => ((global::SnapshotConsumer.HelperSnapshotRecord)entity).Fields = (global::System.Collections.Generic.Dictionary<string, object?>)value");
+        }
+
+        [TestMethod]
+        public void BsonSourceGenerator_DynamicDictionary_EmitsAutomaticExecutionMapSemanticSnapshot()
+        {
+            const string source = """
+                using System.Collections.Generic;
+                using LiteDB;
+
+                namespace SnapshotConsumer;
+
+                [BsonSourceGenerated]
+                public sealed class DynamicRecord
+                {
+                    public int Id { get; set; }
+                    public Dictionary<string, object?> Fields { get; set; } = [];
+                }
+                """;
+
+            var generatedSource = GenerateSource(source);
+
+            AssertContainsInOrder(
+                generatedSource,
+                "mapper.RegisterGeneratedExecutionMap(CreateExecutionMap0());",
+                "private static global::LiteDB.GeneratedEntityMap<global::SnapshotConsumer.DynamicRecord> CreateExecutionMap0()",
+                "SerializeDynamicDictionaryCore(entity.Fields, options, 1)",
+                "entity.Fields = DeserializeDynamicDictionary(value1)!");
         }
 
 
@@ -303,11 +333,17 @@ namespace LiteDB.AotTests
                 options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
             GeneratorDriver driver = CSharpGeneratorDriver.Create(new BsonSourceGenerator().AsSourceGenerator());
 
-            driver = driver.RunGenerators(compilation);
+            driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var outputCompilation, out var generatorDiagnostics);
 
             var result = driver.GetRunResult().Results.Single();
+            Assert.AreEqual(0, generatorDiagnostics.Length);
             Assert.AreEqual(0, result.Diagnostics.Length);
             Assert.AreEqual(1, result.GeneratedSources.Length);
+            Assert.AreEqual("LiteDbGeneratedMappings.v2.g.cs", result.GeneratedSources[0].HintName);
+            var compilationErrors = outputCompilation.GetDiagnostics()
+                .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+                .ToArray();
+            Assert.AreEqual(0, compilationErrors.Length, string.Join(Environment.NewLine, compilationErrors.Select(diagnostic => diagnostic.ToString())));
             return result.GeneratedSources[0].SourceText.ToString();
         }
 

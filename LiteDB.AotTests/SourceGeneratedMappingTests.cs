@@ -658,7 +658,7 @@ namespace LiteDB.AotTests
 
             try
             {
-                var mapper = new BsonMapper { SerializeNullValues = true };
+                var mapper = new ThrowingConversionMapper { SerializeNullValues = true };
                 LiteDbGeneratedMappings.Register(mapper);
 
                 using var database = new LiteDatabase(path, mapper);
@@ -1952,7 +1952,7 @@ namespace LiteDB.AotTests
     }
 
     [BsonSourceGenerated]
-    public sealed class PhaseBGeneratedRecord
+    public sealed class PhaseBGeneratedRecord : PhaseBGeneratedRecordBase
     {
         public int Id { get; set; }
 
@@ -1960,8 +1960,12 @@ namespace LiteDB.AotTests
 
         public long Score { get; set; }
 
-        // Keeps the retained manual Phase B registry fixture outside automatic scalar-map emission.
         public Dictionary<string, object?> LegacyProbe { get; set; } = [];
+    }
+
+    // Keeps the retained manual Phase B registry fixture outside automatic direct-map emission.
+    public class PhaseBGeneratedRecordBase
+    {
     }
 
     internal sealed class ThrowingConversionMapper : BsonMapper

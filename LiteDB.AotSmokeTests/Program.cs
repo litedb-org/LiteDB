@@ -852,14 +852,18 @@ namespace LiteDB.AotSmokeTests
     }
 
     [BsonSourceGenerated]
-    public sealed class AotSimpleRecord
+    public sealed class AotSimpleRecord : AotSimpleRecordBase
     {
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
         public long Score { get; set; }
 
-        // Keeps this retained manual Phase B smoke fixture outside automatic scalar-map emission.
         public Dictionary<string, object> LegacyProbe { get; set; } = [];
+    }
+
+    // Keeps this retained manual Phase B smoke fixture outside automatic direct-map emission.
+    public class AotSimpleRecordBase
+    {
     }
 
     [BsonSourceGenerated]
