@@ -31,13 +31,11 @@ public partial class BsonMapper
             throw new InvalidOperationException($"A source-generated entity mapper is already registered for '{mapper.ForType.FullName}'.");
         }
 
-        if (_entities.TryAdd(mapper.ForType, mapper))
-        {
-            return mapper;
-        }
-
-        _generatedEntities.TryRemove(mapper.ForType, out _);
-        throw new InvalidOperationException($"An entity mapper is already registered for '{mapper.ForType.FullName}'.");
+        // Generated metadata belongs exclusively to GetGeneratedCollection<T>.
+        // Populating the ordinary mapper cache here made GetCollection<T> depend on
+        // whether generated registration happened first and bypassed ordinary mapper
+        // configuration such as ResolveFieldName.
+        return mapper;
     }
 
     internal bool HasGeneratedEntityMapper(Type type)

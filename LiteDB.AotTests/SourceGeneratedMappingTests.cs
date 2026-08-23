@@ -329,6 +329,35 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
+        public void GeneratedRegistration_DoesNotReplaceOrdinaryMapperMetadata()
+        {
+            var mapper = new BsonMapper
+            {
+                ResolveFieldName = static name => "ordinary_" + name
+            };
+            LiteDbGeneratedMappings.Register(mapper);
+            var path = GetDatabasePath();
+
+            try
+            {
+                using var database = new LiteDatabase(path, mapper);
+                var ordinary = database.GetCollection<PhaseCScalarRecord>("ordinaryMetadata");
+                ordinary.Insert(new PhaseCScalarRecord { Id = 7, Score = 11 });
+
+                var document = database.GetCollection("ordinaryMetadata").FindById(7);
+                Assert.IsTrue(document.ContainsKey("ordinary_Score"));
+                Assert.IsFalse(document.ContainsKey(nameof(PhaseCScalarRecord.Score)));
+
+                Assert.ThrowsException<InvalidOperationException>(() =>
+                    database.GetGeneratedCollection<PhaseCScalarRecord>("generatedMetadata"));
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
         public void GeneratedExecutionMap_RequiresGeneratedEntityMapperAndSupportsNullSerialization()
         {
             var unregisteredMapper = new BsonMapper();
