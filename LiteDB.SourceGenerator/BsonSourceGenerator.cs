@@ -494,6 +494,8 @@ public sealed class BsonSourceGenerator : IIncrementalGenerator
 
     private static bool CanEmitExecutionMap(IReadOnlyList<PropertyDescriptor> properties)
     {
+        // Model analysis has already rejected every shape for which direct code cannot be
+        // emitted. Keep this predicate explicit so newly admitted property kinds fail closed.
         return properties.All(property =>
             (property.Kind is PropertyKind.Scalar or PropertyKind.DateTimeOffset or PropertyKind.NullableDateTimeOffset &&
                 property.ScalarKind != ScalarConversionKind.None) ||

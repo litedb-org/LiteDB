@@ -77,6 +77,14 @@ jobs:
         timeout-minutes: 8
         run: dotnet test LiteDB.sln --configuration Release --no-build --verbosity normal --settings tests.runsettings --logger "trx;LogFileName=TestResults.trx" --logger "console;verbosity=detailed"
 
+      - name: Run managed AOT mapping and generator tests
+        run: dotnet test LiteDB.AotTests/LiteDB.AotTests.csproj --configuration Release --settings tests.runsettings
+
+      - name: Validate trimmed source-project executable
+        run: |
+          dotnet publish LiteDB.AotSmokeTests/LiteDB.AotSmokeTests.csproj --configuration Release --runtime linux-x64 --self-contained true -p:PublishAot=false -p:PublishTrimmed=true --output ./artifacts/source-generator-release-trimmed
+          ./artifacts/source-generator-release-trimmed/LiteDB.AotSmokeTests
+
       - name: Validate packaged consumer and source-project Native AOT smoke
         run: |
           ./scripts/validate-source-generator-package-consumer.sh

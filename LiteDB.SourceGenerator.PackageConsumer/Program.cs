@@ -107,6 +107,10 @@ public sealed class PackagedGeneratedRecord
     public DateTimeOffset? DeliveredAt { get; set; }
 
     public Dictionary<string, object?> Fields { get; set; } = [];
+
+    public List<string> Tags { get; set; } = [];
+
+    public string[] StreamNames { get; set; } = [];
 }
 
 internal static class Program
@@ -115,10 +119,9 @@ internal static class Program
     {
         var occurredAt = new DateTimeOffset(2024, 7, 6, 8, 9, 10, TimeSpan.FromHours(5.5));
         var deliveredAt = new DateTimeOffset(2024, 7, 7, 8, 9, 10, TimeSpan.FromHours(-8));
-        var mapper = new BsonMapper();
+        var mapper = new FailOnGenericConversionMapper();
 
         LiteDbGeneratedMappings.Register(mapper);
-        mapper.RegisterGeneratedExecutionMap(CreatePackagedExecutionMap());
 
         using var stream = new MemoryStream();
         using var database = new LiteDatabase(stream, mapper);
@@ -292,20 +295,39 @@ internal static class Program
                 {
                     ["enabled"] = true
                 }
-            }
+            },
+            Tags = ["package", "golden"],
+            StreamNames = ["content", "metadata"]
         });
 
         var actual = collection.FindById(17);
+        var actualDocument = database.GetCollection("packaged_generated_records").FindById(17);
 
         Require(actual is not null, "The packaged generated collection did not return the inserted record.");
-        Require(actual!.OccurredAt.EqualsExact(occurredAt), "The packaged generated DateTimeOffset mapping changed ticks or offset.");
+        var expectedOccurredTicks = occurredAt.UtcDateTime.Ticks - (occurredAt.UtcDateTime.Ticks % TimeSpan.TicksPerMillisecond);
+        Require(actual!.OccurredAt.UtcDateTime.Ticks == expectedOccurredTicks && actual.OccurredAt.Offset == TimeSpan.Zero,
+            "The packaged generated DateTimeOffset mapping did not use canonical UTC BSON precision.");
         Require(actual.Attempt == 3, "The packaged generated nullable scalar mapping did not preserve the populated value.");
-        Require(actual.DeliveredAt.HasValue && actual.DeliveredAt.Value.EqualsExact(deliveredAt), "The packaged generated nullable DateTimeOffset mapping changed ticks or offset.");
+        var expectedDeliveredTicks = deliveredAt.UtcDateTime.Ticks - (deliveredAt.UtcDateTime.Ticks % TimeSpan.TicksPerMillisecond);
+        Require(actual.DeliveredAt.HasValue &&
+                actual.DeliveredAt.Value.UtcDateTime.Ticks == expectedDeliveredTicks &&
+                actual.DeliveredAt.Value.Offset == TimeSpan.Zero,
+            "The packaged generated nullable DateTimeOffset mapping did not use canonical UTC BSON precision.");
         var fields = actual.Fields ?? throw new InvalidOperationException("The packaged generated dynamic dictionary was null.");
         Require((string)fields["message"]! == "package-consumer", "The packaged generated dynamic dictionary string value did not round trip.");
         Require((int)fields["attempt"]! == 3, "The packaged generated dynamic dictionary numeric value did not round trip.");
         Require(fields["missing"] is null, "The packaged generated dynamic dictionary null value did not round trip.");
         Require(fields["nested"] is Dictionary<string, object?> nested && (bool)nested["enabled"]!, "The packaged generated nested dynamic dictionary did not round trip.");
+        Require(actual.Tags.SequenceEqual(["package", "golden"]) &&
+                actual.StreamNames.SequenceEqual(["content", "metadata"]),
+            "The packaged generated list or string-array property did not round trip.");
+        Require(actualDocument[nameof(PackagedGeneratedRecord.OccurredAt)].Type == BsonType.DateTime &&
+                actualDocument[nameof(PackagedGeneratedRecord.Fields)].Type == BsonType.Document &&
+                actualDocument[nameof(PackagedGeneratedRecord.Tags)].Type == BsonType.Array &&
+                actualDocument[nameof(PackagedGeneratedRecord.Tags)].AsArray[0].AsString == "package" &&
+                actualDocument[nameof(PackagedGeneratedRecord.StreamNames)].Type == BsonType.Array &&
+                actualDocument[nameof(PackagedGeneratedRecord.StreamNames)].AsArray[1].AsString == "metadata",
+            "The packaged generated property-family BSON golden changed type, shape, or value.");
 
         var legacyDateTimeOffset = new DateTimeOffset(2024, 7, 8, 8, 9, 10, TimeSpan.FromHours(5.5)).AddTicks(4321);
         database.GetCollection("packaged_generated_records").Insert(new BsonDocument
@@ -324,23 +346,6 @@ internal static class Program
         return 0;
     }
 
-    private static GeneratedEntityMap<PackagedExecutionRecord> CreatePackagedExecutionMap()
-    {
-        return new GeneratedEntityMap<PackagedExecutionRecord>(
-            record => new BsonDocument
-            {
-                ["_id"] = record.Id,
-                [nameof(PackagedExecutionRecord.Name)] = record.Name,
-                [nameof(PackagedExecutionRecord.Score)] = record.Score
-            },
-            document => new PackagedExecutionRecord
-            {
-                Id = document["_id"].AsInt32,
-                Name = document[nameof(PackagedExecutionRecord.Name)].AsString,
-                Score = document[nameof(PackagedExecutionRecord.Score)].AsInt64
-            });
-    }
-
     private static void Require(bool condition, string message)
     {
         if (!condition)
@@ -348,4 +353,18 @@ internal static class Program
             throw new InvalidOperationException(message);
         }
     }
+}
+
+internal sealed class FailOnGenericConversionMapper : BsonMapper
+{
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Runtime model mapping is not trimming safe.")]
+    public override BsonDocument ToDocument(Type type, object entity) => type == typeof(BsonDocument)
+        ? (BsonDocument)entity
+        : throw new InvalidOperationException($"Generated execution reached broad {nameof(ToDocument)} conversion for '{type}'.");
+
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode("Runtime model mapping is not trimming safe.")]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Runtime type construction requires dynamic code.")]
+    public override object ToObject(Type type, BsonDocument document) => type == typeof(BsonDocument)
+        ? document
+        : throw new InvalidOperationException($"Generated execution reached broad {nameof(ToObject)} conversion for '{type}'.");
 }

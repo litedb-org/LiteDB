@@ -120,6 +120,12 @@ jobs:
           dotnet build LiteDB.SourceGenerator.CompileTests/LiteDB.SourceGenerator.CompileTests.csproj
           --configuration Release
 
+      - name: Run managed AOT mapping and generator tests
+        run: >-
+          dotnet test LiteDB.AotTests/LiteDB.AotTests.csproj
+          --configuration Release
+          --settings tests.runsettings
+
       - name: Validate packaged source-generator consumer
         run: ./scripts/validate-source-generator-package-consumer.sh
 
@@ -131,16 +137,17 @@ jobs:
           --output ./artifacts/native-aot
           && ./artifacts/native-aot/LiteDB.AotSmokeTests
 
-      - name: Publish and run managed single-file smoke test
+      - name: Publish and run trimmed managed smoke test
         run: >-
           dotnet publish LiteDB.AotSmokeTests/LiteDB.AotSmokeTests.csproj
           --configuration Release
           --runtime linux-x64
           --self-contained true
           -p:PublishAot=false
+          -p:PublishTrimmed=true
           -p:PublishSingleFile=true
-          --output ./artifacts/single-file
-          && ./artifacts/single-file/LiteDB.AotSmokeTests
+          --output ./artifacts/trimmed
+          && ./artifacts/trimmed/LiteDB.AotSmokeTests
 
   build-macos:
     name: Build (macOS)
@@ -413,4 +420,3 @@ jobs:
           --logger "trx;LogFileName=TestResults-arm64.trx"
           --logger "console;verbosity=detailed"
           ${{ matrix.item.msbuildProps }}
-

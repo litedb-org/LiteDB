@@ -88,7 +88,7 @@ var customers = database.GetGeneratedCollection<Customer>("customers");
 
 `Register` must run before `GetGeneratedCollection<T>`. Calling it twice for the same mapper throws `InvalidOperationException`. `GetGeneratedCollection<T>` throws when either the generated entity map or its generated execution map is absent. It never falls back to the ordinary runtime-mapped collection path.
 
-The generator automatically registers a direct execution map for every supported model. Supported values include scalars, `List<string>`, rank-one `string[]`, and `Dictionary<string, object?>`; supported scalars include Boolean, the signed and unsigned integer widths, Single, Double, Decimal, Char, String, enum, `byte[]`, `DateTime`, `DateTimeOffset`, `Guid`, `ObjectId`, and nullable value-type forms of those values. `LiteDbGeneratedMappings.Register(mapper)` is the only registration call required; consumers do not call `RegisterGeneratedExecutionMap` manually. Direct maps perform generated document conversion and reproduce `SerializeNullValues`, `TrimWhitespace`, `EmptyStringToNull`, and `EnumAsInteger`; every other mapper-shaping setting is rejected before data access. Ordinary `GetCollection<T>` remains the reflection-capable LiteDB API. See [SourceGeneratorPackage.md](SourceGeneratorPackage.md) for package-version policy, contributor package checks, and release requirements.
+The generator automatically registers a direct execution map for every supported model. Supported values include scalars, `List<string>`, rank-one `string[]`, and `Dictionary<string, object?>`; supported scalars include Boolean, the signed and unsigned integer widths, Single, Double, Decimal, Char, String, enum, `byte[]`, `DateTime`, `DateTimeOffset`, `Guid`, `ObjectId`, and nullable value-type forms of those values. `LiteDbGeneratedMappings.Register(mapper)` is the only registration call required; consumers do not call `RegisterGeneratedExecutionMap` manually. Direct maps perform generated document conversion and reproduce `SerializeNullValues`, `TrimWhitespace`, `EmptyStringToNull`, and `EnumAsInteger`; every other mapper-shaping setting is rejected before data access. Generated smoke fixtures guard the broad `ToDocument(Type, object)` and `ToObject(Type, BsonDocument)` methods so an accidental fallback is observable and build-breaking. Ordinary `GetCollection<T>` remains the reflection-capable LiteDB API. See [SourceGeneratorPackage.md](SourceGeneratorPackage.md) for package-version policy, contributor package checks, and release requirements.
 
 ## Supported model subset
 
@@ -146,6 +146,13 @@ Run the Native AOT smoke test with:
 ```bash
 dotnet publish LiteDB.AotSmokeTests/LiteDB.AotSmokeTests.csproj -c Release -r linux-x64 --self-contained true
 ./LiteDB.AotSmokeTests/bin/Release/net8.0/linux-x64/publish/LiteDB.AotSmokeTests
+```
+
+Run the separate trimmed, non-AOT gate with:
+
+```bash
+dotnet publish LiteDB.AotSmokeTests/LiteDB.AotSmokeTests.csproj -c Release -r linux-x64 --self-contained true -p:PublishAot=false -p:PublishTrimmed=true -o artifacts/aot-smoke-trimmed
+./artifacts/aot-smoke-trimmed/LiteDB.AotSmokeTests
 ```
 
 Run the package-boundary Native AOT validation with:

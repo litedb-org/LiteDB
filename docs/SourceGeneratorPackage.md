@@ -46,7 +46,7 @@ For repository development, continue to use the analyzer-only project reference 
 
 ## Contributor validation
 
-The following command builds matching local packages, verifies their archive contract, restores a package-only consumer from a clean local feed, confirms generated source discovery, and publishes/runs the consumer with self-contained Linux x64 Native AOT:
+The following command builds matching local packages, verifies their archive contract, restores a package-only consumer from a clean local feed, confirms generated source discovery and automatic execution-map registration, and publishes/runs the same consumer first as a trimmed non-AOT executable and then with self-contained Linux x64 Native AOT:
 
 ```bash
 ./scripts/validate-source-generator-package-consumer.sh
@@ -73,6 +73,7 @@ A defective analyzer package version must be corrected through a new matching Li
 | Exact pair | One GitVersion-derived version names both LiteDB and LiteDB.SourceGenerator archives. |
 | Archive hygiene | `validate-source-generator-package-archive.sh artifacts <version>` passes after both pack operations. |
 | Package consumer | The Linux Native AOT CI job passed `validate-source-generator-package-consumer.sh`; the manual stable-release workflow runs it directly. |
-| Source regressions | Focused generated-mapping tests and source-project Native AOT smoke tests passed in CI; the manual stable-release workflow runs the source-project smoke directly. |
+| Generated execution | Every admitted property family and inheritance/attribute path has automatic execution-map registration; guarded smoke mappers fail if broad generic conversion is reached. |
+| Source regressions | Focused managed generated-mapping tests, compiler snapshots, trimmed publish, and source-project Native AOT smoke tests passed in CI; the manual stable-release workflow runs these gates directly. |
 | Security/release advisories | The runtime package’s current NuGet audit advisory and package-readme advisory have been remediated or explicitly accepted by the runtime package security/release owner. They are not suppressed or attributed to the analyzer package. |
 | Publication immutability | Neither package archive is replaced under an existing version; corrections use a new paired version. |

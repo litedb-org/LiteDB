@@ -9,9 +9,10 @@ readonly CONSUMER_PROJECT="$ROOT_DIRECTORY/LiteDB.SourceGenerator.PackageConsume
 readonly CONSUMER_DIRECTORY="$ROOT_DIRECTORY/LiteDB.SourceGenerator.PackageConsumer"
 readonly GENERATED_DIRECTORY="$CONSUMER_DIRECTORY/obj/generated"
 readonly PUBLISH_DIRECTORY="$ROOT_DIRECTORY/artifacts/source-generator-package-consumer-native-aot"
+readonly TRIMMED_DIRECTORY="$ROOT_DIRECTORY/artifacts/source-generator-package-consumer-trimmed"
 
 printf '%s\n' '[PACKAGE-CONSUMER] Preparing a clean local package feed and NuGet cache.'
-rm -rf "$FEED_DIRECTORY" "$PACKAGE_CACHE_DIRECTORY" "$GENERATED_DIRECTORY" "$PUBLISH_DIRECTORY" "$CONSUMER_DIRECTORY/bin" "$CONSUMER_DIRECTORY/obj"
+rm -rf "$FEED_DIRECTORY" "$PACKAGE_CACHE_DIRECTORY" "$GENERATED_DIRECTORY" "$PUBLISH_DIRECTORY" "$TRIMMED_DIRECTORY" "$CONSUMER_DIRECTORY/bin" "$CONSUMER_DIRECTORY/obj"
 mkdir -p "$FEED_DIRECTORY" "$PACKAGE_CACHE_DIRECTORY"
 
 printf '%s\n' '[PACKAGE-CONSUMER] Packing the matching LiteDB runtime and source-generator package pair.'
@@ -51,10 +52,24 @@ dotnet build "$CONSUMER_PROJECT" \
   --no-restore \
   --nologo \
   -p:GitVersionEnabled=false
-GENERATED_MAPPING_FILE="$(find "$GENERATED_DIRECTORY" -name LiteDbGeneratedMappings.g.cs -print -quit)"
+GENERATED_MAPPING_FILE="$(find "$GENERATED_DIRECTORY" -name 'LiteDbGeneratedMappings*.g.cs' -print -quit)"
 test -n "$GENERATED_MAPPING_FILE"
 grep -q 'PackagedGeneratedRecord' "$GENERATED_MAPPING_FILE"
 grep -q 'SerializeDynamicDictionary' "$GENERATED_MAPPING_FILE"
+grep -q 'RegisterGeneratedExecutionMap' "$GENERATED_MAPPING_FILE"
+
+printf '%s\n' '[PACKAGE-CONSUMER] Publishing and running the restored consumer as a trimmed, non-AOT executable.'
+dotnet publish "$CONSUMER_PROJECT" \
+  --configuration Release \
+  --runtime linux-x64 \
+  --self-contained true \
+  --no-restore \
+  --nologo \
+  -p:GitVersionEnabled=false \
+  -p:PublishAot=false \
+  -p:PublishTrimmed=true \
+  --output "$TRIMMED_DIRECTORY"
+"$TRIMMED_DIRECTORY/LiteDB.SourceGenerator.PackageConsumer"
 
 printf '%s\n' '[PACKAGE-CONSUMER] Publishing and running the restored consumer as self-contained Native AOT.'
 dotnet publish "$CONSUMER_PROJECT" \
