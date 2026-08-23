@@ -20,16 +20,23 @@ namespace LiteDB
         protected readonly BsonMapper _mapper;
         protected readonly string _collection;
         protected readonly Query _query;
+        private readonly Func<BsonDocument, T> _deserialize;
 
         // indicate that T type are simple and result are inside first document fields (query always return a BsonDocument)
         private readonly bool _isSimpleType = Reflection.IsSimpleType(typeof(T));
 
         internal LiteQueryable(ILiteEngine engine, BsonMapper mapper, string collection, Query query)
+            : this(engine, mapper, collection, query, null)
+        {
+        }
+
+        internal LiteQueryable(ILiteEngine engine, BsonMapper mapper, string collection, Query query, Func<BsonDocument, T> deserialize)
         {
             _engine = engine;
             _mapper = mapper;
             _collection = collection;
             _query = query;
+            _deserialize = deserialize;
         }
 
         #region Includes
@@ -428,6 +435,11 @@ namespace LiteDB
         /// </summary>
         public IEnumerable<T> ToEnumerable()
         {
+            if (_deserialize != null)
+            {
+                return this.ToDocuments().Select(_deserialize);
+            }
+
             if (_isSimpleType)
             {
                 return this.ToDocuments()

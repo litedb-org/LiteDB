@@ -149,8 +149,7 @@ namespace LiteDB
         }
 
         private static NotSupportedException Unsupported(string operation) => new NotSupportedException(
-            $"Generated collections support only Insert (single, explicit-ID, enumerable, and bulk), Update (single, explicit-ID, and enumerable), Upsert (single, explicit-ID, and enumerable), FindById, parameterless Count, Delete, and EnsureIndex. Operation '{operation}' is not supported.");
-
+            $"Generated collections support only Insert (single, explicit-ID, enumerable, and bulk), Update (single, explicit-ID, and enumerable), Upsert (single, explicit-ID, and enumerable), FindById, parameterless Count, Delete, and Query. Operation '{operation}' is not supported.");
         public ILiteCollection<T> Include<K>(Expression<Func<T, K>> keySelector) => throw Unsupported(nameof(Include));
         public ILiteCollection<T> Include(BsonExpression keySelector) => throw Unsupported(nameof(Include));
 
@@ -308,7 +307,15 @@ namespace LiteDB
             return expression;
         }
         public bool DropIndex(string name) => throw Unsupported(nameof(DropIndex));
-        public ILiteQueryable<T> Query() => throw Unsupported(nameof(Query));
+
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Generated query results use the statically registered deserializer instead of runtime model mapping.")]
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Generated query results use the statically registered deserializer instead of runtime type construction.")]
+        public ILiteQueryable<T> Query()
+        {
+            var options = _getExecutionOptions();
+            return new LiteQueryable<T>(_engine, _mapper, _collection, new Query(), document => _map.Deserialize(document, options));
+        }
+
         public IEnumerable<T> Find(BsonExpression predicate, int skip = 0, int limit = int.MaxValue) => throw Unsupported(nameof(Find));
         public IEnumerable<T> Find(Query query, int skip = 0, int limit = int.MaxValue) => throw Unsupported(nameof(Find));
         public IEnumerable<T> Find(Expression<Func<T, bool>> predicate, int skip = 0, int limit = int.MaxValue) => throw Unsupported(nameof(Find));

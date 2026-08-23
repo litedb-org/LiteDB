@@ -1854,9 +1854,43 @@ namespace LiteDB.AotTests
                 var exception = Assert.ThrowsException<NotSupportedException>(() => collection.FindAll());
 
                 Assert.AreEqual(
-                    "Generated collections support only Insert (single, explicit-ID, enumerable, and bulk), Update (single, explicit-ID, and enumerable), Upsert (single, explicit-ID, and enumerable), FindById, parameterless Count, Delete, and EnsureIndex. Operation 'FindAll' is not supported.",
+                    "Generated collections support only Insert (single, explicit-ID, enumerable, and bulk), Update (single, explicit-ID, and enumerable), Upsert (single, explicit-ID, and enumerable), FindById, parameterless Count, Delete, and Query. Operation 'FindAll' is not supported.",
                     exception.Message);
                 Assert.AreEqual(0, database.GetCollection("phaseCUnsupported").Count());
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
+        public void GetGeneratedCollection_Query_UsesGeneratedDeserializer()
+        {
+            var path = GetDatabasePath();
+
+            try
+            {
+                var mapper = new ThrowingConversionMapper();
+                LiteDbGeneratedMappings.Register(mapper);
+
+                using var database = new LiteDatabase(path, mapper);
+                var collection = database.GetGeneratedCollection<PhaseCScalarRecord>("phaseCQuery");
+                collection.Insert(new[]
+                {
+                    new PhaseCScalarRecord { Name = "first", Score = 1 },
+                    new PhaseCScalarRecord { Name = "second", Score = 2 },
+                    new PhaseCScalarRecord { Name = "third", Score = 3 }
+                });
+
+                var records = collection.Query()
+                    .Where(BsonExpression.Create("Score >= 2"))
+                    .OrderByDescending(BsonExpression.Create("Score"))
+                    .ToList();
+
+                Assert.AreEqual(2, records.Count);
+                Assert.AreEqual("third", records[0].Name);
+                Assert.AreEqual("second", records[1].Name);
             }
             finally
             {

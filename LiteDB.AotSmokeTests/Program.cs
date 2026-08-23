@@ -139,6 +139,14 @@ namespace LiteDB.AotSmokeTests
                 "The source-generated Native AOT simple typed round trip failed.");
             Console.WriteLine("        Passed: automatic inherited execution-map registration and scalar typed round trip.");
 
+            Console.WriteLine("  [3.1q] Query generated records through the generated deserializer.");
+            var queryRead = simple.Query()
+                .Where(BsonExpression.Create("Score = 7"))
+                .FirstOrDefault();
+            Require(queryRead?.Name == "simple" && queryRead.Score == 7,
+                "The source-generated Native AOT query did not use the generated deserializer.");
+            Console.WriteLine("        Passed: generated query filtering and typed materialization.");
+
             Console.WriteLine("  [3.1a] Automatically register and execute a C1 scalar generated map.");
             var automatic = database.GetGeneratedCollection<AotPhaseCScalarRecord>("aot_phase_c_scalar");
             automatic.Insert(new AotPhaseCScalarRecord { Score = 8 });
