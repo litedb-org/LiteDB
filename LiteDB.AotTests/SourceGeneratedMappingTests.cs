@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
+using LiteDB.Engine;
 using LiteDB.Generated;
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -253,6 +254,19 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
+        public void GetGeneratedCollection_RejectsModelWithoutExecutionMap()
+        {
+            var mapper = new BsonMapper();
+            mapper.RegisterGeneratedEntityMapper(new EntityMapper(typeof(UnsupportedExecutionRecord)));
+
+            using var database = new LiteDatabase(new RecordingEngine(), mapper, false);
+            var exception = Assert.ThrowsException<InvalidOperationException>(() =>
+                database.GetGeneratedCollection<UnsupportedExecutionRecord>("unsupported"));
+
+            StringAssert.Contains(exception.Message, "execution map");
+        }
+
+        [TestMethod]
         public void GetGeneratedCollection_AutomaticallyRegistersDirectMapForC2AttributeModel()
         {
             var path = GetDatabasePath();
@@ -384,6 +398,38 @@ namespace LiteDB.AotTests
             {
                 File.Delete(path);
             }
+        }
+
+        [DataTestMethod]
+        [DataRow("query")]
+        [DataRow("insert")]
+        [DataRow("update")]
+        [DataRow("upsert")]
+        [DataRow("delete")]
+        public void GeneratedExecution_RejectsPostAcquisitionConfigurationBeforeEngineAccess(string operation)
+        {
+            var mapper = new BsonMapper();
+            LiteDbGeneratedMappings.Register(mapper);
+            var engine = new RecordingEngine();
+
+            using var database = new LiteDatabase(engine, mapper, false);
+            var collection = database.GetGeneratedCollection<PhaseCScalarRecord>("guarded");
+            mapper.OnDeserialization = (_, _, value) => value;
+
+            Assert.ThrowsException<InvalidOperationException>(() =>
+            {
+                switch (operation)
+                {
+                    case "query": collection.FindById(1); break;
+                    case "insert": collection.Insert(new PhaseCScalarRecord()); break;
+                    case "update": collection.Update(new PhaseCScalarRecord { Id = 1 }); break;
+                    case "upsert": collection.Upsert(new PhaseCScalarRecord()); break;
+                    case "delete": collection.Delete(1); break;
+                    default: Assert.Fail($"Unknown operation '{operation}'."); break;
+                }
+            });
+
+            Assert.AreEqual(0, engine.DataAccessCount);
         }
 
         [TestMethod]
@@ -1891,6 +1937,45 @@ namespace LiteDB.AotTests
         {
             return Path.Combine(Path.GetTempPath(), $"litedb-source-generated-test-{Guid.NewGuid():N}.db");
         }
+
+        private sealed class RecordingEngine : ILiteEngine
+        {
+            public int DataAccessCount { get; private set; }
+
+            private T Access<T>()
+            {
+                DataAccessCount++;
+                throw new AssertFailedException("Generated configuration validation must run before engine access.");
+            }
+
+            public IBsonDataReader Query(string collection, Query query) => Access<IBsonDataReader>();
+            public int Insert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId) => Access<int>();
+            public int Update(string collection, IEnumerable<BsonDocument> docs) => Access<int>();
+            public int UpdateMany(string collection, BsonExpression transform, BsonExpression predicate) => Access<int>();
+            public int Upsert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId) => Access<int>();
+            public int Delete(string collection, IEnumerable<BsonValue> ids) => Access<int>();
+            public int DeleteMany(string collection, BsonExpression predicate) => Access<int>();
+            public int Checkpoint() => Access<int>();
+            public long Rebuild(RebuildOptions options) => Access<long>();
+            public bool BeginTrans() => Access<bool>();
+            public bool Commit() => Access<bool>();
+            public bool Rollback() => Access<bool>();
+            public bool DropCollection(string name) => Access<bool>();
+            public bool RenameCollection(string name, string newName) => Access<bool>();
+            public bool EnsureIndex(string collection, string name, BsonExpression expression, bool unique) => Access<bool>();
+            public bool EnsureVectorIndex(string collection, string name, BsonExpression expression, LiteDB.Vector.VectorIndexOptions options) => Access<bool>();
+            public bool DropIndex(string collection, string name) => Access<bool>();
+            public BsonValue Pragma(string name) => Access<BsonValue>();
+            public bool Pragma(string name, BsonValue value) => Access<bool>();
+            public void Dispose()
+            {
+            }
+        }
+    }
+
+    public sealed class UnsupportedExecutionRecord
+    {
+        public int Id { get; set; }
     }
 
     [BsonSourceGenerated]

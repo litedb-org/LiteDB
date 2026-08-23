@@ -121,7 +121,7 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Gets a typed collection for a source-generated entity mapper. A registered generated execution map selects the direct execution path; otherwise the generated-registration collection behavior is retained.
+        /// Gets a typed collection backed exclusively by a source-generated execution map.
         /// </summary>
         /// <typeparam name="T">The explicitly generated entity type.</typeparam>
         /// <param name="name">The required case-insensitive collection name.</param>
@@ -138,19 +138,19 @@ namespace LiteDB
                 throw new InvalidOperationException($"No source-generated entity mapper is registered for '{typeof(T).FullName}'.");
             }
 
-            if (Mapper.TryGetGeneratedExecutionMap<T>(out var generatedMap))
+            if (Mapper.TryGetGeneratedExecutionMap<T>(out var generatedMap) == false)
             {
-                Mapper.ValidateGeneratedExecutionConfiguration(generatedMap);
-                return new GeneratedLiteCollection<T>(
-                    name,
-                    autoId,
-                    _engine,
-                    Mapper.GetGeneratedEntityMapper(typeof(T)),
-                    generatedMap,
-                    () => Mapper.ValidateGeneratedExecutionConfiguration(generatedMap));
+                throw new InvalidOperationException($"No source-generated execution map is registered for '{typeof(T).FullName}'.");
             }
 
-            return this.GetCollectionCore<T>(name, autoId);
+            Mapper.ValidateGeneratedExecutionConfiguration(generatedMap);
+            return new GeneratedLiteCollection<T>(
+                name,
+                autoId,
+                _engine,
+                Mapper.GetGeneratedEntityMapper(typeof(T)),
+                generatedMap,
+                () => Mapper.ValidateGeneratedExecutionConfiguration(generatedMap));
         }
 
         /// <summary>

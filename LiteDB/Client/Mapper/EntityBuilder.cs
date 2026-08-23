@@ -30,6 +30,7 @@ namespace LiteDB
         {
             return this.GetMember(member, (p) =>
             {
+                _mapper.RecordCustomEntityConfiguration();
                 _entity.WaitForInitialization();
                 _entity.Members.Remove(p);
             });
@@ -44,6 +45,7 @@ namespace LiteDB
 
             return this.GetMember(member, (p) =>
             {
+                _mapper.RecordCustomEntityConfiguration();
                 p.FieldName = field;
             });
         }
@@ -55,6 +57,7 @@ namespace LiteDB
         {
             return this.GetMember(member, (p) =>
             {
+                _mapper.RecordCustomEntityConfiguration();
                 _entity.WaitForInitialization();
                 
                 // if contains another _id, remove-it
@@ -76,6 +79,7 @@ namespace LiteDB
         /// </summary>
         public EntityBuilder<T> Ctor(Func<BsonDocument, T> createInstance)
         {
+            _mapper.RecordCustomEntityConfiguration();
             _entity.WaitForInitialization();
             _entity.CreateInstance = v => createInstance(v);
 
@@ -90,6 +94,7 @@ namespace LiteDB
         {
             return this.GetMember(member, (p) =>
             {
+                _mapper.RecordCustomEntityConfiguration();
                 BsonMapper.RegisterDbRef(_mapper, p, _typeNameBinder, collection ?? _mapper.GetCollectionName(typeof(K)));
             });
         }

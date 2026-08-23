@@ -32,14 +32,14 @@ namespace LiteDB
         ILiteCollection<T> GetCollection<T>(string name, BsonAutoId autoId = BsonAutoId.ObjectId);
 
         /// <summary>
-        /// Gets a typed collection for a source-generated entity mapper. A registered generated execution map selects the direct execution path; otherwise the generated-registration collection behavior is retained.
+        /// Gets a typed collection backed exclusively by a source-generated execution map.
         /// </summary>
         /// <typeparam name="T">The explicitly generated entity type.</typeparam>
         /// <param name="name">The required case-insensitive collection name.</param>
         /// <param name="autoId">The auto-ID type when the entity map has no auto-ID member.</param>
         /// <returns>The typed collection.</returns>
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="name"/> is missing.</exception>
-        /// <exception cref="InvalidOperationException">Thrown when no generated mapper is registered or a registered generated execution map requires an unsupported mapper configuration.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when no generated entity or execution map is registered, or the execution map requires an unsupported mapper configuration.</exception>
         ILiteCollection<T> GetGeneratedCollection<T>(string name, BsonAutoId autoId = BsonAutoId.ObjectId);
 
         /// <summary>

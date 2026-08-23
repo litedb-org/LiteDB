@@ -11,6 +11,7 @@ namespace LiteDB
         private readonly bool _hasCustomTypeInstantiator;
         private readonly bool _hasCustomTypeNameBinder;
         private int _customTypeRegistrations;
+        private int _customEntityConfigurations;
         private bool _registeringBuiltInTypes;
 
         private static string ResolveFieldNameDefault(string name) => name;
@@ -65,6 +66,11 @@ namespace LiteDB
             }
         }
 
+        internal void RecordCustomEntityConfiguration()
+        {
+            Interlocked.Increment(ref _customEntityConfigurations);
+        }
+
         internal EntityMapper GetGeneratedEntityMapper(Type type)
         {
             if (_generatedEntities.TryGetValue(type, out var entityMapper))
@@ -90,8 +96,11 @@ namespace LiteDB
                 _hasCustomTypeInstantiator ||
                 _hasCustomTypeNameBinder ||
                 Volatile.Read(ref _customTypeRegistrations) != 0 ||
+                Volatile.Read(ref _customEntityConfigurations) != 0 ||
                 ResolveFieldName != ResolveFieldNameDefault ||
-                ResolveMember != ResolveMemberDefault)
+                ResolveMember != ResolveMemberDefault ||
+                typeof(T).IsSealed == false ||
+                GetGeneratedEntityMapper(typeof(T)).Members.Exists(member => member.IsDbRef))
             {
                 throw new InvalidOperationException(
                     "The registered source-generated execution map does not support the active BsonMapper configuration. " +
