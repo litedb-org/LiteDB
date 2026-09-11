@@ -107,5 +107,7 @@ parameterized helpers as a later compatibility decision.
 
 - [x] Split changes into reviewable commits where practical.
 - [x] Push the implementation branch and open a PR against `litedb-org/LiteDB`.
-- [ ] Monitor every CI job, diagnose failures, push fixes, and obtain green CI.
-- [ ] Run a final post-CI regression and memory-leak verification.
+- [x] Monitor every CI job, diagnose failures, push fixes, and obtain green CI
+  (GitHub Actions run `34657271951`: 45/45 jobs succeeded).
+- [x] Run a final post-CI regression and memory-leak verification
+  (net8.0: 413 passed, 7 skipped; leak-focused gate: 66 tests x 5 passes).
