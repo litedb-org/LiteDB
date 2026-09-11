@@ -106,6 +106,6 @@ parameterized helpers as a later compatibility decision.
 ## Delivery
 
 - [x] Split changes into reviewable commits where practical.
-- [ ] Push the implementation branch and open a PR against `litedb-org/LiteDB`.
+- [x] Push the implementation branch and open a PR against `litedb-org/LiteDB`.
 - [ ] Monitor every CI job, diagnose failures, push fixes, and obtain green CI.
 - [ ] Run a final post-CI regression and memory-leak verification.
