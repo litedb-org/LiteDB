@@ -1,8 +1,129 @@
 # Bounded, elastic page cache for LiteDB v5 — proposal
 
-Status: proposal (2026-09-11). Scope: `LiteDB/Engine/Disk/MemoryCache.cs`,
+Status: proposal, revision 4 (2026-09-11). Scope: `LiteDB/Engine/Disk/MemoryCache.cs`,
 `DiskService`, `TransactionMonitor`, `TransactionService`, `EngineSettings`,
 `ConnectionString`, `$database` system collection.
+
+## 0. Revision history
+
+### Revision 4 (third review)
+
+Kept: the soft target, explicit frame states, segment reclamation, separate
+checkpoint invalidation, the independently bounded expression cache.
+Changed:
+
+- **Vector writes join the safepoint audit** (5.3). `VectorIndexService.Upsert`
+  calls `Delete`, whose `TryFindNode` breadth-first walks the whole graph even
+  for a brand-new document, and dropping the index walks it through
+  `ClearTree`. Measured (2,000 documents, 16-page threshold, no extension):
+  one insert with a vector index 63 pages, dropping the vector index 56.
+  "Per-document checks need no change" was wrong for vector-backed writes.
+  Safepoints go at traversal boundaries with node reload; a streaming
+  `Search()` is not enough because its traversal and document loading are
+  eager.
+- **Loading waits use `_sync` itself** (5.2): `Monitor.Wait(_sync)` /
+  `PulseAll(_sync)`, and a woken waiter re-resolves its key in the dictionary
+  before pinning, because the frame it waited on may have been published,
+  released and reused for another key. No second lock, no lock ordering.
+- **The WAL fix uses the frame `MoveToReadable` returns** (5.2). Today
+  `WriteLogDisk` ignores that return value and writes and releases the
+  original page; in the duplicate-key branch the original is already
+  discarded (reproduced: `ArgumentOutOfRangeException`, original free,
+  returned frame still pinned). Write, callback and release now all use the
+  returned frame, with ownership cleanup when either throws.
+- **Lifetime checks cover slices, not only `BasePage`** (5.2, 6):
+  `IndexNode.SetNextNode` writes and `VectorIndexNode.GetNeighbors` /
+  `ReadVector` read through retained `BufferSlice`s. Segment liveness is
+  restated: a zero pin count removes a frame from the pool's accounting; it
+  does not make the array collectable while a suspended iterator still holds
+  a node. Reported and tested separately.
+- **CLOCK has an explicit work bound and trim prioritizes releasable
+  segments** (5.2): frames examined per acquisition are capped and measured,
+  segment selection uses occupancy buckets, and trim evicts from segments
+  that can become fully free before touching others.
+- **`Query.In` keeps value-snapshot semantics** (5.8): parameterized helpers
+  clone mutable inputs (array, document, binary) at construction, because
+  today's text serialization snapshots them and a retained parameter would
+  not (reproduced). Cache admission is atomic under a lock.
+- Smaller: the overshoot formula includes one collection page per snapshot;
+  stream ownership covers the log and sort streams the engine creates for a
+  caller-supplied `DataStream`; the summary and RC7 now say what section 5
+  supports.
+
+### Revision 3 (second review)
+
+The architecture and the benchmark-driven defaults stand. Seven refinements,
+five of them measured or reproduced against the Release build:
+
+- **The safepoint audit was incomplete.** With a 16-page threshold and
+  extension disabled, ordinary workloads still pinned far more: non-indexed
+  `OrderBy` 1,202 pages, one document with an `Include` array 1,266, indexed
+  `LIKE` with no matches 175, `DropIndex` 212 (6,000-document harness). 5.3
+  now lists the mechanisms and the required safepoints; no scan-memory bound
+  is claimed until the regression tests for those paths exist.
+- **Frame ownership extends to WAL callers.** `DiskService.WriteLogDisk`
+  releases a written page before resuming its source iterator, and that
+  iterator then reads `buffer.Position` to fill `DirtyPages`
+  (`TransactionService.cs:199`). Reproduced: zero pins on resumption, the
+  frame reused by another thread, position changed. Phase 1 records the page
+  id and WAL position before the release; the transition table now shows that
+  publication happens before the disk write, under the writer's pin.
+- **CLOCK reports two outcomes.** A full turn over idle frames whose reference
+  bits are all set evicts nothing; acquisition and trim now run a bounded
+  second pass and distinguish "cleared bits" from "nothing eligible".
+- **`CacheSize` is a soft target on idle frames, not a bound on the engine.**
+  One pinned frame retains its whole 1 MB segment, so scattered pins can
+  retain far more than they hold; 100 open transactions × 1,000 pages is
+  still 800 MB at the hard maximum. 5.2 accounts pinned, writable, loading
+  and segment-retained bytes separately, and the design no longer promises a
+  bound on transaction metadata or query-side collections.
+- **Synchronization contract tightened.** Every `ShareCounter` change is
+  atomic (a plain `++` under the lock races with the lock-free decrement);
+  waiters loop on the frame's monitor; `TryMoveToReadable`, writable-load
+  failure and a writable request meeting a `Loading` entry are specified.
+- **Parameter renumbering is collision-free.** Offsetting numeric names by
+  `left.Parameters.Count` fails for sparse numbers and for named parameters
+  (`@value` on both sides). 5.8 assigns fresh positional names to every
+  referenced parameter in both operands.
+- **Rollout no longer claims bounded growth before enforcement exists.**
+  Phase 3 is settings plus reduced transaction retention plus the safepoint
+  audit; capacity enforcement and segment reclamation are phase 4; stream
+  ownership fixes are an independently reviewable change.
+
+### Revision 2 (first review)
+
+Revision 1 was reviewed against the codebase and reproduced in three places
+where it was wrong. This revision changes the design, not the diagnosis:
+
+- **Checkpoint invalidation stays separate from trimming** (5.2). Revision 1
+  replaced `MemoryCache.Clear()` with a trim, which would have left stale data
+  pages and stale log positions in a cache that was under its limit.
+- **Frames get explicit states and one lock covers every transition** (5.2).
+  The bare compare-and-swap protocol of revision 1 still allowed a paused
+  reader to pin a frame that had been evicted and reused (0 → −2 → 0), and it
+  did not cover loading, publication, or the writable-copy read.
+- **Lost frames on concurrent or failed loads are a first-phase fix** (5.2).
+  Today's `GetOrAdd` factory can run twice for one key; the loser's frame and
+  the frame of a failed load are never returned. Reproduced: two simultaneous
+  reads of one key left one frame unaccounted for.
+- **Transaction policy is a fixed per-transaction safepoint threshold** (5.3),
+  not an extensible shared budget; revision 1's formula let a lone transaction
+  reach 6,000 pages while claiming 1,000. Cooperative-safepoint overshoot is
+  now documented and audited.
+- **Query composition must carry parameters** (5.8). `Query.And`/`Or`
+  concatenate source text; parameterizing the leaf helpers alone silently
+  drops parameters. Reproduced: a literal conjunction was true, its
+  parameterized equivalent false. The cache cap ships first, on its own.
+- **Trim has termination and rounding rules** (5.2, 6).
+- **Stream claims corrected** (5.5, 5.6): the wrong-password path already
+  disposes the file; log shrinking must go through the stream abstraction
+  because the encryption wrapper keeps a header page.
+- **Rollout reordered** (7): correctness of loading and eviction first, then
+  the expression cache, then settings and the transaction policy, then
+  segments, CLOCK and trimming, then defaults from benchmarks. Revision 1's
+  "low-risk patch" raised eviction frequency before fixing eviction.
+- **CI gap** (6): `LiteDB.Tests.csproj` removes `Internals\**` in Release, so
+  the cache tests do not run in a Release test pass today.
 
 ## 1. Summary
 
@@ -33,13 +154,15 @@ There is no post-dispose leak in the engine: with a forced full GC the engine, i
 all segments are reclaimed after `Dispose()` (verified with weak references).
 Users who report "memory is not returned" are observing a live engine.
 
-The fix proposed here makes the cache **bounded** (a configurable limit,
-default 64 MB for file databases), **elastic** (segments are returned to the GC
-when idle after a peak), and **honest about pins** (the transaction budget is
-derived from the cache limit so pinned pages can no longer force the cache
-past its limit by an order of magnitude). It keeps the on-disk format, the
-public API, and the page-pinning protocol, and it removes one existing
-"no way to fix" exception path in the cache.
+The fix proposed here gives the page pool a **soft target** (configurable,
+default 64 MB for file databases; idle frames never push it past the target,
+pinned frames and partially occupied segments can and are reported), makes it
+**elastic** (segments are returned to the GC after a peak once their frames
+are free), and makes pins **accountable** (a fixed per-transaction safepoint
+threshold with every cooperative-safepoint gap audited and tested). It does
+not bound the whole engine heap; section 4 says exactly what it bounds. It keeps the on-disk
+format, the public API, and the page-pinning protocol, and it removes one
+existing "no way to fix" exception path in the cache.
 
 ## 2. Measurements (this fork, Release, net8.0, 1 KB documents)
 
@@ -196,11 +319,17 @@ The first 12-page segment is allocated in the `MemoryCache` constructor
 (comment: to land on the LOH). Per open engine that is ~100 KB before any
 page is read (#1479).
 
-### RC7 — stream disposal on failure
+### RC7 — stream disposal and ownership on failure
 
-`FileStreamFactory.GetStream()` opens a `FileStream` and then constructs an
-`AesStream`; if the latter throws (wrong password, salt read failure) the
-`FileStream` is leaked (#2579).
+The wrong-password path is covered: `AesStream`'s constructor disposes the
+underlying `FileStream` in its `catch`. What is not covered:
+`File.SetAttributes` for hidden files throwing after the `FileStream` exists
+in `FileStreamFactory.GetStream()`, the `DiskService` constructor failing
+after it created pools (#2614), and the log and sort streams the engine
+creates itself (for `:memory:`, `:temp:`, and for a caller-supplied
+`DataStream` with no `LogStream`) never being disposed because
+`StreamFactory.CloseOnDispose` is false (#2056). #2579 as reported should be
+re-verified against 5.0.21.
 
 ### RC8 — static compiled-expression cache keyed by source text (`BsonExpression.cs`)
 
@@ -237,11 +366,11 @@ discriminating call (`DeleteMany(Query.EQ("Name", uniqueName))` grows,
 
 | Goal | Concrete meaning |
 |---|---|
-| Bounded | A configurable byte limit on cache memory. Default 64 MB (8,192 pages). Idle pages never push the cache past it. |
+| Soft target | `CacheSize` is a target for the page buffer pool. Default 64 MB. Idle frames never push allocated bytes past it; pinned, writable and loading frames can, and so can partially occupied segments, and both are reported separately. It is not a bound on the engine heap: transaction metadata, sort containers, query-side collections and materialized documents are outside the pool. |
 | Elastic | After a peak the cache returns segments to the GC down to the limit, without timers. |
-| Pin-honest | Pinned pages can exceed the limit only by a documented, small amount (`open transactions x per-transaction budget`), never by 800 MB. |
+| Pin-honest | The overshoot has a stated formula: open transactions × the safepoint threshold, plus the audited per-path overshoot, plus segment retention by scattered pins. At the hard maximum of 100 open transactions that is still 800 MB; typical apps run one to four. |
 | Cheap | O(1) amortized page acquisition and eviction; no LINQ over the whole cache; no sort. |
-| Race-free | Eviction and pinning use a compare-and-swap protocol; the "no way to fix" throw disappears. |
+| Race-free | Every frame transition is explicit and covered by one lock; loading, publication, eviction and the writable copy included. The "no way to fix" throw disappears. |
 | Observable | `$database.cache` reports limit, allocated bytes, pinned pages, evictions, segment releases, hit/miss counts. |
 | Compatible | No file-format change, no public API removal, existing `PageBuffer`/`ShareCounter` semantics preserved for callers. |
 
@@ -261,146 +390,291 @@ changing the WAL/checkpoint design.
   count; a bare number is now bytes and will clamp to the minimum. The
   parser should reject values without a unit below 1 MB with a clear message
   instead of silently clamping.
-- Internal: `CachePages = CacheSize / PAGE_SIZE`.
+- Internal: `LimitPages = CacheSize / PAGE_SIZE`, rounded up to whole
+  segments (5.2).
+- `EngineSettings.TransactionPageLimit` (pages, default 1,000) and connection
+  string `transaction pages=1000`: the per-transaction safepoint threshold
+  (5.3).
 
-### 5.2 `MemoryCache` v2: frames, segments, CLOCK
+### 5.2 `MemoryCache` v2: explicit frame states, one lock, segments, CLOCK
 
-Replace the single `ConcurrentQueue<PageBuffer> _free` and the
-timestamp-sort recycle with a real buffer pool:
+Replace the `ConcurrentQueue<PageBuffer>` free list, the `ConcurrentDictionary`
+publication and the timestamp-sort recycle with a buffer pool whose every
+transition is explicit and covered by one synchronization design. Contention
+is optimized only after it is measured; correctness comes first.
 
 ```
 Segment
   byte[]        Buffer          // 1 MB (128 pages) after the first segment
-  PageBuffer[]  Pages           // fixed frames, never re-created
+  PageBuffer[]  Frames          // fixed, never re-created
   int           FreeCount
   int           FreeHead        // intrusive free list through PageBuffer.NextFree
-  int           Index           // position in _segments
 
 PageBuffer (additions)
+  FrameState    State           // Free | Loading | Readable | Writable | Evicting
+  int           ShareCounter    // pin count while Readable (kept for callers)
+  long          Generation      // incremented every time the frame becomes Free
+  int           Referenced      // CLOCK reference bit
   Segment       Segment
-  int           NextFree        // -1 when not free
-  int           Referenced      // CLOCK reference bit (0/1)
+  int           NextFree
 ```
 
-State of a frame is encoded in the existing `ShareCounter`:
+**Synchronization contract.** A single `_sync` lock protects the readable
+index (`Dictionary<long, PageBuffer>`), every frame state transition, the
+segment list and the free lists. Page *loading* (the disk read into the
+frame) runs outside the lock. Rules:
 
-| `ShareCounter` | meaning |
-|---|---|
-| `>= 1` | readable, pinned by n readers |
-| `0` | readable and idle (evictable) **or** free (distinguished by `Position == long.MaxValue`) |
-| `-1` (`BUFFER_WRITABLE`) | private writable copy owned by one transaction |
-| `-2` (`BUFFER_EVICTING`, new) | being evicted; readers must retry |
+- Every change to `ShareCounter` is atomic, including the increment taken
+  under the lock (`Interlocked.Increment`), because `Release()` is a lock-free
+  `Interlocked.Decrement`; a plain `++` under the lock would race with it and
+  lose a decrement, leaving a permanent pin. The evictor reads the count with
+  `Volatile.Read` under the lock; a concurrent decrement can only make a frame
+  idle later, never pinned earlier.
+- Waiters for a `Loading` frame call `Monitor.Wait(_sync)` inside the lock
+  they already hold; the loader takes `_sync` and calls
+  `Monitor.PulseAll(_sync)` after publishing `Readable` or `Free`. One lock,
+  no ordering to define, and check-and-wait is atomic. A woken waiter does
+  not trust the frame it waited on: the loader may have published, released
+  and let that frame be evicted and reused for another key. It re-resolves
+  its own key in the dictionary and pins only a `Readable` frame mapped to
+  that key, or starts a load if the key is gone. A per-load completion object
+  can replace the shared condition later if contention is measured.
+- A writable request (`GetWritablePage`) that finds a `Loading` entry waits
+  like a reader, then copies; one that finds nothing loads directly into its
+  own writable frame, and on exception that frame returns to `Free` (there is
+  no index entry to remove).
+- `TryMoveToReadable` (clean pages after a write transaction) transitions
+  `Writable → Readable` only if the key is absent; otherwise the frame stays
+  `Writable` and the caller discards it, as today.
 
-**Acquire a free page** (`GetFreePage`, under one uncontended `_sync` lock):
+This removes the three races found in review:
 
-1. Pop from the current allocation segment's free list. Prefer the most
-   populated segment with free frames so that nearly-empty segments drain
-   and become releasable (first-fit over `_segments` ordered by `FreeCount`
-   ascending; the list is short).
-2. If no free frame anywhere and `TotalPages < CachePages`: allocate a
-   segment (1 MB).
-3. Otherwise run the CLOCK sweep to evict up to `EvictBatch` (= 128) idle
-   readable frames, then retry step 1.
-4. If the sweep evicted nothing (everything pinned or writable): allocate a
-   segment anyway and increment `OverflowSegments`. This is the soft-limit
-   escape hatch; section 5.3 makes it rare and bounded.
+- **ABA on pin.** A frame can only leave the readable index inside the same
+  critical section that changes its state, so a reader that finds a frame in
+  the index under the lock cannot be looking at a frame that was evicted and
+  reused. `Generation` is additionally recorded by `BasePage` in
+  `DEBUG || TESTING` and asserted on every buffer access, so any future
+  regression surfaces as an `ENSURE`, not as silent wrong data.
+- **Lost frames on concurrent load.** Publication is `TryAdd` of a frame in
+  `Loading` state, not a `GetOrAdd` factory. The loser of the race returns its
+  frame to its segment before waiting on the winner's frame.
+- **Lost frames on failed load.** The loader owns the frame until it publishes
+  `Readable`; on exception it removes the index entry, sets `Free`, pulses the
+  waiters (which retry and will load themselves), and returns the frame.
 
-**CLOCK sweep**: a hand `(segmentIndex, frameIndex)` walks the frames. For a
-frame with `ShareCounter == 0 && Position != MaxValue`:
-`if (Referenced == 1) Referenced = 0; else evict`. Frames that are pinned,
-writable or free are skipped. At most two full turns per call. No sort, no
-allocation, no dictionary enumeration.
+**Transitions** (all under `_sync` unless noted):
 
-**Evict one frame** (race-free):
+| From | To | When | Who |
+|---|---|---|---|
+| Free | Loading | `GetReadablePage` miss: frame taken from a segment, `Position/Origin` set, entry added to the index | reader |
+| Loading | Readable | disk read finished (outside the lock), then `ShareCounter = 1` for the loader, `PulseAll` | loader |
+| Loading | Free | disk read threw; index entry removed, `PulseAll`, frame returned | loader |
+| Readable | Readable (+1 pin) | `GetReadablePage` hit: `ShareCounter++`, `Referenced = 1` | reader |
+| Readable | Evicting → Free | CLOCK sweep: `ShareCounter == 0 && Referenced == 0`; index entry removed, `Generation++`, frame returned to its segment | evictor |
+| Readable | Free | `Invalidate()` after checkpoint (requires the engine's exclusive lock; every `ShareCounter` must be 0) | checkpoint |
+| Free | Writable | `NewPage`, `GetWritablePage` | transaction |
+| Writable | Readable (pinned by the writer) | `MoveToReadable` *before* the log write: the frame is published so new readers see the content, held by the writer's pin while the bytes go to disk, and released after the write. If the key already exists, the existing frame must be idle, its bytes are overwritten, and the writable frame returns to Free (today's behaviour, now under the lock) | transaction |
+| Writable | Writable | `TryMoveToReadable` when the key already exists: no transition, caller discards | transaction |
+| Writable | Free | `DiscardPage` (rollback / clean page) | transaction |
 
-```csharp
-if (Interlocked.CompareExchange(ref page.ShareCounter, BUFFER_EVICTING, 0) != 0) continue;
-_readable.TryRemove(new KeyValuePair<long, PageBuffer>(key, page)); // remove only if still mapped to this instance
-page.Position = long.MaxValue; page.Origin = FileOrigin.None;
-page.ShareCounter = 0;                // now "free"
-segment.PushFree(page);
-Interlocked.Increment(ref _evicted);
+`GetWritablePage` copies from the readable source *under the lock* (an 8 KB
+copy) so the source cannot be evicted or overwritten mid-copy; today it copies
+without pinning (`MemoryCache.cs:112`).
+
+**Ownership beyond `MemoryCache`.** `DiskService.WriteLogDisk` assigns the
+WAL position, publishes, writes, then calls `page.Release()` and only then
+resumes the source iterator; `TransactionService.PersistDirtyPages` resumes
+after the `yield` and reads `buffer.Position` to fill `DirtyPages`
+(`TransactionService.cs:199`). Between the release and that read another
+thread can recycle the frame (reproduced: zero pins on resumption, frame
+reused, position changed to `long.MaxValue`). There is a second gap in the same method: it ignores the frame that
+`MoveToReadable` returns (`var readable = _cache.MoveToReadable(page);`) and
+keeps writing from and releasing the original `page`. In the duplicate-key
+branch the original is already discarded to the free list by then (reproduced
+by exercising that branch: `ArgumentOutOfRangeException`, original frame
+free, returned frame still pinned).
+
+Phase 1 changes the contract:
+`WriteLogDisk(IEnumerable<PageBuffer>, Action<uint pageID, long position>
+written)` writes from the *returned* readable frame, invokes the callback with
+that frame's position after the write, then releases that frame. If the write
+or the callback throws, the frame is still released (it is published and
+readable; the transaction is failing and will not confirm it) and the
+exception propagates. `ReturnNewPages` (rollback) has the identical pattern
+and gets the same change. Failure-injection tests cover both throw points.
+
+**Acquire a free frame** (inside `_sync`):
+
+1. Pop from the most populated segment that still has free frames, so
+   nearly-empty segments drain and become releasable.
+2. None free and `TotalPages < LimitPages`: allocate a segment (1 MB).
+3. Otherwise run one CLOCK turn evicting up to 128 idle readable frames, then
+   retry step 1.
+4. Nothing evictable (every frame pinned, loading or writable): allocate
+   anyway and count `OverflowSegments`. 5.3 bounds how often this happens.
+
+**CLOCK sweep**: a hand walks the frames. `Readable && ShareCounter == 0`:
+`Referenced == 1` → clear it and move on; else evict. Every other state is
+skipped. A turn returns two counts, `evicted` and `clearedBits`. A cache of
+idle frames whose bits are all set evicts nothing on the first turn, so both
+acquisition and trim run a bounded second turn when `evicted == 0 &&
+clearedBits > 0`; only `evicted == 0 && clearedBits == 0` means "nothing
+eligible". No sort, no allocation, no LINQ.
+
+**Work bound.** Two full turns do not make acquisition O(1): with many pinned
+frames and few eligible ones every miss could rescan the pool. Each
+acquisition examines at most `EvictScanBudget` frames (default 2 × 128 =
+256) across its turns; the hand position persists between calls so
+consecutive misses continue the sweep instead of restarting it; and
+`framesExamined` per acquisition is a counter exposed in `$database` and
+tracked in the benchmarks. When the budget is exhausted without an eviction
+the acquisition allocates (step 4) and counts overflow rather than scanning
+further.
+
+**Segment selection** does not scan all segments: segments sit in occupancy
+buckets (by free-frame count: 0, 1–15, 16–63, 64–127, 128), maintained on
+every free/take, so "most populated segment with a free frame" and "fully
+free segments" are O(1) lookups.
+
+**Invalidate** (checkpoint) is unchanged in meaning and stays a separate
+operation: under the engine's exclusive lock, every readable frame becomes
+Free regardless of the limit, because the checkpoint rewrote data pages and
+truncated the log, so both cached data contents and cached log positions are
+stale. After invalidation, fully-free segments beyond the spare are released.
+Revision 1 wrongly folded this into the trim.
+
+**Trim** (`TrimToLimit()`), called from `TransactionMonitor.ReleaseTransaction()`:
+
 ```
-
-**Pin on read** (`GetReadablePage`), replacing the unconditional increment:
-
-```csharp
-while (true)
+while (TotalPages > LimitPagesRounded)
 {
-    var page = _readable.GetOrAdd(key, factory);
-    var sc = Volatile.Read(ref page.ShareCounter);
-    if (sc >= 0 && Interlocked.CompareExchange(ref page.ShareCounter, sc + 1, sc) == sc)
-    {
-        page.Referenced = 1;
-        return page;
-    }
-    // sc == BUFFER_EVICTING (or a stale instance): the dictionary entry is
-    // about to disappear; spin and re-resolve. Bounded by the evictor's few
-    // instructions between CAS and TryRemove.
+    var (evicted, cleared) = ClockTurn(maxEvict: TotalPages - LimitPagesRounded);
+    if (evicted == 0 && cleared > 0) (evicted, cleared) = ClockTurn(...);   // second chance pass
+    ReleaseFullyFreeSegments(keepSpare: 1);
+    if (evicted == 0) break;          // no progress: remaining frames are pinned/writable/loading
 }
 ```
 
-This closes RC4: an evictor can only win the CAS on a frame nobody pins, and a
-reader that lost sees `-2` and re-resolves instead of pinning a frame that is
-being freed. The `LiteException("removed in-use memory page ...")` path is
-deleted.
+Termination is explicit: when every remaining segment holds a pinned or
+writable frame the trim stops and the overshoot is reported, it does not
+spin. Trim also chooses its victims by segment, not by hand position: it
+takes segments from the "no pinned, writable or loading frames" bucket first
+(the only ones that can become fully free) and evicts their idle readable
+frames; evicting idle pages out of segments that a scattered pin keeps alive
+loses useful cache content and releases nothing, so those are touched only
+when no releasable segment remains and the pool is still over target. Transaction end in one thread says nothing about other transactions'
+pins; the next transaction end will try again.
 
-**Release a segment**: when `PushFree` makes `FreeCount == Pages.Length`,
-and the number of fully free segments exceeds one spare, and this is not the
-first (small) segment: unlink the segment from `_segments`, drop the
-`byte[]`. Because frames are only ever free (no reference from `_readable`,
-no pin, no transaction) this is safe by the same invariant the current code
-relies on for `_free`. `UniqueID` numbering stays monotonic; `ExtendPages`
-becomes `TotalPages` (live count, not a sum over history).
+**Segment rounding.** Allocation is in whole segments, so the enforceable
+limit is `LimitPagesRounded = firstSegmentPages + ceil((LimitPages −
+firstSegmentPages) / 128) × 128`; with an 8-page first segment and a 64 MB
+limit that is 8,200 pages, not 8,192. Every bound in this document and every
+test asserts against the rounded value.
 
-**Trim**: `TrimToLimit()` = while `TotalPages > CachePages` evict idle frames
-via CLOCK, then release empty segments. Called from
-`TransactionMonitor.ReleaseTransaction()` (deterministic: every transaction
-end) and from `WalIndexService.Clear()` (checkpoint), replacing
-`MemoryCache.Clear()`. No background thread, no timer, no `GC.Collect()`.
+**Lifetime checks beyond `BasePage`.** Node types keep a `BufferSlice`
+into the frame and use it directly: `IndexNode.SetNextNode`/`SetNext`/`SetPrev`
+write through `_segment`, `VectorIndexNode.GetNeighbors` and `ReadVector` read
+through it. In `DEBUG || TESTING` the slice carries the frame and the
+generation captured at construction, and every read or write through it
+asserts the generation, so a stale node surfaces as an `ENSURE` on the exact
+access.
 
-**Writable pages** keep today's behaviour (`GetWritablePage` takes a fresh
-frame and copies the readable content). They are counted in `TotalPages`
-and are never evictable; `DiscardPage` pushes them back to their segment.
+**Release a segment** when its `FreeCount == Frames.Length`, more than one
+spare fully-free segment exists, and it is not the first segment: unlink it
+and drop the `byte[]`. Precisely: a free frame is out of the pool's
+*accounting*, its generation is bumped and its index entry removed, so the
+pool will never hand its old content to anyone. That is not the same as the
+array being collectable: a suspended iterator (an abandoned cursor, a
+`foreach` that stopped early) can still hold an `IndexNode` whose slice
+points into the segment after a safepoint released the pin. The released
+segment then stays alive until that iterator is collected. The cache reports
+`releasedSegments` (dropped from accounting) and the tests measure
+collectability separately with weak references, including a case with a
+suspended cursor that must *not* be collectable until the cursor is
+dropped.
 
-**Counters** replace the LINQ properties: `PagesInUse`, `WritablePages`,
-`FreePages` become `Interlocked` counters maintained at state transitions.
+**Fragmentation, stated plainly.** One pinned, writable or loading frame
+keeps its whole 128-page segment allocated. 100 pinned frames scattered over
+100 segments retain ~100 MB for under 1 MB of content. Allocating into the
+most populated segment improves future packing but cannot repair existing
+scatter; only the pins ending can. The cache therefore reports
+`retainedBySegments` (frames in partially occupied segments that are free but
+unreleasable) next to `pinnedPages`, `writablePages` and `loadingPages`, and
+`CacheSize` is documented as a soft target on idle frames (section 4). The
+scattered-pin test in section 6 pins one frame per segment and asserts the
+reported retention, not a release.
 
-### 5.3 Transaction budget derived from the cache limit
+**Counters** (`Interlocked` or under the lock) replace the LINQ properties
+`PagesInUse`, `WritablePages`, `FreePages`, and `WritablePages` becomes a
+maintained count instead of `ExtendPages − free − readable`, which today
+mis-reports lost frames as writable.
 
-`TransactionMonitor` currently hands out a 100,000-page global budget in
-1,000-page steps. Change to:
+### 5.3 Transaction policy: a fixed per-transaction safepoint threshold
 
-```
-CachePages        = settings.CacheSize / PAGE_SIZE
-PerTxInitial      = clamp(CachePages / 16, 1000, 8192)   // 64 MB -> 1000 pages (8 MB)
-GlobalBudget      = CachePages * 3 / 4                   // 64 MB -> 6144 pages
-extend step       = PerTxInitial while GlobalBudget has room; else Safepoint
-```
+Revision 1 proposed `PerTxInitial = 1,000` with extension while a global
+budget had room, and claimed a scan releases every 1,000 pages. It does not:
+with a 6,144-page global budget a lone transaction extends to 6,000 pages
+before its first safepoint. The two options are an extensible shared budget
+(today's design, with a smaller pool) or a fixed per-transaction threshold.
+This proposal chooses the fixed threshold:
 
-- A scan transaction now releases its local pages every 1,000 pages instead
-  of every 100,000. Release is a counter decrement per page; the pages stay
-  readable in the cache, so re-reads within the working set are still hits.
-- A bulk-write transaction persists dirty pages to the log every 1,000
-  dirty pages instead of every 100,000. That is one extra `Flush()` per 8 MB
-  of dirty pages, which is noise next to the page writes themselves (the
-  constants file already notes 1,000 as the value used in tests).
-- Worst case pinned above the limit:
-  `open transactions x PerTxInitial` (with `MAX_OPEN_TRANSACTIONS = 100`
-  and 64 MB: up to 800 MB only if 100 transactions are simultaneously at
-  their limit; typical apps run 1–4). This bound is documented and exposed as
-  `$database.cache.overflowSegments`.
-- The `GetInitialSize()` "reduce every open transaction" fallback is removed.
-  When `GlobalBudget` is exhausted a new transaction gets `PerTxInitial`
-  anyway and the overflow counter records it; it will safepoint at 1,000
-  pages.
+- `EngineSettings.TransactionPageLimit` (default 1,000 pages = 8 MB;
+  `TransactionService.MaxTransactionSize` keeps its name and setter so the
+  existing tests still work). `Safepoint()` fires when
+  `TransactionSize >= MaxTransactionSize`. `TransactionMonitor.TryExtend` and
+  `GetInitialSize` are removed; `MAX_OPEN_TRANSACTIONS` stays.
+- Today a transaction that never extended already behaves this way (initial
+  quota 1,000), so the write-path cost is known: one log flush per 8 MB of
+  dirty pages.
+- Pinned pages are bounded by `open transactions × (TransactionPageLimit +
+  snapshots per transaction) + overshoot`: the collection page of every
+  snapshot survives `Snapshot.Clear()` and is released only at transaction
+  end. With the defaults and four concurrent single-collection transactions
+  that is 32 MB plus four pages plus overshoot, inside a 64 MB target. The
+  cache reports `overflowSegments` when pins force it past the rounded
+  limit.
 
-Safepoint safety was verified for the iterators involved: `IndexNode` copies
-`Next`/`Prev`/`Key`/`DataBlock` into managed fields in its constructor and
-`IndexService.FindAll` only reads those after a `yield`; `DataService.Read`
-yields buffer slices that `BufferReader` consumes synchronously before the
-consumer's `Safepoint()`. Section 6 adds a debug-mode poison to keep it that
-way.
+**Overshoot.** Safepoints are cooperative, so the threshold is a target the
+engine checks at specific points, not a hard cap. A Release build with the
+threshold forced to 16 pages and extension disabled (6,000 documents)
+measured the maximum pages one transaction held:
+
+| Operation | Max transaction pages | Why |
+|---|---|---|
+| Streamed scan | 16 | pipeline check per document works |
+| Non-indexed `OrderBy` | 1,202 | sort input is checked, but the sorted output reloads documents through `lookup.Load` with no check (`BasePipe.cs:117` area) |
+| One document with an `Include` array | 1,266 | `Include` loads each referenced document directly, no check per reference |
+| Indexed `LIKE`, no matches | 175 | `IndexLike.ExecuteLike` filters on the index side (`FindAll(...).Where(...)`), so a non-matching walk never yields a node and the pipeline safepoint is never reached (`IndexLike.cs:122`) |
+| `DropIndex` | 212 | `IndexService.DropIndex` walks every PK node and its chain with no callback (`IndexService.cs:300`) |
+
+The audit below lists every place a transaction can touch pages between
+checks, the fix each needs, and the regression test that must exist before
+any bound is claimed for that path. Until every row has its test, the design
+claims no bound tighter than "threshold plus the largest single step in this
+table".
+
+| Path | Today | Required change | Test |
+|---|---|---|---|
+| Query pipeline, streamed | check per yielded document | none | `Scan_PinsAtMostThresholdPlusOneDocument` |
+| Sorted output (`OrderBy`/`GroupBy` without index) | input checked; sorted reload unchecked | safepoint per reloaded document in `QueryPipe`/`GroupByPipe` after the sort | `OrderBy_NoIndex_PinsBounded` |
+| `Include` | unchecked per reference | safepoint per included document (and per array item) in `BasePipe.Include` | `Include_Array_PinsBounded` |
+| Index-side filters (`IndexLike`, `IndexIn` with predicate, any `Where` inside an `Index.Execute`) | no yield → no check | safepoint per visited node inside the index enumerators, via the `IndexService` (it holds the transaction) | `Like_NoMatch_PinsBounded` |
+| Aggregate replay through `DocumentCacheEnumerable` | replay reloads without check | safepoint per replayed document | `Aggregate_Replay_PinsBounded` |
+| Vector search (`VectorIndexQuery.Run`) | `Search(...).ToArray()` before the first yield; the traversal and its document loads are eager, so streaming the results alone changes nothing | safepoint at traversal boundaries inside `VectorIndexService.Search` (per visited node, after the node's neighbours are read and before the next hop), with the current node re-fetched through the snapshot afterwards | `VectorSearch_PinsBounded` |
+| Vector writes: insert / update / delete on a collection with a vector index | `VectorIndexService.Upsert` calls `Delete`, whose `TryFindNode` breadth-first walks the whole graph even for a new document; measured 63 pages for one insert at a 16-page threshold | safepoint per visited node in `TryFindNode` and in the insert-time neighbour search, with reload; or index the data-block → node mapping so `Delete` does not search | `VectorInsert_PinsBounded`, `VectorUpdate_PinsBounded`, `VectorDelete_PinsBounded` |
+| Vector index construction and deletion | `EnsureVectorIndex` walks every document and inserts; `Drop` walks the graph through `ClearTree`; measured 56 pages for a drop | safepoint per visited node with reload | `VectorIndexBuild_PinsBounded`, `VectorIndexDrop_PinsBounded` |
+| `Insert` / `Update` / `Upsert` / `Delete` loops (no vector index) | check per document at the top of the loop | none | existing |
+| `EnsureIndex` | check per document, after inserting all of its keys (`Index.cs:91`) | acceptable (one document's keys); document it | existing |
+| `DropIndex` | none | safepoint callback per PK node, as `DropCollection` already has | `DropIndex_PinsBounded` |
+| `DropCollection` | callback per page | none | existing |
+| `Rebuild` | per document | none | existing |
+| Collection page | never released by `Snapshot.Clear()` | none; 1 per snapshot | — |
+
+**Safepoint safety.** `IndexNode` copies `Next`/`Prev`/`Key`/`DataBlock` into
+managed fields in its constructor and `IndexService.FindAll` reads only those
+after a `yield`; `DataService.Read` yields slices that `BufferReader`
+consumes before the consumer's `Safepoint()`. The debug-mode poison in
+section 6 turns any future use-after-release into an `ENSURE` failure.
 
 ### 5.4 Segment sizing
 
@@ -414,115 +688,233 @@ way.
 
 ### 5.5 `:memory:` and stream-backed databases
 
-Phase 2 (cheap, safe):
+Phase 4 (cheap, safe):
 - Cache default 8 MB for `MemoryStream`-backed data (5.1).
-- `DiskService.SetLength(0, Log)`: if the underlying stream is a
-  `MemoryStream`, also set `Capacity = 0` so the log buffer is released after
-  checkpoint.
-- Streams that LiteDB creates itself for `:memory:`/`:temp:` are owned by the
-  engine and disposed on `Close()` (fixes the `TempStream` temp-file leak,
-  #2056) — `StreamFactory` gets an `ownsStream` flag.
+- Log shrinking after checkpoint goes through the stream abstraction, not
+  through `MemoryStream.Capacity` directly: `AesStream` keeps a one-page
+  header, so logical length 0 is physical length `PAGE_SIZE`, and
+  `ConcurrentStream` wraps both. `IStreamFactory` gains
+  `TrimCapacity(Stream)`, implemented only for streams the engine owns
+  (`:memory:`, `:temp:`), which sets the underlying capacity to the physical
+  length the wrapper reports. `DiskService.SetLength(0, Log)` calls it.
+- Streams that LiteDB creates itself are owned by the engine and disposed on
+  `Close()`: the `:memory:`/`:temp:` data streams, and also the log and sort
+  streams `EngineSettings.CreateLogFactory`/`CreateTempFactory` create when
+  the caller supplied a `DataStream` but no `LogStream`/`TempStream` (a
+  `MemoryStream` or `TempStream` today, never disposed). A caller-supplied
+  stream is never disposed by the engine. Fixes the `TempStream` temp-file
+  leak (#2056); `StreamFactory` gets an `ownsStream` flag.
 
-Phase 3 (larger, optional): a page-source abstraction so a `MemoryStream`
+Later (larger, optional): a page-source abstraction so a `MemoryStream`
 "file" can hand out `PageBuffer`s over its own storage without copying into
 the cache. Out of scope for this proposal; noted so the design does not
-preclude it (the cache already keys pages by `(Origin, Position)`, so an
-in-place source only needs to bypass `GetReadablePage`'s factory copy).
+preclude it.
 
 ### 5.6 Hygiene
 
-- `FileStreamFactory.GetStream()`: `try { return new AesStream(...) } catch { stream.Dispose(); throw; }` (#2579).
+- `FileStreamFactory.GetStream()`: the wrong-password path is already covered,
+  `AesStream`'s constructor disposes the underlying stream in its `catch`
+  (`AesStream.cs:156`). The uncovered path is `File.SetAttributes` for hidden
+  files throwing after the `FileStream` exists; wrap it. #2579's report
+  predates or misattributes the current behaviour and should be re-verified
+  against 5.0.21 before closing.
+- `DiskService` constructor: dispose already-created pools and streams when a
+  later step throws (#2614).
 - `TransactionMonitor.Dispose()`: dispose the `ThreadLocal<TransactionService>` slot.
-- `MemoryCache.Dispose()`: drop all segments (helps the GC when a
-  `LiteDatabase` is disposed but the object is still referenced by a
-  container/DI scope).
+- `MemoryCache.Dispose()`: drop all segments, so a disposed engine still
+  referenced by a container releases its memory immediately.
 
 ### 5.7 Observability
 
 `SELECT $ FROM $database` → `cache`:
 
 ```
-limitBytes, allocatedBytes, segments, totalPages, freePages, readablePages,
-writablePages, pinnedPages, evictedPages, releasedSegments, overflowSegments,
-hits, misses
+limitBytes, limitPagesRounded, allocatedBytes, segments, totalPages, freePages,
+readablePages, writablePages, loadingPages, pinnedPages, evictedPages,
+releasedSegments, overflowSegments, lostFrames (debug), hits, misses
 ```
 
-`transactions` additionally reports `perTransactionInitial` and
-`globalBudget`. Nothing else in the public API changes.
+`transactions` additionally reports `transactionPageLimit` and the current
+`pinnedPages` per open transaction. Nothing else in the public API changes.
 
 ### 5.8 Expression cache
 
-Two independent fixes, both small:
+Two fixes that ship separately, in this order:
 
-- `Query.EQ/GT/GTE/LT/LTE/Not/Between/StartsWith/Contains/In` build
-  parameterized expressions: `BsonExpression.Create($"{field} = @0", value)`.
-  The source text becomes constant per field and operator, so the cache
-  stays at the number of distinct *shapes*. Index selection keys on
-  `expr.Right.IsValue` (no field references), which a parameter node
-  satisfies, so query plans do not change.
-- Bound the two static dictionaries: cap at 1,000 entries; when the cap is
-  hit, clear the dictionary (it is a pure compile cache; the cost of a miss is
-  one parse+compile). A cheaper policy than LRU and immune to the pathological
-  case of every key being unique. Expose `compiledExpressions` in
-  `$database`.
+1. **Bound the two static dictionaries** (independent, phase 2): cap at 1,000
+   entries; when the cap is hit, clear the dictionary. It is a pure compile
+   cache; a miss costs one parse and compile. Immune to every key being
+   unique. Admission is atomic: the delegate is compiled outside any lock,
+   then `lock (_cacheSync) { if (dict.Count >= Cap) dict.Clear(); dict[key] =
+   delegate; }`, and lookups stay lock-free on the `ConcurrentDictionary`.
+   A `Count` check followed by a separate `Clear`/`GetOrAdd` would not hold
+   the cap under concurrency. Expose `compiledExpressions` in `$database`.
+   Delegates produced by `Expression.Compile()` are backed by collectible
+   dynamic methods, so dropping the last reference does free them.
+2. **Parameterize the `Query.*` helpers, with composition that carries
+   parameters.** Revision 1 proposed only the leaf change, which breaks
+   composed queries: `Query.And(left, right)` and `Query.Or` build
+   `($left.Source AND $right.Source)` through the implicit string conversion
+   and drop both operands' `Parameters` (reproduced: a literal conjunction
+   evaluated to true, its parameterized equivalent to false with zero
+   parameters retained). The full change:
+   - Leaf helpers `EQ, GT, GTE, LT, LTE, Not, Between, StartsWith, EndsWith,
+     Contains, In` and the `QueryAny` variants produce
+     `BsonExpression.Create($"{field} = @0", value)`; the source text is
+     constant per field and operator.
+   - **Value-snapshot semantics are preserved.** Today `Query.In(field,
+     array)` serializes the array into the expression text, so later
+     mutation of the caller's array does not change the query; a retained
+     parameter would (reproduced: adding a value to the input array after
+     construction made the parameterized form match it). The helpers
+     therefore deep-clone mutable inputs (`BsonArray`, `BsonDocument`,
+     binary) into the parameter document at construction. Tests mutate an
+     array, a document and a byte array after building the query and assert
+     the literal form's results.
+   - `And`/`Or` merge operands with a collision-free renaming, not an offset.
+     Parameters may be sparse (`@1` alone), named (`@value` on both sides
+     with different values, `BsonExpressionParser.cs:817`), repeated within
+     one operand, and already-composed. The composer walks each operand's
+     source with `Tokenizer`, collects every referenced parameter name in
+     order of first appearance, assigns fresh positional names `@0..@k`
+     across both operands (left first), re-emits the tokens, and builds one
+     parameter document by looking each original name up in its own operand's
+     `Parameters`. String literals are untouched because they are single
+     tokens. The composed source text is constant per shape, so the compile
+     cache still hits.
+   - Index selection keys on `expr.Right.IsValue` (no field references), which
+     a parameter node satisfies, so plans are unchanged; the tests in
+     section 6 assert this for every helper, composed and not.
 
 ## 6. Tests and verification
 
-Unit (`LiteDB.Tests/Internals/Cache_Tests.cs`, `MemoryCache` with tiny
-segments):
-- `Cache_NeverExceedsLimit_WhenPagesAreIdle`: read 10x limit distinct pages,
-  release each; `TotalPages <= CachePages` throughout, `evictedPages > 0`.
-- `Cache_ReleasesSegments_AfterPeak`: pin 4x limit pages (overflow), release
-  all, `TrimToLimit()`; `TotalPages == CachePages` and `releasedSegments > 0`;
-  every released segment's `byte[]` is collectable (WeakReference).
-- `Cache_AllocatesFromMostPopulatedSegment`: after a peak and partial
-  release, new allocations do not resurrect nearly-empty segments.
-- `Cache_EvictRace_ReaderRetries`: 8 reader threads hammering one key while
-  a thread evicts; no exception, `ShareCounter` never negative from a reader's
-  point of view, content always the factory's.
-- `Cache_ReferencedBit_ProtectsHotPages`: hot set of N pages survives a
-  scan of 100N cold pages.
-- Debug-mode poison: when a frame becomes free in `DEBUG || TESTING`, fill it
-  with `0xFF`; any use-after-release in the engine then fails `ENSURE`
-  checks immediately in the test suite instead of silently reading recycled
-  content.
+**CI first.** `LiteDB.Tests.csproj` contains
+`<Compile Remove="Internals\**" />` for the Release configuration, so
+`Cache_Tests`, `Disk_Tests` and everything else under `Internals/` do not run
+in a Release test pass. Either remove the exclusion or move the cache tests
+to `Engine/`, and make the CI workflow run them, before any of the tests
+below count as verification.
 
-Engine (`LiteDB.Tests/Engine/`):
+Unit (`MemoryCache` with tiny segments; deterministic, no timing):
+- `Load_ConcurrentReadersOfOneKey_LoseNoFrame`: a blocking factory holds the
+  first loader; a second reader arrives; after both complete,
+  `TotalPages == free + readable + writable` exactly and one frame is
+  readable.
+- `Load_FactoryThrows_ReturnsFrameAndUnblocksWaiters`: factory throws for the
+  first caller; waiter retries and succeeds; no frame lost.
+- `Pin_AfterEvictAndReuse_CannotPinStaleFrame`: reader A resolves a key, is
+  paused (test hook) before pinning; the frame is evicted and reused for
+  another key; A resumes and must end up with a frame for its own key. With
+  the lock design this is enforced structurally; the test guards against a
+  future lock-free rewrite.
+- `WritableCopy_SourceCannotChangeDuringCopy`: eviction requested during a
+  `GetWritablePage` copy is deferred until the copy completes.
+- `Invalidate_AfterCheckpoint_ReadsNewContent`: write, checkpoint, read the
+  same page id; content is the checkpointed content, and no log-position key
+  survives in the index.
+- `Trim_AllPinned_TerminatesWithoutProgress`: every frame pinned; `TrimToLimit`
+  returns, `overflowSegments > 0`, no spin.
+- `Trim_ReleasesSegments_AfterPeak`: pin four times the limit, release all,
+  trim; `TotalPages <= LimitPagesRounded`, released segments > 0, every
+  released `byte[]` collectable (weak references).
+- `Cache_AllIdleAllReferenced_EvictsOnSecondPass`: every frame idle with
+  `Referenced = 1`; acquisition does not allocate past the rounded limit and
+  trim makes progress.
+- `Trim_ScatteredPins_ReportsRetention`: one pinned frame per segment across
+  N segments; trim releases nothing, `retainedBySegments == (N × 128) − N`,
+  and returns.
+- `Pin_ConcurrentIncrementDecrement_NeverLosesADecrement`: readers pin under
+  the lock while others release lock-free; final count is zero.
+- `WriteLogDisk_PositionsRecordedBeforeRelease`: a controlled source iterator
+  observes the `(pageID, position)` callback while the frame still has a
+  pin; a competing thread cannot reuse the frame before the callback.
+- `WriteLogDisk_DuplicateKey_UsesReturnedFrame`: the duplicate-key branch of
+  `MoveToReadable` is forced; the write, the callback and the release all use
+  the returned frame; no exception, no frame left pinned.
+- `WriteLogDisk_WriteThrows_ReleasesFrame` and
+  `WriteLogDisk_CallbackThrows_ReleasesFrame` (failure injection through
+  `SimulateDiskWriteFail`).
+- `Load_WaiterWakesAfterFrameReused_ReResolvesKey`: loader publishes, the
+  waiter is held before it re-acquires the lock, the frame is evicted and
+  reused for another key; the waiter must end with a frame for its own key.
+- `Segment_ReleasedButHeldBySuspendedCursor_NotCollectable`: release a
+  segment while a half-consumed enumerator holds an `IndexNode` into it;
+  the weak reference stays alive until the enumerator is disposed, and
+  `releasedSegments` already counts it.
+- `Acquire_FramesExaminedBounded`: with 90% of frames pinned, repeated misses
+  examine at most `EvictScanBudget` frames each (counter assertion).
+- `Trim_PrefersReleasableSegments`: scattered pins in half the segments;
+  trim releases the unpinned segments and leaves the pinned segments' idle
+  readable pages in place.
+- `Cache_NeverExceedsRoundedLimit_WhenPagesAreIdle`,
+  `Cache_AllocatesFromMostPopulatedSegment`,
+  `Cache_ReferencedBit_ProtectsHotPages` as in revision 1, with bounds
+  expressed against `LimitPagesRounded`.
+- Debug-mode poison: a frame that becomes Free under `DEBUG || TESTING` is
+  filled with `0xFF` and its `Generation` bumped; `BasePage` asserts the
+  generation it captured on every buffer access.
+
+Engine:
 - `Scan_DoesNotGrowCacheBeyondLimit` (#2278, #2619): 300 MB file,
-  `cache size=32MB`, `FindAll().Count()` twice; `allocatedBytes <= 32 MB +
-  1 segment`, `pinnedPages == 0` afterwards.
-- `OpenCursor_PinsAtMostPerTxBudget` (#2278 variant): half-consumed
-  enumerator; `pinnedPages <= PerTxInitial`.
-- `BulkWrite_ReusesFrames` (#1756): 200k inserts with updates/deletes;
-  `segments <= limit / 1 MB` and `freePages` never exceeds one segment plus
-  one spare.
-- `MemoryDb_LogCapacityReleasedOnCheckpoint` (#2541).
-- `TempStream_DeletedOnDispose` (#2056), `AesStream_FailureDisposesFile`
-  (#2579).
-- `QueryEq_DoesNotGrowExpressionCache` (#1688, #2421): 100,000 `Query.EQ`
-  calls with distinct values; static cache count stays below the cap and the
-  `Source` of the produced expression is constant.
-- Existing `Transactions_Tests` safepoint tests keep passing; the test that
-  sets `MaxTransactionSize` via reflection continues to work because the
-  property is unchanged.
+  `cache size=32MB`, two streamed scans; `allocatedBytes <= rounded limit`,
+  `pinnedPages == 0` afterwards.
+- `OpenCursor_PinsAtMostThresholdPlusOneDocument`: half-consumed enumerator;
+  `pinnedPages <= TransactionPageLimit + pages of one document`.
+- Safepoint regression tests, one per row of the 5.3 audit
+  (`OrderBy_NoIndex_PinsBounded`, `Include_Array_PinsBounded`,
+  `Like_NoMatch_PinsBounded`, `Aggregate_Replay_PinsBounded`,
+  `VectorSearch_PinsBounded`, `VectorInsert/Update/Delete_PinsBounded`,
+  `VectorIndexBuild/Drop_PinsBounded`, `DropIndex_PinsBounded`): run with
+  `TransactionPageLimit = 16`, assert the maximum `TransactionSize` observed
+  through a test hook is ≤ 16 + one document's pages. Each test is added
+  with the corresponding safepoint change and fails against today's code
+  with the numbers in the 5.3 table.
+- `BulkWrite_ReusesFrames` (#1756), `MemoryDb_LogCapacityReleasedOnCheckpoint`
+  (#2541, encrypted and unencrypted), `TempStream_DeletedOnDispose` (#2056),
+  `HiddenFile_SetAttributesFailure_DisposesStream`,
+  `DiskServiceCtor_Failure_DisposesPools` (#2614).
+- `QueryHelpers_KeepPlans`: for every `Query.*` helper and for `And`/`Or`
+  compositions, the execution plan (`ExplainPlan`) and the result set equal
+  the literal version's, and `Parameters.Count` equals the number of values.
+- `QueryCompose_RenamesParameters`: sparse numeric names (`@1` only on the
+  left), named collisions (`@value` on both sides with different values),
+  repeated references inside one operand, nested `And(Or(a, b), c)`, and
+  `"@0"` inside a string literal; each evaluates identically to its literal
+  form.
+- `QueryHelpers_SnapshotMutableInputs`: mutate the array, document and byte
+  array after constructing `In`/`EQ`; results equal the literal form's.
+- `ExpressionCache_CapHoldsUnderConcurrency`: 16 threads compiling distinct
+  expressions; the dictionary never exceeds the cap.
+- `QueryEq_DoesNotGrowExpressionCache` (#1688, #2421).
+- Existing `Transactions_Tests` safepoint tests keep passing.
 
-Benchmarks (`LiteDB.Benchmarks`): point lookups, full scan, bulk insert, with
-`cache size` 8/64/256 MB against the current engine. Expected: no regression
-for working sets under the limit; scans of files larger than the limit trade
-LiteDB-cache hits for OS-page-cache reads (one syscall + 8 KB copy per page,
-plus AES for encrypted files).
+Benchmarks (`LiteDB.Benchmarks`): point lookups, full scan, bulk insert,
+bulk update on an encrypted file, and vector search, each at `cache size`
+8/64/256 MB against the current engine, on net8.0 and net10.0; plus two
+latency benchmarks that the single-lock design makes necessary: concurrent
+readers (1/4/16 threads of point lookups, p50/p99 per lookup, frames
+examined per acquisition) and transaction-end latency with `TrimToLimit`
+active (p99 of `ReleaseTransaction`). Defaults in 5.1 and the decision to
+keep one lock are confirmed or changed from these numbers, not before.
 
 ## 7. Rollout
 
+Ordered so that eviction is correct before it becomes frequent. Revision 1
+shipped a "recycle whenever at the limit" patch first, which would have raised
+eviction frequency on top of the unfixed loading and eviction races.
+
 | Phase | Change | Risk | Effect on the issue list |
 |---|---|---|---|
-| 1 (patch release) | `CacheSize` setting + connection string; budget derivation (5.3); recycle-when-at-limit fix in the existing `Extend()` (reuse idle pages whenever `TotalPages >= CachePages`, regardless of count); expression cache (5.8); counters; hygiene (5.6) | Low; no data structure change | Bounded growth. Scan ceiling drops from ~800 MB to ~limit + 8 MB. #2278, #2619, #2311, #1756 (growth part), #1688, #2421, #2395, #2579, #2056 |
-| 2 (minor release) | `MemoryCache` v2 (5.2), trim at transaction end and checkpoint, segment sizing (5.4), `:memory:` log capacity + owned streams (5.5), `$database` fields (5.7) | Medium; core structure rewrite, covered by the tests in 6 | Memory returns after peaks. #1756 (shrink part), #2541, #1479, RC4 exception path |
-| 3 (later) | Zero-copy page source for `MemoryStream`-backed databases | Medium | `:memory:` at ~1.2x raw size instead of ~3.6x |
+| 1 | Frame ownership and states; `TryAdd`-based publication with loser and failure cleanup; atomic pins under the lock; writable copy under the lock; `WriteLogDisk`/`ReturnNewPages` record `(pageID, position)` before release; checkpoint invalidation preserved; maintained counters; CI runs `Internals/**` | Medium; touches the hot path, but behaviour-preserving | Removes the lost-frame bug, the WAL lifetime gap and the RC4 exception path: #2252, #2282, #2574 |
+| 2 | Bound the compiled-expression caches (alone); then parameterized helpers with collision-free `And`/`Or` composition | Low; independent of the engine | #1688, #2421, #2395 |
+| 2b | Stream ownership and disposal: owned `:memory:`/`:temp:` streams, `TrimCapacity`, `DiskService` constructor cleanup, hidden-file attribute failure | Low; independently reviewable | #2056, #2614, #2541 (log capacity) |
+| 3 | `CacheSize` and `TransactionPageLimit` settings and connection string; remove `TryExtend`/`GetInitialSize`; the safepoint audit of 5.3 with its regression tests; `$database` fields | Low–medium; changes safepoint frequency for transactions that used to extend | Reduced transaction retention. No growth bound is claimed yet: without phase 4 the cache still cannot enforce `CacheSize` |
+| 4 | Segment tracking, two-pass CLOCK eviction, `TrimToLimit` at transaction end, segment sizing (5.4), retention accounting | Medium; core structure rewrite, covered by section 6 | Enforcement of the soft target and memory return after peaks: #2278, #2619, #2311, #1756, #1479 |
+| 5 | Defaults chosen from the benchmarks in section 6 (including encrypted writes and vector workloads) | Low | — |
 
-Default `CacheSize` is the one behaviour change users can notice: databases
-larger than 64 MB no longer end up fully cached. Anyone who wants the old
-behaviour sets `cache size=1GB`.
+The default `CacheSize` remains the one behaviour change users can notice:
+databases larger than the limit no longer end up fully cached.
+`cache size=1GB` restores the old behaviour.
 
 ## 8. Alternatives considered
 
@@ -641,15 +1033,16 @@ How this proposal positions against them:
   which is what removes the thrash and the read-set flush that make #2644 and
   #2624 risky. The reference bit gives hot pages a second chance, so a write
   burst no longer evicts the warm read set oldest-first.
-- It makes the limit soft and ties the transaction budget to it (5.3) instead
-  of throwing (#2624). A limit that can be exceeded only by pinned pages is
+- It makes the limit soft and pairs it with a fixed per-transaction safepoint
+  threshold (5.3) instead of throwing (#2624). A limit that can be exceeded only by pinned pages is
   enforceable; a hard limit that ignores pins is not.
 - It tracks segments as first-class objects with per-segment free lists so
   that releasing a segment is a real operation (5.2), which is the piece
   #2649 attempted without segment liveness and therefore could not deliver.
-- It takes #2649's eviction flag idea but folds it into `ShareCounter` as a
-  `-2` sentinel that the *reader* path checks (5.2), so it actually protects
-  something; #2649's flag was only ever read by the cleanup that set it.
+- It takes #2649's eviction-flag idea but makes eviction a state transition
+  under the same lock that publishes and pins frames (5.2), so it actually
+  protects something; #2649's flag was only ever read by the cleanup that set
+  it.
 - For the expression cache it removes the cause rather than adding a timer
   (5.8): parameterized `Query.*` helpers make the cache key constant, and a
   size cap with clear-on-overflow bounds the remaining growth. Regarding the
@@ -657,9 +1050,9 @@ How this proposal positions against them:
   are backed by collectible dynamic methods, so dropping the last reference
   does free them; with parameterization the question mostly disappears
   because far fewer delegates are created.
-- Two suggestions from the #2649 review are taken as-is: `Interlocked`
-  counters instead of `ConcurrentQueue.Count`, and a configurable object
-  rather than an enum for tuning. The timing-wheel idea mentioned there is
+- Two suggestions from the #2649 review are taken as-is: maintained counters
+  instead of `ConcurrentQueue.Count`, and a configurable object rather than
+  an enum for tuning. The timing-wheel idea mentioned there is
   not needed once eviction is demand-driven and trim points are transaction
   end and checkpoint.
 
