@@ -106,8 +106,11 @@ namespace LiteDB.Tests.Engine
                 AssertWriteBound(session, () => collection.Delete(120).Should().BeTrue());
             }
 
-            using var reopened = new LiteDatabase(file.Filename);
-            reopened.GetCollection<VectorDocument>("vectors").FindById(120).Should().BeNull();
+            using (var reopened = new LiteDatabase(file.Filename))
+            {
+                reopened.GetCollection<VectorDocument>("vectors").FindById(120).Should().BeNull();
+            }
+
             FindNearestIds(file.Filename, CreateVector(120), 20).Should().NotContain(120);
         }
 
