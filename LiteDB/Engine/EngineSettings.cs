@@ -48,6 +48,17 @@ namespace LiteDB.Engine
         public long InitialSize { get; set; } = 0;
 
         /// <summary>
+        /// Soft page-cache target in bytes. Zero selects the storage-specific
+        /// default (64 MiB for files and 8 MiB for memory-backed data).
+        /// </summary>
+        public long CacheSize { get; set; } = 0;
+
+        /// <summary>
+        /// Pages retained by one transaction before a cooperative safepoint.
+        /// </summary>
+        public int TransactionPageLimit { get; set; } = MAX_TRANSACTION_SIZE;
+
+        /// <summary>
         /// Create database with custom string collection (used only to create database) (default: Collation.Default)
         /// </summary>
         public Collation Collation { get; set; }
@@ -84,15 +95,15 @@ namespace LiteDB.Engine
         {
             if (this.DataStream != null)
             {
-                return new StreamFactory(this.DataStream, this.Password);
+                return new StreamFactory(this.DataStream, this.Password, false);
             }
             else if (this.Filename == ":memory:")
             {
-                return new StreamFactory(new MemoryStream(), this.Password);
+                return new StreamFactory(new MemoryStream(), this.Password, true);
             }
             else if (this.Filename == ":temp:")
             {
-                return new StreamFactory(new TempStream(), this.Password);
+                return new StreamFactory(new TempStream(), this.Password, true);
             }
             else if (!string.IsNullOrEmpty(this.Filename))
             {
@@ -102,6 +113,16 @@ namespace LiteDB.Engine
             throw new ArgumentException("EngineSettings must have Filename or DataStream as data source");
         }
 
+        internal long GetCacheSize()
+        {
+            if (this.CacheSize < 0) throw new ArgumentOutOfRangeException(nameof(this.CacheSize));
+            if (this.CacheSize > 0) return this.CacheSize;
+
+            return this.Filename == ":memory:" || this.DataStream is MemoryStream ?
+                MEMORY_CACHE_SIZE :
+                DEFAULT_CACHE_SIZE;
+        }
+
         /// <summary>
         /// Create new IStreamFactory for logfile
         /// </summary>
@@ -109,15 +130,15 @@ namespace LiteDB.Engine
         {
             if (this.LogStream != null)
             {
-                return new StreamFactory(this.LogStream, this.Password);
+                return new StreamFactory(this.LogStream, this.Password, false);
             }
             else if (this.Filename == ":memory:")
             {
-                return new StreamFactory(new MemoryStream(), this.Password);
+                return new StreamFactory(new MemoryStream(), this.Password, true);
             }
             else if (this.Filename == ":temp:")
             {
-                return new StreamFactory(new TempStream(), this.Password);
+                return new StreamFactory(new TempStream(), this.Password, true);
             }
             else if (!string.IsNullOrEmpty(this.Filename))
             {
@@ -126,7 +147,7 @@ namespace LiteDB.Engine
                 return new FileStreamFactory(logName, this.Password, this.ReadOnly, false);
             }
 
-            return new StreamFactory(new MemoryStream(), this.Password);
+            return new StreamFactory(new MemoryStream(), this.Password, true);
         }
 
         /// <summary>
@@ -136,15 +157,15 @@ namespace LiteDB.Engine
         {
             if (this.TempStream != null)
             {
-                return new StreamFactory(this.TempStream, this.Password);
+                return new StreamFactory(this.TempStream, this.Password, false);
             }
             else if (this.Filename == ":memory:")
             {
-                return new StreamFactory(new MemoryStream(), this.Password);
+                return new StreamFactory(new MemoryStream(), this.Password, true);
             }
             else if (this.Filename == ":temp:")
             {
-                return new StreamFactory(new TempStream(), this.Password);
+                return new StreamFactory(new TempStream(), this.Password, true);
             }
             else if (!string.IsNullOrEmpty(this.Filename))
             {
@@ -153,7 +174,7 @@ namespace LiteDB.Engine
                 return new FileStreamFactory(tempName, this.Password, false, true);
             }
 
-            return new StreamFactory(new TempStream(), this.Password);
+            return new StreamFactory(new TempStream(), this.Password, true);
         }
     }
 }

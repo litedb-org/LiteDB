@@ -1,17 +1,17 @@
 ﻿using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.IO;
-using System.Linq;
-using System.Reflection;
-using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
 {
+    internal enum FrameState
+    {
+        Free,
+        Loading,
+        Readable,
+        Writable
+    }
+
     /// <summary>
     /// Represent page buffer to be read/write using FileMemory
     /// </summary>
@@ -38,9 +38,17 @@ namespace LiteDB.Engine
         public int ShareCounter;
 
         /// <summary>
-        /// Get/Set timestamp from last request
+        /// Legacy access timestamp. Kept for internal compatibility; CLOCK uses
+        /// <see cref="Referenced"/> instead.
         /// </summary>
         public long Timestamp;
+
+        internal FrameState State;
+        internal long Generation;
+        internal int Referenced;
+        internal MemoryCacheSegment Segment;
+        internal int NextFree;
+        internal MemoryCache Cache;
 
         public PageBuffer(byte[] buffer, int offset, int uniqueID)
             : base(buffer, offset, PAGE_SIZE)
@@ -50,6 +58,11 @@ namespace LiteDB.Engine
             this.Origin = FileOrigin.None;
             this.ShareCounter = 0;
             this.Timestamp = 0;
+            this.State = FrameState.Free;
+            this.Generation = 0;
+            this.Referenced = 0;
+            this.NextFree = -1;
+            this.AttachOwner(this);
         }
 
         /// <summary>
@@ -57,9 +70,17 @@ namespace LiteDB.Engine
         /// </summary>
         public void Release()
         {
-            ENSURE(this.ShareCounter > 0, "share counter must be > 0 in Release()");
+            var cache = this.Cache;
 
-            Interlocked.Decrement(ref this.ShareCounter);
+            if (cache == null)
+            {
+                ENSURE(this.ShareCounter > 0, "share counter must be > 0 in Release()");
+                Interlocked.Decrement(ref this.ShareCounter);
+            }
+            else
+            {
+                cache.Release(this);
+            }
         }
 
 #if DEBUG || TESTING
@@ -81,6 +102,7 @@ namespace LiteDB.Engine
 
         public unsafe bool IsBlank()
         {
+            this.EnsureReadable();
             fixed (byte* arrayPtr = this.Array)
             {
                 ulong* ptr = (ulong*)(arrayPtr + this.Offset);

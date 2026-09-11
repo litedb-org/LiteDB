@@ -2,6 +2,7 @@ using LiteDB.Engine;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Text.RegularExpressions;
 using static LiteDB.Constants;
 
 namespace LiteDB
@@ -32,6 +33,17 @@ namespace LiteDB
         /// "initial size": If database is new, initialize with allocated space - support KB, MB, GB (default: 0)
         /// </summary>
         public long InitialSize { get; set; } = 0;
+
+        /// <summary>
+        /// "cache size": Soft page-cache target in bytes. Supports KB, MB,
+        /// and GB suffixes (default is storage-specific).
+        /// </summary>
+        public long CacheSize { get; set; } = 0;
+
+        /// <summary>
+        /// "transaction pages": Per-transaction cooperative safepoint limit.
+        /// </summary>
+        public int TransactionPageLimit { get; set; } = MAX_TRANSACTION_SIZE;
 
         /// <summary>
         /// "readonly": Open datafile in readonly mode (default: false)
@@ -91,6 +103,20 @@ namespace LiteDB
             }
 
             this.InitialSize = _values.GetFileSize(@"initial size", this.InitialSize);
+            this.CacheSize = _values.GetFileSize(@"cache size", this.CacheSize);
+            this.TransactionPageLimit = _values.GetValue("transaction pages", this.TransactionPageLimit);
+
+            if (_values.TryGetValue("cache size", out var cacheSizeText) &&
+                Regex.IsMatch(cacheSizeText, @"^\d+\s*$") &&
+                this.CacheSize < 1024L * 1024)
+            {
+                throw new LiteException(0, "`cache size` values below 1 MB must include a size unit (for example, `512KB`)");
+            }
+
+            if (this.CacheSize < 0 || this.TransactionPageLimit <= 0)
+            {
+                throw new LiteException(0, "`cache size` must be non-negative and `transaction pages` must be greater than zero");
+            }
             this.ReadOnly = _values.GetValue("readonly", this.ReadOnly);
 
             this.Collation = _values.ContainsKey("collation") ? new Collation(_values.GetValue<string>("collation")) : this.Collation;
@@ -114,6 +140,8 @@ namespace LiteDB
                 Filename = this.Filename,
                 Password = this.Password,
                 InitialSize = this.InitialSize,
+                CacheSize = this.CacheSize,
+                TransactionPageLimit = this.TransactionPageLimit,
                 ReadOnly = this.ReadOnly,
                 Collation = this.Collation,
                 Upgrade = this.Upgrade,

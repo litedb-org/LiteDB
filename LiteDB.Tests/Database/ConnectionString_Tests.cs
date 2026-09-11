@@ -47,5 +47,31 @@ namespace LiteDB.Tests.Database
             cn.Password.Length.Should().Be(512);
 
         }
+
+        [Fact]
+        public void ConnectionString_Parses_Memory_Limits()
+        {
+            var connection = new ConnectionString("filename=test.db;cache size=64MB;transaction pages=32");
+
+            connection.CacheSize.Should().Be(64L * 1024 * 1024);
+            connection.TransactionPageLimit.Should().Be(32);
+        }
+
+        [Fact]
+        public void ConnectionString_Requires_Units_For_Small_Cache_Sizes()
+        {
+            Action parse = () => new ConnectionString("filename=test.db;cache size=512");
+
+            parse.Should().Throw<LiteException>()
+                .WithMessage("*below 1 MB*include a size unit*");
+        }
+
+        [Fact]
+        public void ConnectionString_Accepts_Explicit_Kilobytes()
+        {
+            var connection = new ConnectionString("filename=test.db;cache size=512KB");
+
+            connection.CacheSize.Should().Be(512L * 1024);
+        }
     }
 }

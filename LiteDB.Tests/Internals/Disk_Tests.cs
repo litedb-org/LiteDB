@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using System.Collections.Generic;
 using FluentAssertions;
 using LiteDB.Engine;
@@ -57,6 +58,65 @@ namespace LiteDB.Internals
 
             // wait all async threads
             disk.Dispose();
+        }
+
+        [Fact]
+        public void WriteLogDisk_PositionsRecordedBeforeRelease()
+        {
+            using var disk = CreateDisk(out _);
+            var page = disk.NewPage();
+            page.Write((uint)42, BasePage.P_PAGE_ID);
+
+            disk.WriteLogDisk(new[] { page }, (pageID, position) =>
+            {
+                pageID.Should().Be(42);
+                position.Should().Be(page.Position);
+                page.State.Should().Be(FrameState.Readable);
+                page.ShareCounter.Should().Be(1);
+            });
+
+            page.ShareCounter.Should().Be(0);
+            disk.Cache.PinnedPages.Should().Be(0);
+        }
+
+        [Fact]
+        public void WriteLogDisk_CallbackThrows_ReleasesFrame()
+        {
+            using var disk = CreateDisk(out _);
+            var page = disk.NewPage();
+
+            Action write = () => disk.WriteLogDisk(new[] { page }, (_, __) => throw new IOException("callback failed"));
+
+            write.Should().Throw<IOException>().WithMessage("callback failed");
+            page.ShareCounter.Should().Be(0);
+            disk.Cache.PinnedPages.Should().Be(0);
+        }
+
+        [Fact]
+        public void WriteLogDisk_WriteThrows_ReleasesFrame()
+        {
+            using var disk = CreateDisk(out var state);
+            var page = disk.NewPage();
+            state.SimulateDiskWriteFail = _ => throw new IOException("write failed");
+
+            Action write = () => disk.WriteLogDisk(new[] { page });
+
+            write.Should().Throw<IOException>().WithMessage("write failed");
+            page.ShareCounter.Should().Be(0);
+            disk.Cache.PinnedPages.Should().Be(0);
+        }
+
+        private static DiskService CreateDisk(out EngineState state)
+        {
+            var settings = new EngineSettings
+            {
+                DataStream = new MemoryStream(),
+                LogStream = new MemoryStream(),
+                CacheSize = PAGE_SIZE * 20L
+            };
+
+            state = new EngineState(null, settings);
+            return new DiskService(settings, state, new[] { 2 });
         }
 
         [Fact (Skip = "Verificar loop")]

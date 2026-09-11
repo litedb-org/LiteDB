@@ -15,11 +15,14 @@ namespace LiteDB.Engine
     {
         private readonly Stream _stream;
         private readonly string _password;
+        private readonly bool _ownsStream;
+        private bool _disposed;
 
-        public StreamFactory(Stream stream, string password)
+        public StreamFactory(Stream stream, string password, bool ownsStream = false)
         {
-            _stream = stream;
+            _stream = stream ?? throw new ArgumentNullException(nameof(stream));
             _password = password;
+            _ownsStream = ownsStream;
         }
 
         /// <summary>
@@ -34,11 +37,11 @@ namespace LiteDB.Engine
         {
             if (_password == null)
             {
-                return new ConcurrentStream(_stream, canWrite);
+                return new ConcurrentStream(_stream, canWrite, !_ownsStream);
             }
             else
             {
-                return new AesStream(_password, new ConcurrentStream(_stream, canWrite));
+                return new AesStream(_password, new ConcurrentStream(_stream, canWrite, !_ownsStream));
             }
         }
 
@@ -82,8 +85,31 @@ namespace LiteDB.Engine
         public bool IsLocked() => false;
 
         /// <summary>
-        /// Do no dispose on finish
+        /// Wrappers are always disposed. Caller-owned base streams are protected
+        /// by ConcurrentStream's leave-open mode.
         /// </summary>
-        public bool CloseOnDispose => false;
+        public bool CloseOnDispose => true;
+
+        public void TrimCapacity(Stream stream)
+        {
+            if (!_ownsStream) return;
+
+            if (_stream is MemoryStream memory)
+            {
+                memory.Capacity = checked((int)memory.Length);
+            }
+            else if (_stream is TempStream temp)
+            {
+                temp.TrimCapacity();
+            }
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+
+            if (_ownsStream) _stream.Dispose();
+        }
     }
 }

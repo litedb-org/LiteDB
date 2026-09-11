@@ -24,6 +24,7 @@ namespace LiteDB.Engine
         }
 
         public Collation Collation => _collation;
+        public void Safepoint() => _snapshot.Safepoint();
 
         /// <summary>
         /// Create a new index and returns head page address (skip list)
@@ -325,6 +326,8 @@ namespace LiteDB.Engine
 
                     next = node.NextNode;
                 }
+
+                _snapshot.Safepoint();
             }
 
             // removing head/tail index nodes

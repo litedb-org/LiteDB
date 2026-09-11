@@ -51,6 +51,8 @@ namespace LiteDB.Engine
                 // if current node are edges exit while
                 if (node.Key.IsMinValue || node.Key.IsMaxValue) break;
 
+                var next = node.GetNextPrev(0, -this.Order);
+
                 var valueString = 
                     node.Key.IsString ? node.Key.AsString : 
                     node.Key.IsNull ? "" :
@@ -72,7 +74,8 @@ namespace LiteDB.Engine
                     break;
                 }
 
-                node = indexer.GetNode(node.GetNextPrev(0, -this.Order));
+                indexer.Safepoint();
+                node = indexer.GetNode(next);
             }
 
             // move forward
@@ -82,6 +85,8 @@ namespace LiteDB.Engine
             {
                 // if current node are edges exit while
                 if (node.Key.IsMinValue || node.Key.IsMaxValue) break;
+
+                var next = node.GetNextPrev(0, this.Order);
 
                 var valueString =
                     node.Key.IsString ? node.Key.AsString :
@@ -105,16 +110,21 @@ namespace LiteDB.Engine
                     break;
                 }
 
-                // first, go backward to get all same values
-                node = indexer.GetNode(node.GetNextPrev(0, this.Order));
+                indexer.Safepoint();
+                node = indexer.GetNode(next);
             }
         }
 
         private IEnumerable<IndexNode> ExecuteLike(IndexService indexer, CollectionIndex index)
         {
-            return indexer
-                .FindAll(index, this.Order)
-                .Where(x => x.Key.IsString && x.Key.AsString.SqlLike(_pattern, indexer.Collation));
+            foreach (var node in indexer.FindAll(index, this.Order))
+            {
+                var matches = node.Key.IsString && node.Key.AsString.SqlLike(_pattern, indexer.Collation);
+
+                if (matches) yield return node;
+
+                indexer.Safepoint();
+            }
         }
 
         public override string ToString()

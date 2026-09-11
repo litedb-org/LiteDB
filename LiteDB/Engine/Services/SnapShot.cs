@@ -23,6 +23,7 @@ namespace LiteDB.Engine
         // instances from transaction
         private readonly uint _transactionID;
         private readonly TransactionPages _transPages;
+        private readonly Action _safepoint;
 
         // snapshot controls
         private readonly int _readVersion;
@@ -34,6 +35,7 @@ namespace LiteDB.Engine
         private readonly Dictionary<uint, BasePage> _localPages = new Dictionary<uint, BasePage>();
 
         private bool _disposed;
+        private int _epoch;
 
         // expose
         public LockMode Mode => _mode;
@@ -41,6 +43,8 @@ namespace LiteDB.Engine
         public CollectionPage CollectionPage => _collectionPage;
         public ICollection<BasePage> LocalPages => _localPages.Values;
         public int ReadVersion => _readVersion;
+        internal Action Safepoint => _safepoint;
+        internal int Epoch => _epoch;
 
         public Snapshot(
             LockMode mode, 
@@ -52,7 +56,8 @@ namespace LiteDB.Engine
             WalIndexService walIndex, 
             DiskReader reader, 
             DiskService disk,
-            bool addIfNotExists)
+            bool addIfNotExists,
+            Action safepoint = null)
         {
             _mode = mode;
             _collectionName = collectionName;
@@ -63,6 +68,7 @@ namespace LiteDB.Engine
             _walIndex = walIndex;
             _reader = reader;
             _disk = disk;
+            _safepoint = safepoint ?? (() => { });
 
             // enter in lock mode according initial mode
             if (mode == LockMode.Write)
@@ -127,6 +133,11 @@ namespace LiteDB.Engine
             }
 
             _localPages.Clear();
+            _epoch++;
+
+            // The collection page is deliberately retained by the snapshot
+            // across safepoints, so refresh only its ownership epoch.
+            _collectionPage?.SetSnapshotOwnership(this);
         }
 
         /// <summary>
@@ -199,6 +210,7 @@ namespace LiteDB.Engine
 
             // if page is not in local cache, get from disk (log/wal/data)
             page = this.ReadPage<T>(pageID, out origin, out position, out walVersion, useLatestVersion);
+            page.SetSnapshotOwnership(this);
 
             // add into local pages
             _localPages[pageID] = page;
@@ -421,6 +433,7 @@ namespace LiteDB.Engine
             }
 
             var page = BasePage.CreatePage<T>(buffer, pageID);
+            page.SetSnapshotOwnership(this);
 
             // update local cache with new instance T page type
             if (page.PageType != PageType.Collection)

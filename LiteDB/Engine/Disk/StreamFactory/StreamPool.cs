@@ -21,6 +21,7 @@ namespace LiteDB.Engine
         private readonly ConcurrentBag<Stream> _pool = new ConcurrentBag<Stream>();
         private readonly Lazy<Stream> _writer;
         private readonly IStreamFactory _factory;
+        private bool _disposed;
 
         public StreamPool(IStreamFactory factory, bool appendOnly)
         {
@@ -60,19 +61,38 @@ namespace LiteDB.Engine
         /// </summary>
         public void Dispose()
         {
-            // dipose stream only implement on factory
-            if (_factory.CloseOnDispose == false) return;
+            if (_disposed) return;
+            _disposed = true;
 
-            // dispose all reader stream
-            foreach (var stream in _pool)
+            var errors = new List<Exception>();
+
+            if (_factory.CloseOnDispose)
             {
-                stream.Dispose();
+                while (_pool.TryTake(out var stream))
+                {
+                    TryDispose(stream, errors);
+                }
+
+                if (_writer.IsValueCreated)
+                {
+                    TryDispose(_writer.Value, errors);
+                }
             }
 
-            // do writer dispose (wait async writer thread)
-            if (_writer.IsValueCreated)
+            TryDispose(_factory, errors);
+
+            if (errors.Count > 0) throw new AggregateException(errors);
+        }
+
+        private static void TryDispose(IDisposable disposable, ICollection<Exception> errors)
+        {
+            try
             {
-                _writer.Value.Dispose();
+                disposable.Dispose();
+            }
+            catch (Exception ex)
+            {
+                errors.Add(ex);
             }
         }
     }

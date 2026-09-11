@@ -35,10 +35,30 @@ namespace LiteDB.Engine
 
                 ["cache"] = new BsonDocument
                 {
+                    ["limitBytes"] = _disk.Cache.LimitBytes,
+                    ["limitPagesRounded"] = _disk.Cache.LimitPagesRounded,
+                    ["allocatedBytes"] = _disk.Cache.AllocatedBytes,
+                    ["segments"] = _disk.Cache.Segments,
+                    ["totalPages"] = _disk.Cache.TotalPages,
+                    ["readablePages"] = _disk.Cache.ReadablePages,
+                    ["idleReadablePages"] = _disk.Cache.IdleReadablePages,
+                    ["loadingPages"] = _disk.Cache.LoadingPages,
+                    ["pinnedPages"] = _disk.Cache.PinnedPages,
+                    ["retainedBySegments"] = _disk.Cache.RetainedBySegments,
+                    ["evictedPages"] = _disk.Cache.EvictedPages,
+                    ["releasedSegments"] = _disk.Cache.ReleasedSegments,
+                    ["overflowSegments"] = _disk.Cache.OverflowSegments,
+                    ["framesExamined"] = _disk.Cache.FramesExamined,
+                    ["budgetExceeded"] = _disk.Cache.BudgetExceeded,
+                    ["lostFrames"] = _disk.Cache.LostFrames,
+                    ["hits"] = _disk.Cache.Hits,
+                    ["misses"] = _disk.Cache.Misses,
+                    ["compiledExpressions"] = BsonExpression.CompiledExpressionCount,
+
+                    // Compatibility aliases retained for existing diagnostics.
                     ["extendSegments"] = _disk.Cache.ExtendSegments,
                     ["extendPages"] = _disk.Cache.ExtendPages,
                     ["freePages"] = _disk.Cache.FreePages,
-                    ["readablePages"] = _disk.Cache.GetPages().Count,
                     ["writablePages"] = _disk.Cache.WritablePages,
                     ["pagesInUse"] = _disk.Cache.PagesInUse,
                 },
@@ -47,8 +67,12 @@ namespace LiteDB.Engine
                 {
                     ["open"] = _monitor.Transactions.Count,
                     ["maxOpenTransactions"] = MAX_OPEN_TRANSACTIONS,
-                    ["initialTransactionSize"] = _monitor.InitialSize,
-                    ["availableSize"] = _monitor.FreePages
+                    ["transactionPageLimit"] = _monitor.TransactionPageLimit,
+                    ["pinnedPages"] = new BsonArray(_monitor.Transactions.Select(x => new BsonDocument
+                    {
+                        ["transactionID"] = (int)x.TransactionID,
+                        ["pages"] = x.Pages.TransactionSize
+                    }))
                 }
 
             };

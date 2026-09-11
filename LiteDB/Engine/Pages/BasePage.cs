@@ -13,6 +13,13 @@ namespace LiteDB.Engine
     {
         protected readonly PageBuffer _buffer;
 
+#if DEBUG || TESTING
+        private readonly int _ownerFrameUniqueID;
+        private readonly long _ownerFrameGeneration;
+        private Snapshot _ownerSnapshot;
+        private int _ownerSnapshotEpoch;
+#endif
+
         /// <summary>
         /// Bytes used in each offset slot (to store segment position (2) + length (2))
         /// </summary>
@@ -130,7 +137,14 @@ namespace LiteDB.Engine
         /// <summary>
         /// Get page buffer instance
         /// </summary>
-        public PageBuffer Buffer => _buffer;
+        public PageBuffer Buffer
+        {
+            get
+            {
+                this.EnsurePageOwnership();
+                return _buffer;
+            }
+        }
 
         #region Initialize/Update buffer
 
@@ -140,6 +154,10 @@ namespace LiteDB.Engine
         public BasePage(PageBuffer buffer, uint pageID, PageType pageType)
         {
             _buffer = buffer;
+#if DEBUG || TESTING
+            _ownerFrameUniqueID = buffer.UniqueID;
+            _ownerFrameGeneration = buffer.Generation;
+#endif
 
             DEBUG(buffer.Slice(PAGE_HEADER_SIZE, PAGE_SIZE - PAGE_HEADER_SIZE - 1).All(0), "new page buffer must be empty before use in a new page");
 
@@ -177,6 +195,10 @@ namespace LiteDB.Engine
         public BasePage(PageBuffer buffer)
         {
             _buffer = buffer;
+#if DEBUG || TESTING
+            _ownerFrameUniqueID = buffer.UniqueID;
+            _ownerFrameGeneration = buffer.Generation;
+#endif
 
             // page information
             this.PageID = _buffer.ReadUInt32(P_PAGE_ID);
@@ -203,6 +225,7 @@ namespace LiteDB.Engine
         /// </summary>
         public virtual PageBuffer UpdateBuffer()
         {
+            this.EnsurePageOwnership();
             // using fixed position to be faster than BufferWriter
             ENSURE(this.PageID == _buffer.ReadUInt32(P_PAGE_ID), "pageID can't be changed");
 
@@ -232,6 +255,7 @@ namespace LiteDB.Engine
         /// </summary>
         public void MarkAsEmtpy()
         {
+            this.EnsurePageOwnership();
             this.IsDirty = true;
 
             // page information
@@ -270,6 +294,7 @@ namespace LiteDB.Engine
         /// </summary>
         public BufferSlice Get(byte index)
         {
+            this.EnsurePageOwnership();
             ENSURE(this.ItemsCount > 0, "should have items in this page");
             ENSURE(this.HighestIndex != byte.MaxValue, "should have at least 1 index in this page");
             ENSURE(index <= this.HighestIndex, "get only index below highest index");
@@ -286,7 +311,7 @@ namespace LiteDB.Engine
             ENSURE(this.IsValidLen(length), "invalid segment length in index footer: {0}/{1}", this, index);
 
             // return buffer slice with content only data
-            return _buffer.Slice(position, length);
+            return this.OwnedSlice(position, length);
         }
 
         /// <summary>
@@ -304,6 +329,7 @@ namespace LiteDB.Engine
         /// </summary>
         private BufferSlice InternalInsert(ushort bytesLength, ref byte index)
         {
+            this.EnsurePageOwnership();
             var isNewInsert = index == byte.MaxValue;
 
             ENSURE(_buffer.ShareCounter == BUFFER_WRITABLE, "page must be writable to support changes");
@@ -368,7 +394,7 @@ namespace LiteDB.Engine
             ENSURE(position + bytesLength <= (PAGE_SIZE - (this.HighestIndex + 1) * SLOT_SIZE), "new buffer slice could not override footer area");
 
             // create page segment based new inserted segment
-            return _buffer.Slice(position, bytesLength);
+            return this.OwnedSlice(position, bytesLength);
         }
 
         /// <summary>
@@ -376,6 +402,7 @@ namespace LiteDB.Engine
         /// </summary>
         public void Delete(byte index)
         {
+            this.EnsurePageOwnership();
             ENSURE(_buffer.ShareCounter == BUFFER_WRITABLE, "page must be writable to support changes");
 
             // read block position on index slot
@@ -443,6 +470,7 @@ namespace LiteDB.Engine
         /// </summary>
         public BufferSlice Update(byte index, ushort bytesLength)
         {
+            this.EnsurePageOwnership();
             ENSURE(_buffer.ShareCounter == BUFFER_WRITABLE, "page must be writable to support changes");
             ENSURE(bytesLength > 0, "must update more than 0 bytes");
 
@@ -466,7 +494,7 @@ namespace LiteDB.Engine
             // best situation: same slice length
             if (bytesLength == length)
             {
-                return _buffer.Slice(position, length);
+                return this.OwnedSlice(position, length);
             }
             // when new length are less than original length (will fit in current segment)
             else if (bytesLength < length)
@@ -493,7 +521,7 @@ namespace LiteDB.Engine
                 // clear fragment bytes
                 _buffer.Clear(position + bytesLength, diff);
 
-                return _buffer.Slice(position, bytesLength);
+                return this.OwnedSlice(position, bytesLength);
             }
             // when new length are large than current segment must remove current item and add again
             else
@@ -530,6 +558,7 @@ namespace LiteDB.Engine
         /// </summary>
         public void Defrag()
         {
+            this.EnsurePageOwnership();
             ENSURE(this.FragmentedBytes > 0, "do not call this when page has no fragmentation");
             ENSURE(_buffer.ShareCounter == BUFFER_WRITABLE, "page must be writable to support changes");
             ENSURE(this.HighestIndex < byte.MaxValue, "there is no items in this page to run defrag");
@@ -634,6 +663,8 @@ namespace LiteDB.Engine
         /// </summary>
         public IEnumerable<byte> GetUsedIndexs()
         {
+            this.EnsurePageOwnership();
+
             // check for empty before loop
             if (this.ItemsCount == 0) yield break;
 
@@ -697,6 +728,36 @@ namespace LiteDB.Engine
         private bool IsValidLen(ushort length) => length > 0 && length <= (PAGE_SIZE - PAGE_HEADER_SIZE - this.FooterSize);
 
         #endregion
+
+        internal void SetSnapshotOwnership(Snapshot snapshot)
+        {
+#if DEBUG || TESTING
+            _ownerSnapshot = snapshot;
+            _ownerSnapshotEpoch = snapshot?.Epoch ?? 0;
+#endif
+        }
+
+        private BufferSlice OwnedSlice(int position, int length)
+        {
+            this.EnsurePageOwnership();
+            var slice = _buffer.Slice(position, length);
+
+#if DEBUG || TESTING
+            slice.AttachOwner(_buffer, _ownerSnapshot, _ownerSnapshotEpoch);
+#endif
+
+            return slice;
+        }
+
+        protected void EnsurePageOwnership()
+        {
+#if DEBUG || TESTING
+            ENSURE(_buffer.UniqueID == _ownerFrameUniqueID && _buffer.Generation == _ownerFrameGeneration,
+                "page belongs to a recycled cache frame");
+            ENSURE(_ownerSnapshot == null || _ownerSnapshot.Epoch == _ownerSnapshotEpoch, "page belongs to a cleared snapshot");
+            _buffer.EnsureReadable();
+#endif
+        }
 
         #region Static Helpers
 

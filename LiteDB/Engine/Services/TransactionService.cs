@@ -39,6 +39,7 @@ namespace LiteDB.Engine
         public DateTime StartTime => _startTime;
         public IEnumerable<Snapshot> Snapshots => _snapshots.Values;
         public bool QueryOnly { get; }
+        internal int MaxObservedTransactionSize { get; private set; }
 
         // get/set
         public int MaxTransactionSize { get; set; }
@@ -86,7 +87,7 @@ namespace LiteDB.Engine
         {
             ENSURE(_state == TransactionState.Active, "transaction must be active to create new snapshot");
 
-            Snapshot create() => new Snapshot(mode, collection, _header, _transactionID, _transPages, _locker, _walIndex, _reader, _disk, addIfNotExists);
+            Snapshot create() => new Snapshot(mode, collection, _header, _transactionID, _transPages, _locker, _walIndex, _reader, _disk, addIfNotExists, this.Safepoint);
 
             if (_snapshots.TryGetValue(collection, out var snapshot))
             {
@@ -122,6 +123,8 @@ namespace LiteDB.Engine
         public void Safepoint()
         {
             if (_state != TransactionState.Active) throw new LiteException(0, "This transaction are invalid state");
+
+            this.MaxObservedTransactionSize = Math.Max(this.MaxObservedTransactionSize, _transPages.TransactionSize);
 
             if (_monitor.CheckSafepoint(this))
             {
@@ -196,7 +199,6 @@ namespace LiteDB.Engine
 
                     dirty++;
 
-                    _transPages.DirtyPages[page.Item.PageID] = new PagePosition(page.Item.PageID, buffer.Position);
                 }
 
                 // in commit with header page change, last page will be header
@@ -225,7 +227,13 @@ namespace LiteDB.Engine
 
             // write all dirty pages, in sequence on log-file and store references into log pages on transPages
             // (works only for Write snapshots)
-            var count = _disk.WriteLogDisk(source());
+            var count = _disk.WriteLogDisk(source(), (pageID, position) =>
+            {
+                if (pageID != 0)
+                {
+                    _transPages.DirtyPages[pageID] = new PagePosition(pageID, position);
+                }
+            });
 
             // now, discard all clean pages (because those pages are writable and must be readable)
             // from write snapshots
@@ -346,8 +354,6 @@ namespace LiteDB.Engine
 
                         yield return page.UpdateBuffer();
 
-                        // update wal
-                        pagePositions[pageID] = new PagePosition(pageID, buffer.Position);
                     }
 
                     // update header page with my new transaction ID
@@ -370,7 +376,13 @@ namespace LiteDB.Engine
                 try
                 {
                     // write all pages (including new header)
-                    _disk.WriteLogDisk(source());
+                    _disk.WriteLogDisk(source(), (pageID, position) =>
+                    {
+                        if (pageID != 0)
+                        {
+                            pagePositions[pageID] = new PagePosition(pageID, position);
+                        }
+                    });
                 }
                 catch
                 {

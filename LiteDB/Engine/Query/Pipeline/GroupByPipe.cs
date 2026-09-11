@@ -91,7 +91,7 @@ namespace LiteDB.Engine
 
                     var group = YieldDocuments(key, enumerator, groupBy, done);
 
-                    yield return new GroupSource(key, new DocumentCacheEnumerable(group, _lookup));
+                    yield return new GroupSource(key, new DocumentCacheEnumerable(group, _lookup, _transaction.Safepoint));
                 }
             }
         }

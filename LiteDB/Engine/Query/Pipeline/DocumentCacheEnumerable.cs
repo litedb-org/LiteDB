@@ -18,11 +18,13 @@ namespace LiteDB.Engine
 
         private readonly List<PageAddress> _cache = new List<PageAddress>();
         private readonly IDocumentLookup _lookup;
+        private readonly Action _safepoint;
 
-        public DocumentCacheEnumerable(IEnumerable<BsonDocument> source, IDocumentLookup lookup)
+        public DocumentCacheEnumerable(IEnumerable<BsonDocument> source, IDocumentLookup lookup, Action safepoint = null)
         {
             _enumerator = source.GetEnumerator();
             _lookup = lookup;
+            _safepoint = safepoint ?? (() => { });
         }
 
         public void Dispose()
@@ -49,6 +51,7 @@ namespace LiteDB.Engine
                 var rawId = _cache[index];
 
                 yield return _lookup.Load(rawId);
+                _safepoint();
             }
 
             // continue enumeration of the original _enumerator, until it is finished. 
@@ -77,6 +80,7 @@ namespace LiteDB.Engine
                 var rawId = _cache[index];
             
                 yield return _lookup.Load(rawId);
+                _safepoint();
             }
         }
 

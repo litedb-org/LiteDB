@@ -20,26 +20,21 @@ namespace LiteDB.Engine
         private readonly DiskService _disk;
         private readonly WalIndexService _walIndex;
 
-        private int _freePages;
-        private readonly int _initialSize;
+        private readonly int _transactionPageLimit;
 
         // expose open transactions
         public ICollection<TransactionService> Transactions => _transactions.Values;
-        public int FreePages => _freePages;
-        public int InitialSize => _initialSize;
+        public int TransactionPageLimit => _transactionPageLimit;
 
-        public TransactionMonitor(HeaderPage header, LockService locker, DiskService disk, WalIndexService walIndex)
+        public TransactionMonitor(HeaderPage header, LockService locker, DiskService disk, WalIndexService walIndex, int transactionPageLimit)
         {
+            if (transactionPageLimit <= 0) throw new ArgumentOutOfRangeException(nameof(transactionPageLimit));
+
             _header = header;
             _locker = locker;
             _disk = disk;
             _walIndex = walIndex;
-
-            // initialize free pages with all avaiable pages in memory
-            _freePages = MAX_TRANSACTION_SIZE;
-
-            // initial size 
-            _initialSize = MAX_TRANSACTION_SIZE / MAX_OPEN_TRANSACTIONS;
+            _transactionPageLimit = transactionPageLimit;
         }
 
         public TransactionService GetTransaction(bool create, bool queryOnly, out bool isNew)
@@ -52,17 +47,14 @@ namespace LiteDB.Engine
 
                 bool alreadyLock;
 
-                // must lock _transaction before work with _transactions (GetInitialSize use _transactions)
                 lock (_transactions)
                 {
                     if (_transactions.Count >= MAX_OPEN_TRANSACTIONS) throw new LiteException(0, "Maximum number of transactions reached");
 
-                    var initialSize = this.GetInitialSize();
-
                     // check if current thread contains any transaction
                     alreadyLock = _transactions.Values.Any(x => x.ThreadID == Environment.CurrentManagedThreadId);
 
-                    transaction = new TransactionService(_header, _locker, _disk, _walIndex, initialSize, this, queryOnly);
+                    transaction = new TransactionService(_header, _locker, _disk, _walIndex, _transactionPageLimit, this, queryOnly);
 
                     // add transaction to execution transaction dict
                     _transactions[transaction.TransactionID] = transaction;
@@ -80,8 +72,6 @@ namespace LiteDB.Engine
                         transaction.Dispose();
                         lock (_transactions)
                         {
-                            // return pages
-                            _freePages += transaction.MaxTransactionSize;
                             _transactions.Remove(transaction.TransactionID);
                         }
                         throw;
@@ -118,9 +108,6 @@ namespace LiteDB.Engine
                 // remove from "open transaction" list
                 _transactions.Remove(transaction.TransactionID);
 
-                // return freePages used area
-                _freePages += transaction.MaxTransactionSize;
-
                 // check if current thread contains more query transactions
                 return keepLocked = _transactions.Values.Any(x => x.ThreadID == Environment.CurrentManagedThreadId);
             }
@@ -147,6 +134,8 @@ namespace LiteDB.Engine
                 // clear thread slot for new transaction
                 _slot.Value = null;
             }
+
+            _disk.Cache.TrimToLimit();
         }
 
         /// <summary>
@@ -164,63 +153,11 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// Get initial transaction size - get from free pages or reducing from all open transactions
-        /// </summary>
-        private int GetInitialSize()
-        {
-            if (_freePages >= _initialSize)
-            {
-                _freePages -= _initialSize;
-
-                return _initialSize;
-            }
-            else
-            {
-                var sum = 0;
-
-                // if there is no available pages, reduce all open transactions
-                foreach (var trans in _transactions.Values)
-                {
-                    //TODO: revisar estas contas, o reduce tem que fechar 1000
-                    var reduce = (trans.MaxTransactionSize / _initialSize);
-
-                    trans.MaxTransactionSize -= reduce;
-
-                    sum += reduce;
-                }
-
-                return sum;
-            }
-        }
-
-        /// <summary>
-        /// Try extend max transaction size in passed transaction ONLY if contains free pages available
-        /// </summary>
-        private bool TryExtend(TransactionService trans)
-        {
-            lock (_transactions)
-            {
-                if (_freePages >= _initialSize)
-                {
-                    trans.MaxTransactionSize += _initialSize;
-
-                    _freePages -= _initialSize;
-
-                    return true;
-                }
-
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Check if transaction size reach limit AND check if is possible extend this limit
+        /// Check whether a transaction reached its fixed page-retention limit.
         /// </summary>
         public bool CheckSafepoint(TransactionService trans)
         {
-            return
-                trans.Pages.TransactionSize >= trans.MaxTransactionSize &&
-                this.TryExtend(trans) == false;
+            return trans.Pages.TransactionSize >= trans.MaxTransactionSize;
         }
 
         /// <summary>
@@ -237,6 +174,8 @@ namespace LiteDB.Engine
 
                 _transactions.Clear();
             }
+
+            _slot.Dispose();
         }
     }
 }
