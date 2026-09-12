@@ -10,7 +10,7 @@ namespace LiteDB.Engine
     /// </summary>
     internal static class TransactionPageCleanup
     {
-        internal static void Release(Snapshot snapshot, MemoryCache cache, ref List<Exception> errors)
+        internal static void Release(Snapshot snapshot, MemoryCache cache, bool releaseLock, ref List<Exception> errors)
         {
             try
             {
@@ -41,6 +41,21 @@ namespace LiteDB.Engine
                 // or the transaction's stream reader from being cleaned up.
                 errors ??= new List<Exception>();
                 errors.Add(ex);
+            }
+
+            // Collection locks are thread-affine. During normal release, free
+            // the lock even if a page lease failed; shutdown can run elsewhere.
+            if (releaseLock && snapshot.Mode == LockMode.Write)
+            {
+                try
+                {
+                    snapshot.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    errors ??= new List<Exception>();
+                    errors.Add(ex);
+                }
             }
         }
 

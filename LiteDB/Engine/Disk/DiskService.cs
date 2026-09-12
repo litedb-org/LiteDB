@@ -169,7 +169,8 @@ namespace LiteDB.Engine
         /// Write all pages inside log file in a thread safe operation.
         /// Takes ownership of each yielded frame, including on failure.
         /// </summary>
-        public int WriteLogDisk(IEnumerable<PageBuffer> pages, Action<uint, long> written = null)
+        public int WriteLogDisk(IEnumerable<PageBuffer> pages, Action<uint, long> written = null,
+            IReadOnlyDictionary<uint, PagePosition> transactionPages = null)
         {
             var count = 0;
             var stream = _writer.Value;
@@ -187,7 +188,19 @@ namespace LiteDB.Engine
                     {
                         ENSURE(page.ShareCounter == BUFFER_WRITABLE, "to enqueue page, page must be writable");
                         previousStreamLength = stream.Length;
-                        page.Position = Interlocked.Add(ref _logLength, PAGE_SIZE);
+                        var pageID = page.ReadUInt32(BasePage.P_PAGE_ID);
+                        // Only this transaction can see its unconfirmed slots. Keep
+                        // the confirmation page last so recovery sees every page.
+                        if (!page.ReadBool(BasePage.P_IS_CONFIRMED) && transactionPages != null &&
+                            transactionPages.TryGetValue(pageID, out var previous))
+                        {
+                            page.Position = previous.Position;
+                            _cache.Invalidate(page.Position, FileOrigin.Log);
+                        }
+                        else
+                        {
+                            page.Position = Interlocked.Add(ref _logLength, PAGE_SIZE);
+                        }
                         page.Origin = FileOrigin.Log;
                         stream.Position = page.Position;
 
@@ -201,7 +214,6 @@ namespace LiteDB.Engine
                         // The callback can make the position visible to readers.
                         readable = _cache.MoveToReadable(page);
 
-                        var pageID = readable.ReadUInt32(BasePage.P_PAGE_ID);
                         written?.Invoke(pageID, readable.Position);
 
                         count++;

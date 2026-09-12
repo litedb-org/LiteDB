@@ -98,13 +98,16 @@ namespace LiteDB.Engine
         /// Dispose and remove transaction from monitor
         /// without releasing thread lock
         /// </summary>
-        public bool RemoveTransaction(TransactionService transaction)
+        private void RemoveTransaction(TransactionService transaction)
         {
-            // dispose current transaction
-            transaction.Dispose();
-
-            _transactions.Remove(transaction);
-            return _transactions.FindForThread(Environment.CurrentManagedThreadId) != null;
+            try
+            {
+                transaction.Dispose();
+            }
+            finally
+            {
+                _transactions.Remove(transaction);
+            }
         }
 
         /// <summary>
@@ -112,24 +115,24 @@ namespace LiteDB.Engine
         /// </summary>
         public void ReleaseTransaction(TransactionService transaction)
         {
-            var keepLocked = RemoveTransaction(transaction);
-
-            // unlock thread-transaction only if there is no more transactions
-            if (keepLocked == false)
+            try
             {
-                _locker.ExitTransaction();
+                this.RemoveTransaction(transaction);
             }
-
-            // remove transaction from thread if are no queryOnly transaction
-            if (transaction.QueryOnly == false)
+            finally
             {
-                ENSURE(_slot.Value == transaction, "current thread must contains transaction parameter");
-
-                // clear thread slot for new transaction
-                _slot.Value = null;
+                // Removal must precede this check, including when disposal fails.
+                if (_transactions.FindForThread(Environment.CurrentManagedThreadId) == null)
+                {
+                    _locker.ExitTransaction();
+                }
+                if (!transaction.QueryOnly)
+                {
+                    ENSURE(_slot.Value == transaction, "current thread must contains transaction parameter");
+                    _slot.Value = null;
+                }
+                _disk.Cache.TrimToLimit();
             }
-
-            _disk.Cache.TrimToLimit();
         }
 
         /// <summary>

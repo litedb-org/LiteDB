@@ -131,3 +131,32 @@ subset passed five consecutive runs. CI also compiles the measurement runner and
 checks changed C# file sizes when a PR is opened. These corrections are pushed
 separately on `bug/memory-leaks-followup`; PR #2772's earlier CI results do not
 verify the follow-up branch.
+
+## Review of a0821868: WAL growth and transaction disposal
+
+The 2026-09-12 review corrections reuse unconfirmed transaction WAL slots,
+append confirmation pages, remove managed transaction finalization, and make
+registration and lock release survive explicit cleanup errors. Migration notes
+for caller-owned streams are in [release-notes.md](release-notes.md).
+
+The deterministic regression inserts 50,000 random GUID documents, checkpoints,
+then deletes half with a 32-page transaction limit and 1 MiB cache. A file stream
+records the maximum WAL length after each write, with automatic checkpoints
+disabled. On Windows x64 / .NET 8.0.30:
+
+| Implementation | Data bytes | Peak WAL bytes | WAL / data |
+| --- | ---: | ---: | ---: |
+| Slot reuse disabled (regression control) | 16,867,328 | 837,443,584 | 49.65× |
+| Slot reuse enabled | 16,867,328 | 16,859,136 | 1.00× |
+
+The control fails the regression's 1.5× limit; the corrected implementation
+passes and reopens with exactly the 25,000 expected documents. Additional tests
+cover cache replacement, confirmation ordering, commit/rollback recovery and
+partial overwrite failure with and without encryption. Cleanup tests inject a
+stale page lease, run 200 subsequent queries, take an exclusive checkpoint lock,
+and perform a write from another thread. GC tests cover an exited transaction
+thread, explicit engine cleanup, and an unreachable engine with a damaged lease.
+
+The Release solution build passes. The full suites on .NET 8.0.30 and
+.NET 10.0.11 each pass 534 tests with 7 existing skips. These are local results;
+the PR checks report the corresponding pushed commit's CI outcome.

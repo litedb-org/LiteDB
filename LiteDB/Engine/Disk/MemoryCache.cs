@@ -149,7 +149,6 @@ namespace LiteDB.Engine
         private long GetReadableKey(long position, FileOrigin origin)
         {
             ENSURE(origin != FileOrigin.None, "file origin must be defined");
-
             return origin == FileOrigin.Data ? position : position == 0 ? long.MinValue : -position;
         }
 
@@ -220,7 +219,6 @@ namespace LiteDB.Engine
         private PageBuffer AcquireWritableLocked(long position, FileOrigin origin)
         {
             var page = _reclaimer.AcquireFrameLocked();
-
             page.Position = position;
             page.Origin = origin;
             page.State = FrameState.Writable;
@@ -228,7 +226,6 @@ namespace LiteDB.Engine
             page.Referenced = 0;
             _pool.ChangeBusyLocked(page.Segment, 1);
             _writablePages++;
-
             return page;
         }
 
@@ -303,14 +300,12 @@ namespace LiteDB.Engine
         private void PinLocked(PageBuffer page)
         {
             ENSURE(page.State == FrameState.Readable, "only readable pages can be pinned");
-
             if (page.ShareCounter == 0)
             {
                 _pool.ChangeBusyLocked(page.Segment, 1);
                 _idleReadablePages--;
                 _pinnedPages++;
             }
-
             Interlocked.Increment(ref page.ShareCounter);
             page.Referenced = 1;
         }
@@ -318,7 +313,6 @@ namespace LiteDB.Engine
         private void TransitionFreeToLoadingLocked(PageBuffer page, long position, FileOrigin origin)
         {
             ENSURE(page.State == FrameState.Free, "only a free frame can begin loading");
-
             page.Position = position;
             page.Origin = origin;
             page.State = FrameState.Loading;
@@ -331,9 +325,7 @@ namespace LiteDB.Engine
         private void TransitionToFreeLocked(PageBuffer page)
         {
             var segment = page.Segment;
-
             ENSURE(segment != null, "page must belong to an active segment");
-
             switch (page.State)
             {
                 case FrameState.Loading:
@@ -361,7 +353,6 @@ namespace LiteDB.Engine
             page.Origin = FileOrigin.None;
             page.Referenced = 0;
             page.Generation++;
-
 #if DEBUG || TESTING
             for (var i = 0; i < page.Count; i++)
             {
@@ -374,8 +365,7 @@ namespace LiteDB.Engine
 
         private void EvictLocked(PageBuffer page)
         {
-            ENSURE(page.State == FrameState.Readable && page.ShareCounter == 0, "CLOCK can only evict idle readable pages");
-
+            ENSURE(page.State == FrameState.Readable && page.ShareCounter == 0, "only idle readable pages can be evicted");
             var key = this.GetReadableKey(page.Position, page.Origin);
             ENSURE(_index.TryGetValue(key, out var indexed) && ReferenceEquals(indexed, page), "evicted page must be indexed");
             _index.Remove(key);
@@ -390,18 +380,28 @@ namespace LiteDB.Engine
                 this.ThrowIfDisposedLocked();
                 ENSURE(_pinnedPages == 0, "must have no pages in use when invalidating cache");
                 ENSURE(_loadingPages == 0, "must have no page loads in progress when invalidating cache");
-
                 var pages = _index.Values.ToArray();
-
                 foreach (var page in pages)
                 {
                     ENSURE(page.State == FrameState.Readable && page.ShareCounter == 0, "checkpoint can only invalidate idle readable pages");
                     _index.Remove(this.GetReadableKey(page.Position, page.Origin));
                     this.TransitionToFreeLocked(page);
                 }
-
                 _pool.ReleaseFullyFreeSegmentsLocked(this.LimitPagesRounded, true);
                 return pages.Length;
+            }
+        }
+
+        /// <summary>Remove an idle version before overwriting an unconfirmed WAL slot.</summary>
+        internal void Invalidate(long position, FileOrigin origin)
+        {
+            lock (_sync)
+            {
+                this.ThrowIfDisposedLocked();
+                if (_index.TryGetValue(this.GetReadableKey(position, origin), out var page))
+                {
+                    this.EvictLocked(page);
+                }
             }
         }
 

@@ -73,14 +73,6 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// Finalizer: Will be called once a thread is closed. The TransactionMonitor._slot releases the used TransactionService.
-        /// </summary>
-        ~TransactionService()
-        {
-            Dispose(false);
-        }
-
-        /// <summary>
         /// Create (or get from transaction-cache) snapshot and return
         /// </summary>
         public Snapshot CreateSnapshot(LockMode mode, string collection, bool addIfNotExists)
@@ -226,15 +218,15 @@ namespace LiteDB.Engine
                 }
             };
 
-            // write all dirty pages, in sequence on log-file and store references into log pages on transPages
-            // (works only for Write snapshots)
+            // Reuse this transaction's unconfirmed slots across safepoints.
+            // Disk always appends the confirmation page, preserving recovery order.
             var count = _disk.WriteLogDisk(source(), (pageID, position) =>
             {
                 if (pageID != 0)
                 {
                     _transPages.DirtyPages[pageID] = new PagePosition(pageID, position);
                 }
-            });
+            }, _transPages.DirtyPages);
 
             // now, discard all clean pages (because those pages are writable and must be readable)
             // from write snapshots
@@ -409,12 +401,12 @@ namespace LiteDB.Engine
         // Protected implementation of Dispose pattern.
         protected virtual void Dispose(bool dispose)
         {
-            if (_state == TransactionState.Disposed)
+            // All resources are managed. The monitor retains registered
+            // transactions and releases them during explicit engine cleanup.
+            if (!dispose || _state == TransactionState.Disposed)
             {
                 return;
             }
-
-            ENSURE(_state != TransactionState.Disposed, "transaction must be active before call Done");
 
             List<Exception> errors = null;
             // One damaged lease must not stop the remaining pages and reader
@@ -423,7 +415,8 @@ namespace LiteDB.Engine
             {
                 foreach (var snapshot in _snapshots.Values)
                 {
-                    TransactionPageCleanup.Release(snapshot, _disk.Cache, ref errors);
+                    TransactionPageCleanup.Release(snapshot, _disk.Cache,
+                        _threadID == Environment.CurrentManagedThreadId, ref errors);
                 }
             }
 
@@ -438,11 +431,6 @@ namespace LiteDB.Engine
             }
             _state = TransactionState.Disposed;
 
-            if (!dispose)
-            {
-                // Remove transaction monitor's dictionary
-                _monitor.RemoveTransaction(this);
-            }
             if (errors != null) throw new AggregateException(errors);
         }
     }
