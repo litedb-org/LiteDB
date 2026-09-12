@@ -166,7 +166,8 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// Write all pages inside log file in a thread safe operation
+        /// Write all pages inside log file in a thread safe operation.
+        /// Takes ownership of each yielded frame, including on failure.
         /// </summary>
         public int WriteLogDisk(IEnumerable<PageBuffer> pages, Action<uint, long> written = null)
         {
@@ -178,23 +179,16 @@ namespace LiteDB.Engine
             {
                 foreach (var page in pages)
                 {
-                    ENSURE(page.ShareCounter == BUFFER_WRITABLE, "to enqueue page, page must be writable");
-
                     var previousLogLength = _logLength;
-                    var previousStreamLength = stream.Length;
-
-                    // adding this page into file AS new page (at end of file)
-                    // must add into cache to be sure that new readers can see this page
-                    page.Position = Interlocked.Add(ref _logLength, PAGE_SIZE);
-
-                    // should mark page origin to log because async queue works only for log file
-                    // if this page came from data file, must be changed before MoveToReadable
-                    page.Origin = FileOrigin.Log;
-
+                    long? previousStreamLength = null;
                     PageBuffer readable = null;
 
                     try
                     {
+                        ENSURE(page.ShareCounter == BUFFER_WRITABLE, "to enqueue page, page must be writable");
+                        previousStreamLength = stream.Length;
+                        page.Position = Interlocked.Add(ref _logLength, PAGE_SIZE);
+                        page.Origin = FileOrigin.Log;
                         stream.Position = page.Position;
 
 #if DEBUG || TESTING
@@ -214,15 +208,17 @@ namespace LiteDB.Engine
                     }
                     catch
                     {
-                        // Before publication no reader can own this frame. Undo
-                        // both the cache frame and the append reservation so a
-                        // later write reuses the failed position without a gap.
+                        // The producer transferred ownership before yielding.
+                        // Recycle failed frames and undo unpublished reservations.
                         if (readable == null && page.State == FrameState.Writable)
                         {
                             _cache.DiscardPage(page);
                             Interlocked.Exchange(ref _logLength, previousLogLength);
-                            stream.SetLength(previousStreamLength);
-                            _logFactory.TrimCapacity(stream);
+                            if (previousStreamLength.HasValue)
+                            {
+                                stream.SetLength(previousStreamLength.Value);
+                                _logFactory.TrimCapacity(stream);
+                            }
                         }
 
                         throw;
@@ -254,26 +250,33 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// Mark a file with a single signal to next open do auto-rebuild. Used only when closing database (after close files)
+        /// Mark the header for recovery during error-close, before disposing
+        /// the data writer and its factory (which may own a shared stream).
         /// </summary>
         internal void MarkAsInvalidState()
         {
             FileHelper.TryExec(60, () =>
             {
-                using (var stream = _dataFactory.GetStream(true, true))
+                var stream = _dataPool.Writer.Value;
+                var buffer = _bufferPool.Rent(PAGE_SIZE);
+                try
                 {
-                    var buffer = _bufferPool.Rent(PAGE_SIZE);
-                    try
+                    stream.Position = 0;
+                    var offset = 0;
+                    while (offset < PAGE_SIZE)
                     {
-                        stream.Read(buffer, 0, PAGE_SIZE);
-                        buffer[HeaderPage.P_INVALID_DATAFILE_STATE] = 1;
-                        stream.Position = 0;
-                        stream.Write(buffer, 0, PAGE_SIZE);
+                        var read = stream.Read(buffer, offset, PAGE_SIZE - offset);
+                        if (read == 0) throw new EndOfStreamException("Cannot mark an incomplete database header");
+                        offset += read;
                     }
-                    finally
-                    {
-                        _bufferPool.Return(buffer, true);
-                    }
+                    buffer[HeaderPage.P_INVALID_DATAFILE_STATE] = 1;
+                    stream.Position = 0;
+                    stream.Write(buffer, 0, PAGE_SIZE);
+                    stream.FlushToDisk();
+                }
+                finally
+                {
+                    _bufferPool.Return(buffer, true);
                 }
             });
         }

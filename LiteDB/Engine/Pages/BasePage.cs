@@ -124,19 +124,22 @@ namespace LiteDB.Engine
         /// </summary>
         public uint TransactionID { get; set; }
 
-        /// <summary>
-        /// Used in WAL, define this page is last transaction page and are confirmed on disk [1 byte]
-        /// </summary>
+        /// <summary>Marks the last WAL page of a confirmed transaction [1 byte].</summary>
         public bool IsConfirmed { get; set; }
 
-        /// <summary>
-        /// Set this pages that was changed and must be persist in disk [not peristable]
-        /// </summary>
+        /// <summary>Whether this page has changes to persist (not stored on disk).</summary>
         public bool IsDirty { get; set; }
 
-        /// <summary>
-        /// Get page buffer instance
-        /// </summary>
+        internal bool OwnsBuffer { get; private set; } = true;
+        // Transfer the lease before another owner can release or recycle it.
+        internal PageBuffer TakeBuffer()
+        {
+            var buffer = this.Buffer;
+            this.OwnsBuffer = false;
+            return buffer;
+        }
+
+        /// <summary>Get the buffer while this page still owns it.</summary>
         public PageBuffer Buffer
         {
             get
@@ -752,6 +755,7 @@ namespace LiteDB.Engine
         protected void EnsurePageOwnership()
         {
 #if DEBUG || TESTING
+            ENSURE(this.OwnsBuffer, "page buffer ownership was transferred to disk");
             ENSURE(_buffer.UniqueID == _ownerFrameUniqueID && _buffer.Generation == _ownerFrameGeneration,
                 "page belongs to a recycled cache frame");
             ENSURE(_ownerSnapshot == null || _ownerSnapshot.Epoch == _ownerSnapshotEpoch, "page belongs to a cleared snapshot");
@@ -771,17 +775,13 @@ namespace LiteDB.Engine
         /// </summary>
         public static int CalcLengthAddr(byte index) => PAGE_SIZE - ((index + 1) * SLOT_SIZE);
 
-        /// <summary>
-        /// Returns a size of specified number of pages
-        /// </summary>
+        /// <summary>Returns the byte position of a page.</summary>
         public static long GetPagePosition(uint pageID)
         {
             return checked((long)pageID * PAGE_SIZE);
         }
 
-        /// <summary>
-        /// Returns a size of specified number of pages
-        /// </summary>
+        /// <summary>Returns the byte position of a page.</summary>
         public static long GetPagePosition(int pageID)
         {
             ENSURE(pageID >= 0, "page could not be less than 0.");

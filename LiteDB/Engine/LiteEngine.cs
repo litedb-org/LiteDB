@@ -222,6 +222,12 @@ namespace LiteDB.Engine
 
             tc.Catch(() => _monitor?.Dispose());
 
+            if (tc.InvalidDatafileState)
+            {
+                // Keep the data writer alive until the recovery marker is durable.
+                tc.Catch(() => _disk?.MarkAsInvalidState());
+            }
+
             // close disks streams
             tc.Catch(() => _disk?.Dispose());
 
@@ -230,13 +236,6 @@ namespace LiteDB.Engine
 
             // close engine lock service
             tc.Catch(() => _locker?.Dispose());
-
-            if (tc.InvalidDatafileState)
-            {
-                // mark byte = 1 in HeaderPage.P_INVALID_DATAFILE_STATE - will open in auto-rebuild
-                // this method will throw no errors
-                tc.Catch(() => _disk.MarkAsInvalidState());
-            }
 
             return tc.Exceptions;
         }

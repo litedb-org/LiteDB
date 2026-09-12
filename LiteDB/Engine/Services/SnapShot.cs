@@ -110,14 +110,14 @@ namespace LiteDB.Engine
             // if snapshot is read only, just exit
             if (_mode == LockMode.Read) yield break;
 
-            foreach(var page in _localPages.Values.Where(x => x.IsDirty == dirty))
+            foreach(var page in _localPages.Values.Where(x => x.OwnsBuffer && x.IsDirty == dirty))
             {
                 ENSURE(page.PageType != PageType.Header && page.PageType != PageType.Collection, "local cache cann't contains this page type");
 
                 yield return page;
             }
 
-            if (includeCollectionPage && _collectionPage != null && _collectionPage.IsDirty == dirty)
+            if (includeCollectionPage && _collectionPage != null && _collectionPage.OwnsBuffer && _collectionPage.IsDirty == dirty)
             {
                 yield return _collectionPage;
             }

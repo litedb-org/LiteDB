@@ -192,10 +192,11 @@ namespace LiteDB.Engine
                         _header.FreeEmptyPageList = _transPages.FirstDeletedPageID;
                     }
 
-                    var buffer = page.Item.UpdateBuffer();
+                    page.Item.UpdateBuffer();
 
-                    // buffer position will be set at end of file (it´s always log file)
-                    yield return buffer;
+                    // Disk owns each yielded buffer, including failed writes.
+                    // Cleanup must skip it even if the frame has been recycled.
+                    yield return page.Item.TakeBuffer();
 
                     dirty++;
 
@@ -240,7 +241,7 @@ namespace LiteDB.Engine
             _disk.DiscardCleanPages(_snapshots.Values
                     .Where(x => x.Mode == LockMode.Write)
                     .SelectMany(x => x.GetWritablePages(false, commit))
-                    .Select(x => x.Buffer));
+                    .Select(x => x.TakeBuffer()));
 
             return count;
         }
@@ -304,13 +305,13 @@ namespace LiteDB.Engine
                     // discard all dirty pages (only buffers still writable)
                     _disk.DiscardDirtyPages(snapshot
                         .GetWritablePages(true, true)
-                        .Select(x => x.Buffer)
+                        .Select(x => x.TakeBuffer())
                         .Where(x => x.ShareCounter == BUFFER_WRITABLE));
 
                     // discard all clean pages (only buffers still writable)
                     _disk.DiscardCleanPages(snapshot
                         .GetWritablePages(false, true)
-                        .Select(x => x.Buffer)
+                        .Select(x => x.TakeBuffer())
                         .Where(x => x.ShareCounter == BUFFER_WRITABLE));
                 }
 
@@ -415,39 +416,26 @@ namespace LiteDB.Engine
 
             ENSURE(_state != TransactionState.Disposed, "transaction must be active before call Done");
 
-            // clean snapshots if there is no commit/rollback
+            List<Exception> errors = null;
+            // One damaged lease must not stop the remaining pages and reader
+            // from being released during error-close.
             if (_state == TransactionState.Active && _snapshots.Count > 0)
             {
-                // release writable snapshots
-                foreach (var snapshot in _snapshots.Values.Where(x => x.Mode == LockMode.Write))
+                foreach (var snapshot in _snapshots.Values)
                 {
-                    // discard all dirty pages (only buffers still writable)
-                    _disk.DiscardDirtyPages(snapshot
-                        .GetWritablePages(true, true)
-                        .Select(x => x.Buffer)
-                        .Where(x => x.ShareCounter == BUFFER_WRITABLE));
-
-                    // discard all clean pages (only buffers still writable)
-                    _disk.DiscardCleanPages(snapshot
-                        .GetWritablePages(false, true)
-                        .Select(x => x.Buffer)
-                        .Where(x => x.ShareCounter == BUFFER_WRITABLE));
-                }
-
-                // release buffers in read-only snaphosts
-                foreach (var snapshot in _snapshots.Values.Where(x => x.Mode == LockMode.Read))
-                {
-                    foreach (var page in snapshot.LocalPages)
-                    {
-                        page.Buffer.Release();
-                    }
-
-                    snapshot.CollectionPage?.Buffer.Release();
+                    TransactionPageCleanup.Release(snapshot, _disk.Cache, ref errors);
                 }
             }
 
-            _reader.Dispose();
-
+            try
+            {
+                _reader.Dispose();
+            }
+            catch (Exception ex)
+            {
+                errors ??= new List<Exception>();
+                errors.Add(ex);
+            }
             _state = TransactionState.Disposed;
 
             if (!dispose)
@@ -455,6 +443,7 @@ namespace LiteDB.Engine
                 // Remove transaction monitor's dictionary
                 _monitor.RemoveTransaction(this);
             }
+            if (errors != null) throw new AggregateException(errors);
         }
     }
 }
