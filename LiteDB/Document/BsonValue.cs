@@ -13,6 +13,9 @@ namespace LiteDB
     /// </summary>
     public class BsonValue : IComparable<BsonValue>, IEquatable<BsonValue>
     {
+        private BsonArray _arrayAdapter;
+        private BsonDocument _documentAdapter;
+
         public static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         /// <summary>
@@ -135,8 +138,30 @@ namespace LiteDB
             else if (value is Double) this.Type = BsonType.Double;
             else if (value is Decimal) this.Type = BsonType.Decimal;
             else if (value is String) this.Type = BsonType.String;
-            else if (value is IDictionary<string, BsonValue>) this.Type = BsonType.Document;
-            else if (value is IList<BsonValue>) this.Type = BsonType.Array;
+            else if (value is IDictionary<string, BsonValue> bsonDocument)
+            {
+                var dict = new Dictionary<string, BsonValue>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var element in bsonDocument)
+                {
+                    dict[element.Key] = element.Value ?? Null;
+                }
+
+                this.Type = BsonType.Document;
+                this.RawValue = dict;
+            }
+            else if (value is IList<BsonValue> bsonArray)
+            {
+                var list = new List<BsonValue>(bsonArray.Count);
+
+                foreach (var element in bsonArray)
+                {
+                    list.Add(element ?? Null);
+                }
+
+                this.Type = BsonType.Array;
+                this.RawValue = list;
+            }
             else if (value is Byte[]) this.Type = BsonType.Binary;
             else if (value is ObjectId) this.Type = BsonType.ObjectId;
             else if (value is Guid) this.Type = BsonType.Guid;
@@ -162,11 +187,11 @@ namespace LiteDB
                 // test first for dictionary (because IDictionary implements IEnumerable)
                 if (dictionary != null)
                 {
-                    var dict = new Dictionary<string, BsonValue>();
+                    var dict = new Dictionary<string, BsonValue>(StringComparer.OrdinalIgnoreCase);
 
                     foreach (var key in dictionary.Keys)
                     {
-                        dict.Add(key.ToString(), new BsonValue(dictionary[key]));
+                        dict[key.ToString()] = new BsonValue(dictionary[key]);
                     }
 
                     this.Type = BsonType.Document;
@@ -200,8 +225,22 @@ namespace LiteDB
         /// </summary>
         public virtual BsonValue this[string name]
         {
-            get => throw new InvalidOperationException("Cannot access non-document type value on " + this.RawValue);
-            set => throw new InvalidOperationException("Cannot access non-document type value on " + this.RawValue);
+            get
+            {
+                if (this.IsDocument) return this.AsDocument[name];
+
+                throw new InvalidOperationException("Cannot access non-document type value on " + this.RawValue);
+            }
+            set
+            {
+                if (this.IsDocument)
+                {
+                    this.AsDocument[name] = value;
+                    return;
+                }
+
+                throw new InvalidOperationException("Cannot access non-document type value on " + this.RawValue);
+            }
         }
 
         /// <summary>
@@ -209,8 +248,22 @@ namespace LiteDB
         /// </summary>
         public virtual BsonValue this[int index]
         {
-            get => throw new InvalidOperationException("Cannot access non-array type value on " + this.RawValue);
-            set => throw new InvalidOperationException("Cannot access non-array type value on " + this.RawValue);
+            get
+            {
+                if (this.IsArray) return this.AsArray[index];
+
+                throw new InvalidOperationException("Cannot access non-array type value on " + this.RawValue);
+            }
+            set
+            {
+                if (this.IsArray)
+                {
+                    this.AsArray[index] = value;
+                    return;
+                }
+
+                throw new InvalidOperationException("Cannot access non-array type value on " + this.RawValue);
+            }
         }
 
         #endregion
@@ -218,10 +271,21 @@ namespace LiteDB
         #region Convert types
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public BsonArray AsArray => this as BsonArray;
+        public BsonArray AsArray => this is BsonArray array
+            ? array
+            // new BsonValue(object) builds a plain BsonValue (Type=Array, RawValue=IList<BsonValue>)
+            // instead of a BsonArray; wrap it so callers (serialization, ToString, ...) still work.
+            : this.IsArray && this.RawValue is IList<BsonValue> items
+                ? this._arrayAdapter ??= new BsonArray(items, true)
+                : null;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public BsonDocument AsDocument => this as BsonDocument;
+        public BsonDocument AsDocument => this is BsonDocument document
+            ? document
+            // same as AsArray: wrap a plain BsonValue that carries a document payload.
+            : this.IsDocument && this.RawValue is IDictionary<string, BsonValue> dict
+                ? this._documentAdapter ??= new BsonDocument(dict, true)
+                : null;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         public Byte[] AsBinary => this.RawValue as Byte[];
