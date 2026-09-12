@@ -17,6 +17,14 @@ namespace LiteDB.Engine
     /// </summary>
     public class EngineSettings
     {
+        private int? _transactionPageLimit;
+
+        /// <summary>
+        /// Memory and transaction defaults for this database. Explicit limits
+        /// take precedence regardless of property assignment order.
+        /// </summary>
+        public MemoryProfile MemoryProfile { get; set; } = MemoryProfile.Balanced;
+
         /// <summary>
         /// Get/Set custom stream to be used as datafile (can be MemoryStream or TempStream). Do not use FileStream - to use physical file, use "filename" attribute (and keep DataStream/WalStream null)
         /// </summary>
@@ -49,14 +57,19 @@ namespace LiteDB.Engine
 
         /// <summary>
         /// Soft page-cache target in bytes. Zero selects the storage-specific
-        /// default (64 MiB for files and 8 MiB for memory-backed data).
+        /// default of the selected <see cref="MemoryProfile"/>.
         /// </summary>
         public long CacheSize { get; set; } = 0;
 
         /// <summary>
         /// Pages retained by one transaction before a cooperative safepoint.
+        /// Defaults to the profile threshold; explicit values must be positive.
         /// </summary>
-        public int TransactionPageLimit { get; set; } = MAX_TRANSACTION_SIZE;
+        public int TransactionPageLimit
+        {
+            get => _transactionPageLimit ?? MemoryProfileDefaults.GetTransactionPageLimit(this.MemoryProfile);
+            set => _transactionPageLimit = value;
+        }
 
         /// <summary>
         /// Create database with custom string collection (used only to create database) (default: Collation.Default)
@@ -115,12 +128,11 @@ namespace LiteDB.Engine
 
         internal long GetCacheSize()
         {
+            var defaultSize = MemoryProfileDefaults.GetCacheSize(this.MemoryProfile,
+                this.Filename == ":memory:" || this.DataStream is MemoryStream);
             if (this.CacheSize < 0) throw new ArgumentOutOfRangeException(nameof(this.CacheSize));
             if (this.CacheSize > 0) return this.CacheSize;
-
-            return this.Filename == ":memory:" || this.DataStream is MemoryStream ?
-                MEMORY_CACHE_SIZE :
-                DEFAULT_CACHE_SIZE;
+            return defaultSize;
         }
 
         /// <summary>

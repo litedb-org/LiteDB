@@ -224,7 +224,8 @@ namespace LiteDB.Internals
             using var copyStarted = new ManualResetEventSlim();
             using var finishCopy = new ManualResetEventSlim();
 
-            cache.WritableCopyUnderLock = () =>
+            source.Release();
+            cache.BeforeWritableCopy = () =>
             {
                 copyStarted.Set();
                 finishCopy.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
@@ -235,19 +236,18 @@ namespace LiteDB.Internals
                 FileOrigin.Data,
                 (_, __) => throw new InvalidOperationException("cached source must be copied")));
             copyStarted.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
-            var competitor = Task.Run(() => Load(cache, 2));
-
-            await Task.Delay(100);
-            competitor.IsCompleted.Should().BeFalse("copying is performed while eviction is excluded");
+            var competitor = Task.Run(() =>
+            {
+                for (var i = 2; i < 12; i++) Load(cache, i).Release();
+            });
+            var finished = await Task.WhenAny(competitor, Task.Delay(TimeSpan.FromSeconds(5)));
             finishCopy.Set();
-
+            finished.Should().BeSameAs(competitor, "the copy pin permits unrelated reads and eviction");
             var writable = await copying;
-            var other = await competitor;
+            await competitor;
             writable.ReadInt32(0).Should().Be(1);
 
-            source.Release();
             cache.DiscardPage(writable);
-            other.Release();
             AssertAccounting(cache);
         }
 

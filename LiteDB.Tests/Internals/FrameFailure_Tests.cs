@@ -15,7 +15,7 @@ namespace LiteDB.Internals
         {
             using var cache = new MemoryCache(new[] { 2 }, PAGE_SIZE * 4L);
             cache.GetReadablePage(PAGE_SIZE, FileOrigin.Data, (_, buffer) => buffer.Write(1, 0)).Release();
-            cache.WritableCopyUnderLock = () => throw new IOException("copy failed");
+            cache.BeforeWritableCopy = () => throw new IOException("copy failed");
 
             Action copy = () => cache.GetWritablePage(
                 PAGE_SIZE,
@@ -56,7 +56,7 @@ namespace LiteDB.Internals
             using var cache = new MemoryCache(new[] { 2 }, PAGE_SIZE * 2L);
             var source = cache.GetReadablePage(0, FileOrigin.Data, (_, buffer) => buffer.Write(42, 0));
             source.Release();
-            cache.WritableCopyUnderLock = () => throw new IOException("copy failed");
+            cache.BeforeWritableCopy = () => throw new IOException("copy failed");
 
             for (var attempt = 0; attempt < 20; attempt++)
             {

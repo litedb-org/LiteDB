@@ -1,9 +1,7 @@
-using LiteDB.Engine;
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Text.RegularExpressions;
-using static LiteDB.Constants;
+using LiteDB.Engine;
 
 namespace LiteDB
 {
@@ -13,6 +11,13 @@ namespace LiteDB
     public class ConnectionString
     {
         private readonly Dictionary<string, string> _values;
+        private int? _transactionPageLimit;
+
+        /// <summary>
+        /// "memory profile": Balanced (default), LowMemory, or Throughput.
+        /// Explicit cache and transaction limits override these defaults.
+        /// </summary>
+        public MemoryProfile MemoryProfile { get; set; } = MemoryProfile.Balanced;
 
         /// <summary>
         /// "connection": Return how engine will be open (default: Direct)
@@ -36,14 +41,19 @@ namespace LiteDB
 
         /// <summary>
         /// "cache size": Soft page-cache target in bytes. Supports KB, MB,
-        /// and GB suffixes (default is storage-specific).
+        /// and GB suffixes. Zero selects the profile's storage-specific default.
         /// </summary>
         public long CacheSize { get; set; } = 0;
 
         /// <summary>
         /// "transaction pages": Per-transaction cooperative safepoint limit.
+        /// Defaults to the selected profile; explicit values must be positive.
         /// </summary>
-        public int TransactionPageLimit { get; set; } = MAX_TRANSACTION_SIZE;
+        public int TransactionPageLimit
+        {
+            get => _transactionPageLimit ?? MemoryProfileDefaults.GetTransactionPageLimit(this.MemoryProfile);
+            set => _transactionPageLimit = value;
+        }
 
         /// <summary>
         /// "readonly": Open datafile in readonly mode (default: false)
@@ -103,9 +113,10 @@ namespace LiteDB
             }
 
             this.InitialSize = _values.GetFileSize(@"initial size", this.InitialSize);
+            if (_values.TryGetValue("memory profile", out var profile)) this.MemoryProfile = MemoryProfileDefaults.Parse(profile);
             this.CacheSize = _values.TryGetValue("cache size", out var cacheSizeText) ?
                 ParseCacheSize(cacheSizeText) : this.CacheSize;
-            this.TransactionPageLimit = _values.GetValue("transaction pages", this.TransactionPageLimit);
+            if (_values.ContainsKey("transaction pages")) this.TransactionPageLimit = _values.GetValue<int>("transaction pages");
 
             if (this.CacheSize < 0 || this.TransactionPageLimit <= 0)
             {
@@ -161,6 +172,7 @@ namespace LiteDB
                 Filename = this.Filename,
                 Password = this.Password,
                 InitialSize = this.InitialSize,
+                MemoryProfile = this.MemoryProfile,
                 CacheSize = this.CacheSize,
                 TransactionPageLimit = this.TransactionPageLimit,
                 ReadOnly = this.ReadOnly,

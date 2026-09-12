@@ -8,8 +8,8 @@ namespace LiteDB.Engine
 {
     /// <summary>
     /// Bounded, elastic page-buffer pool. One lock protects the readable
-    /// index, frame states, pins, segment free lists, and segment liveness.
-    /// Disk reads deliberately run outside the lock.
+    /// index, idle/busy transitions, free lists, and segment liveness. Readers
+    /// share existing pins atomically; disk reads run outside the lock.
     /// </summary>
     internal sealed class MemoryCache : IDisposable
     {
@@ -18,6 +18,7 @@ namespace LiteDB.Engine
         private readonly object _sync = new object();
         private readonly PageFramePool _pool;
         private readonly CacheReclaimer _reclaimer;
+        private readonly SharedPageReads _sharedReads = new SharedPageReads();
         private readonly Dictionary<long, PageBuffer> _index = new Dictionary<long, PageBuffer>();
         private bool _disposed;
 
@@ -26,29 +27,22 @@ namespace LiteDB.Engine
         private int _writablePages;
         private int _loadingPages;
         private int _pinnedPages;
-
         private long _evictedPages;
         private long _hits;
         private long _misses;
 
 #if TESTING
         internal Action ReadableHitUnderLock { get; set; }
-        internal Action WritableCopyUnderLock { get; set; }
+        internal Action BeforeWritableCopy { get; set; }
         internal Action LoadingWaiterWaiting { get; set; }
         internal Action<Action> LoadingWaiterResuming { get; set; }
 #endif
-
-        public MemoryCache(int[] memorySegmentSizes)
-            : this(memorySegmentSizes, long.MaxValue)
-        {
-        }
 
         public MemoryCache(int[] memorySegmentSizes, long cacheSize, int evictScanBudget = DEFAULT_EVICT_SCAN_BUDGET)
         {
             if (evictScanBudget <= 0) throw new ArgumentOutOfRangeException(nameof(evictScanBudget));
 
             _pool = new PageFramePool(this, memorySegmentSizes);
-            this.EvictScanBudget = evictScanBudget;
             this.LimitBytes = cacheSize <= 0 ? PAGE_SIZE * (long)_pool.MinimumPages : cacheSize;
             this.LimitPagesRounded = _pool.RoundLimitPages(this.LimitBytes);
             _reclaimer = new CacheReclaimer(_pool, this.LimitPagesRounded, evictScanBudget,
@@ -59,12 +53,18 @@ namespace LiteDB.Engine
 
         public long LimitBytes { get; }
         public int LimitPagesRounded { get; }
-        public int EvictScanBudget { get; }
 
         public PageBuffer GetReadablePage(long position, FileOrigin origin, Action<long, BufferSlice> factory)
         {
             if (factory == null) throw new ArgumentNullException(nameof(factory));
-
+            if (Volatile.Read(ref _disposed)) throw new ObjectDisposedException(nameof(MemoryCache));
+#if TESTING
+            if (ReadableHitUnderLock == null)
+#endif
+            {
+                var shared = _sharedReads.TryPin(position, origin);
+                if (shared != null) { Interlocked.Increment(ref _hits); return shared; }
+            }
             var key = this.GetReadableKey(position, origin);
             PageBuffer page;
 
@@ -94,7 +94,8 @@ namespace LiteDB.Engine
                         ReadableHitUnderLock?.Invoke();
 #endif
                         this.PinLocked(page);
-                        _hits++;
+                        _sharedReads.Remember(page);
+                        Interlocked.Increment(ref _hits);
                         return page;
                     }
 
@@ -138,7 +139,7 @@ namespace LiteDB.Engine
                 page.State = FrameState.Readable;
                 page.ShareCounter = 1;
                 page.Referenced = 1;
-                page.Timestamp = DateTime.UtcNow.Ticks;
+                _sharedReads.Remember(page);
 
                 Monitor.PulseAll(_sync);
                 return page;
@@ -158,6 +159,7 @@ namespace LiteDB.Engine
 
             var key = this.GetReadableKey(position, origin);
             PageBuffer writable = null;
+            PageBuffer readable = null;
             try
             {
                 lock (_sync)
@@ -168,30 +170,27 @@ namespace LiteDB.Engine
                         Monitor.Wait(_sync);
                         this.ThrowIfDisposedLocked();
                     }
-
-                    if (_index.TryGetValue(key, out var readable))
+                    if (_index.TryGetValue(key, out readable))
                     {
-                        // Acquisition can evict idle frames, even under this lock.
+                        // This pin protects the source during eviction and copying.
                         this.PinLocked(readable);
-                        try
-                        {
-                            writable = this.AcquireWritableLocked(position, origin);
-#if TESTING
-                            WritableCopyUnderLock?.Invoke();
-#endif
-                            Buffer.BlockCopy(readable.Array, readable.Offset, writable.Array, writable.Offset, PAGE_SIZE);
-                            _hits++;
-                            return writable;
-                        }
-                        finally
-                        {
-                            readable.Release();
-                        }
+                        Interlocked.Increment(ref _hits);
                     }
+                    else _misses++;
                     writable = this.AcquireWritableLocked(position, origin);
-                    _misses++;
                 }
-                factory(position, writable);
+                if (readable != null)
+                {
+#if TESTING
+                    BeforeWritableCopy?.Invoke();
+#endif
+                    Buffer.BlockCopy(readable.Array, readable.Offset, writable.Array, writable.Offset, PAGE_SIZE);
+                }
+                else
+                {
+                    writable.Clear();
+                    factory(position, writable);
+                }
                 return writable;
             }
             catch
@@ -199,15 +198,23 @@ namespace LiteDB.Engine
                 if (writable != null) this.DiscardPage(writable);
                 throw;
             }
+            finally
+            {
+                readable?.Release();
+            }
         }
 
         public PageBuffer NewPage()
         {
+            PageBuffer page;
             lock (_sync)
             {
                 this.ThrowIfDisposedLocked();
-                return this.AcquireWritableLocked(long.MaxValue, FileOrigin.None);
+                page = this.AcquireWritableLocked(long.MaxValue, FileOrigin.None);
             }
+            // Writable ownership keeps the frame out of eviction/reclamation.
+            page.Clear();
+            return page;
         }
 
         private PageBuffer AcquireWritableLocked(long position, FileOrigin origin)
@@ -219,13 +226,8 @@ namespace LiteDB.Engine
             page.State = FrameState.Writable;
             page.ShareCounter = BUFFER_WRITABLE;
             page.Referenced = 0;
-            page.Timestamp = DateTime.UtcNow.Ticks;
             _pool.ChangeBusyLocked(page.Segment, 1);
             _writablePages++;
-
-            page.Clear();
-
-            DEBUG(page.All(0), "new page must be full zero empty before return");
 
             return page;
         }
@@ -255,7 +257,7 @@ namespace LiteDB.Engine
             page.State = FrameState.Readable;
             page.ShareCounter = pinned ? 1 : 0;
             page.Referenced = 1;
-            page.Timestamp = DateTime.UtcNow.Ticks;
+            _sharedReads.Remember(page);
             _writablePages--;
             _readablePages++;
             if (pinned)
@@ -281,16 +283,15 @@ namespace LiteDB.Engine
 
         internal void Release(PageBuffer page)
         {
+            ENSURE(ReferenceEquals(page.Cache, this), "page must belong to this cache");
+            if (SharedPageReads.TryReleaseShared(page)) return;
             lock (_sync)
             {
                 ENSURE(!_disposed, "cannot release a page from a disposed cache");
-                ENSURE(ReferenceEquals(page.Cache, this), "page must belong to this cache");
                 ENSURE(page.State == FrameState.Readable, "only readable pages can be released");
                 ENSURE(page.ShareCounter > 0, "share counter must be > 0 in Release()");
 
-                page.ShareCounter--;
-
-                if (page.ShareCounter == 0)
+                if (Interlocked.Decrement(ref page.ShareCounter) == 0)
                 {
                     _pool.ChangeBusyLocked(page.Segment, -1);
                     _pinnedPages--;
@@ -310,9 +311,8 @@ namespace LiteDB.Engine
                 _pinnedPages++;
             }
 
-            page.ShareCounter++;
+            Interlocked.Increment(ref page.ShareCounter);
             page.Referenced = 1;
-            page.Timestamp = DateTime.UtcNow.Ticks;
         }
 
         private void TransitionFreeToLoadingLocked(PageBuffer page, long position, FileOrigin origin)
@@ -355,11 +355,11 @@ namespace LiteDB.Engine
             }
 
             page.State = FrameState.Free;
+            _sharedReads.Forget(page);
             page.ShareCounter = 0;
             page.Position = long.MaxValue;
             page.Origin = FileOrigin.None;
             page.Referenced = 0;
-            page.Timestamp = 0;
             page.Generation++;
 
 #if DEBUG || TESTING
@@ -452,7 +452,7 @@ namespace LiteDB.Engine
         public long OverflowSegments { get { lock (_sync) return _pool.OverflowSegments; } }
         public long FramesExamined { get { lock (_sync) return _reclaimer.FramesExamined; } }
         public long BudgetExceeded { get { lock (_sync) return _reclaimer.BudgetExceeded; } }
-        public long Hits { get { lock (_sync) return _hits; } }
+        public long Hits => Interlocked.Read(ref _hits);
         public long Misses { get { lock (_sync) return _misses; } }
         public long LostFrames
         {
@@ -484,6 +484,7 @@ namespace LiteDB.Engine
                 if (_disposed) return;
                 _disposed = true;
 
+                _sharedReads.Clear();
                 _pool.Dispose();
 
                 _index.Clear();

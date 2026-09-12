@@ -1,5 +1,9 @@
 # Memory ownership follow-up audit
 
+The subsequent latency/profile changes and their current verification are
+recorded in [memory-profile-results.md](memory-profile-results.md). Counts and
+measurements below describe the preceding ownership follow-up.
+
 This audit covers the memory-management PR and the resource ownership paths it
 uses: cache frames, transaction/snapshot construction, query cursors, sort storage,
 stream pools, cipher wrappers, and pooled serialization buffers. Corrections are

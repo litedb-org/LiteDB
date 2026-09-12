@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using System;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Xunit;
@@ -8,6 +9,35 @@ namespace LiteDB.Tests.Expressions
 {
     public class ExpressionCache_Tests
     {
+        [Fact]
+        public void CollidingHotExpressions_CoexistInsteadOfRecompilingEachOther()
+        {
+            // Find keys that collide in the former single-entry cache under
+            // this process's randomized string hash seed.
+            var sources = Enumerable.Range(0, 100).Select(i => "hot-" + i)
+                .GroupBy(source => (uint)StringComparer.Ordinal.GetHashCode(source) % 4)
+                .First(group => group.Count() >= 4).Take(4).ToArray();
+            var cache = new CompiledExpressionCache(4);
+            foreach (var source in sources)
+            {
+                Func<string> compiled = () => source;
+                cache.Add(source, compiled);
+            }
+            foreach (var source in sources) cache.Get<Func<string>>(source)().Should().Be(source);
+            cache.Count.Should().Be(4);
+        }
+
+        [Fact]
+        public void ScalarAndEnumerableDelegates_WithTheSameSource_Coexist()
+        {
+            var cache = new CompiledExpressionCache(4);
+            cache.Add("$", (Func<int>)(() => 42));
+            cache.Add("$", (Func<IEnumerable<int>>)(() => new[] { 42 }));
+            cache.Get<Func<int>>("$")().Should().Be(42);
+            cache.Get<Func<IEnumerable<int>>>("$")().Should().Equal(42);
+            cache.Count.Should().Be(2);
+        }
+
         [Fact]
         public async Task Colliding_Entries_Are_Atomic_And_Stay_Bounded()
         {

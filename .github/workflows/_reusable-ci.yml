@@ -43,6 +43,9 @@ jobs:
       - name: Build memory validation runner
         run: dotnet build tools/MemoryValidation/MemoryValidation.csproj --configuration Release
 
+      - name: Build memory profile measurements
+        run: dotnet build tools/MemoryProfiles/MemoryProfiles.csproj --configuration Release
+
       - name: Package build outputs
         run: tar -czf tests-build-linux.tar.gz LiteDB/bin/Release LiteDB/obj/Release LiteDB.Tests/bin/Release LiteDB.Tests/obj/Release
 

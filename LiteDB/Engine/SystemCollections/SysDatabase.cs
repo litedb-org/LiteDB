@@ -41,6 +41,7 @@ namespace LiteDB.Engine
 
                 ["cache"] = new BsonDocument
                 {
+                    ["memoryProfile"] = _settings.MemoryProfile.ToString(),
                     ["limitBytes"] = _disk.Cache.LimitBytes,
                     ["limitPagesRounded"] = _disk.Cache.LimitPagesRounded,
                     ["allocatedBytes"] = _disk.Cache.AllocatedBytes,

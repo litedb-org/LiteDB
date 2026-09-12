@@ -1,5 +1,9 @@
 # Memory-management correction validation
 
+For the later shared-reader optimization and configurable memory profiles, see
+[memory-profile-results.md](memory-profile-results.md). This report preserves
+the measurements of the earlier correction revision.
+
 Measured 2026-09-12 on Windows 11 (build 26200), AMD Ryzen 9 9955HX,
 32 logical processors. Each workload ran in a fresh process, sequentially,
 with production Release libraries (`TESTING` disabled). Raw results include

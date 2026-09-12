@@ -37,12 +37,6 @@ namespace LiteDB.Engine
         /// </summary>
         public int ShareCounter;
 
-        /// <summary>
-        /// Legacy access timestamp. Kept for internal compatibility; CLOCK uses
-        /// <see cref="Referenced"/> instead.
-        /// </summary>
-        public long Timestamp;
-
         internal FrameState State;
         internal long Generation;
         internal int Referenced;
@@ -57,7 +51,6 @@ namespace LiteDB.Engine
             this.Position = long.MaxValue;
             this.Origin = FileOrigin.None;
             this.ShareCounter = 0;
-            this.Timestamp = 0;
             this.State = FrameState.Free;
             this.Generation = 0;
             this.Referenced = 0;

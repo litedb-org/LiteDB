@@ -1,5 +1,8 @@
 # Memory-management benchmark results
 
+This is the original PR revision's impact report. The later shared-reader and
+profile results are in [memory-profile-results.md](memory-profile-results.md).
+
 Measured 2026-09-12, comparing the `dev` merge base (`61fa785a`) with the
 implementation head (`e75c3fda`). These measurements are intended to quantify
 the memory/latency trade-off of the new default rather than serve as portable
