@@ -1341,7 +1341,7 @@ static class P
             var info = db.Execute("SELECT $ FROM $database").First().AsDocument;
             var c = info["cache"].AsDocument;
             var t = info["transactions"].AsDocument;
-            line += $"  cache: segs={c["extendSegments"].AsInt32,3} pages={c["extendPages"].AsInt32,6} ({c["extendPages"].AsInt32 * 8 / 1024,4} MB) free={c["freePages"].AsInt32,6} readable={c["readablePages"].AsInt32,6} writable={c["writablePages"].AsInt32,5} inUse={c["pagesInUse"].AsInt32,5}  tx: open={t["open"].AsInt32} avail={t["availableSize"].AsInt32}  log={info["logFileSize"].AsInt32 / 1024 / 1024} MB";
+            line += $"  cache: segs={c["segments"].AsInt32,3} pages={c["totalPages"].AsInt32,6} ({c["allocatedBytes"].AsInt64 / 1024 / 1024,4} MB) free={c["freePages"].AsInt32,6} readable={c["readablePages"].AsInt32,6} writable={c["writablePages"].AsInt32,5} pinned={c["pinnedPages"].AsInt32,5}  tx: open={t["open"].AsInt32} pages={t["transactionPages"].AsArray.Sum(x => x.AsDocument["pages"].AsInt32)}  log={info["logFileSize"].AsInt32 / 1024 / 1024} MB";
         }
         Console.WriteLine(line);
         return line;

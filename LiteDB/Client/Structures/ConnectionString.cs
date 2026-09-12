@@ -103,11 +103,42 @@ namespace LiteDB
             }
 
             this.InitialSize = _values.GetFileSize(@"initial size", this.InitialSize);
-            this.CacheSize = _values.GetFileSize(@"cache size", this.CacheSize);
+            var hasCacheSize = _values.TryGetValue("cache size", out var cacheSizeText);
+            var cacheSizeMatch = hasCacheSize ?
+                Regex.Match(cacheSizeText, @"^(\d+)\s*([tgmk])?(b|byte|bytes)?$", RegexOptions.IgnoreCase) :
+                null;
+
+            if (hasCacheSize)
+            {
+                if (!cacheSizeMatch.Success)
+                {
+                    throw new LiteException(0, "Invalid `cache size`; expected a non-negative number optionally followed by KB, MB, GB, or TB");
+                }
+
+                try
+                {
+                    var value = Convert.ToInt64(cacheSizeMatch.Groups[1].Value, CultureInfo.InvariantCulture);
+                    var multiplier = cacheSizeMatch.Groups[2].Value.ToLowerInvariant() switch
+                    {
+                        "t" => 1024L * 1024L * 1024L * 1024L,
+                        "g" => 1024L * 1024L * 1024L,
+                        "m" => 1024L * 1024L,
+                        "k" => 1024L,
+                        _ => 1L
+                    };
+                    this.CacheSize = checked(value * multiplier);
+                }
+                catch (OverflowException)
+                {
+                    throw new LiteException(0, "Invalid `cache size`; value is too large");
+                }
+            }
             this.TransactionPageLimit = _values.GetValue("transaction pages", this.TransactionPageLimit);
 
-            if (_values.TryGetValue("cache size", out var cacheSizeText) &&
-                Regex.IsMatch(cacheSizeText, @"^\d+\s*$") &&
+            if (hasCacheSize &&
+                cacheSizeMatch.Groups[2].Success == false &&
+                cacheSizeMatch.Groups[3].Success == false &&
+                this.CacheSize != 0 &&
                 this.CacheSize < 1024L * 1024)
             {
                 throw new LiteException(0, "`cache size` values below 1 MB must include a size unit (for example, `512KB`)");

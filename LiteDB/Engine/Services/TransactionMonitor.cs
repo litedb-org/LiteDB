@@ -22,9 +22,15 @@ namespace LiteDB.Engine
 
         private readonly int _transactionPageLimit;
 
-        // expose open transactions
-        public ICollection<TransactionService> Transactions => _transactions.Values;
         public int TransactionPageLimit => _transactionPageLimit;
+
+        public TransactionService[] GetTransactionsSnapshot()
+        {
+            lock (_transactions)
+            {
+                return _transactions.Values.ToArray();
+            }
+        }
 
         public TransactionMonitor(HeaderPage header, LockService locker, DiskService disk, WalIndexService walIndex, int transactionPageLimit)
         {
@@ -165,14 +171,17 @@ namespace LiteDB.Engine
         /// </summary>
         public void Dispose()
         {
-            if (_transactions.Count > 0)
+            lock (_transactions)
             {
-                foreach (var transaction in _transactions.Values)
+                if (_transactions.Count > 0)
                 {
-                    transaction.Dispose();
-                }
+                    foreach (var transaction in _transactions.Values)
+                    {
+                        transaction.Dispose();
+                    }
 
-                _transactions.Clear();
+                    _transactions.Clear();
+                }
             }
 
             _slot.Dispose();

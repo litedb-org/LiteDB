@@ -12,6 +12,7 @@ namespace LiteDB.Engine
         private IEnumerable<BsonDocument> SysDatabase()
         {
             var version = typeof(LiteEngine).GetTypeInfo().Assembly.GetName().Version;
+            var transactions = _monitor.GetTransactionsSnapshot();
 
             yield return new BsonDocument
             {
@@ -65,10 +66,10 @@ namespace LiteDB.Engine
 
                 ["transactions"] = new BsonDocument
                 {
-                    ["open"] = _monitor.Transactions.Count,
+                    ["open"] = transactions.Length,
                     ["maxOpenTransactions"] = MAX_OPEN_TRANSACTIONS,
                     ["transactionPageLimit"] = _monitor.TransactionPageLimit,
-                    ["pinnedPages"] = new BsonArray(_monitor.Transactions.Select(x => new BsonDocument
+                    ["transactionPages"] = new BsonArray(transactions.Select(x => new BsonDocument
                     {
                         ["transactionID"] = (int)x.TransactionID,
                         ["pages"] = x.Pages.TransactionSize
