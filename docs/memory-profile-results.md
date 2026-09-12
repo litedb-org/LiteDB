@@ -1,5 +1,9 @@
 # Memory profile and latency results
 
+For **RAM savings and performance penalties per profile versus pre-PR dev**,
+see [Memory and performance impact per profile](memory-profile-impact.md).
+The comparison below measures only the subsequent optimization within the PR.
+
 Measured 2026-09-12 on Windows 11 build 26200, AMD Ryzen 9 9955HX,
 32 logical processors. Compare the merged PR revision `6debf0f4` (`before`)
 with the shared-reader and profile changes (`after`). This is a comparison

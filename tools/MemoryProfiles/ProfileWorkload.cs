@@ -19,8 +19,15 @@ internal sealed class ProfileWorkload : IDisposable
         var property = typeof(ConnectionString).GetProperty("MemoryProfile");
         if (property != null) property.SetValue(connection, Enum.Parse(property.PropertyType, report.Profile));
         else if (report.Profile != "Balanced") throw new ArgumentException("This library has no profiles");
-        connection.CacheSize = cacheMiB * 1024L * 1024;
-        if (transactionPages.HasValue) connection.TransactionPageLimit = transactionPages.Value;
+        var cacheProperty = typeof(ConnectionString).GetProperty("CacheSize");
+        if (cacheProperty != null) cacheProperty.SetValue(connection, cacheMiB * 1024L * 1024);
+        else if (cacheMiB != 0) throw new ArgumentException("This library has no cache size setting");
+        if (transactionPages.HasValue)
+        {
+            var transactionProperty = typeof(ConnectionString).GetProperty("TransactionPageLimit")
+                ?? throw new ArgumentException("This library has no transaction page setting");
+            transactionProperty.SetValue(connection, transactionPages.Value);
+        }
         _database = new LiteDatabase(connection);
         _collection = _database.GetCollection("docs");
     }
@@ -41,11 +48,18 @@ internal sealed class ProfileWorkload : IDisposable
         Verify(_collection.Query().OrderBy("$.sort").ToDocuments().Count() == DocumentCount);
         var info = this.DatabaseInfo();
         var cache = info["cache"];
-        Verify(cache["lostFrames"].AsInt64 == 0 && cache["pinnedPages"].AsInt32 == 0);
-        Verify(cache["writablePages"].AsInt32 == 0 && cache["loadingPages"].AsInt32 == 0);
-        Verify(cache["totalPages"].AsInt32 <= cache["limitPagesRounded"].AsInt32);
+        Verify(cache["writablePages"].AsInt32 == 0 && cache["pagesInUse"].AsInt32 == 0);
+        // Pre-PR libraries have no bounded-cache accounting. Preserve their
+        // original policy rather than retrofitting limits into the baseline.
+        if (!cache["limitPagesRounded"].IsNull)
+        {
+            Verify(cache["lostFrames"].AsInt64 == 0 && cache["pinnedPages"].AsInt32 == 0);
+            Verify(cache["loadingPages"].AsInt32 == 0);
+            Verify(cache["totalPages"].AsInt32 <= cache["limitPagesRounded"].AsInt32);
+        }
         _report.Measurements["cache"] = cache.ToString();
-        _report.Measurements["transactionPages"] = info["transactions"]["transactionPageLimit"].AsInt32;
+        _report.Measurements["transactionPages"] = info["transactions"]["transactionPageLimit"].IsNull ?
+            null : (object)info["transactions"]["transactionPageLimit"].AsInt32;
         _report.Measurements["databaseBytes"] = new FileInfo(Path.Combine(_directory, "data.db")).Length;
         GC.Collect();
         GC.WaitForPendingFinalizers();

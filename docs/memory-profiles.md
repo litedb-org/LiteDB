@@ -1,5 +1,8 @@
 # Memory profiles
 
+See [measured RAM savings and performance penalties per profile](memory-profile-impact.md)
+for a common pre-PR baseline and workload-specific tradeoffs.
+
 Profiles provide explicit defaults for a database's cache and transaction budget.
 They do not detect host RAM, reserve their entire cache on open, or change while
 the database is running. `Balanced` preserves the existing defaults.

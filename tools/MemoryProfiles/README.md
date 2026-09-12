@@ -1,8 +1,14 @@
 # Profile and cache-latency measurements
 
+[Per-profile RAM and performance results](../../docs/memory-profile-impact.md)
+compare the current profiles against the same pre-PR baseline.
+
 This runner compares production libraries using the same 100,000-document
-workload. It references a chosen `LiteDB.dll`, so the preceding implementation
-can run unchanged with the `Balanced` profile. The report includes the assembly
+workload. It references a chosen `LiteDB.dll`, so pre-PR and preceding PR libraries
+can run unchanged with the `Balanced` argument. On libraries without profiles,
+this argument selects their original defaults, not a retrofitted memory limit.
+Unavailable transaction thresholds are reported as null, and bounded-cache
+accounting is checked only when the library exposes it. The report includes the assembly
 SHA-256 and runtime. Build the library with `TESTING` disabled.
 
 ```powershell
