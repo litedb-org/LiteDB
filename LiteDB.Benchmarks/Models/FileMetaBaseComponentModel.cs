@@ -1,14 +1,15 @@
 using System;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace LiteDB.Benchmarks.Models
 {
-
-    public class FileMetaBase
+    public class FileMetaBaseComponentModel
     {
-        [BsonIgnore]
+        [NotMapped]
         public const string BsonIdPropertyKey = "_id";
 
-        [BsonId]
+        [Key]
         public virtual string Id => $"{FileId}_{Version}";
 
         public Guid FileId { get; set; }

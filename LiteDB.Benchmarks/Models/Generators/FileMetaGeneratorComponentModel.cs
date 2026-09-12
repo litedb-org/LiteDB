@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace LiteDB.Benchmarks.Models.Generators
 {
-    public static class FileMetaGenerator<T> where T : FileMetaBase, new()
+    public static class FileMetaGeneratorComponentModel<T> where T : FileMetaBaseComponentModel, new()
     {
         private static Random _random;
 
