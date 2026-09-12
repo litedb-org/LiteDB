@@ -239,6 +239,13 @@ namespace LiteDB
         public long AsInt64 => Convert.ToInt64(this.RawValue);
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        internal ulong AsUInt64 => this.IsDouble
+            ? Convert.ToUInt64(this.AsDouble)
+            : this.IsDecimal
+                ? checked((UInt64)this.AsDecimal)
+                : unchecked((UInt64)this.AsInt64);
+
+        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         public double AsDouble => Convert.ToDouble(this.RawValue);
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
@@ -364,16 +371,20 @@ namespace LiteDB
             return new BsonValue(value);
         }
 
-        // UInt64 (to avoid ambigous between Double-Decimal)
+        // UInt64 is stored as Int64 now, but legacy direct writes used Double.
+        // Keep both readable so old files do not need a rewrite just to load values.
         public static implicit operator UInt64(BsonValue value)
         {
-            return (UInt64)value.RawValue;
+            return value.AsUInt64;
         }
 
-        // Decimal
+        // Preserve the existing Int64 representation while it is unambiguous.
+        // Decimal stores the high half without colliding with negative Int64 keys.
         public static implicit operator BsonValue(UInt64 value)
         {
-            return new BsonValue((Double)value);
+            return value <= Int64.MaxValue
+                ? new BsonValue((Int64)value)
+                : new BsonValue((Decimal)value);
         }
 
         // String

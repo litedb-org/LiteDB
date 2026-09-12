@@ -64,7 +64,35 @@ namespace LiteDB
         {
             if (id == null || id.IsNull) throw new ArgumentNullException(nameof(id));
 
+            if (IsLegacyUInt64IdLookup(id))
+            {
+                var legacyId = new BsonValue((double)id.AsUInt64);
+
+                // Keep both representations in one engine query so a concurrent
+                // update cannot slip between two different snapshots.
+                return this.Find(BsonExpression.Create(
+                    "_id = @0 OR _id = @1",
+                    id,
+                    legacyId)).FirstOrDefault();
+            }
+
             return this.Find(BsonExpression.Create("_id = @0", id)).FirstOrDefault();
+        }
+
+        private bool IsLegacyUInt64IdLookup(BsonValue id)
+        {
+            if (_id != null)
+            {
+                var idType = Nullable.GetUnderlyingType(_id.DataType) ?? _id.DataType;
+
+                return idType == typeof(UInt64);
+            }
+
+            // Raw BsonDocument collections have no declared ID type. A
+            // non-negative integer/decimal can be an upgraded UInt64 lookup;
+            // query both current and legacy BSON representations atomically.
+            return id.IsInt64 && id.AsInt64 >= 0 ||
+                id.IsDecimal && id.AsDecimal >= 0 && id.AsDecimal <= UInt64.MaxValue;
         }
 
         /// <summary>
