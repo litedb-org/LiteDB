@@ -21,6 +21,12 @@ namespace LiteDB.Engine
         /// </summary>
         private readonly ConcurrentQueue<PageBuffer> _free = new ConcurrentQueue<PageBuffer>();
 
+#if NET9_0_OR_GREATER
+        private readonly System.Threading.Lock _extendLock = new System.Threading.Lock();
+#else
+        private readonly object _extendLock = new object();
+#endif
+
         /// <summary>
         /// Contains only clean pages (from both data/log file) - support page concurrency use
         /// - MUST have defined Origin and Position
@@ -280,7 +286,7 @@ namespace LiteDB.Engine
             else
             {
                 // ensure only 1 single thread call extend method
-                lock(_free)
+                lock (_extendLock)
                 {
                     if (_free.Count > 0) return this.GetFreePage();
 
