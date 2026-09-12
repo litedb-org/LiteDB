@@ -130,7 +130,8 @@ parameterized helpers as a later compatibility decision.
 - [ ] Reject malformed/negative `cache size` text while continuing to accept
   explicit zero as the storage-specific-default sentinel.
 - [ ] Update Appendix A's diagnostics example to the implemented schema.
-- [ ] Decide whether to optimize the global cache lock before merge; measured
-  shared-reader throughput is 21-38% lower at 4-16 readers on the benchmark host.
+- [ ] Profile and decide whether to optimize shared-reader contention before
+  merge; measured throughput is 21-38% lower at 4-16 readers on the benchmark
+  host, but the exact bottleneck has not yet been attributed.
 - [ ] Obtain required maintainer review after every correctness item above is
   fixed and the updated head is green.

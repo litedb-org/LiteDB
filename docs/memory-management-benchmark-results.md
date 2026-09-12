@@ -27,8 +27,10 @@ absolute performance claims.
   scan timings compare LiteDB cache behavior rather than physical cold-storage
   latency.
 - Lower is better for every table except throughput. Small timing differences
-  should be treated as noise; the large retained-memory differences are exact
-  consequences of the number of allocated 8 KiB frames.
+  should be treated as noise. The `cache allocated` values follow exactly from
+  the reported number of allocated 8 KiB frames; managed-heap and working-set
+  values are observed process-level measurements without an allocation
+  breakdown.
 
 ## Retained memory
 
@@ -61,11 +63,12 @@ growing once the combined 1,000-entry limit is reached.
 | Integer index build, 120k documents | 1.621 s | 1.974 s | +21.8% |
 | Vector index build, 5k documents | 8.117 s | 8.515 s | +4.9% |
 | Vector top-20 search, 5k documents | 0.526 ms | 0.539 ms | +2.5% |
-| Compile/execute 50k distinct expressions | 10.520 s | 10.293 s | **-2.2%** |
+| Compile/execute 50k distinct expressions | 10.520 s | 10.293 s | -2.2% (neutral) |
 
 The repeated-scan result is the expected cost of no longer retaining a database
-larger than the configured cache. The expression-cache cap slightly improves
-runtime while removing essentially all of that workload's retained growth.
+larger than the configured cache. The 2.2% expression timing difference is
+within measurement noise; the meaningful result is the removal of essentially
+all retained growth from that workload.
 
 ## Shared-reader scaling
 
@@ -81,8 +84,9 @@ better.
 | 8 | 7.828 us/op | 12.556 us/op | +60.4% | -37.7% |
 | 16 | 12.243 us/op | 19.166 us/op | +56.6% | -36.1% |
 
-Single-reader behavior is unchanged, but the one-lock cache design becomes the
-dominant open performance issue at four or more concurrent readers.
+Single-reader behavior is unchanged, while latency rises materially at four or
+more concurrent readers. This is consistent with contention in the new
+single-lock cache, but lock profiling is still required to attribute the cause.
 
 ## Cache-size sensitivity
 
@@ -97,10 +101,11 @@ allocated value includes segment rounding. `dev` has no limit setting.
 | PR, 256 MiB target | 162.06 MiB | 165.46 MiB | 229.05 MiB | 350.0 ms | +1.2% |
 
 When the target can hold this 161.94 MiB database, repeated-scan performance is
-within 1.2% of the old unbounded cache while segment packing still avoids about
-7.17 MiB of unused cache allocation. For sequential scans with little reuse,
-the 8 and 64 MiB settings have similar throughput, while 8 MiB retains another
-55.9 MiB less managed memory.
+within 1.2% of the old unbounded cache. The measured cache allocation is 918
+frames (7.17 MiB) lower than `dev`; the benchmark does not separately attribute
+that difference to segment slack or another cause. For sequential scans with
+little reuse, the 8 and 64 MiB settings have similar throughput, while 8 MiB
+retains another 55.9 MiB less managed memory.
 
 ## Conclusions and open performance work
 
@@ -114,10 +119,11 @@ the 8 and 64 MiB settings have similar throughput, while 8 MiB retains another
 - The bounded default necessarily gives up the old engine's full-database cache
   advantage. Users whose working set fits in memory can select a larger
   `CacheSize`; 256 MiB restores this scan case to practical parity.
-- The global cache lock needs follow-up optimization before claiming neutral
-  highly-concurrent read performance. Candidate work is reducing the locked
-  section or sharding lookup/pin bookkeeping while retaining atomic frame
-  publication and eviction.
+- The shared-reader regression needs profiling before claiming neutral
+  highly-concurrent read performance. If lock profiling confirms the cache lock
+  as the bottleneck, candidate work is reducing its critical section or
+  sharding lookup/pin bookkeeping while retaining atomic frame publication and
+  eviction.
 - Follow-up benchmark coverage should add per-lookup p50/p99 distributions,
   .NET 10, ARM64, slow storage, and longer mixed read/write runs. These are
   performance-characterization gaps, not evidence of unbounded retention.
