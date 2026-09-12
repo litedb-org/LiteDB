@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -16,7 +17,7 @@ namespace LiteDB.Engine
         private readonly Stream _stream;
         private readonly string _password;
         private readonly bool _ownsStream;
-        private bool _disposed;
+        private int _disposed;
 
         public StreamFactory(Stream stream, string password, bool ownsStream = false)
         {
@@ -106,8 +107,7 @@ namespace LiteDB.Engine
 
         public void Dispose()
         {
-            if (_disposed) return;
-            _disposed = true;
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
             if (_ownsStream) _stream.Dispose();
         }
