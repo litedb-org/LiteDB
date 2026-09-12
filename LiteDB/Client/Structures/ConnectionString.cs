@@ -70,11 +70,7 @@ namespace LiteDB
             if (string.IsNullOrEmpty(connectionString)) throw new ArgumentNullException(nameof(connectionString));
 
             // create a dictionary from string name=value collection
-            if (connectionString.Contains("="))
-            {
-                _values.ParseKeyValue(connectionString);
-            }
-            else
+            if (TryParseKeyValueConnectionString(connectionString, _values) == false)
             {
                 _values["filename"] = connectionString;
             }
@@ -97,6 +93,48 @@ namespace LiteDB
 
             this.Upgrade = _values.GetValue("upgrade", this.Upgrade);
             this.AutoRebuild = _values.GetValue("auto-rebuild", this.AutoRebuild);
+        }
+
+        private static bool TryParseKeyValueConnectionString(string connectionString, Dictionary<string, string> values)
+        {
+            if (LooksLikeKeyValueConnectionString(connectionString) == false)
+            {
+                return false;
+            }
+
+            var parsed = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            parsed.ParseKeyValue(connectionString);
+
+            foreach (var item in parsed)
+            {
+                values[item.Key] = item.Value;
+            }
+
+            return true;
+        }
+
+        private static bool LooksLikeKeyValueConnectionString(string connectionString)
+        {
+            var equals = connectionString.IndexOf('=');
+            if (equals == -1) return false;
+
+            var firstKey = connectionString.Substring(0, equals).Trim();
+
+            // A directory component before '=' identifies an ordinary path.
+            if (firstKey.IndexOf('/') >= 0 || firstKey.IndexOf('\\') >= 0 || firstKey.IndexOf(':') >= 0)
+            {
+                return false;
+            }
+
+            return connectionString.IndexOf(';') >= 0 ||
+                firstKey.Equals("filename", StringComparison.OrdinalIgnoreCase) ||
+                firstKey.Equals("connection", StringComparison.OrdinalIgnoreCase) ||
+                firstKey.Equals("password", StringComparison.OrdinalIgnoreCase) ||
+                firstKey.Equals("initial size", StringComparison.OrdinalIgnoreCase) ||
+                firstKey.Equals("readonly", StringComparison.OrdinalIgnoreCase) ||
+                firstKey.Equals("upgrade", StringComparison.OrdinalIgnoreCase) ||
+                firstKey.Equals("auto-rebuild", StringComparison.OrdinalIgnoreCase) ||
+                firstKey.Equals("collation", StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
