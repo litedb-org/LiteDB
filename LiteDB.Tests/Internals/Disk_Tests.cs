@@ -106,6 +106,66 @@ namespace LiteDB.Internals
             disk.Cache.PinnedPages.Should().Be(0);
         }
 
+        [Theory]
+        [InlineData(null)]
+        [InlineData("secret")]
+        public void WriteLogDisk_WriteThrows_RollsBackPublicationAndReservation(string password)
+        {
+            using var disk = CreateDisk(out var state, password);
+            var failed = disk.NewPage();
+            failed.Fill(1);
+            state.SimulateDiskWriteFail = _ => throw new IOException("write failed");
+
+            Action write = () => disk.WriteLogDisk(new[] { failed });
+            write.Should().Throw<IOException>().WithMessage("write failed");
+
+            Action lookup = () => disk.Cache.GetReadablePage(
+                0,
+                FileOrigin.Log,
+                (_, __) => throw new IOException("failed position is not cached"));
+            lookup.Should().Throw<IOException>().WithMessage("failed position is not cached");
+
+            state.SimulateDiskWriteFail = null;
+            var replacement = disk.NewPage();
+            replacement.Fill(2);
+            disk.WriteLogDisk(new[] { replacement });
+
+            replacement.Position.Should().Be(0);
+            disk.GetFileLength(FileOrigin.Log).Should().Be(PAGE_SIZE);
+            var read = disk.GetReader().ReadPage(0, false, FileOrigin.Log);
+            read.All(2).Should().BeTrue();
+            read.Release();
+            disk.Cache.PinnedPages.Should().Be(0);
+        }
+
+        [Fact]
+        public void WriteLogDisk_PartialStreamWrite_RestoresPhysicalLength()
+        {
+            using var log = new PartialWriteFailureStream();
+            var settings = new EngineSettings
+            {
+                DataStream = new MemoryStream(),
+                LogStream = log,
+                CacheSize = PAGE_SIZE * 20L
+            };
+            using var disk = new DiskService(settings, new EngineState(null, settings), new[] { 2 });
+            var failed = disk.NewPage();
+            log.FailNextWrite = true;
+
+            Action write = () => disk.WriteLogDisk(new[] { failed });
+
+            write.Should().Throw<IOException>().WithMessage("partial write failed");
+            log.Length.Should().Be(0);
+            disk.GetFileLength(FileOrigin.Log).Should().Be(0);
+
+            var replacement = disk.NewPage();
+            replacement.Fill(3);
+            disk.WriteLogDisk(new[] { replacement });
+
+            replacement.Position.Should().Be(0);
+            log.Length.Should().Be(PAGE_SIZE);
+        }
+
         [Fact]
         public void WriteLogDisk_PublicationCollision_DiscardsWritableFrame()
         {
@@ -122,17 +182,35 @@ namespace LiteDB.Internals
             disk.Cache.PinnedPages.Should().Be(0);
         }
 
-        private static DiskService CreateDisk(out EngineState state)
+        private static DiskService CreateDisk(out EngineState state, string password = null)
         {
             var settings = new EngineSettings
             {
                 DataStream = new MemoryStream(),
                 LogStream = new MemoryStream(),
+                Password = password,
                 CacheSize = PAGE_SIZE * 20L
             };
 
             state = new EngineState(null, settings);
             return new DiskService(settings, state, new[] { 2 });
+        }
+
+        private sealed class PartialWriteFailureStream : MemoryStream
+        {
+            public bool FailNextWrite { get; set; }
+
+            public override void Write(byte[] buffer, int offset, int count)
+            {
+                if (this.FailNextWrite)
+                {
+                    this.FailNextWrite = false;
+                    base.Write(buffer, offset, count / 2);
+                    throw new IOException("partial write failed");
+                }
+
+                base.Write(buffer, offset, count);
+            }
         }
 
         [Fact (Skip = "Verificar loop")]

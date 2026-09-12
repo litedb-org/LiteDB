@@ -180,6 +180,9 @@ namespace LiteDB.Engine
                 {
                     ENSURE(page.ShareCounter == BUFFER_WRITABLE, "to enqueue page, page must be writable");
 
+                    var previousLogLength = _logLength;
+                    var previousStreamLength = stream.Length;
+
                     // adding this page into file AS new page (at end of file)
                     // must add into cache to be sure that new readers can see this page
                     page.Position = Interlocked.Add(ref _logLength, PAGE_SIZE);
@@ -192,19 +195,17 @@ namespace LiteDB.Engine
 
                     try
                     {
-                        // Publish inside the guarded scope: collision or other
-                        // publication failures must return the writable frame.
-                        readable = _cache.MoveToReadable(page);
-
-                        // Use the published frame for every operation. It remains
-                        // pinned until the write and callback are both complete.
-                        stream.Position = readable.Position;
+                        stream.Position = page.Position;
 
 #if DEBUG || TESTING
-                        _state.SimulateDiskWriteFail?.Invoke(readable);
+                        _state.SimulateDiskWriteFail?.Invoke(page);
 #endif
 
-                        stream.Write(readable.Array, readable.Offset, PAGE_SIZE);
+                        stream.Write(page.Array, page.Offset, PAGE_SIZE);
+
+                        // Publish only after the bytes are durable in the stream.
+                        // The callback can make the position visible to readers.
+                        readable = _cache.MoveToReadable(page);
 
                         var pageID = readable.ReadUInt32(BasePage.P_PAGE_ID);
                         written?.Invoke(pageID, readable.Position);
@@ -213,9 +214,15 @@ namespace LiteDB.Engine
                     }
                     catch
                     {
+                        // Before publication no reader can own this frame. Undo
+                        // both the cache frame and the append reservation so a
+                        // later write reuses the failed position without a gap.
                         if (readable == null && page.State == FrameState.Writable)
                         {
                             _cache.DiscardPage(page);
+                            Interlocked.Exchange(ref _logLength, previousLogLength);
+                            stream.SetLength(previousStreamLength);
+                            _logFactory.TrimCapacity(stream);
                         }
 
                         throw;
