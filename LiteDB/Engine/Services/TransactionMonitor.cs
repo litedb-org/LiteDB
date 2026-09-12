@@ -22,6 +22,9 @@ namespace LiteDB.Engine
 
         private readonly int _transactionPageLimit;
 
+        // Kept for internal diagnostics and repro compatibility. Return a copy
+        // so callers cannot enumerate the live dictionary without its lock.
+        public ICollection<TransactionService> Transactions => this.GetTransactionsSnapshot();
         public int TransactionPageLimit => _transactionPageLimit;
 
         public TransactionService[] GetTransactionsSnapshot()
