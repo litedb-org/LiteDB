@@ -50,6 +50,7 @@ public class Issue2458_Tests
     private void AddTestFile(string id, long length, ILiteStorage<string> fs)
     {
         using Stream writeStream = fs.OpenWrite(id, id);
-        writeStream.Write(new byte[length]);
+        var buffer = new byte[length];
+        writeStream.Write(buffer, 0, buffer.Length);
     }
 }

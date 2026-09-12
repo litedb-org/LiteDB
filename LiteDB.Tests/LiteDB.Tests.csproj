@@ -1,7 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <LiteDBTestsEnableNet10 Condition="'$(LiteDBTestsEnableNet10)' == ''">false</LiteDBTestsEnableNet10>
+    <TargetFrameworks>net461;net481;net8.0</TargetFrameworks>
+    <TargetFrameworks Condition="'$(LiteDBTestsEnableNet10)' == 'true'">$(TargetFrameworks);net10.0</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
     <AssemblyName>LiteDB.Tests</AssemblyName>
     <RootNamespace>LiteDB.Tests</RootNamespace>
     <Authors>Maurício David</Authors>
@@ -9,6 +12,10 @@
     <NeutralLanguage>en-US</NeutralLanguage>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <NoWarn>1701;1702;1705;1591;0618</NoWarn>
+    <DefineConstants Condition="'$(TargetFrameworkIdentifier)' == '.NETFramework'">$(DefineConstants);NETFRAMEWORK</DefineConstants>
+    <DefineConstants Condition="'$(TargetFramework)' == 'net461'">$(DefineConstants);NETFRAMEWORK</DefineConstants>
+    <DefineConstants Condition="'$(TargetFramework)' == 'net481'">$(DefineConstants);NETFRAMEWORK</DefineConstants>
+    <DefineConstants>$(DefineConstants);TESTING</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
@@ -32,14 +39,25 @@
   <ItemGroup>
     <PackageReference Include="FluentAssertions" Version="6.12.2" />
     <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" Condition="'$(TargetFrameworkIdentifier)' != '.NETFramework'" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.0.0" Condition="'$(TargetFramework)' == 'net481'" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.11.0" Condition="'$(TargetFramework)' == 'net461'" />
+    <PackageReference Include="System.Text.Json" Version="9.0.9" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.console" Version="2.9.2">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="xunit.runner.reporters" Version="2.9.2" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" Condition="'$(TargetFrameworkIdentifier)' != '.NETFramework'">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.4.5" Condition="'$(TargetFramework)' == 'net481'">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.4.3" Condition="'$(TargetFramework)' == 'net461'">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>

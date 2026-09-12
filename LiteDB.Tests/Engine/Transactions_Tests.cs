@@ -17,7 +17,7 @@ namespace LiteDB.Tests.Engine
     public class Transactions_Tests
     {
         const int MIN_CPU_COUNT = 2;
-        
+
         [CpuBoundFact(MIN_CPU_COUNT)]
         public async Task Transaction_Write_Lock_Timeout()
         {
@@ -75,7 +75,7 @@ namespace LiteDB.Tests.Engine
             }
         }
 
-        
+
         [CpuBoundFact(MIN_CPU_COUNT)]
         public async Task Transaction_Avoid_Dirty_Read()
         {
@@ -135,7 +135,7 @@ namespace LiteDB.Tests.Engine
                 await Task.WhenAll(ta, tb);
             }
         }
-       
+
 
         [CpuBoundFact(MIN_CPU_COUNT)]
         public async Task Transaction_Read_Version()
@@ -233,6 +233,19 @@ namespace LiteDB.Tests.Engine
             }
         }
 
+        [CpuBoundFact(MIN_CPU_COUNT)]
+        public void Test_Transaction_Finalizer()
+        {
+            var db = new LiteDatabase(new MemoryStream());
+            db.BeginTrans();
+
+            GC.Collect(0, GCCollectionMode.Forced);
+
+            // Finalizer should not throw exception
+            // If it does, it will be an unhandled exception
+            GC.WaitForPendingFinalizers();
+        }
+
 #if DEBUG || TESTING
         [Fact]
         public void Transaction_Rollback_Should_Skip_ReadOnly_Buffers_From_Safepoint()
@@ -252,7 +265,7 @@ namespace LiteDB.Tests.Engine
             }
 
             var engine = GetLiteEngine(db);
-            var monitor = engine.GetMonitor();
+            var monitor = GetTransactionMonitor(engine);
             var transaction = monitor.GetThreadTransaction();
 
             transaction.Should().NotBeNull();
@@ -314,7 +327,7 @@ namespace LiteDB.Tests.Engine
             }
 
             var engine = GetLiteEngine(db);
-            var monitor = engine.GetMonitor();
+            var monitor = GetTransactionMonitor(engine);
             var transaction = monitor.GetThreadTransaction();
 
             transaction.Should().NotBeNull();
@@ -339,9 +352,9 @@ namespace LiteDB.Tests.Engine
 
         private class BlockingStream : MemoryStream
         {
-            public readonly AutoResetEvent   Blocked       = new AutoResetEvent(false);
+            public readonly AutoResetEvent Blocked = new AutoResetEvent(false);
             public readonly ManualResetEvent ShouldUnblock = new ManualResetEvent(false);
-            public          bool             ShouldBlock;
+            public bool ShouldBlock;
 
             public override void Write(byte[] buffer, int offset, int count)
             {
@@ -358,10 +371,10 @@ namespace LiteDB.Tests.Engine
         [CpuBoundFact(MIN_CPU_COUNT)]
         public void Test_Transaction_ReleaseWhenFailToStart()
         {
-            var    blockingStream             = new BlockingStream();
-            var    db                         = new LiteDatabase(blockingStream);
+            var blockingStream = new BlockingStream();
+            var db = new LiteDatabase(blockingStream);
             SetEngineTimeout(db, TimeSpan.FromMilliseconds(50));
-            Thread lockerThread               = null;
+            Thread lockerThread = null;
             try
             {
                 lockerThread = new Thread(() =>
@@ -399,6 +412,26 @@ namespace LiteDB.Tests.Engine
             return engine;
         }
 
+        private static TransactionMonitor GetTransactionMonitor(LiteEngine engine)
+        {
+            var getter = typeof(LiteEngine).GetMethod("GetMonitor", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+
+            if (getter != null && getter.ReturnType == typeof(TransactionMonitor))
+            {
+                return (TransactionMonitor)(getter.Invoke(engine, Array.Empty<object>()) ?? throw new InvalidOperationException("LiteEngine monitor accessor returned null."));
+            }
+
+            var monitorField = typeof(LiteEngine).GetField("_monitor", BindingFlags.Instance | BindingFlags.NonPublic)
+                               ?? throw new InvalidOperationException("Unable to locate LiteEngine monitor field.");
+
+            if (monitorField.GetValue(engine) is not TransactionMonitor monitor)
+            {
+                throw new InvalidOperationException("LiteEngine monitor instance is not available.");
+            }
+
+            return monitor;
+        }
+
         private static void SetMonitorFreePages(TransactionMonitor monitor, int value)
         {
             var freePagesField = typeof(TransactionMonitor).GetField("_freePages", BindingFlags.Instance | BindingFlags.NonPublic)
@@ -412,11 +445,11 @@ namespace LiteDB.Tests.Engine
             var engine = GetLiteEngine(database);
 
             var headerField = typeof(LiteEngine).GetField("_header", BindingFlags.Instance | BindingFlags.NonPublic);
-            var header      = headerField?.GetValue(engine) ?? throw new InvalidOperationException("LiteEngine header not available.");
+            var header = headerField?.GetValue(engine) ?? throw new InvalidOperationException("LiteEngine header not available.");
             var pragmasProp = header.GetType().GetProperty("Pragmas", BindingFlags.Instance | BindingFlags.Public) ?? throw new InvalidOperationException("Engine pragmas not accessible.");
-            var pragmas     = pragmasProp.GetValue(header) ?? throw new InvalidOperationException("Engine pragmas not available.");
+            var pragmas = pragmasProp.GetValue(header) ?? throw new InvalidOperationException("Engine pragmas not available.");
             var timeoutProp = pragmas.GetType().GetProperty("Timeout", BindingFlags.Instance | BindingFlags.Public) ?? throw new InvalidOperationException("Timeout property not found.");
-            var setter      = timeoutProp.GetSetMethod(true) ?? throw new InvalidOperationException("Timeout setter not accessible.");
+            var setter = timeoutProp.GetSetMethod(true) ?? throw new InvalidOperationException("Timeout setter not accessible.");
 
             setter.Invoke(pragmas, new object[] { timeout });
         }

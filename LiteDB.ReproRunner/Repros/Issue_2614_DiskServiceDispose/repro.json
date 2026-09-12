@@ -9,5 +9,6 @@
   "sharedDatabaseKey": "issue2614-disk",
   "args": [],
   "tags": ["disk", "rlimit", "platform:unix"],
+  "supports": ["linux"],
   "state": "red"
 }

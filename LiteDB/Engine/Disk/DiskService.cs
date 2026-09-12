@@ -202,6 +202,7 @@ namespace LiteDB.Engine
 
                     count++;
                 }
+                stream.Flush();
             }
 
             return count;

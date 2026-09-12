@@ -4,64 +4,9 @@ on:
   pull_request:
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up .NET SDK
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 8.0.x
-
-      - name: Restore
-        run: dotnet restore LiteDB.sln
-
-      - name: Build
-        run: dotnet build LiteDB.sln --configuration Release --no-restore /p:DefineConstants=TESTING
-
-      - name: Test
-        timeout-minutes: 5
-        run: dotnet test LiteDB.sln --configuration Release --no-build --verbosity normal --settings tests.runsettings --logger "trx;LogFileName=TestResults.trx" --logger "console;verbosity=detailed" /p:DefineConstants=TESTING
+  build-and-test:
+    uses: ./.github/workflows/_reusable-ci.yml
 
   repro-runner:
-    runs-on: ubuntu-latest
-    needs: build
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up .NET SDK
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 8.0.x
-
-      - name: Restore
-        run: dotnet restore LiteDB.sln
-
-      - name: Build
-        run: dotnet build LiteDB.sln --configuration Release --no-restore
-
-      - name: List repros
-        run: dotnet run --project LiteDB.ReproRunner/LiteDB.ReproRunner.Cli -- list --strict
-
-      - name: Validate manifests
-        run: dotnet run --project LiteDB.ReproRunner/LiteDB.ReproRunner.Cli -- validate
-
-      # Execute every repro and emit a JSON summary that downstream automation can inspect.
-      - name: Run repro suite
-        run: dotnet run --project LiteDB.ReproRunner/LiteDB.ReproRunner.Cli -- run --all --report repro-summary.json
-
-      # Publish the summary so other jobs or manual reviewers can review the latest outcomes.
-      - name: Upload repro summary
-        uses: actions/upload-artifact@v4
-        with:
-          name: repro-summary
-          path: repro-summary.json
+    uses: ./.github/workflows/reprorunner.yml
+    secrets: inherit

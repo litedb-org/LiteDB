@@ -1,3 +1,7 @@
+using System.IO;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using LiteDB.ReproRunner.Cli.Infrastructure;
 using LiteDB.ReproRunner.Cli.Manifests;
 using Spectre.Console;
@@ -33,12 +37,39 @@ internal sealed class ListCommand : Command<ListCommandSettings>
         var manifests = repository.Discover();
         var valid = manifests.Where(x => x.IsValid).ToList();
         var invalid = manifests.Where(x => !x.IsValid).ToList();
+        Regex? filter = null;
 
-        CliOutput.PrintList(_console, valid);
-
-        foreach (var repro in invalid)
+        if (!string.IsNullOrWhiteSpace(settings.Filter))
         {
-            CliOutput.PrintInvalid(_console, repro);
+            try
+            {
+                filter = new Regex(settings.Filter, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+            }
+            catch (ArgumentException ex)
+            {
+                _console.MarkupLine($"[red]Invalid --filter pattern[/]: {Markup.Escape(ex.Message)}");
+                return 1;
+            }
+        }
+
+        if (filter is not null)
+        {
+            valid = valid.Where(repro => MatchesFilter(repro, filter)).ToList();
+            invalid = invalid.Where(repro => MatchesFilter(repro, filter)).ToList();
+        }
+
+        if (settings.Json)
+        {
+            WriteJson(_console, valid, invalid);
+        }
+        else
+        {
+            CliOutput.PrintList(_console, valid);
+
+            foreach (var repro in invalid)
+            {
+                CliOutput.PrintInvalid(_console, repro);
+            }
         }
 
         if (settings.Strict && invalid.Count > 0)
@@ -47,5 +78,70 @@ internal sealed class ListCommand : Command<ListCommandSettings>
         }
 
         return 0;
+    }
+
+    private static bool MatchesFilter(DiscoveredRepro repro, Regex filter)
+    {
+        var identifier = repro.Manifest?.Id ?? repro.RawId ?? repro.RelativeManifestPath;
+        return identifier is not null && filter.IsMatch(identifier);
+    }
+
+    private static void WriteJson(IAnsiConsole console, IReadOnlyList<DiscoveredRepro> valid, IReadOnlyList<DiscoveredRepro> invalid)
+    {
+        var validEntries = valid
+            .Where(item => item.Manifest is not null)
+            .Select(item => item.Manifest!)
+            .Select(manifest =>
+            {
+                var supports = manifest.Supports.Count > 0 ? manifest.Supports : new[] { "any" };
+                object? os = null;
+
+                if (manifest.OsConstraints is not null &&
+                    (manifest.OsConstraints.IncludePlatforms.Count > 0 ||
+                     manifest.OsConstraints.IncludeLabels.Count > 0 ||
+                     manifest.OsConstraints.ExcludePlatforms.Count > 0 ||
+                     manifest.OsConstraints.ExcludeLabels.Count > 0))
+                {
+                    os = new
+                    {
+                        includePlatforms = manifest.OsConstraints.IncludePlatforms,
+                        includeLabels = manifest.OsConstraints.IncludeLabels,
+                        excludePlatforms = manifest.OsConstraints.ExcludePlatforms,
+                        excludeLabels = manifest.OsConstraints.ExcludeLabels
+                    };
+                }
+
+                return new
+                {
+                    name = manifest.Id,
+                    supports,
+                    os
+                };
+            })
+            .ToList();
+
+        var invalidEntries = invalid
+            .Select(item => new
+            {
+                name = item.Manifest?.Id ?? item.RawId ?? item.RelativeManifestPath.Replace(Path.DirectorySeparatorChar, '/'),
+                errors = item.Validation.Errors.ToArray()
+            })
+            .Where(entry => entry.errors.Length > 0)
+            .ToList();
+
+        var payload = new
+        {
+            repros = validEntries,
+            invalid = invalidEntries.Count > 0 ? invalidEntries : null
+        };
+
+        var options = new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        };
+
+        var json = JsonSerializer.Serialize(payload, options);
+        console.WriteLine(json);
     }
 }
