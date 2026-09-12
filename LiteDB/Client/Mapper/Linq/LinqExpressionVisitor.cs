@@ -32,7 +32,9 @@ namespace LiteDB
             [typeof(Regex)] = new RegexResolver(),
             [typeof(ObjectId)] = new ObjectIdResolver(),
             [typeof(String)] = new StringResolver(),
-            [typeof(Nullable)] = new NullableResolver()
+            [typeof(Nullable)] = new NullableResolver(),
+            [typeof(LiteDB.Spatial.Spatial)] = new SpatialResolver(),
+            [typeof(LiteDB.SpatialExpressions)] = new SpatialResolver()
         };
 
         private readonly BsonMapper _mapper;
