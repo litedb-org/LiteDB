@@ -45,7 +45,7 @@ than one 923-line implementation. This is not a lock-free page-cache claim.
 ## Measurements
 
 These are acceptance samples, not a statistical performance guarantee. CPU
-scheduling, JIT, GC, and the OS page cache affect individual runs. ìWarm scanî is
+scheduling, JIT, GC, and the OS page cache affect individual runs. ‚ÄúWarm scan‚Äù is
 the second scan after checkpoint; the OS cache is not flushed. There are 2,000
 lookup samples per worker and 100 release samples, so release p99 is noisy.
 Vector timings include validation of returned IDs and vector contents.
@@ -116,6 +116,10 @@ not repaired by the memory-lifecycle correction; vector persistence and content
 checks still run.
 
 ## Verification
+
+The later ownership audit and current verification results are recorded in
+[`memory-lifecycle-audit.md`](memory-lifecycle-audit.md). The measurements and
+test counts below describe revision 6 before those additional corrections.
 
 The full solution Release build succeeds for all configured targets. Both .NET 8
 and .NET 10 pass 433 tests with 7 skipped. The 86-test focused concurrency/memory

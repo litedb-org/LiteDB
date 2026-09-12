@@ -2,11 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
-using static LiteDB.Constants;
 
 namespace LiteDB.Engine
 {
@@ -21,13 +17,14 @@ namespace LiteDB.Engine
         private readonly ConcurrentBag<Stream> _pool = new ConcurrentBag<Stream>();
         private readonly Lazy<Stream> _writer;
         private readonly IStreamFactory _factory;
+        private Stream _createdWriter;
         private int _disposed;
 
         public StreamPool(IStreamFactory factory, bool appendOnly)
         {
             _factory = factory;
 
-            _writer = new Lazy<Stream>(() => _factory.GetStream(true, appendOnly), true);
+            _writer = new Lazy<Stream>(() => this.CreateWriter(appendOnly), true);
         }
 
         /// <summary>
@@ -40,11 +37,17 @@ namespace LiteDB.Engine
         /// </summary>
         public Stream Rent()
         {
+            this.ThrowIfDisposed();
             if (!_pool.TryTake(out var stream))
             {
                 stream = _factory.GetStream(false, false);
             }
 
+            if (Volatile.Read(ref _disposed) != 0)
+            {
+                if (_factory.CloseOnDispose) stream.Dispose();
+                throw new ObjectDisposedException(nameof(StreamPool));
+            }
             return stream;
         }
 
@@ -54,6 +57,43 @@ namespace LiteDB.Engine
         public void Return(Stream stream)
         {
             _pool.Add(stream);
+            // Either Dispose drains this return, or we observe it and drain.
+            // The bag transfers ownership to exactly one of those callers.
+            if (Volatile.Read(ref _disposed) != 0)
+            {
+                var errors = new List<Exception>();
+                this.DrainReaders(errors);
+                if (errors.Count > 0) throw new AggregateException(errors);
+            }
+        }
+
+        private Stream CreateWriter(bool appendOnly)
+        {
+            this.ThrowIfDisposed();
+            var stream = _factory.GetStream(true, appendOnly);
+            Interlocked.Exchange(ref _createdWriter, stream);
+            // Lazy.IsValueCreated is still false inside this callback. Publish
+            // ownership separately so concurrent disposal cannot miss the writer.
+            if (Volatile.Read(ref _disposed) != 0)
+            {
+                var abandoned = Interlocked.Exchange(ref _createdWriter, null);
+                if (_factory.CloseOnDispose) abandoned?.Dispose();
+                throw new ObjectDisposedException(nameof(StreamPool));
+            }
+            return stream;
+        }
+
+        private void ThrowIfDisposed()
+        {
+            if (Volatile.Read(ref _disposed) != 0) throw new ObjectDisposedException(nameof(StreamPool));
+        }
+
+        private void DrainReaders(ICollection<Exception> errors)
+        {
+            while (_pool.TryTake(out var stream))
+            {
+                if (_factory.CloseOnDispose) TryDispose(stream, errors);
+            }
         }
 
         /// <summary>
@@ -65,18 +105,9 @@ namespace LiteDB.Engine
 
             var errors = new List<Exception>();
 
-            if (_factory.CloseOnDispose)
-            {
-                while (_pool.TryTake(out var stream))
-                {
-                    TryDispose(stream, errors);
-                }
-
-                if (_writer.IsValueCreated)
-                {
-                    TryDispose(_writer.Value, errors);
-                }
-            }
+            this.DrainReaders(errors);
+            var writer = Interlocked.Exchange(ref _createdWriter, null);
+            if (_factory.CloseOnDispose && writer != null) TryDispose(writer, errors);
 
             TryDispose(_factory, errors);
 

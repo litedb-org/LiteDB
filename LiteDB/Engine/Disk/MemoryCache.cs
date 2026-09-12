@@ -19,8 +19,6 @@ namespace LiteDB.Engine
         private readonly PageFramePool _pool;
         private readonly CacheReclaimer _reclaimer;
         private readonly Dictionary<long, PageBuffer> _index = new Dictionary<long, PageBuffer>();
-
-
         private bool _disposed;
 
         private int _readablePages;
@@ -30,7 +28,6 @@ namespace LiteDB.Engine
         private int _pinnedPages;
 
         private long _evictedPages;
-
         private long _hits;
         private long _misses;
 
@@ -160,43 +157,46 @@ namespace LiteDB.Engine
             if (factory == null) throw new ArgumentNullException(nameof(factory));
 
             var key = this.GetReadableKey(position, origin);
-            PageBuffer writable;
-
-            lock (_sync)
-            {
-                this.ThrowIfDisposedLocked();
-
-                while (_index.TryGetValue(key, out var loading) && loading.State == FrameState.Loading)
-                {
-                    Monitor.Wait(_sync);
-                    this.ThrowIfDisposedLocked();
-                }
-
-                writable = this.AcquireWritableLocked(position, origin);
-
-                if (_index.TryGetValue(key, out var readable))
-                {
-                    ENSURE(readable.State == FrameState.Readable, "cached source must be readable");
-#if TESTING
-                    WritableCopyUnderLock?.Invoke();
-#endif
-                    Buffer.BlockCopy(readable.Array, readable.Offset, writable.Array, writable.Offset, PAGE_SIZE);
-                    readable.Referenced = 1;
-                    _hits++;
-                    return writable;
-                }
-
-                _misses++;
-            }
-
+            PageBuffer writable = null;
             try
             {
+                lock (_sync)
+                {
+                    this.ThrowIfDisposedLocked();
+                    while (_index.TryGetValue(key, out var loading) && loading.State == FrameState.Loading)
+                    {
+                        Monitor.Wait(_sync);
+                        this.ThrowIfDisposedLocked();
+                    }
+
+                    if (_index.TryGetValue(key, out var readable))
+                    {
+                        // Acquisition can evict idle frames, even under this lock.
+                        this.PinLocked(readable);
+                        try
+                        {
+                            writable = this.AcquireWritableLocked(position, origin);
+#if TESTING
+                            WritableCopyUnderLock?.Invoke();
+#endif
+                            Buffer.BlockCopy(readable.Array, readable.Offset, writable.Array, writable.Offset, PAGE_SIZE);
+                            _hits++;
+                            return writable;
+                        }
+                        finally
+                        {
+                            readable.Release();
+                        }
+                    }
+                    writable = this.AcquireWritableLocked(position, origin);
+                    _misses++;
+                }
                 factory(position, writable);
                 return writable;
             }
             catch
             {
-                this.DiscardPage(writable);
+                if (writable != null) this.DiscardPage(writable);
                 throw;
             }
         }

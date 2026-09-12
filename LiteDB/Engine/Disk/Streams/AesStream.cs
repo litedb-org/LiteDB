@@ -1,8 +1,11 @@
 ﻿using System;
 using System.Buffers;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Threading;
+using LiteDB.Utils;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -20,6 +23,7 @@ namespace LiteDB.Engine
         private readonly Stream _stream;
         private readonly CryptoStream _reader;
         private readonly CryptoStream _writer;
+        private int _disposed;
 
         private readonly byte[] _decryptedZeroes = new byte[16];
 
@@ -47,21 +51,18 @@ namespace LiteDB.Engine
 
         public AesStream(string password, Stream stream)
         {
-            _stream = stream;
+            _stream = stream ?? throw new ArgumentNullException(nameof(stream));
             _name = _stream is FileStream fileStream ? Path.GetFileName(fileStream.Name) : null;
-
-            var isNew = _stream.Length < PAGE_SIZE;
-
-            // start stream from zero position
-            _stream.Position = 0;
-
             const int checkBufferSize = 32;
-
-            var checkBuffer = _bufferPool.Rent(checkBufferSize);
-            var msBuffer = _bufferPool.Rent(16);
+            byte[] checkBuffer = null;
+            byte[] msBuffer = null;
 
             try
             {
+                var isNew = _stream.Length < PAGE_SIZE;
+                _stream.Position = 0;
+                checkBuffer = _bufferPool.Rent(checkBufferSize);
+                msBuffer = _bufferPool.Rent(16);
                 // new file? create new salt
                 if (isNew)
                 {
@@ -102,11 +103,11 @@ namespace LiteDB.Engine
                 _decryptor = _aes.CreateDecryptor();
 
                 _reader = _stream.CanRead ?
-                    new CryptoStream(_stream, _decryptor, CryptoStreamMode.Read) :
+                    new CryptoStream(new NonClosingStream(_stream), _decryptor, CryptoStreamMode.Read) :
                     null;
 
                 _writer = _stream.CanWrite ?
-                    new CryptoStream(_stream, _encryptor, CryptoStreamMode.Write) :
+                    new CryptoStream(new NonClosingStream(_stream), _encryptor, CryptoStreamMode.Write) :
                     null;
 
                 // set stream to password checking
@@ -155,14 +156,15 @@ namespace LiteDB.Engine
             }
             catch
             {
-                _stream.Dispose();
-
+                // Preserve the initialization error while releasing every resource
+                // already created, including cipher handles after a bad password.
+                this.DisposeResources();
                 throw;
             }
             finally
             {
-                _bufferPool.Return(msBuffer, true);
-                _bufferPool.Return(checkBuffer, true);
+                if (msBuffer != null) _bufferPool.Return(msBuffer, true);
+                if (checkBuffer != null) _bufferPool.Return(checkBuffer, true);
             }
         }
 
@@ -200,13 +202,22 @@ namespace LiteDB.Engine
         protected override void Dispose(bool disposing)
         {
             base.Dispose(disposing);
+            if (!disposing || Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
-            _stream?.Dispose();
+            var errors = this.DisposeResources();
+            if (errors.Count > 0) throw new AggregateException(errors);
+        }
 
-            _encryptor.Dispose();
-            _decryptor.Dispose();
-
-            _aes.Dispose();
+        private List<Exception> DisposeResources()
+        {
+            var cleanup = new TryCatch();
+            cleanup.Catch(() => _writer?.Dispose());
+            cleanup.Catch(() => _reader?.Dispose());
+            cleanup.Catch(() => _encryptor?.Dispose());
+            cleanup.Catch(() => _decryptor?.Dispose());
+            cleanup.Catch(() => _aes?.Dispose());
+            cleanup.Catch(() => _stream.Dispose());
+            return cleanup.Exceptions;
         }
 
         /// <summary>

@@ -188,11 +188,10 @@ namespace LiteDB.Engine
                     // if this page came from data file, must be changed before MoveToReadable
                     page.Origin = FileOrigin.Log;
 
-                    // mark this page as readable and get cached paged to enqueue
-                    var readable = _cache.MoveToReadable(page);
-
+                    PageBuffer readable = null;
                     try
                     {
+                        readable = _cache.MoveToReadable(page);
                         // Use the published frame for every operation. It remains
                         // pinned until the write and callback are both complete.
                         stream.Position = readable.Position;
@@ -210,7 +209,8 @@ namespace LiteDB.Engine
                     }
                     finally
                     {
-                        readable.Release();
+                        if (readable != null) readable.Release();
+                        else _cache.DiscardPage(page);
                     }
                 }
                 stream.Flush();
@@ -244,11 +244,17 @@ namespace LiteDB.Engine
                 using (var stream = _dataFactory.GetStream(true, true))
                 {
                     var buffer = _bufferPool.Rent(PAGE_SIZE);
-                    stream.Read(buffer, 0, PAGE_SIZE);
-                    buffer[HeaderPage.P_INVALID_DATAFILE_STATE] = 1;
-                    stream.Position = 0;
-                    stream.Write(buffer, 0, PAGE_SIZE);
-                    _bufferPool.Return(buffer, true);
+                    try
+                    {
+                        stream.Read(buffer, 0, PAGE_SIZE);
+                        buffer[HeaderPage.P_INVALID_DATAFILE_STATE] = 1;
+                        stream.Position = 0;
+                        stream.Write(buffer, 0, PAGE_SIZE);
+                    }
+                    finally
+                    {
+                        _bufferPool.Return(buffer, true);
+                    }
                 }
             });
         }

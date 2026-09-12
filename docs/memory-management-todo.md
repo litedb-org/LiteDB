@@ -6,6 +6,12 @@ This checklist tracks the implementation and validation of
 this memory-fix PR; revision 5 says the bounded cache ships alone and treats
 parameterized helpers as a later compatibility decision.
 
+Current follow-up: [`memory-lifecycle-audit.md`](memory-lifecycle-audit.md) records
+the completed failure-path corrections and their verification. Earlier delivery
+and benchmark checklists below are historical; their CI runs do not verify later
+commits. Index scan/LIKE continuation was rechecked: `IndexNode.GetNextPrev` uses
+copied page addresses, so the suspected page-buffer access there was not a defect.
+
 ## Baseline and CI coverage
 
 - [x] Record a clean baseline build and test result (Release build succeeds;
@@ -157,4 +163,5 @@ The separate follow-up branch's completed corrections are listed in revision 6 b
 
 The corrective commits are staged separately on `bug/memory-leaks-followup`.
 The run IDs above describe the original implementation; they do not verify this
-follow-up branch. The repository's PR-triggered CI has not run for this branch.
+follow-up branch. CI now supports manual runs on the separate branch; verify
+the run's commit SHA before treating it as evidence for these corrections.

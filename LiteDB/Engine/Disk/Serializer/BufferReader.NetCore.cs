@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine;
@@ -102,66 +102,66 @@ internal partial class BufferReader
             byte[] rented = null;
             var total = 0;
 
-            while (true)
+            try
             {
-                if (_currentPosition == _current.Count)
+                while (true)
                 {
-                    this.MoveForward(0);
-
-                    if (_isEOF)
+                    if (_currentPosition == _current.Count)
                     {
-                        ENSURE(false, "missing null terminator for CString");
+                        this.MoveForward(0);
+
+                        if (_isEOF)
+                        {
+                            ENSURE(false, "missing null terminator for CString");
+                        }
+
+                        continue;
                     }
 
-                    continue;
-                }
+                    var available = _current.Count - _currentPosition;
 
-                var available = _current.Count - _currentPosition;
+                    var span = new ReadOnlySpan<byte>(_current.Array, _current.Offset + _currentPosition, available);
+                    var terminator = span.IndexOf((byte)0x00);
+                    var take = terminator >= 0 ? terminator : span.Length;
 
-                var span = new ReadOnlySpan<byte>(_current.Array, _current.Offset + _currentPosition, available);
-                var terminator = span.IndexOf((byte)0x00);
-                var take = terminator >= 0 ? terminator : span.Length;
+                    var required = total + take;
 
-                var required = total + take;
-
-                if (required > destination.Length)
-                {
-                    var newLength = Math.Max(required, Math.Max(destination.Length * 2, stackLimit * 2));
-                    var buffer = _bufferPool.Rent(newLength);
-
-                    destination.Slice(0, total).CopyTo(buffer.AsSpan(0, total));
-
-                    if (rented != null)
+                    if (required > destination.Length)
                     {
-                        _bufferPool.Return(rented, true);
+                        var newLength = Math.Max(required, Math.Max(destination.Length * 2, stackLimit * 2));
+                        var buffer = _bufferPool.Rent(newLength);
+
+                        destination.Slice(0, total).CopyTo(buffer.AsSpan(0, total));
+
+                        if (rented != null)
+                        {
+                            _bufferPool.Return(rented, true);
+                        }
+
+                        rented = buffer;
+                        destination = rented.AsSpan();
                     }
 
-                    rented = buffer;
-                    destination = rented.AsSpan();
+                    if (take > 0)
+                    {
+                        span.Slice(0, take).CopyTo(destination.Slice(total));
+                        total += take;
+                        this.MoveForward(take);
+                    }
+
+                    if (terminator >= 0)
+                    {
+                        this.MoveForward(1); // +1 to '\0'
+                        break;
+                    }
                 }
 
-                if (take > 0)
-                {
-                    span.Slice(0, take).CopyTo(destination.Slice(total));
-                    total += take;
-                    this.MoveForward(take);
-                }
-
-                if (terminator >= 0)
-                {
-                    this.MoveForward(1); // +1 to '\0'
-                    break;
-                }
+                return StringEncoding.UTF8.GetString(destination.Slice(0, total));
             }
-
-            var result = StringEncoding.UTF8.GetString(destination.Slice(0, total));
-
-            if (rented != null)
+            finally
             {
-                _bufferPool.Return(rented, true);
+                if (rented != null) _bufferPool.Return(rented, true);
             }
-
-            return result;
         }
     }
 }
