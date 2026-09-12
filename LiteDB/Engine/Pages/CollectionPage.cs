@@ -82,6 +82,8 @@ namespace LiteDB.Engine
 
         public override PageBuffer UpdateBuffer()
         {
+            this.EnsurePageOwnership();
+
             // if page was deleted, do not write in content area (must keep with 0 only)
             if (this.PageType == PageType.Empty) return base.UpdateBuffer();
 

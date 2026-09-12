@@ -1,0 +1,58 @@
+{
+  "Label": "current",
+  "Runtime": ".NET 8.0.30",
+  "OS": "Microsoft Windows 10.0.26200",
+  "ProcessorCount": 32,
+  "Assembly": "C:\\Users\\Jonas\\AppData\\Local\\Temp\\litedb-validation-current\\LiteDB.dll",
+  "AssemblySha256": "BF65FC100251D6C1C50AFADFF0F9B3C44148159CFB29E6685193D1306F0FEAE8",
+  "CacheMiB": 256,
+  "Documents": 200000,
+  "Measurements": {
+    "seedMs": 1793.4977,
+    "scanColdMs": 345.6211,
+    "scanWarmMs": 237.4093,
+    "lookupThreads1": {
+      "Samples": 2000,
+      "P50Microseconds": 19.3,
+      "P99Microseconds": 71
+    },
+    "lookupThreads1TotalMs": 43.0489,
+    "lookupThreads1FramesExaminedPerLookup": 0,
+    "lookupThreads1FramesExaminedPerMiss": null,
+    "lookupThreads4": {
+      "Samples": 8000,
+      "P50Microseconds": 23.1,
+      "P99Microseconds": 284.5
+    },
+    "lookupThreads4TotalMs": 61.5427,
+    "lookupThreads4FramesExaminedPerLookup": 0,
+    "lookupThreads4FramesExaminedPerMiss": null,
+    "lookupThreads16": {
+      "Samples": 32000,
+      "P50Microseconds": 79.6,
+      "P99Microseconds": 1143.5
+    },
+    "lookupThreads16TotalMs": 356.7556,
+    "lookupThreads16FramesExaminedPerLookup": 0,
+    "lookupThreads16FramesExaminedPerMiss": null,
+    "transactionRelease": {
+      "Samples": 100,
+      "P50Microseconds": 26,
+      "P99Microseconds": 75.2
+    },
+    "ensureIndexMs": 546.2583,
+    "indexWalBytes": 21446656,
+    "cacheAfterIndex": "{\u0022limitBytes\u0022:{\u0022$numberLong\u0022:\u0022268435456\u0022},\u0022limitPagesRounded\u0022:32776,\u0022allocatedBytes\u0022:{\u0022$numberLong\u0022:\u0022268500992\u0022},\u0022segments\u0022:257,\u0022totalPages\u0022:32776,\u0022readablePages\u0022:29783,\u0022idleReadablePages\u0022:29783,\u0022loadingPages\u0022:0,\u0022pinnedPages\u0022:0,\u0022retainedBySegments\u0022:0,\u0022evictedPages\u0022:{\u0022$numberLong\u0022:\u0022507\u0022},\u0022releasedSegments\u0022:{\u0022$numberLong\u0022:\u00220\u0022},\u0022overflowSegments\u0022:{\u0022$numberLong\u0022:\u00220\u0022},\u0022framesExamined\u0022:{\u0022$numberLong\u0022:\u002233283\u0022},\u0022budgetExceeded\u0022:{\u0022$numberLong\u0022:\u00221\u0022},\u0022lostFrames\u0022:{\u0022$numberLong\u0022:\u00220\u0022},\u0022hits\u0022:{\u0022$numberLong\u0022:\u0022955537\u0022},\u0022misses\u0022:{\u0022$numberLong\u0022:\u002259566\u0022},\u0022compiledExpressions\u0022:5,\u0022extendSegments\u0022:257,\u0022extendPages\u0022:32776,\u0022freePages\u0022:2993,\u0022writablePages\u0022:0,\u0022pagesInUse\u0022:0}",
+    "bulkInsert10000Ms": 89.6557,
+    "encryptedUpdate20000Ms": 150.2619,
+    "vectorSearch100Ms": 34.4805,
+    "vectorMinimumResults": 20,
+    "vectorShortResultQueries": 0,
+    "overflowTransactionRelease8MiB": {
+      "Samples": 100,
+      "P50Microseconds": 268.7,
+      "P99Microseconds": 2196
+    },
+    "overflowCacheAfterRelease": "{\u0022limitBytes\u0022:{\u0022$numberLong\u0022:\u00228388608\u0022},\u0022limitPagesRounded\u0022:1032,\u0022allocatedBytes\u0022:{\u0022$numberLong\u0022:\u00228454144\u0022},\u0022segments\u0022:9,\u0022totalPages\u0022:1032,\u0022readablePages\u0022:904,\u0022idleReadablePages\u0022:904,\u0022loadingPages\u0022:0,\u0022pinnedPages\u0022:0,\u0022retainedBySegments\u0022:0,\u0022evictedPages\u0022:{\u0022$numberLong\u0022:\u0022511400\u0022},\u0022releasedSegments\u0022:{\u0022$numberLong\u0022:\u00223939\u0022},\u0022overflowSegments\u0022:{\u0022$numberLong\u0022:\u00223939\u0022},\u0022framesExamined\u0022:{\u0022$numberLong\u0022:\u00224128\u0022},\u0022budgetExceeded\u0022:{\u0022$numberLong\u0022:\u00224\u0022},\u0022lostFrames\u0022:{\u0022$numberLong\u0022:\u00220\u0022},\u0022hits\u0022:{\u0022$numberLong\u0022:\u002288616\u0022},\u0022misses\u0022:{\u0022$numberLong\u0022:\u0022507184\u0022},\u0022compiledExpressions\u0022:10,\u0022extendSegments\u0022:9,\u0022extendPages\u0022:1032,\u0022freePages\u0022:128,\u0022writablePages\u0022:0,\u0022pagesInUse\u0022:0}"
+  }
+}

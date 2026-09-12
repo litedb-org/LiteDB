@@ -35,7 +35,11 @@ namespace LiteDB.Engine
                     var pkNode = indexer.Find(pk, id, false, LiteDB.Query.Ascending);
 
                     // if pk not found, continue
-                    if (pkNode == null) continue;
+                    if (pkNode == null)
+                    {
+                        transaction.Safepoint();
+                        continue;
+                    }
 
                     _state.Validate();
 

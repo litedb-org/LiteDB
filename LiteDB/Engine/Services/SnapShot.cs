@@ -23,6 +23,7 @@ namespace LiteDB.Engine
         // instances from transaction
         private readonly uint _transactionID;
         private readonly TransactionPages _transPages;
+        private readonly Action _safepoint;
 
         // snapshot controls
         private readonly int _readVersion;
@@ -34,6 +35,7 @@ namespace LiteDB.Engine
         private readonly Dictionary<uint, BasePage> _localPages = new Dictionary<uint, BasePage>();
 
         private bool _disposed;
+        private int _epoch;
 
         // expose
         public LockMode Mode => _mode;
@@ -41,6 +43,8 @@ namespace LiteDB.Engine
         public CollectionPage CollectionPage => _collectionPage;
         public ICollection<BasePage> LocalPages => _localPages.Values;
         public int ReadVersion => _readVersion;
+        internal Action Safepoint => _safepoint;
+        internal int Epoch => _epoch;
 
         public Snapshot(
             LockMode mode, 
@@ -52,7 +56,8 @@ namespace LiteDB.Engine
             WalIndexService walIndex, 
             DiskReader reader, 
             DiskService disk,
-            bool addIfNotExists)
+            bool addIfNotExists,
+            Action safepoint = null)
         {
             _mode = mode;
             _collectionName = collectionName;
@@ -63,6 +68,7 @@ namespace LiteDB.Engine
             _walIndex = walIndex;
             _reader = reader;
             _disk = disk;
+            _safepoint = safepoint ?? (() => { });
 
             // enter in lock mode according initial mode
             if (mode == LockMode.Write)
@@ -75,14 +81,22 @@ namespace LiteDB.Engine
 
             var srv = new CollectionService(_header, _disk, this, _transPages);
 
-            // read collection (create if new - load virtual too)
-            srv.Get(_collectionName, addIfNotExists, ref _collectionPage);
-
-            // clear local pages (will clear _collectionPage link reference)
-            if (_collectionPage != null)
+            try
             {
-                // local pages contains only data/index pages
-                _localPages.Remove(_collectionPage.PageID);
+                srv.Get(_collectionName, addIfNotExists, ref _collectionPage);
+                if (_collectionPage != null) _localPages.Remove(_collectionPage.PageID);
+            }
+            catch
+            {
+                // A failed constructor never reaches the transaction's snapshot map.
+                if (_collectionPage != null) _localPages[_collectionPage.PageID] = _collectionPage;
+                foreach (var page in _localPages.Values)
+                {
+                    if (_mode == LockMode.Write) _disk.Cache.DiscardPage(page.Buffer);
+                    else page.Buffer.Release();
+                }
+                if (_mode == LockMode.Write) _locker.ExitLock(_collectionName);
+                throw;
             }
         }
 
@@ -96,14 +110,14 @@ namespace LiteDB.Engine
             // if snapshot is read only, just exit
             if (_mode == LockMode.Read) yield break;
 
-            foreach(var page in _localPages.Values.Where(x => x.IsDirty == dirty))
+            foreach(var page in _localPages.Values.Where(x => x.OwnsBuffer && x.IsDirty == dirty))
             {
                 ENSURE(page.PageType != PageType.Header && page.PageType != PageType.Collection, "local cache cann't contains this page type");
 
                 yield return page;
             }
 
-            if (includeCollectionPage && _collectionPage != null && _collectionPage.IsDirty == dirty)
+            if (includeCollectionPage && _collectionPage != null && _collectionPage.OwnsBuffer && _collectionPage.IsDirty == dirty)
             {
                 yield return _collectionPage;
             }
@@ -127,6 +141,11 @@ namespace LiteDB.Engine
             }
 
             _localPages.Clear();
+            _epoch++;
+
+            // The collection page is deliberately retained by the snapshot
+            // across safepoints, so refresh only its ownership epoch.
+            _collectionPage?.SetSnapshotOwnership(this);
         }
 
         /// <summary>
@@ -199,6 +218,7 @@ namespace LiteDB.Engine
 
             // if page is not in local cache, get from disk (log/wal/data)
             page = this.ReadPage<T>(pageID, out origin, out position, out walVersion, useLatestVersion);
+            page.SetSnapshotOwnership(this);
 
             // add into local pages
             _localPages[pageID] = page;
@@ -215,55 +235,44 @@ namespace LiteDB.Engine
         private T ReadPage<T>(uint pageID, out FileOrigin origin, out long position, out int walVersion, bool useLatestVersion = false)
             where T : BasePage
         {
-            // if not inside local pages can be a dirty page saved in log file
-            if (_transPages.DirtyPages.TryGetValue(pageID, out var walPosition))
+            var dirty = _transPages.DirtyPages.TryGetValue(pageID, out var walPosition);
+            if (dirty)
             {
-                // read page from log file
-                var buffer = _reader.ReadPage(walPosition.Position, _mode == LockMode.Write, FileOrigin.Log);
-                var dirty = BasePage.ReadPage<T>(buffer);
-
                 origin = FileOrigin.Log;
                 position = walPosition.Position;
                 walVersion = _readVersion;
-
-                ENSURE(dirty.TransactionID == _transactionID, "this page must came from same transaction");
-
-                return dirty;
-            }
-
-            // now, look inside wal-index
-            var pos = _walIndex.GetPageIndex(pageID, useLatestVersion ? int.MaxValue : _readVersion, out walVersion);
-
-            if (pos != long.MaxValue)
-            {
-                // read page from log file
-                var buffer = _reader.ReadPage(pos, _mode == LockMode.Write, FileOrigin.Log);
-                var logPage = BasePage.ReadPage<T>(buffer);
-
-                // clear some data inside this page (will be override when write on log file)
-                logPage.TransactionID = 0;
-                logPage.IsConfirmed = false;
-
-                origin = FileOrigin.Log;
-                position = pos;
-
-                return logPage;
             }
             else
             {
-                // for last chance, look inside original disk data file
-                var pagePosition = BasePage.GetPagePosition(pageID);
+                position = _walIndex.GetPageIndex(pageID, useLatestVersion ? int.MaxValue : _readVersion, out walVersion);
+                origin = position == long.MaxValue ? FileOrigin.Data : FileOrigin.Log;
+                if (origin == FileOrigin.Data) position = BasePage.GetPagePosition(pageID);
+            }
 
-                // read page from data file
-                var buffer = _reader.ReadPage(pagePosition, _mode == LockMode.Write, FileOrigin.Data);
-                var diskpage = BasePage.ReadPage<T>(buffer);
-
-                origin = FileOrigin.Data;
-                position = pagePosition;
-
-                ENSURE(diskpage.IsConfirmed == false || diskpage.TransactionID != 0, "page are not header-clear in data file");
-
-                return diskpage;
+            var buffer = _reader.ReadPage(position, _mode == LockMode.Write, origin);
+            try
+            {
+                var page = BasePage.ReadPage<T>(buffer);
+                if (dirty)
+                {
+                    ENSURE(page.TransactionID == _transactionID, "this page must came from same transaction");
+                }
+                else if (origin == FileOrigin.Log)
+                {
+                    page.TransactionID = 0;
+                    page.IsConfirmed = false;
+                }
+                else
+                {
+                    ENSURE(page.IsConfirmed == false || page.TransactionID != 0, "page are not header-clear in data file");
+                }
+                return page;
+            }
+            catch
+            {
+                if (_mode == LockMode.Write) _disk.Cache.DiscardPage(buffer);
+                else buffer.Release();
+                throw;
             }
         }
 
@@ -421,6 +430,7 @@ namespace LiteDB.Engine
             }
 
             var page = BasePage.CreatePage<T>(buffer, pageID);
+            page.SetSnapshotOwnership(this);
 
             // update local cache with new instance T page type
             if (page.PageType != PageType.Collection)

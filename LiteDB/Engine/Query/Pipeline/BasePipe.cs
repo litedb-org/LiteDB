@@ -131,6 +131,8 @@ namespace LiteDB.Engine
                         value["$missing"] = true;
                     }
                 }
+
+                _transaction.Safepoint();
             }
         }
 
@@ -177,6 +179,7 @@ namespace LiteDB.Engine
                         var doc = _lookup.Load(keyValue.Value);
 
                         yield return doc;
+                        _transaction.Safepoint();
                     }
                 }
             }
@@ -210,6 +213,7 @@ namespace LiteDB.Engine
                         var doc = _lookup.Load(keyValue.Value);
 
                         yield return doc;
+                        _transaction.Safepoint();
                     }
                 }
             }

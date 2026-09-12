@@ -274,7 +274,6 @@ namespace LiteDB.Tests.Engine
             transactionService.Pages.TransactionSize.Should().BeGreaterThan(0);
 
             transactionService.MaxTransactionSize = Math.Max(1, transactionService.Pages.TransactionSize);
-            SetMonitorFreePages(monitor, 0);
 
             transactionService.Safepoint();
             transactionService.Pages.TransactionSize.Should().Be(0);
@@ -289,6 +288,9 @@ namespace LiteDB.Tests.Engine
 
             try
             {
+                // Simulate a page that a safepoint has made read-only. This
+                // test intentionally changes the legacy marker only; the cache
+                // state-machine tests cover the real transition accounting.
                 buffer.ShareCounter = 1;
 
                 var shareCounters = snapshot
@@ -430,14 +432,6 @@ namespace LiteDB.Tests.Engine
             }
 
             return monitor;
-        }
-
-        private static void SetMonitorFreePages(TransactionMonitor monitor, int value)
-        {
-            var freePagesField = typeof(TransactionMonitor).GetField("_freePages", BindingFlags.Instance | BindingFlags.NonPublic)
-                                  ?? throw new InvalidOperationException("Unable to locate TransactionMonitor free pages field.");
-
-            freePagesField.SetValue(monitor, value);
         }
 
         private static void SetEngineTimeout(LiteDatabase database, TimeSpan timeout)

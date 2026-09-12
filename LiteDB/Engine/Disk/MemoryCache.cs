@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Concurrent;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -8,421 +7,494 @@ using static LiteDB.Constants;
 namespace LiteDB.Engine
 {
     /// <summary>
-    /// Manage linear memory segments to avoid re-creating array buffer in heap memory
-    /// Do not share same memory store with different files
-    /// [ThreadSafe]
+    /// Bounded, elastic page-buffer pool. One lock protects the readable
+    /// index, idle/busy transitions, free lists, and segment liveness. Readers
+    /// share existing pins atomically; disk reads run outside the lock.
     /// </summary>
-    internal class MemoryCache : IDisposable
+    internal sealed class MemoryCache : IDisposable
     {
-        /// <summary>
-        /// Contains free ready-to-use pages in memory
-        /// - All pages here MUST have ShareCounter = 0
-        /// - All pages here MUST have Position = MaxValue
-        /// </summary>
-        private readonly ConcurrentQueue<PageBuffer> _free = new ConcurrentQueue<PageBuffer>();
+        internal const int DEFAULT_EVICT_SCAN_BUDGET = 256;
 
-        /// <summary>
-        /// Contains only clean pages (from both data/log file) - support page concurrency use
-        /// - MUST have defined Origin and Position
-        /// - Contains only 1 instance per Position/Origin
-        /// - Contains only pages with ShareCounter >= 0
-        /// *  = 0 - Page is available but is not in use by anyone (can be moved into _free list on next Extend())
-        /// * >= 1 - Page is in use by 1 or more threads. Page must run "Release" when finished using
-        /// </summary>
-        private readonly ConcurrentDictionary<long, PageBuffer> _readable = new ConcurrentDictionary<long, PageBuffer>();
+        private readonly object _sync = new object();
+        private readonly PageFramePool _pool;
+        private readonly CacheReclaimer _reclaimer;
+        private readonly SharedPageReads _sharedReads = new SharedPageReads();
+        private readonly Dictionary<long, PageBuffer> _index = new Dictionary<long, PageBuffer>();
+        private bool _disposed;
 
-        /// <summary>
-        /// Get how many extends were made in this store
-        /// </summary>
-        private int _extends = 0;
+        private int _readablePages;
+        private int _idleReadablePages;
+        private int _writablePages;
+        private int _loadingPages;
+        private int _pinnedPages;
+        private long _evictedPages;
+        private long _hits;
+        private long _misses;
 
-        /// <summary>
-        /// Get memory segment sizes
-        /// </summary>
-        private readonly int[] _segmentSizes;
+#if TESTING
+        internal Action ReadableHitUnderLock { get; set; }
+        internal Action BeforeWritableCopy { get; set; }
+        internal Action LoadingWaiterWaiting { get; set; }
+        internal Action<Action> LoadingWaiterResuming { get; set; }
+#endif
 
-        public MemoryCache(int[] memorySegmentSizes)
+        public MemoryCache(int[] memorySegmentSizes, long cacheSize, int evictScanBudget = DEFAULT_EVICT_SCAN_BUDGET)
         {
-            _segmentSizes = memorySegmentSizes;
+            if (evictScanBudget <= 0) throw new ArgumentOutOfRangeException(nameof(evictScanBudget));
 
-            this.Extend();
+            _pool = new PageFramePool(this, memorySegmentSizes);
+            this.LimitBytes = cacheSize <= 0 ? PAGE_SIZE * (long)_pool.MinimumPages : cacheSize;
+            this.LimitPagesRounded = _pool.RoundLimitPages(this.LimitBytes);
+            _reclaimer = new CacheReclaimer(_pool, this.LimitPagesRounded, evictScanBudget,
+                () => _idleReadablePages, this.EvictLocked);
+
+            _pool.AllocateSegmentLocked(false);
         }
 
-        #region Readable Pages
+        public long LimitBytes { get; }
+        public int LimitPagesRounded { get; }
 
-        /// <summary>
-        /// Get page from clean cache (readable). If page doesn't exist, create this new page and load data using factory fn
-        /// </summary>
         public PageBuffer GetReadablePage(long position, FileOrigin origin, Action<long, BufferSlice> factory)
         {
-            // get dict key based on position/origin
-            var key = this.GetReadableKey(position, origin);
-
-            // try get from _readble dict or create new
-            var page = _readable.GetOrAdd(key, (k) =>
+            if (factory == null) throw new ArgumentNullException(nameof(factory));
+            if (Volatile.Read(ref _disposed)) throw new ObjectDisposedException(nameof(MemoryCache));
+#if TESTING
+            if (ReadableHitUnderLock == null)
+#endif
             {
-                // get new page from _free pages (or extend)
-                var newPage = this.GetFreePage();
+                var shared = _sharedReads.TryPin(position, origin);
+                if (shared != null) { Interlocked.Increment(ref _hits); return shared; }
+            }
+            var key = this.GetReadableKey(position, origin);
+            PageBuffer page;
 
-                newPage.Position = position;
-                newPage.Origin = origin;
+            lock (_sync)
+            {
+                this.ThrowIfDisposedLocked();
 
-                // load page content with disk stream
-                factory(position, newPage);
+                while (true)
+                {
+                    if (_index.TryGetValue(key, out page))
+                    {
+                        if (page.State == FrameState.Loading)
+                        {
+#if TESTING
+                            LoadingWaiterWaiting?.Invoke();
+#endif
+                            Monitor.Wait(_sync);
+#if TESTING
+                            LoadingWaiterResuming?.Invoke(() => Monitor.Wait(_sync));
+#endif
+                            this.ThrowIfDisposedLocked();
+                            continue;
+                        }
 
-                return newPage;
-            });
+                        ENSURE(page.State == FrameState.Readable, "indexed page must be readable or loading");
+#if TESTING
+                        ReadableHitUnderLock?.Invoke();
+#endif
+                        this.PinLocked(page);
+                        _sharedReads.Remember(page);
+                        Interlocked.Increment(ref _hits);
+                        return page;
+                    }
 
-            // update LRU
-            Interlocked.Exchange(ref page.Timestamp, DateTime.UtcNow.Ticks);
+                    page = _reclaimer.AcquireFrameLocked();
+                    this.TransitionFreeToLoadingLocked(page, position, origin);
+                    _index.Add(key, page);
+                    _misses++;
+                    break;
+                }
+            }
 
-            // increment share counter
-            Interlocked.Increment(ref page.ShareCounter);
+            try
+            {
+                factory(position, page);
+            }
+            catch
+            {
+                lock (_sync)
+                {
+                    if (_index.TryGetValue(key, out var indexed) && ReferenceEquals(indexed, page))
+                    {
+                        _index.Remove(key);
+                    }
 
-            return page;
+                    ENSURE(page.State == FrameState.Loading, "failed loader must still own its loading frame");
+                    this.TransitionToFreeLocked(page);
+                    Monitor.PulseAll(_sync);
+                }
+
+                throw;
+            }
+
+            lock (_sync)
+            {
+                ENSURE(_index.TryGetValue(key, out var indexed) && ReferenceEquals(indexed, page), "loader must own indexed frame until publication");
+                ENSURE(page.State == FrameState.Loading, "loaded frame must be loading before publication");
+
+                _loadingPages--;
+                _readablePages++;
+                _pinnedPages++;
+                page.State = FrameState.Readable;
+                page.ShareCounter = 1;
+                page.Referenced = 1;
+                _sharedReads.Remember(page);
+
+                Monitor.PulseAll(_sync);
+                return page;
+            }
         }
 
-        /// <summary>
-        /// Get unique position in dictionary according with origin. Use positive/negative values
-        /// </summary>
         private long GetReadableKey(long position, FileOrigin origin)
         {
             ENSURE(origin != FileOrigin.None, "file origin must be defined");
-
-            if (origin == FileOrigin.Data)
-            {
-                return position;
-            }
-            else
-            {
-                if (position == 0) return long.MinValue;
-
-                return -position;
-            }
+            return origin == FileOrigin.Data ? position : position == 0 ? long.MinValue : -position;
         }
 
-        #endregion
-
-        #region Writable Pages
-
-        /// <summary>
-        /// Request for a writable page - no other can read this page and this page has no reference
-        /// Writable pages can be MoveToReadable() or DiscardWritable() - but never Released()
-        /// </summary>
         public PageBuffer GetWritablePage(long position, FileOrigin origin, Action<long, BufferSlice> factory)
         {
+            if (factory == null) throw new ArgumentNullException(nameof(factory));
+
             var key = this.GetReadableKey(position, origin);
-
-            // write pages always contains a new buffer array
-            var writable = this.NewPage(position, origin);
-
-            // if requested page already in cache, just copy buffer and avoid load from stream
-            if (_readable.TryGetValue(key, out var clean))
+            PageBuffer writable = null;
+            PageBuffer readable = null;
+            try
             {
-                Buffer.BlockCopy(clean.Array, clean.Offset, writable.Array, writable.Offset, PAGE_SIZE);
+                lock (_sync)
+                {
+                    this.ThrowIfDisposedLocked();
+                    while (_index.TryGetValue(key, out var loading) && loading.State == FrameState.Loading)
+                    {
+                        Monitor.Wait(_sync);
+                        this.ThrowIfDisposedLocked();
+                    }
+                    if (_index.TryGetValue(key, out readable))
+                    {
+                        // This pin protects the source during eviction and copying.
+                        this.PinLocked(readable);
+                        Interlocked.Increment(ref _hits);
+                    }
+                    else _misses++;
+                    writable = this.AcquireWritableLocked(position, origin);
+                }
+                if (readable != null)
+                {
+#if TESTING
+                    BeforeWritableCopy?.Invoke();
+#endif
+                    Buffer.BlockCopy(readable.Array, readable.Offset, writable.Array, writable.Offset, PAGE_SIZE);
+                }
+                else
+                {
+                    writable.Clear();
+                    factory(position, writable);
+                }
+                return writable;
             }
-            else
+            catch
             {
-                factory(position, writable);
+                if (writable != null) this.DiscardPage(writable);
+                throw;
             }
-
-            return writable;
+            finally
+            {
+                readable?.Release();
+            }
         }
 
-        /// <summary>
-        /// Create new page using an empty buffer block. Mark this page as writable.
-        /// </summary>
         public PageBuffer NewPage()
         {
-            return this.NewPage(long.MaxValue, FileOrigin.None);
-        }
-
-        /// <summary>
-        /// Create new page using an empty buffer block. Mark this page as writable.
-        /// </summary>
-        private PageBuffer NewPage(long position, FileOrigin origin)
-        {
-            var page = this.GetFreePage();
-
-            // set page position and page as writable
-            page.Position = position;
-
-            // define as writable
-            page.ShareCounter = BUFFER_WRITABLE;
-
-            // Timestamp = 0 means this page was never used (do not clear)
-            if (page.Timestamp > 0)
+            PageBuffer page;
+            lock (_sync)
             {
-                page.Clear();
+                this.ThrowIfDisposedLocked();
+                page = this.AcquireWritableLocked(long.MaxValue, FileOrigin.None);
             }
-
-            DEBUG(page.All(0), "new page must be full zero empty before return");
-
-            page.Origin = origin;
-            page.Timestamp = DateTime.UtcNow.Ticks;
-
+            // Writable ownership keeps the frame out of eviction/reclamation.
+            page.Clear();
             return page;
         }
 
-        /// <summary>
-        /// Try to move this page to readable list (if not already in readable list)
-        /// Returns true if it was moved
-        /// </summary>
+        private PageBuffer AcquireWritableLocked(long position, FileOrigin origin)
+        {
+            var page = _reclaimer.AcquireFrameLocked();
+            page.Position = position;
+            page.Origin = origin;
+            page.State = FrameState.Writable;
+            page.ShareCounter = BUFFER_WRITABLE;
+            page.Referenced = 0;
+            _pool.ChangeBusyLocked(page.Segment, 1);
+            _writablePages++;
+            return page;
+        }
+
         public bool TryMoveToReadable(PageBuffer page)
         {
-            ENSURE(page.Position != long.MaxValue, "page must have a position");
-            ENSURE(page.ShareCounter == BUFFER_WRITABLE, "page must be writable");
-            ENSURE(page.Origin != FileOrigin.None, "page must have origin defined");
-
-            var key = this.GetReadableKey(page.Position, page.Origin);
-
-            // set page as not in use
-            page.ShareCounter = 0;
-
-            var added = _readable.TryAdd(key, page);
-
-            // if not added, let's get ShareCounter back to writable state
-            if (!added)
-            {
-                page.ShareCounter = BUFFER_WRITABLE;
-            }
-
-            return added;
+            lock (_sync) return this.PublishWritableLocked(page, false);
         }
 
-        /// <summary>
-        /// Move a writable page to readable list - if already exists, override content
-        /// Used after write operation that must mark page as readable because page content was changed
-        /// This method runs BEFORE send to write disk queue - but new page request must read this new content
-        /// Returns readable page
-        /// </summary>
         public PageBuffer MoveToReadable(PageBuffer page)
         {
-            ENSURE(page.Position != long.MaxValue, "page must have position to be readable");
-            ENSURE(page.Origin != FileOrigin.None, "page should be a source before move to readable");
-            ENSURE(page.ShareCounter == BUFFER_WRITABLE, "page must be writable before move to readable dict");
-
-            var key = this.GetReadableKey(page.Position, page.Origin);
-            var added = true;
-
-            // no concurrency in writable page
-            page.ShareCounter = 1;
-
-            var readable = _readable.AddOrUpdate(key, page, (newKey, current) =>
+            lock (_sync)
             {
-                // if page already exist inside readable list, should never be in-used (this will be guaranteed by lock control)
-                ENSURE(current.ShareCounter == 0, "user must ensure this page is not in use when marked as read only");
-                ENSURE(current.Origin == page.Origin, "origin must be same");
-
-                current.ShareCounter = 1;
-
-                // if page already in cache, this is a duplicate page in memory
-                // must update cached page with new page content
-                Buffer.BlockCopy(page.Array, page.Offset, current.Array, current.Offset, PAGE_SIZE);
-
-                added = false;
-
-                // Bug 2184: readable page was updated, need to set the page.ShareCounter back to writeable
-                // so that DiscardPage can free the page and put it into the queue.
-                page.ShareCounter = BUFFER_WRITABLE;
-
-                return current;
-            });
-
-            // if page was not added into readable list, move page to free list
-            if (added == false)
-            {
-                this.DiscardPage(page);
+                ENSURE(this.PublishWritableLocked(page, true), "writable page position must not already exist in readable cache");
+                return page;
             }
-
-            // return page that are in _readable list
-            return readable;
         }
 
-        /// <summary>
-        /// Completely discard a writable page - clean content and move to free list
-        /// </summary>
+        private bool PublishWritableLocked(PageBuffer page, bool pinned)
+        {
+            this.EnsureWritableOwnedLocked(page);
+            ENSURE(page.Position != long.MaxValue, "page must have a position");
+            var key = this.GetReadableKey(page.Position, page.Origin);
+            if (_index.ContainsKey(key)) return false;
+
+            _index.Add(key, page);
+            page.State = FrameState.Readable;
+            page.ShareCounter = pinned ? 1 : 0;
+            page.Referenced = 1;
+            _sharedReads.Remember(page);
+            _writablePages--;
+            _readablePages++;
+            if (pinned)
+            {
+                _pinnedPages++;
+            }
+            else
+            {
+                _pool.ChangeBusyLocked(page.Segment, -1);
+                _idleReadablePages++;
+            }
+            return true;
+        }
+
         public void DiscardPage(PageBuffer page)
         {
-            ENSURE(page.ShareCounter == BUFFER_WRITABLE, "discarded page must be writable");
+            lock (_sync)
+            {
+                this.EnsureWritableOwnedLocked(page);
+                this.TransitionToFreeLocked(page);
+            }
+        }
 
-            // clear page controls
+        internal void Release(PageBuffer page)
+        {
+            ENSURE(ReferenceEquals(page.Cache, this), "page must belong to this cache");
+            if (SharedPageReads.TryReleaseShared(page)) return;
+            lock (_sync)
+            {
+                ENSURE(!_disposed, "cannot release a page from a disposed cache");
+                ENSURE(page.State == FrameState.Readable, "only readable pages can be released");
+                ENSURE(page.ShareCounter > 0, "share counter must be > 0 in Release()");
+
+                if (Interlocked.Decrement(ref page.ShareCounter) == 0)
+                {
+                    _pool.ChangeBusyLocked(page.Segment, -1);
+                    _pinnedPages--;
+                    _idleReadablePages++;
+                }
+            }
+        }
+
+        private void PinLocked(PageBuffer page)
+        {
+            ENSURE(page.State == FrameState.Readable, "only readable pages can be pinned");
+            if (page.ShareCounter == 0)
+            {
+                _pool.ChangeBusyLocked(page.Segment, 1);
+                _idleReadablePages--;
+                _pinnedPages++;
+            }
+            Interlocked.Increment(ref page.ShareCounter);
+            page.Referenced = 1;
+        }
+
+        private void TransitionFreeToLoadingLocked(PageBuffer page, long position, FileOrigin origin)
+        {
+            ENSURE(page.State == FrameState.Free, "only a free frame can begin loading");
+            page.Position = position;
+            page.Origin = origin;
+            page.State = FrameState.Loading;
+            page.ShareCounter = 0;
+            page.Referenced = 0;
+            _pool.ChangeBusyLocked(page.Segment, 1);
+            _loadingPages++;
+        }
+
+        private void TransitionToFreeLocked(PageBuffer page)
+        {
+            var segment = page.Segment;
+            ENSURE(segment != null, "page must belong to an active segment");
+            switch (page.State)
+            {
+                case FrameState.Loading:
+                    _loadingPages--;
+                    _pool.ChangeBusyLocked(segment, -1);
+                    break;
+                case FrameState.Readable:
+                    ENSURE(page.ShareCounter == 0, "pinned readable page cannot become free");
+                    _readablePages--;
+                    _idleReadablePages--;
+                    break;
+                case FrameState.Writable:
+                    _writablePages--;
+                    _pool.ChangeBusyLocked(segment, -1);
+                    break;
+                default:
+                    ENSURE(false, "free frame cannot be returned twice");
+                    break;
+            }
+
+            page.State = FrameState.Free;
+            _sharedReads.Forget(page);
             page.ShareCounter = 0;
             page.Position = long.MaxValue;
             page.Origin = FileOrigin.None;
+            page.Referenced = 0;
+            page.Generation++;
+#if DEBUG || TESTING
+            for (var i = 0; i < page.Count; i++)
+            {
+                page.Array[page.Offset + i] = 0xFF;
+            }
+#endif
 
-            // DO NOT CLEAR CONTENT
-            // when this page get requested from free list, it will be cleared if requested from NewPage()
-            //  or will be overwritten by ReadPage
-
-            // added into free list
-            _free.Enqueue(page);
+            _pool.AddFreeFrameLocked(segment, page);
         }
 
-        #endregion
-
-        #region Cache managment
-
-        /// <summary>
-        /// Get a clean, re-usable page from store. Can extend buffer segments if store is empty
-        /// </summary>
-        private PageBuffer GetFreePage()
+        private void EvictLocked(PageBuffer page)
         {
-            if (_free.TryDequeue(out var page))
-            {
-                ENSURE(page.Position == long.MaxValue, "pages in memory store must have no position defined");
-                ENSURE(page.ShareCounter == 0, "pages in memory store must be non-shared");
-                ENSURE(page.Origin == FileOrigin.None, "page in memory must have no page origin");
-
-                return page;
-            }
-            // if no more page inside memory store - extend store/reuse non-shared pages
-            else
-            {
-                // ensure only 1 single thread call extend method
-                lock(_free)
-                {
-                    if (_free.Count > 0) return this.GetFreePage();
-
-                    this.Extend();
-                }
-
-                return this.GetFreePage();
-            }
+            ENSURE(page.State == FrameState.Readable && page.ShareCounter == 0, "only idle readable pages can be evicted");
+            var key = this.GetReadableKey(page.Position, page.Origin);
+            ENSURE(_index.TryGetValue(key, out var indexed) && ReferenceEquals(indexed, page), "evicted page must be indexed");
+            _index.Remove(key);
+            this.TransitionToFreeLocked(page);
+            _evictedPages++;
         }
 
-        /// <summary>
-        /// Check if it's possible move readable pages to free list - if not possible, extend memory
-        /// </summary>
-        private void Extend()
+        public int Invalidate()
         {
-            // count how many pages in cache are available to be re-used (is not in use at this time)
-            var emptyShareCounter = _readable.Values.Count(x => x.ShareCounter == 0);
-
-            // get segmentSize
-            var segmentSize = _segmentSizes[Math.Min(_segmentSizes.Length - 1, _extends)];
-
-            // if this count is larger than MEMORY_SEGMENT_SIZE, re-use all this pages
-            if (emptyShareCounter > segmentSize)
+            lock (_sync)
             {
-                // get all readable pages that can return to _free (slow way)
-                // sort by timestamp used (set as free oldest first)
-                var readables = _readable
-                    .Where(x => x.Value.ShareCounter == 0)
-                    .OrderBy(x => x.Value.Timestamp)
-                    .Select(x => x.Key)
-                    .Take(segmentSize)
-                    .ToArray();
-
-                // move pages from readable list to free list
-                foreach (var key in readables)
+                this.ThrowIfDisposedLocked();
+                ENSURE(_pinnedPages == 0, "must have no pages in use when invalidating cache");
+                ENSURE(_loadingPages == 0, "must have no page loads in progress when invalidating cache");
+                var pages = _index.Values.ToArray();
+                foreach (var page in pages)
                 {
-                    var removed = _readable.TryRemove(key, out var page);
-
-                    ENSURE(removed, "page should be in readable list before moving to free list");
-
-                    // if removed page was changed between make array and now, must add back to readable list
-                    if (page.ShareCounter > 0)
-                    {
-                        // but wait: between last "remove" and now, another thread can added this page
-                        if (!_readable.TryAdd(key, page))
-                        {
-                            // this is a terrible situation, to avoid memory corruption I will throw expcetion for now
-                            throw new LiteException(0, "MemoryCache: removed in-use memory page. This situation has no way to fix (yet). Throwing exception to avoid database corruption. No other thread can read/write from database now.");
-                        }
-                    }
-                    else
-                    {
-                        ENSURE(page.ShareCounter == 0, "page should not be in use by anyone");
-
-                        // clean controls
-                        page.Position = long.MaxValue;
-                        page.Origin = FileOrigin.None;
-
-                        _free.Enqueue(page);
-                    }
+                    ENSURE(page.State == FrameState.Readable && page.ShareCounter == 0, "checkpoint can only invalidate idle readable pages");
+                    _index.Remove(this.GetReadableKey(page.Position, page.Origin));
+                    this.TransitionToFreeLocked(page);
                 }
-
-                LOG($"re-using cache pages (flushing {_free.Count} pages)", "CACHE");
-            }
-            else
-            {
-                // create big linear array in heap memory (LOH => 85Kb)
-                var buffer = new byte[PAGE_SIZE * segmentSize];
-                var uniqueID = this.ExtendPages + 1;
-
-                // split linear array into many array slices
-                for (var i = 0; i < segmentSize; i++)
-                {
-                    _free.Enqueue(new PageBuffer(buffer, i * PAGE_SIZE, uniqueID++));
-                }
-
-                _extends++;
-
-                LOG($"extending memory usage: (segments: {_extends})", "CACHE");
+                _pool.ReleaseFullyFreeSegmentsLocked(this.LimitPagesRounded, true);
+                return pages.Length;
             }
         }
 
-        /// <summary>
-        /// Return how many pages are in use when call this method (ShareCounter != 0).
-        /// </summary>
-        public int PagesInUse => _readable.Values.Where(x => x.ShareCounter != 0).Count();
-
-        /// <summary>
-        /// Return how many pages are available (completely free)
-        /// </summary>
-        public int FreePages => _free.Count;
-
-        /// <summary>
-        /// Return how many segments are already loaded in memory
-        /// </summary>
-        public int ExtendSegments => _extends;
-
-        /// <summary>
-        /// Get how many pages this cache extends in memory
-        /// </summary>
-        public int ExtendPages => Enumerable.Range(0, _extends).Select(x => _segmentSizes[Math.Min(_segmentSizes.Length - 1, x)]).Sum();
-
-        /// <summary>
-        /// Get how many pages are used as Writable at this moment
-        /// </summary>
-        public int WritablePages => this.ExtendPages - // total memory
-            _free.Count - _readable.Count; // allocated pages
-
-        /// <summary>
-        /// Get all readable pages
-        /// </summary>
-        public ICollection<PageBuffer> GetPages() => _readable.Values;
-
-        /// <summary>
-        /// Clean all cache memory - moving back all readable pages into free list
-        /// This command must be called inside an exclusive lock
-        /// </summary>
-        public int Clear()
+        /// <summary>Remove an idle version before overwriting an unconfirmed WAL slot.</summary>
+        internal void Invalidate(long position, FileOrigin origin)
         {
-            var counter = 0;
-
-            ENSURE(this.PagesInUse == 0, "must have no pages in use when call Clear() cache");
-
-            foreach (var page in _readable.Values)
+            lock (_sync)
             {
-                page.Position = long.MaxValue;
-                page.Origin = FileOrigin.None;
-
-                _free.Enqueue(page);
-
-                counter++;
+                this.ThrowIfDisposedLocked();
+                if (_index.TryGetValue(this.GetReadableKey(position, origin), out var page))
+                {
+                    this.EvictLocked(page);
+                }
             }
-
-            _readable.Clear();
-
-            return counter;
         }
 
-        #endregion
+        public int Clear() => this.Invalidate();
+
+        public void TrimToLimit()
+        {
+            // Growth after this read belongs to another active operation,
+            // whose release will trim. Avoid entering the monitor on every
+            // completed point lookup when no segment can be released.
+            if (!_pool.ExceedsLimit(this.LimitPagesRounded)) return;
+
+            lock (_sync)
+            {
+                if (_disposed) return;
+
+                _reclaimer.TrimToLimit();
+            }
+        }
+
+        private void EnsureWritableOwnedLocked(PageBuffer page)
+        {
+            if (page == null) throw new ArgumentNullException(nameof(page));
+            ENSURE(ReferenceEquals(page.Cache, this), "page must belong to this cache");
+            ENSURE(page.State == FrameState.Writable, "page must be writable");
+            ENSURE(page.ShareCounter == BUFFER_WRITABLE, "writable page must use writable share marker");
+        }
+
+        private void ThrowIfDisposedLocked()
+        {
+            if (_disposed) throw new ObjectDisposedException(nameof(MemoryCache));
+        }
+
+        public int PagesInUse { get { lock (_sync) return _pinnedPages; } }
+        public int PinnedPages { get { lock (_sync) return _pinnedPages; } }
+        public int FreePages { get { lock (_sync) return _pool.FreePages; } }
+        public int ExtendSegments { get { lock (_sync) return _pool.Segments.Count; } }
+        public int Segments => this.ExtendSegments;
+        public int ExtendPages { get { lock (_sync) return _pool.TotalPages; } }
+        public int TotalPages => this.ExtendPages;
+        public long AllocatedBytes { get { lock (_sync) return _pool.TotalPages * (long)PAGE_SIZE; } }
+        public int WritablePages { get { lock (_sync) return _writablePages; } }
+        public int LoadingPages { get { lock (_sync) return _loadingPages; } }
+        public int ReadablePages { get { lock (_sync) return _readablePages; } }
+        public int IdleReadablePages { get { lock (_sync) return _idleReadablePages; } }
+        public long EvictedPages { get { lock (_sync) return _evictedPages; } }
+        public long ReleasedSegments { get { lock (_sync) return _pool.ReleasedSegments; } }
+        public long OverflowSegments { get { lock (_sync) return _pool.OverflowSegments; } }
+        public long FramesExamined { get { lock (_sync) return _reclaimer.FramesExamined; } }
+        public long BudgetExceeded { get { lock (_sync) return _reclaimer.BudgetExceeded; } }
+        public long Hits => Interlocked.Read(ref _hits);
+        public long Misses { get { lock (_sync) return _misses; } }
+        public long LostFrames
+        {
+            get
+            {
+                lock (_sync)
+                {
+                    return _pool.TotalPages - (long)_pool.FreePages - _readablePages - _writablePages - _loadingPages;
+                }
+            }
+        }
+
+        public int RetainedBySegments { get { lock (_sync) return _pool.RetainedBySegments; } }
+
+        public ICollection<PageBuffer> GetPages()
+        {
+            lock (_sync) return _index.Values.ToArray();
+        }
+
+        internal ICollection<WeakReference> GetSegmentWeakReferences()
+        {
+            lock (_sync) return _pool.Segments.Select(x => new WeakReference(x.Buffer)).ToArray();
+        }
 
         public void Dispose()
         {
+            lock (_sync)
+            {
+                if (_disposed) return;
+                _pool.EnsureIdleForDisposalLocked();
+                _disposed = true;
+                _sharedReads.Clear();
+                _pool.Dispose();
+
+                _index.Clear();
+                _readablePages = 0;
+                _idleReadablePages = 0;
+                _writablePages = 0;
+                _loadingPages = 0;
+                _pinnedPages = 0;
+                Monitor.PulseAll(_sync);
+            }
         }
     }
 }

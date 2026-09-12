@@ -10,6 +10,11 @@
   <PropertyGroup Condition="'$(GitVersionEnabled)' == 'true'">
     <GitVersion_NoFetch Condition="'$(GitVersion_NoFetch)' == ''">true</GitVersion_NoFetch>
     <GitVersion_UpdateAssemblyInfo>false</GitVersion_UpdateAssemblyInfo>
+    <!-- Inner framework builds run concurrently. Sharing obj/gitversion.json
+         lets one task read the file while another task truncates and rewrites it. -->
+    <_GitVersionIntermediatePath>$(BaseIntermediateOutputPath)</_GitVersionIntermediatePath>
+    <_GitVersionIntermediatePath Condition="'$(_GitVersionIntermediatePath)' == ''">obj/</_GitVersionIntermediatePath>
+    <GitVersionOutputFile Condition="'$(GitVersionOutputFile)' == ''">$(_GitVersionIntermediatePath)gitversion.$(Configuration).$(TargetFramework).$(TestingEnabled).json</GitVersionOutputFile>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(GitVersionEnabled)' == 'true'">

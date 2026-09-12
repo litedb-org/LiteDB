@@ -29,11 +29,22 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      - name: Check changed C# file sizes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: python scripts/check-csharp-size.py --base "${BASE_SHA:-HEAD^}"
+
       - name: Restore
         run: dotnet restore LiteDB.sln
 
       - name: Build
         run: dotnet build LiteDB.sln --configuration Release --no-restore /p:TestingEnabled=true
+
+      - name: Build memory validation runner
+        run: dotnet build tools/MemoryValidation/MemoryValidation.csproj --configuration Release
+
+      - name: Build memory profile measurements
+        run: dotnet build tools/MemoryProfiles/MemoryProfiles.csproj --configuration Release
 
       - name: Package build outputs
         run: tar -czf tests-build-linux.tar.gz LiteDB/bin/Release LiteDB/obj/Release LiteDB.Tests/bin/Release LiteDB.Tests/obj/Release
