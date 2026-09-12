@@ -45,6 +45,11 @@ namespace LiteDB.Engine
             // if collection exists but are empty
             if (first == null) yield break;
 
+            // A safepoint can release every page backing an IndexNode. Keep only
+            // the address needed to begin the forward scan before yielding.
+            var forward = first.GetNextPrev(0, this.Order);
+            first = null;
+
             // first, go backward to get all same values
             while (node != null)
             {
@@ -79,7 +84,7 @@ namespace LiteDB.Engine
             }
 
             // move forward
-            node = indexer.GetNode(first.GetNextPrev(0, this.Order));
+            node = indexer.GetNode(forward);
 
             while (node != null)
             {
