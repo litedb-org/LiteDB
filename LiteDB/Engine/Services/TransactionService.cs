@@ -194,6 +194,16 @@ namespace LiteDB.Engine
 
                 }
 
+                // A final safepoint can leave every changed page on disk. Append
+                // a confirmed copy so this commit still publishes those slots.
+                if (markLastAsConfirmed && dirty == 0 && _transPages.DirtyPages.Count > 0)
+                {
+                    var position = _transPages.DirtyPages.Values.First().Position;
+                    var buffer = _reader.ReadPage(position, true, FileOrigin.Log);
+                    buffer.Write(true, BasePage.P_IS_CONFIRMED);
+                    yield return buffer;
+                }
+
                 // in commit with header page change, last page will be header
                 if (commit && _transPages.HeaderChanged)
                 {
