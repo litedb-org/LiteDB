@@ -188,11 +188,14 @@ namespace LiteDB.Engine
                     // if this page came from data file, must be changed before MoveToReadable
                     page.Origin = FileOrigin.Log;
 
-                    // mark this page as readable and get cached paged to enqueue
-                    var readable = _cache.MoveToReadable(page);
+                    PageBuffer readable = null;
 
                     try
                     {
+                        // Publish inside the guarded scope: collision or other
+                        // publication failures must return the writable frame.
+                        readable = _cache.MoveToReadable(page);
+
                         // Use the published frame for every operation. It remains
                         // pinned until the write and callback are both complete.
                         stream.Position = readable.Position;
@@ -208,9 +211,18 @@ namespace LiteDB.Engine
 
                         count++;
                     }
+                    catch
+                    {
+                        if (readable == null && page.State == FrameState.Writable)
+                        {
+                            _cache.DiscardPage(page);
+                        }
+
+                        throw;
+                    }
                     finally
                     {
-                        readable.Release();
+                        readable?.Release();
                     }
                 }
                 stream.Flush();

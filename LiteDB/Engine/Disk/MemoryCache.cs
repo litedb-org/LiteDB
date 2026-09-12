@@ -204,7 +204,7 @@ namespace LiteDB.Engine
             if (factory == null) throw new ArgumentNullException(nameof(factory));
 
             var key = this.GetReadableKey(position, origin);
-            PageBuffer writable;
+            PageBuffer writable = null;
 
             lock (_sync)
             {
@@ -216,20 +216,39 @@ namespace LiteDB.Engine
                     this.ThrowIfDisposedLocked();
                 }
 
-                writable = this.AcquireWritableLocked(position, origin);
-
                 if (_index.TryGetValue(key, out var readable))
                 {
                     ENSURE(readable.State == FrameState.Readable, "cached source must be readable");
+                    this.PinLocked(readable);
+
+                    try
+                    {
+                        // Pin before acquiring the destination: a full cache is
+                        // then unable to evict and reuse its readable source.
+                        writable = this.AcquireWritableLocked(position, origin);
 #if TESTING
-                    WritableCopyUnderLock?.Invoke();
+                        WritableCopyUnderLock?.Invoke();
 #endif
-                    Buffer.BlockCopy(readable.Array, readable.Offset, writable.Array, writable.Offset, PAGE_SIZE);
-                    readable.Referenced = 1;
-                    _hits++;
-                    return writable;
+                        Buffer.BlockCopy(readable.Array, readable.Offset, writable.Array, writable.Offset, PAGE_SIZE);
+                        _hits++;
+                        return writable;
+                    }
+                    catch
+                    {
+                        if (writable != null && writable.State == FrameState.Writable)
+                        {
+                            this.TransitionToFreeLocked(writable);
+                        }
+
+                        throw;
+                    }
+                    finally
+                    {
+                        this.UnpinLocked(readable);
+                    }
                 }
 
+                writable = this.AcquireWritableLocked(position, origin);
                 _misses++;
             }
 
@@ -342,14 +361,21 @@ namespace LiteDB.Engine
                 ENSURE(page.State == FrameState.Readable, "only readable pages can be released");
                 ENSURE(page.ShareCounter > 0, "share counter must be > 0 in Release()");
 
-                page.ShareCounter--;
+                this.UnpinLocked(page);
+            }
+        }
 
-                if (page.ShareCounter == 0)
-                {
-                    this.ChangeBusyLocked(page.Segment, -1);
-                    _pinnedPages--;
-                    _idleReadablePages++;
-                }
+        private void UnpinLocked(PageBuffer page)
+        {
+            ENSURE(page.ShareCounter > 0, "share counter must be > 0 when unpinning");
+
+            page.ShareCounter--;
+
+            if (page.ShareCounter == 0)
+            {
+                this.ChangeBusyLocked(page.Segment, -1);
+                _pinnedPages--;
+                _idleReadablePages++;
             }
         }
 
