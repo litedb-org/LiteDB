@@ -9,6 +9,11 @@ Restore and build with `dotnet build LiteDB.sln -c Release` after a `dotnet rest
 ## Coding Style & Naming Conventions
 Follow the repository’s C# conventions: four-space indentation, Allman braces, and grouped `using` directives with system namespaces first. Prefer `var` only when the right-hand side is obvious, keep public APIs XML-documented (the build emits `LiteDB.xml`), and avoid introducing nullable warnings in both `netstandard2.0` and `net8.0` targets. Unsafe code is enabled; justify its use with comments tied to the relevant `Engine` component.
 
+Keep new C# files below 300 lines where practical and at or below 500 lines.
+CI checks changed files with `scripts/check-csharp-size.py`; existing oversized
+files have explicit, non-growing exceptions in `scripts/csharp-size-exceptions.json`.
+Enable the matching staged-content check with `git config core.hooksPath .githooks`.
+
 ## Testing Guidelines
 Tests are written with xUnit and FluentAssertions; mirror the production folder names (`Engine`, `Query`, `Issues`, etc.) when adding scenarios. Name files after the type under test and choose expressive `[Fact]` / `[Theory]` method names describing the behavior. Long-running tests must finish within the 300-second session timeout defined in `tests.runsettings`; run focused suites with `dotnet test LiteDB.Tests --filter FullyQualifiedName~Engine` to triage regressions quickly.
 

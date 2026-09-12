@@ -1,0 +1,18 @@
+{
+  "LiteDB.Tests/Internals/Cache_Tests.cs": {
+    "maxLines": 811,
+    "reason": "Existing deterministic cache fixture; this corrective change preserves its race coverage. No further growth allowed."
+  },
+  "LiteDB/Engine/Pages/BasePage.cs": {
+    "maxLines": 829,
+    "reason": "Existing page-format implementation; splitting the persisted format is outside the memory-lifecycle correction. No further growth allowed."
+  },
+  "LiteDB/Engine/Services/SnapShot.cs": {
+    "maxLines": 771,
+    "reason": "Existing snapshot lifecycle implementation; retain its tested ownership boundaries in this correction. No further growth allowed."
+  },
+  "LiteDB/Engine/Services/VectorIndexService.cs": {
+    "maxLines": 1038,
+    "reason": "Existing HNSW implementation; structural extraction needs a dedicated graph-persistence review. No further growth allowed."
+  }
+}

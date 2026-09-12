@@ -1,7 +1,7 @@
 # Memory-management implementation TODO
 
 This checklist tracks the implementation and validation of
-`docs/memory-management-proposal.md` revision 5. The separate opt-in
+`docs/memory-management-proposal.md` revision 6. The separate opt-in
 `Query.Parameterized` API discussed in section 5.8 is intentionally outside
 this memory-fix PR; revision 5 says the bounded cache ships alone and treats
 parameterized helpers as a later compatibility decision.
@@ -29,7 +29,7 @@ parameterized helpers as a later compatibility decision.
 ## Phase 2: expression cache
 
 - [x] Bound compiled scalar and enumerable delegates to 1,000 total entries.
-- [x] Make cache admission and its maintained count concurrency-safe.
+- [x] Publish bounded expression-cache entries and their count with atomics; no admission lock.
 - [x] Report compiled-expression count through `$database`.
 
 ## Phase 2b: stream ownership and capacity
@@ -112,7 +112,10 @@ parameterized helpers as a later compatibility decision.
 - [x] Run a final post-CI regression and memory-leak verification
   (net8.0: 413 passed, 7 skipped; leak-focused gate: 66 tests x 5 passes).
 
-## Post-review and benchmark follow-up
+## Post-review and benchmark follow-up (original PR head)
+
+This checklist was recorded with the original PR-head benchmark results.
+The separate follow-up branch's completed corrections are listed in revision 6 below.
 
 - [x] Compare `dev` and the PR with identical large-file, expression, index,
   vector, encrypted-write, and shared-reader workloads; record absolute values
@@ -134,3 +137,24 @@ parameterized helpers as a later compatibility decision.
   shared-reader throughput is 21-38% lower at 4-16 readers on the benchmark host.
 - [ ] Obtain required maintainer review after every correctness item above is
   fixed and the updated head is green.
+
+## Revision 6 corrective verification
+
+- [x] Dispose aggregate sources on completion, early cursor disposal, and failure.
+- [x] Validate malformed, negative, overflowing, empty, and explicit-zero cache sizes.
+- [x] Replace transaction registration locks with bounded atomic slots; diagnostics
+  enumerate copied references and report `transactionPages` rather than claiming pins.
+- [x] Replace expression-cache admission locking with 1,000 atomic entry slots.
+- [x] Make stream/disk disposal admission atomic.
+- [x] Skip the cache trim monitor when within target; preserve frame-lifetime synchronization.
+- [x] Extract segment storage and eviction policy into separate components.
+- [x] Add a reproducible performance runner with per-operation latency and WAL measurements.
+- [x] Record 14 final production measurement runs on .NET 8/.NET 10, including
+  8/64/256 MiB profiles, the original PR head, the pre-feature baseline, and
+  200k/900k index builds in `docs/memory-management-validation.md`.
+- [x] Build the full Release solution; pass 433 tests (7 skipped) on both .NET 8
+  and .NET 10; pass the 86-test focused concurrency/memory subset five times.
+
+The corrective commits are staged separately on `bug/memory-leaks-followup`.
+The run IDs above describe the original implementation; they do not verify this
+follow-up branch. The repository's PR-triggered CI has not run for this branch.
