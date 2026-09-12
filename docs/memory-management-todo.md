@@ -130,8 +130,12 @@ parameterized helpers as a later compatibility decision.
 - [x] Reject malformed/negative `cache size` text while continuing to accept
   explicit zero as the storage-specific-default sentinel.
 - [x] Update Appendix A's diagnostics example to the implemented schema.
-- [x] Re-run post-review validation (Release solution build; net8.0: 427
-  passed, 7 skipped; leak/ownership gate: 77 passed x 5 runs; Issue 2561
+- [x] Roll back cache publication, logical log length, and physical stream
+  length after failed or partial WAL appends.
+- [x] Reject transaction creation once monitor shutdown begins, including the
+  checked-before-lock race.
+- [x] Re-run post-review validation (Release solution build; net8.0: 431
+  passed, 7 skipped; leak/ownership gate: 81 passed x 5 runs; Issue 2561
   repro runner: green).
 - [ ] Profile and decide whether to optimize shared-reader contention before
   merge; measured throughput is 21-38% lower at 4-16 readers on the benchmark
