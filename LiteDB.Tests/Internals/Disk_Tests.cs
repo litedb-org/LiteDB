@@ -106,6 +106,22 @@ namespace LiteDB.Internals
             disk.Cache.PinnedPages.Should().Be(0);
         }
 
+        [Fact]
+        public void WriteLogDisk_PublicationCollision_DiscardsWritableFrame()
+        {
+            using var disk = CreateDisk(out _);
+            var existing = disk.Cache.GetReadablePage(0, FileOrigin.Log, (_, page) => page.Write(1, 0));
+            existing.Release();
+            var writable = disk.NewPage();
+
+            Action write = () => disk.WriteLogDisk(new[] { writable });
+
+            write.Should().Throw<LiteException>();
+            writable.State.Should().Be(FrameState.Free);
+            disk.Cache.WritablePages.Should().Be(0);
+            disk.Cache.PinnedPages.Should().Be(0);
+        }
+
         private static DiskService CreateDisk(out EngineState state)
         {
             var settings = new EngineSettings

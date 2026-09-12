@@ -269,6 +269,46 @@ namespace LiteDB.Internals
         }
 
         [Fact]
+        public void WritableCopy_TestHookThrows_ReturnsFrameAndSourcePin()
+        {
+            using var cache = CreateCache();
+            Load(cache, 1).Release();
+            cache.WritableCopyUnderLock = () => throw new IOException("copy failed");
+
+            Action copy = () => cache.GetWritablePage(
+                PAGE_SIZE,
+                FileOrigin.Data,
+                (_, __) => throw new InvalidOperationException("cached source must be copied"));
+
+            copy.Should().Throw<IOException>().WithMessage("copy failed");
+            cache.WritablePages.Should().Be(0);
+            cache.PinnedPages.Should().Be(0);
+            AssertAccounting(cache);
+        }
+
+        [Fact]
+        public void WritableCopy_FullCache_DoesNotEvictReadableSource()
+        {
+            using var cache = CreateCache();
+
+            for (var i = 0; i < cache.LimitPagesRounded; i++)
+            {
+                Load(cache, i).Release();
+            }
+
+            var factoryCalls = 0;
+            var writable = cache.GetWritablePage(
+                PAGE_SIZE,
+                FileOrigin.Data,
+                (_, __) => Interlocked.Increment(ref factoryCalls));
+
+            factoryCalls.Should().Be(0);
+            writable.ReadInt32(0).Should().Be(1);
+            cache.DiscardPage(writable);
+            AssertAccounting(cache);
+        }
+
+        [Fact]
         public void Cache_AllIdleAllReferenced_EvictsOnSecondPass()
         {
             using var cache = CreateCache(evictBudget: 2);

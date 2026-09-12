@@ -100,6 +100,19 @@ namespace LiteDB.Tests.Engine
         }
 
         [Fact]
+        public void Like_WithPrefixAndMatches_PinsBounded()
+        {
+            using var harness = CreateHarness();
+            var collection = Seed(harness.Database);
+            collection.EnsureIndex("name_idx", "$.name");
+            harness.Database.Checkpoint();
+
+            AssertOperationBound(harness, () => collection
+                .Find(BsonExpression.Create("$.name LIKE 'name-1%'"))
+                .Should().HaveCount(311));
+        }
+
+        [Fact]
         public void NotEqual_NoMatch_PinsBounded()
         {
             using var harness = CreateHarness();
@@ -135,6 +148,22 @@ namespace LiteDB.Tests.Engine
                 .Select("{ key: @key, count: COUNT(*) }")
                 .ToDocuments()
                 .Should().HaveCount(10));
+        }
+
+        [Fact]
+        public void Aggregate_CursorDisposedEarly_ReleasesSourcePages()
+        {
+            using var harness = CreateHarness();
+            var collection = Seed(harness.Database);
+            using (var cursor = collection.Query()
+                .Select("{ count: COUNT(*) }")
+                .ToDocuments()
+                .GetEnumerator())
+            {
+                cursor.MoveNext().Should().BeTrue();
+            }
+
+            GetCacheInfo(harness.Database)["pinnedPages"].AsInt32.Should().Be(0);
         }
 
         [Fact]
@@ -296,7 +325,12 @@ namespace LiteDB.Tests.Engine
                 cache["loadingPages"].AsInt32);
             cache["readablePages"].AsInt32.Should().Be(
                 cache["idleReadablePages"].AsInt32 + cache["pinnedPages"].AsInt32);
-            transactions.Keys.Should().Contain(new[] { "transactionPageLimit", "pinnedPages" });
+            transactions.Keys.Should().Contain(new[] { "transactionPageLimit", "transactionPages" });
+            transactions.Keys.Should().NotContain("pinnedPages");
+            transactions["open"].AsInt32.Should().Be(transactions["transactionPages"].AsArray.Count);
+            transactions["transactionPages"].AsArray.All(x =>
+                x.AsDocument.Keys.Contains("transactionID") &&
+                x.AsDocument.Keys.Contains("pages")).Should().BeTrue();
             transactions.Keys.Should().NotContain(new[] { "availableSize", "initialTransactionSize" });
         }
 

@@ -117,19 +117,19 @@ parameterized helpers as a later compatibility decision.
 - [x] Compare `dev` and the PR with identical large-file, expression, index,
   vector, encrypted-write, and shared-reader workloads; record absolute values
   and deltas in `docs/memory-management-benchmark-results.md`.
-- [ ] Make index scan and LIKE iterators resume from cached addresses rather
+- [x] Make index scan and LIKE iterators resume from cached addresses rather
   than page-backed nodes across caller safepoints.
-- [ ] Dispose aggregate `DocumentCacheEnumerable` instances when result
+- [x] Dispose aggregate `DocumentCacheEnumerable` instances when result
   enumeration ends early.
-- [ ] Close writable-frame cleanup gaps around failed publication, test-hook
+- [x] Close writable-frame cleanup gaps around failed publication, test-hook
   failures, and readable-source eviction during writable acquisition.
-- [ ] Make `DiskService`, `StreamPool`, and `StreamFactory` disposal transitions
+- [x] Make `DiskService`, `StreamPool`, and `StreamFactory` disposal transitions
   atomic under concurrent callers.
-- [ ] Snapshot transaction diagnostics under the monitor lock and report
+- [x] Snapshot transaction diagnostics under the monitor lock and report
   accurately named pin/page counts.
-- [ ] Reject malformed/negative `cache size` text while continuing to accept
+- [x] Reject malformed/negative `cache size` text while continuing to accept
   explicit zero as the storage-specific-default sentinel.
-- [ ] Update Appendix A's diagnostics example to the implemented schema.
+- [x] Update Appendix A's diagnostics example to the implemented schema.
 - [ ] Profile and decide whether to optimize shared-reader contention before
   merge; measured throughput is 21-38% lower at 4-16 readers on the benchmark
   host, but the exact bottleneck has not yet been attributed.

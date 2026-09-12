@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using FluentAssertions;
 using LiteDB.Engine;
 using LiteDB.Tests;
@@ -37,6 +39,43 @@ namespace LiteDB.Internals
             pool.Dispose();
 
             stream.WasDisposed.Should().BeTrue();
+        }
+
+        [Fact]
+        public void StreamFactory_ConcurrentDispose_DisposesOwnedStreamOnce()
+        {
+            var stream = new TrackingMemoryStream();
+            var factory = new StreamFactory(stream, null, true);
+
+            Parallel.For(0, 64, _ => factory.Dispose());
+
+            stream.DisposeCalls.Should().Be(1);
+        }
+
+        [Fact]
+        public void StreamPool_ConcurrentDispose_DisposesFactoryOnce()
+        {
+            var factory = new CountingFactory();
+            var pool = new StreamPool(factory, false);
+
+            Parallel.For(0, 64, _ => pool.Dispose());
+
+            factory.DisposeCalls.Should().Be(1);
+        }
+
+        [Fact]
+        public void DiskService_ConcurrentDispose_CompletesWithoutDoubleCleanup()
+        {
+            var settings = new EngineSettings
+            {
+                DataStream = new MemoryStream(),
+                LogStream = new MemoryStream()
+            };
+            var disk = new DiskService(settings, new EngineState(null, settings), new[] { 2 });
+
+            Action dispose = () => Parallel.For(0, 64, _ => disk.Dispose());
+
+            dispose.Should().NotThrow();
         }
 
         [Theory]
@@ -146,12 +185,35 @@ namespace LiteDB.Internals
         private class TrackingMemoryStream : MemoryStream
         {
             public bool WasDisposed { get; private set; }
+            public int DisposeCalls => Volatile.Read(ref _disposeCalls);
 
             protected override void Dispose(bool disposing)
             {
-                if (disposing) this.WasDisposed = true;
+                if (disposing)
+                {
+                    this.WasDisposed = true;
+                    Interlocked.Increment(ref this._disposeCalls);
+                }
                 base.Dispose(disposing);
             }
+
+            private int _disposeCalls;
+        }
+
+        private sealed class CountingFactory : IStreamFactory
+        {
+            private int _disposeCalls;
+
+            public int DisposeCalls => _disposeCalls;
+            public string Name => ":counting:";
+            public bool CloseOnDispose => false;
+            public Stream GetStream(bool canWrite, bool sequencial) => new MemoryStream();
+            public long GetLength() => 0;
+            public bool Exists() => false;
+            public void Delete() { }
+            public bool IsLocked() => false;
+            public void TrimCapacity(Stream stream) { }
+            public void Dispose() => Interlocked.Increment(ref _disposeCalls);
         }
 
         private sealed class ThrowingLengthStream : TrackingMemoryStream
