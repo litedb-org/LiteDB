@@ -15,6 +15,8 @@ files have explicit, non-growing exceptions in `scripts/csharp-size-exceptions.j
 Enable the matching staged-content check with `git config core.hooksPath .githooks`.
 The hook prefers `python3` and falls back to `python`. Generated-looking file
 names are checked too; any exception must be explicitly justified in the manifest.
+The manifest also baselines legacy files exposed by the full `dev`-to-`master`
+PR diff, with limits fixed at their size before the check was introduced.
 
 ## Testing Guidelines
 Tests are written with xUnit and FluentAssertions; mirror the production folder names (`Engine`, `Query`, `Issues`, etc.) when adding scenarios. Name files after the type under test and choose expressive `[Fact]` / `[Theory]` method names describing the behavior. Long-running tests must finish within the 300-second session timeout defined in `tests.runsettings`; run focused suites with `dotnet test LiteDB.Tests --filter FullyQualifiedName~Engine` to triage regressions quickly.
