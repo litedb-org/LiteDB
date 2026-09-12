@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
+using LiteDB.Tests.Utils;
 using Xunit;
 
 namespace LiteDB.Tests.Issues;
@@ -17,7 +18,7 @@ public class Issue2471_Test
     [Fact]
     public void TestFragmentDB_FindByIDException()
     {
-        using var db = new LiteDatabase(":memory:");
+        using var db = DatabaseFactory.Create();
         var collection = db.GetCollection<object>("fragtest");
 
         var fragment = new object { };
@@ -36,7 +37,7 @@ public class Issue2471_Test
     [Fact]
     public void MultipleReadCleansUpTransaction()
     {
-        using var database = new LiteDatabase(":memory:");
+        using var database = DatabaseFactory.Create();
 
         var collection = database.GetCollection("test");
         collection.Insert(new BsonDocument { ["_id"] = 1 });

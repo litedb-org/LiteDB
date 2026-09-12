@@ -23,6 +23,7 @@ namespace LiteDB.Engine
         // instances from transaction
         private readonly uint _transactionID;
         private readonly TransactionPages _transPages;
+        private readonly Action _safepoint;
 
         // snapshot controls
         private readonly int _readVersion;
@@ -34,6 +35,7 @@ namespace LiteDB.Engine
         private readonly Dictionary<uint, BasePage> _localPages = new Dictionary<uint, BasePage>();
 
         private bool _disposed;
+        private int _epoch;
 
         // expose
         public LockMode Mode => _mode;
@@ -41,6 +43,8 @@ namespace LiteDB.Engine
         public CollectionPage CollectionPage => _collectionPage;
         public ICollection<BasePage> LocalPages => _localPages.Values;
         public int ReadVersion => _readVersion;
+        internal Action Safepoint => _safepoint;
+        internal int Epoch => _epoch;
 
         public Snapshot(
             LockMode mode, 
@@ -52,7 +56,8 @@ namespace LiteDB.Engine
             WalIndexService walIndex, 
             DiskReader reader, 
             DiskService disk,
-            bool addIfNotExists)
+            bool addIfNotExists,
+            Action safepoint = null)
         {
             _mode = mode;
             _collectionName = collectionName;
@@ -63,6 +68,7 @@ namespace LiteDB.Engine
             _walIndex = walIndex;
             _reader = reader;
             _disk = disk;
+            _safepoint = safepoint ?? (() => { });
 
             // enter in lock mode according initial mode
             if (mode == LockMode.Write)
@@ -75,14 +81,22 @@ namespace LiteDB.Engine
 
             var srv = new CollectionService(_header, _disk, this, _transPages);
 
-            // read collection (create if new - load virtual too)
-            srv.Get(_collectionName, addIfNotExists, ref _collectionPage);
-
-            // clear local pages (will clear _collectionPage link reference)
-            if (_collectionPage != null)
+            try
             {
-                // local pages contains only data/index pages
-                _localPages.Remove(_collectionPage.PageID);
+                srv.Get(_collectionName, addIfNotExists, ref _collectionPage);
+                if (_collectionPage != null) _localPages.Remove(_collectionPage.PageID);
+            }
+            catch
+            {
+                // A failed constructor never reaches the transaction's snapshot map.
+                if (_collectionPage != null) _localPages[_collectionPage.PageID] = _collectionPage;
+                foreach (var page in _localPages.Values)
+                {
+                    if (_mode == LockMode.Write) _disk.Cache.DiscardPage(page.Buffer);
+                    else page.Buffer.Release();
+                }
+                if (_mode == LockMode.Write) _locker.ExitLock(_collectionName);
+                throw;
             }
         }
 
@@ -96,14 +110,14 @@ namespace LiteDB.Engine
             // if snapshot is read only, just exit
             if (_mode == LockMode.Read) yield break;
 
-            foreach(var page in _localPages.Values.Where(x => x.IsDirty == dirty))
+            foreach(var page in _localPages.Values.Where(x => x.OwnsBuffer && x.IsDirty == dirty))
             {
                 ENSURE(page.PageType != PageType.Header && page.PageType != PageType.Collection, "local cache cann't contains this page type");
 
                 yield return page;
             }
 
-            if (includeCollectionPage && _collectionPage != null && _collectionPage.IsDirty == dirty)
+            if (includeCollectionPage && _collectionPage != null && _collectionPage.OwnsBuffer && _collectionPage.IsDirty == dirty)
             {
                 yield return _collectionPage;
             }
@@ -127,6 +141,11 @@ namespace LiteDB.Engine
             }
 
             _localPages.Clear();
+            _epoch++;
+
+            // The collection page is deliberately retained by the snapshot
+            // across safepoints, so refresh only its ownership epoch.
+            _collectionPage?.SetSnapshotOwnership(this);
         }
 
         /// <summary>
@@ -199,6 +218,7 @@ namespace LiteDB.Engine
 
             // if page is not in local cache, get from disk (log/wal/data)
             page = this.ReadPage<T>(pageID, out origin, out position, out walVersion, useLatestVersion);
+            page.SetSnapshotOwnership(this);
 
             // add into local pages
             _localPages[pageID] = page;
@@ -215,55 +235,44 @@ namespace LiteDB.Engine
         private T ReadPage<T>(uint pageID, out FileOrigin origin, out long position, out int walVersion, bool useLatestVersion = false)
             where T : BasePage
         {
-            // if not inside local pages can be a dirty page saved in log file
-            if (_transPages.DirtyPages.TryGetValue(pageID, out var walPosition))
+            var dirty = _transPages.DirtyPages.TryGetValue(pageID, out var walPosition);
+            if (dirty)
             {
-                // read page from log file
-                var buffer = _reader.ReadPage(walPosition.Position, _mode == LockMode.Write, FileOrigin.Log);
-                var dirty = BasePage.ReadPage<T>(buffer);
-
                 origin = FileOrigin.Log;
                 position = walPosition.Position;
                 walVersion = _readVersion;
-
-                ENSURE(dirty.TransactionID == _transactionID, "this page must came from same transaction");
-
-                return dirty;
-            }
-
-            // now, look inside wal-index
-            var pos = _walIndex.GetPageIndex(pageID, useLatestVersion ? int.MaxValue : _readVersion, out walVersion);
-
-            if (pos != long.MaxValue)
-            {
-                // read page from log file
-                var buffer = _reader.ReadPage(pos, _mode == LockMode.Write, FileOrigin.Log);
-                var logPage = BasePage.ReadPage<T>(buffer);
-
-                // clear some data inside this page (will be override when write on log file)
-                logPage.TransactionID = 0;
-                logPage.IsConfirmed = false;
-
-                origin = FileOrigin.Log;
-                position = pos;
-
-                return logPage;
             }
             else
             {
-                // for last chance, look inside original disk data file
-                var pagePosition = BasePage.GetPagePosition(pageID);
+                position = _walIndex.GetPageIndex(pageID, useLatestVersion ? int.MaxValue : _readVersion, out walVersion);
+                origin = position == long.MaxValue ? FileOrigin.Data : FileOrigin.Log;
+                if (origin == FileOrigin.Data) position = BasePage.GetPagePosition(pageID);
+            }
 
-                // read page from data file
-                var buffer = _reader.ReadPage(pagePosition, _mode == LockMode.Write, FileOrigin.Data);
-                var diskpage = BasePage.ReadPage<T>(buffer);
-
-                origin = FileOrigin.Data;
-                position = pagePosition;
-
-                ENSURE(diskpage.IsConfirmed == false || diskpage.TransactionID != 0, "page are not header-clear in data file");
-
-                return diskpage;
+            var buffer = _reader.ReadPage(position, _mode == LockMode.Write, origin);
+            try
+            {
+                var page = BasePage.ReadPage<T>(buffer);
+                if (dirty)
+                {
+                    ENSURE(page.TransactionID == _transactionID, "this page must came from same transaction");
+                }
+                else if (origin == FileOrigin.Log)
+                {
+                    page.TransactionID = 0;
+                    page.IsConfirmed = false;
+                }
+                else
+                {
+                    ENSURE(page.IsConfirmed == false || page.TransactionID != 0, "page are not header-clear in data file");
+                }
+                return page;
+            }
+            catch
+            {
+                if (_mode == LockMode.Write) _disk.Cache.DiscardPage(buffer);
+                else buffer.Release();
+                throw;
             }
         }
 
@@ -323,6 +332,30 @@ namespace LiteDB.Engine
                 page = this.GetPage<IndexPage>(freeIndexPageList);
 
                 ENSURE(page.FreeBytes > bytesLength, "this page shout be space enouth for this new node");
+                ENSURE(page.PageListSlot == 0, "this page should be in slot #0");
+            }
+
+            return page;
+        }
+
+        /// <summary>
+        /// Get a vector index page with enough free space for a new node.
+        /// </summary>
+        public VectorIndexPage GetFreeVectorPage(int bytesLength, ref uint freeVectorPageList)
+        {
+            ENSURE(!_disposed, "the snapshot is disposed");
+
+            VectorIndexPage page;
+
+            if (freeVectorPageList == uint.MaxValue)
+            {
+                page = this.NewPage<VectorIndexPage>();
+            }
+            else
+            {
+                page = this.GetPage<VectorIndexPage>(freeVectorPageList);
+
+                ENSURE(page.FreeBytes > bytesLength, "this page shout be space enouth for this new vector node");
                 ENSURE(page.PageListSlot == 0, "this page should be in slot #0");
             }
 
@@ -397,6 +430,7 @@ namespace LiteDB.Engine
             }
 
             var page = BasePage.CreatePage<T>(buffer, pageID);
+            page.SetSnapshotOwnership(this);
 
             // update local cache with new instance T page type
             if (page.PageType != PageType.Collection)
@@ -489,6 +523,42 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
+        /// Add/Remove a vector index page from single free list
+        /// </summary>
+        public void AddOrRemoveFreeVectorList(VectorIndexPage page, ref uint startPageID)
+        {
+            ENSURE(!_disposed, "the snapshot is disposed");
+
+            var newSlot = VectorIndexPage.FreeListSlot(page.FreeBytes);
+            var isOnList = page.PageListSlot == 0;
+            var mustKeep = newSlot == 0;
+
+            if (page.ItemsCount == 0)
+            {
+                if (isOnList)
+                {
+                    this.RemoveFreeList(page, ref startPageID);
+                }
+
+                this.DeletePage(page);
+            }
+            else
+            {
+                if (isOnList && !mustKeep)
+                {
+                    this.RemoveFreeList(page, ref startPageID);
+                }
+                else if (!isOnList && mustKeep)
+                {
+                    this.AddFreeList(page, ref startPageID);
+                }
+
+                page.PageListSlot = newSlot;
+                page.IsDirty = true;
+            }
+        }
+
+        /// <summary>
         /// Add page into double linked-list (always add as first element)
         /// </summary>
         private void AddFreeList<T>(T page, ref uint startPageID) where T : BasePage
@@ -507,7 +577,7 @@ namespace LiteDB.Engine
             page.NextPageID = startPageID;
             page.IsDirty = true;
 
-            ENSURE(page.PageType == PageType.Data || page.PageType == PageType.Index, "only data/index pages must be first on free stack");
+            ENSURE(page.PageType == PageType.Data || page.PageType == PageType.Index || page.PageType == PageType.VectorIndex, "only data/index pages must be first on free stack");
 
             startPageID = page.PageID;
 
@@ -560,9 +630,10 @@ namespace LiteDB.Engine
         {
             ENSURE(page.PrevPageID == uint.MaxValue && page.NextPageID == uint.MaxValue, "before delete a page, no linked list with any another page");
             ENSURE(page.ItemsCount == 0 && page.UsedBytes == 0 && page.HighestIndex == byte.MaxValue && page.FragmentedBytes == 0, "no items on page when delete this page");
-            ENSURE(page.PageType == PageType.Data || page.PageType == PageType.Index, "only data/index page can be deleted");
+            ENSURE(page.PageType == PageType.Data || page.PageType == PageType.Index || page.PageType == PageType.VectorIndex, "only data/index page can be deleted");
             DEBUG(!_collectionPage.FreeDataPageList.Any(x => x == page.PageID), "this page cann't be deleted because free data list page is linked o this page");
             DEBUG(!_collectionPage.GetCollectionIndexes().Any(x => x.FreeIndexPageList == page.PageID), "this page cann't be deleted because free index list page is linked o this page");
+            DEBUG(!_collectionPage.GetVectorIndexes().Any(x => x.Metadata.Reserved == page.PageID), "this page cann't be deleted because free vector list page is linked o this page");
             DEBUG(page.Buffer.Slice(PAGE_HEADER_SIZE, PAGE_SIZE - PAGE_HEADER_SIZE - 1).All(0), "page content shloud be empty");
 
             // mark page as empty and dirty
@@ -603,7 +674,8 @@ namespace LiteDB.Engine
             ENSURE(!_disposed, "the snapshot is disposed");
 
             var indexer = new IndexService(this, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
-
+            VectorIndexService vectorIndexer = null;
+            
             // CollectionPage will be last deleted page (there is no NextPageID from CollectionPage)
             _transPages.FirstDeletedPageID = _collectionPage.PageID;
             _transPages.LastDeletedPageID = _collectionPage.PageID;
@@ -618,6 +690,11 @@ namespace LiteDB.Engine
             // getting all indexes pages from all indexes
             foreach(var index in _collectionPage.GetCollectionIndexes())
             {
+                if (index.IndexType == 1)
+                {
+                    continue;
+                }
+                
                 // add head/tail (same page) to be deleted
                 indexPages.Add(index.Head.PageID);
 
@@ -627,6 +704,15 @@ namespace LiteDB.Engine
 
                     safePoint();
                 }
+            }
+            
+            
+            foreach (var (_, metadata) in _collectionPage.GetVectorIndexes())
+            {
+                vectorIndexer ??= new VectorIndexService(this, _header.Pragmas.Collation);
+                vectorIndexer.Drop(metadata);
+
+                safePoint();
             }
 
             // now, mark all pages as deleted

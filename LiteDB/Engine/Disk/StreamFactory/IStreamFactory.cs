@@ -9,8 +9,10 @@ namespace LiteDB.Engine
 {
     /// <summary>
     /// Interface factory to provider new Stream instances for datafile/walfile resources. It's useful to multiple threads can read same datafile
+    /// Disposal must be idempotent: constructor-failure cleanup may dispose
+    /// a factory after disposing the pool that owns it.
     /// </summary>
-    internal interface IStreamFactory
+    internal interface IStreamFactory : IDisposable
     {
         /// <summary>
         /// Get Stream name (filename)
@@ -47,5 +49,11 @@ namespace LiteDB.Engine
         /// Indicate that factory must be dispose on finish
         /// </summary>
         bool CloseOnDispose { get; }
+
+        /// <summary>
+        /// Release unused capacity when the underlying stream is owned by the
+        /// engine and supports doing so.
+        /// </summary>
+        void TrimCapacity(Stream stream);
     }
 }

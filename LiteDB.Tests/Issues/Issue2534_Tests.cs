@@ -2,6 +2,7 @@
 
 namespace LiteDB.Tests.Issues;
 
+[Collection("SharedDemoDatabase")]
 public class Issue2534_Tests
 {
     [Fact]

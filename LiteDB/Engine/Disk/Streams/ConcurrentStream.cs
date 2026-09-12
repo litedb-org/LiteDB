@@ -12,13 +12,15 @@ namespace LiteDB.Engine
     {
         private readonly Stream _stream;
         private readonly bool _canWrite;
+        private readonly bool _leaveOpen;
 
         private long _position = 0;
 
-        public ConcurrentStream(Stream stream, bool canWrite)
+        public ConcurrentStream(Stream stream, bool canWrite, bool leaveOpen = false)
         {
             _stream = stream;
             _canWrite = canWrite;
+            _leaveOpen = leaveOpen;
         }
 
         public override bool CanRead => _stream.CanRead;
@@ -33,9 +35,20 @@ namespace LiteDB.Engine
 
         public override void Flush() => _stream.Flush();
 
-        public override void SetLength(long value) => _stream.SetLength(value);
+        public override void SetLength(long value)
+        {
+            // WAL rollback can truncate while another wrapper is reading.
+            lock (_stream)
+            {
+                _stream.SetLength(value);
+            }
+        }
 
-        protected override void Dispose(bool disposing) => _stream.Dispose();
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && !_leaveOpen) _stream.Dispose();
+            base.Dispose(disposing);
+        }
 
         public override long Seek(long offset, SeekOrigin origin)
         {

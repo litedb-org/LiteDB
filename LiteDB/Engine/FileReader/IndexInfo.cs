@@ -13,5 +13,7 @@ namespace LiteDB.Engine
         public string Name { get; set; }
         public string Expression { get; set; }
         public bool Unique { get; set; }
+        public byte IndexType { get; set; }
+        public VectorIndexMetadata VectorMetadata { get; set; }
     }
 }

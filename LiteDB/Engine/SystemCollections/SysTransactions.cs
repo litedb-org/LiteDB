@@ -11,7 +11,7 @@ namespace LiteDB.Engine
     {
         private IEnumerable<BsonDocument> SysTransactions()
         {
-            foreach (var transaction in _monitor.Transactions)
+            foreach (var transaction in _monitor.GetTransactionsSnapshot())
             {
                 yield return new BsonDocument
                 {

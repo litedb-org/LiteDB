@@ -18,7 +18,7 @@ namespace LiteDB.Engine
         private readonly LiteEngine _engine; // can be null for unit tests
         private readonly EngineSettings _settings;
 
-#if DEBUG
+#if DEBUG || TESTING
         public Action<PageBuffer> SimulateDiskReadFail = null;
         public Action<PageBuffer> SimulateDiskWriteFail = null;
 #endif

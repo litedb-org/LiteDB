@@ -1,4 +1,4 @@
-﻿using LiteDB.Engine;
+using LiteDB.Engine;
 
 using System;
 using System.Collections.Generic;
@@ -36,7 +36,9 @@ namespace LiteDB
         /// </summary>
         public static Query All(int order = Ascending)
         {
-            return new Query { OrderBy = "_id", Order = order };
+            var query = new Query();
+            query.OrderBy.Add(new QueryOrder(BsonExpression.Create("_id"), order));
+            return query;
         }
 
         /// <summary>
@@ -44,7 +46,9 @@ namespace LiteDB
         /// </summary>
         public static Query All(string field, int order = Ascending)
         {
-            return new Query { OrderBy = field, Order = order };
+            var query = new Query();
+            query.OrderBy.Add(new QueryOrder(BsonExpression.Create(field), order));
+            return query;
         }
 
         /// <summary>
@@ -115,8 +119,20 @@ namespace LiteDB
             if (field.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(field));
             if (value.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(value));
 
-            return BsonExpression.Create($"{field} LIKE {(new BsonValue(value + "%"))}");
+            return BsonExpression.Create($"{field} LIKE {new BsonValue(value + "%")}");
         }
+        
+        /// <summary>
+        /// Returns all documents that ends with value (LIKE)
+        /// </summary>
+        public static BsonExpression EndsWith(string field, string value)
+        {
+            if (field.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(field));
+            if (value.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(value));
+
+            return BsonExpression.Create($"{field} LIKE {new BsonValue("%" + value)}");
+        }
+
 
         /// <summary>
         /// Returns all documents that contains value (CONTAINS) - string Contains
@@ -126,7 +142,7 @@ namespace LiteDB
             if (field.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(field));
             if (value.IsNullOrEmpty()) throw new ArgumentNullException(nameof(value));
 
-            return BsonExpression.Create($"{field} LIKE {(new BsonValue("%" + value + "%"))}");
+            return BsonExpression.Create($"{field} LIKE {new BsonValue("%" + value + "%")}");
         }
 
         /// <summary>

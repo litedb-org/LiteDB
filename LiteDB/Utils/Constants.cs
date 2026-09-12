@@ -5,8 +5,8 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
-[assembly: InternalsVisibleTo("LiteDB.Tests, PublicKey=002400000480000094000000060200000024000052534131000400000100010029e66990e22110ce40a7197e37f8f82df3332c399e696df7f27d09e14ee590ac2dda735d4777fe554c427540bde93b14d3d26c04731c963383dcaa18859c8cbcd4a1a9c394d1204f474c2ab6f23a2eaadf81eb8a7a3d3cc73658868b0302163b92a2614ca050ab703be33c3e1d76f55b11f4f87cb73558f3aa69c1ce726d9ee8")]
-#if DEBUG
+[assembly: InternalsVisibleTo("LiteDB.Tests")]
+#if DEBUG || TESTING
 [assembly: InternalsVisibleTo("ConsoleApp1")]
 #endif
 
@@ -76,18 +76,18 @@ namespace LiteDB
         public const int MAX_OPEN_TRANSACTIONS = 100;
 
         /// <summary>
-        /// Define how many pages all transaction will consume, in memory, before persist in disk. This amount are shared across all open transactions
-        /// 100,000 ~= 1Gb memory
+        /// Default number of pages one transaction can retain before a
+        /// cooperative safepoint.
         /// </summary>
-        public const int MAX_TRANSACTION_SIZE = 100_000; // 100_000 (default) - 1000 (for tests)
+        public const int MAX_TRANSACTION_SIZE = 1_000;
+
+        public const long DEFAULT_CACHE_SIZE = 64L * 1024 * 1024;
+        public const long MEMORY_CACHE_SIZE = 8L * 1024 * 1024;
 
         /// <summary>
-        /// Size, in PAGES, for each buffer array (used in MemoryStore)
-        /// It's an array to increase after each extend - limited in highest value
-        /// Each byte array will be created with this size * PAGE_SIZE
-        /// Use minimal 12 to allocate at least 85Kb per segment (will use LOH)
+        /// Size, in pages, for the first and subsequent cache segments.
         /// </summary>
-        public static int[] MEMORY_SEGMENT_SIZES = new int[] { 12, 50, 100, 500, 1000 }; // 8Mb per extend
+        public static int[] MEMORY_SEGMENT_SIZES = new int[] { 8, 128 };
 
         /// <summary>
         /// Define how many documents will be keep in memory until clear cache and remove support to orderby/groupby
@@ -102,7 +102,7 @@ namespace LiteDB
         /// <summary>
         /// Initial seed for Random
         /// </summary>
-#if DEBUG
+#if DEBUG || TESTING
         public const int RANDOMIZER_SEED = 3131;
 #else
         public const int RANDOMIZER_SEED = 0;
@@ -159,7 +159,7 @@ namespace LiteDB
 
                 var message = string.Format(CultureInfo.InvariantCulture, format, args);
 
-                throw LiteException.InvalidDatafileState(format);
+                throw LiteException.InvalidDatafileState(message);
             }
         }
 

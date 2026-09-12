@@ -18,6 +18,7 @@ namespace LiteDB.Engine
     {
         private readonly Collation _collation;
         private readonly int _size;
+        private readonly int[] _orders;
 
         private int _remaining = 0;
         private int _count = 0;
@@ -27,7 +28,7 @@ namespace LiteDB.Engine
 
         private BufferReader _reader = null;
 
-        private static readonly ArrayPool<byte> _bufferPool = ArrayPool<byte>.Shared;
+        private readonly ArrayPool<byte> _bufferPool;
 
         /// <summary>
         /// Returns if current container has no more items to read
@@ -49,10 +50,12 @@ namespace LiteDB.Engine
         /// </summary>
         public int Count => _count;
 
-        public SortContainer(Collation collation, int size)
+        public SortContainer(Collation collation, int size, IReadOnlyList<int> orders, ArrayPool<byte> bufferPool = null)
         {
+            _bufferPool = bufferPool ?? ArrayPool<byte>.Shared;
             _collation = collation;
             _size = size;
+            _orders = orders as int[] ?? orders.ToArray();
         }
 
         public void Insert(IEnumerable<KeyValuePair<BsonValue, PageAddress>> items, int order, BufferSlice buffer)
@@ -108,6 +111,11 @@ namespace LiteDB.Engine
             }
 
             var key = _reader.ReadIndexKey();
+
+            if (_orders.Length > 1)
+            {
+                key = SortKey.FromBsonValue(key, _orders);
+            }
             var value = _reader.ReadPageAddress();
 
             this.Current = new KeyValuePair<BsonValue, PageAddress>(key, value);
@@ -123,25 +131,31 @@ namespace LiteDB.Engine
         private IEnumerable<BufferSlice> GetSourceFromStream(Stream stream)
         {
             var bytes = _bufferPool.Rent(PAGE_SIZE);
-            var buffer = new BufferSlice(bytes, 0, PAGE_SIZE);
-
-            while (_readPosition < _size)
+            try
             {
-                stream.Position = this.Position + _readPosition;
+                var buffer = new BufferSlice(bytes, 0, PAGE_SIZE);
+                while (_readPosition < _size)
+                {
+                    stream.Position = this.Position + _readPosition;
 
-                stream.Read(bytes, 0, PAGE_SIZE);
+                    stream.Read(bytes, 0, PAGE_SIZE);
 
-                _readPosition += PAGE_SIZE;
+                    _readPosition += PAGE_SIZE;
 
-                yield return buffer;
+                    yield return buffer;
+                }
             }
-
-            _bufferPool.Return(bytes, true);
+            finally
+            {
+                _bufferPool.Return(bytes, true);
+            }
         }
 
         public void Dispose()
         {
             _reader?.Dispose();
+            _reader = null;
+            this.Current = default;
         }
     }
 }

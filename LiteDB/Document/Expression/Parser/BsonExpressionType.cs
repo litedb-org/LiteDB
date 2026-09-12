@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -44,6 +44,7 @@ namespace LiteDB
         Map = 27,
         Filter = 28,
         Sort = 29,
-        Source = 30
+        Source = 30,
+        VectorSim = 50
     }
 }

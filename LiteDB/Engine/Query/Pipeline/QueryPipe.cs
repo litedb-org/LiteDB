@@ -46,7 +46,7 @@ namespace LiteDB.Engine
             if (query.OrderBy != null)
             {
                 // pipe: orderby with offset+limit
-                source = this.OrderBy(source, query.OrderBy.Expression, query.OrderBy.Order, query.Offset, query.Limit);
+                source = this.OrderBy(source, query.OrderBy, query.Offset, query.Limit);
             }
             else
             {
@@ -102,7 +102,7 @@ namespace LiteDB.Engine
         /// </summary>
         private IEnumerable<BsonDocument> SelectAll(IEnumerable<BsonDocument> source, BsonExpression select)
         {
-            var cached = new DocumentCacheEnumerable(source, _lookup);
+            using var cached = new DocumentCacheEnumerable(source, _lookup, _transaction.Safepoint, drainOnDispose: false);
 
             var defaultName = select.DefaultFieldName();
             var result = select.Execute(cached, _pragmas.Collation);

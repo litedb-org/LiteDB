@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace LiteDB.Benchmarks.Models.Generators
 {
@@ -18,7 +19,8 @@ namespace LiteDB.Benchmarks.Models.Generators
                 Title = $"Document-{docGuid}",
                 MimeType = "application/pdf",
                 IsFavorite = _random.Next(10) >= 9,
-                ShouldBeShown = _random.Next(10) >= 7
+                ShouldBeShown = _random.Next(10) >= 7,
+                Vectors =  Enumerable.Range(0, 128).Select(_ => (float)_random.NextDouble()).ToArray()
             };
 
             if (_random.Next(10) >= 5)

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using Xunit;
 using System.Linq;
+using LiteDB.Tests.Utils;
 
 namespace LiteDB.Tests.Issues
 {
@@ -10,7 +11,7 @@ namespace LiteDB.Tests.Issues
         [Fact]
         public void Constructor_has_enum_bsonctor()
         {
-            using var db = new LiteDatabase(":memory:");
+            using var db = DatabaseFactory.Create();
 
             // Get a collection (or create, if doesn't exist)
             var col1 = db.GetCollection<C1>("c1");
@@ -44,7 +45,7 @@ namespace LiteDB.Tests.Issues
         [Fact]
         public void Constructor_has_enum()
         {
-            using var db = new LiteDatabase(":memory:");
+            using var db = DatabaseFactory.Create();
 
             // Get a collection (or create, if doesn't exist)
             var col1 = db.GetCollection<C1>("c1");
@@ -78,7 +79,7 @@ namespace LiteDB.Tests.Issues
         [Fact]
         public void Constructor_has_enum_asint()
         {
-            using var db = new LiteDatabase(":memory:", new BsonMapper { EnumAsInteger = true });
+            using var db = DatabaseFactory.Create(mapper: new BsonMapper { EnumAsInteger = true });
 
             // Get a collection (or create, if doesn't exist)
             var col1 = db.GetCollection<C1>("c1");

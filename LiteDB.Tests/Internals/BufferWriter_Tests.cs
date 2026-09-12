@@ -88,6 +88,60 @@ namespace LiteDB.Internals
         }
 
         [Fact]
+        public void Buffer_Write_CString_MultiSegment_Writes_Terminator()
+        {
+            var buffer = new byte[32];
+
+            var slice0 = new BufferSlice(buffer, 0, 3);
+            var slice1 = new BufferSlice(buffer, 3, 4);
+            var slice2 = new BufferSlice(buffer, 7, 8);
+            var slice3 = new BufferSlice(buffer, 15, 10);
+
+            using (var writer = new BufferWriter(new[] { slice0, slice1, slice2, slice3 }))
+            {
+                writer.WriteCString("abcdefghi");
+                writer.Position.Should().Be(10);
+            }
+
+            buffer[9].Should().Be((byte)0x00);
+
+            using (var reader = new BufferReader(new[] { slice0, slice1, slice2, slice3 }))
+            {
+                reader.ReadCString().Should().Be("abcdefghi");
+                reader.Position.Should().Be(10);
+            }
+        }
+
+        [Fact]
+        public void Buffer_Write_String_Specs_MultiSegment_Writes_Terminator()
+        {
+            var buffer = new byte[48];
+
+            var slice0 = new BufferSlice(buffer, 0, 5);
+            var slice1 = new BufferSlice(buffer, 5, 4);
+            var slice2 = new BufferSlice(buffer, 9, 7);
+            var slice3 = new BufferSlice(buffer, 16, 12);
+            var slice4 = new BufferSlice(buffer, 28, 20);
+
+            var value = "segment-boundary";
+
+            using (var writer = new BufferWriter(new[] { slice0, slice1, slice2, slice3, slice4 }))
+            {
+                writer.WriteString(value, true);
+                writer.Position.Should().Be(value.Length + 5);
+            }
+
+            using (var reader = new BufferReader(new[] { slice0, slice1, slice2, slice3, slice4 }))
+            {
+                reader.ReadInt32().Should().Be(value.Length + 1);
+                reader.ReadCString().Should().Be(value);
+                reader.Position.Should().Be(value.Length + 5);
+            }
+
+            buffer[4 + value.Length].Should().Be((byte)0x00);
+        }
+
+        [Fact]
         public void Buffer_Write_Numbers()
         {
             var source = new BufferSlice(new byte[1000], 0, 1000);
