@@ -77,7 +77,10 @@ namespace LiteDB
             else if (obj is Int64) return new BsonValue((Int64)obj);
             else if (obj is Double) return new BsonValue((Double)obj);
             else if (obj is Decimal) return new BsonValue((Decimal)obj);
-            else if (obj is Byte[]) return new BsonValue((Byte[])obj);
+            // CLR array type-equivalence makes byte[], sbyte[], and byte-backed
+            // enum arrays pass `is Byte[]`. Only a typed enum-array contract has
+            // enough information to safely opt into BSON Array (#2376).
+            else if (obj is Byte[] bytes && ShouldSerializeAsBinary(type, obj.GetType())) return new BsonValue(bytes);
             else if (obj is ObjectId) return new BsonValue((ObjectId)obj);
             else if (obj is Guid) return new BsonValue((Guid)obj);
             else if (obj is Boolean) return new BsonValue((Boolean)obj);
@@ -110,7 +113,7 @@ namespace LiteDB
             {
                 if (EnumAsInteger)
                 {
-                    return new BsonValue((int)obj);
+                    return new BsonValue(Convert.ToInt32(obj));
                 }
                 else
                 {
@@ -157,6 +160,23 @@ namespace LiteDB
             }
 
             return bsonArray;
+        }
+
+        private static bool ShouldSerializeAsBinary(Type declaredType, Type runtimeType)
+        {
+            var runtimeElementType = runtimeType.GetElementType();
+
+            if (runtimeElementType == null || runtimeElementType.GetTypeInfo().IsEnum == false)
+            {
+                return true;
+            }
+
+            if (declaredType == typeof(Byte[]))
+            {
+                return true;
+            }
+
+            return Reflection.GetListItemType(declaredType) == typeof(object);
         }
 
         private BsonDocument SerializeDictionary(Type valueType, IDictionary dict, int depth)
