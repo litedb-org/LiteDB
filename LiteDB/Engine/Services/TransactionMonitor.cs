@@ -21,6 +21,11 @@ namespace LiteDB.Engine
         private readonly WalIndexService _walIndex;
 
         private readonly int _transactionPageLimit;
+        private bool _disposed;
+
+#if TESTING
+        internal Action BeforeTransactionCreationLock { get; set; }
+#endif
 
         // Kept for internal diagnostics and repro compatibility. Return a copy
         // so callers cannot enumerate the live dictionary without its lock.
@@ -48,16 +53,26 @@ namespace LiteDB.Engine
 
         public TransactionService GetTransaction(bool create, bool queryOnly, out bool isNew)
         {
+            lock (_transactions)
+            {
+                this.ThrowIfDisposedLocked();
+            }
+
             var transaction = _slot.Value;
 
             if (create && transaction == null)
             {
                 isNew = true;
 
+#if TESTING
+                BeforeTransactionCreationLock?.Invoke();
+#endif
+
                 bool alreadyLock;
 
                 lock (_transactions)
                 {
+                    this.ThrowIfDisposedLocked();
                     if (_transactions.Count >= MAX_OPEN_TRANSACTIONS) throw new LiteException(0, "Maximum number of transactions reached");
 
                     // check if current thread contains any transaction
@@ -155,6 +170,7 @@ namespace LiteDB.Engine
         {
             lock (_transactions)
             {
+                this.ThrowIfDisposedLocked();
                 return
                     _slot.Value ??
                     _transactions.Values.FirstOrDefault(x => x.ThreadID == Environment.CurrentManagedThreadId);
@@ -176,6 +192,9 @@ namespace LiteDB.Engine
         {
             lock (_transactions)
             {
+                if (_disposed) return;
+                _disposed = true;
+
                 if (_transactions.Count > 0)
                 {
                     foreach (var transaction in _transactions.Values)
@@ -188,6 +207,11 @@ namespace LiteDB.Engine
             }
 
             _slot.Dispose();
+        }
+
+        private void ThrowIfDisposedLocked()
+        {
+            if (_disposed) throw new ObjectDisposedException(nameof(TransactionMonitor));
         }
     }
 }

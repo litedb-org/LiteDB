@@ -4,6 +4,8 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Threading;
+using System.Threading.Tasks;
 using FluentAssertions;
 using LiteDB.Engine;
 using Xunit;
@@ -298,6 +300,30 @@ namespace LiteDB.Tests.Engine
 
             Action accessDisposedSlot = () => monitor.GetThreadTransaction();
             accessDisposedSlot.Should().Throw<ObjectDisposedException>();
+        }
+
+        [Fact]
+        public async Task TransactionMonitor_DisposeRacingCreation_RejectsNewTransaction()
+        {
+            var engine = new LiteEngine(new EngineSettings { Filename = ":memory:" });
+            var monitor = engine.GetMonitor();
+            using var creationStarting = new ManualResetEventSlim();
+            using var resumeCreation = new ManualResetEventSlim();
+            monitor.BeforeTransactionCreationLock = () =>
+            {
+                creationStarting.Set();
+                resumeCreation.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
+            };
+
+            var creation = Task.Run(() => Record.Exception(() =>
+                monitor.GetTransaction(true, true, out _)));
+            creationStarting.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
+
+            engine.Dispose();
+            resumeCreation.Set();
+
+            (await creation).Should().BeOfType<ObjectDisposedException>();
+            monitor.GetTransactionsSnapshot().Should().BeEmpty();
         }
 
         [Fact]
