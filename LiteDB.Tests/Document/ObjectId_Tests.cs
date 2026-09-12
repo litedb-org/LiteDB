@@ -1,4 +1,6 @@
-﻿using FluentAssertions;
+using System;
+using FluentAssertions;
+using LiteDB;
 using Xunit;
 
 namespace LiteDB.Tests.Document
@@ -40,6 +42,45 @@ namespace LiteDB.Tests.Document
 
             oid1.Equals(null).Should().BeFalse();
             oid1.Equals(oid0).Should().BeFalse();
+        }
+
+        [Fact]
+        public void ObjectId_ToString_Minimizes_Allocations()
+        {
+            var objectId = ObjectId.NewObjectId();
+
+            objectId.ToString();
+
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            var hex = objectId.ToString();
+            var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+            hex.Should().HaveLength(24);
+            allocated.Should().BeLessThan(220);
+        }
+
+        [Fact]
+        public void ObjectId_FromHex_Minimizes_Allocations()
+        {
+            var original = ObjectId.NewObjectId();
+            var hex = original.ToString();
+
+            _ = new ObjectId(hex);
+
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            var parsed = new ObjectId(hex);
+            var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+            parsed.Should().Be(original);
+            allocated.Should().BeLessThan(220);
         }
     }
 }
