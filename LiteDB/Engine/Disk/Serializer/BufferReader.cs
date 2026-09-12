@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Buffers;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using static LiteDB.Constants;
@@ -21,6 +22,8 @@ namespace LiteDB.Engine
         private bool _isEOF = false;
 
         private static readonly ArrayPool<byte> _bufferPool = ArrayPool<byte>.Shared;
+        private const int StackallocThreshold = 16;
+        private delegate T SpanValueReader<T>(ReadOnlySpan<byte> span);
 
         /// <summary>
         /// Current global cursor position
@@ -174,38 +177,91 @@ namespace LiteDB.Engine
         #endregion
 
         #region Read Numbers
-        
-        private T ReadNumber<T>(Func<byte[], int, T> convert, int size)
+        private void ReadInto(Span<byte> destination)
+        {
+            var written = 0;
+
+            while (written < destination.Length)
+            {
+                if (_isEOF && _currentPosition == _current.Count)
+                {
+                    break;
+                }
+
+                var bytesLeft = _current.Count - _currentPosition;
+                if (bytesLeft == 0)
+                {
+                    this.MoveForward(0);
+                    continue;
+                }
+
+                var bytesToCopy = Math.Min(destination.Length - written, bytesLeft);
+
+                new ReadOnlySpan<byte>(_current.Array, _current.Offset + _currentPosition, bytesToCopy)
+                    .CopyTo(destination.Slice(written, bytesToCopy));
+
+                written += bytesToCopy;
+
+                this.MoveForward(bytesToCopy);
+            }
+
+            ENSURE(written == destination.Length, "current value must fit inside defined buffer");
+        }
+
+        private T ReadNumber<T>(SpanValueReader<T> convert, int size)
         {
             T value;
 
             // if fits in current segment, use inner array - otherwise copy from multiples segments
             if (_currentPosition + size <= _current.Count)
             {
-                value = convert(_current.Array, _current.Offset + _currentPosition);
+                var span = new ReadOnlySpan<byte>(_current.Array, _current.Offset + _currentPosition, size);
+                value = convert(span);
 
                 this.MoveForward(size);
             }
             else
             {
-                var buffer = _bufferPool.Rent(size);
+                if (size <= StackallocThreshold)
+                {
+                    Span<byte> buffer = stackalloc byte[size];
 
-                this.Read(buffer, 0, size);
+                    this.ReadInto(buffer);
 
-                value = convert(buffer, 0);
+                    value = convert(buffer);
+                }
+                else
+                {
+                    var buffer = _bufferPool.Rent(size);
 
-                _bufferPool.Return(buffer, true);
+                    try
+                    {
+                        this.Read(buffer, 0, size);
+
+                        value = convert(new ReadOnlySpan<byte>(buffer, 0, size));
+                    }
+                    finally
+                    {
+                        _bufferPool.Return(buffer, true);
+                    }
+                }
             }
 
             return value;
         }
 
-        public Int32 ReadInt32() => this.ReadNumber(BitConverter.ToInt32, 4);
-        public Int64 ReadInt64() => this.ReadNumber(BitConverter.ToInt64, 8);
-        public UInt16 ReadUInt16() => this.ReadNumber(BitConverter.ToUInt16, 2);
-        public UInt32 ReadUInt32() => this.ReadNumber(BitConverter.ToUInt32, 4);
-        public Single ReadSingle() => this.ReadNumber(BitConverter.ToSingle, 4);
-        public Double ReadDouble() => this.ReadNumber(BitConverter.ToDouble, 8);
+        private static unsafe float Int32BitsToSingle(int value)
+        {
+            // Unsafe re-interpretation keeps Engine serializer span-based without extra allocations.
+            return *(float*)&value;
+        }
+
+        public Int32 ReadInt32() => this.ReadNumber(static span => BinaryPrimitives.ReadInt32LittleEndian(span), 4);
+        public Int64 ReadInt64() => this.ReadNumber(static span => BinaryPrimitives.ReadInt64LittleEndian(span), 8);
+        public UInt16 ReadUInt16() => this.ReadNumber(static span => BinaryPrimitives.ReadUInt16LittleEndian(span), 2);
+        public UInt32 ReadUInt32() => this.ReadNumber(static span => BinaryPrimitives.ReadUInt32LittleEndian(span), 4);
+        public Single ReadSingle() => this.ReadNumber(static span => Int32BitsToSingle(BinaryPrimitives.ReadInt32LittleEndian(span)), 4);
+        public Double ReadDouble() => this.ReadNumber(static span => BitConverter.Int64BitsToDouble(BinaryPrimitives.ReadInt64LittleEndian(span)), 8);
 
         public Decimal ReadDecimal()
         {
@@ -563,3 +619,6 @@ namespace LiteDB.Engine
         }
     }
 }
+
+
+

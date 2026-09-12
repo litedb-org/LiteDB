@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Buffers;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using static LiteDB.Constants;
 
@@ -19,6 +20,8 @@ namespace LiteDB.Engine
         private bool _isEOF = false;
 
         private static readonly ArrayPool<byte> _bufferPool = ArrayPool<byte>.Shared;
+        private const int StackallocThreshold = 16;
+        private delegate void SpanFiller(Span<byte> span);
 
         /// <summary>
         /// Current global cursor position
@@ -162,32 +165,87 @@ namespace LiteDB.Engine
 
         #region Numbers
 
-        private void WriteNumber<T>(T value, Action<T, byte[], int> toBytes, int size)
+        private void WriteFrom(ReadOnlySpan<byte> source)
+        {
+            var written = 0;
+
+            while (written < source.Length)
+            {
+                if (_isEOF && _currentPosition == _current.Count)
+                {
+                    break;
+                }
+
+                var bytesLeft = _current.Count - _currentPosition;
+                if (bytesLeft == 0)
+                {
+                    this.MoveForward(0);
+                    continue;
+                }
+
+                var bytesToCopy = Math.Min(source.Length - written, bytesLeft);
+
+                source.Slice(written, bytesToCopy)
+                    .CopyTo(new Span<byte>(_current.Array, _current.Offset + _currentPosition, bytesToCopy));
+
+                written += bytesToCopy;
+
+                this.MoveForward(bytesToCopy);
+            }
+
+            ENSURE(written == source.Length, "current value must fit inside defined buffer");
+        }
+
+        private void WriteNumber(SpanFiller fill, int size)
         {
             if (_currentPosition + size <= _current.Count)
             {
-                toBytes(value, _current.Array, _current.Offset + _currentPosition);
+                var span = new Span<byte>(_current.Array, _current.Offset + _currentPosition, size);
+                fill(span);
 
                 this.MoveForward(size);
             }
             else
             {
-                var buffer = _bufferPool.Rent(size);
+                if (size <= StackallocThreshold)
+                {
+                    Span<byte> buffer = stackalloc byte[size];
 
-                toBytes(value, buffer, 0);
+                    fill(buffer);
 
-                this.Write(buffer, 0, size);
+                    this.WriteFrom(buffer);
+                }
+                else
+                {
+                    var buffer = _bufferPool.Rent(size);
 
-                _bufferPool.Return(buffer, true);
+                    try
+                    {
+                        var span = new Span<byte>(buffer, 0, size);
+                        fill(span);
+
+                        this.Write(buffer, 0, size);
+                    }
+                    finally
+                    {
+                        _bufferPool.Return(buffer, true);
+                    }
+                }
             }
         }
 
-        public void Write(Int32 value) => this.WriteNumber(value, BufferExtensions.ToBytes, 4);
-        public void Write(Int64 value) => this.WriteNumber(value, BufferExtensions.ToBytes, 8);
-        public void Write(UInt16 value) => this.WriteNumber(value, BufferExtensions.ToBytes, 2);
-        public void Write(UInt32 value) => this.WriteNumber(value, BufferExtensions.ToBytes, 4);
-        public void Write(Single value) => this.WriteNumber(value, BufferExtensions.ToBytes, 4);
-        public void Write(Double value) => this.WriteNumber(value, BufferExtensions.ToBytes, 8);
+        private static unsafe int SingleToInt32Bits(float value)
+        {
+            // Unsafe cast lets the Engine serializer stay allocation-free when writing floats.
+            return *(int*)&value;
+        }
+
+        public void Write(Int32 value) => this.WriteNumber(span => BinaryPrimitives.WriteInt32LittleEndian(span, value), 4);
+        public void Write(Int64 value) => this.WriteNumber(span => BinaryPrimitives.WriteInt64LittleEndian(span, value), 8);
+        public void Write(UInt16 value) => this.WriteNumber(span => BinaryPrimitives.WriteUInt16LittleEndian(span, value), 2);
+        public void Write(UInt32 value) => this.WriteNumber(span => BinaryPrimitives.WriteUInt32LittleEndian(span, value), 4);
+        public void Write(Single value) => this.WriteNumber(span => BinaryPrimitives.WriteInt32LittleEndian(span, SingleToInt32Bits(value)), 4);
+        public void Write(Double value) => this.WriteNumber(span => BinaryPrimitives.WriteInt64LittleEndian(span, BitConverter.DoubleToInt64Bits(value)), 8);
 
         public void Write(Decimal value)
         {
@@ -444,3 +502,7 @@ namespace LiteDB.Engine
         }
     }
 }
+
+
+
+
