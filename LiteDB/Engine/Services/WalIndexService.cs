@@ -247,8 +247,12 @@ namespace LiteDB.Engine
                     }
                 }
 
-                // update last transaction ID
-                _lastTransactionID = (int)transactionID;
+                // Keep the greatest observed ID, including abandoned transactions.
+                // Reusing one would make its old pages appear committed.
+                if (transactionID > unchecked((uint)_lastTransactionID))
+                {
+                    _lastTransactionID = unchecked((int)transactionID);
+                }
 
                 current += PAGE_SIZE;
             }
