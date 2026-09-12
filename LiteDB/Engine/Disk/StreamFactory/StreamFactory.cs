@@ -98,13 +98,18 @@ namespace LiteDB.Engine
         {
             if (!_ownsStream) return;
 
-            if (_stream is MemoryStream memory)
+            // Capacity changes must use the same monitor as ConcurrentStream
+            // readers, including when TempStream still stores data in memory.
+            lock (_stream)
             {
-                memory.Capacity = checked((int)memory.Length);
-            }
-            else if (_stream is TempStream temp)
-            {
-                temp.TrimCapacity();
+                if (_stream is MemoryStream memory)
+                {
+                    memory.Capacity = checked((int)memory.Length);
+                }
+                else if (_stream is TempStream temp)
+                {
+                    temp.TrimCapacity();
+                }
             }
         }
 

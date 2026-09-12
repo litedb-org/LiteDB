@@ -4,7 +4,7 @@
 The `LiteDB/` library is the heart of the solution and is split into domains such as `Engine/`, `Document/`, `Client/`, and `Utils/` for low-level storage, document modeling, and public APIs. Companion apps live beside it: `LiteDB.Shell/` provides the interactive CLI, `LiteDB.Benchmarks/` and `LiteDB.Stress/` target performance and endurance scenarios, while `LiteDB.Tests/` houses unit coverage grouped by feature area. Sample integrations and temporary packaging output stay in `ConsoleApp1/` and `artifacts_temp/` respectively.
 
 ## Build, Test, and Development Commands
-Restore and build with `dotnet build LiteDB.sln -c Release` after a `dotnet restore`. Execute `dotnet test LiteDB.sln --settings tests.runsettings` to honor the solution-wide timeout profile, or scope to a single project with `dotnet test LiteDB.Tests -f net8.0`. Launch the shell locally via `dotnet run --project LiteDB.Shell/LiteDB.Shell.csproj -- MyData.db`. Produce NuGet artifacts using `dotnet pack LiteDB/LiteDB.csproj -c Release` when preparing releases.
+Restore and build with `dotnet build LiteDB.sln -c Release -p:TestingEnabled=true` after a `dotnet restore`. The solution includes tests that require engine test hooks; use the same flag as CI to avoid mixing production and test-hook assemblies in shared build output. Build the library alone with `-p:TestingEnabled=false` for production measurements and packaging. Execute `dotnet test LiteDB.sln --settings tests.runsettings` to honor the solution-wide timeout profile, or scope to a single project with `dotnet test LiteDB.Tests -f net8.0`. Launch the shell locally via `dotnet run --project LiteDB.Shell/LiteDB.Shell.csproj -- MyData.db`. Produce NuGet artifacts using `dotnet pack LiteDB/LiteDB.csproj -c Release -p:TestingEnabled=false` when preparing releases.
 
 ## Coding Style & Naming Conventions
 Follow the repository’s C# conventions: four-space indentation, Allman braces, and grouped `using` directives with system namespaces first. Prefer `var` only when the right-hand side is obvious, keep public APIs XML-documented (the build emits `LiteDB.xml`), and avoid introducing nullable warnings in both `netstandard2.0` and `net8.0` targets. Unsafe code is enabled; justify its use with comments tied to the relevant `Engine` component.
@@ -13,6 +13,8 @@ Keep new C# files below 300 lines where practical and at or below 500 lines.
 CI checks changed files with `scripts/check-csharp-size.py`; existing oversized
 files have explicit, non-growing exceptions in `scripts/csharp-size-exceptions.json`.
 Enable the matching staged-content check with `git config core.hooksPath .githooks`.
+The hook prefers `python3` and falls back to `python`. Generated-looking file
+names are checked too; any exception must be explicitly justified in the manifest.
 
 ## Testing Guidelines
 Tests are written with xUnit and FluentAssertions; mirror the production folder names (`Engine`, `Query`, `Issues`, etc.) when adding scenarios. Name files after the type under test and choose expressive `[Fact]` / `[Theory]` method names describing the behavior. Long-running tests must finish within the 300-second session timeout defined in `tests.runsettings`; run focused suites with `dotnet test LiteDB.Tests --filter FullyQualifiedName~Engine` to triage regressions quickly.

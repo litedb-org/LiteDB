@@ -101,26 +101,18 @@ namespace LiteDB.Engine
                 _pool.ReleaseFullyFreeSegmentsLocked(_limitPages, true);
                 if (_pool.TotalPages <= _limitPages) break;
 
-                // Empty non-initial segments are the only ones that can be
-                // returned to the GC. Prefer them before disturbing the
-                // initial segment or partially pinned segments.
+                // Only non-initial idle segments can be returned to the GC.
+                // Evicting the initial segment cannot reclaim any memory.
                 MemoryCacheSegment candidate = null;
 
                 foreach (var segment in _pool.ReleasableSegments)
                 {
                     if (segment.FreeCount == segment.Frames.Length) continue;
 
-                    // Preserve the small initial segment when any later
-                    // segment can be emptied instead.
-                    if (ReferenceEquals(segment, _pool.Segments[0]))
-                    {
-                        candidate ??= segment;
-                    }
-                    else
-                    {
-                        candidate = segment;
-                        break;
-                    }
+                    if (ReferenceEquals(segment, _pool.Segments[0])) continue;
+
+                    candidate = segment;
+                    break;
                 }
 
                 if (candidate != null)

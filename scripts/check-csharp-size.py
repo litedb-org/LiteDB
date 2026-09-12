@@ -18,8 +18,6 @@ diff += [args.base, "HEAD"] if args.base else ["--cached"]
 paths = git(*diff, "--", "*.cs").split("\0")
 failed = False
 for filename in filter(None, paths):
-    if filename.endswith((".g.cs", ".generated.cs", ".Designer.cs")):
-        continue
     source = git("show", ("HEAD:" if args.base else ":") + filename)
     lines = len(source.splitlines())
     exception = exceptions.get(filename)

@@ -482,8 +482,8 @@ namespace LiteDB.Engine
             lock (_sync)
             {
                 if (_disposed) return;
+                _pool.EnsureIdleForDisposalLocked();
                 _disposed = true;
-
                 _sharedReads.Clear();
                 _pool.Dispose();
 

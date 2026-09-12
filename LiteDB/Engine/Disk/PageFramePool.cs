@@ -305,6 +305,19 @@ namespace LiteDB.Engine
             }
         }
 
+        internal void EnsureIdleForDisposalLocked()
+        {
+            // Busy includes pinned readers, loading frames and writable pages.
+            // Reject disposal before changing ownership so their operations
+            // can finish and disposal can be retried without corrupting frames.
+            if (_segments.Any(segment => segment.Busy != 0))
+            {
+                throw new InvalidOperationException(
+                    "Cannot dispose the page cache while pages are pinned, loading or writable. " +
+                    "Finish active operations before disposing the engine.");
+            }
+        }
+
         internal void Dispose()
         {
             foreach (var segment in _segments)
