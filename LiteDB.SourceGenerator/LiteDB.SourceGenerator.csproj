@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFrameworks>netstandard2.0;net8.0</TargetFrameworks>
+        <LangVersion>latest</LangVersion>
+        <Nullable>enable</Nullable>
+        <IsPackable>true</IsPackable>
+        <IncludeBuildOutput>false</IncludeBuildOutput>
+        <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+        <PackageId>LiteDB.SourceGenerator</PackageId>
+        <Authors>Maurício David</Authors>
+        <Product>LiteDB Source Generator</Product>
+        <Description>Compile-time source generator for LiteDB Native AOT mappings.</Description>
+        <PackageTags>litedb database nosql embedded source-generator analyzer nativeaot</PackageTags>
+        <PackageIcon>icon_64x64.png</PackageIcon>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageProjectUrl>https://www.litedb.org</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/litedb-org/LiteDB</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <DevelopmentDependency>true</DevelopmentDependency>
+        <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+        <NoWarn>$(NoWarn);RS2008</NoWarn>
+        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <EnableAotAnalyzer>true</EnableAotAnalyzer>
+        <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
+        <ILLinkTreatWarningsAsErrors>true</ILLinkTreatWarningsAsErrors>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" PrivateAssets="all" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="$(BaseOutputPath)$(Configuration)\netstandard2.0\$(AssemblyName).dll"
+              Pack="true"
+              PackagePath="analyzers/dotnet/cs"
+              Visible="false" />
+        <None Include="..\icon_64x64.png"
+              Pack="true"
+              PackagePath=""
+              Visible="false" />
+        <None Include="..\docs\SourceGeneratorPackage.md"
+              Pack="true"
+              PackagePath="README.md"
+              Visible="false" />
+    </ItemGroup>
+</Project>

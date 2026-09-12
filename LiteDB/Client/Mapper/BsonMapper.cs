@@ -1,8 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text.RegularExpressions;
@@ -22,6 +20,11 @@ namespace LiteDB
     ///     - IList, Array supports
     ///     - IDictionary supports (Key must be a simple datatype - converted by ChangeType)
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = AotCompatibility.RuntimeModelMapping)]
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2070", Justification = AotCompatibility.RuntimeModelMapping)]
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2072", Justification = AotCompatibility.RuntimeModelMapping)]
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2075", Justification = AotCompatibility.RuntimeModelMapping)]
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050", Justification = AotCompatibility.RuntimeTypeConstruction)]
     public partial class BsonMapper
     {
         #region Properties
@@ -41,6 +44,8 @@ namespace LiteDB
         /// Type name binder to control how type names are serialized to BSON documents
         /// </summary>
         private readonly ITypeNameBinder _typeNameBinder;
+
+        private Func<Type, string> _resolveCollectionName;
 
         /// <summary>
         /// Global instance used when no BsonMapper are passed in LiteDatabase ctor
@@ -96,9 +101,15 @@ namespace LiteDB
         public Action<Type, MemberInfo, MemberMapper> ResolveMember;
 
         /// <summary>
-        /// Custom resolve name collection based on Type 
+        /// Custom resolve name collection based on Type.
+        /// Reading the resolver invokes the default runtime type inspection path unless a custom resolver is assigned.
         /// </summary>
-        public Func<Type, string> ResolveCollectionName;
+        public Func<Type, string> ResolveCollectionName
+        {
+            [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeCollectionNameResolution)]
+            get => _resolveCollectionName;
+            set => _resolveCollectionName = value;
+        }
 
         #endregion
 
@@ -108,28 +119,62 @@ namespace LiteDB
             this.TrimWhitespace = true;
             this.EmptyStringToNull = true;
             this.EnumAsInteger = false;
-            this.ResolveFieldName = (s) => s;
-            this.ResolveMember = (t, mi, mm) => { };
-            this.ResolveCollectionName = (t) => Reflection.IsEnumerable(t) ? Reflection.GetListItemType(t).Name : t.Name;
+            this.ResolveFieldName = ResolveFieldNameDefault;
+            this.ResolveMember = ResolveMemberDefault;
+            _resolveCollectionName = ResolveCollectionNameDefault;
             this.IncludeFields = false;
             this.MaxDepth = 20;
 
+            _hasCustomTypeInstantiator = customTypeInstantiator is not null;
+            _hasCustomTypeNameBinder = typeNameBinder is not null;
             _typeInstantiator = customTypeInstantiator ?? ((Type t) => null);
             _typeNameBinder = typeNameBinder ?? DefaultTypeNameBinder.Instance;
 
             #region Register CustomTypes
 
-            RegisterType<Uri>(uri => uri.IsAbsoluteUri ? uri.AbsoluteUri : uri.ToString(), bson => new Uri(bson.AsString));
-            RegisterType<DateTimeOffset>(value => new BsonValue(value.UtcDateTime), bson => bson.AsDateTime.ToUniversalTime());
-            RegisterType<TimeSpan>(value => new BsonValue(value.Ticks), bson => new TimeSpan(bson.AsInt64));
-            RegisterType<Regex>(
-                r => r.Options == RegexOptions.None ? new BsonValue(r.ToString()) : new BsonDocument { { "p", r.ToString() }, { "o", (int)r.Options } },
-                value => value.IsString ? new Regex(value) : new Regex(value.AsDocument["p"].AsString, (RegexOptions)value.AsDocument["o"].AsInt32)
-            );
-
+            _registeringBuiltInTypes = true;
+            try
+            {
+                RegisterType<Uri>(uri => uri.IsAbsoluteUri ? uri.AbsoluteUri : uri.ToString(), bson => new Uri(bson.AsString));
+                RegisterType<DateTimeOffset>(value => new BsonValue(value.UtcDateTime), DeserializeDateTimeOffset);
+                RegisterType<TimeSpan>(value => new BsonValue(value.Ticks), bson => new TimeSpan(bson.AsInt64));
+                RegisterType<Regex>(
+                    r => r.Options == RegexOptions.None ? new BsonValue(r.ToString()) : new BsonDocument { { "p", r.ToString() }, { "o", (int)r.Options } },
+                    value => value.IsString ? new Regex(value) : new Regex(value.AsDocument["p"].AsString, (RegexOptions)value.AsDocument["o"].AsInt32)
+                );
+            }
+            finally
+            {
+                _registeringBuiltInTypes = false;
+            }
 
             #endregion
 
+        }
+
+        private static DateTimeOffset DeserializeDateTimeOffset(BsonValue value)
+        {
+            if (value.IsDateTime)
+            {
+                return new DateTimeOffset(value.AsDateTime.ToUniversalTime());
+            }
+
+            var document = value.AsDocument;
+            return new DateTimeOffset(
+                document["DateTime"].AsInt64,
+                new TimeSpan(document["Offset"].AsInt64));
+        }
+
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeCollectionNameResolution)]
+        private static string ResolveCollectionNameDefault(Type type)
+        {
+            return Reflection.IsEnumerable(type) ? Reflection.GetListItemType(type).Name : type.Name;
+        }
+
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeCollectionNameResolution)]
+        internal string GetCollectionName(Type type)
+        {
+            return _resolveCollectionName(type);
         }
 
         #region Register CustomType
@@ -139,6 +184,7 @@ namespace LiteDB
         /// </summary>
         public void RegisterType<T>(Func<T, BsonValue> serialize, Func<BsonValue, T> deserialize)
         {
+            RecordCustomTypeRegistration();
             _customSerializer[typeof(T)] = (o) => serialize((T)o);
             _customDeserializer[typeof(T)] = (b) => (T)deserialize(b);
         }
@@ -148,6 +194,7 @@ namespace LiteDB
         /// </summary>
         public void RegisterType(Type type, Func<object, BsonValue> serialize, Func<BsonValue, object> deserialize)
         {
+            RecordCustomTypeRegistration();
             _customSerializer[type] = (o) => serialize(o);
             _customDeserializer[type] = (b) => deserialize(b);
         }
@@ -190,6 +237,25 @@ namespace LiteDB
             LOG($"`{predicate.ToString()}` -> `{expr.Source}`", "LINQ");
 
             return expr;
+        }
+
+        internal BsonExpression GetGeneratedIndexExpression<T, K>(Expression<Func<T, K>> predicate)
+        {
+            return this.GetGeneratedExpression(predicate, false);
+        }
+
+        internal BsonExpression GetGeneratedExpression<T, K>(Expression<Func<T, K>> expression)
+        {
+            return this.GetGeneratedExpression(expression, typeof(K) == typeof(bool));
+        }
+
+        internal BsonExpression GetGeneratedExpression(Expression expression, bool ensurePredicate)
+        {
+            if (expression == null) throw new ArgumentNullException(nameof(expression));
+
+            var visitor = new LinqExpressionVisitor(this, expression, useGeneratedMappers: true);
+
+            return visitor.Resolve(ensurePredicate);
         }
 
         #endregion

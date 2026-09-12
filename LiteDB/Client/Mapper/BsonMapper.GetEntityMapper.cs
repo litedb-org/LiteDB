@@ -13,6 +13,35 @@ public partial class BsonMapper
     /// Mapping cache between Class/BsonDocument
     /// </summary>
     private readonly ConcurrentDictionary<Type, EntityMapper> _entities = new();
+    private readonly ConcurrentDictionary<Type, EntityMapper> _generatedEntities = new();
+
+    /// <summary>
+    /// Registers an entity mapper emitted by the LiteDB source generator.
+    /// </summary>
+    /// <param name="mapper">The complete generated entity mapper.</param>
+    /// <returns>The registered mapper.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="mapper"/> is <see langword="null"/>.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when a mapper is already registered for the entity type.</exception>
+    public EntityMapper RegisterGeneratedEntityMapper(EntityMapper mapper)
+    {
+        if (mapper == null) throw new ArgumentNullException(nameof(mapper));
+
+        if (_generatedEntities.TryAdd(mapper.ForType, mapper) == false)
+        {
+            throw new InvalidOperationException($"A source-generated entity mapper is already registered for '{mapper.ForType.FullName}'.");
+        }
+
+        // Generated metadata belongs exclusively to GetGeneratedCollection<T>.
+        // Populating the ordinary mapper cache here made GetCollection<T> depend on
+        // whether generated registration happened first and bypassed ordinary mapper
+        // configuration such as ResolveFieldName.
+        return mapper;
+    }
+
+    internal bool HasGeneratedEntityMapper(Type type)
+    {
+        return _generatedEntities.ContainsKey(type);
+    }
 
     /// <summary>
     /// Get property mapper between typed .NET class and BsonDocument - Cache results
@@ -79,7 +108,7 @@ public partial class BsonMapper
                 .FirstOrDefault();
 
             // check if property has [BsonField] with a custom field name
-            if (field != null && field.Name != null)
+            if (field?.Name != null)
             {
                 name = field.Name;
             }
@@ -109,7 +138,7 @@ public partial class BsonMapper
             // create a property mapper
             var member = new MemberMapper
             {
-                AutoId = autoId == null ? true : autoId.AutoId,
+                AutoId = autoId?.AutoId != false,
                 FieldName = name,
                 MemberName = memberInfo.Name,
                 DataType = dataType,
@@ -126,7 +155,7 @@ public partial class BsonMapper
             if (dbRef != null && memberInfo is PropertyInfo)
             {
                 BsonMapper.RegisterDbRef(this, member, _typeNameBinder,
-                    dbRef.Collection ?? this.ResolveCollectionName((memberInfo as PropertyInfo).PropertyType));
+                    dbRef.Collection ?? this.GetCollectionName((memberInfo as PropertyInfo).PropertyType));
             }
 
             // support callback to user modify member mapper
@@ -171,7 +200,7 @@ public partial class BsonMapper
 
         var shouldIncludeFields = members.Count == 0
                                   && type.GetTypeInfo().IsValueType;
-                                  
+
         if (shouldIncludeFields || this.IncludeFields)
         {
             members.AddRange(type.GetFields(flags).Where(x => !x.Name.EndsWith("k__BackingField") && x.IsStatic == false)
@@ -190,7 +219,7 @@ public partial class BsonMapper
     protected virtual CreateObject GetTypeCtor(EntityMapper mapper)
     {
         Type type = mapper.ForType;
-        List<CreateObject> Mappings = new List<CreateObject>();
+        List<CreateObject> Mappings = [];
         bool returnZeroParamNull = false;
         foreach (ConstructorInfo ctor in type.GetConstructors())
         {
@@ -210,7 +239,7 @@ public partial class BsonMapper
                 MemberMapper mi = null;
                 foreach (MemberMapper member in mapper.Members)
                 {
-                    if (member.MemberName.ToLower() == par.Name.ToLower() && member.DataType == par.ParameterType)
+                    if (string.Equals(member.MemberName, par.Name, StringComparison.OrdinalIgnoreCase) && member.DataType == par.ParameterType)
                     {
                         mi = member;
                         break;
@@ -230,7 +259,7 @@ public partial class BsonMapper
                 continue;
             }
 
-            CreateObject toAdd = (BsonDocument value) =>
+            object toAdd(BsonDocument value) =>
                 Activator.CreateInstance(type, paramMap.Select(x =>
                     this.Deserialize(x.Value, value[x.Key])).ToArray());
             if (ctor.GetCustomAttribute<BsonCtorAttribute>() != null)

@@ -10,7 +10,7 @@ LiteDB is a small, fast and lightweight .NET NoSQL embedded database.
 
 - Serverless NoSQL Document Store
 - Simple API, similar to MongoDB
-- 100% C# code for .NET 4.5 / NETStandard 1.3/2.0 in a single DLL (less than 450kb)
+- 100% C# code targeting .NET Standard 2.0 and .NET 8.0 in a single DLL (less than 450kb)
 - Thread-safe
 - ACID with full transaction support
 - Data recovery after write failure (WAL log file)
@@ -45,6 +45,8 @@ New UI to manage and visualize your database:
 ![LiteDB.Studio](https://www.litedb.org/images/banner.gif)
 
 ## Documentation
+
+For Native AOT applications targeting .NET 8.0 or later and using source-generated entity maps, see [Native AOT and Source-Generated Entity Mapping](docs/AOT.md). For the separate analyzer package, matching-version requirement, and contributor validation workflow, see the [LiteDB.SourceGenerator package contract](docs/SourceGeneratorPackage.md).
 
 Visit [the Wiki](https://github.com/mbdavid/LiteDB/wiki) for full documentation. For simplified chinese version, [check here](https://github.com/lidanger/LiteDB.wiki_Translation_zh-cn).
 

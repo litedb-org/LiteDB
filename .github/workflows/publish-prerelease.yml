@@ -80,15 +80,26 @@ jobs:
       - name: Restore
         run: dotnet restore LiteDB.sln
 
-      - name: Build
-        run: dotnet build LiteDB/LiteDB.csproj --configuration Release --no-restore /p:ContinuousIntegrationBuild=true
+      - name: Build runtime and source generator
+        run: |
+          dotnet build LiteDB/LiteDB.csproj --configuration Release --no-restore /p:ContinuousIntegrationBuild=true
+          dotnet build LiteDB.SourceGenerator/LiteDB.SourceGenerator.csproj --configuration Release --no-restore /p:ContinuousIntegrationBuild=true
 
-      - name: Pack
-        run: dotnet pack LiteDB/LiteDB.csproj --configuration Release --no-build -o artifacts /p:ContinuousIntegrationBuild=true
+      - name: Pack matching runtime and source-generator packages
+        env:
+          PACKAGE_VERSION: ${{ steps.gitversion.outputs.nugetVersion }}
+        run: |
+          dotnet pack LiteDB/LiteDB.csproj --configuration Release --no-build -o artifacts /p:ContinuousIntegrationBuild=true -p:PackageVersion="$PACKAGE_VERSION"
+          dotnet pack LiteDB.SourceGenerator/LiteDB.SourceGenerator.csproj --configuration Release --no-build -o artifacts /p:ContinuousIntegrationBuild=true -p:PackageVersion="$PACKAGE_VERSION"
 
       - name: Clean up detached packages
         run: |
           find artifacts -name "0.0.0-detached.nupkg" -delete
+
+      - name: Validate matching package archive pair
+        env:
+          PACKAGE_VERSION: ${{ steps.gitversion.outputs.nugetVersion }}
+        run: ./scripts/validate-source-generator-package-archive.sh artifacts "$PACKAGE_VERSION"
 
       - name: Retrieve secrets from Bitwarden
         uses: bitwarden/sm-action@v2

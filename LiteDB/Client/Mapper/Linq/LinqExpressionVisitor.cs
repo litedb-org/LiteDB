@@ -36,6 +36,7 @@ namespace LiteDB
         };
 
         private readonly BsonMapper _mapper;
+        private readonly bool _useGeneratedMappers;
         private readonly Expression _expr;
         private readonly ParameterExpression _rootParameter = null;
 
@@ -46,10 +47,11 @@ namespace LiteDB
         private readonly StringBuilder _builder = new StringBuilder();
         private readonly Stack<MemberExpression> _memberAccessNodes = new();
 
-        public LinqExpressionVisitor(BsonMapper mapper, Expression expr)
+        public LinqExpressionVisitor(BsonMapper mapper, Expression expr, bool useGeneratedMappers = false)
         {
             _mapper = mapper;
             _expr = expr;
+            _useGeneratedMappers = useGeneratedMappers;
 
             if (expr is LambdaExpression lambda)
             {
@@ -249,6 +251,7 @@ namespace LiteDB
         /// <summary>
         /// Visit :: x => x.Age + `10` (will create parameter:  `p0`, `p1`, ...)
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = AotCompatibility.RuntimeModelMapping)]
         protected override Expression VisitConstant(ConstantExpression node)
         {
             var value = node.Value;
@@ -634,7 +637,9 @@ namespace LiteDB
             var isParentDbRef = _dbRefType != null && member.DeclaringType.IsAssignableFrom(_dbRefType);
 
             // get class entity from mapper
-            var entity = _mapper.GetEntityMapper(member.DeclaringType);
+            var entity = _useGeneratedMappers && _mapper.HasGeneratedEntityMapper(member.DeclaringType)
+                ? _mapper.GetGeneratedEntityMapper(member.DeclaringType)
+                : _mapper.GetEntityMapper(member.DeclaringType);
             entity.WaitForInitialization();
 
             // get mapped field from entity
@@ -720,9 +725,12 @@ namespace LiteDB
             }
             else
             {
-                var func = Expression.Lambda(expr).Compile();
+                // Prefer compiled interpretation for AOT
+                var func = Expression.Lambda<Func<object>>(
+                    Expression.Convert(expr, typeof(object)))
+                    .Compile(preferInterpretation: true);
 
-                value = func.DynamicInvoke();
+                value = func();
             }
 
             // do some type validation to be ease to debug

@@ -34,6 +34,9 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      - name: Install Native AOT prerequisites
+        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
+
       - name: Restore .NET tools
         run: dotnet tool restore
 
@@ -74,13 +77,37 @@ jobs:
         timeout-minutes: 8
         run: dotnet test LiteDB.sln --configuration Release --no-build --verbosity normal --settings tests.runsettings --logger "trx;LogFileName=TestResults.trx" --logger "console;verbosity=detailed"
 
-      - name: Pack
-        run: dotnet pack LiteDB/LiteDB.csproj --configuration Release --no-build -o artifacts /p:ContinuousIntegrationBuild=true
+      - name: Run managed AOT mapping and generator tests
+        run: dotnet test LiteDB.AotTests/LiteDB.AotTests.csproj --configuration Release --settings tests.runsettings
+
+      - name: Validate trimmed source-project executable
+        run: |
+          dotnet publish LiteDB.AotSmokeTests/LiteDB.AotSmokeTests.csproj --configuration Release --runtime linux-x64 --self-contained true -p:PublishAot=false -p:PublishTrimmed=true --output ./artifacts/source-generator-release-trimmed
+          ./artifacts/source-generator-release-trimmed/LiteDB.AotSmokeTests
+
+      - name: Validate packaged consumer and source-project Native AOT smoke
+        run: |
+          ./scripts/validate-source-generator-package-consumer.sh
+          dotnet restore LiteDB.AotSmokeTests/LiteDB.AotSmokeTests.csproj --runtime linux-x64 --nologo
+          dotnet publish LiteDB.AotSmokeTests/LiteDB.AotSmokeTests.csproj --configuration Release --runtime linux-x64 --self-contained true --no-restore --nologo /p:IlcParallelism=1 --output ./artifacts/source-generator-release-native-aot
+          ./artifacts/source-generator-release-native-aot/LiteDB.AotSmokeTests
+
+      - name: Pack matching runtime and source-generator packages
+        env:
+          PACKAGE_VERSION: ${{ steps.gitversion.outputs.nugetVersion }}
+        run: |
+          dotnet pack LiteDB/LiteDB.csproj --configuration Release --no-build -o artifacts /p:ContinuousIntegrationBuild=true -p:PackageVersion="$PACKAGE_VERSION"
+          dotnet pack LiteDB.SourceGenerator/LiteDB.SourceGenerator.csproj --configuration Release --no-build -o artifacts /p:ContinuousIntegrationBuild=true -p:PackageVersion="$PACKAGE_VERSION"
 
       # if delete all nuget packages which are named ``0.0.0-detached.nupkg`` (leftover from detached builds)
       - name: Clean up detached packages
         run: |
           find artifacts -name "0.0.0-detached.nupkg" -delete
+
+      - name: Validate matching package archive pair
+        env:
+          PACKAGE_VERSION: ${{ steps.gitversion.outputs.nugetVersion }}
+        run: ./scripts/validate-source-generator-package-archive.sh artifacts "$PACKAGE_VERSION"
 
       - name: Retrieve secrets from Bitwarden
         if: ${{ inputs.publish_nuget }}
