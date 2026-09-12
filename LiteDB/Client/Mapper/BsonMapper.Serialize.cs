@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections;
+using System.ComponentModel;
+using System.Globalization;
 using System.Linq;
 using System.Reflection;
 
@@ -126,14 +128,16 @@ namespace LiteDB
                     type = obj.GetType();
                 }
 
+                Type keyType = typeof(object);
                 Type valueType = typeof(object);
 
                 if (type.GetTypeInfo().IsGenericType) {
                     Type[] generics = type.GetGenericArguments();
+                    keyType = generics[0];
                     valueType = generics[1];
                 }
 
-                return SerializeDictionary(valueType, dict, depth);
+                return SerializeDictionary(keyType, valueType, dict, depth);
             }
             // check if is a list or array
             else if (obj is IEnumerable)
@@ -159,17 +163,41 @@ namespace LiteDB
             return bsonArray;
         }
 
-        private BsonDocument SerializeDictionary(Type valueType, IDictionary dict, int depth)
+        private BsonDocument SerializeDictionary(Type keyType, Type valueType, IDictionary dict, int depth)
         {
             BsonDocument bsonDocument = [];
 
             foreach (object key in dict.Keys)
             {
                 object value = dict[key];
-                
-                var stringKey = key is DateTime dateKey 
-                    ? dateKey.ToString("o") ?? string.Empty
-                    : key.ToString() ?? string.Empty;
+
+                // Keys must be serialized culture-invariantly so they round-trip through
+                // DeserializeDictionary, which parses keys with ConvertFromInvariantString.
+                // (e.g. a double key 9.9 must be stored as "9.9", never "9,9" under de-DE.)
+                string stringKey;
+                if (key is DateTime dateKey)
+                {
+                    stringKey = dateKey.ToString("o", CultureInfo.InvariantCulture) ?? string.Empty;
+                }
+                else if (key is DateTimeOffset dateTimeOffsetKey)
+                {
+                    // Preserve the field spelling written by previous versions.
+                    stringKey = dateTimeOffsetKey.ToString(CultureInfo.CurrentCulture) ?? string.Empty;
+                }
+                else
+                {
+                    var converterType = keyType == typeof(object) ? key.GetType() : keyType;
+                    var keyConverter = TypeDescriptor.GetConverter(converterType);
+                    stringKey = keyConverter.CanConvertTo(typeof(string))
+                        ? keyConverter.ConvertToInvariantString(key) ?? string.Empty
+                        : Convert.ToString(key, CultureInfo.InvariantCulture) ?? string.Empty;
+                }
+
+                if (bsonDocument.ContainsKey(stringKey))
+                {
+                    throw new LiteException(0,
+                        $"Dictionary keys serialize to the same BSON field name '{stringKey}'.");
+                }
 
                 BsonValue bsonValue = Serialize(valueType, value, depth);
                 bsonDocument[stringKey] = bsonValue;
