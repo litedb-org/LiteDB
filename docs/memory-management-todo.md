@@ -111,3 +111,26 @@ parameterized helpers as a later compatibility decision.
   (GitHub Actions run `34657271951`: 45/45 jobs succeeded).
 - [x] Run a final post-CI regression and memory-leak verification
   (net8.0: 413 passed, 7 skipped; leak-focused gate: 66 tests x 5 passes).
+
+## Post-review and benchmark follow-up
+
+- [x] Compare `dev` and the PR with identical large-file, expression, index,
+  vector, encrypted-write, and shared-reader workloads; record absolute values
+  and deltas in `docs/memory-management-benchmark-results.md`.
+- [ ] Make index scan and LIKE iterators resume from cached addresses rather
+  than page-backed nodes across caller safepoints.
+- [ ] Dispose aggregate `DocumentCacheEnumerable` instances when result
+  enumeration ends early.
+- [ ] Close writable-frame cleanup gaps around failed publication, test-hook
+  failures, and readable-source eviction during writable acquisition.
+- [ ] Make `DiskService`, `StreamPool`, and `StreamFactory` disposal transitions
+  atomic under concurrent callers.
+- [ ] Snapshot transaction diagnostics under the monitor lock and report
+  accurately named pin/page counts.
+- [ ] Reject malformed/negative `cache size` text while continuing to accept
+  explicit zero as the storage-specific-default sentinel.
+- [ ] Update Appendix A's diagnostics example to the implemented schema.
+- [ ] Decide whether to optimize the global cache lock before merge; measured
+  shared-reader throughput is 21-38% lower at 4-16 readers on the benchmark host.
+- [ ] Obtain required maintainer review after every correctness item above is
+  fixed and the updated head is green.
