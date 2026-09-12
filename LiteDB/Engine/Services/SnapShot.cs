@@ -81,14 +81,22 @@ namespace LiteDB.Engine
 
             var srv = new CollectionService(_header, _disk, this, _transPages);
 
-            // read collection (create if new - load virtual too)
-            srv.Get(_collectionName, addIfNotExists, ref _collectionPage);
-
-            // clear local pages (will clear _collectionPage link reference)
-            if (_collectionPage != null)
+            try
             {
-                // local pages contains only data/index pages
-                _localPages.Remove(_collectionPage.PageID);
+                srv.Get(_collectionName, addIfNotExists, ref _collectionPage);
+                if (_collectionPage != null) _localPages.Remove(_collectionPage.PageID);
+            }
+            catch
+            {
+                // A failed constructor never reaches the transaction's snapshot map.
+                if (_collectionPage != null) _localPages[_collectionPage.PageID] = _collectionPage;
+                foreach (var page in _localPages.Values)
+                {
+                    if (_mode == LockMode.Write) _disk.Cache.DiscardPage(page.Buffer);
+                    else page.Buffer.Release();
+                }
+                if (_mode == LockMode.Write) _locker.ExitLock(_collectionName);
+                throw;
             }
         }
 
@@ -227,55 +235,44 @@ namespace LiteDB.Engine
         private T ReadPage<T>(uint pageID, out FileOrigin origin, out long position, out int walVersion, bool useLatestVersion = false)
             where T : BasePage
         {
-            // if not inside local pages can be a dirty page saved in log file
-            if (_transPages.DirtyPages.TryGetValue(pageID, out var walPosition))
+            var dirty = _transPages.DirtyPages.TryGetValue(pageID, out var walPosition);
+            if (dirty)
             {
-                // read page from log file
-                var buffer = _reader.ReadPage(walPosition.Position, _mode == LockMode.Write, FileOrigin.Log);
-                var dirty = BasePage.ReadPage<T>(buffer);
-
                 origin = FileOrigin.Log;
                 position = walPosition.Position;
                 walVersion = _readVersion;
-
-                ENSURE(dirty.TransactionID == _transactionID, "this page must came from same transaction");
-
-                return dirty;
-            }
-
-            // now, look inside wal-index
-            var pos = _walIndex.GetPageIndex(pageID, useLatestVersion ? int.MaxValue : _readVersion, out walVersion);
-
-            if (pos != long.MaxValue)
-            {
-                // read page from log file
-                var buffer = _reader.ReadPage(pos, _mode == LockMode.Write, FileOrigin.Log);
-                var logPage = BasePage.ReadPage<T>(buffer);
-
-                // clear some data inside this page (will be override when write on log file)
-                logPage.TransactionID = 0;
-                logPage.IsConfirmed = false;
-
-                origin = FileOrigin.Log;
-                position = pos;
-
-                return logPage;
             }
             else
             {
-                // for last chance, look inside original disk data file
-                var pagePosition = BasePage.GetPagePosition(pageID);
+                position = _walIndex.GetPageIndex(pageID, useLatestVersion ? int.MaxValue : _readVersion, out walVersion);
+                origin = position == long.MaxValue ? FileOrigin.Data : FileOrigin.Log;
+                if (origin == FileOrigin.Data) position = BasePage.GetPagePosition(pageID);
+            }
 
-                // read page from data file
-                var buffer = _reader.ReadPage(pagePosition, _mode == LockMode.Write, FileOrigin.Data);
-                var diskpage = BasePage.ReadPage<T>(buffer);
-
-                origin = FileOrigin.Data;
-                position = pagePosition;
-
-                ENSURE(diskpage.IsConfirmed == false || diskpage.TransactionID != 0, "page are not header-clear in data file");
-
-                return diskpage;
+            var buffer = _reader.ReadPage(position, _mode == LockMode.Write, origin);
+            try
+            {
+                var page = BasePage.ReadPage<T>(buffer);
+                if (dirty)
+                {
+                    ENSURE(page.TransactionID == _transactionID, "this page must came from same transaction");
+                }
+                else if (origin == FileOrigin.Log)
+                {
+                    page.TransactionID = 0;
+                    page.IsConfirmed = false;
+                }
+                else
+                {
+                    ENSURE(page.IsConfirmed == false || page.TransactionID != 0, "page are not header-clear in data file");
+                }
+                return page;
+            }
+            catch
+            {
+                if (_mode == LockMode.Write) _disk.Cache.DiscardPage(buffer);
+                else buffer.Release();
+                throw;
             }
         }
 

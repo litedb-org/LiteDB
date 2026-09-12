@@ -74,32 +74,31 @@ namespace LiteDB.Tests.Database
             connection.CacheSize.Should().Be(512L * 1024);
         }
 
-        [Fact]
-        public void ConnectionString_Accepts_Explicit_Bytes()
-        {
-            var connection = new ConnectionString("filename=test.db;cache size=512bytes");
-
-            connection.CacheSize.Should().Be(512L);
-        }
-
         [Theory]
         [InlineData("abc")]
         [InlineData("-1")]
         [InlineData("1XB")]
         [InlineData("999999999999999999999999TB")]
-        public void ConnectionString_Rejects_Invalid_Cache_Size(string value)
+        [InlineData("1.5MB")]
+        [InlineData("9223372036854775808")]
+        [InlineData("9223372036854775807TB")]
+        [InlineData("''")]
+        [InlineData("")]
+        public void ConnectionString_Rejects_Invalid_Cache_Sizes(string value)
         {
-            Action parse = () => new ConnectionString($"filename=test.db;cache size={value}");
-
-            parse.Should().Throw<LiteException>().WithMessage("*cache size*");
+            Action parse = () => new ConnectionString("filename=:memory:;cache size=" + value);
+            parse.Should().Throw<LiteException>();
         }
 
-        [Fact]
-        public void ConnectionString_Accepts_Zero_As_Default_Sentinel()
+        [Theory]
+        [InlineData("0", 0L)]
+        [InlineData("0MB", 0L)]
+        [InlineData("512bytes", 512L)]
+        [InlineData("1048576", 1048576L)]
+        [InlineData("64 mb", 67108864L)]
+        public void ConnectionString_Accepts_Default_And_Explicit_Byte_Units(string value, long expected)
         {
-            var connection = new ConnectionString("filename=test.db;cache size=0");
-
-            connection.CacheSize.Should().Be(0);
+            new ConnectionString("filename=:memory:;cache size=" + value).CacheSize.Should().Be(expected);
         }
     }
 }

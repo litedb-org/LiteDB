@@ -1,0 +1,2 @@
+#!/bin/sh
+exec python scripts/check-csharp-size.py

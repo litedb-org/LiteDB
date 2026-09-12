@@ -12,6 +12,15 @@ namespace LiteDB.Internals
     public class StreamOwnership_Tests
     {
         [Fact]
+        public void Concurrent_Factory_Disposal_Closes_Owned_Stream_Once()
+        {
+            var stream = new TrackingMemoryStream();
+            var factory = new StreamFactory(stream, null, true);
+            Parallel.For(0, 100, _ => factory.Dispose());
+            stream.DisposeCount.Should().Be(1);
+        }
+
+        [Fact]
         public void CallerOwned_Stream_RemainsOpen_AfterPoolDispose()
         {
             using var stream = new TrackingMemoryStream();
@@ -49,7 +58,7 @@ namespace LiteDB.Internals
 
             Parallel.For(0, 64, _ => factory.Dispose());
 
-            stream.DisposeCalls.Should().Be(1);
+            stream.DisposeCount.Should().Be(1);
         }
 
         [Fact]
@@ -184,20 +193,20 @@ namespace LiteDB.Internals
 
         private class TrackingMemoryStream : MemoryStream
         {
+            private int _disposeCount;
+            public int DisposeCount => Volatile.Read(ref _disposeCount);
             public bool WasDisposed { get; private set; }
-            public int DisposeCalls => Volatile.Read(ref _disposeCalls);
 
             protected override void Dispose(bool disposing)
             {
                 if (disposing)
                 {
                     this.WasDisposed = true;
-                    Interlocked.Increment(ref this._disposeCalls);
+                    Interlocked.Increment(ref _disposeCount);
                 }
                 base.Dispose(disposing);
             }
 
-            private int _disposeCalls;
         }
 
         private sealed class CountingFactory : IStreamFactory

@@ -1,8 +1,15 @@
 # Bounded, elastic page cache for LiteDB v5 — proposal
 
-Status: proposal, revision 5 (2026-09-11). Scope: `LiteDB/Engine/Disk/MemoryCache.cs`,
+Status: implemented, with revision 6 corrections (2026-09-12). Scope: `LiteDB/Engine/Disk/MemoryCache.cs`,
 `DiskService`, `TransactionMonitor`, `TransactionService`, `EngineSettings`,
 `ConnectionString`, `$database` system collection.
+
+The implementation and measured tradeoffs are recorded in
+[`memory-management-validation.md`](memory-management-validation.md).
+Revision 6 retains the frame-lifetime monitor but removes expression-cache and
+transaction-registry locks. `PageFramePool` owns segment metadata and
+`CacheReclaimer` owns eviction policy under the frame monitor. Within-target
+transaction completion skips the trim monitor using an atomic size read.
 
 ## 0. Revision history
 
@@ -909,29 +916,25 @@ compiledExpressions
 ```
 
 `transactions` additionally reports `transactionPageLimit` and the current
-`pinnedPages` per open transaction. Two fields disappear with phase 3:
+`transactionPages` per open transaction (pages since the last safepoint, not a pin count). Two fields disappear with phase 3:
 `availableSize` and `initialTransactionSize` describe the monitor's shared
 page pool (`SysDatabase.cs:50-51`), which the fixed threshold removes; the
-measurement program in appendix A reads `availableSize` and changes with
+measurement program in appendix A now reports the fixed threshold and changes with
 them. Nothing else in the public API changes.
 
 ### 5.8 Expression cache
 
 The memory fix and a compatibility decision, kept apart:
 
-1. **Bound the two static dictionaries** (the memory fix, phase 2): cap at
-   1,000 entries; when the cap is hit, clear the dictionary. It is a pure
-   compile cache; a miss costs one parse and compile. Immune to every key
-   being unique. Admission is atomic: the delegate is compiled outside any
-   lock, then `lock (_cacheSync) { if (_count >= Cap) { dict.Clear();
-   _count = 0; } if (dict.TryAdd(key, del)) _count++; }`, and lookups stay
-   lock-free on the `ConcurrentDictionary`. `_count` is maintained under the
-   same lock; `ConcurrentDictionary.Count` is not read on admission because
-   it acquires every internal lock. A `Count` check followed by a separate
-   `Clear`/`GetOrAdd` would not hold the cap under concurrency. Expose
-   `compiledExpressions` in `$database`. Delegates produced by
-   `Expression.Compile()` are backed by collectible dynamic methods, so
-   dropping the last reference does free them.
+1. **Bound compiled delegates** (the memory fix, phase 2): one fixed array of
+   1,000 slots is shared by scalar and enumerable delegates. Source hashes select
+   slots; immutable source/delegate pairs are published with `Interlocked.Exchange`
+   and read with `Volatile.Read`. Hash collisions replace a single entry. Readers
+   verify both the source and delegate type, so collisions only affect hit rate.
+   Compilation remains outside synchronization, and existing expression instances
+   retain their own delegates independently of eviction. A maintained atomic
+   occupied-slot count replaces both the admission lock and dictionary-wide clear.
+   This supersedes revision 5's `_cacheSync` implementation.
 2. **Parameterized `Query.*` helpers are an opt-in API, not a change to the
    existing one.** The leaf change alone is not enough (revision 2:
    `Query.And`/`Or` build `($left.Source AND $right.Source)` through the
@@ -1341,7 +1344,7 @@ static class P
             var info = db.Execute("SELECT $ FROM $database").First().AsDocument;
             var c = info["cache"].AsDocument;
             var t = info["transactions"].AsDocument;
-            line += $"  cache: segs={c["segments"].AsInt32,3} pages={c["totalPages"].AsInt32,6} ({c["allocatedBytes"].AsInt64 / 1024 / 1024,4} MB) free={c["freePages"].AsInt32,6} readable={c["readablePages"].AsInt32,6} writable={c["writablePages"].AsInt32,5} pinned={c["pinnedPages"].AsInt32,5}  tx: open={t["open"].AsInt32} pages={t["transactionPages"].AsArray.Sum(x => x.AsDocument["pages"].AsInt32)}  log={info["logFileSize"].AsInt32 / 1024 / 1024} MB";
+            line += $"  cache: segs={c["segments"].AsInt32,3} pages={c["totalPages"].AsInt32,6} ({c["allocatedBytes"].AsInt64 / 1024 / 1024,4} MiB) free={c["freePages"].AsInt32,6} readable={c["readablePages"].AsInt32,6} writable={c["writablePages"].AsInt32,5} inUse={c["pinnedPages"].AsInt32,5}  tx: open={t["open"].AsInt32} limit={t["transactionPageLimit"].AsInt32}  log={info["logFileSize"].AsInt32 / 1024 / 1024} MB";
         }
         Console.WriteLine(line);
         return line;

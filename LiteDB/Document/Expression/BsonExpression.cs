@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -279,16 +278,9 @@ namespace LiteDB
 
         #region Static method
 
-        private static readonly ConcurrentDictionary<string, BsonExpressionEnumerableDelegate> _cacheEnumerable = new ConcurrentDictionary<string, BsonExpressionEnumerableDelegate>();
-        private static readonly ConcurrentDictionary<string, BsonExpressionScalarDelegate> _cacheScalar = new ConcurrentDictionary<string, BsonExpressionScalarDelegate>();
-        private static readonly object _cacheSync = new object();
-        private const int COMPILED_EXPRESSION_CACHE_CAP = 1000;
-        private static int _compiledExpressionCount;
+        private static readonly CompiledExpressionCache _compiledCache = new CompiledExpressionCache(1000);
 
-        internal static int CompiledExpressionCount
-        {
-            get { lock (_cacheSync) return _compiledExpressionCount; }
-        }
+        internal static int CompiledExpressionCount => _compiledCache.Count;
 
         /// <summary>
         /// Parse string and create new instance of BsonExpression - can be cached
@@ -378,56 +370,24 @@ namespace LiteDB
             // in both case, try use cached compiled version
             if (expr.IsScalar)
             {
-                if (!_cacheScalar.TryGetValue(expr.Source, out var cached))
+                var cached = _compiledCache.Get<BsonExpressionScalarDelegate>(expr.Source);
+                if (cached == null)
                 {
                     var lambda = System.Linq.Expressions.Expression.Lambda<BsonExpressionScalarDelegate>(expr.Expression, context.Source, context.Root, context.Current, context.Collation, context.Parameters);
-                    var compiled = lambda.Compile();
-
-                    lock (_cacheSync)
-                    {
-                        if (!_cacheScalar.TryGetValue(expr.Source, out cached))
-                        {
-                            ClearCompiledCacheIfFull();
-
-                            if (_cacheScalar.TryAdd(expr.Source, compiled))
-                            {
-                                _compiledExpressionCount++;
-                                cached = compiled;
-                            }
-                            else
-                            {
-                                cached = _cacheScalar[expr.Source];
-                            }
-                        }
-                    }
+                    cached = lambda.Compile();
+                    _compiledCache.Add(expr.Source, cached);
                 }
 
                 expr._funcScalar = cached;
             }
             else
             {
-                if (!_cacheEnumerable.TryGetValue(expr.Source, out var cached))
+                var cached = _compiledCache.Get<BsonExpressionEnumerableDelegate>(expr.Source);
+                if (cached == null)
                 {
                     var lambda = System.Linq.Expressions.Expression.Lambda<BsonExpressionEnumerableDelegate>(expr.Expression, context.Source, context.Root, context.Current, context.Collation, context.Parameters);
-                    var compiled = lambda.Compile();
-
-                    lock (_cacheSync)
-                    {
-                        if (!_cacheEnumerable.TryGetValue(expr.Source, out cached))
-                        {
-                            ClearCompiledCacheIfFull();
-
-                            if (_cacheEnumerable.TryAdd(expr.Source, compiled))
-                            {
-                                _compiledExpressionCount++;
-                                cached = compiled;
-                            }
-                            else
-                            {
-                                cached = _cacheEnumerable[expr.Source];
-                            }
-                        }
-                    }
+                    cached = lambda.Compile();
+                    _compiledCache.Add(expr.Source, cached);
                 }
 
                 expr._funcEnumerable = cached;
@@ -436,15 +396,6 @@ namespace LiteDB
             // compile child expressions (left/right)
             if (expr.Left != null) Compile(expr.Left, context);
             if (expr.Right != null) Compile(expr.Right, context);
-        }
-
-        private static void ClearCompiledCacheIfFull()
-        {
-            if (_compiledExpressionCount < COMPILED_EXPRESSION_CACHE_CAP) return;
-
-            _cacheScalar.Clear();
-            _cacheEnumerable.Clear();
-            _compiledExpressionCount = 0;
         }
 
         /// <summary>

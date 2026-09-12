@@ -10,6 +10,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
+using LiteDB.Utils;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -28,8 +29,9 @@ namespace LiteDB.Engine
 
         private readonly int[] _orders;
         private readonly EnginePragmas _pragmas;
-        private readonly BufferSlice _buffer;
+        private BufferSlice _buffer;
         private readonly Lazy<Stream> _reader;
+        private int _disposed;
 
         private static readonly ArrayPool<byte> _bufferPool = ArrayPool<byte>.Shared;
 
@@ -62,23 +64,28 @@ namespace LiteDB.Engine
 
         public void Dispose()
         {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            var cleanup = new TryCatch();
             // release all container positions
             foreach(var container in _containers)
             {
-                container.Dispose();
+                cleanup.Catch(container.Dispose);
 
                 // return only was used
                 if (container.Position >= 0)
                 {
-                    _disk.Return(container.Position);
+                    cleanup.Catch(() => _disk.Return(container.Position));
                 }
             }
 
             // return open strem into disk
             if (_reader.IsValueCreated)
             {
-                _disk.Return(_reader.Value);
+                cleanup.Catch(() => _disk.Return(_reader.Value));
             }
+            _containers.Clear();
+            _buffer = null;
+            if (cleanup.Exceptions.Count > 0) throw new AggregateException(cleanup.Exceptions);
         }
 
         /// <summary>

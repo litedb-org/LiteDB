@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
@@ -203,7 +203,7 @@ namespace LiteDB.Engine
 
                         stream.Write(page.Array, page.Offset, PAGE_SIZE);
 
-                        // Publish only after the bytes are durable in the stream.
+                        // Publish only after the bytes are written to the stream.
                         // The callback can make the position visible to readers.
                         readable = _cache.MoveToReadable(page);
 
@@ -263,11 +263,17 @@ namespace LiteDB.Engine
                 using (var stream = _dataFactory.GetStream(true, true))
                 {
                     var buffer = _bufferPool.Rent(PAGE_SIZE);
-                    stream.Read(buffer, 0, PAGE_SIZE);
-                    buffer[HeaderPage.P_INVALID_DATAFILE_STATE] = 1;
-                    stream.Position = 0;
-                    stream.Write(buffer, 0, PAGE_SIZE);
-                    _bufferPool.Return(buffer, true);
+                    try
+                    {
+                        stream.Read(buffer, 0, PAGE_SIZE);
+                        buffer[HeaderPage.P_INVALID_DATAFILE_STATE] = 1;
+                        stream.Position = 0;
+                        stream.Write(buffer, 0, PAGE_SIZE);
+                    }
+                    finally
+                    {
+                        _bufferPool.Return(buffer, true);
+                    }
                 }
             });
         }

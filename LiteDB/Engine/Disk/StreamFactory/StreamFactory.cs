@@ -36,13 +36,16 @@ namespace LiteDB.Engine
         /// </summary>
         public Stream GetStream(bool canWrite, bool sequencial)
         {
+            if (Volatile.Read(ref _disposed) != 0) throw new ObjectDisposedException(nameof(StreamFactory));
+
+            // The factory owns the shared base stream; wrappers only own themselves.
             if (_password == null)
             {
-                return new ConcurrentStream(_stream, canWrite, !_ownsStream);
+                return new ConcurrentStream(_stream, canWrite, true);
             }
             else
             {
-                return new AesStream(_password, new ConcurrentStream(_stream, canWrite, !_ownsStream));
+                return new AesStream(_password, new ConcurrentStream(_stream, canWrite, true));
             }
         }
 

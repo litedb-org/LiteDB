@@ -19,22 +19,36 @@ namespace LiteDB.Engine
         private readonly List<PageAddress> _cache = new List<PageAddress>();
         private readonly IDocumentLookup _lookup;
         private readonly Action _safepoint;
+        private readonly bool _drainOnDispose;
 
-        public DocumentCacheEnumerable(IEnumerable<BsonDocument> source, IDocumentLookup lookup, Action safepoint = null)
+        public DocumentCacheEnumerable(IEnumerable<BsonDocument> source, IDocumentLookup lookup, Action safepoint = null, bool drainOnDispose = true)
         {
             _enumerator = source.GetEnumerator();
             _lookup = lookup;
             _safepoint = safepoint ?? (() => { });
+            _drainOnDispose = drainOnDispose;
         }
 
         public void Dispose()
         {
-            // must read all enumerable before dispose
-            if (_enumerator != null)
+            var enumerator = _enumerator;
+            _enumerator = null;
+            _cache.Clear();
+
+            if (enumerator == null) return;
+
+            try
             {
-                while (_enumerator.MoveNext()) ;
-                _enumerator.Dispose();
-                _enumerator = null;
+                // Group replay must advance to the next group. An aggregate
+                // owns the entire source and can instead stop immediately.
+                if (_drainOnDispose)
+                {
+                    while (enumerator.MoveNext()) { }
+                }
+            }
+            finally
+            {
+                enumerator.Dispose();
             }
         }
 

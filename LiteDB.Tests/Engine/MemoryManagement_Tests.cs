@@ -309,7 +309,7 @@ namespace LiteDB.Tests.Engine
             var monitor = engine.GetMonitor();
             using var creationStarting = new ManualResetEventSlim();
             using var resumeCreation = new ManualResetEventSlim();
-            monitor.BeforeTransactionCreationLock = () =>
+            monitor.BeforeTransactionRegistration = () =>
             {
                 creationStarting.Set();
                 resumeCreation.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();

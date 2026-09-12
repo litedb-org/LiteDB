@@ -102,21 +102,20 @@ namespace LiteDB.Engine
         /// </summary>
         private IEnumerable<BsonDocument> SelectAll(IEnumerable<BsonDocument> source, BsonExpression select)
         {
-            using (var cached = new DocumentCacheEnumerable(source, _lookup, _transaction.Safepoint))
-            {
-                var defaultName = select.DefaultFieldName();
-                var result = select.Execute(cached, _pragmas.Collation);
+            using var cached = new DocumentCacheEnumerable(source, _lookup, _transaction.Safepoint, drainOnDispose: false);
 
-                foreach (var value in result)
+            var defaultName = select.DefaultFieldName();
+            var result = select.Execute(cached, _pragmas.Collation);
+
+            foreach (var value in result)
+            {
+                if (value.IsDocument)
                 {
-                    if (value.IsDocument)
-                    {
-                        yield return value.AsDocument;
-                    }
-                    else
-                    {
-                        yield return new BsonDocument { [defaultName] = value };
-                    }
+                    yield return value.AsDocument;
+                }
+                else
+                {
+                    yield return new BsonDocument { [defaultName] = value };
                 }
             }
         }

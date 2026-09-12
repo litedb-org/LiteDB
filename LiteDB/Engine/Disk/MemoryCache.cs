@@ -6,24 +6,6 @@ using static LiteDB.Constants;
 
 namespace LiteDB.Engine
 {
-    internal sealed class MemoryCacheSegment
-    {
-        public byte[] Buffer;
-        public readonly PageBuffer[] Frames;
-        public int FreeCount;
-        public int FreeHead;
-        public int Busy;
-        public int Bucket = -1;
-
-        public MemoryCacheSegment(byte[] buffer, PageBuffer[] frames)
-        {
-            this.Buffer = buffer;
-            this.Frames = frames;
-            this.FreeCount = frames.Length;
-            this.FreeHead = frames.Length == 0 ? -1 : 0;
-        }
-    }
-
     /// <summary>
     /// Bounded, elastic page-buffer pool. One lock protects the readable
     /// index, frame states, pins, segment free lists, and segment liveness.
@@ -34,40 +16,18 @@ namespace LiteDB.Engine
         internal const int DEFAULT_EVICT_SCAN_BUDGET = 256;
 
         private readonly object _sync = new object();
+        private readonly PageFramePool _pool;
+        private readonly CacheReclaimer _reclaimer;
         private readonly Dictionary<long, PageBuffer> _index = new Dictionary<long, PageBuffer>();
-        private readonly List<MemoryCacheSegment> _segments = new List<MemoryCacheSegment>();
-        private readonly HashSet<MemoryCacheSegment>[] _freeBuckets =
-        {
-            new HashSet<MemoryCacheSegment>(),
-            new HashSet<MemoryCacheSegment>(),
-            new HashSet<MemoryCacheSegment>(),
-            new HashSet<MemoryCacheSegment>(),
-            new HashSet<MemoryCacheSegment>()
-        };
-        private readonly HashSet<MemoryCacheSegment> _releasableSegments = new HashSet<MemoryCacheSegment>();
-        private readonly int[] _segmentSizes;
-        private readonly int _evictScanBudget;
-        private MemoryCacheSegment _currentSegment;
-        private int _segmentsAllocated;
-        private int _nextUniqueID;
-        private int _clockSegment;
-        private int _clockFrame;
         private bool _disposed;
 
-        private int _totalPages;
-        private int _freePages;
         private int _readablePages;
         private int _idleReadablePages;
         private int _writablePages;
         private int _loadingPages;
         private int _pinnedPages;
-        private int _fullyFreeSegments;
 
         private long _evictedPages;
-        private long _releasedSegments;
-        private long _overflowSegments;
-        private long _framesExamined;
-        private long _budgetExceeded;
         private long _hits;
         private long _misses;
 
@@ -85,27 +45,21 @@ namespace LiteDB.Engine
 
         public MemoryCache(int[] memorySegmentSizes, long cacheSize, int evictScanBudget = DEFAULT_EVICT_SCAN_BUDGET)
         {
-            if (memorySegmentSizes == null) throw new ArgumentNullException(nameof(memorySegmentSizes));
-            if (memorySegmentSizes.Length == 0 || memorySegmentSizes.Any(x => x <= 0))
-            {
-                throw new ArgumentException("Memory segment sizes must contain positive values", nameof(memorySegmentSizes));
-            }
             if (evictScanBudget <= 0) throw new ArgumentOutOfRangeException(nameof(evictScanBudget));
 
-            _segmentSizes = (int[])memorySegmentSizes.Clone();
-            _evictScanBudget = evictScanBudget;
-            this.LimitBytes = cacheSize <= 0 ? PAGE_SIZE * (long)this.MinimumPages : cacheSize;
-            this.LimitPagesRounded = this.RoundLimitPages(this.LimitBytes);
+            _pool = new PageFramePool(this, memorySegmentSizes);
+            this.EvictScanBudget = evictScanBudget;
+            this.LimitBytes = cacheSize <= 0 ? PAGE_SIZE * (long)_pool.MinimumPages : cacheSize;
+            this.LimitPagesRounded = _pool.RoundLimitPages(this.LimitBytes);
+            _reclaimer = new CacheReclaimer(_pool, this.LimitPagesRounded, evictScanBudget,
+                () => _idleReadablePages, this.EvictLocked);
 
-            lock (_sync)
-            {
-                this.AllocateSegmentLocked(false);
-            }
+            _pool.AllocateSegmentLocked(false);
         }
 
         public long LimitBytes { get; }
         public int LimitPagesRounded { get; }
-        public int EvictScanBudget => _evictScanBudget;
+        public int EvictScanBudget { get; }
 
         public PageBuffer GetReadablePage(long position, FileOrigin origin, Action<long, BufferSlice> factory)
         {
@@ -144,7 +98,7 @@ namespace LiteDB.Engine
                         return page;
                     }
 
-                    page = this.AcquireFrameLocked();
+                    page = _reclaimer.AcquireFrameLocked();
                     this.TransitionFreeToLoadingLocked(page, position, origin);
                     _index.Add(key, page);
                     _misses++;
@@ -195,8 +149,7 @@ namespace LiteDB.Engine
         {
             ENSURE(origin != FileOrigin.None, "file origin must be defined");
 
-            if (origin == FileOrigin.Data) return position;
-            return position == 0 ? long.MinValue : -position;
+            return origin == FileOrigin.Data ? position : position == 0 ? long.MinValue : -position;
         }
 
         public PageBuffer GetWritablePage(long position, FileOrigin origin, Action<long, BufferSlice> factory)
@@ -205,61 +158,45 @@ namespace LiteDB.Engine
 
             var key = this.GetReadableKey(position, origin);
             PageBuffer writable = null;
-
-            lock (_sync)
-            {
-                this.ThrowIfDisposedLocked();
-
-                while (_index.TryGetValue(key, out var loading) && loading.State == FrameState.Loading)
-                {
-                    Monitor.Wait(_sync);
-                    this.ThrowIfDisposedLocked();
-                }
-
-                if (_index.TryGetValue(key, out var readable))
-                {
-                    ENSURE(readable.State == FrameState.Readable, "cached source must be readable");
-                    this.PinLocked(readable);
-
-                    try
-                    {
-                        // Pin before acquiring the destination: a full cache is
-                        // then unable to evict and reuse its readable source.
-                        writable = this.AcquireWritableLocked(position, origin);
-#if TESTING
-                        WritableCopyUnderLock?.Invoke();
-#endif
-                        Buffer.BlockCopy(readable.Array, readable.Offset, writable.Array, writable.Offset, PAGE_SIZE);
-                        _hits++;
-                        return writable;
-                    }
-                    catch
-                    {
-                        if (writable != null && writable.State == FrameState.Writable)
-                        {
-                            this.TransitionToFreeLocked(writable);
-                        }
-
-                        throw;
-                    }
-                    finally
-                    {
-                        this.UnpinLocked(readable);
-                    }
-                }
-
-                writable = this.AcquireWritableLocked(position, origin);
-                _misses++;
-            }
-
             try
             {
+                lock (_sync)
+                {
+                    this.ThrowIfDisposedLocked();
+                    while (_index.TryGetValue(key, out var loading) && loading.State == FrameState.Loading)
+                    {
+                        Monitor.Wait(_sync);
+                        this.ThrowIfDisposedLocked();
+                    }
+
+                    if (_index.TryGetValue(key, out var readable))
+                    {
+                        // Acquisition can evict idle frames, even under this lock.
+                        this.PinLocked(readable);
+                        try
+                        {
+                            writable = this.AcquireWritableLocked(position, origin);
+#if TESTING
+                            WritableCopyUnderLock?.Invoke();
+#endif
+                            Buffer.BlockCopy(readable.Array, readable.Offset, writable.Array, writable.Offset, PAGE_SIZE);
+                            _hits++;
+                            return writable;
+                        }
+                        finally
+                        {
+                            readable.Release();
+                        }
+                    }
+                    writable = this.AcquireWritableLocked(position, origin);
+                    _misses++;
+                }
                 factory(position, writable);
                 return writable;
             }
             catch
             {
-                this.DiscardPage(writable);
+                if (writable != null) this.DiscardPage(writable);
                 throw;
             }
         }
@@ -275,7 +212,7 @@ namespace LiteDB.Engine
 
         private PageBuffer AcquireWritableLocked(long position, FileOrigin origin)
         {
-            var page = this.AcquireFrameLocked();
+            var page = _reclaimer.AcquireFrameLocked();
 
             page.Position = position;
             page.Origin = origin;
@@ -283,7 +220,7 @@ namespace LiteDB.Engine
             page.ShareCounter = BUFFER_WRITABLE;
             page.Referenced = 0;
             page.Timestamp = DateTime.UtcNow.Ticks;
-            this.ChangeBusyLocked(page.Segment, 1);
+            _pool.ChangeBusyLocked(page.Segment, 1);
             _writablePages++;
 
             page.Clear();
@@ -295,52 +232,42 @@ namespace LiteDB.Engine
 
         public bool TryMoveToReadable(PageBuffer page)
         {
-            lock (_sync)
-            {
-                this.EnsureWritableOwnedLocked(page);
-                ENSURE(page.Position != long.MaxValue, "page must have a position");
-                ENSURE(page.Origin != FileOrigin.None, "page must have origin defined");
-
-                var key = this.GetReadableKey(page.Position, page.Origin);
-
-                if (_index.ContainsKey(key)) return false;
-
-                _index.Add(key, page);
-                page.State = FrameState.Readable;
-                page.ShareCounter = 0;
-                page.Referenced = 1;
-                page.Timestamp = DateTime.UtcNow.Ticks;
-                this.ChangeBusyLocked(page.Segment, -1);
-                _writablePages--;
-                _readablePages++;
-                _idleReadablePages++;
-
-                return true;
-            }
+            lock (_sync) return this.PublishWritableLocked(page, false);
         }
 
         public PageBuffer MoveToReadable(PageBuffer page)
         {
             lock (_sync)
             {
-                this.EnsureWritableOwnedLocked(page);
-                ENSURE(page.Position != long.MaxValue, "page must have position to be readable");
-                ENSURE(page.Origin != FileOrigin.None, "page should be a source before move to readable");
-
-                var key = this.GetReadableKey(page.Position, page.Origin);
-                ENSURE(!_index.ContainsKey(key), "writable page position must not already exist in readable cache");
-
-                _index.Add(key, page);
-                page.State = FrameState.Readable;
-                page.ShareCounter = 1;
-                page.Referenced = 1;
-                page.Timestamp = DateTime.UtcNow.Ticks;
-                _writablePages--;
-                _readablePages++;
-                _pinnedPages++;
-
+                ENSURE(this.PublishWritableLocked(page, true), "writable page position must not already exist in readable cache");
                 return page;
             }
+        }
+
+        private bool PublishWritableLocked(PageBuffer page, bool pinned)
+        {
+            this.EnsureWritableOwnedLocked(page);
+            ENSURE(page.Position != long.MaxValue, "page must have a position");
+            var key = this.GetReadableKey(page.Position, page.Origin);
+            if (_index.ContainsKey(key)) return false;
+
+            _index.Add(key, page);
+            page.State = FrameState.Readable;
+            page.ShareCounter = pinned ? 1 : 0;
+            page.Referenced = 1;
+            page.Timestamp = DateTime.UtcNow.Ticks;
+            _writablePages--;
+            _readablePages++;
+            if (pinned)
+            {
+                _pinnedPages++;
+            }
+            else
+            {
+                _pool.ChangeBusyLocked(page.Segment, -1);
+                _idleReadablePages++;
+            }
+            return true;
         }
 
         public void DiscardPage(PageBuffer page)
@@ -361,21 +288,14 @@ namespace LiteDB.Engine
                 ENSURE(page.State == FrameState.Readable, "only readable pages can be released");
                 ENSURE(page.ShareCounter > 0, "share counter must be > 0 in Release()");
 
-                this.UnpinLocked(page);
-            }
-        }
+                page.ShareCounter--;
 
-        private void UnpinLocked(PageBuffer page)
-        {
-            ENSURE(page.ShareCounter > 0, "share counter must be > 0 when unpinning");
-
-            page.ShareCounter--;
-
-            if (page.ShareCounter == 0)
-            {
-                this.ChangeBusyLocked(page.Segment, -1);
-                _pinnedPages--;
-                _idleReadablePages++;
+                if (page.ShareCounter == 0)
+                {
+                    _pool.ChangeBusyLocked(page.Segment, -1);
+                    _pinnedPages--;
+                    _idleReadablePages++;
+                }
             }
         }
 
@@ -385,7 +305,7 @@ namespace LiteDB.Engine
 
             if (page.ShareCounter == 0)
             {
-                this.ChangeBusyLocked(page.Segment, 1);
+                _pool.ChangeBusyLocked(page.Segment, 1);
                 _idleReadablePages--;
                 _pinnedPages++;
             }
@@ -404,7 +324,7 @@ namespace LiteDB.Engine
             page.State = FrameState.Loading;
             page.ShareCounter = 0;
             page.Referenced = 0;
-            this.ChangeBusyLocked(page.Segment, 1);
+            _pool.ChangeBusyLocked(page.Segment, 1);
             _loadingPages++;
         }
 
@@ -418,7 +338,7 @@ namespace LiteDB.Engine
             {
                 case FrameState.Loading:
                     _loadingPages--;
-                    this.ChangeBusyLocked(segment, -1);
+                    _pool.ChangeBusyLocked(segment, -1);
                     break;
                 case FrameState.Readable:
                     ENSURE(page.ShareCounter == 0, "pinned readable page cannot become free");
@@ -427,7 +347,7 @@ namespace LiteDB.Engine
                     break;
                 case FrameState.Writable:
                     _writablePages--;
-                    this.ChangeBusyLocked(segment, -1);
+                    _pool.ChangeBusyLocked(segment, -1);
                     break;
                 default:
                     ENSURE(false, "free frame cannot be returned twice");
@@ -442,96 +362,14 @@ namespace LiteDB.Engine
             page.Timestamp = 0;
             page.Generation++;
 
+#if DEBUG || TESTING
             for (var i = 0; i < page.Count; i++)
             {
                 page.Array[page.Offset + i] = 0xFF;
             }
+#endif
 
-            this.AddFreeFrameLocked(segment, page);
-        }
-
-        private PageBuffer AcquireFrameLocked()
-        {
-            while (true)
-            {
-                if (_currentSegment != null && _currentSegment.FreeCount > 0)
-                {
-                    return this.TakeFreeFrameLocked(_currentSegment);
-                }
-
-                _currentSegment = this.SelectPopulatedFreeSegmentLocked();
-
-                if (_currentSegment != null)
-                {
-                    return this.TakeFreeFrameLocked(_currentSegment);
-                }
-
-                if (_totalPages < this.LimitPagesRounded)
-                {
-                    _currentSegment = this.AllocateSegmentLocked(false);
-                    return this.TakeFreeFrameLocked(_currentSegment);
-                }
-
-                if (_idleReadablePages == 0)
-                {
-                    _currentSegment = this.AllocateSegmentLocked(true);
-                    return this.TakeFreeFrameLocked(_currentSegment);
-                }
-
-                var examined = this.ClockUntilVictimLocked();
-                _framesExamined += examined;
-                if (examined > _evictScanBudget) _budgetExceeded++;
-
-                ENSURE(_freePages > 0, "idle readable accounting promised an eviction victim");
-            }
-        }
-
-        private int ClockUntilVictimLocked()
-        {
-            var examined = 0;
-            var maximum = Math.Max(1, _totalPages * 2);
-
-            while (examined < maximum)
-            {
-                var page = this.NextClockFrameLocked();
-                examined++;
-
-                if (page.State != FrameState.Readable || page.ShareCounter != 0) continue;
-
-                if (page.Referenced != 0)
-                {
-                    page.Referenced = 0;
-                    continue;
-                }
-
-                this.EvictLocked(page);
-                return examined;
-            }
-
-            return examined;
-        }
-
-        private PageBuffer NextClockFrameLocked()
-        {
-            ENSURE(_segments.Count > 0, "cache must contain a segment");
-
-            if (_clockSegment >= _segments.Count)
-            {
-                _clockSegment = 0;
-                _clockFrame = 0;
-            }
-
-            var segment = _segments[_clockSegment];
-            var page = segment.Frames[_clockFrame++];
-
-            if (_clockFrame >= segment.Frames.Length)
-            {
-                _clockFrame = 0;
-                _clockSegment++;
-                if (_clockSegment >= _segments.Count) _clockSegment = 0;
-            }
-
-            return page;
+            _pool.AddFreeFrameLocked(segment, page);
         }
 
         private void EvictLocked(PageBuffer page)
@@ -543,130 +381,6 @@ namespace LiteDB.Engine
             _index.Remove(key);
             this.TransitionToFreeLocked(page);
             _evictedPages++;
-        }
-
-        private PageBuffer TakeFreeFrameLocked(MemoryCacheSegment segment)
-        {
-            ENSURE(segment.FreeHead >= 0 && segment.FreeCount > 0, "segment must contain a free frame");
-
-            this.RemoveFromBucketLocked(segment);
-
-            if (segment.FreeCount == segment.Frames.Length)
-            {
-                _fullyFreeSegments--;
-            }
-
-            var index = segment.FreeHead;
-            var page = segment.Frames[index];
-            segment.FreeHead = page.NextFree;
-            segment.FreeCount--;
-            page.NextFree = -1;
-            _freePages--;
-
-            this.AddToBucketLocked(segment);
-
-            ENSURE(page.State == FrameState.Free, "free-list frame must be free");
-            ENSURE(page.Position == long.MaxValue, "free-list frame must have no position");
-            ENSURE(page.ShareCounter == 0, "free-list frame must be unpinned");
-            ENSURE(page.Origin == FileOrigin.None, "free-list frame must have no origin");
-
-            page.RefreshOwnerGeneration();
-
-            return page;
-        }
-
-        private void AddFreeFrameLocked(MemoryCacheSegment segment, PageBuffer page)
-        {
-            this.RemoveFromBucketLocked(segment);
-
-            var index = page.Offset / PAGE_SIZE;
-            page.NextFree = segment.FreeHead;
-            segment.FreeHead = index;
-            segment.FreeCount++;
-            _freePages++;
-
-            if (segment.FreeCount == segment.Frames.Length)
-            {
-                _fullyFreeSegments++;
-            }
-
-            this.AddToBucketLocked(segment);
-
-            if (_currentSegment == null || _currentSegment.FreeCount == 0)
-            {
-                _currentSegment = segment;
-            }
-        }
-
-        private MemoryCacheSegment SelectPopulatedFreeSegmentLocked()
-        {
-            for (var i = 0; i < _freeBuckets.Length; i++)
-            {
-                foreach (var segment in _freeBuckets[i])
-                {
-                    if (segment.FreeCount > 0) return segment;
-                }
-            }
-
-            return null;
-        }
-
-        private void AddToBucketLocked(MemoryCacheSegment segment)
-        {
-            if (segment.FreeCount == 0)
-            {
-                segment.Bucket = -1;
-                return;
-            }
-
-            var bucket = segment.FreeCount == segment.Frames.Length ? 4 :
-                segment.FreeCount <= 15 ? 0 :
-                segment.FreeCount <= 63 ? 1 :
-                segment.FreeCount <= 127 ? 2 : 3;
-
-            segment.Bucket = bucket;
-            _freeBuckets[bucket].Add(segment);
-        }
-
-        private void RemoveFromBucketLocked(MemoryCacheSegment segment)
-        {
-            if (segment.Bucket >= 0)
-            {
-                _freeBuckets[segment.Bucket].Remove(segment);
-                segment.Bucket = -1;
-            }
-        }
-
-        private MemoryCacheSegment AllocateSegmentLocked(bool overflow)
-        {
-            var segmentSize = _segmentSizes[Math.Min(_segmentSizes.Length - 1, _segmentsAllocated)];
-            var buffer = new byte[PAGE_SIZE * segmentSize];
-            var frames = new PageBuffer[segmentSize];
-            var segment = new MemoryCacheSegment(buffer, frames);
-
-            for (var i = 0; i < segmentSize; i++)
-            {
-                var page = new PageBuffer(buffer, i * PAGE_SIZE, ++_nextUniqueID)
-                {
-                    Cache = this,
-                    Segment = segment,
-                    NextFree = i + 1 < segmentSize ? i + 1 : -1
-                };
-
-                frames[i] = page;
-            }
-
-            _segments.Add(segment);
-            _releasableSegments.Add(segment);
-            _segmentsAllocated++;
-            _totalPages += segmentSize;
-            _freePages += segmentSize;
-            _fullyFreeSegments++;
-            if (overflow) _overflowSegments++;
-            this.AddToBucketLocked(segment);
-
-            LOG($"extending memory usage: (segments: {_segments.Count})", "CACHE");
-            return segment;
         }
 
         public int Invalidate()
@@ -686,7 +400,7 @@ namespace LiteDB.Engine
                     this.TransitionToFreeLocked(page);
                 }
 
-                this.ReleaseFullyFreeSegmentsLocked(this.LimitPagesRounded, true);
+                _pool.ReleaseFullyFreeSegmentsLocked(this.LimitPagesRounded, true);
                 return pages.Length;
             }
         }
@@ -695,122 +409,17 @@ namespace LiteDB.Engine
 
         public void TrimToLimit()
         {
+            // Growth after this read belongs to another active operation,
+            // whose release will trim. Avoid entering the monitor on every
+            // completed point lookup when no segment can be released.
+            if (!_pool.ExceedsLimit(this.LimitPagesRounded)) return;
+
             lock (_sync)
             {
                 if (_disposed) return;
 
-                while (_totalPages > this.LimitPagesRounded)
-                {
-                    var before = _totalPages;
-                    var evicted = 0;
-
-                    this.ReleaseFullyFreeSegmentsLocked(this.LimitPagesRounded, true);
-                    if (_totalPages <= this.LimitPagesRounded) break;
-
-                    // Empty non-initial segments are the only ones that can be
-                    // returned to the GC. Prefer them before disturbing the
-                    // initial segment or partially pinned segments.
-                    MemoryCacheSegment candidate = null;
-
-                    foreach (var segment in _releasableSegments)
-                    {
-                        if (segment.FreeCount == segment.Frames.Length) continue;
-
-                        // Preserve the small initial segment when any later
-                        // segment can be emptied instead.
-                        if (ReferenceEquals(segment, _segments[0]))
-                        {
-                            candidate ??= segment;
-                        }
-                        else
-                        {
-                            candidate = segment;
-                            break;
-                        }
-                    }
-
-                    if (candidate != null)
-                    {
-                        foreach (var page in candidate.Frames)
-                        {
-                            if (page.State == FrameState.Readable && page.ShareCounter == 0)
-                            {
-                                this.EvictLocked(page);
-                                evicted++;
-                            }
-                        }
-                    }
-
-                    this.ReleaseFullyFreeSegmentsLocked(this.LimitPagesRounded, true);
-
-                    // A first candidate can become the one retained spare
-                    // without reducing TotalPages. Continue only when an
-                    // eviction made progress; otherwise every remaining
-                    // excess segment is pinned, writable, or loading.
-                    if (_totalPages == before && evicted == 0) break;
-                }
+                _reclaimer.TrimToLimit();
             }
-        }
-
-        private void ReleaseFullyFreeSegmentsLocked(int downTo, bool keepSpare)
-        {
-            for (var i = _segments.Count - 1; i > 0 && _totalPages > downTo; i--)
-            {
-                var segment = _segments[i];
-
-                if (segment.FreeCount != segment.Frames.Length) continue;
-                if (keepSpare && _fullyFreeSegments <= 1) break;
-
-                this.RemoveFromBucketLocked(segment);
-                _releasableSegments.Remove(segment);
-                if (ReferenceEquals(_currentSegment, segment)) _currentSegment = null;
-
-                _segments.RemoveAt(i);
-                _totalPages -= segment.Frames.Length;
-                _freePages -= segment.Frames.Length;
-                _fullyFreeSegments--;
-                _releasedSegments++;
-
-                foreach (var page in segment.Frames)
-                {
-                    page.Cache = null;
-                    page.Segment = null;
-                    page.NextFree = -1;
-                }
-
-                segment.Buffer = null;
-                _clockSegment = 0;
-                _clockFrame = 0;
-            }
-        }
-
-        private int MinimumPages
-        {
-            get
-            {
-                var first = _segmentSizes[0];
-                var second = _segmentSizes[Math.Min(1, _segmentSizes.Length - 1)];
-                return checked(first + second);
-            }
-        }
-
-        private int RoundLimitPages(long cacheSize)
-        {
-            if (cacheSize == long.MaxValue) return int.MaxValue;
-
-            var requestedLong = (cacheSize / PAGE_SIZE) + (cacheSize % PAGE_SIZE == 0 ? 0 : 1);
-            var requested = Math.Max(this.MinimumPages, (int)Math.Min(int.MaxValue, requestedLong));
-            var pages = 0;
-            var segment = 0;
-
-            while (pages < requested)
-            {
-                var size = _segmentSizes[Math.Min(_segmentSizes.Length - 1, segment++)];
-                if (pages > int.MaxValue - size) return int.MaxValue;
-                pages += size;
-            }
-
-            return pages;
         }
 
         private void EnsureWritableOwnedLocked(PageBuffer page)
@@ -821,26 +430,6 @@ namespace LiteDB.Engine
             ENSURE(page.ShareCounter == BUFFER_WRITABLE, "writable page must use writable share marker");
         }
 
-        private void ChangeBusyLocked(MemoryCacheSegment segment, int delta)
-        {
-            ENSURE(segment != null, "busy frame must belong to an active segment");
-            ENSURE(delta == -1 || delta == 1, "busy count changes one frame at a time");
-
-            if (segment.Busy == 0)
-            {
-                ENSURE(delta > 0, "segment busy count cannot become negative");
-                _releasableSegments.Remove(segment);
-            }
-
-            segment.Busy += delta;
-            ENSURE(segment.Busy >= 0 && segment.Busy <= segment.Frames.Length, "invalid segment busy count");
-
-            if (segment.Busy == 0)
-            {
-                _releasableSegments.Add(segment);
-            }
-        }
-
         private void ThrowIfDisposedLocked()
         {
             if (_disposed) throw new ObjectDisposedException(nameof(MemoryCache));
@@ -848,21 +437,21 @@ namespace LiteDB.Engine
 
         public int PagesInUse { get { lock (_sync) return _pinnedPages; } }
         public int PinnedPages { get { lock (_sync) return _pinnedPages; } }
-        public int FreePages { get { lock (_sync) return _freePages; } }
-        public int ExtendSegments { get { lock (_sync) return _segments.Count; } }
+        public int FreePages { get { lock (_sync) return _pool.FreePages; } }
+        public int ExtendSegments { get { lock (_sync) return _pool.Segments.Count; } }
         public int Segments => this.ExtendSegments;
-        public int ExtendPages { get { lock (_sync) return _totalPages; } }
+        public int ExtendPages { get { lock (_sync) return _pool.TotalPages; } }
         public int TotalPages => this.ExtendPages;
-        public long AllocatedBytes { get { lock (_sync) return _totalPages * (long)PAGE_SIZE; } }
+        public long AllocatedBytes { get { lock (_sync) return _pool.TotalPages * (long)PAGE_SIZE; } }
         public int WritablePages { get { lock (_sync) return _writablePages; } }
         public int LoadingPages { get { lock (_sync) return _loadingPages; } }
         public int ReadablePages { get { lock (_sync) return _readablePages; } }
         public int IdleReadablePages { get { lock (_sync) return _idleReadablePages; } }
         public long EvictedPages { get { lock (_sync) return _evictedPages; } }
-        public long ReleasedSegments { get { lock (_sync) return _releasedSegments; } }
-        public long OverflowSegments { get { lock (_sync) return _overflowSegments; } }
-        public long FramesExamined { get { lock (_sync) return _framesExamined; } }
-        public long BudgetExceeded { get { lock (_sync) return _budgetExceeded; } }
+        public long ReleasedSegments { get { lock (_sync) return _pool.ReleasedSegments; } }
+        public long OverflowSegments { get { lock (_sync) return _pool.OverflowSegments; } }
+        public long FramesExamined { get { lock (_sync) return _reclaimer.FramesExamined; } }
+        public long BudgetExceeded { get { lock (_sync) return _reclaimer.BudgetExceeded; } }
         public long Hits { get { lock (_sync) return _hits; } }
         public long Misses { get { lock (_sync) return _misses; } }
         public long LostFrames
@@ -871,21 +460,12 @@ namespace LiteDB.Engine
             {
                 lock (_sync)
                 {
-                    return _totalPages - (long)_freePages - _readablePages - _writablePages - _loadingPages;
+                    return _pool.TotalPages - (long)_pool.FreePages - _readablePages - _writablePages - _loadingPages;
                 }
             }
         }
 
-        public int RetainedBySegments
-        {
-            get
-            {
-                lock (_sync)
-                {
-                    return _segments.Where(x => x.Busy > 0).Sum(x => x.Frames.Length - x.Busy);
-                }
-            }
-        }
+        public int RetainedBySegments { get { lock (_sync) return _pool.RetainedBySegments; } }
 
         public ICollection<PageBuffer> GetPages()
         {
@@ -894,7 +474,7 @@ namespace LiteDB.Engine
 
         internal ICollection<WeakReference> GetSegmentWeakReferences()
         {
-            lock (_sync) return _segments.Select(x => new WeakReference(x.Buffer)).ToArray();
+            lock (_sync) return _pool.Segments.Select(x => new WeakReference(x.Buffer)).ToArray();
         }
 
         public void Dispose()
@@ -904,44 +484,14 @@ namespace LiteDB.Engine
                 if (_disposed) return;
                 _disposed = true;
 
-                foreach (var segment in _segments)
-                {
-                    if (segment.Buffer != null)
-                    {
-                        for (var i = 0; i < segment.Buffer.Length; i++)
-                        {
-                            segment.Buffer[i] = 0xFF;
-                        }
-                    }
-
-                    foreach (var page in segment.Frames)
-                    {
-                        page.ShareCounter = 0;
-                        page.State = FrameState.Free;
-                        page.Position = long.MaxValue;
-                        page.Origin = FileOrigin.None;
-                        page.Referenced = 0;
-                        page.Generation++;
-                        page.Cache = null;
-                        page.Segment = null;
-                        page.NextFree = -1;
-                    }
-                    segment.Buffer = null;
-                }
+                _pool.Dispose();
 
                 _index.Clear();
-                _segments.Clear();
-                foreach (var bucket in _freeBuckets) bucket.Clear();
-                _releasableSegments.Clear();
-                _currentSegment = null;
-                _totalPages = 0;
-                _freePages = 0;
                 _readablePages = 0;
                 _idleReadablePages = 0;
                 _writablePages = 0;
                 _loadingPages = 0;
                 _pinnedPages = 0;
-                _fullyFreeSegments = 0;
                 Monitor.PulseAll(_sync);
             }
         }

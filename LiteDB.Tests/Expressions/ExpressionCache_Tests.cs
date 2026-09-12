@@ -9,6 +9,27 @@ namespace LiteDB.Tests.Expressions
     public class ExpressionCache_Tests
     {
         [Fact]
+        public async Task Colliding_Entries_Are_Atomic_And_Stay_Bounded()
+        {
+            var cache = new CompiledExpressionCache(1);
+            var tasks = Enumerable.Range(0, 16).Select(worker => Task.Run(() =>
+            {
+                var source = "expression-" + worker;
+                System.Func<int> compiled = () => worker;
+                for (var i = 0; i < 1000; i++)
+                {
+                    cache.Add(source, compiled);
+                    var found = cache.Get<System.Func<int>>(source);
+                    if (found != null) found().Should().Be(worker);
+                    cache.Count.Should().BeInRange(0, 1);
+                }
+            }));
+
+            await Task.WhenAll(tasks);
+            cache.Count.Should().Be(1);
+        }
+
+        [Fact]
         public async Task ExpressionCache_CapHoldsUnderConcurrency()
         {
             var tasks = Enumerable.Range(0, 16)
