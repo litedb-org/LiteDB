@@ -21,7 +21,7 @@ namespace LiteDB.Engine
         private readonly ConcurrentBag<Stream> _pool = new ConcurrentBag<Stream>();
         private readonly Lazy<Stream> _writer;
         private readonly IStreamFactory _factory;
-        private bool _disposed;
+        private int _disposed;
 
         public StreamPool(IStreamFactory factory, bool appendOnly)
         {
@@ -61,8 +61,7 @@ namespace LiteDB.Engine
         /// </summary>
         public void Dispose()
         {
-            if (_disposed) return;
-            _disposed = true;
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
             var errors = new List<Exception>();
 

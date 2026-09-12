@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using FluentAssertions;
 using LiteDB.Engine;
 using LiteDB.Tests;
@@ -9,6 +11,15 @@ namespace LiteDB.Internals
 {
     public class StreamOwnership_Tests
     {
+        [Fact]
+        public void Concurrent_Factory_Disposal_Closes_Owned_Stream_Once()
+        {
+            var stream = new TrackingMemoryStream();
+            var factory = new StreamFactory(stream, null, true);
+            Parallel.For(0, 100, _ => factory.Dispose());
+            stream.DisposeCount.Should().Be(1);
+        }
+
         [Fact]
         public void CallerOwned_Stream_RemainsOpen_AfterPoolDispose()
         {
@@ -145,11 +156,17 @@ namespace LiteDB.Internals
 
         private class TrackingMemoryStream : MemoryStream
         {
+            private int _disposeCount;
+            public int DisposeCount => Volatile.Read(ref _disposeCount);
             public bool WasDisposed { get; private set; }
 
             protected override void Dispose(bool disposing)
             {
-                if (disposing) this.WasDisposed = true;
+                if (disposing)
+                {
+                    this.WasDisposed = true;
+                    Interlocked.Increment(ref _disposeCount);
+                }
                 base.Dispose(disposing);
             }
         }

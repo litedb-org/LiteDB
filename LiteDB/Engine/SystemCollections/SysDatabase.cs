@@ -13,6 +13,12 @@ namespace LiteDB.Engine
         {
             var version = typeof(LiteEngine).GetTypeInfo().Assembly.GetName().Version;
 
+            var transactions = _monitor.Transactions.Select(x => new BsonDocument
+            {
+                ["transactionID"] = (int)x.TransactionID,
+                ["pages"] = x.Pages.TransactionSize
+            }).ToArray();
+
             yield return new BsonDocument
             {
                 ["name"] = _disk.GetName(FileOrigin.Data),
@@ -65,14 +71,10 @@ namespace LiteDB.Engine
 
                 ["transactions"] = new BsonDocument
                 {
-                    ["open"] = _monitor.Transactions.Count,
+                    ["open"] = transactions.Length,
                     ["maxOpenTransactions"] = MAX_OPEN_TRANSACTIONS,
                     ["transactionPageLimit"] = _monitor.TransactionPageLimit,
-                    ["pinnedPages"] = new BsonArray(_monitor.Transactions.Select(x => new BsonDocument
-                    {
-                        ["transactionID"] = (int)x.TransactionID,
-                        ["pages"] = x.Pages.TransactionSize
-                    }))
+                    ["transactionPages"] = new BsonArray(transactions)
                 }
 
             };

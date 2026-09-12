@@ -73,5 +73,30 @@ namespace LiteDB.Tests.Database
 
             connection.CacheSize.Should().Be(512L * 1024);
         }
+
+        [Theory]
+        [InlineData("abc")]
+        [InlineData("-1")]
+        [InlineData("1.5MB")]
+        [InlineData("9223372036854775808")]
+        [InlineData("9223372036854775807TB")]
+        [InlineData("''")]
+        [InlineData("")]
+        public void ConnectionString_Rejects_Invalid_Cache_Sizes(string value)
+        {
+            Action parse = () => new ConnectionString("filename=:memory:;cache size=" + value);
+            parse.Should().Throw<LiteException>();
+        }
+
+        [Theory]
+        [InlineData("0", 0L)]
+        [InlineData("0MB", 0L)]
+        [InlineData("512bytes", 512L)]
+        [InlineData("1048576", 1048576L)]
+        [InlineData("64 mb", 67108864L)]
+        public void ConnectionString_Accepts_Default_And_Explicit_Byte_Units(string value, long expected)
+        {
+            new ConnectionString("filename=:memory:;cache size=" + value).CacheSize.Should().Be(expected);
+        }
     }
 }

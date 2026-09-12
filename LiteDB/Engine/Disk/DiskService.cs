@@ -25,7 +25,7 @@ namespace LiteDB.Engine
 
         private long _dataLength;
         private long _logLength;
-        private bool _disposed;
+        private int _disposed;
 
         private static readonly ArrayPool<byte> _bufferPool = ArrayPool<byte>.Shared;
 
@@ -353,8 +353,7 @@ namespace LiteDB.Engine
 
         public void Dispose()
         {
-            if (_disposed) return;
-            _disposed = true;
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
             var errors = new List<Exception>();
             var delete = false;

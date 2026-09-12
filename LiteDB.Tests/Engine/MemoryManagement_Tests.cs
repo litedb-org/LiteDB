@@ -296,7 +296,7 @@ namespace LiteDB.Tests.Engine
                 cache["loadingPages"].AsInt32);
             cache["readablePages"].AsInt32.Should().Be(
                 cache["idleReadablePages"].AsInt32 + cache["pinnedPages"].AsInt32);
-            transactions.Keys.Should().Contain(new[] { "transactionPageLimit", "pinnedPages" });
+            transactions.Keys.Should().Contain(new[] { "transactionPageLimit", "transactionPages" });
             transactions.Keys.Should().NotContain(new[] { "availableSize", "initialTransactionSize" });
         }
 

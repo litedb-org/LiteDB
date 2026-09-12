@@ -103,15 +103,9 @@ namespace LiteDB
             }
 
             this.InitialSize = _values.GetFileSize(@"initial size", this.InitialSize);
-            this.CacheSize = _values.GetFileSize(@"cache size", this.CacheSize);
+            this.CacheSize = _values.TryGetValue("cache size", out var cacheSizeText) ?
+                ParseCacheSize(cacheSizeText) : this.CacheSize;
             this.TransactionPageLimit = _values.GetValue("transaction pages", this.TransactionPageLimit);
-
-            if (_values.TryGetValue("cache size", out var cacheSizeText) &&
-                Regex.IsMatch(cacheSizeText, @"^\d+\s*$") &&
-                this.CacheSize < 1024L * 1024)
-            {
-                throw new LiteException(0, "`cache size` values below 1 MB must include a size unit (for example, `512KB`)");
-            }
 
             if (this.CacheSize < 0 || this.TransactionPageLimit <= 0)
             {
@@ -129,6 +123,33 @@ namespace LiteDB
         /// Get value from parsed connection string. Returns null if not found
         /// </summary>
         public string this[string key] => _values.GetOrDefault(key);
+
+        private static long ParseCacheSize(string text)
+        {
+            var match = Regex.Match(text.Trim(), @"^([0-9]+)\s*([tgmk])?(b|byte|bytes)?$", RegexOptions.IgnoreCase);
+            if (!match.Success || !long.TryParse(match.Groups[1].Value, out var value))
+            {
+                throw new LiteException(0, "Invalid connection string value for `cache size`");
+            }
+
+            var unit = match.Groups[2].Value.ToLowerInvariant();
+            var exponent = unit.Length == 0 ? 0 : "kmgt".IndexOf(unit, StringComparison.Ordinal) + 1;
+            try
+            {
+                for (var i = 0; i < exponent; i++) value = checked(value * 1024);
+            }
+            catch (OverflowException)
+            {
+                throw new LiteException(0, "`cache size` exceeds the supported byte range");
+            }
+
+            if (value > 0 && value < 1024L * 1024 && unit.Length == 0 && match.Groups[3].Length == 0)
+            {
+                throw new LiteException(0, "`cache size` values below 1 MB must include a size unit (for example, `512KB`)");
+            }
+
+            return value;
+        }
 
         /// <summary>
         /// Create ILiteEngine instance according string connection parameters. For now, only Local/Shared are supported

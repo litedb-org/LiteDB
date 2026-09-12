@@ -12,7 +12,7 @@ namespace LiteDB.Engine
     /// </summary>
     internal class TransactionMonitor : IDisposable
     {
-        private readonly Dictionary<uint, TransactionService> _transactions = new Dictionary<uint, TransactionService>();
+        private readonly TransactionRegistry _transactions = new TransactionRegistry();
         private readonly ThreadLocal<TransactionService> _slot = new ThreadLocal<TransactionService>();
 
         private readonly HeaderPage _header;
@@ -23,7 +23,7 @@ namespace LiteDB.Engine
         private readonly int _transactionPageLimit;
 
         // expose open transactions
-        public ICollection<TransactionService> Transactions => _transactions.Values;
+        public ICollection<TransactionService> Transactions => _transactions.Snapshot();
         public int TransactionPageLimit => _transactionPageLimit;
 
         public TransactionMonitor(HeaderPage header, LockService locker, DiskService disk, WalIndexService walIndex, int transactionPageLimit)
@@ -45,22 +45,19 @@ namespace LiteDB.Engine
             {
                 isNew = true;
 
-                bool alreadyLock;
-
-                lock (_transactions)
+                var alreadyLock = _transactions.FindForThread(Environment.CurrentManagedThreadId) != null;
+                transaction = new TransactionService(_header, _locker, _disk, _walIndex, _transactionPageLimit, this, queryOnly);
+                try
                 {
-                    if (_transactions.Count >= MAX_OPEN_TRANSACTIONS) throw new LiteException(0, "Maximum number of transactions reached");
-
-                    // check if current thread contains any transaction
-                    alreadyLock = _transactions.Values.Any(x => x.ThreadID == Environment.CurrentManagedThreadId);
-
-                    transaction = new TransactionService(_header, _locker, _disk, _walIndex, _transactionPageLimit, this, queryOnly);
-
-                    // add transaction to execution transaction dict
-                    _transactions[transaction.TransactionID] = transaction;
+                    _transactions.Add(transaction);
+                }
+                catch
+                {
+                    transaction.Dispose();
+                    throw;
                 }
 
-                // enter in lock transaction after release _transaction lock
+                // Enter the engine transaction lock after registering this transaction.
                 if (alreadyLock == false)
                 {
                     try
@@ -70,10 +67,7 @@ namespace LiteDB.Engine
                     catch
                     {
                         transaction.Dispose();
-                        lock (_transactions)
-                        {
-                            _transactions.Remove(transaction.TransactionID);
-                        }
+                        _transactions.Remove(transaction);
                         throw;
                     }
                 }
@@ -101,16 +95,8 @@ namespace LiteDB.Engine
             // dispose current transaction
             transaction.Dispose();
 
-            bool keepLocked;
-
-            lock (_transactions)
-            {
-                // remove from "open transaction" list
-                _transactions.Remove(transaction.TransactionID);
-
-                // check if current thread contains more query transactions
-                return keepLocked = _transactions.Values.Any(x => x.ThreadID == Environment.CurrentManagedThreadId);
-            }
+            _transactions.Remove(transaction);
+            return _transactions.FindForThread(Environment.CurrentManagedThreadId) != null;
         }
 
         /// <summary>
@@ -144,12 +130,7 @@ namespace LiteDB.Engine
         /// </summary>
         public TransactionService GetThreadTransaction()
         {
-            lock (_transactions)
-            {
-                return
-                    _slot.Value ??
-                    _transactions.Values.FirstOrDefault(x => x.ThreadID == Environment.CurrentManagedThreadId);
-            }
+            return _slot.Value ?? _transactions.FindForThread(Environment.CurrentManagedThreadId);
         }
 
         /// <summary>
@@ -165,14 +146,10 @@ namespace LiteDB.Engine
         /// </summary>
         public void Dispose()
         {
-            if (_transactions.Count > 0)
+            foreach (var transaction in _transactions.Snapshot())
             {
-                foreach (var transaction in _transactions.Values)
-                {
-                    transaction.Dispose();
-                }
-
-                _transactions.Clear();
+                transaction.Dispose();
+                _transactions.Remove(transaction);
             }
 
             _slot.Dispose();
