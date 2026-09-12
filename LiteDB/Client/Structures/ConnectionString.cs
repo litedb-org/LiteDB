@@ -2,7 +2,7 @@ using LiteDB.Engine;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using static LiteDB.Constants;
+using System.Text;
 
 namespace LiteDB
 {
@@ -135,6 +135,120 @@ namespace LiteDB
             {
                 throw new NotImplementedException();
             }
+        }
+
+        /// <inheritdoc />
+        public override string ToString()
+        {
+            if (string.IsNullOrEmpty(Filename))
+            {
+                return string.Empty;
+            }
+
+            var bld = new StringBuilder("Filename=");
+            AppendQuotedString(bld, Filename);
+            bld.Append(';');
+
+            var fileNameLength = bld.Length;
+
+            if (Connection != ConnectionType.Direct)
+            {
+                bld.Append("Connection=")
+                    .Append(Connection)
+                    .Append(';');
+            }
+
+            if (Password != null)
+            {
+                bld.Append("Password=");
+                AppendQuotedString(bld, Password);
+                bld.Append(';');
+            }
+
+            if (InitialSize != 0)
+            {
+                bld.Append("Initial Size=")
+                    .AppendFormat(CultureInfo.InvariantCulture, "{0:D}", InitialSize)
+                    .Append(';');
+            }
+
+            if (ReadOnly)
+            {
+                bld.Append("ReadOnly=")
+                    .Append(ReadOnly)
+                    .Append(';');
+            }
+
+            if (Collation != null)
+            {
+                bld.Append("Collation=")
+                    .Append(Collation.Culture.Name)
+                    .Append('/');
+
+                foreach (CompareOptions option in Enum.GetValues(typeof(CompareOptions)))
+                {
+                    if (option != CompareOptions.None && Collation.SortOptions.HasFlag(option))
+                    {
+                        bld.Append(option)
+                            .Append(',');
+                    }
+                }
+
+                if (bld[bld.Length - 1] == '/')
+                {
+                    bld.Append("None");
+                }
+                else
+                {
+                    bld.Length--; //,
+                }
+
+                bld.Append(';');
+            }
+
+            if (Upgrade)
+            {
+                bld.Append("Upgrade=")
+                    .Append(Upgrade)
+                    .Append(';');
+            }
+
+            if (AutoRebuild)
+            {
+                bld.Append("Auto-Rebuild=")
+                    .Append(AutoRebuild)
+                    .Append(';');
+            }
+
+            if (bld.Length == fileNameLength && !Filename.Contains("="))
+            {
+                return Filename;
+            }
+
+            bld.Length--; // ;
+            return bld.ToString();
+        }
+
+        private static void AppendQuotedString(StringBuilder target, string str)
+        {
+            if (string.IsNullOrEmpty(str))
+            {
+                return;
+            }
+
+            target.Append('"');
+
+            foreach (var chr in str)
+            {
+                if (chr is '"')
+                {
+                    target.Append('\\');
+                }
+
+                target.Append(chr);
+            }
+
+            target.Append('"');
         }
     }
 }
