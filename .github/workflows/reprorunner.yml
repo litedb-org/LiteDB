@@ -1,0 +1,128 @@
+name: Repro Runner
+
+on:
+  workflow_dispatch:
+    inputs:
+      filter:
+        description: Optional regular expression to select repros
+        required: false
+        type: string
+      ref:
+        description: Git ref (branch, tag, or SHA) to check out
+        required: false
+        type: string
+  workflow_call:
+    inputs:
+      filter:
+        required: false
+        type: string
+      ref:
+        required: false
+        type: string
+
+jobs:
+  generate-matrix:
+    name: Generate matrix
+    runs-on: ubuntu-22.04
+    outputs:
+      matrix: ${{ steps.compose.outputs.matrix }}
+      count: ${{ steps.compose.outputs.count }}
+      skipped: ${{ steps.compose.outputs.skipped }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref && inputs.ref || github.ref }}
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore ReproRunner CLI
+        run: dotnet restore LiteDB.ReproRunner/LiteDB.ReproRunner.Cli/LiteDB.ReproRunner.Cli.csproj
+
+      - name: Build ReproRunner CLI
+        run: dotnet build LiteDB.ReproRunner/LiteDB.ReproRunner.Cli/LiteDB.ReproRunner.Cli.csproj --configuration Release --no-restore
+
+      - name: Capture repro inventory
+        id: list
+        shell: bash
+        run: |
+          set -euo pipefail
+          filter_input="${{ inputs.filter }}"
+          cmd=(dotnet run --project LiteDB.ReproRunner/LiteDB.ReproRunner.Cli --configuration Release --no-build --no-restore -- list --json)
+          if [ -n "${filter_input}" ]; then
+            cmd+=("--filter" "${filter_input}")
+          fi
+          "${cmd[@]}" > repros.json
+
+      - name: Compose matrix
+        id: compose
+        shell: bash
+        run: |
+          set -euo pipefail
+          python .github/scripts/compose_repro_matrix.py
+
+      - name: Upload repro inventory
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: repros-json
+          path: repros.json
+
+  repro:
+    name: Run ${{ matrix.repro }} on ${{ matrix.os }}
+    needs: generate-matrix
+    if: ${{ needs.generate-matrix.outputs.count != '0' }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref && inputs.ref || github.ref }}
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore ReproRunner CLI
+        run: dotnet restore LiteDB.ReproRunner/LiteDB.ReproRunner.Cli/LiteDB.ReproRunner.Cli.csproj
+
+      - name: Build ReproRunner CLI
+        run: dotnet build LiteDB.ReproRunner/LiteDB.ReproRunner.Cli/LiteDB.ReproRunner.Cli.csproj --configuration Release --no-restore
+
+      - name: Execute repro
+        id: run
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet run --project LiteDB.ReproRunner/LiteDB.ReproRunner.Cli --configuration Release -- \
+            run ${{ matrix.repro }} --ci --target-os "${{ matrix.os }}"
+
+      - name: Upload repro artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ matrix.repro }}-${{ matrix.os }}
+          path: |
+            artifacts
+            LiteDB.ReproRunner/LiteDB.ReproRunner.Cli/bin/**/runs
+          if-no-files-found: ignore
+
+      - name: Publish summary
+        if: always()
+        shell: bash
+        run: |
+          status="${{ job.status }}"
+          {
+            echo "### ${{ matrix.repro }} (${{ matrix.os }})"
+            echo "- Result: ${status}"
+            echo "- Artifacts: logs-${{ matrix.repro }}-${{ matrix.os }}"
+          } >> "${GITHUB_STEP_SUMMARY}"

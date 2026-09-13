@@ -102,7 +102,7 @@ namespace LiteDB.Engine
         /// </summary>
         private IEnumerable<BsonDocument> SelectAll(IEnumerable<BsonDocument> source, BsonExpression select)
         {
-            var cached = new DocumentCacheEnumerable(source, _lookup);
+            using var cached = new DocumentCacheEnumerable(source, _lookup, _transaction.Safepoint, drainOnDispose: false);
 
             var defaultName = select.DefaultFieldName();
             var result = select.Execute(cached, _pragmas.Collation);
