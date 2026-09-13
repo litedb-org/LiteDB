@@ -83,7 +83,7 @@ namespace LiteDB.Engine
 
         internal bool Open()
         {
-            LOG($"start initializing{(_settings.ReadOnly ? " (readonly)" : "")}", "ENGINE");
+            if (Logging.IsEnabled) LOG($"start initializing{(_settings.ReadOnly ? " (readonly)" : "")}", "ENGINE");
 
             _systemCollections = new Dictionary<string, SystemCollection>(StringComparer.OrdinalIgnoreCase);
             _sequences = new ConcurrentDictionary<string, long>(StringComparer.OrdinalIgnoreCase);
@@ -156,13 +156,13 @@ namespace LiteDB.Engine
                 // register system collections
                 this.InitializeSystemCollections();
 
-                LOG("initialization completed", "ENGINE");
+                if (Logging.IsEnabled) LOG("initialization completed", "ENGINE");
 
                 return true;
             }
             catch (Exception ex)
             {
-                LOG(ex.Message, "ERROR");
+                if (Logging.IsEnabled) LOG(ex, "ERROR");
 
                 this.Close(ex);
                 throw;

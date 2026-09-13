@@ -33,7 +33,7 @@ namespace LiteDB.Engine
                 // if collection do not exist, just exit
                 if (snapshot.CollectionPage == null) return false;
 
-                LOG($"drop collection `{name}`", "COMMAND");
+                if (Logging.IsEnabled) LOG($"drop collection `{name}`", "COMMAND");
 
                 // call drop collection service
                 snapshot.DropCollection(transaction.Safepoint);

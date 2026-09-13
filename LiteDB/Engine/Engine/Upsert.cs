@@ -25,7 +25,7 @@ namespace LiteDB.Engine
                 var vectorService = new VectorIndexService(snapshot, _header.Pragmas.Collation);
                 var count = 0;
 
-                LOG($"upsert `{collection}`", "COMMAND");
+                if (Logging.IsEnabled) LOG($"upsert `{collection}`", "COMMAND");
 
                 foreach (var doc in docs)
                 {

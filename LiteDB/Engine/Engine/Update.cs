@@ -26,7 +26,7 @@ namespace LiteDB.Engine
 
                 if (collectionPage == null) return 0;
 
-                LOG($"update `{collection}`", "COMMAND");
+                if (Logging.IsEnabled) LOG($"update `{collection}`", "COMMAND");
 
                 foreach (var doc in docs)
                 {

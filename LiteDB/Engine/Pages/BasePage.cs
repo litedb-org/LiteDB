@@ -566,7 +566,7 @@ namespace LiteDB.Engine
             ENSURE(_buffer.ShareCounter == BUFFER_WRITABLE, "page must be writable to support changes");
             ENSURE(this.HighestIndex < byte.MaxValue, "there is no items in this page to run defrag");
 
-            LOG($"defrag page #{this.PageID} (fragments: {this.FragmentedBytes})", "DISK");
+            if (Logging.IsEnabled) LOG($"defrag page #{this.PageID} (fragments: {this.FragmentedBytes})", "DISK");
 
             // first get all segments inside this page sorted by position (position, index)
             var segments = new SortedList<ushort, byte>();

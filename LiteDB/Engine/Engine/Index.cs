@@ -45,7 +45,7 @@ namespace LiteDB.Engine
                     return false;
                 }
 
-                LOG($"create index `{collection}.{name}`", "COMMAND");
+                if (Logging.IsEnabled) LOG($"create index `{collection}.{name}`", "COMMAND");
 
                 // create index head
                 var index = indexer.CreateIndex(name, expression.Source, unique);
@@ -141,7 +141,7 @@ namespace LiteDB.Engine
                     return false;
                 }
 
-                LOG($"create vector index `{collection}.{name}`", "COMMAND");
+                if (Logging.IsEnabled) LOG($"create vector index `{collection}.{name}`", "COMMAND");
 
                 snapshot.RequireVectorVersion();
                 var tuple = collectionPage.InsertVectorIndex(name, expression.Source, options.Dimensions, options.Metric);

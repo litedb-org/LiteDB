@@ -314,7 +314,7 @@ namespace LiteDB.Engine
         /// </summary>
         private int CheckpointInternal()
         {
-            LOG($"checkpoint", "WAL");
+            if (Logging.IsEnabled) LOG("checkpoint", "WAL");
 
             var counter = 0;
 
