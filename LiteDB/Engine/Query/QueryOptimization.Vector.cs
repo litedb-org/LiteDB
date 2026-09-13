@@ -16,7 +16,7 @@ namespace LiteDB.Engine
 
             // API arguments choose the index and target. Scalar VECTOR_SIM predicates
             // always mean cosine distance and must remain in the ordinary filter pipeline.
-            var expression = NormalizeVectorField(_query.VectorField);
+            var expression = CanonicalVectorExpression(_query.VectorField);
             var target = _query.VectorTarget;
             var maxDistance = _query.VectorMaxDistance;
             if (expression == null || target == null) return false;
@@ -184,7 +184,7 @@ namespace LiteDB.Engine
             return !double.IsNaN(number);
         }
 
-        private static string NormalizeVectorField(string field)
+        private static string CanonicalVectorExpression(string field)
         {
             if (string.IsNullOrWhiteSpace(field))
             {
@@ -193,17 +193,9 @@ namespace LiteDB.Engine
 
             field = field.Trim();
 
-            if (field.StartsWith("$", StringComparison.Ordinal))
-            {
-                return field;
-            }
-
-            if (field.StartsWith(".", StringComparison.Ordinal))
-            {
-                field = field.Substring(1);
-            }
-
-            return "$." + field;
+            // API overloads already supply expression sources; parsing also accepts bare field names.
+            // Prefix only a legacy leading-dot path, never a computed expression such as COALESCE(...).
+            return BsonExpression.Create(field.StartsWith(".", StringComparison.Ordinal) ? "$" + field : field).Source;
         }
 
     }

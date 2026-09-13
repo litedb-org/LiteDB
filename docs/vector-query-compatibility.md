@@ -42,7 +42,17 @@ Descending order, secondary keys, and an independent vector target retain their
 requested sort. Explicit vector APIs reuse the index metric score for matching
 primary keys, including Euclidean and dot-product ordering with secondary keys.
 `WithScore` preserves those metric scores through complete evaluation, includes,
-projection, and sorting.
+projection, and sorting. Scored query snapshots retain the same API predicate
+identity as their copied WHERE terms, so scoring preserves both metric thresholds
+and eligibility for bounded ANN. Computed index expressions retain their canonical
+expression source, including expressions such as `COALESCE($.Embedding, [0,1])`.
+
+A query supports at most one `WhereNear` predicate. Combining it with `TopKNear`
+requires the same expression and target, in either call order. A repeated
+`WhereNear` or a mismatched combination throws `InvalidOperationException` before
+changing the query. This avoids silently evaluating an earlier API threshold as
+scalar cosine. Matching `TopKNear` calls retain the threshold; an ordinary scalar
+`Where` predicate remains a separate cosine condition.
 
 Exact vector evaluation streams projected documents, retains only the current
 row's score, and sorts keys and addresses through the existing temporary-file
@@ -124,3 +134,37 @@ Durability tests track the underlying file's durable flush and inject failures
 there for plain/encrypted promotion; v7 upgrade tests use existing fixtures and
 verify backups and read-only access. Header savepoint coverage verifies that
 restoring an older buffer retains the promoted version.
+
+## Durable flush cost
+
+Durable flush requests now reach the underlying file through the encryption and
+caller-stream wrappers. This changes promotion, checkpoint, recovery-marker
+writes, and stream initialization where that helper is used. Checkpoints on
+previously soft-flushed encrypted/custom file streams now include a real disk sync,
+so their latency depends on the storage device. WAL commit still uses parameterless
+`Flush()` in `WriteLogDisk`; the change does not add fsync to every commit.
+`DiskService`'s other header flush is `MarkAsInvalidState`, not the WAL commit path.
+
+Run `dotnet run --project tools/VectorFlushProbe -c Release -p:TestingEnabled=false`
+for a small production-build probe using real data and WAL files through caller
+streams. It warms the stream pools, disables automatic checkpoints, performs
+1,000 separate ordinary transactions, checkpoints, and promotes before vector
+commit. A local Linux/.NET 8 sample produced:
+
+| Mode | Phase | Time (ms) | Data durable flushes | WAL durable flushes |
+| --- | --- | ---: | ---: | ---: |
+| Plain | 1,000 commits | 99.788 | 0 | 0 |
+| Encrypted | 1,000 commits | 110.359 | 0 | 0 |
+| Plain | Checkpoint | 24.230 | 1 | 0 |
+| Encrypted | Checkpoint | 34.024 | 1 | 0 |
+| Plain | Promotion before commit | 5.960 | 1 | 0 |
+| Encrypted | Promotion before commit | 5.163 | 1 | 0 |
+
+These are single local timing samples; filesystem caching, encryption, and storage
+latency affect them. The flush counts establish the operation boundaries; a
+production throughput comparison needs repeated runs on representative storage.
+
+`Issue2881_VectorComposition_Tests` and the bounded scored-query sort-spill test
+cover non-collinear Euclidean/dot-product parity, projection, snapshot reuse,
+computed expressions, ANN eligibility, and rejected API combinations. The separate
+review reproduction commit has 18 failing cases before the fixes.
