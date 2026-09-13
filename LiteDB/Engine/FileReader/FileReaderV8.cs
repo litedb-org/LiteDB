@@ -408,7 +408,7 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// Check header slots to test if data file is a LiteDB FILE_VERSION = v8
+        /// Check for the shared v8/v9 page layout (v9 adds vector types and metadata)
         /// </summary>
         public static bool IsVersion(byte[] buffer)
         {
@@ -418,7 +418,7 @@ namespace LiteDB.Engine
             // buffer[0] = 1 when datafile is encrypted (this feature was added in v8 only)
             // all other version has this buffer[0] = 0
 
-            return (header == HeaderPage.HEADER_INFO && version == HeaderPage.FILE_VERSION) ||
+            return (header == HeaderPage.HEADER_INFO && (version == HeaderPage.FILE_VERSION || version == HeaderPage.VECTOR_FILE_VERSION)) ||
                 buffer[0] == 1;
         }
 

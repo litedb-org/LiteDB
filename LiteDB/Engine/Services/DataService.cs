@@ -33,6 +33,7 @@ namespace LiteDB.Engine
             var bytesLeft = doc.GetBytesCount(true);
 
             if (bytesLeft > MAX_DOCUMENT_SIZE) throw new LiteException(0, "Document size exceed {0} limit", MAX_DOCUMENT_SIZE);
+            _snapshot.CheckVectorVersion(doc);
 
             var firstBlock = PageAddress.Empty;
 
@@ -84,6 +85,7 @@ namespace LiteDB.Engine
             var bytesLeft = doc.GetBytesCount(true);
 
             if (bytesLeft > MAX_DOCUMENT_SIZE) throw new LiteException(0, "Document size exceed {0} limit", MAX_DOCUMENT_SIZE);
+            _snapshot.CheckVectorVersion(doc);
 
             DataBlock lastBlock = null;
             var updateAddress = blockAddress;

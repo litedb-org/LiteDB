@@ -87,7 +87,7 @@ namespace LiteDB.Engine
         public bool AutoRebuild { get; set; } = false;
 
         /// <summary>
-        /// If detect it's a older version (v4) do upgrade in datafile to new v5. A backup file will be keeped in same directory
+        /// Rebuild format v7 files before opening, retaining a backup. Ordinary v8 files remain compatible without migration.
         /// </summary>
         public bool Upgrade { get; set; } = false;
 

@@ -38,6 +38,7 @@ namespace LiteDB
             while(position < connectionString.Length)
             {
                 EatWhitespace();
+                if (position == connectionString.Length) break;
                 var key = ReadKey();
 
                 EatWhitespace();
@@ -57,14 +58,18 @@ namespace LiteDB
                     if (current == '=')
                     {
                         position++;
-                        return sb.ToString().Trim();
+                        var key = sb.ToString().Trim();
+                        if (key.Length == 0) throw new FormatException("Expected a connection option name.");
+                        return key;
                     }
+
+                    if (current == ';') throw new FormatException("Expected '=' after a connection option name.");
 
                     sb.Append(current);
                     position++;
                 }
 
-                return sb.ToString().Trim();
+                throw new FormatException("Expected '=' after a connection option name.");
             }
 
             string ReadValue()
