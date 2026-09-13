@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace LiteDB.ReproRunner.Cli.Manifests;
 
 /// <summary>
@@ -20,6 +22,8 @@ internal sealed class ReproManifest
     /// <param name="tags">Tags describing the repro characteristics.</param>
     /// <param name="state">The current state of the repro (e.g., red, green).</param>
     /// <param name="expectedOutcomes">The optional expected outcomes per variant.</param>
+    /// <param name="supports">Optional collection declaring supported platform families.</param>
+    /// <param name="osConstraints">Optional OS constraint overrides controlling runner labels.</param>
     public ReproManifest(
         string id,
         string title,
@@ -32,7 +36,9 @@ internal sealed class ReproManifest
         IReadOnlyList<string> args,
         IReadOnlyList<string> tags,
         ReproState state,
-        ReproVariantOutcomeExpectations expectedOutcomes)
+        ReproVariantOutcomeExpectations expectedOutcomes,
+        IReadOnlyList<string>? supports = null,
+        ReproOsConstraints? osConstraints = null)
     {
         Id = id;
         Title = title;
@@ -46,6 +52,8 @@ internal sealed class ReproManifest
         Tags = tags;
         State = state;
         ExpectedOutcomes = expectedOutcomes ?? ReproVariantOutcomeExpectations.Empty;
+        Supports = supports ?? Array.Empty<string>();
+        OsConstraints = osConstraints;
     }
 
     /// <summary>
@@ -107,4 +115,14 @@ internal sealed class ReproManifest
     /// Gets the expected outcomes for the package and latest variants.
     /// </summary>
     public ReproVariantOutcomeExpectations ExpectedOutcomes { get; }
+
+    /// <summary>
+    /// Gets the declared platform families supported by this repro.
+    /// </summary>
+    public IReadOnlyList<string> Supports { get; }
+
+    /// <summary>
+    /// Gets the runner label constraints declared by the manifest.
+    /// </summary>
+    public ReproOsConstraints? OsConstraints { get; }
 }

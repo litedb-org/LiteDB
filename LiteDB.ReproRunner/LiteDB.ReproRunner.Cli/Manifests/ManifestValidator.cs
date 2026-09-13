@@ -54,7 +54,9 @@ internal sealed class ManifestValidator
             "args",
             "tags",
             "state",
-            "expectedOutcomes"
+            "expectedOutcomes",
+            "supports",
+            "os"
         };
 
         foreach (var name in map.Keys)
@@ -326,6 +328,72 @@ internal sealed class ManifestValidator
             }
         }
 
+        var supports = new List<string>();
+        if (map.TryGetValue("supports", out var supportsElement))
+        {
+            if (supportsElement.ValueKind == JsonValueKind.Array)
+            {
+                var index = 0;
+                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var item in supportsElement.EnumerateArray())
+                {
+                    if (item.ValueKind != JsonValueKind.String)
+                    {
+                        validation.AddError($"$.supports[{index}]: expected string value.");
+                    }
+                    else
+                    {
+                        var raw = item.GetString();
+                        var trimmed = raw?.Trim();
+                        if (string.IsNullOrEmpty(trimmed))
+                        {
+                            validation.AddError($"$.supports[{index}]: value must not be empty.");
+                        }
+                        else
+                        {
+                            var normalized = trimmed.ToLowerInvariant();
+                            if (normalized != "windows" && normalized != "linux" && normalized != "any")
+                            {
+                                validation.AddError($"$.supports[{index}]: expected one of windows, linux, any.");
+                            }
+                            else if (normalized == "any" && seen.Count > 0)
+                            {
+                                validation.AddError("$.supports: 'any' cannot be combined with other platform values.");
+                            }
+                            else if (normalized != "any" && seen.Contains("any"))
+                            {
+                                validation.AddError("$.supports: 'any' cannot be combined with other platform values.");
+                            }
+                            else if (seen.Add(normalized))
+                            {
+                                supports.Add(normalized);
+                            }
+                        }
+                    }
+
+                    index++;
+                }
+            }
+            else if (supportsElement.ValueKind != JsonValueKind.Null)
+            {
+                validation.AddError("$.supports: expected an array of strings.");
+            }
+        }
+
+        ReproOsConstraints? osConstraints = null;
+        if (map.TryGetValue("os", out var osElement))
+        {
+            if (osElement.ValueKind == JsonValueKind.Object)
+            {
+                osConstraints = ParseOsConstraints(osElement, validation);
+            }
+            else if (osElement.ValueKind != JsonValueKind.Null)
+            {
+                validation.AddError("$.os: expected object value.");
+            }
+        }
+
         ReproState? state = null;
         if (map.TryGetValue("state", out var stateElement))
         {
@@ -378,6 +446,7 @@ internal sealed class ManifestValidator
         var issuesArray = issues.Count > 0 ? issues.ToArray() : Array.Empty<string>();
         var argsArray = args.Count > 0 ? args.ToArray() : Array.Empty<string>();
         var tagsArray = tags.Count > 0 ? tags.ToArray() : Array.Empty<string>();
+        var supportsArray = supports.Count > 0 ? supports.ToArray() : Array.Empty<string>();
 
         return new ReproManifest(
             id,
@@ -391,7 +460,134 @@ internal sealed class ManifestValidator
             argsArray,
             tagsArray,
             state.Value,
-            expectedOutcomes);
+            expectedOutcomes,
+            supportsArray,
+            osConstraints);
+    }
+
+    private static ReproOsConstraints? ParseOsConstraints(JsonElement root, ManifestValidationResult validation)
+    {
+        var allowed = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "includePlatforms",
+            "includeLabels",
+            "excludePlatforms",
+            "excludeLabels"
+        };
+
+        foreach (var property in root.EnumerateObject())
+        {
+            if (!allowed.Contains(property.Name))
+            {
+                validation.AddError($"$.os.{property.Name}: unknown property.");
+            }
+        }
+
+        var includePlatforms = ParsePlatformArray(root, "includePlatforms", validation);
+        var includeLabels = ParseLabelArray(root, "includeLabels", validation);
+        var excludePlatforms = ParsePlatformArray(root, "excludePlatforms", validation);
+        var excludeLabels = ParseLabelArray(root, "excludeLabels", validation);
+
+        if (includePlatforms is null || includeLabels is null || excludePlatforms is null || excludeLabels is null)
+        {
+            return null;
+        }
+
+        return new ReproOsConstraints(includePlatforms, includeLabels, excludePlatforms, excludeLabels);
+    }
+
+    private static IReadOnlyList<string>? ParsePlatformArray(JsonElement root, string propertyName, ManifestValidationResult validation)
+    {
+        if (!root.TryGetProperty(propertyName, out var element) || element.ValueKind == JsonValueKind.Null)
+        {
+            return Array.Empty<string>();
+        }
+
+        if (element.ValueKind != JsonValueKind.Array)
+        {
+            validation.AddError($"$.os.{propertyName}: expected an array of strings.");
+            return null;
+        }
+
+        var values = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var index = 0;
+
+        foreach (var item in element.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.String)
+            {
+                validation.AddError($"$.os.{propertyName}[{index}]: expected string value.");
+            }
+            else
+            {
+                var value = item.GetString();
+                var trimmed = value?.Trim();
+                if (string.IsNullOrEmpty(trimmed))
+                {
+                    validation.AddError($"$.os.{propertyName}[{index}]: value must not be empty.");
+                }
+                else
+                {
+                    var normalized = trimmed.ToLowerInvariant();
+                    if (normalized != "windows" && normalized != "linux")
+                    {
+                        validation.AddError($"$.os.{propertyName}[{index}]: expected one of windows, linux.");
+                    }
+                    else if (seen.Add(normalized))
+                    {
+                        values.Add(normalized);
+                    }
+                }
+            }
+
+            index++;
+        }
+
+        return values;
+    }
+
+    private static IReadOnlyList<string>? ParseLabelArray(JsonElement root, string propertyName, ManifestValidationResult validation)
+    {
+        if (!root.TryGetProperty(propertyName, out var element) || element.ValueKind == JsonValueKind.Null)
+        {
+            return Array.Empty<string>();
+        }
+
+        if (element.ValueKind != JsonValueKind.Array)
+        {
+            validation.AddError($"$.os.{propertyName}: expected an array of strings.");
+            return null;
+        }
+
+        var values = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var index = 0;
+
+        foreach (var item in element.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.String)
+            {
+                validation.AddError($"$.os.{propertyName}[{index}]: expected string value.");
+            }
+            else
+            {
+                var value = item.GetString();
+                var trimmed = value?.Trim();
+                if (string.IsNullOrEmpty(trimmed))
+                {
+                    validation.AddError($"$.os.{propertyName}[{index}]: value must not be empty.");
+                }
+                else if (seen.Add(trimmed))
+                {
+                    values.Add(trimmed);
+                }
+            }
+
+            index++;
+        }
+
+        return values;
     }
 
     private static string DescribeKind(JsonValueKind kind)
