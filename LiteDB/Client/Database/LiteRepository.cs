@@ -13,7 +13,7 @@ namespace LiteDB
     /// </summary>
     [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
     [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
-    public class LiteRepository : ILiteRepository
+    public partial class LiteRepository : ILiteRepository
     {
         #region Properties
 

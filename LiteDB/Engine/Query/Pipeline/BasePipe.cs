@@ -164,7 +164,7 @@ namespace LiteDB.Engine
             {
                 var segment = segments[0];
                 var keyValues = source
-                    .Select(doc => new KeyValuePair<BsonValue, PageAddress>(segment.Expression.ExecuteScalar(doc, _pragmas.Collation), doc.RawId));
+                    .Select(doc => new KeyValuePair<BsonValue, PageAddress>(segment.ExecuteScalar(doc, _pragmas.Collation), doc.RawId));
 
                 using (var sorter = new SortService(_tempDisk, new[] { segment.Order }, _pragmas))
                 {
@@ -194,7 +194,7 @@ namespace LiteDB.Engine
 
                         for (var i = 0; i < segments.Count; i++)
                         {
-                            values[i] = segments[i].Expression.ExecuteScalar(doc, _pragmas.Collation);
+                            values[i] = segments[i].ExecuteScalar(doc, _pragmas.Collation);
                         }
 
                         return new KeyValuePair<BsonValue, PageAddress>(SortKey.FromValues(values, orders), doc.RawId);

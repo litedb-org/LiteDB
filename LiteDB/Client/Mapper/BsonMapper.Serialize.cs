@@ -50,7 +50,11 @@ namespace LiteDB
             return this.Serialize(type, obj, 0);
         }
 
-        internal BsonValue Serialize(Type type, object obj, int depth)
+        /// <summary>
+        /// Serialize a value using its declared type and current nesting depth.
+        /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+        public virtual BsonValue Serialize(Type type, object obj, int depth)
         {
             if (++depth > MaxDepth) throw LiteException.DocumentMaxDepth(MaxDepth, type);
 
@@ -149,7 +153,7 @@ namespace LiteDB
             // check if is a list or array
             else if (obj is IEnumerable)
             {
-                return SerializeArray(Reflection.GetListItemType(type), obj as IEnumerable, depth);
+                return SerializeArray(GetListItemType(type, obj), obj as IEnumerable, depth);
             }
             // otherwise serialize as a plain object
             else
@@ -158,7 +162,20 @@ namespace LiteDB
             }
         }
 
-        private BsonArray SerializeArray(Type type, IEnumerable array, int depth)
+        /// <summary>
+        /// Resolve the item type while retaining the declared collection contract.
+        /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+        protected virtual Type GetListItemType(Type type, object value)
+        {
+            return Reflection.GetListItemType(type);
+        }
+
+        /// <summary>
+        /// Serialize the items in an enumerable value.
+        /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+        protected virtual BsonArray SerializeArray(Type type, IEnumerable array, int depth)
         {
             BsonArray bsonArray = [];
 
@@ -187,8 +204,11 @@ namespace LiteDB
             return Reflection.GetListItemType(declaredType) == typeof(object);
         }
 
+        /// <summary>
+        /// Serialize dictionary keys and values using their declared types.
+        /// </summary>
         [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
-        private BsonDocument SerializeDictionary(Type keyType, Type valueType, IDictionary dict, int depth)
+        protected virtual BsonDocument SerializeDictionary(Type keyType, Type valueType, IDictionary dict, int depth)
         {
             BsonDocument bsonDocument = [];
 
@@ -213,9 +233,16 @@ namespace LiteDB
                 {
                     var converterType = keyType == typeof(object) ? key.GetType() : keyType;
                     var keyConverter = TypeDescriptor.GetConverter(converterType);
-                    stringKey = keyConverter.CanConvertTo(typeof(string))
-                        ? keyConverter.ConvertToInvariantString(key) ?? string.Empty
-                        : Convert.ToString(key, CultureInfo.InvariantCulture) ?? string.Empty;
+                    var enumConverter = keyConverter.GetType() == typeof(NullableConverter)
+                        ? ((NullableConverter)keyConverter).UnderlyingTypeConverter
+                        : keyConverter;
+                    // The default EnumConverter rejects unnamed values that the reader accepts.
+                    // Unwrap only the default nullable wrapper; honor custom converters at either level.
+                    stringKey = key is Enum && enumConverter.GetType() == typeof(EnumConverter)
+                        ? key.ToString()
+                        : keyConverter.CanConvertTo(typeof(string))
+                            ? keyConverter.ConvertToInvariantString(key) ?? string.Empty
+                            : Convert.ToString(key, CultureInfo.InvariantCulture) ?? string.Empty;
                 }
 
                 if (bsonDocument.ContainsKey(stringKey))
@@ -231,7 +258,11 @@ namespace LiteDB
             return bsonDocument;
         }
 
-        private BsonDocument SerializeObject(Type type, object obj, int depth)
+        /// <summary>
+        /// Serialize the mapped members of an object.
+        /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+        protected virtual BsonDocument SerializeObject(Type type, object obj, int depth)
         {
             var t = obj.GetType();
             var doc = new BsonDocument();

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
@@ -102,7 +102,7 @@ namespace LiteDB
         /// </summary>
         [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
-        public object Deserialize(Type type, BsonValue value)
+        public virtual object Deserialize(Type type, BsonValue value)
         {
             if (OnDeserialization is not null)
             {
@@ -257,7 +257,7 @@ namespace LiteDB
                 }
                 else
                 {
-                    DeserializeObject(entity, instance, doc);
+                    DeserializeObject(type, instance, doc);
                 }
 
                 return instance;
@@ -268,9 +268,12 @@ namespace LiteDB
             return value.RawValue;
         }
 
+        /// <summary>
+        /// Deserialize an array using the element mapping.
+        /// </summary>
         [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
-        private object DeserializeArray(Type type, BsonArray array)
+        protected virtual object DeserializeArray(Type type, BsonArray array)
         {
             var arr = Array.CreateInstance(type, array.Count);
             var idx = 0;
@@ -283,9 +286,12 @@ namespace LiteDB
             return arr;
         }
 
+        /// <summary>
+        /// Deserialize a collection using its declared item mapping.
+        /// </summary>
         [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
-        private object DeserializeList(Type type, BsonArray value)
+        protected virtual object DeserializeList(Type type, BsonArray value)
         {
             var itemType = Reflection.GetListItemType(type);
             var enumerable = (IEnumerable)Reflection.CreateInstance(type);
@@ -339,9 +345,12 @@ namespace LiteDB
             return value[fieldName];
         }
 
+        /// <summary>
+        /// Deserialize dictionary keys and values using their declared types.
+        /// </summary>
         [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
-        private void DeserializeDictionary(Type keyType, Type valueType, IDictionary dict, BsonDocument value)
+        protected virtual void DeserializeDictionary(Type keyType, Type valueType, IDictionary dict, BsonDocument value)
         {
             foreach (KeyValuePair<string, BsonValue> element in value.GetElements())
             {
@@ -367,10 +376,14 @@ namespace LiteDB
             }
         }
 
+        /// <summary>
+        /// Populate a mapped object from its BSON fields.
+        /// </summary>
         [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
-        private void DeserializeObject(EntityMapper entity, object obj, BsonDocument value)
+        protected virtual void DeserializeObject(Type type, object obj, BsonDocument value)
         {
+            var entity = this.GetEntityMapper(type);
             foreach (var member in entity.Members.Where(x => x.Setter != null))
             {
                 if (value.TryGetValue(member.FieldName, out var val))

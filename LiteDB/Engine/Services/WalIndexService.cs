@@ -236,12 +236,14 @@ namespace LiteDB.Engine
                     {
                         // page buffer instance can't change
                         var headerBuffer = header.Buffer;
+                        var fileVersion = header.FileVersion;
 
                         // copy this buffer block into original header block
                         Buffer.BlockCopy(buffer.Array, buffer.Offset, headerBuffer.Array, headerBuffer.Offset, PAGE_SIZE);
 
                         // re-load header (using new buffer data)
                         header = new HeaderPage(headerBuffer);
+                        header.EnsureVersion(fileVersion);
                         header.TransactionID = uint.MaxValue;
                         header.IsConfirmed = false;
                     }
