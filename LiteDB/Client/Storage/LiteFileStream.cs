@@ -121,7 +121,7 @@ namespace LiteDB
 
             Exception error = null;
 
-            if (disposing && this.CanWrite && (_complete == null || !_failed))
+            if (disposing && this.CanWrite && !_failed)
             {
                 try
                 {

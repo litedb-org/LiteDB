@@ -14,17 +14,26 @@ namespace LiteDB
             try
             {
                 _buffer.Write(buffer, offset, count);
-                _streamPosition += count;
-
-                if (_buffer.Length >= MAX_CHUNK_SIZE)
-                {
-                    this.WriteChunks(false);
-                }
             }
             catch
             {
                 if (_complete != null) _failed = true;
                 throw;
+            }
+
+            _streamPosition += count;
+
+            if (_buffer.Length >= MAX_CHUNK_SIZE)
+            {
+                try
+                {
+                    this.WriteChunks(false);
+                }
+                catch
+                {
+                    _failed = true;
+                    throw;
+                }
             }
         }
 
@@ -39,7 +48,7 @@ namespace LiteDB
             }
             catch
             {
-                if (_complete != null) _failed = true;
+                _failed = true;
                 throw;
             }
         }
