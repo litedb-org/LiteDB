@@ -87,7 +87,7 @@ namespace LiteDB.Engine
         public bool AutoRebuild { get; set; } = false;
 
         /// <summary>
-        /// Migrate format v7/v8 files to the current format before opening. Keeps a backup in the same directory; requires a writable file connection.
+        /// Rebuild format v7 files before opening, retaining a backup. Ordinary v8 files remain compatible without migration.
         /// </summary>
         public bool Upgrade { get; set; } = false;
 

@@ -20,7 +20,7 @@ namespace LiteDB.Engine
         {
             var filename = _settings.Filename;
 
-            // Migration requires an explicit writable file connection and keeps a backup.
+            // Only v7 requires a rebuild. Ordinary v8 files remain compatible.
             if (_settings.ReadOnly || !File.Exists(filename)) return;
 
             const int bufferSize = 1024;
@@ -32,13 +32,7 @@ namespace LiteDB.Engine
                     if (stream.Read(buffer, 0, bufferSize) < bufferSize) return;
                 }
 
-                if (!FileReaderV7.IsVersion(buffer))
-                {
-                    // Decrypt before checking the v8 header; the encryption marker alone is insufficient.
-                    using var stream = _settings.CreateDataFactory().GetStream(false, true);
-                    if (stream.Read(buffer, 0, bufferSize) < bufferSize ||
-                        buffer[HeaderPage.P_FILE_VERSION] != 8 || !FileReaderV8.IsVersion(buffer)) return;
-                }
+                if (!FileReaderV7.IsVersion(buffer)) return;
             }
             finally
             {

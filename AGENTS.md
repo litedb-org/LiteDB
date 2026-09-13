@@ -35,8 +35,9 @@ this fork is `JKamsker/LiteDB` (remote `origin`). Issues are tracked upstream, s
 `-R litedb-org/LiteDB` when searching or viewing them.
 
 ## Vector File Compatibility
-New files use format version 9. Open existing version 7/8 files with `Upgrade=true`
-on a writable file connection to rebuild them with backups; read-only opening
-requires prior migration. Run `python3 scripts/test-vector-compatibility.py` to
-verify plain/encrypted migration and rejection by released LiteDB 5.0.21.
-See `docs/vector-query-compatibility.md` for vector query semantics and ANN limits.
+Ordinary files remain on format v8 and open without migration. The first vector
+write durably promotes the header to v9 before vector pages can enter the WAL;
+rollback, WAL replay, and checkpoint must never downgrade it. `Upgrade=true`
+continues to rebuild v7 files. Run `python3 scripts/test-vector-compatibility.py`
+to verify ordinary v8 round trips and vector-file rejection by LiteDB 5.0.21,
+including encrypted files. See `docs/vector-query-compatibility.md` for semantics.

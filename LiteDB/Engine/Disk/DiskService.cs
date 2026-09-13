@@ -11,7 +11,7 @@ namespace LiteDB.Engine
     /// Implement custom fast/in memory mapped disk access
     /// [ThreadSafe]
     /// </summary>
-    internal class DiskService : IDisposable
+    internal partial class DiskService : IDisposable
     {
         private readonly MemoryCache _cache;
         private readonly EngineState _state;
@@ -208,6 +208,7 @@ namespace LiteDB.Engine
                         _state.SimulateDiskWriteFail?.Invoke(page);
 #endif
 
+                        this.PreserveFileVersion(page);
                         stream.Write(page.Array, page.Offset, PAGE_SIZE);
 
                         // Publish only after the bytes are written to the stream.
@@ -351,6 +352,7 @@ namespace LiteDB.Engine
 
                 stream.Position = page.Position;
 
+                this.PreserveFileVersion(page);
                 stream.Write(page.Array, page.Offset, PAGE_SIZE);
             }
 

@@ -41,6 +41,7 @@ namespace LiteDB.Engine
 
         public void Upsert(CollectionIndex index, VectorIndexMetadata metadata, BsonDocument document, PageAddress dataBlock)
         {
+            _snapshot.RequireVectorVersion();
             var value = index.BsonExpr.ExecuteScalar(document, _collation);
 
             if (!TryExtractVector(value, metadata.Dimensions, out var vector))
@@ -55,6 +56,7 @@ namespace LiteDB.Engine
 
         public void Delete(VectorIndexMetadata metadata, PageAddress dataBlock)
         {
+            _snapshot.RequireVectorVersion();
             if (!this.TryFindNode(metadata, dataBlock, out var address, out var node))
             {
                 return;
@@ -65,6 +67,7 @@ namespace LiteDB.Engine
 
         public void Drop(VectorIndexMetadata metadata)
         {
+            _snapshot.RequireVectorVersion();
             this.ClearTree(metadata);
 
             metadata.Root = PageAddress.Empty;

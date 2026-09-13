@@ -11,6 +11,15 @@ namespace LiteDB.Tests.QueryTest
 {
     public class Issue2881_VectorExecution_Tests
     {
+        [Theory]
+        [InlineData("VECTOR_SIM(Embedding)")]
+        [InlineData("VECTOR_SIM(Embedding, [1, 0], [0, 1])")]
+        public void Vector_function_rejects_invalid_argument_counts(string expression)
+        {
+            Action parse = () => BsonExpression.Create(expression);
+            parse.Should().Throw<LiteException>().Which.ErrorCode.Should().Be(LiteException.UNEXPECTED_TOKEN);
+        }
+
         [Fact]
         public void Sql_vector_sort_can_use_the_ordinary_filter_index()
         {

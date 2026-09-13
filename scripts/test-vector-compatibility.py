@@ -17,5 +17,9 @@ def run(engine, *arguments):
 
 with tempfile.TemporaryDirectory(prefix="litedb-vector-compatibility-") as directory:
     run("Current", "create", directory)
-    run("Legacy", directory)
-    run("Current", "migrate", directory)
+    run("Legacy", "create", directory)
+    run("Current", "ordinary", directory)
+    run("Legacy", "ordinary", directory)
+    run("Current", "promote", directory)
+    run("Legacy", "promoted", directory)
+    run("Current", "verify", directory)
