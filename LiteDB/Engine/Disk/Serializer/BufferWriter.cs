@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Buffers;
 using System.Collections.Generic;
 using static LiteDB.Constants;
@@ -10,7 +10,7 @@ namespace LiteDB.Engine
     /// </summary>
     internal partial class BufferWriter : IDisposable
     {
-        private readonly IEnumerator<BufferSlice> _source;
+        private IEnumerator<BufferSlice> _source;
 
         private BufferSlice _current;
         private int _currentPosition = 0; // position in _current
@@ -18,7 +18,7 @@ namespace LiteDB.Engine
 
         private bool _isEOF = false;
 
-        private static readonly ArrayPool<byte> _bufferPool = ArrayPool<byte>.Shared;
+        private readonly ArrayPool<byte> _bufferPool = ArrayPool<byte>.Shared;
 
         /// <summary>
         /// Current global cursor position
@@ -42,12 +42,21 @@ namespace LiteDB.Engine
             _current = buffer;
         }
 
-        public BufferWriter(IEnumerable<BufferSlice> source)
+        public BufferWriter(IEnumerable<BufferSlice> source, ArrayPool<byte> bufferPool = null)
         {
+            _bufferPool = bufferPool ?? ArrayPool<byte>.Shared;
             _source = source.GetEnumerator();
 
-            _source.MoveNext();
-            _current = _source.Current;
+            try
+            {
+                _source.MoveNext();
+                _current = _source.Current;
+            }
+            catch
+            {
+                _source.Dispose();
+                throw;
+            }
         }
 
         #region Basic Write
@@ -173,12 +182,16 @@ namespace LiteDB.Engine
             else
             {
                 var buffer = _bufferPool.Rent(size);
+                try
+                {
+                    toBytes(value, buffer, 0);
 
-                toBytes(value, buffer, 0);
-
-                this.Write(buffer, 0, size);
-
-                _bufferPool.Return(buffer, true);
+                    this.Write(buffer, 0, size);
+                }
+                finally
+                {
+                    _bufferPool.Return(buffer, true);
+                }
             }
         }
 
@@ -237,12 +250,16 @@ namespace LiteDB.Engine
             else
             {
                 var buffer = _bufferPool.Rent(12);
+                try
+                {
+                    value.ToByteArray(buffer, 0);
 
-                value.ToByteArray(buffer, 0);
-
-                this.Write(buffer, 0, 12);
-
-                _bufferPool.Return(buffer, true);
+                    this.Write(buffer, 0, 12);
+                }
+                finally
+                {
+                    _bufferPool.Return(buffer, true);
+                }
             }
         }
 
@@ -440,7 +457,10 @@ namespace LiteDB.Engine
 
         public void Dispose()
         {
-            _source?.Dispose();
+            var source = _source;
+            _source = null;
+            _current = null;
+            source?.Dispose();
         }
     }
 }

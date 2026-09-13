@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine;
@@ -23,12 +23,16 @@ internal partial class BufferReader
         {
             // rent a buffer to be re-usable
             var buffer = _bufferPool.Rent(count);
+            try
+            {
+                this.Read(buffer, 0, count);
 
-            this.Read(buffer, 0, count);
-
-            value = StringEncoding.UTF8.GetString(buffer, 0, count);
-
-            _bufferPool.Return(buffer, true);
+                value = StringEncoding.UTF8.GetString(buffer, 0, count);
+            }
+            finally
+            {
+                _bufferPool.Return(buffer, true);
+            }
         }
 
         return value;

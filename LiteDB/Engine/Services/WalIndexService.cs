@@ -236,19 +236,25 @@ namespace LiteDB.Engine
                     {
                         // page buffer instance can't change
                         var headerBuffer = header.Buffer;
+                        var fileVersion = header.FileVersion;
 
                         // copy this buffer block into original header block
                         Buffer.BlockCopy(buffer.Array, buffer.Offset, headerBuffer.Array, headerBuffer.Offset, PAGE_SIZE);
 
                         // re-load header (using new buffer data)
                         header = new HeaderPage(headerBuffer);
+                        header.EnsureVersion(fileVersion);
                         header.TransactionID = uint.MaxValue;
                         header.IsConfirmed = false;
                     }
                 }
 
-                // update last transaction ID
-                _lastTransactionID = (int)transactionID;
+                // Keep the greatest observed ID, including abandoned transactions.
+                // Reusing one would make its old pages appear committed.
+                if (transactionID > unchecked((uint)_lastTransactionID))
+                {
+                    _lastTransactionID = unchecked((int)transactionID);
+                }
 
                 current += PAGE_SIZE;
             }

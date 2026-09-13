@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
@@ -94,7 +94,7 @@ namespace LiteDB
         /// <summary>
         /// Deserilize a BsonValue to .NET object based on type parameter
         /// </summary>
-        public object Deserialize(Type type, BsonValue value)
+        public virtual object Deserialize(Type type, BsonValue value)
         {
             if (OnDeserialization is not null)
             {
@@ -135,7 +135,6 @@ namespace LiteDB
             {
                 return value.AsArray;
             }
-
             // raw values to native bson values
             else if (_bsonTypes.Contains(type))
             {
@@ -215,13 +214,24 @@ namespace LiteDB
                 var entity = this.GetEntityMapper(type);
                 entity.WaitForInitialization();
 
+                object instance = _typeInstantiator(type);
+
+                if (instance == null && entity.CreateInstance != null)
+                {
+                    instance = entity.CreateInstance(doc);
+                }
+
+                if (instance == null && IsSystemIndexType(type))
+                {
+                    return DeserializeSystemIndex(type, doc);
+                }
+
                 // initialize CreateInstance
                 entity.CreateInstance = entity.CreateInstance
                     ?? GetTypeCtor(entity) 
                     ?? ((BsonDocument _) => Reflection.CreateInstance(entity.ForType));
 
-                object instance = _typeInstantiator(type) 
-                    ?? entity.CreateInstance(doc);
+                instance ??= entity.CreateInstance(doc);
 
                 if (instance is IDictionary dict)
                 {
@@ -239,7 +249,7 @@ namespace LiteDB
                 }
                 else
                 {
-                    DeserializeObject(entity, instance, doc);
+                    DeserializeObject(type, instance, doc);
                 }
 
                 return instance;
@@ -250,7 +260,10 @@ namespace LiteDB
             return value.RawValue;
         }
 
-        private object DeserializeArray(Type type, BsonArray array)
+        /// <summary>
+        /// Deserialize an array using the element mapping.
+        /// </summary>
+        protected virtual object DeserializeArray(Type type, BsonArray array)
         {
             var arr = Array.CreateInstance(type, array.Count);
             var idx = 0;
@@ -263,7 +276,10 @@ namespace LiteDB
             return arr;
         }
 
-        private object DeserializeList(Type type, BsonArray value)
+        /// <summary>
+        /// Deserialize a collection using its declared item mapping.
+        /// </summary>
+        protected virtual object DeserializeList(Type type, BsonArray value)
         {
             var itemType = Reflection.GetListItemType(type);
             var enumerable = (IEnumerable)Reflection.CreateInstance(type);
@@ -288,7 +304,37 @@ namespace LiteDB
             return enumerable;
         }
 
-        private void DeserializeDictionary(Type keyType, Type valueType, IDictionary dict, BsonDocument value)
+        private object DeserializeSystemIndex(Type type, BsonDocument value)
+        {
+            return Activator.CreateInstance(
+                type,
+                GetSystemIndexField(value, "Value").AsInt32,
+                GetSystemIndexField(value, "IsFromEnd").AsBoolean);
+        }
+
+        private static bool IsSystemIndexType(Type type)
+        {
+            return type.FullName == "System.Index" &&
+                type.GetTypeInfo().IsValueType &&
+                type.Assembly == typeof(object).Assembly;
+        }
+
+        private BsonValue GetSystemIndexField(BsonDocument value, string fieldName)
+        {
+            var resolvedFieldName = this.ResolveFieldName(fieldName);
+
+            if (value.TryGetValue(resolvedFieldName, out var resolvedValue))
+            {
+                return resolvedValue;
+            }
+
+            return value[fieldName];
+        }
+
+        /// <summary>
+        /// Deserialize dictionary keys and values using their declared types.
+        /// </summary>
+        protected virtual void DeserializeDictionary(Type keyType, Type valueType, IDictionary dict, BsonDocument value)
         {
             foreach (KeyValuePair<string, BsonValue> element in value.GetElements())
             {
@@ -314,8 +360,12 @@ namespace LiteDB
             }
         }
 
-        private void DeserializeObject(EntityMapper entity, object obj, BsonDocument value)
+        /// <summary>
+        /// Populate a mapped object from its BSON fields.
+        /// </summary>
+        protected virtual void DeserializeObject(Type type, object obj, BsonDocument value)
         {
+            var entity = this.GetEntityMapper(type);
             foreach (var member in entity.Members.Where(x => x.Setter != null))
             {
                 if (value.TryGetValue(member.FieldName, out var val))

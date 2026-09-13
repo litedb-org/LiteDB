@@ -29,10 +29,12 @@ jobs:
           fetch-depth: 0
           ref: ${{ inputs.ref }}
 
-      - name: Set up .NET SDK
+      - name: Set up .NET SDKs
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: |
+            10.0.x
+            8.0.x
 
       - name: Restore .NET tools
         run: dotnet tool restore
