@@ -38,7 +38,7 @@ namespace LiteDB
             }
         }
 
-        internal BsonDocument(IDictionary<string, BsonValue> dict, bool useRawValue)
+        internal BsonDocument(Dictionary<string, BsonValue> dict, bool useRawValue)
             : base(BsonType.Document, dict)
         {
             if (dict == null) throw new ArgumentNullException(nameof(dict));

@@ -1,5 +1,17 @@
 # Release notes: bounded memory management
 
+## `BsonValue` CLR collection compatibility
+
+`new BsonValue(object)` now supports CLR arrays, lists, and dictionaries as
+mutable BSON containers. `AsArray`, `AsDocument`, JSON conversion, comparison,
+and database persistence all use one stable BSON container for each wrapped
+value.
+
+Collection inputs are copied during construction. Later changes to the source
+list or dictionary are therefore not reflected in the `BsonValue`. Dictionary
+keys use case-insensitive BSON document semantics; when source keys differ only
+by case, the last value enumerated wins.
+
 ## Stream ownership change
 
 Streams supplied through `EngineSettings.DataStream`, `LogStream`, and

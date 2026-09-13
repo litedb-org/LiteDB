@@ -162,6 +162,23 @@ public class Issue2456_Tests
     }
 
     [Fact]
+    public void Wrapped_dictionary_must_use_case_insensitive_secondary_indexes()
+    {
+        using var db = new LiteDatabase(new MemoryStream());
+        var col = db.GetCollection("docs");
+        var wrapped = new BsonValue(new Dictionary<string, BsonValue>
+        {
+            ["_id"] = 1,
+            ["Name"] = "Alice"
+        });
+
+        col.EnsureIndex("name");
+        col.Insert(wrapped.AsDocument);
+
+        col.FindOne(Query.EQ("name", "Alice"))["_id"].AsInt32.Should().Be(1);
+    }
+
+    [Fact]
     public void AsArray_should_return_one_stable_adapter()
     {
         var wrapped = new BsonValue(Items);
@@ -169,6 +186,34 @@ public class Issue2456_Tests
         // Serializers cache the byte length on BsonArray. Returning a fresh
         // adapter here discards that cache and makes nested arrays quadratic.
         Assert.Same(wrapped.AsArray, wrapped.AsArray);
+    }
+
+    [Fact]
+    public void AsDocument_should_return_one_stable_adapter()
+    {
+        var wrapped = new BsonValue(new Dictionary<string, BsonValue> { ["x"] = 1 });
+
+        Assert.Same(wrapped.AsDocument, wrapped.AsDocument);
+    }
+
+    [Fact]
+    public void Wrapped_collections_should_compare_equal_and_share_hash_codes_with_their_adapters()
+    {
+        var array = new BsonValue(Items);
+        var document = new BsonValue(new Dictionary<string, BsonValue> { ["x"] = 1 });
+
+        array.Should().Be(array.AsArray);
+        array.GetHashCode().Should().Be(array.AsArray.GetHashCode());
+        document.Should().Be(document.AsDocument);
+        document.GetHashCode().Should().Be(document.AsDocument.GetHashCode());
+    }
+
+    [Fact]
+    public void BsonMapper_should_deserialize_a_wrapped_array()
+    {
+        var wrapped = new BsonValue(Items);
+
+        BsonMapper.Global.Deserialize<string[]>(wrapped).Should().Equal(Items);
     }
 
     [Fact]
@@ -205,5 +250,35 @@ public class Issue2456_Tests
         exception.Should().BeNull();
         Assert.Single(wrapped.AsDocument);
         wrapped.AsDocument["_id"].AsInt32.Should().Be(2);
+    }
+
+    [Fact]
+    public void Wrapped_collections_should_not_track_later_source_mutations()
+    {
+        var sourceArray = new List<BsonValue> { 1 };
+        var sourceDocument = new Dictionary<string, BsonValue> { ["x"] = 1 };
+        var wrappedArray = new BsonValue((object)sourceArray);
+        var wrappedDocument = new BsonValue((object)sourceDocument);
+
+        sourceArray.Add(2);
+        sourceDocument["y"] = 2;
+
+        wrappedArray.AsArray.Select(value => value.AsInt32).Should().Equal(1);
+        wrappedDocument.AsDocument.ContainsKey("y").Should().BeFalse();
+    }
+
+    [Fact]
+    public void Wrapped_dictionary_should_use_last_case_colliding_key()
+    {
+        var source = new Dictionary<string, BsonValue>
+        {
+            ["name"] = "first",
+            ["NAME"] = "last"
+        };
+
+        var wrapped = new BsonValue((object)source);
+
+        Assert.Single(wrapped.AsDocument);
+        wrapped.AsDocument["Name"].AsString.Should().Be("last");
     }
 }

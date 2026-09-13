@@ -11,11 +11,8 @@ namespace LiteDB
     /// <summary>
     /// Represent a Bson Value used in BsonDocument
     /// </summary>
-    public class BsonValue : IComparable<BsonValue>, IEquatable<BsonValue>
+    public partial class BsonValue : IComparable<BsonValue>, IEquatable<BsonValue>
     {
-        private BsonArray _arrayAdapter;
-        private BsonDocument _documentAdapter;
-
         public static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         /// <summary>
@@ -148,7 +145,7 @@ namespace LiteDB
                 }
 
                 this.Type = BsonType.Document;
-                this.RawValue = dict;
+                this.RawValue = new BsonDocument(dict, true);
             }
             else if (value is IList<BsonValue> bsonArray)
             {
@@ -160,7 +157,7 @@ namespace LiteDB
                 }
 
                 this.Type = BsonType.Array;
-                this.RawValue = list;
+                this.RawValue = new BsonArray(list, true);
             }
             else if (value is Byte[]) this.Type = BsonType.Binary;
             else if (value is ObjectId) this.Type = BsonType.ObjectId;
@@ -195,7 +192,7 @@ namespace LiteDB
                     }
 
                     this.Type = BsonType.Document;
-                    this.RawValue = dict;
+                    this.RawValue = new BsonDocument(dict, true);
                 }
                 else if (enumerable != null)
                 {
@@ -207,7 +204,7 @@ namespace LiteDB
                     }
 
                     this.Type = BsonType.Array;
-                    this.RawValue = list;
+                    this.RawValue = new BsonArray(list, true);
                 }
                 else
                 {
@@ -218,74 +215,7 @@ namespace LiteDB
 
         #endregion
 
-        #region Index "this" property
-
-        /// <summary>
-        /// Get/Set a field for document. Fields are case sensitive - Works only when value are document
-        /// </summary>
-        public virtual BsonValue this[string name]
-        {
-            get
-            {
-                if (this.IsDocument) return this.AsDocument[name];
-
-                throw new InvalidOperationException("Cannot access non-document type value on " + this.RawValue);
-            }
-            set
-            {
-                if (this.IsDocument)
-                {
-                    this.AsDocument[name] = value;
-                    return;
-                }
-
-                throw new InvalidOperationException("Cannot access non-document type value on " + this.RawValue);
-            }
-        }
-
-        /// <summary>
-        /// Get/Set value in array position. Works only when value are array
-        /// </summary>
-        public virtual BsonValue this[int index]
-        {
-            get
-            {
-                if (this.IsArray) return this.AsArray[index];
-
-                throw new InvalidOperationException("Cannot access non-array type value on " + this.RawValue);
-            }
-            set
-            {
-                if (this.IsArray)
-                {
-                    this.AsArray[index] = value;
-                    return;
-                }
-
-                throw new InvalidOperationException("Cannot access non-array type value on " + this.RawValue);
-            }
-        }
-
-        #endregion
-
         #region Convert types
-
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public BsonArray AsArray => this is BsonArray array
-            ? array
-            // new BsonValue(object) builds a plain BsonValue (Type=Array, RawValue=IList<BsonValue>)
-            // instead of a BsonArray; wrap it so callers (serialization, ToString, ...) still work.
-            : this.IsArray && this.RawValue is IList<BsonValue> items
-                ? this._arrayAdapter ??= new BsonArray(items, true)
-                : null;
-
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public BsonDocument AsDocument => this is BsonDocument document
-            ? document
-            // same as AsArray: wrap a plain BsonValue that carries a document payload.
-            : this.IsDocument && this.RawValue is IDictionary<string, BsonValue> dict
-                ? this._documentAdapter ??= new BsonDocument(dict, true)
-                : null;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         public Byte[] AsBinary => this.RawValue as Byte[];
@@ -741,9 +671,12 @@ namespace LiteDB
 
         public override int GetHashCode()
         {
+            var rawValue = this.IsArray ? this.AsArray?.RawValue :
+                this.IsDocument ? this.AsDocument?.RawValue :
+                this.RawValue;
             var hash = 17;
             hash = 37 * hash + this.Type.GetHashCode();
-            hash = 37 * hash + (this.RawValue?.GetHashCode() ?? 0);
+            hash = 37 * hash + (rawValue?.GetHashCode() ?? 0);
             return hash;
         }
 
