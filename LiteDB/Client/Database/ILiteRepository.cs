@@ -100,6 +100,9 @@ namespace LiteDB
         /// </summary>
         T SingleById<T>(BsonValue id, string collectionName = null);
 
+        /// <summary>Find an entity by id, or return the default value if it is missing.</summary>
+        T SingleOrDefaultById<T>(BsonValue id, string collectionName = null);
+
         /// <summary>
         /// Execute Query[T].Where(predicate).ToList();
         /// </summary>

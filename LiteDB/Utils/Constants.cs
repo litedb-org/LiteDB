@@ -76,18 +76,18 @@ namespace LiteDB
         public const int MAX_OPEN_TRANSACTIONS = 100;
 
         /// <summary>
-        /// Define how many pages all transaction will consume, in memory, before persist in disk. This amount are shared across all open transactions
-        /// 100,000 ~= 1Gb memory
+        /// Default number of pages one transaction can retain before a
+        /// cooperative safepoint.
         /// </summary>
-        public const int MAX_TRANSACTION_SIZE = 100_000; // 100_000 (default) - 1000 (for tests)
+        public const int MAX_TRANSACTION_SIZE = 1_000;
+
+        public const long DEFAULT_CACHE_SIZE = 64L * 1024 * 1024;
+        public const long MEMORY_CACHE_SIZE = 8L * 1024 * 1024;
 
         /// <summary>
-        /// Size, in PAGES, for each buffer array (used in MemoryStore)
-        /// It's an array to increase after each extend - limited in highest value
-        /// Each byte array will be created with this size * PAGE_SIZE
-        /// Use minimal 12 to allocate at least 85Kb per segment (will use LOH)
+        /// Size, in pages, for the first and subsequent cache segments.
         /// </summary>
-        public static int[] MEMORY_SEGMENT_SIZES = new int[] { 12, 50, 100, 500, 1000 }; // 8Mb per extend
+        public static int[] MEMORY_SEGMENT_SIZES = new int[] { 8, 128 };
 
         /// <summary>
         /// Define how many documents will be keep in memory until clear cache and remove support to orderby/groupby

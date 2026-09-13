@@ -47,5 +47,58 @@ namespace LiteDB.Tests.Database
             cn.Password.Length.Should().Be(512);
 
         }
+
+        [Fact]
+        public void ConnectionString_Parses_Memory_Limits()
+        {
+            var connection = new ConnectionString("filename=test.db;cache size=64MB;transaction pages=32");
+
+            connection.CacheSize.Should().Be(64L * 1024 * 1024);
+            connection.TransactionPageLimit.Should().Be(32);
+        }
+
+        [Fact]
+        public void ConnectionString_Requires_Units_For_Small_Cache_Sizes()
+        {
+            Action parse = () => new ConnectionString("filename=test.db;cache size=512");
+
+            parse.Should().Throw<LiteException>()
+                .WithMessage("*below 1 MB*include a size unit*");
+        }
+
+        [Fact]
+        public void ConnectionString_Accepts_Explicit_Kilobytes()
+        {
+            var connection = new ConnectionString("filename=test.db;cache size=512KB");
+
+            connection.CacheSize.Should().Be(512L * 1024);
+        }
+
+        [Theory]
+        [InlineData("abc")]
+        [InlineData("-1")]
+        [InlineData("1XB")]
+        [InlineData("999999999999999999999999TB")]
+        [InlineData("1.5MB")]
+        [InlineData("9223372036854775808")]
+        [InlineData("9223372036854775807TB")]
+        [InlineData("''")]
+        [InlineData("")]
+        public void ConnectionString_Rejects_Invalid_Cache_Sizes(string value)
+        {
+            Action parse = () => new ConnectionString("filename=:memory:;cache size=" + value);
+            parse.Should().Throw<LiteException>();
+        }
+
+        [Theory]
+        [InlineData("0", 0L)]
+        [InlineData("0MB", 0L)]
+        [InlineData("512bytes", 512L)]
+        [InlineData("1048576", 1048576L)]
+        [InlineData("64 mb", 67108864L)]
+        public void ConnectionString_Accepts_Default_And_Explicit_Byte_Units(string value, long expected)
+        {
+            new ConnectionString("filename=:memory:;cache size=" + value).CacheSize.Should().Be(expected);
+        }
     }
 }

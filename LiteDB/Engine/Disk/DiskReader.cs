@@ -26,6 +26,7 @@ namespace LiteDB.Engine
 
         private readonly Lazy<Stream> _dataStream;
         private readonly Lazy<Stream> _logStream;
+        private int _disposed;
 
         public DiskReader(EngineState state, MemoryCache cache, StreamPool dataPool, StreamPool logPool)
         {
@@ -40,6 +41,7 @@ namespace LiteDB.Engine
 
         public PageBuffer ReadPage(long position, bool writable, FileOrigin origin)
         {
+            if (Volatile.Read(ref _disposed) != 0) throw new ObjectDisposedException(nameof(DiskReader));
             ENSURE(position % PAGE_SIZE == 0, "invalid page position");
 
             var stream = origin == FileOrigin.Data ?
@@ -51,7 +53,16 @@ namespace LiteDB.Engine
                 _cache.GetReadablePage(position, origin, (pos, buf) => this.ReadStream(stream, pos, buf));
 
 #if DEBUG || TESTING
-            _state.SimulateDiskReadFail?.Invoke(page);
+            try
+            {
+                _state.SimulateDiskReadFail?.Invoke(page);
+            }
+            catch
+            {
+                if (writable) _cache.DiscardPage(page);
+                else page.Release();
+                throw;
+            }
 #endif
 
             return page;
@@ -85,14 +96,14 @@ namespace LiteDB.Engine
         /// </summary>
         public void Dispose()
         {
-            if (_dataStream.IsValueCreated)
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            try
             {
-                _dataPool.Return(_dataStream.Value);
+                if (_dataStream.IsValueCreated) _dataPool.Return(_dataStream.Value);
             }
-
-            if (_logStream.IsValueCreated)
+            finally
             {
-                _logPool.Return(_logStream.Value);
+                if (_logStream.IsValueCreated) _logPool.Return(_logStream.Value);
             }
         }
     }
