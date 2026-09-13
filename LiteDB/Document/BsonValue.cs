@@ -11,7 +11,7 @@ namespace LiteDB
     /// <summary>
     /// Represent a Bson Value used in BsonDocument
     /// </summary>
-    public class BsonValue : IComparable<BsonValue>, IEquatable<BsonValue>
+    public partial class BsonValue : IComparable<BsonValue>, IEquatable<BsonValue>
     {
         public static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
@@ -152,6 +152,7 @@ namespace LiteDB
                 var v = (BsonValue)value;
                 this.Type = v.Type;
                 this.RawValue = v.RawValue;
+                _isUInt64 = v._isUInt64;
             }
             else
             {
@@ -362,18 +363,6 @@ namespace LiteDB
         public static implicit operator BsonValue(Decimal value)
         {
             return new BsonValue(value);
-        }
-
-        // UInt64 (to avoid ambigous between Double-Decimal)
-        public static implicit operator UInt64(BsonValue value)
-        {
-            return (UInt64)value.RawValue;
-        }
-
-        // Decimal
-        public static implicit operator BsonValue(UInt64 value)
-        {
-            return new BsonValue((Double)value);
         }
 
         // String

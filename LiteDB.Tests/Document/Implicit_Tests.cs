@@ -19,11 +19,14 @@ namespace LiteDB.Tests.Document
 
             bi.IsInt32.Should().BeTrue();
             bl.IsInt64.Should().BeTrue();
-            bu.IsDouble.Should().BeTrue();
+            // The unsigned high half cannot share Int64 without colliding with
+            // negative signed keys, so it uses lossless BSON Decimal (#1224).
+            bu.IsDecimal.Should().BeTrue();
 
             bi.AsInt32.Should().Be(i);
             bl.AsInt64.Should().Be(l);
-            bu.AsDouble.Should().Be(u);
+            bu.AsDecimal.Should().Be((decimal)u);
+            ((ulong)bu).Should().Be(u);
         }
 
         [Fact]

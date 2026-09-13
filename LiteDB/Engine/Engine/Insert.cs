@@ -55,7 +55,8 @@ namespace LiteDB.Engine
                     autoId == BsonAutoId.Guid ? new BsonValue(Guid.NewGuid()) :
                     this.GetSequence(snapshot, autoId);
             }
-            else if(id.IsNumber)
+            else if (id.IsNumber &&
+                (autoId == BsonAutoId.Int32 || autoId == BsonAutoId.Int64))
             {
                 // update memory sequence of numeric _id
                 this.SetSequence(snapshot, id);
