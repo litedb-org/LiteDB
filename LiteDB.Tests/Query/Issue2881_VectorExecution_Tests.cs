@@ -61,6 +61,28 @@ namespace LiteDB.Tests.QueryTest
             };
         }
 
+        [Fact]
+        public void Scored_bounded_api_queries_keep_ann_without_sort_spilling()
+        {
+            using var temporary = new MemoryStream();
+            using var engine = new LiteEngine(new EngineSettings { Filename = ":memory:", TempStream = temporary });
+            using var db = new LiteDatabase(engine, disposeOnClose: false);
+            var field = typeof(LiteEngine).GetField("_sortDisk", BindingFlags.Instance | BindingFlags.NonPublic);
+            ((SortDisk)field.GetValue(engine)).Dispose();
+            var header = (HeaderPage)typeof(LiteEngine).GetField("_header", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(engine);
+            field.SetValue(engine, new SortDisk(new StreamFactory(temporary, null, false), Constants.PAGE_SIZE, header.Pragmas));
+            var docs = db.GetCollection("docs");
+            docs.InsertBulk(Enumerable.Range(1, 800).Select(i => new BsonDocument
+            {
+                ["_id"] = i, ["Embedding"] = new BsonVector(new[] { 1f, 0f })
+            }));
+            docs.EnsureIndex("embedding", "$.Embedding", new VectorIndexOptions(2, VectorDistanceMetric.Euclidean));
+            var result = docs.Query().WhereNear("Embedding", new[] { 1f, 0f }, 1.2)
+                .TopKNear("Embedding", new[] { 1f, 0f }, 1).WithScore().Single();
+            result.Score.Should().Be(0);
+            temporary.Length.Should().Be(0, "bounded ANN must not scan and sort the collection when scores are requested");
+        }
+
         [Theory]
         [InlineData(false)]
         [InlineData(true)]
