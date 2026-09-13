@@ -35,3 +35,13 @@ monitor already retains registered transactions and releases their pages and
 readers during explicit engine disposal. Applications must still finish their
 transactions on the originating thread and dispose their databases; garbage
 collection does not release abandoned thread-affine locks in a live engine.
+
+## Connection strings and equals signs in filenames
+
+Raw paths such as `data/test=1.db` now work in the string constructors.
+A single unknown `key=value`, including `tenant=acme` or a typo such as
+`filenam=production.db`, is treated as a filename; this changes the previous
+custom-option behavior. Input containing both `=` and `;` is parsed as options
+and never falls back to a filename. Use `new ConnectionString { Filename = path }`
+for arbitrary paths. See [the parsing compatibility notes](connection-string-parsing.md)
+for explicit syntax and integration requirements.

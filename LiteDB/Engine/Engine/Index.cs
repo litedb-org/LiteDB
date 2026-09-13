@@ -143,6 +143,7 @@ namespace LiteDB.Engine
 
                 LOG($"create vector index `{collection}.{name}`", "COMMAND");
 
+                snapshot.RequireVectorVersion();
                 var tuple = collectionPage.InsertVectorIndex(name, expression.Source, options.Dimensions, options.Metric);
 
                 foreach (var pkNode in new IndexAll("_id", LiteDB.Query.Ascending).Run(collectionPage, indexer))
