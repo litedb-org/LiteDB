@@ -1,4 +1,5 @@
 using System;
+
 using FluentAssertions;
 using LiteDB.Engine;
 using Xunit;
@@ -39,14 +40,33 @@ namespace LiteDB.Tests.Database
 
         [Theory]
         [InlineData("filename=demo;password=ab;123")]
-        [InlineData("filename=demo;unknown=value")]
         [InlineData("filename=demo;password=\"unterminated")]
         [InlineData("filename=demo;password=\"value\"junk")]
         [InlineData("filename=demo;=value")]
+        [InlineData("filename=demo;;password=value")]
         public void Malformed_options_throw_instead_of_being_partially_accepted(string text)
         {
             Action parse = () => new ConnectionString(text);
             parse.Should().Throw<FormatException>();
+        }
+
+        [Fact]
+        public void Custom_options_are_preserved_without_parser_registration()
+        {
+            var parsed = new ConnectionString("tenant=acme;region=west;filename=demo");
+
+            parsed["tenant"].Should().Be("acme");
+            parsed["region"].Should().Be("west");
+            parsed.Filename.Should().Be("demo");
+        }
+
+        [Fact]
+        public void Duplicate_options_use_the_last_value()
+        {
+            var parsed = new ConnectionString("filename=first;password=old;filename=last;password='new;value'");
+
+            parsed.Filename.Should().Be("last");
+            parsed.Password.Should().Be("new;value");
         }
 
         [Fact]

@@ -7,13 +7,6 @@ namespace LiteDB
 {
     internal static class ConnectionStringParser
     {
-        private static readonly HashSet<string> Options = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "filename", "password", "connection", "initial size", "readonly",
-            "upgrade", "auto-rebuild", "collation", "memory profile", "cache size",
-            "transaction pages"
-        };
-
         public static Dictionary<string, string> Parse(string text)
         {
             var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -25,8 +18,7 @@ namespace LiteDB
                 if (position == text.Length) break;
                 if (text[position] == ';')
                 {
-                    position++;
-                    continue;
+                    throw new FormatException("Expected a connection option followed by '='.");
                 }
 
                 var start = position;
@@ -37,7 +29,7 @@ namespace LiteDB
                 }
 
                 var key = Regex.Replace(text.Substring(start, position - start).Trim(), @"\s+", " ");
-                if (!Options.Contains(key)) throw new FormatException($"Unexpected connection option '{key}'.");
+                if (key.Length == 0) throw new FormatException("Expected a connection option name.");
                 position++;
                 values[key] = ReadValue(text, ref position);
             }
