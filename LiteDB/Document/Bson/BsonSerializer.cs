@@ -23,7 +23,7 @@ namespace LiteDB
             var bytesRequired = doc.GetBytesCount(true);
             var buffer = new byte[bytesRequired];
 
-            Serialize(doc, buffer.AsMemory());
+            Write(doc, new BufferSlice(buffer, 0, bytesRequired));
 
             return buffer;
         }
@@ -41,6 +41,11 @@ namespace LiteDB
 
             var bytesRequired = doc.GetBytesCount(true);
 
+            return Write(doc, GetBufferSlice(destination, bytesRequired));
+        }
+
+        private static BufferSlice GetBufferSlice(Memory<byte> destination, int bytesRequired)
+        {
             if (destination.Length < bytesRequired)
             {
                 throw new ArgumentException($"Destination memory must be at least {bytesRequired} bytes long", nameof(destination));
@@ -51,12 +56,17 @@ namespace LiteDB
                 throw new NotSupportedException("The destination memory must be backed by a managed array.");
             }
 
-            using (var writer = new BufferWriter(new BufferSlice(segment.Array, segment.Offset, bytesRequired)))
+            return new BufferSlice(segment.Array, segment.Offset, bytesRequired);
+        }
+
+        private static int Write(BsonDocument doc, BufferSlice destination)
+        {
+            using (var writer = new BufferWriter(destination))
             {
                 writer.WriteDocument(doc, false);
             }
 
-            return bytesRequired;
+            return destination.Count;
         }
 
 #if !NETSTANDARD2_0
@@ -75,7 +85,7 @@ namespace LiteDB
             var bytesRequired = doc.GetBytesCount(true);
 
             var memory = writer.GetMemory(bytesRequired);
-            var written = Serialize(doc, memory);
+            var written = Write(doc, GetBufferSlice(memory, bytesRequired));
 
             writer.Advance(written);
 

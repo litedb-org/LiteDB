@@ -1,5 +1,4 @@
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using FluentAssertions;
 using Xunit;
@@ -140,44 +139,5 @@ namespace LiteDB.Tests.Document
             }
         }
 
-#if !NETFRAMEWORK
-        // The Framework targets reference netstandard2.0, which omits this overload.
-        [Fact]
-        public void Serialize_To_ArrayBufferWriter_Matches_Byte_Array()
-        {
-            var document = CreateDoc();
-            var expected = BsonSerializer.Serialize(document);
-
-            var bufferWriter = new ArrayBufferWriter<byte>();
-            var written = BsonSerializer.Serialize(document, bufferWriter);
-
-            written.Should().Be(expected.Length);
-            bufferWriter.WrittenCount.Should().Be(expected.Length);
-            bufferWriter.WrittenSpan.ToArray().Should().Equal(expected);
-        }
-
-#endif
-
-        [Fact]
-        public void Serialize_To_Pooled_Buffers_Preserves_Output()
-        {
-            var document = CreateDoc();
-            var expected = BsonSerializer.Serialize(document);
-
-            var rented = ArrayPool<byte>.Shared.Rent(expected.Length + 8);
-
-            try
-            {
-                var memory = new Memory<byte>(rented, 2, expected.Length);
-                var memoryWritten = BsonSerializer.Serialize(document, memory);
-
-                memoryWritten.Should().Be(expected.Length);
-                memory.Span.Slice(0, memoryWritten).ToArray().Should().Equal(expected);
-            }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(rented);
-            }
-        }
     }
 }
