@@ -19,13 +19,13 @@ namespace LiteDB.Tests.Engine
         {
             using var file = new TempFile();
             using (var db = new LiteDatabase(file.Filename)) db.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1 });
-            var original = File.ReadAllBytes(file.Filename);
+            var original = ReadDataFile(file.Filename);
             original[59].Should().Be(8);
             using (var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, ReadOnly = readOnly, Upgrade = upgrade }))
             {
                 db.GetCollection("docs").Count().Should().Be(1);
             }
-            File.ReadAllBytes(file.Filename).Should().Equal(original);
+            ReadDataFile(file.Filename).Should().Equal(original);
             File.Exists(Path.ChangeExtension(file.Filename, null) + "-backup.db").Should().BeFalse();
         }
 
@@ -42,7 +42,7 @@ namespace LiteDB.Tests.Engine
             docs.Insert(new BsonDocument { ["_id"] = 1, ["Embedding"] = new BsonArray { 1, 0 } });
             docs.EnsureIndex("ordinary", "$.Embedding");
             db.Checkpoint();
-            var original = File.ReadAllBytes(file.Filename);
+            var original = ReadDataFile(file.Filename);
             original[59].Should().Be(8);
             db.CheckpointSize = 0;
             db.BeginTrans();
@@ -57,10 +57,10 @@ namespace LiteDB.Tests.Engine
             else docs.Insert(document);
 
             original[59] = 9;
-            File.ReadAllBytes(file.Filename).Should().Equal(original, "promotion must precede vector commit and preserve every other data byte");
+            ReadDataFile(file.Filename).Should().Equal(original, "promotion must precede vector commit and preserve every other data byte");
             db.Rollback();
             db.Checkpoint();
-            File.ReadAllBytes(file.Filename)[59].Should().Be(9, "rollback must not undo the compatibility boundary");
+            ReadDataFile(file.Filename)[59].Should().Be(9, "rollback must not undo the compatibility boundary");
         }
 
         [Fact]
@@ -116,6 +116,15 @@ namespace LiteDB.Tests.Engine
             ReadVersion(file.Filename, null).Should().Be(9);
             db.GetCollection("ordinary").Count().Should().Be(1);
             db.GetCollection("vectors").Count().Should().Be(1);
+        }
+
+        private static byte[] ReadDataFile(string filename)
+        {
+            // Inspect the flushed bytes while the database still owns its writable handle.
+            using var stream = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var copy = new MemoryStream();
+            stream.CopyTo(copy);
+            return copy.ToArray();
         }
 
         private static byte ReadVersion(string filename, string password)
