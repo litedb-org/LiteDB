@@ -140,6 +140,8 @@ namespace LiteDB.Tests.Document
             }
         }
 
+#if !NETFRAMEWORK
+        // The Framework targets reference netstandard2.0, which omits this overload.
         [Fact]
         public void Serialize_To_ArrayBufferWriter_Matches_Byte_Array()
         {
@@ -153,6 +155,8 @@ namespace LiteDB.Tests.Document
             bufferWriter.WrittenCount.Should().Be(expected.Length);
             bufferWriter.WrittenSpan.ToArray().Should().Equal(expected);
         }
+
+#endif
 
         [Fact]
         public void Serialize_To_Pooled_Buffers_Preserves_Output()
