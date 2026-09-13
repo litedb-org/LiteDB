@@ -35,6 +35,8 @@ namespace LiteDB.Engine
                 {
                     yield return node;
                 }
+
+                indexer.Safepoint();
             }
         }
 

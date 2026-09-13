@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
@@ -11,7 +11,7 @@ namespace LiteDB.Engine
     /// </summary>
     internal partial class BufferReader : IDisposable
     {
-        private readonly IEnumerator<BufferSlice> _source;
+        private IEnumerator<BufferSlice> _source;
         private readonly bool _utcDate;
 
         private BufferSlice _current;
@@ -20,7 +20,7 @@ namespace LiteDB.Engine
 
         private bool _isEOF = false;
 
-        private static readonly ArrayPool<byte> _bufferPool = ArrayPool<byte>.Shared;
+        private readonly ArrayPool<byte> _bufferPool = ArrayPool<byte>.Shared;
 
         /// <summary>
         /// Current global cursor position
@@ -45,13 +45,22 @@ namespace LiteDB.Engine
             _current = buffer;
         }
 
-        public BufferReader(IEnumerable<BufferSlice> source, bool utcDate = false)
+        public BufferReader(IEnumerable<BufferSlice> source, bool utcDate = false, ArrayPool<byte> bufferPool = null)
         {
+            _bufferPool = bufferPool ?? ArrayPool<byte>.Shared;
             _source = source.GetEnumerator();
             _utcDate = utcDate;
 
-            _source.MoveNext();
-            _current = _source.Current;
+            try
+            {
+                _source.MoveNext();
+                _current = _source.Current;
+            }
+            catch
+            {
+                _source.Dispose();
+                throw;
+            }
         }
 
         #region Basic Read
@@ -189,12 +198,16 @@ namespace LiteDB.Engine
             else
             {
                 var buffer = _bufferPool.Rent(size);
+                try
+                {
+                    this.Read(buffer, 0, size);
 
-                this.Read(buffer, 0, size);
-
-                value = convert(buffer, 0);
-
-                _bufferPool.Return(buffer, true);
+                    value = convert(buffer, 0);
+                }
+                finally
+                {
+                    _bufferPool.Return(buffer, true);
+                }
             }
 
             return value;
@@ -268,12 +281,16 @@ namespace LiteDB.Engine
             else
             {
                 var buffer = _bufferPool.Rent(12);
+                try
+                {
+                    this.Read(buffer, 0, 12);
 
-                this.Read(buffer, 0, 12);
-
-                value = new ObjectId(buffer, 0);
-
-                _bufferPool.Return(buffer, true);
+                    value = new ObjectId(buffer, 0);
+                }
+                finally
+                {
+                    _bufferPool.Return(buffer, true);
+                }
             }
 
             return value;
@@ -289,7 +306,7 @@ namespace LiteDB.Engine
             return value;
         }
 
-        private BsonValue ReadVector()
+        internal BsonValue ReadVector()
         {
             var length = this.ReadUInt16();
             var values = new float[length];
@@ -391,7 +408,7 @@ namespace LiteDB.Engine
 
                 while (_position < end && (remaining == null || remaining?.Count > 0))
                 {
-                    var value = this.ReadElement(remaining, out string name);
+                    var value = BsonElementReader.Read(this, remaining, _utcDate, out string name);
 
                     // null value means are not selected field
                     if (value != null)
@@ -427,7 +444,7 @@ namespace LiteDB.Engine
 
                 while (_position < end)
                 {
-                    var value = this.ReadElement(null, out string name);
+                    var value = BsonElementReader.Read(this, null, _utcDate, out string name);
                     arr.Add(value);
                 }
 
@@ -441,125 +458,15 @@ namespace LiteDB.Engine
             }
         }
 
-        /// <summary>
-        /// Reads an element (key-value) from an reader
-        /// </summary>
-        private BsonValue ReadElement(HashSet<string> remaining, out string name)
-        {
-            var type = this.ReadByte();
-            name = this.ReadCString();
-
-            // check if need skip this element
-            if (remaining != null && !remaining.Contains(name))
-            {
-                // define skip length according type
-                var length =
-                    (type == 0x0A || type == 0xFF || type == 0x7F) ? 0 : // Null, MinValue, MaxValue
-                    (type == 0x08) ? 1 : // Boolean
-                    (type == 0x10) ? 4 : // Int
-                    (type == 0x01 || type == 0x12 || type == 0x09) ? 8 : // Double, Int64, DateTime
-                    (type == 0x07) ? 12 : // ObjectId
-                    (type == 0x13) ? 16 : // Decimal
-                    (type == 0x02) ? this.ReadInt32() : // String
-                    (type == 0x05) ? this.ReadInt32() + 1 : // Binary (+1 for subtype)
-                    (type == 0x03 || type == 0x04) ? this.ReadInt32() - 4 : 0; // Document, Array (-4 to Length + zero)
-
-                if (length > 0)
-                {
-                    this.Skip(length);
-                }
-
-                return null;
-            }
-
-            if (type == 0x01) // Double
-            {
-                return this.ReadDouble();
-            }
-            else if (type == 0x02) // String
-            {
-                var length = this.ReadInt32();
-                var value = this.ReadString(length - 1);
-                this.MoveForward(1); // read '\0'
-                return value;
-            }
-            else if (type == 0x03) // Document
-            {
-                return this.ReadDocument().GetValue();
-            }
-            else if (type == 0x04) // Array
-            {
-                return this.ReadArray().GetValue();
-            }
-            else if (type == 0x05) // Binary
-            {
-                var length = this.ReadInt32();
-                var subType = this.ReadByte();
-                var bytes = this.ReadBytes(length);
-
-                switch (subType)
-                {
-                    case 0x00: return bytes;
-                    case 0x04: return new Guid(bytes);
-                }
-            }
-            else if (type == 0x07) // ObjectId
-            {
-                return this.ReadObjectId();
-            }
-            else if (type == 0x08) // Boolean
-            {
-                return this.ReadBoolean();
-            }
-            else if (type == 0x09) // DateTime
-            {
-                var ts = this.ReadInt64();
-
-                // catch specific values for MaxValue / MinValue #19
-                if (ts == 253402300800000) return DateTime.MaxValue;
-                if (ts == -62135596800000) return DateTime.MinValue;
-
-                var date = BsonValue.UnixEpoch.AddMilliseconds(ts);
-
-                return _utcDate ? date : date.ToLocalTime();
-            }
-            else if (type == 0x0A) // Null
-            {
-                return BsonValue.Null;
-            }
-            else if (type == 0x10) // Int32
-            {
-                return this.ReadInt32();
-            }
-            else if (type == 0x12) // Int64
-            {
-                return this.ReadInt64();
-            }
-            else if (type == 0x13) // Decimal
-            {
-                return this.ReadDecimal();
-            }
-            else if (type == 0xFF) // MinKey
-            {
-                return BsonValue.MinValue;
-            }
-            else if (type == 0x7F) // MaxKey
-            {
-                return BsonValue.MaxValue;
-            }
-            else if (type == 0x64) // Vector
-            {
-                return this.ReadVector();
-            }
-
-                throw new NotSupportedException("BSON type not supported");
-        }
 
         #endregion
 
         public void Dispose()
         {
-            _source?.Dispose();
+            var source = _source;
+            _source = null;
+            _current = null;
+            source?.Dispose();
         }
     }
 }

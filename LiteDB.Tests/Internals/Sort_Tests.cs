@@ -10,6 +10,22 @@ namespace LiteDB.Internals
 {
     public class Sort_Tests
     {
+        [Fact]
+        public void Dispose_ReturnsEachStoragePositionOnlyOnce()
+        {
+            var pragmas = new EnginePragmas(null);
+            using var disk = new SortDisk(new StreamFactory(new MemoryStream(), null, true), Constants.PAGE_SIZE, pragmas);
+            using var sorter = new SortService(disk, new[] { Query.Ascending }, pragmas);
+            sorter.Insert(Enumerable.Range(0, 2000)
+                .Select(i => new KeyValuePair<BsonValue, PageAddress>(i, new PageAddress(1, 0))));
+            var count = sorter.Containers.Count;
+            count.Should().BeGreaterThan(1);
+            sorter.Dispose();
+            sorter.Dispose();
+            var positions = Enumerable.Range(0, count * 2).Select(_ => disk.GetContainerPosition()).ToArray();
+            positions.Should().OnlyHaveUniqueItems();
+        }
+
         private readonly IStreamFactory _factory = new StreamFactory(new MemoryStream(), null);
 
         [Fact]
