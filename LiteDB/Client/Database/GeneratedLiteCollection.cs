@@ -110,9 +110,9 @@ namespace LiteDB
             if (_id is null || document.TryGetValue("_id", out var id) == false) return false;
 
             var isEmpty =
-                (_autoId == BsonAutoId.Int32 && id.IsInt32 && id.AsInt32 == 0) ||
-                (_autoId == BsonAutoId.Int64 && id.IsInt64 && id.AsInt64 == 0) ||
-                (_autoId == BsonAutoId.Guid && id.IsGuid && id.AsGuid == Guid.Empty) ||
+                (_autoId == BsonAutoId.Int32 && (id.IsNull || (id.IsInt32 && id.AsInt32 == 0))) ||
+                (_autoId == BsonAutoId.Int64 && (id.IsNull || (id.IsInt64 && id.AsInt64 == 0))) ||
+                (_autoId == BsonAutoId.Guid && (id.IsNull || (id.IsGuid && id.AsGuid == Guid.Empty))) ||
                 (_autoId == BsonAutoId.ObjectId && (id.IsNull || (id.IsObjectId && id.AsObjectId == ObjectId.Empty)));
 
             if (isEmpty == false) return false;

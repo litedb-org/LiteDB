@@ -10,7 +10,7 @@ using static LiteDB.Constants;
 
 namespace LiteDB
 {
-    internal class LinqExpressionVisitor : ExpressionVisitor
+    internal partial class LinqExpressionVisitor : ExpressionVisitor
     {
         private static readonly Dictionary<Type, ITypeResolver> _resolver = new Dictionary<Type, ITypeResolver>
         {
@@ -624,34 +624,6 @@ namespace LiteDB
             }
 
             throw new NotSupportedException($"Operator not supported {nodeType}");
-        }
-
-        /// <summary>
-        /// Returns document field name for some type member
-        /// </summary>
-        private string ResolveMember(MemberInfo member, out MemberMapper memberMapper)
-        {
-            var name = member.Name;
-
-            // checks if parent field are not DbRef (checks for same dataType)
-            var isParentDbRef = _dbRefType != null && member.DeclaringType.IsAssignableFrom(_dbRefType);
-
-            // get class entity from mapper
-            var entity = _useGeneratedMappers && _mapper.HasGeneratedEntityMapper(member.DeclaringType)
-                ? _mapper.GetGeneratedEntityMapper(member.DeclaringType)
-                : _mapper.GetEntityMapper(member.DeclaringType);
-            entity.WaitForInitialization();
-
-            // get mapped field from entity
-            var field = entity.Members.FirstOrDefault(x => x.MemberName == name);
-
-            memberMapper = field ?? throw new NotSupportedException($"Member {name} not found on BsonMapper for type {member.DeclaringType}.");
-
-            // define if this field are DbRef (child will need check parent)
-            _dbRefType = field.IsDbRef ? field.UnderlyingType : null;
-
-            // if parent call is DbRef and are calling _id field, rename to $id
-            return "." + (isParentDbRef && field.FieldName == "_id" ? "$id" : field.FieldName);
         }
 
         /// <summary>

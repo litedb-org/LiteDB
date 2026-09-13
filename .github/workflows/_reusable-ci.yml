@@ -116,6 +116,7 @@ jobs:
   aot-smoke-linux:
     name: Native AOT smoke (Linux)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Check out repository

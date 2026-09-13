@@ -2,7 +2,13 @@
 
 LiteDB supports an opt-in typed-collection path for applications that publish with **Native AOT** and need to avoid runtime discovery of application model members. The path uses a C# incremental source generator to emit `EntityMapper` definitions at compile time. It replaces the former `LiteAotDatabase` wrapper and manual `EntityMapper` construction.
 
-LiteDB itself targets `netstandard2.0` and `net8.0`; its AOT compatibility analysis is enabled only for the `net8.0` target. The consuming application must target **.NET 8 or later** when it publishes with Native AOT.
+LiteDB itself targets `netstandard2.0`, `net8.0`, and `net10.0`; its AOT compatibility analysis is enabled for the .NET application targets (`net8.0` and `net10.0`). The consuming application must target **.NET 8 or later** when it publishes with Native AOT.
+
+## Compatibility notes
+
+`BsonMapper.ResolveCollectionName` changes from a public field to a property so its trimming contract can be caller-visible. This changes the binary member shape, so consumers must rebuild against the updated LiteDB package.
+
+The newly annotated public virtual `BsonMapper.ToObject(Type, BsonDocument)` and `ToObject<T>(BsonDocument)` methods require external overrides to carry the same `RequiresUnreferencedCode` and `RequiresDynamicCode` attributes. Otherwise trim and AOT analysis reports override-contract warnings (`IL2046` and `IL3051`). The same rule applies when overriding other newly annotated mapper extension points.
 
 ## Configure the consuming project
 

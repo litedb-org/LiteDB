@@ -49,12 +49,10 @@ while (($# > 0)); do
     esac
 done
 
-case "$SAMPLE_COUNT" in
-    ''|*[!0-9]*|0)
-        echo "--samples must be a positive integer." >&2
-        exit 2
-        ;;
-esac
+if [[ ! "$SAMPLE_COUNT" =~ ^[0-9]+$ || "$SAMPLE_COUNT" =~ ^0+$ ]]; then
+    echo "--samples must be a positive integer." >&2
+    exit 2
+fi
 
 readonly WORKSPACE_DIRECTORY="$(mktemp -d "${TMPDIR:-/tmp}/litedb-source-generator-incremental.XXXXXX")"
 readonly PROJECT_DIRECTORY="$WORKSPACE_DIRECTORY/SyntheticConsumer"
@@ -180,9 +178,9 @@ run_timed_build() {
 
 verify_generated_mapping() {
     local generated_mapping_file
-    generated_mapping_file="$(find "$GENERATED_DIRECTORY" -name LiteDbGeneratedMappings.g.cs -print -quit)"
+    generated_mapping_file="$(find "$GENERATED_DIRECTORY" -name LiteDbGeneratedMappings.v2.g.cs -print -quit)"
     test -n "$generated_mapping_file"
-    test "$(find "$GENERATED_DIRECTORY" -name LiteDbGeneratedMappings.g.cs -print | wc -l | tr -d '[:space:]')" = 1
+    test "$(find "$GENERATED_DIRECTORY" -name LiteDbGeneratedMappings.v2.g.cs -print | wc -l | tr -d '[:space:]')" = 1
     grep -q 'MeasurementModel128' "$generated_mapping_file"
     grep -q "FieldName = \"$UPDATED_FIELD_NAME\"" "$generated_mapping_file"
 }
