@@ -19,8 +19,8 @@ namespace LiteDB.Engine
             {
                 var snapshot = transaction.CreateSnapshot(LockMode.Write, collection, false);
                 var collectionPage = snapshot.CollectionPage;
-                var data = new DataService(snapshot);
-                var indexer = new IndexService(snapshot, _header.Pragmas.Collation);
+                var data = new DataService(snapshot, _disk.MAX_ITEMS_COUNT);
+                var indexer = new IndexService(snapshot, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
 
                 if (collectionPage == null) return 0;
 
@@ -35,6 +35,8 @@ namespace LiteDB.Engine
 
                     // if pk not found, continue
                     if (pkNode == null) continue;
+
+                    _state.Validate();
 
                     // remove object data
                     data.Delete(pkNode.DataBlock);

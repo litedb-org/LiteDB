@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text;
+
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -8,85 +11,39 @@ namespace LiteDB.Engine
     public partial class LiteEngine
     {
         /// <summary>
-        /// Recreate database using empty LOG file to re-write all documents with all indexes
+        /// Implement a full rebuild database. Engine will be closed and re-created in another instance.
+        /// A backup copy will be created with -backup extention. All data will be readed and re created in another database
+        /// After run, will re-open database
         /// </summary>
         public long Rebuild(RebuildOptions options)
         {
-            // enter database in exclusive mode
-            var mustExit = _locker.EnterExclusive();
+            if (string.IsNullOrEmpty(_settings.Filename)) return 0; // works only with os file
 
-            // get a header backup/savepoint before change
-            PageBuffer savepoint = null;
+            this.Close();
 
-            try
-            {
-                // do a checkpoint before starts
-                _walIndex.Checkpoint();
+            // run build service
+            var rebuilder = new RebuildService(_settings);
 
-                var originalLength = _disk.GetLength(FileOrigin.Data);
+            // return how many bytes of diference from original/rebuild version
+            var diff = rebuilder.Rebuild(options);
 
-                // create a savepoint in header page - restore if any error occurs
-                savepoint = _header.Savepoint();
+            // re-open engine
+            this.Open();
 
-                // must clear all cache pages because all of them will change
-                _disk.Cache.Clear();
+            _state.Disposed = false;
 
-                // must check if there is no data log
-                if (_disk.GetLength(FileOrigin.Log) > 0) throw new LiteException(0, "Rebuild operation requires no log file - run Checkpoint before continue");
+            return diff;
+        }
 
-                // initialize V8 file reader
-                var reader = new FileReaderV8(_header, _disk);
+        /// <summary>
+        /// Implement a full rebuild database. A backup copy will be created with -backup extention. All data will be readed and re created in another database
+        /// </summary>
+        public long Rebuild()
+        {
+            var collation = new Collation(this.Pragma(Pragmas.COLLATION));
+            var password = _settings.Password;
 
-                // clear current header
-                _header.FreeEmptyPageList = uint.MaxValue;
-                _header.LastPageID = 0;
-                _header.GetCollections().ToList().ForEach(c => _header.DeleteCollection(c.Key));
-
-                // override collation pragma
-                if (options?.Collation != null)
-                {
-                    _header.Pragmas.Set(Pragmas.COLLATION, options.Collation.ToString(), false);
-                }
-
-                // rebuild entrie database using FileReader
-                this.RebuildContent(reader);
-
-                // change password (can be a problem if any error occurs after here)
-                if (options != null)
-                {
-                    _disk.ChangePassword(options.Password, _settings);
-                }
-
-                // do checkpoint
-                _walIndex.Checkpoint();
-
-                // override header page
-                _disk.Write(new[] { _header.UpdateBuffer() }, FileOrigin.Data);
-
-                // set new fileLength
-                _disk.SetLength((_header.LastPageID + 1) * PAGE_SIZE, FileOrigin.Data);
-
-                // get new filelength to compare
-                var newLength = _disk.GetLength(FileOrigin.Data);
-
-                return originalLength - newLength;
-            }
-            catch
-            {
-                if (savepoint != null)
-                {
-                    _header.Restore(savepoint);
-                }
-
-                throw;
-            }
-            finally
-            {
-                if (mustExit)
-                {
-                    _locker.ExitExclusive();
-                }
-            }
+            return this.Rebuild(new RebuildOptions { Password = password, Collation = collation });
         }
 
         /// <summary>
@@ -101,22 +58,13 @@ namespace LiteDB.Engine
             {
                 foreach (var collection in reader.GetCollections())
                 {
-                    // first create all user indexes (exclude _id index)
-                    foreach (var index in reader.GetIndexes(collection))
-                    {
-                        this.EnsureIndex(collection,
-                            index.Name,
-                            BsonExpression.Create(index.Expression),
-                            index.Unique);
-                    }
+                    // get snapshot, indexer and data services
+                    var snapshot = transaction.CreateSnapshot(LockMode.Write, collection, true);
+                    var indexer = new IndexService(snapshot, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
+                    var data = new DataService(snapshot, _disk.MAX_ITEMS_COUNT);
 
                     // get all documents from current collection
                     var docs = reader.GetDocuments(collection);
-
-                    // get snapshot, indexer and data services
-                    var snapshot = transaction.CreateSnapshot(LockMode.Write, collection, true);
-                    var indexer = new IndexService(snapshot, _header.Pragmas.Collation);
-                    var data = new DataService(snapshot);
 
                     // insert one-by-one
                     foreach (var doc in docs)
@@ -125,19 +73,26 @@ namespace LiteDB.Engine
 
                         this.InsertDocument(snapshot, doc, BsonAutoId.ObjectId, indexer, data);
                     }
+
+                    // first create all user indexes (exclude _id index)
+                    foreach (var index in reader.GetIndexes(collection))
+                    {
+                        this.EnsureIndex(collection,
+                            index.Name,
+                            BsonExpression.Create(index.Expression),
+                            index.Unique);
+                    }
                 }
 
                 transaction.Commit();
+
+                _monitor.ReleaseTransaction(transaction);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                _walIndex.Clear();
+                this.Close(ex);
 
                 throw;
-            }
-            finally
-            {
-                _monitor.ReleaseTransaction(transaction);
             }
         }
     }

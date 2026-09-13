@@ -2,12 +2,12 @@
 
 	<PropertyGroup>
 		<OutputType>Exe</OutputType>
-		<TargetFrameworks>net472;netcoreapp3.1</TargetFrameworks>
+		<TargetFrameworks>net472;net6</TargetFrameworks>
 		<LangVersion>8</LangVersion>
 	</PropertyGroup>
 
 	<ItemGroup>
-	  <PackageReference Include="BenchmarkDotNet" Version="0.12.0" />
+		<PackageReference Include="BenchmarkDotNet" Version="0.13.12" />
 	</ItemGroup>
 
 	<ItemGroup>

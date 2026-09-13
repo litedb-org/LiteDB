@@ -10,8 +10,8 @@ namespace LiteDB.Engine
     /// </summary>
     internal class QueryPipe : BasePipe
     {
-        public QueryPipe(TransactionService transaction, IDocumentLookup loader, SortDisk tempDisk, EnginePragmas pragmas)
-            : base(transaction, loader, tempDisk, pragmas)
+        public QueryPipe(TransactionService transaction, IDocumentLookup loader, SortDisk tempDisk, EnginePragmas pragmas, uint maxItemsCount)
+            : base(transaction, loader, tempDisk, pragmas, maxItemsCount)
         {
         }
 

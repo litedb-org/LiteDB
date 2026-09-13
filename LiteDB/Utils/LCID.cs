@@ -12,7 +12,7 @@ namespace LiteDB
     /// </summary>
     internal class LCID
     {
-        private static IDictionary<int, string> _mappings = new Dictionary<int, string>()
+        private static readonly IDictionary<int, string> _mappings = new Dictionary<int, string>()
         {
             #region Big freaking list LCID
             [1] = "ar",

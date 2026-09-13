@@ -13,7 +13,7 @@ namespace LiteDB.Tests.Mapper
             public K Name { get; set; }
         }
 
-        private BsonMapper _mapper = new BsonMapper();
+        private readonly BsonMapper _mapper = new BsonMapper();
 
         [Fact]
         public void Generic_Map()

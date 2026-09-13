@@ -49,8 +49,9 @@ namespace LiteDB.Engine
                     ["_position"] = position,
                     ["_origin"] = origin.ToString(),
                     ["_version"] = walVersion,
-                    ["nextPageID"] = (int)page.NextPageID,
                     ["prevPageID"] = (int)page.PrevPageID,
+                    ["nextPageID"] = (int)page.NextPageID,
+                    ["slot"] = (int)page.PageListSlot,
                     ["collection"] = collections.GetOrDefault(page.ColID, "-"),
                     ["itemsCount"] = (int)page.ItemsCount,
                     ["freeBytes"] = page.FreeBytes,
@@ -59,6 +60,24 @@ namespace LiteDB.Engine
                     ["nextFreePosition"] = (int)page.NextFreePosition,
                     ["highestIndex"] = (int)page.HighestIndex
                 };
+
+                if (page.PageType == PageType.Collection)
+                {
+                    var collectionPage = new CollectionPage(page.Buffer);
+                    doc["dataPageList"] = new BsonArray(collectionPage.FreeDataPageList.Select(x => new BsonValue((int)x)));
+                    doc["indexes"] = new BsonArray(collectionPage.GetCollectionIndexes().Select(x => new BsonDocument
+                    {
+                        ["slot"] = (int)x.Slot,
+                        ["empty"] = x.IsEmpty,
+                        ["indexType"] = (int)x.IndexType,
+                        ["name"] = x.Name,
+                        ["expression"] = x.Expression,
+                        ["unique"] = x.Unique,
+                        ["head"] = x.Head.ToBsonValue(),
+                        ["tail"] = x.Tail.ToBsonValue(),
+                        ["freeIndexPageList"] = (int)x.FreeIndexPageList,                        
+                    }));
+                }
 
                 if (pageID.HasValue) doc["buffer"] = page.Buffer.ToArray();
 

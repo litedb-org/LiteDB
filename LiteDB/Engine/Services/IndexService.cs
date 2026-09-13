@@ -12,15 +12,15 @@ namespace LiteDB.Engine
     /// </summary>
     internal class IndexService
     {
-        private static Random _rnd = new Random();
-
         private readonly Snapshot _snapshot;
         private readonly Collation _collation;
+        private readonly uint _maxItemsCount;
 
-        public IndexService(Snapshot snapshot, Collation collation)
+        public IndexService(Snapshot snapshot, Collation collation, uint maxItemsCount)
         {
             _snapshot = snapshot;
             _collation = collation;
+            _maxItemsCount = maxItemsCount;
         }
 
         public Collation Collation => _collation;
@@ -30,10 +30,10 @@ namespace LiteDB.Engine
         /// </summary>
         public CollectionIndex CreateIndex(string name, string expr, bool unique)
         {
-            // get how many butes needed fore each head/tail (both has same size)
+            // get how many bytes needed for each head/tail (both has same size)
             var bytesLength = IndexNode.GetNodeLength(MAX_LEVEL_LENGTH, BsonValue.MinValue, out var keyLength);
 
-            // get a new empty page (each index contains your own linked nodes)
+            // get a new empty page (each index contains its own linked nodes)
             var indexPage = _snapshot.NewPage<IndexPage>();
 
             // create index ref
@@ -69,26 +69,24 @@ namespace LiteDB.Engine
             }
 
             // random level (flip coin mode) - return number between 1-32
-            var level = this.Flip();
-
-            // set index collection with max-index level
-            if (level > index.MaxLevel)
-            {
-                // update max level
-                _snapshot.CollectionPage.UpdateCollectionIndex(index.Name).MaxLevel = level;
-            }
+            var levels = this.Flip();
 
             // call AddNode with key value
-            return this.AddNode(index, key, dataBlock, level, last);
+            return this.AddNode(index, key, dataBlock, levels, last);
         }
 
         /// <summary>
         /// Insert a new node index inside an collection index.
         /// </summary>
-        private IndexNode AddNode(CollectionIndex index, BsonValue key, PageAddress dataBlock, byte level, IndexNode last)
+        private IndexNode AddNode(
+            CollectionIndex index,
+            BsonValue key,
+            PageAddress dataBlock,
+            byte insertLevels,
+            IndexNode last)
         {
             // get a free index page for head note
-            var bytesLength = IndexNode.GetNodeLength(level, key, out var keyLength);
+            var bytesLength = IndexNode.GetNodeLength(insertLevels, key, out var keyLength);
 
             // test for index key maxlength
             if (keyLength > MAX_INDEX_KEY_LENGTH) throw LiteException.InvalidIndexKey($"Index key must be less than {MAX_INDEX_KEY_LENGTH} bytes.");
@@ -96,59 +94,70 @@ namespace LiteDB.Engine
             var indexPage = _snapshot.GetFreeIndexPage(bytesLength, ref index.FreeIndexPageList);
 
             // create node in buffer
-            var node = indexPage.InsertIndexNode(index.Slot, level, key, dataBlock, bytesLength);
+            var node = indexPage.InsertIndexNode(index.Slot, insertLevels, key, dataBlock, bytesLength);
 
             // now, let's link my index node on right place
-            var cur = this.GetNode(index.Head);
-
-            // using as cache last
-            IndexNode cache = null;
+            var leftNode = this.GetNode(index.Head);
+            var counter = 0u;
 
             // scan from top left
-            for (int i = index.MaxLevel - 1; i >= 0; i--)
+            for (int currentLevel = MAX_LEVEL_LENGTH - 1; currentLevel >= 0; currentLevel--)
             {
-                // get cache for last node
-                cache = cache != null && cache.Position == cur.Next[i] ? cache : this.GetNode(cur.Next[i]);
+                var right = leftNode.Next[currentLevel];
 
-                // for(; <while_not_this>; <do_this>) { ... }
-                for (; cur.Next[i].IsEmpty == false; cur = cache)
+                // while: scan from left to right
+                while (right.IsEmpty == false && right != index.Tail)
                 {
-                    // get cache for last node
-                    cache = cache != null && cache.Position == cur.Next[i] ? cache : this.GetNode(cur.Next[i]);
+                    ENSURE(counter++ < _maxItemsCount, "Detected loop in AddNode({0})", node.Position);
+
+                    var rightNode = this.GetNode(right);
 
                     // read next node to compare
-                    var diff = cache.Key.CompareTo(key, _collation);
+                    var diff = rightNode.Key.CompareTo(key, _collation);
 
-                    // if unique and diff = 0, throw index exception (must rollback transaction - others nodes can be dirty)
                     if (diff == 0 && index.Unique) throw LiteException.IndexDuplicateKey(index.Name, key);
 
-                    if (diff == 1) break;
+                    if (diff == 1) break; // stop going right
+
+                    leftNode = rightNode;
+                    right = rightNode.Next[currentLevel];
                 }
 
-                if (i <= (level - 1)) // level == length
+                if (currentLevel <= (insertLevels - 1)) // level == length
                 {
-                    // cur = current (immediately before - prev)
-                    // node = new inserted node
-                    // next = next node (where cur is pointing)
+                    // prev: immediately before new node
+                    // node: new inserted node
+                    // next: right node from prev (where left is pointing)
 
-                    node.SetNext((byte)i, cur.Next[i]);
-                    node.SetPrev((byte)i, cur.Position);
-                    cur.SetNext((byte)i, node.Position);
+                    var prev = leftNode.Position;
+                    var next = leftNode.Next[currentLevel];
 
-                    var next = this.GetNode(node.Next[i]);
+                    // if next is empty, use tail (last key)
+                    if (next.IsEmpty) next = index.Tail;
 
-                    if (next != null)
-                    {
-                        next.SetPrev((byte)i, node.Position);
-                    }
+                    // set new node pointer links with current level sibling
+                    node.SetNext((byte)currentLevel, next);
+                    node.SetPrev((byte)currentLevel, prev);
+
+                    // fix sibling pointer to new node
+                    leftNode.SetNext((byte)currentLevel, node.Position);
+
+                    right = node.Next[currentLevel]; // next
+
+                    var rightNode = this.GetNode(right);
+
+                    // mark right page as dirty (after change PrevID)
+                    rightNode.SetPrev((byte)currentLevel, node.Position);
                 }
             }
 
-            // if last node exists, create a double link list
+            // if last node exists, create a single link list
             if (last != null)
             {
                 ENSURE(last.NextNode == PageAddress.Empty, "last index node must point to null");
 
+                // reload 'last' index node in case the IndexPage has gone through a defrag
+                last = this.GetNode(last.Position);
                 last.SetNextNode(node.Position);
             }
 
@@ -160,19 +169,19 @@ namespace LiteDB.Engine
 
 
         /// <summary>
-        /// Flip coin - skip list - returns level node (start in 1)
+        /// Flip coin (skipped list): returns how many levels the node will have (starts in 1, max of INDEX_MAX_LEVELS)
         /// </summary>
         public byte Flip()
         {
-            byte level = 1;
+            byte levels = 1;
 
-            for (int R = _rnd.Next(); (R & 1) == 1; R >>= 1)
+            for (int R = Randomizer.Next(); (R & 1) == 1; R >>= 1)
             {
-                level++;
-                if (level == MAX_LEVEL_LENGTH) break;
+                levels++;
+                if (levels == MAX_LEVEL_LENGTH) break;
             }
 
-            return level;
+            return levels;
         }
 
         /// <summary>
@@ -193,9 +202,12 @@ namespace LiteDB.Engine
         public IEnumerable<IndexNode> GetNodeList(PageAddress nodeAddress)
         {
             var node = this.GetNode(nodeAddress);
+            var counter = 0u;
 
             while (node != null)
             {
+                ENSURE(counter++ < _maxItemsCount, "Detected loop in GetNodeList({0})", nodeAddress);
+
                 yield return node;
 
                 node = this.GetNode(node.NextNode);
@@ -209,9 +221,12 @@ namespace LiteDB.Engine
         {
             var node = this.GetNode(pkAddress);
             var indexes = _snapshot.CollectionPage.GetCollectionIndexesSlots();
+            var counter = 0u;
 
             while (node != null)
             {
+                ENSURE(counter++ < _maxItemsCount, "Detected loop in DeleteAll({0})", pkAddress);
+
                 this.DeleteSingleNode(node, indexes[node.Slot]);
 
                 // move to next node
@@ -227,9 +242,12 @@ namespace LiteDB.Engine
             var last = this.GetNode(pkAddress);
             var node = this.GetNode(last.NextNode); // starts in first node after PK
             var indexes = _snapshot.CollectionPage.GetCollectionIndexesSlots();
+            var counter = 0u;
 
             while (node != null)
             {
+                ENSURE(counter++ < _maxItemsCount, "Detected loop in DeleteList({0})", pkAddress);
+
                 if (toDelete.Contains(node.Position))
                 {
                     this.DeleteSingleNode(node, indexes[node.Slot]);
@@ -255,7 +273,7 @@ namespace LiteDB.Engine
         /// </summary>
         private void DeleteSingleNode(IndexNode node, CollectionIndex index)
         {
-            for (int i = node.Level - 1; i >= 0; i--)
+            for (int i = node.Levels - 1; i >= 0; i--)
             {
                 // get previous and next nodes (between my deleted node)
                 var prevNode = this.GetNode(node.Prev[i]);
@@ -315,16 +333,19 @@ namespace LiteDB.Engine
         }
 
         #region Find
-        
+
         /// <summary>
         /// Return all index nodes from an index
         /// </summary>
         public IEnumerable<IndexNode> FindAll(CollectionIndex index, int order)
         {
             var cur = order == Query.Ascending ? this.GetNode(index.Head) : this.GetNode(index.Tail);
+            var counter = 0u;
 
             while (!cur.GetNextPrev(0, order).IsEmpty)
             {
+                ENSURE(counter++ < _maxItemsCount, "Detected loop in FindAll({0})", index.Name);
+
                 cur = this.GetNode(cur.GetNextPrev(0, order));
 
                 // stop if node is head/tail
@@ -335,33 +356,43 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// Find first node that index match with value . 
+        /// Find first node that index match with value .
         /// If index are unique, return unique value - if index are not unique, return first found (can start, middle or end)
-        /// If not found but sibling = true, returns near node (only non-unique index)
+        /// If not found but sibling = true and key are not found, returns next value index node (if order = Asc) or prev node (if order = Desc)
         /// </summary>
         public IndexNode Find(CollectionIndex index, BsonValue value, bool sibling, int order)
         {
-            var cur = order == Query.Ascending ? this.GetNode(index.Head) : this.GetNode(index.Tail);
+            var leftNode = order == Query.Ascending ? this.GetNode(index.Head) : this.GetNode(index.Tail);
+            var counter = 0u;
 
-            for (int i = index.MaxLevel - 1; i >= 0; i--)
+            for (int level = MAX_LEVEL_LENGTH - 1; level >= 0; level--)
             {
-                for (; cur.GetNextPrev((byte)i, order).IsEmpty == false; cur = this.GetNode(cur.GetNextPrev((byte)i, order)))
-                {
-                    var next = this.GetNode(cur.GetNextPrev((byte)i, order));
-                    var diff = next.Key.CompareTo(value, _collation);
+                var right = leftNode.GetNextPrev((byte)level, order);
 
-                    if (diff == order && (i > 0 || !sibling)) break;
-                    if (diff == order && i == 0 && sibling)
+                while (right.IsEmpty == false)
+                {
+                    ENSURE(counter++ < _maxItemsCount, "Detected loop in Find({0}, {1})", index.Name, value);
+
+                    var rightNode = this.GetNode(right);
+
+                    var diff = rightNode.Key.CompareTo(value, _collation);
+
+                    if (diff == order && (level > 0 || !sibling)) break; // go down one level
+
+                    if (diff == order && level == 0 && sibling)
                     {
                         // is head/tail?
-                        return (next.Key.IsMinValue || next.Key.IsMaxValue) ? null : next;
+                        return (rightNode.Key.IsMinValue || rightNode.Key.IsMaxValue) ? null : rightNode;
                     }
 
                     // if equals, return index node
                     if (diff == 0)
                     {
-                        return next;
+                        return rightNode;
                     }
+
+                    leftNode = rightNode;
+                    right = rightNode.GetNextPrev((byte)level, order);
                 }
             }
 

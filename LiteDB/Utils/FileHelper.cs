@@ -16,7 +16,7 @@ namespace LiteDB
         /// <summary>
         /// Create a temp filename based on original filename - checks if file exists (if exists, append counter number)
         /// </summary>
-        public static string GetSufixFile(string filename, string suffix = "-temp", bool checkIfExists = true)
+        public static string GetSuffixFile(string filename, string suffix = "-temp", bool checkIfExists = true)
         {
             var count = 0;
             var temp = Path.Combine(Path.GetDirectoryName(filename), 
@@ -37,12 +37,12 @@ namespace LiteDB
         /// <summary>
         /// Get LOG file based on data file
         /// </summary>
-        public static string GetLogFile(string filename) => GetSufixFile(filename, "-log", false);
+        public static string GetLogFile(string filename) => GetSuffixFile(filename, "-log", false);
 
         /// <summary>
         /// Get TEMP file based on data file
         /// </summary>
-        public static string GetTempFile(string filename) => GetSufixFile(filename, "-tmp", false);
+        public static string GetTempFile(string filename) => GetSuffixFile(filename, "-tmp", false);
 
         /// <summary>
         /// Test if file are used by any process
@@ -54,7 +54,7 @@ namespace LiteDB
 
             try
             {
-                stream = file.Open(FileMode.Open, FileAccess.Read, FileShare.None);
+                stream = file.Open(FileMode.Open, FileAccess.ReadWrite, FileShare.None);
             }
             catch (IOException ex)
             {
@@ -72,9 +72,9 @@ namespace LiteDB
         /// <summary>
         /// Try execute some action while has lock exception
         /// </summary>
-        public static bool TryExec(Action action, TimeSpan timeout)
+        public static bool TryExec(int timeout, Action action)
         {
-            var timer = DateTime.UtcNow.Add(timeout);
+            var timer = DateTime.UtcNow.AddSeconds(timeout);
 
             do
             {
@@ -91,6 +91,32 @@ namespace LiteDB
             while (DateTime.UtcNow < timer);
 
             return false;
+        }
+
+        /// <summary>
+        /// Try execute some action while has lock exception. If timeout occurs, throw last exception
+        /// </summary>
+        public static void Exec(int timeout, Action action)
+        {
+            var timer = DateTime.UtcNow.AddSeconds(timeout);
+            IOException exception;
+
+            do
+            {
+                try
+                {
+                    action();
+                    return;
+                }
+                catch (IOException ex)
+                {
+                    exception = ex;
+                    ex.WaitIfLocked(25);
+                }
+            }
+            while (DateTime.UtcNow < timer);
+
+            throw exception;
         }
 
         /// <summary>

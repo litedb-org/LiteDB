@@ -10,11 +10,6 @@ namespace LiteDB.Engine
     public partial class LiteEngine
     {
         /// <summary>
-        /// Sequence cache for collections last ID (for int/long numbers only)
-        /// </summary>
-        private ConcurrentDictionary<string, long> _sequences = new ConcurrentDictionary<string, long>(StringComparer.OrdinalIgnoreCase);
-
-        /// <summary>
         /// Get lastest value from a _id collection and plus 1 - use _sequence cache
         /// </summary>
         private BsonValue GetSequence(Snapshot snapshot, BsonAutoId autoId)

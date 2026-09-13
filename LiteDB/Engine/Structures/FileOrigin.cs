@@ -1,6 +1,6 @@
 ﻿namespace LiteDB.Engine
 {
-    internal enum FileOrigin : byte
+    public enum FileOrigin : byte
     {
         /// <summary>
         /// There is no origin (new page)

@@ -11,7 +11,7 @@ namespace LiteDB.Engine
 {
     /// <summary>
     /// Header page represent first page on datafile. Engine contains a single instance of HeaderPage and all changes
-    /// must be syncornized (using lock).
+    /// must be synchronized (using lock).
     /// </summary>
     internal class HeaderPage : BasePage
     {
@@ -29,14 +29,15 @@ namespace LiteDB.Engine
 
         public const int P_HEADER_INFO = 32;  // 32-58 (27 bytes)
         public const int P_FILE_VERSION = 59; // 59-59 (1 byte)
-        private const int P_FREE_EMPTY_PAGE_ID = 60; // 60-63 (4 bytes)
-        private const int P_LAST_PAGE_ID = 64; // 64-67 (4 bytes)
-        private const int P_CREATION_TIME = 68; // 68-75 (8 bytes)
+        public const int P_FREE_EMPTY_PAGE_ID = 60; // 60-63 (4 bytes)
+        public const int P_LAST_PAGE_ID = 64; // 64-67 (4 bytes)
+        public const int P_CREATION_TIME = 68; // 68-75 (8 bytes)
 
-        private const int P_PRAGMAS = 76; // 76-191 (4 bytes)
+        // private const int P_PRAGMAS = 76; // 76-190 (115 bytes)
+        public const int P_INVALID_DATAFILE_STATE = 191; // 191-191 (1 byte)
 
-        private const int P_COLLECTIONS = 192; // 128-8159 (8064 bytes)
-        private const int COLLECTIONS_SIZE = 8000; // 250 blocks with 32 bytes each
+        public const int P_COLLECTIONS = 192; // 192-8159 (8064 bytes)
+        public const int COLLECTIONS_SIZE = 8000; // 250 blocks with 32 bytes each
 
         #endregion
 
@@ -130,7 +131,7 @@ namespace LiteDB.Engine
 
             using (var r = new BufferReader(new[] { area }, false))
             {
-                _collections = r.ReadDocument();
+                _collections = r.ReadDocument().GetValue();
             }
 
             _isCollectionsChanged = false;

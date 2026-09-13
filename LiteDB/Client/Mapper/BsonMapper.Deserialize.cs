@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
@@ -9,10 +9,28 @@ namespace LiteDB
 {
     public partial class BsonMapper
     {
+        #region Deserialization Hooks
+
+        /// <summary>
+        /// Delegate for deserialization callback.
+        /// </summary>
+        /// <param name="sender">The BsonMapper instance that triggered the deserialization.</param>
+        /// <param name="target">The target type for deserialization.</param>
+        /// <param name="value">The BsonValue to be deserialized.</param>
+        /// <returns>The deserialized BsonValue.</returns>
+        public delegate BsonValue DeserializationCallback(BsonMapper sender, Type target, BsonValue value);
+
+        /// <summary>
+        /// Gets called before deserialization of a value
+        /// </summary>
+        public DeserializationCallback? OnDeserialization { get; set; }
+
+        #endregion Deserialization Hooks
+
         #region Basic direct .NET convert types
 
         // direct bson types
-        private HashSet<Type> _bsonTypes = new HashSet<Type>
+        private readonly HashSet<Type> _bsonTypes = new HashSet<Type>
         {
             typeof(String),
             typeof(Int32),
@@ -27,7 +45,7 @@ namespace LiteDB
         };
 
         // simple convert types
-        private HashSet<Type> _basicTypes = new HashSet<Type>
+        private readonly HashSet<Type> _basicTypes = new HashSet<Type>
         {
             typeof(Int16),
             typeof(UInt16),
@@ -78,6 +96,15 @@ namespace LiteDB
         /// </summary>
         public object Deserialize(Type type, BsonValue value)
         {
+            if (OnDeserialization is not null)
+            {
+                var result = OnDeserialization(this, type, value);
+                if (result is not null)
+                {
+                    value = result;
+                }
+            }
+
             // null value - null returns
             if (value.IsNull) return null;
 
@@ -167,9 +194,17 @@ namespace LiteDB
                 // test if value is object and has _type
                 if (doc.TryGetValue("_type", out var typeField) && typeField.IsString)
                 {
-                    type = _typeNameBinder.GetType(typeField.AsString);
+                    var actualType = _typeNameBinder.GetType(typeField.AsString);
 
-                    if (type == null) throw LiteException.InvalidTypedName(typeField.AsString);
+                    if (actualType == null) throw LiteException.InvalidTypedName(typeField.AsString);
+
+                    // avoid initialize class that are not assignable 
+                    if (!type.IsAssignableFrom(actualType))
+                    {
+                        throw LiteException.DataTypeNotAssignable(type.FullName, actualType.FullName);
+                    }
+
+                    type = actualType;
                 }
                 // when complex type has no definition (== typeof(object)) use Dictionary<string, object> to better set values
                 else if (type == typeof(object))
@@ -178,6 +213,7 @@ namespace LiteDB
                 }
 
                 var entity = this.GetEntityMapper(type);
+                entity.WaitForInitialization();
 
                 // initialize CreateInstance
                 if (entity.CreateInstance == null)
@@ -243,7 +279,7 @@ namespace LiteDB
             }
             else
             {
-                var addMethod = type.GetMethod("Add");
+                var addMethod = type.GetMethod("Add", new Type[] { itemType });
 
                 foreach (BsonValue item in value)
                 {
@@ -293,6 +329,12 @@ namespace LiteDB
             foreach (var par in ctor.GetParameters())
             {
                 var arg = this.Deserialize(par.ParameterType, value[par.Name]);
+
+                //  if name is Id and arg is null, look for _id
+                if (arg == null && StringComparer.OrdinalIgnoreCase.Equals(par.Name, "Id") && value.TryGetValue("_id", out var id))
+                {
+                    arg = this.Deserialize(par.ParameterType, id);
+                }
 
                 args.Add(arg);
             }

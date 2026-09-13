@@ -9,7 +9,7 @@ namespace LiteDB.Shell
     /// </summary>
     internal class OptionSet
     {
-        private Dictionary<string, OptionsParam> _options = new Dictionary<string, OptionsParam>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, OptionsParam> _options = new Dictionary<string, OptionsParam>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
         /// Register all extra non parameter (without -- or /)

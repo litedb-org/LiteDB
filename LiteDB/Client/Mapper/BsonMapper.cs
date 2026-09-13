@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -25,18 +25,12 @@ namespace LiteDB
     public partial class BsonMapper
     {
         #region Properties
-
-        /// <summary>
-        /// Mapping cache between Class/BsonDocument
-        /// </summary>
-        private Dictionary<Type, EntityMapper> _entities = new Dictionary<Type, EntityMapper>();
-
         /// <summary>
         /// Map serializer/deserialize for custom types
         /// </summary>
-        private ConcurrentDictionary<Type, Func<object, BsonValue>> _customSerializer = new ConcurrentDictionary<Type, Func<object, BsonValue>>();
+        private readonly ConcurrentDictionary<Type, Func<object, BsonValue>> _customSerializer = new ConcurrentDictionary<Type, Func<object, BsonValue>>();
 
-        private ConcurrentDictionary<Type, Func<BsonValue, object>> _customDeserializer = new ConcurrentDictionary<Type, Func<BsonValue, object>>();
+        private readonly ConcurrentDictionary<Type, Func<BsonValue, object>> _customDeserializer = new ConcurrentDictionary<Type, Func<BsonValue, object>>();
 
         /// <summary>
         /// Type instantiator function to support IoC
@@ -125,7 +119,7 @@ namespace LiteDB
 
             #region Register CustomTypes
 
-            RegisterType<Uri>(uri => uri.AbsoluteUri, bson => new Uri(bson.AsString));
+            RegisterType<Uri>(uri => uri.IsAbsoluteUri ? uri.AbsoluteUri : uri.ToString(), bson => new Uri(bson.AsString));
             RegisterType<DateTimeOffset>(value => new BsonValue(value.UtcDateTime), bson => bson.AsDateTime.ToUniversalTime());
             RegisterType<TimeSpan>(value => new BsonValue(value.Ticks), bson => new TimeSpan(bson.AsInt64));
             RegisterType<Regex>(
@@ -184,6 +178,20 @@ namespace LiteDB
             return expr;
         }
 
+        /// <summary>
+        /// Resolve LINQ expression into BsonExpression (for index only)
+        /// </summary>
+        public BsonExpression GetIndexExpression<T, K>(Expression<Func<T, K>> predicate)
+        {
+            var visitor = new LinqExpressionVisitor(this, predicate);
+
+            var expr = visitor.Resolve(false);
+
+            LOG($"`{predicate.ToString()}` -> `{expr.Source}`", "LINQ");
+
+            return expr;
+        }
+
         #endregion
 
         #region Predefinded Property Resolvers
@@ -198,7 +206,7 @@ namespace LiteDB
             return this;
         }
 
-        private Regex _lowerCaseDelimiter = new Regex("(?!(^[A-Z]))([A-Z])", RegexOptions.Compiled);
+        private readonly Regex _lowerCaseDelimiter = new Regex("(?!(^[A-Z]))([A-Z])", RegexOptions.Compiled);
 
         /// <summary>
         /// Uses lower camel case with delimiter to convert property names to field names
@@ -208,234 +216,6 @@ namespace LiteDB
             this.ResolveFieldName = (s) => _lowerCaseDelimiter.Replace(s, delimiter + "$2").ToLower();
 
             return this;
-        }
-
-        #endregion
-
-        #region GetEntityMapper
-
-        /// <summary>
-        /// Get property mapper between typed .NET class and BsonDocument - Cache results
-        /// </summary>
-        internal EntityMapper GetEntityMapper(Type type)
-        {
-            //TODO: needs check if Type if BsonDocument? Returns empty EntityMapper?
-
-            if (!_entities.TryGetValue(type, out EntityMapper mapper))
-            {
-                lock (_entities)
-                {
-                    if (!_entities.TryGetValue(type, out mapper))
-                    {
-                        return _entities[type] = this.BuildEntityMapper(type);
-                    }
-                }
-            }
-
-            return mapper;
-        }
-
-        /// <summary>
-        /// Use this method to override how your class can be, by default, mapped from entity to Bson document.
-        /// Returns an EntityMapper from each requested Type
-        /// </summary>
-        protected virtual EntityMapper BuildEntityMapper(Type type)
-        {
-            var mapper = new EntityMapper(type);
-
-            var idAttr = typeof(BsonIdAttribute);
-            var ignoreAttr = typeof(BsonIgnoreAttribute);
-            var fieldAttr = typeof(BsonFieldAttribute);
-            var dbrefAttr = typeof(BsonRefAttribute);
-
-            var members = this.GetTypeMembers(type);
-            var id = this.GetIdMember(members);
-
-            foreach (var memberInfo in members)
-            {
-                // checks [BsonIgnore]
-                if (CustomAttributeExtensions.IsDefined(memberInfo, ignoreAttr, true)) continue;
-
-                // checks field name conversion
-                var name = this.ResolveFieldName(memberInfo.Name);
-
-                // check if property has [BsonField]
-                var field = (BsonFieldAttribute)CustomAttributeExtensions.GetCustomAttributes(memberInfo, fieldAttr, true).FirstOrDefault();
-
-                // check if property has [BsonField] with a custom field name
-                if (field != null && field.Name != null)
-                {
-                    name = field.Name;
-                }
-
-                // checks if memberInfo is id field
-                if (memberInfo == id)
-                {
-                    name = "_id";
-                }
-
-                // create getter/setter function
-                var getter = Reflection.CreateGenericGetter(type, memberInfo);
-                var setter = Reflection.CreateGenericSetter(type, memberInfo);
-
-                // check if property has [BsonId] to get with was setted AutoId = true
-                var autoId = (BsonIdAttribute)CustomAttributeExtensions.GetCustomAttributes(memberInfo, idAttr, true).FirstOrDefault();
-
-                // get data type
-                var dataType = memberInfo is PropertyInfo ?
-                    (memberInfo as PropertyInfo).PropertyType :
-                    (memberInfo as FieldInfo).FieldType;
-
-                // check if datatype is list/array
-                var isEnumerable = Reflection.IsEnumerable(dataType);
-
-                // create a property mapper
-                var member = new MemberMapper
-                {
-                    AutoId = autoId == null ? true : autoId.AutoId,
-                    FieldName = name,
-                    MemberName = memberInfo.Name,
-                    DataType = dataType,
-                    IsEnumerable = isEnumerable,
-                    UnderlyingType = isEnumerable ? Reflection.GetListItemType(dataType) : dataType,
-                    Getter = getter,
-                    Setter = setter
-                };
-
-                // check if property has [BsonRef]
-                var dbRef = (BsonRefAttribute)CustomAttributeExtensions.GetCustomAttributes(memberInfo, dbrefAttr, false).FirstOrDefault();
-
-                if (dbRef != null && memberInfo is PropertyInfo)
-                {
-                    BsonMapper.RegisterDbRef(this, member, _typeNameBinder, dbRef.Collection ?? this.ResolveCollectionName((memberInfo as PropertyInfo).PropertyType));
-                }
-
-                // support callback to user modify member mapper
-                this.ResolveMember?.Invoke(type, memberInfo, member);
-
-                // test if has name and there is no duplicate field
-                if (member.FieldName != null && mapper.Members.Any(x => x.FieldName.Equals(name, StringComparison.OrdinalIgnoreCase)) == false)
-                {
-                    mapper.Members.Add(member);
-                }
-            }
-
-            return mapper;
-        }
-
-        /// <summary>
-        /// Gets MemberInfo that refers to Id from a document object.
-        /// </summary>
-        protected virtual MemberInfo GetIdMember(IEnumerable<MemberInfo> members)
-        {
-            return Reflection.SelectMember(members,
-                x => CustomAttributeExtensions.IsDefined(x, typeof(BsonIdAttribute), true),
-                x => x.Name.Equals("Id", StringComparison.OrdinalIgnoreCase),
-                x => x.Name.Equals(x.DeclaringType.Name + "Id", StringComparison.OrdinalIgnoreCase));
-        }
-
-        /// <summary>
-        /// Returns all member that will be have mapper between POCO class to document
-        /// </summary>
-        protected virtual IEnumerable<MemberInfo> GetTypeMembers(Type type)
-        {
-            var members = new List<MemberInfo>();
-
-            var flags = this.IncludeNonPublic ?
-                (BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance) :
-                (BindingFlags.Public | BindingFlags.Instance);
-
-            members.AddRange(type.GetProperties(flags)
-                .Where(x => x.CanRead && x.GetIndexParameters().Length == 0)
-                .Select(x => x as MemberInfo));
-
-            if (this.IncludeFields)
-            {
-                members.AddRange(type.GetFields(flags).Where(x => !x.Name.EndsWith("k__BackingField") && x.IsStatic == false).Select(x => x as MemberInfo));
-            }
-
-            return members;
-        }
-
-        /// <summary>
-        /// Get best construtor to use to initialize this entity.
-        /// - Look if contains [BsonCtor] attribute
-        /// - Look for parameterless ctor
-        /// - Look for first contructor with parameter and use BsonDocument to send RawValue
-        /// </summary>
-        protected virtual CreateObject GetTypeCtor(EntityMapper mapper)
-        {
-            var ctors = mapper.ForType.GetConstructors();
-
-            var ctor =
-                ctors.FirstOrDefault(x => x.GetCustomAttribute<BsonCtorAttribute>() != null && x.GetParameters().All(p => Reflection.ConvertType.ContainsKey(p.ParameterType) || _basicTypes.Contains(p.ParameterType) || p.ParameterType.GetTypeInfo().IsEnum)) ??
-                ctors.FirstOrDefault(x => x.GetParameters().Length == 0) ??
-                ctors.FirstOrDefault(x => x.GetParameters().All(p => Reflection.ConvertType.ContainsKey(p.ParameterType) || _customDeserializer.ContainsKey(p.ParameterType) || _basicTypes.Contains(p.ParameterType) || p.ParameterType.GetTypeInfo().IsEnum));
-
-            if (ctor == null) return null;
-
-            var pars = new List<Expression>();
-            var pDoc = Expression.Parameter(typeof(BsonDocument), "_doc");
-
-            // otherwise, need access ctor with parameter
-            foreach (var p in ctor.GetParameters())
-            {
-                // try first get converted named (useful for Id => _id)
-                var name = mapper.Members.FirstOrDefault(x => x.MemberName.Equals(p.Name, StringComparison.OrdinalIgnoreCase))?.FieldName ??
-                    p.Name;
-
-                var expr = Expression.MakeIndex(pDoc,
-                    Reflection.DocumentItemProperty,
-                    new[] { Expression.Constant(name) });
-
-                if (_customDeserializer.TryGetValue(p.ParameterType, out var func))
-                {
-                    var deserializer = Expression.Constant(func);
-                    var call = Expression.Invoke(deserializer, expr);
-                    var cast = Expression.Convert(call, p.ParameterType);
-                    pars.Add(cast);
-                }
-                else if (_basicTypes.Contains(p.ParameterType))
-                {
-                    var typeExpr = Expression.Constant(p.ParameterType);
-                    var rawValue = Expression.Property(expr, typeof(BsonValue).GetProperty("RawValue"));
-                    var convertTypeFunc = Expression.Call(typeof(Convert).GetMethod("ChangeType", new Type[] { typeof(object), typeof(Type) }), rawValue, typeExpr);
-                    var cast = Expression.Convert(convertTypeFunc, p.ParameterType);
-                    pars.Add(cast);
-                }
-                else if (p.ParameterType.GetTypeInfo().IsEnum && this.EnumAsInteger)
-                {
-                    var typeExpr = Expression.Constant(p.ParameterType);
-                    var rawValue = Expression.PropertyOrField(expr, "AsInt32");
-                    var convertTypeFunc = Expression.Call(typeof(Enum).GetMethod("ToObject", new Type[] { typeof(Type), typeof(Int32) }), typeExpr, rawValue);
-                    var cast = Expression.Convert(convertTypeFunc, p.ParameterType);
-                    pars.Add(cast);
-                }
-                else if (p.ParameterType.GetTypeInfo().IsEnum)
-                {
-                    var typeExpr = Expression.Constant(p.ParameterType);
-                    var rawValue = Expression.PropertyOrField(expr, "AsString");
-                    var convertTypeFunc = Expression.Call(typeof(Enum).GetMethod("Parse", new Type[] { typeof(Type), typeof(string) }), typeExpr, rawValue);
-                    var cast = Expression.Convert(convertTypeFunc, p.ParameterType);
-                    pars.Add(cast);
-                }
-                else
-                {
-                    var propInfo = Reflection.ConvertType[p.ParameterType];
-                    var prop = Expression.Property(expr, propInfo);
-                    pars.Add(prop);
-                }
-            }
-
-            // get `new MyClass([params])` expression
-            var newExpr = Expression.New(ctor, pars.ToArray());
-
-            // get lambda expression
-            var fn = mapper.ForType.GetTypeInfo().IsClass ?
-                Expression.Lambda<CreateObject>(newExpr, pDoc).Compile() : // Class
-                Expression.Lambda<CreateObject>(Expression.Convert(newExpr, typeof(object)), pDoc).Compile(); // Struct
-
-            return fn;
         }
 
         #endregion
@@ -466,12 +246,13 @@ namespace LiteDB
         {
             // get entity
             var entity = mapper.GetEntityMapper(member.DataType);
-
+            
             member.Serialize = (obj, m) =>
             {
                 // supports null values when "SerializeNullValues = true"
                 if (obj == null) return BsonValue.Null;
-
+                entity.WaitForInitialization();
+                
                 var idField = entity.Id;
 
                 // #768 if using DbRef with interface with no ID mapped
@@ -514,7 +295,7 @@ namespace LiteDB
                     }
 
                     return m.Deserialize(entity.ForType, doc);
-                    
+
                 }
                 else
                 {
@@ -539,7 +320,8 @@ namespace LiteDB
             {
                 // supports null values when "SerializeNullValues = true"
                 if (list == null) return BsonValue.Null;
-
+                entity.WaitForInitialization();
+                
                 var result = new BsonArray();
                 var idField = entity.Id;
 

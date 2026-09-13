@@ -12,7 +12,7 @@ namespace LiteDB
 {
     internal class LinqExpressionVisitor : ExpressionVisitor
     {
-        private static Dictionary<Type, ITypeResolver> _resolver = new Dictionary<Type, ITypeResolver>
+        private static readonly Dictionary<Type, ITypeResolver> _resolver = new Dictionary<Type, ITypeResolver>
         {
             [typeof(BsonValue)] = new BsonValueResolver(),
             [typeof(BsonArray)] = new BsonValueResolver(),
@@ -619,6 +619,7 @@ namespace LiteDB
 
             // get class entity from mapper
             var entity = _mapper.GetEntityMapper(member.DeclaringType);
+            entity.WaitForInitialization();
 
             // get mapped field from entity
             var field = entity.Members.FirstOrDefault(x => x.MemberName == name);

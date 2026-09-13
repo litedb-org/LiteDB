@@ -14,7 +14,7 @@ namespace LiteDB.Tests.Mapper
             public IDictionary<DateTime, string> DateDict { get; set; } = new Dictionary<DateTime, string>();
         }
 
-        private BsonMapper _mapper = new BsonMapper();
+        private readonly BsonMapper _mapper = new BsonMapper();
 
         [Fact]
         public void Dictionary_Map()

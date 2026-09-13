@@ -44,12 +44,6 @@ namespace LiteDB
         {
             if (connectionString == null) throw new ArgumentNullException(nameof(connectionString));
 
-            if (connectionString.Upgrade == true)
-            {
-                // try upgrade if need
-                LiteEngine.Upgrade(connectionString.Filename, connectionString.Password, connectionString.Collation);
-            }
-
             _engine = connectionString.CreateEngine();
             _mapper = mapper ?? BsonMapper.Global;
             _disposeOnClose = true;
@@ -95,7 +89,7 @@ namespace LiteDB
         #region Collections
 
         /// <summary>
-        /// Get a collection using a entity class as strong typed document. If collection does not exits, create a new one.
+        /// Get a collection using an entity class as strong typed document. If collection does not exist, create a new one.
         /// </summary>
         /// <param name="name">Collection name (case insensitive)</param>
         /// <param name="autoId">Define autoId data type (when object contains no id field)</param>
@@ -121,7 +115,7 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Get a collection using a generic BsonDocument. If collection does not exits, create a new one.
+        /// Get a collection using a generic BsonDocument. If collection does not exist, create a new one.
         /// </summary>
         /// <param name="name">Collection name (case insensitive)</param>
         /// <param name="autoId">Define autoId data type (when document contains no _id field)</param>
@@ -291,7 +285,7 @@ namespace LiteDB
         /// </summary>
         public long Rebuild(RebuildOptions options = null)
         {
-            return _engine.Rebuild(options);
+            return _engine.Rebuild(options ?? new RebuildOptions());
         }
 
         #endregion

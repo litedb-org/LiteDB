@@ -10,7 +10,7 @@ namespace LiteDB.Internals
 {
     public class Sort_Tests
     {
-        private IStreamFactory _factory = new StreamFactory(new MemoryStream(), null);
+        private readonly IStreamFactory _factory = new StreamFactory(new MemoryStream(), null);
 
         [Fact]
         public void Sort_String_Asc()

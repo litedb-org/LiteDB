@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Threading;
 using static LiteDB.Constants;
 
 namespace LiteDB
@@ -13,6 +14,8 @@ namespace LiteDB
     /// </summary>
     public class EntityMapper
     {
+        private readonly CancellationToken _initializationToken;
+
         /// <summary>
         /// Indicate which Type this entity mapper is
         /// </summary>
@@ -33,8 +36,9 @@ namespace LiteDB
         /// </summary>
         public CreateObject CreateInstance { get; set; }
 
-        public EntityMapper(Type forType)
+        public EntityMapper(Type forType, CancellationToken initializationToken = default)
         {
+            _initializationToken = initializationToken;
             this.ForType = forType;
         }
 
@@ -44,6 +48,24 @@ namespace LiteDB
         public MemberMapper GetMember(Expression expr)
         {
             return this.Members.FirstOrDefault(x => x.MemberName == expr.GetPath());
+        }
+
+        public void WaitForInitialization()
+        {
+            if
+            (
+                _initializationToken == default
+                || _initializationToken == CancellationToken.None
+                || _initializationToken.IsCancellationRequested
+            )
+            {
+                return;
+            }
+
+            if (!_initializationToken.WaitHandle.WaitOne(TimeSpan.FromSeconds(5)))
+            {
+                throw new LiteException(LiteException.ENTITY_INITIALIZATION_FAILED, "Initialization timeout");
+            }
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -7,6 +7,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
+
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -57,9 +58,24 @@ namespace LiteDB.Engine
         public bool ReadOnly { get; set; } = false;
 
         /// <summary>
+        /// After a Close with exception do a database rebuild on next open
+        /// </summary>
+        public bool AutoRebuild { get; set; } = false;
+
+        /// <summary>
+        /// If detect it's a older version (v4) do upgrade in datafile to new v5. A backup file will be keeped in same directory
+        /// </summary>
+        public bool Upgrade { get; set; } = false;
+
+        /// <summary>
+        /// Is used to transform a <see cref="BsonValue"/> from the database on read. This can be used to upgrade data from older versions.
+        /// </summary>
+        public Func<string, BsonValue, BsonValue> ReadTransform { get; set; }
+
+        /// <summary>
         /// Create new IStreamFactory for datafile
         /// </summary>
-        internal IStreamFactory CreateDataFactory()
+        internal IStreamFactory CreateDataFactory(bool useAesStream = true)
         {
             if (this.DataStream != null)
             {
@@ -75,7 +91,7 @@ namespace LiteDB.Engine
             }
             else if (!string.IsNullOrEmpty(this.Filename))
             {
-                return new FileStreamFactory(this.Filename, this.Password, this.ReadOnly, false);
+                return new FileStreamFactory(this.Filename, this.Password, this.ReadOnly, false, useAesStream);
             }
 
             throw new ArgumentException("EngineSettings must have Filename or DataStream as data source");

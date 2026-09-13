@@ -13,7 +13,7 @@ namespace LiteDB
     {
         private readonly static IFormatProvider _numberFormat = CultureInfo.InvariantCulture.NumberFormat;
 
-        private Tokenizer _tokenizer = null;
+        private readonly Tokenizer _tokenizer = null;
 
         public long Position { get { return _tokenizer.Position; } }
 

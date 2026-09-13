@@ -38,6 +38,7 @@ namespace LiteDB
         public const int COLLECTION_ALREADY_EXIST = 134;
         public const int INDEX_ALREADY_EXIST = 135;
         public const int INVALID_UPDATE_FIELD = 136;
+        public const int ENGINE_DISPOSED = 137;
 
         public const int INVALID_FORMAT = 200;
         public const int DOCUMENT_MAX_DEPTH = 201;
@@ -51,6 +52,17 @@ namespace LiteDB
         public const int INVALID_INITIALSIZE = 211;
         public const int INVALID_NULL_CHAR_STRING = 212;
         public const int INVALID_FREE_SPACE_PAGE = 213;
+        public const int DATA_TYPE_NOT_ASSIGNABLE = 214;
+        public const int AVOID_USE_OF_PROCESS = 215;
+        public const int NOT_ENCRYPTED = 216;
+        public const int INVALID_PASSWORD = 217;
+        public const int ILLEGAL_DESERIALIZATION_TYPE = 218;
+        public const int ENTITY_INITIALIZATION_FAILED = 219;
+        public const int MAPPER_NOT_FOUND = 220;
+        public const int MAPPING_ERROR = 221;
+        
+
+        public const int INVALID_DATAFILE_STATE = 999;
 
         #endregion
 
@@ -76,6 +88,11 @@ namespace LiteDB
         {
             this.ErrorCode = code;
         }
+
+        /// <summary>
+        /// Critical error should be stop engine and release data files and all memory allocation
+        /// </summary>
+        public bool IsCritical => this.ErrorCode >= 900;
 
         #endregion
 
@@ -283,6 +300,11 @@ namespace LiteDB
             return new LiteException(INVALID_INITIALSIZE, "Initial Size must be a multiple of page size ({0} bytes).", PAGE_SIZE);
         }
 
+        internal static LiteException EngineDisposed()
+        {
+            return new LiteException(ENGINE_DISPOSED, "This engine instance already disposed.");
+        }
+
         internal static LiteException InvalidNullCharInString()
         {
             return new LiteException(INVALID_NULL_CHAR_STRING, "Invalid null character (\\0) was found in the string");
@@ -304,6 +326,31 @@ namespace LiteDB
         internal static LiteException InvalidFreeSpacePage(uint pageID, int freeBytes, int length)
         {
             return new LiteException(INVALID_FREE_SPACE_PAGE, $"An operation that would corrupt page {pageID} was prevented. The operation required {length} free bytes, but the page had only {freeBytes} available.");
+        }
+
+        internal static LiteException DataTypeNotAssignable(string type1, string type2)
+        {
+            return new LiteException(DATA_TYPE_NOT_ASSIGNABLE, $"Data type {type1} is not assignable from data type {type2}");
+        }
+            
+        internal static LiteException FileNotEncrypted()
+        {
+            return new LiteException(NOT_ENCRYPTED, "File is not encrypted.");
+        }
+
+        internal static LiteException InvalidPassword()
+        {
+            return new LiteException(INVALID_PASSWORD, "Invalid password.");
+        }
+
+        internal static LiteException IllegalDeserializationType(string typeName)
+        {
+            return new LiteException(ILLEGAL_DESERIALIZATION_TYPE, $"Illegal deserialization type: {typeName}");
+        }
+
+        internal static LiteException InvalidDatafileState(string message)
+        {
+            return new LiteException(INVALID_DATAFILE_STATE, message);
         }
 
         #endregion

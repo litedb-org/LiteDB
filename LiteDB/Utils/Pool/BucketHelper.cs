@@ -7,7 +7,7 @@ namespace LiteDB
     {
         public const int BucketCount = 17;
 
-        private static int[] _bucketSize;
+        private static readonly int[] _bucketSize;
 
         static BucketHelper()
         {

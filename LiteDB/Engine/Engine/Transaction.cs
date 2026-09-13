@@ -14,6 +14,8 @@ namespace LiteDB.Engine
         /// </summary>
         public bool BeginTrans()
         {
+            _state.Validate();
+
             var transacion = _monitor.GetTransaction(true, false, out var isNew);
 
             transacion.ExplicitTransaction = true;
@@ -30,6 +32,8 @@ namespace LiteDB.Engine
         /// </summary>
         public bool Commit()
         {
+            _state.Validate();
+
             var transaction = _monitor.GetTransaction(false, false, out _);
 
             if (transaction != null)
@@ -53,6 +57,8 @@ namespace LiteDB.Engine
         /// </summary>
         public bool Rollback()
         {
+            _state.Validate();
+
             var transaction = _monitor.GetTransaction(false, false, out _);
 
             if (transaction != null && transaction.State == TransactionState.Active)
@@ -72,6 +78,8 @@ namespace LiteDB.Engine
         /// </summary>
         private T AutoTransaction<T>(Func<TransactionService, T> fn)
         {
+            _state.Validate();
+
             var transaction = _monitor.GetTransaction(true, false, out var isNew);
 
             try
@@ -86,11 +94,12 @@ namespace LiteDB.Engine
             }
             catch(Exception ex)
             {
-                LOG(ex.Message, "ERROR");
+                if (_state.Handle(ex))
+                {
+                    transaction.Rollback();
 
-                transaction.Rollback();
-
-                _monitor.ReleaseTransaction(transaction);
+                    _monitor.ReleaseTransaction(transaction);
+                }
 
                 throw;
             }
@@ -99,9 +108,15 @@ namespace LiteDB.Engine
         private void CommitAndReleaseTransaction(TransactionService transaction)
         {
             transaction.Commit();
+
             _monitor.ReleaseTransaction(transaction);
-            if (_header.Pragmas.Checkpoint > 0 && _disk.GetLength(FileOrigin.Log) > (_header.Pragmas.Checkpoint * PAGE_SIZE))
+
+            // try checkpoint when finish transaction and log file are bigger than checkpoint pragma value (in pages)
+            if (_header.Pragmas.Checkpoint > 0 && 
+                _disk.GetFileLength(FileOrigin.Log) > (_header.Pragmas.Checkpoint * PAGE_SIZE))
+            {
                 _walIndex.TryCheckpoint();
+            }
         }
     }
 }

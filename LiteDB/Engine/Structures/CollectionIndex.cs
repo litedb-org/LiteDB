@@ -48,9 +48,9 @@ namespace LiteDB.Engine
         public PageAddress Tail { get; set; }
 
         /// <summary>
-        /// Get/Set collection max level
+        /// Reserved byte (old max level)
         /// </summary>
-        public byte MaxLevel { get; set; } = 1;
+        public byte Reserved { get; set; } = 1;
 
         /// <summary>
         /// Free index page linked-list (all pages here must have at least 600 bytes)
@@ -86,7 +86,7 @@ namespace LiteDB.Engine
             this.Unique = reader.ReadBoolean();
             this.Head = reader.ReadPageAddress(); // 5
             this.Tail = reader.ReadPageAddress(); // 5
-            this.MaxLevel = reader.ReadByte(); // 1
+            this.Reserved = reader.ReadByte(); // 1
             this.FreeIndexPageList = reader.ReadUInt32(); // 4
 
             this.BsonExpr = BsonExpression.Create(this.Expression);
@@ -101,7 +101,7 @@ namespace LiteDB.Engine
             writer.Write(this.Unique);
             writer.Write(this.Head);
             writer.Write(this.Tail);
-            writer.Write(this.MaxLevel);
+            writer.Write(this.Reserved);
             writer.Write(this.FreeIndexPageList);
         }
 
@@ -121,13 +121,13 @@ namespace LiteDB.Engine
             return
                 1 + // Slot
                 1 + // IndexType
-                Encoding.UTF8.GetByteCount(name) + 1 + // Name + \0
-                Encoding.UTF8.GetByteCount(expr) + 1 + // Expression + \0
+                StringEncoding.UTF8.GetByteCount(name) + 1 + // Name + \0
+                StringEncoding.UTF8.GetByteCount(expr) + 1 + // Expression + \0
                 1 + // Unique
                 PageAddress.SIZE + // Head
                 PageAddress.SIZE + // Tail
                 1 + // MaxLevel
-                (PAGE_FREE_LIST_SLOTS * PageAddress.SIZE); // FreeListPage
+                4; // FreeListPage
         }
     }
 }

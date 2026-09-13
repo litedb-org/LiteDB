@@ -83,13 +83,16 @@ namespace LiteDB.Engine
         /// </summary>
         public void Write(long position, BufferSlice buffer)
         {
-            var writer = _pool.Writer;
+            var writer = _pool.Writer.Value;
 
             // there is only a single writer instance, must be lock to ensure only 1 single thread are writing
             lock(writer)
             {
-                writer.Position = position;
-                writer.Write(buffer.Array, buffer.Offset, _containerSize);
+                for (var i = 0; i < _containerSize / PAGE_SIZE; ++i)
+                {
+                    writer.Position = position + i * PAGE_SIZE;
+                    writer.Write(buffer.Array, buffer.Offset + i * PAGE_SIZE, PAGE_SIZE);
+                }
             }
         }
 

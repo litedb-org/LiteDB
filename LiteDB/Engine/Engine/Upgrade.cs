@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Buffers;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using static LiteDB.Constants;
@@ -7,10 +9,45 @@ namespace LiteDB.Engine
 {
     public partial class LiteEngine
     {
+
+        private static readonly ArrayPool<byte> _bufferPool = ArrayPool<byte>.Shared;
+
+        /// <summary>
+        /// If Upgrade=true, run this before open Disk service
+        /// </summary>
+        private void TryUpgrade()
+        {
+            var filename = _settings.Filename;
+
+            // if file not exists, just exit
+            if (!File.Exists(filename)) return;
+
+            const int bufferSize = 1024;
+            var buffer = _bufferPool.Rent(bufferSize);
+
+            using (var stream = new FileStream(
+                _settings.Filename,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read, bufferSize))
+            {
+
+
+                stream.Position = 0;
+                stream.Read(buffer, 0, bufferSize);
+
+                if (FileReaderV7.IsVersion(buffer) == false) return;
+            }
+            _bufferPool.Return(buffer, true);
+            // run rebuild process
+            this.Recovery(_settings.Collation);
+        }
+
         /// <summary>
         /// Upgrade old version of LiteDB into new LiteDB file structure. Returns true if database was completed converted
         /// If database already in current version just return false
         /// </summary>
+        [Obsolete("Upgrade your LiteDB v4 datafiles using Upgrade=true in EngineSettings. You can use upgrade=true in connection string.")]
         public static bool Upgrade(string filename, string password = null, Collation collation = null)
         {
             if (filename.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(filename));
@@ -20,25 +57,14 @@ namespace LiteDB.Engine
             {
                 Filename = filename,
                 Password = password,
-                Collation = collation
+                Collation = collation,
+                Upgrade = true
             };
 
-            var backup = FileHelper.GetSufixFile(filename, "-backup", true);
-
-            settings.Filename = FileHelper.GetSufixFile(filename, "-temp", true);
-
-
-            using (var stream = new FileStream(filename, FileMode.Open, FileAccess.Read))
+            using (var db = new LiteEngine(settings))
             {
-                if (!TryUpgradeStreamInternal(password, stream, settings))
-                    return false;
+                // database are now converted to v5
             }
-
-            // rename source filename to backup name
-            File.Move(filename, backup);
-
-            // rename temp file into filename
-            File.Move(settings.Filename, filename);
 
             return true;
         }
@@ -64,7 +90,7 @@ namespace LiteDB.Engine
                     return false;
                 ms.Flush();
                 ms.Seek(0, SeekOrigin.Begin);
-                
+
                 stream.Seek(0, SeekOrigin.Begin);
                 stream.SetLength(0);
                 ms.CopyTo(stream);
@@ -95,7 +121,8 @@ namespace LiteDB.Engine
             if (Encoding.UTF8.GetString(buffer, 25, HeaderPage.HEADER_INFO.Length) == HeaderPage.HEADER_INFO &&
                 buffer[52] == 7)
             {
-                reader = new FileReaderV7(stream, password);
+                reader = new FileReaderV7(new EngineSettings { DataStream = stream, Password = password });
+                reader.Open();
             }
             else
             {
@@ -116,7 +143,7 @@ namespace LiteDB.Engine
                 engine.Pragma(Pragmas.CHECKPOINT, 1000);
 
                 // copy userVersion from old datafile
-                engine.Pragma("USER_VERSION", (reader as FileReaderV7).UserVersion);
+                engine.Pragma("USER_VERSION", reader.GetPragmas()[Pragmas.USER_VERSION]);
             }
 
             return true;

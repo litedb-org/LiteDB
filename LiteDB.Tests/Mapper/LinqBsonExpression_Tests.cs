@@ -109,7 +109,7 @@ namespace LiteDB.Tests.Mapper
 
         #endregion
 
-        private BsonMapper _mapper = new BsonMapper();
+        private readonly BsonMapper _mapper = new BsonMapper();
 
         [Fact]
         public void Linq_Document_Navigation()
@@ -180,6 +180,9 @@ namespace LiteDB.Tests.Mapper
 
             // aggregate with map
             TestExpr<User>(x => x.Phones.Sum(w => w.Number), "SUM(MAP($.Phones => @.Number))");
+            TestExpr<User>(x => x.Phones.Average(w => w.Number), "AVG(MAP($.Phones => @.Number))");
+            TestExpr<User>(x => x.Phones.Max(w => w.Number), "MAX(MAP($.Phones => @.Number))");
+            TestExpr<User>(x => x.Phones.Min(w => w.Number), "MIN(MAP($.Phones => @.Number))");
 
             // map
             TestExpr<User>(x => x.Phones.Select(y => y.Type), "MAP($.Phones => @.Type)");

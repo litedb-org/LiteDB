@@ -38,7 +38,7 @@ namespace LiteDB
 
             using (var reader = new BufferReader(buffer, utcDate))
             {
-                return reader.ReadDocument(fields);
+                return reader.ReadDocument(fields).GetValue();
             }
         }
     }

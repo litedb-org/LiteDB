@@ -135,7 +135,7 @@ namespace LiteDB.Tests.Engine
             }
         }
 
-        private string[] data = new string[]
+        private readonly string[] data = new string[]
         {
             "r6pfkr.4keQyr", "r6pfjI.31qrGW", "r6pfjy.1ryYCW", "r6pfjs.1iCqiD", "r6pfjm.2xXoUr", "r6pfj9.sYaWO", "r6pfgj.1aguPU", "r6pfgd.kKEyS",
             "r6pfg7.1PD90r", "r6pffZ.1JrB8C", "r6pffU.4Exn9y", "r6pffN.atYDW", "r6pfc1.4cqgs6", "r6pfbF.1YAU7Y", "r6pfbx.463ddU", "r6pfbr.3HzECI",

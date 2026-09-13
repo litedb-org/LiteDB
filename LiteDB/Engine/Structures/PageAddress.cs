@@ -68,5 +68,16 @@ namespace LiteDB.Engine
         {
             return this.IsEmpty ? "(empty)" : this.PageID.ToString().PadLeft(4, '0') + ":" + this.Index.ToString().PadLeft(2, '0');
         }
+
+        public BsonValue ToBsonValue()
+        {
+            if (this.IsEmpty) return BsonValue.Null;
+
+            return new BsonDocument
+            {
+                ["pageID"] = (int)this.PageID,
+                ["index"] = (int)this.Index
+            };
+        }
     }
 }

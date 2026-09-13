@@ -9,9 +9,9 @@
     <updateDate type="date" range="1960-01-01~2018-12-31" />
     <jsonData>{ myItem: 'abc', array: [1, 2, 3] }</jsonData>
   </insert>
-  <task name="UPDATE" sleep="8s">UPDATE col1 SET name = UPPER(name), large=LPAD(name, RANDOM(50, 3000), 'x')</task>
-  <task name="DELETE" sleep="45s">DELETE col1 WHERE 1 = 1</task>
+  <task name="UPDATE" sleep="10s">UPDATE col1 SET name = UPPER(name), large=LPAD(name, RANDOM(50, 3000), 'x')</task>
+  <task name="DELETE" sleep="10s">DELETE col1 WHERE 1 = 1</task>
   <task name="CHECKPOINT" sleep="10s">CHECKPOINT</task>
-  <task name="COUNT" sleep="1s">SELECT COUNT(*) FROM col1</task>
-  <task name="SIZE" sleep="1s">SELECT { data: FORMAT(dataFileSize, 'n0'), log: FORMAT(logFileSize, 'n0') } FROM $database</task>
+  <task name="COUNT" sleep="10s">SELECT COUNT(*) FROM col1</task>
+  <task name="SIZE" sleep="10s">SELECT { data: FORMAT(dataFileSize, 'n0'), log: FORMAT(logFileSize, 'n0') } FROM $database</task>
 </test>

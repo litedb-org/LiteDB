@@ -11,7 +11,7 @@ namespace LiteDB.Tests
         /// </summary>
         public static IEnumerable<Person> Person()
         {
-            using (var stream = typeof(DataGen).Assembly.GetManifestResourceStream("LiteDB.Tests.Utils.Json.person.json"))
+            using (var stream = typeof(DataGen).Assembly.GetManifestResourceStream("LiteDB.Tests.Resources.person.json"))
             {
                 var reader = new StreamReader(stream);
 
@@ -56,7 +56,7 @@ namespace LiteDB.Tests
         /// </summary>
         public static IEnumerable<Zip> Zip()
         {
-            using (var stream = typeof(DataGen).Assembly.GetManifestResourceStream("LiteDB.Tests.Utils.Json.zip.json"))
+            using (var stream = typeof(DataGen).Assembly.GetManifestResourceStream("LiteDB.Tests.Resources.zip.json"))
             {
                 var reader = new StreamReader(stream);
 

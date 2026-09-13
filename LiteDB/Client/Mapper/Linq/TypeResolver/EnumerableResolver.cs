@@ -57,7 +57,7 @@ namespace LiteDB
                 case "Sum(Func<T,TResult>)": return "SUM(MAP(@0 => @1))";
                 case "Average(Func<T,TResult>)": return "AVG(MAP(@0 => @1))";
                 case "Max(Func<T,TResult>)": return "MAX(MAP(@0 => @1))";
-                case "Min(Func<T,TResult>)": return "MAP(MIN(@0 => @1))";
+                case "Min(Func<T,TResult>)": return "MIN(MAP(@0 => @1))";
 
                 // convert to array
                 case "ToList()": 

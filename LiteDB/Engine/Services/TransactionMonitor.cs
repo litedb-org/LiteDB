@@ -73,7 +73,21 @@ namespace LiteDB.Engine
                 // enter in lock transaction after release _transaction lock
                 if (alreadyLock == false)
                 {
-                    _locker.EnterTransaction();
+                    try
+                    {
+                        _locker.EnterTransaction();
+                    }
+                    catch
+                    {
+                        transaction.Dispose();
+                        lock (_transactions)
+                        {
+                            // return pages
+                            _freePages += transaction.MaxTransactionSize;
+                            _transactions.Remove(transaction.TransactionID);
+                        }
+                        throw;
+                    }
                 }
 
                 // do not store in thread query-only transaction
@@ -157,7 +171,7 @@ namespace LiteDB.Engine
             {
                 var sum = 0;
 
-                // if there is no avaiable pages, reduce all open transactions
+                // if there is no available pages, reduce all open transactions
                 foreach (var trans in _transactions.Values)
                 {
                     //TODO: revisar estas contas, o reduce tem que fechar 1000

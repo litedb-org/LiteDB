@@ -9,13 +9,15 @@ namespace LiteDB.Engine
     internal class CollectionService
     {
         private readonly HeaderPage _header;
+        private readonly DiskService _disk;
         private readonly Snapshot _snapshot;
         private readonly TransactionPages _transPages;
 
-        public CollectionService(HeaderPage header, Snapshot snapshot, TransactionPages transPages)
+        public CollectionService(HeaderPage header, DiskService disk, Snapshot snapshot, TransactionPages transPages)
         {
-            _snapshot = snapshot;
             _header = header;
+            _disk = disk;
+            _snapshot = snapshot;
             _transPages = transPages;
         }
 
@@ -31,9 +33,9 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// Get collection page instance (or create a new one)
+        /// Get collection page instance (or create a new one). Returns true if a new collection was created
         /// </summary>
-        public void Get(string name, bool addIfNotExists, ref CollectionPage collectionPage)
+        public bool Get(string name, bool addIfNotExists, ref CollectionPage collectionPage)
         {
             // get collection pageID from header
             var pageID = _header.GetCollectionPageID(name);
@@ -41,11 +43,17 @@ namespace LiteDB.Engine
             if (pageID != uint.MaxValue)
             {
                 collectionPage = _snapshot.GetPage<CollectionPage>(pageID);
+
+                return false;
             }
             else if (addIfNotExists)
             {
                 this.Add(name, ref collectionPage);
+
+                return true;
             }
+
+            return false;
         }
 
         /// <summary>
@@ -64,7 +72,7 @@ namespace LiteDB.Engine
             _transPages.Commit += (h) => h.InsertCollection(name, pageID);
 
             // create first index (_id pk) (must pass collectionPage because snapshot contains null in CollectionPage prop)
-            var indexer = new IndexService(_snapshot, _header.Pragmas.Collation);
+            var indexer = new IndexService(_snapshot, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
 
             indexer.CreateIndex("_id", "$._id", true);
         }

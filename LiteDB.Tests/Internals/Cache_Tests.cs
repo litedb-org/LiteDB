@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using System.Collections.Generic;
 using FluentAssertions;
 using LiteDB.Engine;
@@ -17,7 +18,7 @@ namespace LiteDB.Internals
 
             var p0 = m.NewPage();
 
-            // new pages are writables
+            // new pages are writable
             (p0.ShareCounter).Should().Be(-1);
 
             // simulate write operation on page
@@ -133,6 +134,43 @@ namespace LiteDB.Internals
             while ((pw = pages.FirstOrDefault(x => x.ShareCounter == -1)) != null)
             {
                 m.DiscardPage(pw);
+            }
+        }
+
+        [Fact]
+        public void Cache_UniqueIDNumbering()
+        {
+            // Test case when second segment size is smaller than first
+            int[] segmentSizes = { 5, 3 };
+            ConsumeNewPages(segmentSizes);
+
+            // Test default database segment sizes
+            segmentSizes = Constants.MEMORY_SEGMENT_SIZES;
+            ConsumeNewPages(segmentSizes);
+
+            // Test random memory segment sizes
+            Random rnd = new Random(DateTime.Now.Millisecond);
+            segmentSizes = new int[rnd.Next(3, 12)];
+            for (int i = 0; i < segmentSizes.Length; i++)
+            {
+                segmentSizes[i] = rnd.Next(1, 1000);
+            }
+            ConsumeNewPages(segmentSizes);
+        }
+
+        private void ConsumeNewPages(int[] segmentSizes)
+        {
+            var m = new MemoryCache(segmentSizes);
+
+            // Test some additional segments using last segment size more than once
+            var totalSegments = segmentSizes.Sum() + 10;
+            for (int i = 1; i <= totalSegments; i++)
+            {
+                PageBuffer p = m.NewPage();
+                p.UniqueID.Should().Be(i);
+
+                // Set ShareCounter to 0 to proper disposal (not needed in this test)
+                p.ShareCounter = 0;
             }
         }
     }

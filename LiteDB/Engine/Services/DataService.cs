@@ -16,11 +16,13 @@ namespace LiteDB.Engine
             BasePage.SLOT_SIZE - // [4 bytes]
             DataBlock.DATA_BLOCK_FIXED_SIZE; // [6 bytes];
 
-        private Snapshot _snapshot;
+        private readonly Snapshot _snapshot;
+        private readonly uint _maxItemsCount;
 
-        public DataService(Snapshot snapshot)
+        public DataService(Snapshot snapshot, uint maxItemsCount)
         {
             _snapshot = snapshot;
+            _maxItemsCount = maxItemsCount;
         }
 
         /// <summary>
@@ -159,8 +161,12 @@ namespace LiteDB.Engine
         /// </summary>
         public IEnumerable<BufferSlice> Read(PageAddress address)
         {
+            var counter = 0u;
+
             while (address != PageAddress.Empty)
             {
+                ENSURE(counter++ < _maxItemsCount, "Detected loop in data Read({0})", address);
+
                 var dataPage = _snapshot.GetPage<DataPage>(address.PageID);
 
                 var block = dataPage.GetBlock(address.Index);

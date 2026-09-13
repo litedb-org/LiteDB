@@ -16,11 +16,11 @@ namespace LiteDB
         /// <summary>
         /// Json serialize a BsonValue into a String
         /// </summary>
-        public static string Serialize(BsonValue value)
+        public static string Serialize(BsonValue value, bool indent = false)
         {
             var sb = new StringBuilder();
 
-            Serialize(value, sb);
+            Serialize(value, sb, indent);
 
             return sb.ToString();
         }
@@ -28,9 +28,12 @@ namespace LiteDB
         /// <summary>
         /// Json serialize a BsonValue into a TextWriter
         /// </summary>
-        public static void Serialize(BsonValue value, TextWriter writer)
+        public static void Serialize(BsonValue value, TextWriter writer, bool indent = false)
         {
-            var json = new JsonWriter(writer);
+            var json = new JsonWriter(writer)
+            {
+                Pretty = indent
+            };
 
             json.Serialize(value ?? BsonValue.Null);
         }
@@ -38,11 +41,14 @@ namespace LiteDB
         /// <summary>
         /// Json serialize a BsonValue into a StringBuilder
         /// </summary>
-        public static void Serialize(BsonValue value, StringBuilder sb)
+        public static void Serialize(BsonValue value, StringBuilder sb, bool indent = false)
         {
             using (var writer = new StringWriter(sb))
             {
-                var w = new JsonWriter(writer);
+                var w = new JsonWriter(writer)
+                {
+                    Pretty = indent
+                };
 
                 w.Serialize(value ?? BsonValue.Null);
             }

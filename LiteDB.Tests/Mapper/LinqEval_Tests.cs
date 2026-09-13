@@ -45,7 +45,7 @@ namespace LiteDB.Tests.Mapper
 
         #endregion
 
-        private BsonMapper _mapper = new BsonMapper();
+        private readonly BsonMapper _mapper = new BsonMapper();
 
         [Fact]
         public void Linq_Date_Eval()

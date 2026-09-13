@@ -9,7 +9,7 @@ namespace LiteDB
     /// </summary>
     internal class BsonReader
     {
-        private bool _utcDate = false;
+        private readonly bool _utcDate = false;
 
         public BsonReader(bool utcDate)
         {

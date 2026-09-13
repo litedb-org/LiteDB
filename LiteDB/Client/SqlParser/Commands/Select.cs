@@ -49,8 +49,9 @@ namespace LiteDB
                 var result = query.Select.Execute(_collation.Value);
 
                 var defaultName = "expr";
+                var data = result.Select(x => x.IsDocument ? x.AsDocument : new BsonDocument { [defaultName] = x }).FirstOrDefault();
 
-                return new BsonDataReader(result.Select(x => x.IsDocument ? x.AsDocument : new BsonDocument { [defaultName] = x }), null);
+                return new BsonDataReader(data, null);
             }
             else if (from.Is("INTO"))
             {

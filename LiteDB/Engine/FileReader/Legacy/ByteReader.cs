@@ -7,8 +7,8 @@ namespace LiteDB
 {
     internal class ByteReader
     {
-        private byte[] _buffer;
-        private int _length;
+        private readonly byte[] _buffer;
+        private readonly int _length;
         private int _pos;
 
         public int Position { get { return _pos; } set { _pos = value; } }
@@ -103,7 +103,7 @@ namespace LiteDB
             return new Decimal(new int[] {  a, b, c, d });
         }
 
-        public Byte[] ReadBytes(int count)
+        public byte[] ReadBytes(int count)
         {
             var buffer = new byte[count];
 

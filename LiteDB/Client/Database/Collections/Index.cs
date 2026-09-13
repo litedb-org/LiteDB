@@ -67,7 +67,7 @@ namespace LiteDB
         /// </summary>
         private BsonExpression GetIndexExpression<K>(Expression<Func<T, K>> keySelector)
         {
-            var expression = _mapper.GetExpression(keySelector);
+            var expression = _mapper.GetIndexExpression(keySelector);
 
             if (typeof(K).IsEnumerable() && expression.IsScalar == true)
             {

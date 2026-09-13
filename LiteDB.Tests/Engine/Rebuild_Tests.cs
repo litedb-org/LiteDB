@@ -1,6 +1,9 @@
 ﻿using FluentAssertions;
 using LiteDB.Engine;
 using System;
+using System.IO;
+using System.Linq;
+
 using Xunit;
 
 namespace LiteDB.Tests.Engine
@@ -88,7 +91,7 @@ namespace LiteDB.Tests.Engine
             }
         }
 
-        [Fact (Skip = "Must fix how catch this exception")]
+        [Fact (Skip = "Not supported yet")]
         public void Rebuild_Change_Culture_Error()
         {
             using (var file = new TempFile())
@@ -104,12 +107,11 @@ namespace LiteDB.Tests.Engine
                     new BsonDocument { ["_id"] = "ANA" }
                 });
 
-                // try migrate to ignorecase
-                this.Invoking(x =>
-                {
-                    db.Rebuild(new RebuildOptions { Collation = new Collation("en-US/IgnoreCase") });
+                // migrate to ignorecase
+                db.Rebuild(new RebuildOptions { Collation = new Collation("en-US/IgnoreCase"), IncludeErrorReport = true });
 
-                }).Should().Throw<LiteException>();
+                // check for rebuild errors
+                db.GetCollection("_rebuild_errors").Count().Should().BeGreaterThan(0);
 
                 // test if current pragma still with collation none
                 db.Pragma(Pragmas.COLLATION).AsString.Should().Be("en-US/None");

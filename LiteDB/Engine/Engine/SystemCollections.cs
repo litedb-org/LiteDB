@@ -6,8 +6,6 @@ namespace LiteDB.Engine
 {
     public partial class LiteEngine
     {
-        private Dictionary<string, SystemCollection> _systemCollections = new Dictionary<string, SystemCollection>(StringComparer.OrdinalIgnoreCase);
-
         /// <summary>
         /// Get registered system collection
         /// </summary>

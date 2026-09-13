@@ -500,6 +500,17 @@ namespace LiteDB
             return left.AsDouble / right.AsDouble;
         }
 
+        // %
+        public static BsonValue operator %(BsonValue left, BsonValue right)
+        {
+            if (!left.IsNumber || !right.IsNumber) return BsonValue.Null;
+            if (left.IsInt32 && right.IsInt32) return left.AsInt32 % right.AsInt32;
+            if (left.IsInt64 && right.IsInt64) return left.AsInt64 % right.AsInt64;
+            if (left.IsDecimal && right.IsDecimal) return left.AsDecimal % right.AsDecimal;
+
+            return left.AsDouble % right.AsDouble;
+        }
+
         public override string ToString()
         {
             return JsonSerializer.Serialize(this);
@@ -648,7 +659,7 @@ namespace LiteDB
                 case BsonType.Double: return 8;
                 case BsonType.Decimal: return 16;
 
-                case BsonType.String: return Encoding.UTF8.GetByteCount(this.AsString);
+                case BsonType.String: return StringEncoding.UTF8.GetByteCount(this.AsString);
 
                 case BsonType.Binary: return this.AsBinary.Length;
                 case BsonType.ObjectId: return 12;
@@ -674,7 +685,7 @@ namespace LiteDB
 
             return
                 1 + // element type
-                Encoding.UTF8.GetByteCount(key) + // CString
+                StringEncoding.UTF8.GetByteCount(key) + // CString
                 1 + // CString \0
                 value.GetBytesCount(true) +
                 (variant ? 5 : 0); // bytes.Length + 0x??

@@ -28,7 +28,7 @@ namespace LiteDB.Shell.Commands
             // getting all HelpAttributes inside assemblies
             var helps = AppDomain.CurrentDomain.GetAssemblies()
                 .SelectMany(x => x.GetTypes())
-                .Select(x => CustomAttributeExtensions.GetCustomAttributes(typeof(HelpAttribute), true).FirstOrDefault())
+                .Select(x => CustomAttributeExtensions.GetCustomAttributes(x, typeof(HelpAttribute), true).FirstOrDefault())
                 .Where(x => x != null)
                 .Select(x => x as HelpAttribute)
                 .ToArray();

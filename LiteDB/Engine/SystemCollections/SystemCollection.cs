@@ -12,7 +12,7 @@ namespace LiteDB.Engine
     internal class SystemCollection
     {
         private readonly string _name;
-        private Func<IEnumerable<BsonDocument>> _input = null;
+        private readonly Func<IEnumerable<BsonDocument>> _input = null;
 
         public SystemCollection(string name)
         {

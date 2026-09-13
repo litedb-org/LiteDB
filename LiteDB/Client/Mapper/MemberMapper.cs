@@ -63,5 +63,10 @@ namespace LiteDB
         /// When property is an array of items, gets underlying type (otherwise is same type of PropertyType)
         /// </summary>
         public Type UnderlyingType { get; set; }
+
+        /// <summary>
+        /// Is this property ignore
+        /// </summary>
+        public bool IsIgnore { get; set; }
     }
 }

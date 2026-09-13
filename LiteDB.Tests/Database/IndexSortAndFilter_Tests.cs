@@ -18,9 +18,9 @@ namespace LiteDB.Tests.Database
 
         #endregion
 
-        private ILiteCollection<Item> _collection;
-        private TempFile _tempFile;
-        private ILiteDatabase _database;
+        private readonly ILiteCollection<Item> _collection;
+        private readonly TempFile _tempFile;
+        private readonly ILiteDatabase _database;
 
         public IndexSortAndFilterTest()
         {

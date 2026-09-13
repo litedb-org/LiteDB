@@ -135,7 +135,7 @@ namespace LiteDB
             // check if is a list or array
             else if (obj is IEnumerable)
             {
-                return this.SerializeArray(Reflection.GetListItemType(obj.GetType()), obj as IEnumerable, depth);
+                return this.SerializeArray(Reflection.GetListItemType(type), obj as IEnumerable, depth);
             }
             // otherwise serialize as a plain object
             else
@@ -181,6 +181,7 @@ namespace LiteDB
             var t = obj.GetType();
             var doc = new BsonDocument();
             var entity = this.GetEntityMapper(t);
+            entity.WaitForInitialization();
 
             // adding _type only where property Type is not same as object instance type
             if (type != t)

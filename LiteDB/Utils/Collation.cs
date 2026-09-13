@@ -70,15 +70,6 @@ namespace LiteDB
             return result < 0 ? -1 : result > 0 ? +1 : 0;
         }
 
-        /// <summary>
-        /// Compare 2 chars values using current culture/compare options
-        /// </summary>
-        public int Compare(char left, char right)
-        {
-            //TODO implementar o compare corretamente
-            return char.ToUpper(left) == char.ToUpper(right) ? 0 : 1;
-        }
-
         public int Compare(BsonValue left, BsonValue rigth)
         {
             return left.CompareTo(rigth, this);

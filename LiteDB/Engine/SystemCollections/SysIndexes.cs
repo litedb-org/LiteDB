@@ -25,7 +25,6 @@ namespace LiteDB.Engine
                         ["name"] = index.Name,
                         ["expression"] = index.Expression,
                         ["unique"] = index.Unique,
-                        ["maxLevel"] = (int)index.MaxLevel
                     };
                 }
             }

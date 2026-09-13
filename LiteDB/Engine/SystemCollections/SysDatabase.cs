@@ -24,9 +24,8 @@ namespace LiteDB.Engine
 
                 ["creationTime"] = _header.CreationTime,
 
-                ["dataFileSize"] = (int)_disk.GetLength(FileOrigin.Data),
-                ["logFileSize"] = (int)_disk.GetLength(FileOrigin.Log),
-                ["asyncQueueLength"] = _disk.Queue.Length,
+                ["dataFileSize"] = (int)_disk.GetFileLength(FileOrigin.Data),
+                ["logFileSize"] = (int)_disk.GetFileLength(FileOrigin.Log),
 
                 ["currentReadVersion"] = _walIndex.CurrentReadVersion,
                 ["lastTransactionID"] = _walIndex.LastTransactionID,

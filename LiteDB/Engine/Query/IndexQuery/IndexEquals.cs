@@ -10,7 +10,7 @@ namespace LiteDB.Engine
     /// </summary>
     internal class IndexEquals : Index
     {
-        private BsonValue _value;
+        private readonly BsonValue _value;
 
         public IndexEquals(string name, BsonValue value)
             : base(name, Query.Ascending)

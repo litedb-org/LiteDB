@@ -78,5 +78,15 @@ namespace LiteDB.Engine
 
             return $"ID: {this.UniqueID} - Position: {p}/{this.Origin} - Shared: {s} - ({base.ToString()}) :: Content: [{pageID.ToString("0:0000")}/{(PageType)pageType}]";
         }
+
+        public unsafe bool IsBlank()
+        {
+            fixed (byte* arrayPtr = this.Array)
+            {
+                ulong* ptr = (ulong*)(arrayPtr + this.Offset);
+
+                return *ptr == 0UL && *(ptr + 1) == 0UL;
+            }
+        }
     }
 }

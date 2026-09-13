@@ -27,7 +27,9 @@ namespace LiteDB.Internals
                 toBlock?.Wait();
             }
 
-            var disk = new DiskService(new EngineSettings { DataStream = new MemoryStream() }, new int[] { 10 });
+            var settings = new EngineSettings { DataStream = new MemoryStream() };
+            var state = new EngineState(null, settings);
+            var disk = new DiskService(settings, state, new int[] { 10 });
 
             var ta = new Task(() =>
             {
@@ -37,13 +39,11 @@ namespace LiteDB.Internals
                 // test starts here!!!
                 var p0 = new HeaderPage(r.NewPage(), 0);
 
-                disk.WriteAsync(new PageBuffer[] {p0.UpdateBuffer()});
+                disk.WriteLogDisk(new PageBuffer[] { p0.UpdateBuffer() });
 
                 // (1 ->) jump to thread B
                 serialize(wa, wb);
                 // (2 <-) continue from thread B
-
-                disk.Queue.Wait();
 
                 // (3 ->) jump to thread B
                 serialize(wa, wb);

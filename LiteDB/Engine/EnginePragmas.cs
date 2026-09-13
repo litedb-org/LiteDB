@@ -17,16 +17,16 @@ namespace LiteDB.Engine
     /// </summary>
     internal class EnginePragmas
     {
-        // pragma reserved area: 76-191
+        // pragma reserved area: 76-190 (115 bytes)
 
-        private const int P_USER_VERSION = 76; // 76-79 (4 bytes)
-        private const int P_COLLATION_LCID = 80; // 80-83 (4 bytes)
-        private const int P_COLLATION_SORT = 84; // 84-87 (4 bytes)
-        private const int P_TIMEOUT = 88; // 88-91 (4 bytes)
+        public const int P_USER_VERSION = 76; // 76-79 (4 bytes)
+        public const int P_COLLATION_LCID = 80; // 80-83 (4 bytes)
+        public const int P_COLLATION_SORT = 84; // 84-87 (4 bytes)
+        public const int P_TIMEOUT = 88; // 88-91 (4 bytes)
         // reserved 92-95 (4 bytes)
-        private const int P_UTC_DATE = 96; // 96-96 (1 byte)
-        private const int P_CHECKPOINT = 97; // 97-100 (4 bytes)
-        private const int P_LIMIT_SIZE = 101; // 92-95 (8 bytes)
+        public const int P_UTC_DATE = 96; // 96-96 (1 byte)
+        public const int P_CHECKPOINT = 97; // 97-100 (4 bytes)
+        public const int P_LIMIT_SIZE = 101; // 101-108 (8 bytes)
 
         /// <summary>
         /// Internal user version control to detect database changes

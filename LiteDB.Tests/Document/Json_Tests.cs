@@ -75,5 +75,24 @@ namespace LiteDB.Tests.Document
             JsonSerializer.Deserialize(positiveDouble.ToString("F1", CultureInfo.InvariantCulture)).Should().Be(positiveDouble);
             JsonSerializer.Deserialize(negativeDouble.ToString("F1", CultureInfo.InvariantCulture)).Should().Be(negativeDouble);
         }
+
+        [Fact]
+        public void Json_DoubleNaN_Tests()
+        {
+            BsonDocument doc = new BsonDocument();
+            doc["doubleNaN"] = double.NaN;
+            doc["doubleNegativeInfinity"] = double.NegativeInfinity;
+            doc["doublePositiveInfinity"] = double.PositiveInfinity;
+
+            // Convert to JSON
+            string json = JsonSerializer.Serialize(doc);
+
+            var bson = JsonSerializer.Deserialize(json);
+
+            // JSON standard converts NaN and Infinities to null, so deserialized values should not be double.NaN nor double.*Infinity
+            Assert.False(double.IsNaN(bson["doubleNaN"].AsDouble));
+            Assert.False(double.IsNegativeInfinity(bson["doubleNegativeInfinity"].AsDouble));
+            Assert.False(double.IsPositiveInfinity(bson["doublePositiveInfinity"].AsDouble));
+        }
     }
 }

@@ -1,14 +1,14 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-     <TargetFrameworks>netcoreapp3.1</TargetFrameworks>
-    <AssemblyName>LiteDB.Shell</AssemblyName>
+	<TargetFramework>net6</TargetFramework>
+	<AssemblyName>LiteDB.Shell</AssemblyName>
     <PackageId>LiteDB.Shell</PackageId>
     <OutputType>Exe</OutputType>
     <RootNamespace>LiteDB.Shell</RootNamespace>
-    <AssemblyVersion>5.0.5.0</AssemblyVersion>
-    <FileVersion>5.0.5</FileVersion>
-    <VersionPrefix>5.0.5</VersionPrefix>
+    <AssemblyVersion>5.0.6.0</AssemblyVersion>
+    <FileVersion>5.0.6</FileVersion>
+    <VersionPrefix>5.0.6</VersionPrefix>
     <Authors>Maurício David</Authors>
     <Copyright>MIT</Copyright>
     <NeutralLanguage>en-US</NeutralLanguage>

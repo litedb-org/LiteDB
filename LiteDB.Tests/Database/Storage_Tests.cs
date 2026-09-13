@@ -9,11 +9,11 @@ namespace LiteDB.Tests.Database
 {
     public class Storage_Tests
     {
-        private Random _rnd = new Random();
-        private byte[] _smallFile;
-        private byte[] _bigFile;
-        private string _smallHash;
-        private string _bigHash;
+        private readonly Random _rnd = new Random();
+        private readonly byte[] _smallFile;
+        private readonly byte[] _bigFile;
+        private readonly string _smallHash;
+        private readonly string _bigHash;
 
         public Storage_Tests()
         {
