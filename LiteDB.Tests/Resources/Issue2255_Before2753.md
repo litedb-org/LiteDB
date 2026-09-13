@@ -13,7 +13,7 @@ can still read it, but throws when saving the same document, even when only
 
 ## Verification
 
-The same 18 compatibility cases were run against the parent and merge commits
+The original 18 compatibility cases were run against the parent and merge commits
 on .NET 8, and against unmodified `56272498` on .NET 8 and .NET 10. Each scenario runs under
 `de-AT`, `fr-FR`, and `en-US`, using file-backed databases and default mapping.
 
@@ -40,13 +40,22 @@ dotnet test LiteDB.Tests/LiteDB.Tests.csproj -c Release -f net8.0 \
 ```
 
 The enum fix uses `Enum.ToString()` when the selected converter is exactly
-the framework's default `EnumConverter`. This preserves existing names and
-numeric keys without bypassing custom converters or changing invariant numeric
-dictionary formatting. The regression tests assert successful persistence,
-including updating the pre-PR fixture without any migration.
+the framework's default `EnumConverter`, directly or inside the default
+`NullableConverter`. Only exact framework converter types are bypassed, so
+custom enum converters and custom nullable wrappers retain their contracts.
+This preserves existing names and numeric keys without changing invariant
+numeric dictionary formatting. The regression tests assert successful
+persistence, including updating the pre-PR fixture without any migration.
 
-With the fix, all 75 focused mapper/Issue2255 tests pass on both .NET 8 and
-.NET 10. The full .NET 8 test project passes: 641 passed, 7 skipped, 0 failed.
+Review added six nullable-enum cases across the same three cultures: new writes
+and unrelated updates to the original fixture. All six failed against the
+initial fix in `b17acf7f` and pass after handling the default nullable wrapper.
+Three more tests verify the stored spelling and typed reads for a custom enum
+converter, a default nullable wrapper around it, and a custom nullable wrapper.
+
+With the reviewed fix, all 84 focused mapper/Issue2255 tests pass on both
+.NET 8 and .NET 10. The full .NET 8 test project passes: 650 passed,
+7 skipped, 0 failed.
 
 ## Fixture generation
 

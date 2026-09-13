@@ -27,6 +27,9 @@ namespace LiteDB.Tests.Issues
             public Dictionary<TKey, int> Counts { get; set; }
         }
 
+        /// <summary>
+        /// Default-initialized enum properties must remain valid persisted dictionary keys.
+        /// </summary>
         [Theory]
         [InlineData("de-AT")]
         [InlineData("fr-FR")]
@@ -42,6 +45,25 @@ namespace LiteDB.Tests.Issues
             });
         }
 
+        /// <summary>
+        /// Nullable key declarations must preserve the same unnamed values as non-nullable enums.
+        /// </summary>
+        [Theory]
+        [InlineData("de-AT")]
+        [InlineData("fr-FR")]
+        [InlineData("en-US")]
+        public void Nullable_enum_key_can_be_saved_reopened_and_updated(string culture)
+        {
+            AssertRoundTripAndUpdate(culture, new Dictionary<OrderStatus?, int>
+            {
+                [new Order().Status] = 1,
+                [OrderStatus.Pending] = 2
+            });
+        }
+
+        /// <summary>
+        /// HTTP extension codes need not have a name in the framework enum to be persisted.
+        /// </summary>
         [Theory]
         [InlineData("de-AT")]
         [InlineData("fr-FR")]
@@ -56,6 +78,9 @@ namespace LiteDB.Tests.Issues
             });
         }
 
+        /// <summary>
+        /// Named enum keys retain their values through persistence and an unrelated update.
+        /// </summary>
         [Theory]
         [InlineData("de-AT")]
         [InlineData("fr-FR")]
@@ -69,6 +94,9 @@ namespace LiteDB.Tests.Issues
             });
         }
 
+        /// <summary>
+        /// Numeric dictionary keys must use culture-independent formatting without losing entries.
+        /// </summary>
         [Theory]
         [InlineData("de-AT")]
         [InlineData("fr-FR")]
@@ -82,6 +110,9 @@ namespace LiteDB.Tests.Issues
             });
         }
 
+        /// <summary>
+        /// Numeric-looking string keys must remain distinct literal strings.
+        /// </summary>
         [Theory]
         [InlineData("de-AT")]
         [InlineData("fr-FR")]
@@ -95,11 +126,42 @@ namespace LiteDB.Tests.Issues
             });
         }
 
+        /// <summary>
+        /// Documents written before PR #2753 must support updates without a data migration.
+        /// </summary>
         [Theory]
         [InlineData("de-AT")]
         [InlineData("fr-FR")]
         [InlineData("en-US")]
         public void Existing_enum_dictionary_allows_updating_an_unrelated_field(string culture)
+        {
+            AssertExistingDictionaryUpdate(culture, new Dictionary<OrderStatus, int>
+            {
+                [default(OrderStatus)] = 1,
+                [OrderStatus.Pending] = 2
+            });
+        }
+
+        /// <summary>
+        /// The old fixture also supports applications declaring their enum dictionary keys nullable.
+        /// </summary>
+        [Theory]
+        [InlineData("de-AT")]
+        [InlineData("fr-FR")]
+        [InlineData("en-US")]
+        public void Existing_nullable_enum_dictionary_allows_updating_an_unrelated_field(string culture)
+        {
+            AssertExistingDictionaryUpdate(culture, new Dictionary<OrderStatus?, int>
+            {
+                [default(OrderStatus)] = 1,
+                [OrderStatus.Pending] = 2
+            });
+        }
+
+        /// <summary>
+        /// Reads the unchanged legacy fixture and verifies that editing only its name preserves keys.
+        /// </summary>
+        private static void AssertExistingDictionaryUpdate<TKey>(string culture, Dictionary<TKey, int> expected)
         {
             var previousCulture = CultureInfo.CurrentCulture;
 
@@ -108,17 +170,12 @@ namespace LiteDB.Tests.Issues
                 CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo(culture);
                 var original = Path.Combine(AppContext.BaseDirectory, "Resources", "Issue2255_Before2753.db");
                 using var file = new TempFile(original);
-                var expected = new Dictionary<OrderStatus, int>
-                {
-                    [default(OrderStatus)] = 1,
-                    [OrderStatus.Pending] = 2
-                };
 
                 // This is an actual database created in de-AT by the pre-PR library.
                 using (var db = new LiteDatabase(file.Filename))
                 {
                     Assert.Equal("de-AT", db.Collation.Culture.Name);
-                    var collection = db.GetCollection<Summary<OrderStatus>>("summaries");
+                    var collection = db.GetCollection<Summary<TKey>>("summaries");
                     var loaded = collection.FindById(1);
                     Assert.Equal("original", loaded.Name);
                     AssertCounts(expected, loaded.Counts);
@@ -129,7 +186,7 @@ namespace LiteDB.Tests.Issues
 
                 using (var db = new LiteDatabase(file.Filename))
                 {
-                    var loaded = db.GetCollection<Summary<OrderStatus>>("summaries").FindById(1);
+                    var loaded = db.GetCollection<Summary<TKey>>("summaries").FindById(1);
                     Assert.Equal("updated", loaded.Name);
                     AssertCounts(expected, loaded.Counts);
                 }
@@ -140,6 +197,9 @@ namespace LiteDB.Tests.Issues
             }
         }
 
+        /// <summary>
+        /// Exercises file creation, reopening, updating, and reopening again through the public API.
+        /// </summary>
         private static void AssertRoundTripAndUpdate<TKey>(string culture, Dictionary<TKey, int> counts)
         {
             var previousCulture = CultureInfo.CurrentCulture;
@@ -182,6 +242,9 @@ namespace LiteDB.Tests.Issues
             }
         }
 
+        /// <summary>
+        /// Verifies dictionary identity by key and value, independently of enumeration order.
+        /// </summary>
         private static void AssertCounts<TKey>(Dictionary<TKey, int> expected, Dictionary<TKey, int> actual)
         {
             Assert.Equal(expected.Count, actual.Count);
