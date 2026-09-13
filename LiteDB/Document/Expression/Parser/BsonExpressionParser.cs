@@ -1194,10 +1194,8 @@ namespace LiteDB
         /// </summary>
         private static BsonExpression ParseFunction(string functionName, BsonExpressionType type, Tokenizer tokenizer, ExpressionContext context, BsonDocument parameters, DocumentScope scope, bool convertScalarLeftToEnumerable = true, bool isScalarResult = false)
         {
-            // check if next token are ( otherwise returns null (is not a function)
             if (tokenizer.LookAhead().Type != TokenType.OpenParenthesis) return null;
 
-            // read (
             tokenizer.ReadToken().Expect(TokenType.OpenParenthesis);
 
             var left = ParseSingleExpression(tokenizer, context, parameters, scope);
@@ -1208,6 +1206,7 @@ namespace LiteDB
                 left = ConvertToEnumerable(left);
             }
 
+            BsonExpression vectorTarget = null;
             var args = new List<Expression>();
             args.Add(context.Root);
             args.Add(context.Collation);
@@ -1246,7 +1245,7 @@ namespace LiteDB
                 {
                     var parameter = ParseFullExpression(tokenizer, context, parameters, scope);
 
-                    // update isImmutable only when came false
+                    if (type == BsonExpressionType.VectorSim) vectorTarget = parameter;
                     if (parameter.IsImmutable == false) isImmutable = false;
                     if (parameter.UseSource) useSource = true;
 
@@ -1263,7 +1262,6 @@ namespace LiteDB
                 }
             }
 
-            // read )
             tokenizer.ReadToken().Expect(TokenType.CloseParenthesis);
             src.Append(")");
 
@@ -1272,6 +1270,8 @@ namespace LiteDB
             return new BsonExpression
             {
                 Type = type,
+                Left = type == BsonExpressionType.VectorSim ? left : null,
+                Right = vectorTarget,
                 Parameters = parameters,
                 IsImmutable = isImmutable,
                 UseSource = useSource,

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using LiteDB.Vector;
 
 namespace LiteDB.Engine
 {
@@ -53,7 +54,9 @@ namespace LiteDB.Engine
             _cache.Clear();
 
             var service = new VectorIndexService(_snapshot, _collation);
-            var results = service.Search(_metadata, _target, _maxDistance, _limit).ToArray();
+            var results = _limit.HasValue
+                ? service.Search(_metadata, _target, _maxDistance, _limit)
+                : this.Scan(indexer).OrderBy(x => _metadata.Metric == VectorDistanceMetric.DotProduct ? -x.Distance : x.Distance);
 
             foreach (var result in results)
             {
@@ -66,6 +69,33 @@ namespace LiteDB.Engine
 
                 _cache[rawId] = result.Document;
                 yield return new IndexNode(result.Document);
+            }
+        }
+
+        private IEnumerable<(BsonDocument Document, double Distance)> Scan(IndexService indexer)
+        {
+            var data = new DataService(_snapshot, uint.MaxValue);
+            var lookup = new DatafileLookup(data, false, null);
+            foreach (var node in indexer.FindAll(_snapshot.CollectionPage.PK, Query.Ascending))
+            {
+                var document = lookup.Load(node);
+                var value = _index.BsonExpr.ExecuteScalar(document, _collation);
+                _snapshot.Safepoint();
+                if (!VectorIndexService.TryExtractVector(value, _metadata.Dimensions, out var vector)) continue;
+
+                var distance = VectorIndexService.ComputeDistance(vector, _target, _metadata.Metric, out var similarity);
+                if (_metadata.Metric == VectorDistanceMetric.DotProduct)
+                {
+                    if (!double.IsNaN(similarity) && (_maxDistance == double.MaxValue ||
+                        double.IsPositiveInfinity(_maxDistance) || similarity >= _maxDistance))
+                    {
+                        yield return (document, similarity);
+                    }
+                }
+                else if (!double.IsNaN(distance) && distance <= _maxDistance)
+                {
+                    yield return (document, distance);
+                }
             }
         }
 

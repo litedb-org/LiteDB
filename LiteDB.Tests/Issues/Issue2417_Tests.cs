@@ -23,6 +23,8 @@ namespace LiteDB.Tests.Issues
                     AutoRebuild = true,
                 };
 
+                FixtureFileVersion.UseCurrentVersion(filename, settings.Password);
+
                 try
                 {
                     using (var db = new LiteEngine(settings))
@@ -63,6 +65,8 @@ namespace LiteDB.Tests.Issues
                     Password = "bzj2NplCbVH/bB8fxtjEC7u0unYdKHJVSmdmPgArRBwmmGw0+Wd2tE+b2zRMFcHAzoG71YIn/2Nq1EMqa5JKcQ==",
                     AutoRebuild = true,
                 };
+
+                FixtureFileVersion.UseCurrentVersion(filename, settings.Password);
 
                 try
                 {

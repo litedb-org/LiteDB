@@ -23,7 +23,7 @@ namespace LiteDB.Engine
         /// <summary>
         /// Datafile specification version
         /// </summary>
-        public const byte FILE_VERSION = 8;
+        public const byte FILE_VERSION = 9;
 
         #region Buffer Field Positions
 

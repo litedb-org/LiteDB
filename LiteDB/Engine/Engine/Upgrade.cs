@@ -20,24 +20,24 @@ namespace LiteDB.Engine
         {
             var filename = _settings.Filename;
 
-            // if file not exists, just exit
-            if (!File.Exists(filename)) return;
+            // Migration requires an explicit writable file connection and keeps a backup.
+            if (_settings.ReadOnly || !File.Exists(filename)) return;
 
             const int bufferSize = 1024;
             var buffer = _bufferPool.Rent(bufferSize);
-
             try
             {
-                using (var stream = new FileStream(
-                    _settings.Filename,
-                    FileMode.Open,
-                    FileAccess.Read,
-                    FileShare.Read, bufferSize))
+                using (var stream = _settings.CreateDataFactory(false).GetStream(false, true))
                 {
-                    stream.Position = 0;
-                    stream.Read(buffer, 0, bufferSize);
+                    if (stream.Read(buffer, 0, bufferSize) < bufferSize) return;
+                }
 
-                    if (FileReaderV7.IsVersion(buffer) == false) return;
+                if (!FileReaderV7.IsVersion(buffer))
+                {
+                    // Decrypt before checking the v8 header; the encryption marker alone is insufficient.
+                    using var stream = _settings.CreateDataFactory().GetStream(false, true);
+                    if (stream.Read(buffer, 0, bufferSize) < bufferSize ||
+                        buffer[HeaderPage.P_FILE_VERSION] != 8 || !FileReaderV8.IsVersion(buffer)) return;
                 }
             }
             finally

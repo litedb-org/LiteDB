@@ -113,6 +113,29 @@ namespace LiteDB.Tests.QueryTest
             Read(db, string.Format(sql, "docs")).Should().Equal(Read(db, string.Format(sql, "reference")));
         }
 
+        [Theory]
+        [InlineData("WHERE $.Embedding VECTOR_SIM @q < 1 ORDER BY $._id LIMIT 12")]
+        [InlineData("WHERE 1 > $.Embedding VECTOR_SIM @q ORDER BY $._id LIMIT 12")]
+        [InlineData("WHERE $.Embedding VECTOR_SIM @q <= 2 ORDER BY $.Embedding LIMIT 3")]
+        [InlineData("WHERE $.Embedding VECTOR_SIM @q <= 2 ORDER BY $.Embedding VECTOR_SIM [0.0, 1.0] LIMIT 3")]
+        [InlineData("WHERE $.Embedding VECTOR_SIM @q <= $.Rank ORDER BY $._id")]
+        public void Vector_predicates_retain_strict_bounds_and_independent_ordering(string suffix)
+        {
+            using var db = CreateDatabase();
+            Read(db, "SELECT $ FROM docs " + suffix).Should().Equal(Read(db, "SELECT $ FROM reference " + suffix));
+        }
+
+        [Fact]
+        public void Sql_cosine_queries_do_not_use_a_different_index_metric()
+        {
+            using var db = CreateDatabase();
+            var docs = db.GetCollection("docs");
+            docs.DropIndex("embedding_idx");
+            docs.EnsureIndex("embedding_idx", "$.Embedding", new VectorIndexOptions(2, VectorDistanceMetric.DotProduct));
+            const string suffix = " ORDER BY VECTOR_SIM($.Embedding, @q) LIMIT 3";
+            Read(db, "SELECT $ FROM docs" + suffix).Should().Equal(Read(db, "SELECT $ FROM reference" + suffix));
+        }
+
         [Fact]
         public void Cosine_reference_has_explicit_expected_order_and_distances()
         {

@@ -107,6 +107,9 @@ namespace LiteDB.Tests.Issues
             File.Exists(databasePath).Should().BeTrue();
             File.Exists(logPath).Should().BeTrue();
 
+            FixtureFileVersion.UseCurrentVersion(databasePath);
+            FixtureFileVersion.UseCurrentVersion(logPath);
+
             return tempDirectory;
         }
 

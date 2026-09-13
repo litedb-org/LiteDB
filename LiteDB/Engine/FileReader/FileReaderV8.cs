@@ -418,7 +418,7 @@ namespace LiteDB.Engine
             // buffer[0] = 1 when datafile is encrypted (this feature was added in v8 only)
             // all other version has this buffer[0] = 0
 
-            return (header == HeaderPage.HEADER_INFO && version == HeaderPage.FILE_VERSION) ||
+            return (header == HeaderPage.HEADER_INFO && (version == 8 || version == HeaderPage.FILE_VERSION)) ||
                 buffer[0] == 1;
         }
 

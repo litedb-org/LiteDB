@@ -33,3 +33,10 @@ This repository is hosted on **GitHub** (`api_base`: `https://api.github.com`). 
 issues, pull requests, CI runs, and releases. Upstream is `litedb-org/LiteDB` (remote `upstream`);
 this fork is `JKamsker/LiteDB` (remote `origin`). Issues are tracked upstream, so pass
 `-R litedb-org/LiteDB` when searching or viewing them.
+
+## Vector File Compatibility
+New files use format version 9. Open existing version 7/8 files with `Upgrade=true`
+on a writable file connection to rebuild them with backups; read-only opening
+requires prior migration. Run `python3 scripts/test-vector-compatibility.py` to
+verify plain/encrypted migration and rejection by released LiteDB 5.0.21.
+See `docs/vector-query-compatibility.md` for vector query semantics and ANN limits.

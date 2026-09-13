@@ -92,7 +92,7 @@ namespace LiteDB.Engine
             }
 
             var effectiveLimit = limit.HasValue && limit.Value > 0
-                ? Math.Max(limit.Value * 4, DefaultEfSearch)
+                ? (int)Math.Min(int.MaxValue, Math.Max((long)limit.Value * 4, DefaultEfSearch))
                 : DefaultEfSearch;
 
             var candidates = this.SearchLayer(
@@ -946,8 +946,8 @@ namespace LiteDB.Engine
 
             for (var i = 0; i < candidate.Length; i++)
             {
-                var c = candidate[i];
-                var t = target[i];
+                double c = candidate[i];
+                double t = target[i];
 
                 dot += c * t;
                 magCandidate += c * c;
@@ -988,7 +988,7 @@ namespace LiteDB.Engine
             return sum;
         }
 
-        private static bool TryExtractVector(BsonValue value, ushort expectedDimensions, out float[] vector)
+        internal static bool TryExtractVector(BsonValue value, ushort expectedDimensions, out float[] vector)
         {
             vector = null;
 
