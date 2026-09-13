@@ -8,7 +8,7 @@ using(var db = new LiteRepository(connectionString))
     // simple access to Insert/Update/Upsert/Delete
     db.Insert(new Product { ProductName = "Table", Price = 100 });
 
-    db.Delete<Product>(x => x.Price == 100);
+    db.DeleteMany<Product>(x => x.Price == 100);
 
     // query using fluent query
     var result = db.Query<Order>()
@@ -24,9 +24,12 @@ using(var db = new LiteRepository(connectionString))
         .Limit(10)
         .ToEnumerable();
 
-    var c = db.Query<Customer>()
-        .Where(txtName.Text != null, x => x.Name == txtName.Text) // conditional filter
-        .ToList();
+    var customers = db.Query<Customer>();
+    if (txtName.Text != null)
+    {
+        customers = customers.Where(x => x.Name == txtName.Text);
+    }
+    var c = customers.ToList();
 
 }
 ```

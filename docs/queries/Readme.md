@@ -24,27 +24,27 @@ Query filter document inside a collection in three ways:
 * **`Query.Or`** - Apply union between two queries results.
 
 ```csharp
-var results = col.Find(Query.EQ("Name", "John Doe"));
+var equalResults = col.Find(Query.EQ("Name", "John Doe"));
 
-var results = col.Find(Query.GTE("Age", 25));
+var ageResults = col.Find(Query.GTE("Age", 25));
 
-var results = col.Find(Query.And(
+var nameResults = col.Find(Query.And(
     Query.EQ("FirstName", "John"), Query.EQ("LastName", "Doe")
 ));
 
-var results = col.Find(Query.StartsWith("Name", "Jo"));
+var prefixResults = col.Find(Query.StartsWith("Name", "Jo"));
 
 // Query using multikey index (where products are an array of embedded documents)
-var results = col.Find(Query.GT("Products[*].Price", 100))
+var productResults = col.Find(Query.GT("Products[*].Price", 100));
 
 // Execute Func in each key in Name index
-var results = col.Find(Query.Where("Name", name => name.AsString.Length > 20));
+var longNameResults = col.Find(Query.Where("Name", name => name.AsString.Length > 20));
 
 // get last added 100 objects of the collection
-var results = collection.Find(Query.All(Query.Descending), limit: 100);
+var recentResults = col.Find(Query.All(Query.Descending), limit: 100);
 
 // find top 100 oldest persons aged between 20 and 30
-var results = col.Find(Query.And(Query.All("Age", Query.Descending), Query.Between("Age", 20, 30)), limit: 100);
+var oldestResults = col.Find(Query.And(Query.All("Age", Query.Descending), Query.Between("Age", 20, 30)), limit: 100);
 ```
 
 In all queries:
@@ -52,7 +52,7 @@ In all queries:
 * In index search, **Field** must be an index name or field in document.
 * When no index using, **Field** can be `Path` or an `Expression`
 * **Field** name on left side, **Value** (or values) on right side
-* Queries are executed in `BsonDocument` class before mapping to your object. You need to use the `BsonDocument` field name and BSON types values. If you are using a custom `ResolvePropertyName` or `[BsonField]` attribute, you must use your document field name and not the property name on your type. See [Object Mapping](Object-Mapping).
+* Queries are executed against `BsonDocument` before mapping to your object. Use the document field name and BSON value type. If you are using a custom `ResolvePropertyName` or `[BsonField]` attribute, use the mapped document field name rather than the property name on your type. See [Object Mapping](../object-mapping/).
 
 ## Find(), FindById(), FindOne() and FindAll()
 
@@ -113,28 +113,28 @@ Min/Max required a created index in field.
 Some LiteDB methods support predicates to allow you to easily query strongly typed documents. If you are working with `BsonDocument`, you need to use classic `Query` class methods.
 
 ```csharp
-col.Find(x => x.Name == "John Doe")
+col.Find(x => x.Name == "John Doe");
 // Query.EQ("Name", "John Doe")
 
-col.Find(x => x.Age > 30)
+col.Find(x => x.Age > 30);
 // Query.GT("Age", 30)
 
-col.Find(x => x.Name.StartsWith("John") && x.Age > 30)
+col.Find(x => x.Name.StartsWith("John") && x.Age > 30);
 // Query.And(Query.StartsWith("Name", "John"), Query.GT("Age", 30))
 
 // where PhoneNumbers is string[]
-col.Find(x => x.PhoneNumbers.Contains("555-1234"))
+col.Find(x => x.PhoneNumbers.Contains("555-1234"));
 // Query.EQ("PhoneNumbers", "555-1234")
 
 // create index on Number inside phone array
-col.EnsureIndex(x => x.Phones[0].Number); // ignore 0 index: it's just a syntax to access child
-// db.EnsureIndex("col", "Phones[*].Number", false, "$.Phones[*].Number)
+col.EnsureIndex(x => x.Phones.Select(z => z.Number));
+// Equivalent expression: col.EnsureIndex("Phones[*].Number")
 
-col.Find(x => x.Phones.Select(z => z.Number == "555-1234")) // another way to access child
-// Query.EQ("Phones[*].Numbers", "555-1234")
+col.Find(x => x.Phones.Select(z => z.Number).Contains("555-1234"));
+// Query.EQ("Phones[*].Number", "555-1234")
 
-col.Find(x => !(x.Age > 30))
-// Query.Not(Query.GT("Age", 30))
+col.Find(x => !(x.Age > 30));
+// Query.LTE("Age", 30)
 ```
 
 * LINQ implementations are: `==, !=, >, >=, <, <=, StartsWith, Contains (string and IEnumerable), Equals, &&, ||, ! (not)`

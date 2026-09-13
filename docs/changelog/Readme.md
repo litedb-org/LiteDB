@@ -7,8 +7,8 @@
 * Support index creation with expressions
 
 ```csharp
-  col.EnsureIndex(x => x.Name, "LOWER($.Name)");
-  col.EnsureIndex("GrandTotal", "SUM($.Items[*].Qtd * $.Items[*].Price)");
+col.EnsureIndex("Name", "LOWER($.Name)");
+col.EnsureIndex("GrandTotal", "SUM($.Items[*].Qtd * $.Items[*].Price)");
 ```
 
   + Query with `Include` it´s supported in Engine level with ANY nested includes

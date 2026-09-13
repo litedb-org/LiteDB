@@ -91,7 +91,9 @@ If the `Products` field is null or an empty list, the value will be preserved wh
 In v4, this include process occurs on BsonDocument engine level. It also support any level of include, just using `Path` syntax:
 
 ```csharp
-orders.Include(new string[] { "$.Customer", "$.Products[*]" });
+var ordersWithReferences = orders
+    .Include("$.Customer")
+    .Include("$.Products[*]");
 ```
 
 If you are using `LiteCollection` or `Repository` you can also use Linq syntax:

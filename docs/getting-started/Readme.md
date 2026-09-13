@@ -6,8 +6,16 @@ LiteDB is a simple, fast, and lightweight embedded .NET document database inspir
 
 LiteDB is a serverless database—there is no service to install or configure. You can:
 
-* Copy [LiteDB.dll](https://github.com/mbdavid/LiteDB/releases) next to your application binaries and reference it directly.
-* Install the NuGet package with `Install-Package LiteDB`.
+* Copy [LiteDB.dll](https://github.com/litedb-org/LiteDB/releases) next to your application binaries and reference it directly.
+* Install the NuGet package with `dotnet add package LiteDB` or `Install-Package LiteDB`.
+
+The library targets `netstandard2.0`, `net8.0`, and `net10.0`. The shell project in this repository targets `net10.0`, so running it from source requires the .NET 10 SDK:
+
+```bash
+dotnet run --project LiteDB.Shell/LiteDB.Shell.csproj -- MyData.db
+```
+
+The benchmarks, stress runner, and vector-search demo also target `net10.0`. Utilities under `tools/` and the repro runner target `net8.0`; install the .NET 8 SDK/runtime as well when working with those projects or running the complete solution. The GitVersion command used by the versioning helpers is a manifest-based local tool, so run `dotnet tool restore` before invoking those helpers. These source-repository requirements do not apply when an application only consumes the LiteDB NuGet package.
 
 When hosting in IIS, be sure the application pool identity has write permissions to the folder that will contain your `.db` file.
 
@@ -95,7 +103,7 @@ var storage = db.GetStorage<int>();
 storage.Upload(123, @"C:\Temp\picture-01.jpg");
 
 // And download it later
-storage.Download(123, @"C:\Temp\copy-of-picture-01.jpg");
+storage.Download(123, @"C:\Temp\copy-of-picture-01.jpg", overwritten: true);
 ```
 
 ---

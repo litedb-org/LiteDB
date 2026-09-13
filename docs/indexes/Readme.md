@@ -86,7 +86,7 @@ You can create an index based on the result of an expression, including expressi
 * `collection.EnsureIndex("Total", "SUM($.Items[*].Price)")`
 * `collection.EnsureIndex("CheapBooks", "LOWER($.Books[@.Price < 20].Title)")`
 
-See [Expressions](/docs/expressions/) for more details about expressions.
+See [Expressions](../expressions/) for more details about expressions.
 
 ## Limitations
 

@@ -73,10 +73,10 @@ var customer = new Customer { Id = 1, Name = "John Doe" };
 
 var doc = BsonMapper.Global.ToDocument(customer);
 
-var jsonString = JsonSerialize.Serialize(doc);
+var jsonString = JsonSerializer.Serialize(doc);
 ```
 
-`JsonSerialize` also supports `TextReader` and `TextWriter` to read/write directly from a file or `Stream`.
+`JsonSerializer` also supports `TextReader` and `TextWriter` to read/write directly from a file or `Stream`.
 
 ## ObjectId
 
@@ -99,10 +99,10 @@ var date = id.CreationTime;
 
 // ObjectId is represented in hex value
 Debug.WriteLine(id);
-"507h096e210a18719ea877a2"
+// Example output: 507f1f77bcf86cd799439011
 
 // Create an instance based on hex representation
-var nid = new ObjectId("507h096e210a18719ea877a2");
+var nid = new ObjectId("507f1f77bcf86cd799439011");
 ```
 
 

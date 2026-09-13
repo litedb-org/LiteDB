@@ -66,7 +66,7 @@ fs.Upload("$/photos/2014/picture-01.jpg", @"C:\Temp\picture-01.jpg");
 fs.Upload("$/photos/2014/picture-01.jpg", "picture-01.jpg", stream);
 
 // Find file reference only - returns null if not found
-LiteFileInfo file = fs.FindById("$/photos/2014/picture-01.jpg");
+LiteFileInfo<string> file = fs.FindById("$/photos/2014/picture-01.jpg");
 
 // Now, load binary data and save to file system
 file.SaveAs(@"C:\Temp\new-picture.jpg");
@@ -75,7 +75,7 @@ file.SaveAs(@"C:\Temp\new-picture.jpg");
 file.CopyTo(Response.OutputStream);
 
 // Find all files references in a "directory"
-var files = fs.Find("$/photos/2014/");
+var files = fs.Find(x => x.Id.StartsWith("$/photos/2014/"));
 ```
 
 `FileStorage` does not support transactions to avoid putting all of the file in memory before storing it on disk. Transactions *are* used per chunk. Each uploaded chunk is committed in a single transaction.
