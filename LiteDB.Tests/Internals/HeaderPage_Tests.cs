@@ -41,6 +41,19 @@ namespace LiteDB.Internals
         }
 
         [Fact]
+        public void HeaderPage_Restore_Does_Not_Downgrade_A_Promoted_Version()
+        {
+            var buffer = new PageBuffer(new byte[Constants.PAGE_SIZE], 0, 0);
+            var header = new HeaderPage(buffer, 0);
+            var savepoint = header.Savepoint();
+            header.EnsureVersion(HeaderPage.VECTOR_FILE_VERSION);
+            header.Restore(savepoint);
+            header.FileVersion.Should().Be(HeaderPage.VECTOR_FILE_VERSION);
+            buffer[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.VECTOR_FILE_VERSION);
+            header.UpdateBuffer()[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.VECTOR_FILE_VERSION);
+        }
+
+        [Fact]
         public void HeaderPage_Savepoint()
         {
             var data = new byte[Constants.PAGE_SIZE];

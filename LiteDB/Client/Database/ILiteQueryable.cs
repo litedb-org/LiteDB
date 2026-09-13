@@ -7,6 +7,9 @@ namespace LiteDB
 {
     public interface ILiteQueryable<T> : ILiteQueryableResult<T>
     {
+        /// <summary>Find an entity by id within this query, or return the default value.</summary>
+        T SingleOrDefaultById(BsonValue id);
+
         ILiteQueryable<T> Include(BsonExpression path);
         ILiteQueryable<T> Include(List<BsonExpression> paths);
         ILiteQueryable<T> Include<K>(Expression<Func<T, K>> path);

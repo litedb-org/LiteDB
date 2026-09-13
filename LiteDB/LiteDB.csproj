@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFrameworks>netstandard2.0;net8.0</TargetFrameworks>
+        <TargetFrameworks>netstandard2.0;net8.0;net10.0</TargetFrameworks>
         <Authors>Maurício David</Authors>
         <Product>LiteDB</Product>
         <Description>LiteDB - A lightweight embedded .NET NoSQL document store in a single datafile</Description>
@@ -40,7 +40,7 @@
         <DefineConstants>$(DefineConstants);HAVE_SHA1_MANAGED</DefineConstants>
     </PropertyGroup>
 
-    <PropertyGroup Condition="'$(TargetFramework)' == 'net8.0'">
+    <PropertyGroup Condition="'$(TargetFrameworkIdentifier)' == '.NETCoreApp'">
         <DefineConstants>$(DefineConstants);HAVE_SHA1_MANAGED;HAVE_APP_DOMAIN;HAVE_PROCESS;HAVE_ENVIRONMENT</DefineConstants>
     </PropertyGroup>
 
@@ -54,7 +54,7 @@
         <None Remove="**\*.NetCore.cs"/>
     </ItemGroup>
 
-    <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+    <ItemGroup Condition="'$(TargetFrameworkIdentifier)' == '.NETCoreApp'">
         <Compile Remove="**\*.NetStd.cs"/>
         <None Remove="**\*.NetStd.cs"/>
     </ItemGroup>

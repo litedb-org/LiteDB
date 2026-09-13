@@ -72,6 +72,8 @@ namespace LiteDB.Engine
         /// </summary>
         public Select Select { get; set; }
 
+        internal VectorScoreProjection VectorScore { get; set; }
+
         /// <summary>
         /// Get fields name that will be deserialize from disk
         /// </summary>
@@ -116,6 +118,12 @@ namespace LiteDB.Engine
         {
             var data = new DataService(snapshot, maxItemsCount);
             var indexer = new IndexService(snapshot, pragmas.Collation, maxItemsCount);
+
+            if (this.Index is VectorIndexQuery vector)
+            {
+                vector.ConfigureLookup(data, pragmas.UtcDate, this.Fields);
+                return vector;
+            }
 
             // define document loader
             // if index are VirtualIndex - it's also lookup document
