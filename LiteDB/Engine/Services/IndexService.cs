@@ -24,6 +24,7 @@ namespace LiteDB.Engine
         }
 
         public Collation Collation => _collation;
+        public void Safepoint() => _snapshot.Safepoint();
 
         /// <summary>
         /// Create a new index and returns head page address (skip list)
@@ -325,6 +326,8 @@ namespace LiteDB.Engine
 
                     next = node.NextNode;
                 }
+
+                _snapshot.Safepoint();
             }
 
             // removing head/tail index nodes
@@ -340,17 +343,21 @@ namespace LiteDB.Engine
         public IEnumerable<IndexNode> FindAll(CollectionIndex index, int order)
         {
             var cur = order == Query.Ascending ? this.GetNode(index.Head) : this.GetNode(index.Tail);
+            var next = cur.GetNextPrev(0, order);
             var counter = 0u;
 
-            while (!cur.GetNextPrev(0, order).IsEmpty)
+            while (!next.IsEmpty)
             {
                 ENSURE(counter++ < _maxItemsCount, "Detected loop in FindAll({0})", index.Name);
 
-                cur = this.GetNode(cur.GetNextPrev(0, order));
+                cur = this.GetNode(next);
 
                 // stop if node is head/tail
                 if (cur.Key.IsMinValue || cur.Key.IsMaxValue) yield break;
 
+                // Callers may safepoint before resuming this iterator, so never
+                // read the yielded page-backed node after the suspension point.
+                next = cur.GetNextPrev(0, order);
                 yield return cur;
             }
         }

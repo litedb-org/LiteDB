@@ -14,7 +14,7 @@ LiteDB is a small, fast and lightweight .NET NoSQL embedded database.
 - Thread-safe
 - ACID with full transaction support
 - Data recovery after write failure (WAL log file)
-- Datafile encryption using DES (AES) cryptography
+- ~~Datafile encryption using DES (AES) cryptography~~ This implemention is currently not secure, DO NOT USE.
 - Map your POCO classes to `BsonDocument` using attributes or fluent mapper API
 - Store files and stream data (like GridFS in MongoDB)
 - Single data file storage (like SQLite)
@@ -167,6 +167,7 @@ using(var db = new LiteDatabase("MyOrderDatafile.db"))
 - F# Support: https://github.com/Zaid-Ajaj/LiteDB.FSharp (v4)
 - UltraLiteDB (for Unity or IOT): https://github.com/rejemy/UltraLiteDB
 - OneBella - cross platform (windows, macos, linux) GUI tool : https://github.com/namigop/OneBella
+- LiteDB Studio - Fork of OneBella with bug fixes, updates and migrated to C# - https://github.com/MelnikovIG/LiteDB.Studio.Avalonia
 - LiteDB.Migration: Framework that makes schema migrations easier: https://github.com/JKamsker/LiteDB.Migration/
 
 ## Changelog

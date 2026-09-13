@@ -83,6 +83,22 @@ namespace LiteDB.Tests.Mapper
 
             [BsonRef("users")]
             public List<User> Users { get; set; }
+
+            [BsonRef("products")]
+            public Product[] Products { get; set; }
+        }
+
+        public class OrderCustomer : Customer
+        {
+            // Just used to test derived types serialization in BsonRefId tests
+        }
+
+        public class OrderMissingDbRefCollectionName
+        {
+            [BsonId]
+            public int Id { get; set; }
+
+            public Product Product { get; set; }
         }
 
         public class Account
@@ -522,6 +538,79 @@ namespace LiteDB.Tests.Mapper
             Test<User, bool>(expr, "(($._id>=@p0) AND ($._id<=@p1))", 1, 10);
             Test<User, bool>(exprMerged, "(($._id>=@p0) AND (((@._id<=@p1))=true))", 1, 10);
             //the right expr of exprMerged uses @ (instead of $) because the rootParameter is different for exprLeft and exprRight
+        }
+
+        [Fact]
+        public void Linq_MemberInit_DbRef()
+        {
+            var p1Id = ObjectId.NewObjectId();
+            var p2Id = ObjectId.NewObjectId();
+
+            TestExpr<Order>(
+                x => new Order
+                {
+                    OrderNumber = 1,
+                    Customer = new BsonRefId<OrderCustomer>(10),
+                    Users = new List<User>
+                    {
+                        new BsonRefId<User>(101),
+                        new BsonRefId<User>(x.Users[0].Id + 100),
+                    },
+                    Products = new Product[]
+                    {
+                        new BsonRefId<Product>(p1Id),
+                        new BsonRefId<Product>(p2Id),
+                    },
+                },
+                @"{
+                    _id: @p0,
+                    Customer: { $id: @p1, $ref: @p2, $type: @p3 },
+                    Users:[
+                        { $id: @p4, $ref: @p5 },
+                        { $id: ($.Users[0].$id + @p6), $ref: @p7 }
+                    ],
+                    Products: [
+                        { $id: @p8, $ref: @p9 },
+                        { $id: @p10, $ref: @p11 }
+                    ]
+                }",
+                [
+                    1,
+                    10,
+                    "customers",
+                    DefaultTypeNameBinder.Instance.GetName(typeof(OrderCustomer)),
+                    101,
+                    "users",
+                    100,
+                    "users",
+                    p1Id,
+                    "products",
+                    p2Id,
+                    "products",
+                ]);
+        }
+
+        [Fact]
+        public void Linq_MemberInit_DbRef_Throws_When_CollectionName_Is_Missing()
+        {
+            var mapper = new BsonMapper();
+
+            mapper.ResolveMember = (type, _, member) =>
+            {
+                if (type == typeof(OrderMissingDbRefCollectionName) && member.MemberName == nameof(OrderMissingDbRefCollectionName.Product))
+                {
+                    member.IsDbRef = true;
+                }
+            };
+
+            mapper.Invoking(x => x.GetExpression<OrderMissingDbRefCollectionName, object>(o => new OrderMissingDbRefCollectionName
+                {
+                    Id = 1,
+                    Product = new BsonRefId<Product>(ObjectId.NewObjectId())
+                }))
+                .Should()
+                .Throw<NotSupportedException>()
+                .WithMessage("*DbRef collection name*");
         }
 
         #region Test helper
