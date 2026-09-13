@@ -6,10 +6,9 @@ Fixes [upstream issue #2881](https://github.com/litedb-org/LiteDB/issues/2881).
 
 Ordinary predicates, projections, grouping, and ordering consider only ordinary
 skip-list indexes (`IndexType == 0`). Vector indexes have their own access path.
-`VECTOR_SIM(field, target)` and `field VECTOR_SIM target` both expose their
-operands to the vector planner. SQL `VECTOR_SIM` means cosine distance
-`1 - dot(a, b) / (length(a) * length(b))`; a SQL expression cannot use an index
-configured for a different metric. Scalar cosine predicates stay separate from
+`VECTOR_SIM(field, target)` and `field VECTOR_SIM target` both evaluate cosine
+distance `1 - dot(a, b) / (length(a) * length(b))` through the ordinary SQL pipeline.
+Scalar cosine predicates stay separate from
 API metric thresholds even when combined with an explicit vector query. API
 arguments select the vector index and target; scalar predicates remain residual
 filters and prevent premature ANN candidate truncation. Explicit `WhereNear` and `TopKNear` calls
