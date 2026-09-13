@@ -1,7 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Collections.Generic;
+
 using FluentAssertions;
 using Xunit;
 
@@ -49,42 +50,130 @@ namespace LiteDB.Tests.Database
         }
 
         [Fact]
-        public void ConnectionString_ToString()
+        public void ConnectionString_ToString_Redacts_Password()
         {
             var empty = new ConnectionString();
 
-            empty.ToString(true).Should().BeEmpty();
+            empty.ToString().Should().BeEmpty();
+            empty.ToStringWithPassword().Should().BeEmpty();
 
             var onlyfile = new ConnectionString
             {
                 Filename = @"c:\only file\demo.db",
             };
 
-            onlyfile.ToString(true).Should().Be(@"c:\only file\demo.db");
-            onlyfile.ToString().Should().Be("""Filename="c:\only file\demo.db";Password=********""");
+            onlyfile.ToString().Should().Be(@"c:\only file\demo.db");
+            onlyfile.ToStringWithPassword().Should().Be(@"c:\only file\demo.db");
 
-            // filename with =
+            var protectedConnection = new ConnectionString
+            {
+                Filename = "demo.db",
+                Password = "secret",
+            };
+
+            protectedConnection.ToString().Should().Be("""Filename="demo.db";Password=********""");
+            protectedConnection.ToString().Should().NotContain("secret");
+            protectedConnection.ToStringWithPassword().Should().Be("Filename=\"demo.db\";Password=\"secret\"");
+        }
+
+        [Fact]
+        public void ConnectionString_ToStringWithPassword_Serializes_All_Settings()
+        {
+            var full = new ConnectionString
+            {
+                Filename = """c:\only;file"d"emo.db""",
+                Connection = ConnectionType.Shared,
+                Password = "john-doe\\ ",
+                InitialSize = 10_485_760,
+                ReadOnly = true,
+                Collation = new Collation("ca-ES-VALENCIA/IgnoreCase"),
+                Upgrade = true,
+                AutoRebuild = true,
+                MemoryProfile = MemoryProfile.Throughput,
+                CacheSize = 64L * 1024 * 1024,
+                TransactionPageLimit = 32,
+            };
+
+            var serialized = full.ToStringWithPassword();
+
+            serialized.Should().Be(
+                """Filename="c:\only;file\"d\"emo.db";Connection=Shared;Password="john-doe\ ";InitialSize=10485760;ReadOnly=True;Collation=ca-ES-VALENCIA/IgnoreCase;Upgrade=True;Auto-Rebuild=True;Memory Profile=Throughput;Cache Size=67108864;Transaction Pages=32""");
+            full.ToString().Should().Be(
+                """Filename="c:\only;file\"d\"emo.db";Connection=Shared;Password=********;InitialSize=10485760;ReadOnly=True;Collation=ca-ES-VALENCIA/IgnoreCase;Upgrade=True;Auto-Rebuild=True;Memory Profile=Throughput;Cache Size=67108864;Transaction Pages=32""");
+
+            var parsed = new ConnectionString(serialized);
+
+            parsed.Filename.Should().Be(full.Filename);
+            parsed.Connection.Should().Be(full.Connection);
+            parsed.Password.Should().Be(full.Password);
+            parsed.InitialSize.Should().Be(full.InitialSize);
+            parsed.ReadOnly.Should().Be(full.ReadOnly);
+            parsed.Collation.LCID.Should().Be(full.Collation.LCID);
+            parsed.Collation.SortOptions.Should().Be(full.Collation.SortOptions);
+            parsed.Upgrade.Should().Be(full.Upgrade);
+            parsed.AutoRebuild.Should().Be(full.AutoRebuild);
+            parsed.MemoryProfile.Should().Be(full.MemoryProfile);
+            parsed.CacheSize.Should().Be(full.CacheSize);
+            parsed.TransactionPageLimit.Should().Be(full.TransactionPageLimit);
+        }
+
+        [Theory]
+        [InlineData(" db")]
+        [InlineData("db ")]
+        [InlineData(" db ")]
+        [InlineData(@"db\")]
+        public void ConnectionString_ToStringWithPassword_Preserves_Filename_Edge_Cases(string filename)
+        {
+            var original = new ConnectionString
+            {
+                Filename = filename,
+                ReadOnly = true,
+            };
+
+            var parsed = new ConnectionString(original.ToStringWithPassword());
+
+            parsed.Filename.Should().Be(filename);
+        }
+
+        [Fact]
+        public void ConnectionString_ToStringWithPassword_Preserves_Backslashes_And_Quotes()
+        {
+            var original = new ConnectionString
+            {
+                Filename = "demo.db",
+                Password = "secret\\\"tail\\",
+            };
+
+            var parsed = new ConnectionString(original.ToStringWithPassword());
+
+            parsed.Password.Should().Be(original.Password);
+        }
+
+        [Fact]
+        public void ConnectionString_ToStringWithPassword_Preserves_Explicit_Empty_Password()
+        {
+            var original = new ConnectionString
+            {
+                Filename = "demo.db",
+                Password = string.Empty,
+            };
+
+            var serialized = original.ToStringWithPassword();
+
+            serialized.Should().EndWith("Password=\"\"");
+            new ConnectionString(serialized).Password.Should().BeEmpty();
+            new ConnectionString("filename=demo.db;password=").Password.Should().BeNull();
+        }
+
+        [Fact]
+        public void ConnectionString_ToStringWithPassword_Quotes_Ambiguous_Filename()
+        {
             var fileWithSpecials = new ConnectionString
             {
                 Filename = @"c:\only file\d""e=mo.db",
             };
 
-            fileWithSpecials.ToString(true).Should().Be(@"Filename=""c:\only file\d\""e=mo.db""");
-
-            // file with spaces with " and ;
-            var full = new ConnectionString
-            {
-                Filename = """c:\only;file"d"emo.db""",
-                Password = "john-doe\\ ",
-                ReadOnly = true,
-                InitialSize = 10_485_760,
-            };
-
-            full.ToString(true).Should().Be("""Filename="c:\only;file\"d\"emo.db";Password="john-doe\ ";Initial Size=10485760;ReadOnly=True""");
-
-            // ToString/Parse round trips
-            var parsed = new ConnectionString(full.ToString(true));
-            parsed.Should().BeEquivalentTo(full);
+            fileWithSpecials.ToStringWithPassword().Should().Be(@"Filename=""c:\only file\d\""e=mo.db""");
         }
 
         [Fact]
