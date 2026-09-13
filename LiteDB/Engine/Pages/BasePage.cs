@@ -1,39 +1,59 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using static LiteDB.Constants;
 
-namespace LiteDB
+namespace LiteDB.Engine
 {
-    public enum PageType { Empty = 0, Header = 1, Collection = 2, Index = 3, Data = 4, Extend = 5 }
+    internal enum PageType { Empty = 0, Header = 1, Collection = 2, Index = 3, Data = 4, VectorIndex = 5 }
 
-    internal abstract class BasePage
+    internal class BasePage
     {
-        #region Page Constants
+        protected readonly PageBuffer _buffer;
+
+#if DEBUG || TESTING
+        private readonly int _ownerFrameUniqueID;
+        private readonly long _ownerFrameGeneration;
+        private Snapshot _ownerSnapshot;
+        private int _ownerSnapshotEpoch;
+#endif
 
         /// <summary>
-        /// The size of each page in disk - 4096 is NTFS default
+        /// Bytes used in each offset slot (to store segment position (2) + length (2))
         /// </summary>
-        public const int PAGE_SIZE = 4096;
+        public const int SLOT_SIZE = 4;
 
-        /// <summary>
-        /// This size is used bytes in header pages 17 bytes (+8 reserved to future use) = 25 bytes
-        /// </summary>
-        public const int PAGE_HEADER_SIZE = 25;
+        #region Buffer Field Positions
 
-        /// <summary>
-        /// Bytes available to store data removing page header size - 4071 bytes
-        /// </summary>
-        public const int PAGE_AVAILABLE_BYTES = PAGE_SIZE - PAGE_HEADER_SIZE;
+        public const int P_PAGE_ID = 0;  // 00-03 [uint]
+        public const int P_PAGE_TYPE = 4; // 04-04 [byte]
+        public const int P_PREV_PAGE_ID = 5; // 05-08 [uint]
+        public const int P_NEXT_PAGE_ID = 9; // 09-12 [uint]
+        public const int P_INITIAL_SLOT = 13; // 13-13 [byte]
 
-        #endregion Page Constants
+        public const int P_TRANSACTION_ID = 14; // 14-17 [uint]
+        public const int P_IS_CONFIRMED = 18; // 18-18 [byte]
+        public const int P_COL_ID = 19; // 19-22 [uint]
+
+        public const int P_ITEMS_COUNT = 23; // 23-23 [byte]
+        public const int P_USED_BYTES = 24; // 24-25 [ushort]
+        public const int P_FRAGMENTED_BYTES = 26; // 26-27 [ushort]
+        public const int P_NEXT_FREE_POSITION = 28; // 28-29 [ushort]
+        public const int P_HIGHEST_INDEX = 30; // 30-30 [byte]
+
+        #endregion
 
         /// <summary>
         /// Represent page number - start in 0 with HeaderPage [4 bytes]
         /// </summary>
-        public uint PageID { get; set; }
+        public uint PageID { get; }
 
         /// <summary>
-        /// Indicate the page type [1 byte] - Must be implemented for each page type
+        /// Indicate the page type [1 byte]
         /// </summary>
-        public abstract PageType PageType { get; }
+        public PageType PageType { get; private set; }
 
         /// <summary>
         /// Represent the previous page. Used for page-sequences - MaxValue represent that has NO previous page [4 bytes]
@@ -46,176 +66,764 @@ namespace LiteDB
         public uint NextPageID { get; set; }
 
         /// <summary>
-        /// Used for all pages to count items inside this page(bytes, nodes, blocks, ...) [2 bytes]
-        /// Its Int32 but writes in UInt16
+        /// Get/Set where this page are in free list slot [1 byte]
+        /// Used only in DataPage (0-4) and IndexPage (0-1) - when new or not used: 255
+        /// DataPage: 0 (7344 - 8160 free space) - 1 (6120 - 7343) - 2 (4896 - 6119) - 3 (2448 - 4895) - 4 (0 - 2447)
+        /// IndexPage 0 (1400 - 8160 free bytes) - 1 (0 - 1399 bytes free)
         /// </summary>
-        public int ItemCount { get; set; }
+        public byte PageListSlot { get; set; }
 
         /// <summary>
-        /// Used to find a free page using only header search [used in FreeList] [2 bytes]
-        /// Its Int32 but writes in UInt16
-        /// Its updated when a page modify content length (add/remove items)
+        /// Indicate how many items are used inside this page [1 byte]
         /// </summary>
-        public int FreeBytes { get; set; }
+        public byte ItemsCount { get; private set; }
 
         /// <summary>
-        /// Indicate that this page is dirty (was modified) and must persist when committed [not-persistable]
+        /// Get how many bytes are used on content area (exclude header and footer blocks) [2 bytes]
         /// </summary>
+        public ushort UsedBytes { get; private set; }
+
+        /// <summary>
+        /// Get how many bytes are fragmented inside this page (free blocks inside used blocks) [2 bytes]
+        /// </summary>
+        public ushort FragmentedBytes { get; private set; }
+
+        /// <summary>
+        /// Get next free position. Starts with 32 (first byte after header) - There is no fragmentation after this [2 bytes]
+        /// </summary>
+        public ushort NextFreePosition { get; private set; }
+
+        /// <summary>
+        /// Get last (highest) used index slot - use byte.MaxValue for empty [1 byte]
+        /// </summary>
+        public byte HighestIndex { get; private set; }
+
+        /// <summary>
+        /// Get how many free bytes (including fragmented bytes) are in this page (content space) - Will return 0 bytes if page are full (or with max 255 items)
+        /// </summary>
+        public int FreeBytes => this.ItemsCount == byte.MaxValue ?
+            0 :
+            PAGE_SIZE - PAGE_HEADER_SIZE - this.UsedBytes - this.FooterSize;
+
+        /// <summary>
+        /// Get how many bytes are used in footer page at this moment
+        /// ((HighestIndex + 1) * 4 bytes per slot: [2 for position, 2 for length])
+        /// </summary>
+        public int FooterSize =>
+            (this.HighestIndex == byte.MaxValue ?
+            0 :  // no items in page
+            ((this.HighestIndex + 1) * SLOT_SIZE)); // 4 bytes PER item (2 to position + 2 to length) - need consider HighestIndex used
+
+        /// <summary>
+        /// Set in all datafile pages the page id about data/index collection. Useful if want re-build database without any index [4 bytes]
+        /// </summary>
+        public uint ColID { get; set; }
+
+        /// <summary>
+        /// Represent transaction ID that was stored [4 bytes]
+        /// </summary>
+        public uint TransactionID { get; set; }
+
+        /// <summary>Marks the last WAL page of a confirmed transaction [1 byte].</summary>
+        public bool IsConfirmed { get; set; }
+
+        /// <summary>Whether this page has changes to persist (not stored on disk).</summary>
         public bool IsDirty { get; set; }
 
-        /// <summary>
-        /// This is the data when read first from disk - used to journal operations (IDiskService only will use)
-        /// </summary>
-        public byte[] DiskData { get; set; }
-
-        public BasePage(uint pageID)
+        internal bool OwnsBuffer { get; private set; } = true;
+        // Transfer the lease before another owner can release or recycle it.
+        internal PageBuffer TakeBuffer()
         {
+            var buffer = this.Buffer;
+            this.OwnsBuffer = false;
+            return buffer;
+        }
+
+        /// <summary>Get the buffer while this page still owns it.</summary>
+        public PageBuffer Buffer
+        {
+            get
+            {
+                this.EnsurePageOwnership();
+                return _buffer;
+            }
+        }
+
+        #region Initialize/Update buffer
+
+        /// <summary>
+        /// Create new Page based on pre-defined PageID and PageType
+        /// </summary>
+        public BasePage(PageBuffer buffer, uint pageID, PageType pageType)
+        {
+            _buffer = buffer;
+#if DEBUG || TESTING
+            _ownerFrameUniqueID = buffer.UniqueID;
+            _ownerFrameGeneration = buffer.Generation;
+#endif
+
+            DEBUG(buffer.Slice(PAGE_HEADER_SIZE, PAGE_SIZE - PAGE_HEADER_SIZE - 1).All(0), "new page buffer must be empty before use in a new page");
+
+            // page information
             this.PageID = pageID;
+            this.PageType = pageType;
             this.PrevPageID = uint.MaxValue;
             this.NextPageID = uint.MaxValue;
-            this.ItemCount = 0;
-            this.FreeBytes = PAGE_AVAILABLE_BYTES;
-            this.DiskData = new byte[0];
+            this.PageListSlot = byte.MaxValue; // no slot
+
+            // transaction information
+            this.ColID = uint.MaxValue;
+            this.TransactionID = uint.MaxValue;
+            this.IsConfirmed = false;
+
+            // block information
+            this.ItemsCount = 0;
+            this.UsedBytes = 0;
+            this.FragmentedBytes = 0;
+            this.NextFreePosition = PAGE_HEADER_SIZE; // 32
+            this.HighestIndex = byte.MaxValue; // empty - not used yet
+
+            // default values
+            this.IsDirty = false;
+
+            // writing direct into buffer in Ctor() because there is no change later (write once)
+            _buffer.Write(this.PageID, P_PAGE_ID);
+            _buffer.Write((byte)this.PageType, P_PAGE_TYPE);
         }
 
         /// <summary>
-        /// Every page must implement this ItemCount + FreeBytes
-        /// Must be called after Items are updates (insert/deletes) to keep variables ItemCount and FreeBytes synced
+        /// Read header data from byte[] buffer into local variables
+        /// using fixed position be be faster than use BufferReader
         /// </summary>
-        public abstract void UpdateItemCount();
-
-        /// <summary>
-        /// Returns a size of specified number of pages
-        /// </summary>
-        /// <param name="pageCount">The page count</param>
-        public static long GetSizeOfPages(uint pageCount)
+        public BasePage(PageBuffer buffer)
         {
-            return checked((long)pageCount * BasePage.PAGE_SIZE);
-        }
+            _buffer = buffer;
+#if DEBUG || TESTING
+            _ownerFrameUniqueID = buffer.UniqueID;
+            _ownerFrameGeneration = buffer.Generation;
+#endif
 
-        /// <summary>
-        /// Returns a size of specified number of pages
-        /// </summary>
-        /// <param name="pageCount">The page count</param>
-        public static long GetSizeOfPages(int pageCount)
-        {
-            if (pageCount < 0) throw new ArgumentOutOfRangeException("pageCount", "Could not be less than 0.");
+            // page information
+            this.PageID = _buffer.ReadUInt32(P_PAGE_ID);
+            this.PageType = (PageType)_buffer.ReadByte(P_PAGE_TYPE);
+            this.PrevPageID = _buffer.ReadUInt32(P_PREV_PAGE_ID);
+            this.NextPageID = _buffer.ReadUInt32(P_NEXT_PAGE_ID);
+            this.PageListSlot = _buffer.ReadByte(P_INITIAL_SLOT);
 
-            return BasePage.GetSizeOfPages((uint)pageCount);
-        }
+            // transaction information
+            this.TransactionID = _buffer.ReadUInt32(P_TRANSACTION_ID);
+            this.IsConfirmed = _buffer.ReadBool(P_IS_CONFIRMED);
+            this.ColID = _buffer.ReadUInt32(P_COL_ID);
 
-        #region Read/Write page
-
-        /// <summary>
-        /// Create a new instance of page based on T type
-        /// </summary>
-        public static T CreateInstance<T>(uint pageID)
-            where T : BasePage
-        {
-            var type = typeof(T);
-
-            // casting using "as T" #90 / thanks @Skysper
-            if (type == typeof(HeaderPage)) return new HeaderPage() as T;
-            if (type == typeof(CollectionPage)) return new CollectionPage(pageID) as T;
-            if (type == typeof(IndexPage)) return new IndexPage(pageID) as T;
-            if (type == typeof(DataPage)) return new DataPage(pageID) as T;
-            if (type == typeof(ExtendPage)) return new ExtendPage(pageID) as T;
-            if (type == typeof(EmptyPage)) return new EmptyPage(pageID) as T;
-
-            throw new Exception("Invalid base page type T");
+            // blocks information
+            this.ItemsCount = _buffer.ReadByte(P_ITEMS_COUNT);
+            this.UsedBytes = _buffer.ReadUInt16(P_USED_BYTES);
+            this.FragmentedBytes = _buffer.ReadUInt16(P_FRAGMENTED_BYTES);
+            this.NextFreePosition = _buffer.ReadUInt16(P_NEXT_FREE_POSITION);
+            this.HighestIndex = _buffer.ReadByte(P_HIGHEST_INDEX);
         }
 
         /// <summary>
-        /// Create a new instance of page based on PageType
+        /// Write header data from variable into byte[] buffer. When override, call base.UpdateBuffer() after write your code
         /// </summary>
-        public static BasePage CreateInstance(uint pageID, PageType pageType)
+        public virtual PageBuffer UpdateBuffer()
         {
-            switch (pageType)
-            {
-                case PageType.Collection: return new CollectionPage(pageID);
-                case PageType.Index: return new IndexPage(pageID);
-                case PageType.Data: return new DataPage(pageID);
-                case PageType.Extend: return new ExtendPage(pageID);
-                case PageType.Empty: return new EmptyPage(pageID);
-                // use Header as default, because header page will read fixed HEADER_INFO and validate file format (if is not valid datafile)
-                default: return new HeaderPage();
-            }
+            this.EnsurePageOwnership();
+            // using fixed position to be faster than BufferWriter
+            ENSURE(this.PageID == _buffer.ReadUInt32(P_PAGE_ID), "pageID can't be changed");
+
+            // page information
+            // PageID - never change!
+            _buffer.Write(this.PrevPageID, P_PREV_PAGE_ID);
+            _buffer.Write(this.NextPageID, P_NEXT_PAGE_ID);
+            _buffer.Write(this.PageListSlot, P_INITIAL_SLOT);
+
+            // transaction information
+            _buffer.Write(this.TransactionID, P_TRANSACTION_ID);
+            _buffer.Write(this.IsConfirmed, P_IS_CONFIRMED);
+            _buffer.Write(this.ColID, P_COL_ID);
+
+            // segments information
+            _buffer.Write(this.ItemsCount, P_ITEMS_COUNT);
+            _buffer.Write(this.UsedBytes, P_USED_BYTES);
+            _buffer.Write(this.FragmentedBytes, P_FRAGMENTED_BYTES);
+            _buffer.Write(this.NextFreePosition, P_NEXT_FREE_POSITION);
+            _buffer.Write(this.HighestIndex, P_HIGHEST_INDEX);
+
+            return _buffer;
         }
 
         /// <summary>
-        /// Read a page with correct instance page object. Checks for pageType
+        /// Change current page to Empty page - fix variables and buffer (DO NOT change PageID)
         /// </summary>
-        public static BasePage ReadPage(byte[] buffer)
+        public void MarkAsEmtpy()
         {
-            var reader = new ByteReader(buffer);
+            this.EnsurePageOwnership();
+            this.IsDirty = true;
 
-            var pageID = reader.ReadUInt32();
-            var pageType = (PageType)reader.ReadByte();
+            // page information
+            // PageID never change
+            this.PageType = PageType.Empty;
+            this.PrevPageID = uint.MaxValue;
+            this.NextPageID = uint.MaxValue;
+            this.PageListSlot = byte.MaxValue;
 
-            if (pageID == 0 && (byte)pageType > 5)
-            {
-                throw LiteException.InvalidDatabase();
-            }
+            // transaction information
+            this.ColID = uint.MaxValue;
+            this.TransactionID = uint.MaxValue;
+            this.IsConfirmed = false;
 
-            var page = CreateInstance(pageID, pageType);
+            // block information
+            this.ItemsCount = 0;
+            this.UsedBytes = 0;
+            this.FragmentedBytes = 0;
+            this.NextFreePosition = PAGE_HEADER_SIZE; // 32
+            this.HighestIndex = byte.MaxValue; // empty - not used yet
 
-            page.ReadHeader(reader);
-            page.ReadContent(reader);
+            // MUST CLEAR CONTENT
+            // because this page will be readed when re-used
+            _buffer.Clear(PAGE_HEADER_SIZE, PAGE_SIZE - PAGE_HEADER_SIZE);
 
-            page.DiskData = buffer;
-
-            return page;
+            // fix buffer page type position
+            _buffer.Write((byte)this.PageType, P_PAGE_TYPE);
         }
-
-        /// <summary>
-        /// Write a page to byte array
-        /// </summary>
-        public byte[] WritePage()
-        {
-            var writer = new ByteWriter(BasePage.PAGE_SIZE);
-
-            this.WriteHeader(writer);
-
-            if (this.PageType != LiteDB.PageType.Empty)
-            {
-                this.WriteContent(writer);
-            }
-
-            // update data bytes
-            this.DiskData = writer.Buffer;
-
-            return writer.Buffer;
-        }
-
-        private void ReadHeader(ByteReader reader)
-        {
-            // first 5 bytes (pageID + pageType) was readed before class create
-            // this.PageID
-            // this.PageType
-
-            this.PrevPageID = reader.ReadUInt32();
-            this.NextPageID = reader.ReadUInt32();
-            this.ItemCount = reader.ReadUInt16();
-            this.FreeBytes = reader.ReadUInt16();
-            reader.Skip(8); // reserved 8 bytes
-        }
-
-        private void WriteHeader(ByteWriter writer)
-        {
-            writer.Write(this.PageID);
-            writer.Write((byte)this.PageType);
-
-            writer.Write(this.PrevPageID);
-            writer.Write(this.NextPageID);
-            writer.Write((UInt16)this.ItemCount);
-            writer.Write((UInt16)this.FreeBytes);
-            writer.Skip(8); // reserved 8 bytes
-        }
-
-        protected abstract void ReadContent(ByteReader reader);
-
-        protected abstract void WriteContent(ByteWriter writer);
 
         #endregion
+
+        #region Access/Manipulate PageSegments
+
+        /// <summary>
+        /// Get a page segment item based on index slot
+        /// </summary>
+        public BufferSlice Get(byte index)
+        {
+            this.EnsurePageOwnership();
+            ENSURE(this.ItemsCount > 0, "should have items in this page");
+            ENSURE(this.HighestIndex != byte.MaxValue, "should have at least 1 index in this page");
+            ENSURE(index <= this.HighestIndex, "get only index below highest index");
+
+            // read slot address
+            var positionAddr = CalcPositionAddr(index);
+            var lengthAddr = CalcLengthAddr(index);
+
+            // read segment position/length
+            var position = _buffer.ReadUInt16(positionAddr);
+            var length = _buffer.ReadUInt16(lengthAddr);
+
+            ENSURE(this.IsValidPos(position), "invalid segment position in index footer: {0}/{1}", this, index);
+            ENSURE(this.IsValidLen(length), "invalid segment length in index footer: {0}/{1}", this, index);
+
+            // return buffer slice with content only data
+            return this.OwnedSlice(position, length);
+        }
+
+        /// <summary>
+        /// Get a new page segment for this length content
+        /// </summary>
+        public BufferSlice Insert(ushort bytesLength, out byte index)
+        {
+            index = byte.MaxValue;
+
+            return this.InternalInsert(bytesLength, ref index);
+        }
+
+        /// <summary>
+        /// Get a new page segment for this length content using fixed index
+        /// </summary>
+        private BufferSlice InternalInsert(ushort bytesLength, ref byte index)
+        {
+            this.EnsurePageOwnership();
+            var isNewInsert = index == byte.MaxValue;
+
+            ENSURE(_buffer.ShareCounter == BUFFER_WRITABLE, "page must be writable to support changes");
+            ENSURE(bytesLength > 0, "must insert more than 0 bytes");
+            ENSURE(this.FreeBytes >= bytesLength + (isNewInsert ? SLOT_SIZE : 0), "length must be always lower than current free space");
+            ENSURE(this.ItemsCount < byte.MaxValue, "page full");
+            ENSURE(this.FreeBytes >= this.FragmentedBytes, "fragmented bytes must be at most free bytes");
+
+            if(!(this.FreeBytes >= bytesLength + (isNewInsert ? SLOT_SIZE : 0)))
+            {
+                throw LiteException.InvalidFreeSpacePage(this.PageID, this.FreeBytes, bytesLength + (isNewInsert ? SLOT_SIZE : 0));
+            }
+
+            // calculate how many continuous bytes are avaiable in this page
+            var continuousBlocks = this.FreeBytes - this.FragmentedBytes - (isNewInsert ? SLOT_SIZE : 0);
+
+            ENSURE(continuousBlocks == PAGE_SIZE - this.NextFreePosition - this.FooterSize - (isNewInsert ? SLOT_SIZE : 0), "continuousBlock must be same as from NextFreePosition");
+
+            // if continuous blocks are not enough for this data, must run page defrag
+            if (bytesLength > continuousBlocks)
+            {
+                this.Defrag();
+            }
+
+            // if index is new insert segment, must request for new Index
+            if (index == byte.MaxValue)
+            {
+                // get new free index must run after defrag
+                index = this.GetFreeIndex();
+            }
+
+            if (index > this.HighestIndex || this.HighestIndex == byte.MaxValue)
+            {
+                ENSURE(index == (byte)(this.HighestIndex + 1), "new index must be next highest index");
+
+                this.HighestIndex = index;
+            }
+
+            // get segment addresses
+            var positionAddr = CalcPositionAddr(index);
+            var lengthAddr = CalcLengthAddr(index);
+
+            ENSURE(_buffer.ReadUInt16(positionAddr) == 0, "slot position must be empty before use");
+            ENSURE(_buffer.ReadUInt16(lengthAddr) == 0, "slot length must be empty before use");
+
+            // get next free position in page
+            var position = this.NextFreePosition;
+
+            // write this page position in my position address
+            _buffer.Write(position, positionAddr);
+
+            // write page segment length in my length address
+            _buffer.Write(bytesLength, lengthAddr);
+
+            // update next free position and counters
+            this.ItemsCount++;
+            this.UsedBytes += bytesLength;
+            this.NextFreePosition += bytesLength;
+
+            this.IsDirty = true;
+
+            ENSURE(position + bytesLength <= (PAGE_SIZE - (this.HighestIndex + 1) * SLOT_SIZE), "new buffer slice could not override footer area");
+
+            // create page segment based new inserted segment
+            return this.OwnedSlice(position, bytesLength);
+        }
+
+        /// <summary>
+        /// Remove index slot about this page segment
+        /// </summary>
+        public void Delete(byte index)
+        {
+            this.EnsurePageOwnership();
+            ENSURE(_buffer.ShareCounter == BUFFER_WRITABLE, "page must be writable to support changes");
+
+            // read block position on index slot
+            var positionAddr = CalcPositionAddr(index);
+            var lengthAddr = CalcLengthAddr(index);
+
+            var position = _buffer.ReadUInt16(positionAddr);
+            var length = _buffer.ReadUInt16(lengthAddr);
+
+            ENSURE(this.IsValidPos(position), "invalid segment position");
+            ENSURE(this.IsValidLen(length), "invalid segment length");
+
+            // clear both position/length
+            _buffer.Write((ushort)0, positionAddr);
+            _buffer.Write((ushort)0, lengthAddr);
+
+            // add as free blocks
+            this.ItemsCount--;
+            this.UsedBytes -= length;
+
+            // clean segment area with \0 [[can be removed later for production]]
+            _buffer.Array.Fill(0, _buffer.Offset + position, length);
+
+            // check if deleted segment are at end of page
+            var isLastSegment = (position + length == this.NextFreePosition);
+
+            if (isLastSegment)
+            {
+                // update next free position with this deleted position
+                this.NextFreePosition = position;
+            }
+            else
+            {
+                // if segment is in middle of the page, add this blocks as fragment block
+                this.FragmentedBytes += length;
+            }
+
+            // if deleted if are HighestIndex, update HighestIndex
+            if (this.HighestIndex == index)
+            {
+                this.UpdateHighestIndex();
+            }
+
+            // reset start index (used in GetFreeIndex)
+            _startIndex = 0;
+
+            // if there is no more items in page, fix fragmentation
+            if (this.ItemsCount == 0)
+            {
+                ENSURE(this.HighestIndex == byte.MaxValue, "if there is no items, HighestIndex must be clear");
+                ENSURE(this.UsedBytes == 0, "should be no bytes used in clean page");
+                DEBUG(_buffer.Slice(PAGE_HEADER_SIZE, PAGE_SIZE - PAGE_HEADER_SIZE - 1).All(0), "all content area must be 0");
+
+                this.NextFreePosition = PAGE_HEADER_SIZE;
+                this.FragmentedBytes = 0;
+            }
+
+            // set page as dirty
+            this.IsDirty = true;
+        }
+
+        /// <summary>
+        /// Update segment bytes with new data. Current page must have bytes enougth for this new size. Index will not be changed
+        /// Update will try use same segment to store. If not possible, write on end of page (with possible Defrag operation)
+        /// </summary>
+        public BufferSlice Update(byte index, ushort bytesLength)
+        {
+            this.EnsurePageOwnership();
+            ENSURE(_buffer.ShareCounter == BUFFER_WRITABLE, "page must be writable to support changes");
+            ENSURE(bytesLength > 0, "must update more than 0 bytes");
+
+            // read slot address
+            var positionAddr = CalcPositionAddr(index);
+            var lengthAddr = CalcLengthAddr(index);
+
+            // read segment position/length
+            var position = _buffer.ReadUInt16(positionAddr);
+            var length = _buffer.ReadUInt16(lengthAddr);
+
+            ENSURE(this.IsValidPos(position), "invalid segment position");
+            ENSURE(this.IsValidLen(length), "invalid segment length");
+
+            // check if deleted segment are at end of page
+            var isLastSegment = (position + length == this.NextFreePosition);
+
+            // mark page as dirty before return buffer slice
+            this.IsDirty = true;
+
+            // best situation: same slice length
+            if (bytesLength == length)
+            {
+                return this.OwnedSlice(position, length);
+            }
+            // when new length are less than original length (will fit in current segment)
+            else if (bytesLength < length)
+            {
+                var diff = (ushort)(length - bytesLength); // bytes removed (should > 0)
+
+                if (isLastSegment)
+                {
+                    // if is at end of page, must get back unused blocks
+                    this.NextFreePosition -= diff;
+                }
+                else
+                {
+                    // is this segment are not at end, must add this as fragment
+                    this.FragmentedBytes += diff;
+                }
+
+                // less blocks will be used
+                this.UsedBytes -= diff;
+
+                // update length
+                _buffer.Write(bytesLength, lengthAddr);
+
+                // clear fragment bytes
+                _buffer.Clear(position + bytesLength, diff);
+
+                return this.OwnedSlice(position, bytesLength);
+            }
+            // when new length are large than current segment must remove current item and add again
+            else
+            {
+                // clear current segment
+                _buffer.Clear(position, length);
+
+                this.ItemsCount--;
+                this.UsedBytes -= length;
+
+                if (isLastSegment)
+                {
+                    // if segment is end of page, must update next free position to current segment position
+                    this.NextFreePosition = position;
+                }
+                else
+                {
+                    // if segment is on middle of page, add content length as fragment bytes
+                    this.FragmentedBytes += length;
+                }
+
+                // clear slot index position/length
+                _buffer.Write((ushort)0, positionAddr);
+                _buffer.Write((ushort)0, lengthAddr);
+
+                // call insert
+                return this.InternalInsert(bytesLength, ref index);
+            }
+        }
+
+        /// <summary>
+        /// Defrag method re-organize all byte data content removing all fragmented data. This will move all page segments
+        /// to create a single continuous content area (just after header area). No index segment will be changed (only positions)
+        /// </summary>
+        public void Defrag()
+        {
+            this.EnsurePageOwnership();
+            ENSURE(this.FragmentedBytes > 0, "do not call this when page has no fragmentation");
+            ENSURE(_buffer.ShareCounter == BUFFER_WRITABLE, "page must be writable to support changes");
+            ENSURE(this.HighestIndex < byte.MaxValue, "there is no items in this page to run defrag");
+
+            LOG($"defrag page #{this.PageID} (fragments: {this.FragmentedBytes})", "DISK");
+
+            // first get all segments inside this page sorted by position (position, index)
+            var segments = new SortedList<ushort, byte>();
+
+            // use int to avoid byte overflow
+            for (int index = 0; index <= this.HighestIndex; index++)
+            {
+                var positionAddr = CalcPositionAddr((byte)index);
+                var position = _buffer.ReadUInt16(positionAddr);
+
+                // get only used index
+                if (position != 0)
+                {
+                    ENSURE(this.IsValidPos(position), "invalid segment position");
+
+                    // sort by position
+                    segments.Add(position, (byte)index);
+                }
+            }
+
+            // here first block position
+            var next = (ushort)PAGE_HEADER_SIZE;
+
+            // now, list all segments order by Position
+            foreach (var slot in segments)
+            {
+                var index = slot.Value;
+                var position = slot.Key;
+
+                // get segment length
+                var lengthAddr = CalcLengthAddr(index);
+                var length = _buffer.ReadUInt16(lengthAddr);
+
+                ENSURE(this.IsValidLen(length), "invalid segment length");
+
+                // if current segment are not as excpect, copy buffer to right position (excluding empty space)
+                if (position != next)
+                {
+                    ENSURE(position > next, "current segment position must be greater than current empty space");
+
+                    // copy from original position into new (correct) position
+                    System.Buffer.BlockCopy(_buffer.Array,
+                        _buffer.Offset + position,
+                        _buffer.Array,
+                        _buffer.Offset + next,
+                        length);
+
+                    // update index slot with this new block position
+                    var positionAddr = CalcPositionAddr(index);
+
+                    _buffer.Write(next, positionAddr);
+                }
+
+                next += length;
+            }
+
+            // fill all non-used content area with 0
+            var emptyLength = PAGE_SIZE - next - this.FooterSize;
+
+            _buffer.Array.Fill(0, _buffer.Offset + next, emptyLength);
+
+            // clear fragment blocks (page are in a continuous segment)
+            this.FragmentedBytes = 0;
+            this.NextFreePosition = next;
+         }
+
+        /// <summary>
+        /// Store start index used in GetFreeIndex to avoid always run full loop over all indexes
+        /// </summary>
+        private byte _startIndex = 0;
+
+        /// <summary>
+        /// Get a free index slot in this page
+        /// </summary>
+        private byte GetFreeIndex()
+        {
+            // check for all slot area to get first empty slot [safe for byte loop]
+            for (byte index = _startIndex; index <= this.HighestIndex; index++)
+            {
+                var positionAddr = CalcPositionAddr(index);
+                var position = _buffer.ReadUInt16(positionAddr);
+
+                // if position = 0 means this slot is not used
+                if (position == 0)
+                {
+                    _startIndex = (byte)(index + 1);
+
+                    return index;
+                }
+            }
+
+            return (byte)(this.HighestIndex + 1);
+        }
+
+        /// <summary>
+        /// Get all used slots indexes in this page
+        /// </summary>
+        public IEnumerable<byte> GetUsedIndexs()
+        {
+            this.EnsurePageOwnership();
+
+            // check for empty before loop
+            if (this.ItemsCount == 0) yield break;
+
+            ENSURE(this.HighestIndex != byte.MaxValue, "if has items count, Highest index should be not empty");
+
+            // [safe for byte loop] - because this.HighestIndex can't be 255
+            for (byte index = 0; index <= this.HighestIndex; index++)
+            {
+                var positionAddr = CalcPositionAddr(index);
+                var position = _buffer.ReadUInt16(positionAddr);
+
+                if (position != 0)
+                {
+                    yield return index;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Update HighestIndex based on current HighestIndex (step back looking for next used slot)
+        /// Used only in Delete() operation
+        /// </summary>
+        private void UpdateHighestIndex()
+        {
+            ENSURE(this.HighestIndex < byte.MaxValue, "can run only if contains a valid HighestIndex");
+
+            // if current index is 0, clear index
+            if (this.HighestIndex == 0)
+            {
+                this.HighestIndex = byte.MaxValue;
+                return;
+            }
+
+            // start from current - 1 to 0 (should use "int" because for use ">= 0")
+            for (int index = this.HighestIndex - 1; index >= 0; index--)
+            {
+                var positionAddr = CalcPositionAddr((byte)index);
+                var position = _buffer.ReadUInt16(positionAddr);
+
+                if (position != 0)
+                {
+                    ENSURE(this.IsValidPos(position), "invalid segment position");
+
+                    this.HighestIndex = (byte)index;
+                    return;
+                }
+            }
+
+            // there is no more slots used
+            this.HighestIndex = byte.MaxValue;
+        }
+
+        /// <summary>
+        /// Checks if segment position has a valid value (used for DEBUG)
+        /// </summary>
+        private bool IsValidPos(ushort position) => position >= PAGE_HEADER_SIZE && position < (PAGE_SIZE - this.FooterSize);
+
+        /// <summary>
+        /// Checks if segment length has a valid value (used for DEBUG)
+        /// </summary>
+        private bool IsValidLen(ushort length) => length > 0 && length <= (PAGE_SIZE - PAGE_HEADER_SIZE - this.FooterSize);
+
+        #endregion
+
+        internal void SetSnapshotOwnership(Snapshot snapshot)
+        {
+#if DEBUG || TESTING
+            _ownerSnapshot = snapshot;
+            _ownerSnapshotEpoch = snapshot?.Epoch ?? 0;
+#endif
+        }
+
+        private BufferSlice OwnedSlice(int position, int length)
+        {
+            this.EnsurePageOwnership();
+            var slice = _buffer.Slice(position, length);
+
+#if DEBUG || TESTING
+            slice.AttachOwner(_buffer, _ownerSnapshot, _ownerSnapshotEpoch);
+#endif
+
+            return slice;
+        }
+
+        protected void EnsurePageOwnership()
+        {
+#if DEBUG || TESTING
+            ENSURE(this.OwnsBuffer, "page buffer ownership was transferred to disk");
+            ENSURE(_buffer.UniqueID == _ownerFrameUniqueID && _buffer.Generation == _ownerFrameGeneration,
+                "page belongs to a recycled cache frame");
+            ENSURE(_ownerSnapshot == null || _ownerSnapshot.Epoch == _ownerSnapshotEpoch, "page belongs to a cleared snapshot");
+            _buffer.EnsureReadable();
+#endif
+        }
+
+        #region Static Helpers
+
+        /// <summary>
+        /// Get buffer offset position where one page segment length are located (based on index slot)
+        /// </summary>
+        public static int CalcPositionAddr(byte index) => PAGE_SIZE - ((index + 1) * SLOT_SIZE) + 2;
+
+        /// <summary>
+        /// Get buffer offset position where one page segment length are located (based on index slot)
+        /// </summary>
+        public static int CalcLengthAddr(byte index) => PAGE_SIZE - ((index + 1) * SLOT_SIZE);
+
+        /// <summary>Returns the byte position of a page.</summary>
+        public static long GetPagePosition(uint pageID)
+        {
+            return checked((long)pageID * PAGE_SIZE);
+        }
+
+        /// <summary>Returns the byte position of a page.</summary>
+        public static long GetPagePosition(int pageID)
+        {
+            ENSURE(pageID >= 0, "page could not be less than 0.");
+
+            return BasePage.GetPagePosition((uint)pageID);
+        }
+
+        /// <summary>
+        /// Create new page instance based on buffer (READ)
+        /// </summary>
+        public static T ReadPage<T>(PageBuffer buffer)
+            where T : BasePage
+        {
+            if (typeof(T) == typeof(BasePage)) return (T)(object)new BasePage(buffer);
+            if (typeof(T) == typeof(HeaderPage)) return (T)(object)new HeaderPage(buffer);
+            if (typeof(T) == typeof(CollectionPage)) return (T)(object)new CollectionPage(buffer);
+            if (typeof(T) == typeof(IndexPage)) return (T)(object)new IndexPage(buffer);
+            if (typeof(T) == typeof(VectorIndexPage)) return (T)(object)new VectorIndexPage(buffer);
+            if (typeof(T) == typeof(DataPage)) return (T)(object)new DataPage(buffer);
+
+            throw new InvalidCastException();
+        }
+
+        /// <summary>
+        /// Create new page instance with new PageID and passed buffer (NEW)
+        /// </summary>
+        public static T CreatePage<T>(PageBuffer buffer, uint pageID)
+            where T : BasePage
+        {
+            if (typeof(T) == typeof(CollectionPage)) return (T)(object)new CollectionPage(buffer, pageID);
+            if (typeof(T) == typeof(IndexPage)) return (T)(object)new IndexPage(buffer, pageID);
+            if (typeof(T) == typeof(VectorIndexPage)) return (T)(object)new VectorIndexPage(buffer, pageID);
+            if (typeof(T) == typeof(DataPage)) return (T)(object)new DataPage(buffer, pageID);
+
+            throw new InvalidCastException();
+        }
+
+        #endregion
+
+        public override string ToString()
+        {
+            return $"PageID: {this.PageID.ToString().PadLeft(4, '0')} : {this.PageType} ({this.ItemsCount} Items)";
+        }
     }
 }

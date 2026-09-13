@@ -1,9 +1,9 @@
-﻿namespace LiteDB
+namespace LiteDB
 {
     /// <summary>
     /// All supported BsonTypes in sort order
     /// </summary>
-    public enum BsonType
+    public enum BsonType : byte
     {
         MinValue = 0,
 
@@ -26,6 +26,7 @@
         Boolean = 12,
         DateTime = 13,
 
-        MaxValue = 14
+        MaxValue = 14,
+        Vector = 100,
     }
 }

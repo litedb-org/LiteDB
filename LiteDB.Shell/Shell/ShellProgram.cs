@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 using LiteDB.Shell.Commands;
 
 namespace LiteDB.Shell
@@ -10,18 +11,12 @@ namespace LiteDB.Shell
     {
         public static void Start(InputCommand input, Display display)
         {
-            var commands = new List<ICommand>();
-            var env = new Env();
-
-            LiteEngine engine = null;
-
-            // register commands
-            RegisterCommands(commands);
-
-            display.TextWriters.Add(Console.Out);
+            var env = new Env { Input = input, Display = display };
 
             // show welcome message
             display.WriteWelcome();
+
+            Console.CancelKeyPress += (o, e) => { e.Cancel = true; env.Running = false; };
 
             while (input.Running)
             {
@@ -32,56 +27,59 @@ namespace LiteDB.Shell
 
                 try
                 {
-                    var s = new StringScanner(cmd);
+                    var scmd = GetCommand(cmd);
 
-                    var found = false;
-
-                    // test all commands
-                    foreach (var command in commands)
+                    if (scmd != null)
                     {
-                        if (!command.IsCommand(s)) continue;
-
-                        // open datafile before execute
-                        if (command.Access != DataAccess.None)
-                        {
-                            engine = env.CreateEngine(command.Access);
-                        }
-
-                        command.Execute(engine, s, display, input, env);
-
-                        // close datafile to be always disconnected
-                        if (engine != null)
-                        {
-                            engine.Dispose();
-                            engine = null;
-                        }
-
-                        found = true;
-                        break;
+                        scmd(env);
+                        continue;
                     }
 
-                    if (!found) throw new ShellException("Command not found");
+                    // if string is not a shell command, try execute as sql command
+                    if (env.Database == null) throw new Exception("Database not connected");
+
+                    env.Running = true;
+
+                    display.WriteResult(env.Database.Execute(cmd), env);
+
                 }
                 catch (Exception ex)
                 {
-                    display.WriteError(ex.Message);
+                    display.WriteError(ex);
                 }
             }
         }
 
-        #region Register all commands
+        #region Shell Commands
 
-        public static void RegisterCommands(List<ICommand> commands)
+        private static readonly List<IShellCommand> _commands = new List<IShellCommand>();
+
+        static ShellProgram()
         {
-            var type = typeof(ICommand);
-            var types = typeof(ShellProgram).GetTypeInfo().Assembly
+            var type = typeof(IShellCommand);
+            var types = typeof(ShellProgram).Assembly
                 .GetTypes()
-                .Where(p => type.IsAssignableFrom(p) && p.GetTypeInfo().IsClass);
+                .Where(p => type.IsAssignableFrom(p) && p.IsClass);
 
-            foreach(var cmd in types)
+            foreach (var cmd in types)
             {
-                commands.Add(Activator.CreateInstance(cmd) as ICommand);
+                _commands.Add(Activator.CreateInstance(cmd) as IShellCommand);
             }
+        }
+
+        public static Action<Env> GetCommand(string cmd)
+        {
+            var s = new StringScanner(cmd);
+
+            // first test all shell app commands
+            foreach (var command in _commands)
+            {
+                if (!command.IsCommand(s)) continue;
+
+                return (env) => command.Execute(s, env);
+            }
+
+            return null;
         }
 
         #endregion

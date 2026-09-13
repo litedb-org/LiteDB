@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using static LiteDB.Constants;
 
 namespace LiteDB
 {
@@ -9,7 +10,7 @@ namespace LiteDB
     /// </summary>
     internal class MimeTypeConverter
     {
-        private static IDictionary<string, string> _mappings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        private static readonly IDictionary<string, string> _mappings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
         #region Big freaking list of mime types
 
@@ -506,6 +507,7 @@ namespace LiteDB
         {".wdb", "application/vnd.ms-works"},
         {".wdp", "image/vnd.ms-photo"},
         {".webarchive", "application/x-safari-webarchive"},
+        {".webp", "image/webp"},
         {".webtest", "application/xml"},
         {".wiq", "application/xml"},
         {".wiz", "application/msword"},
@@ -575,12 +577,12 @@ namespace LiteDB
         {".xwd", "image/x-xwindowdump"},
         {".z", "application/x-compress"},
         {".zip", "application/x-zip-compressed"},
-        #endregion Big freaking list of mime types
+        #endregion
         };
 
         public static string GetMimeType(string filename)
         {
-            if (string.IsNullOrEmpty(filename)) throw new ArgumentNullException("filename");
+            if (string.IsNullOrEmpty(filename)) throw new ArgumentNullException(nameof(filename));
 
             var extension = Path.GetExtension(filename);
 

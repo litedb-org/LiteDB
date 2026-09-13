@@ -1,133 +1,20 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{5C46B331-F4DC-469D-B370-532E67CBA808}</ProjectGuid>
+        <TargetFramework>net8.0</TargetFramework>
+	<AssemblyName>LiteDB.Shell</AssemblyName>
+    <PackageId>LiteDB.Shell</PackageId>
     <OutputType>Exe</OutputType>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>LiteDB.Shell</RootNamespace>
-    <AssemblyName>LiteDB.Shell</AssemblyName>
-    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
-    <FileAlignment>512</FileAlignment>
-    <TargetFrameworkProfile />
-    <PublishUrl>publish\</PublishUrl>
-    <Install>true</Install>
-    <InstallFrom>Disk</InstallFrom>
-    <UpdateEnabled>false</UpdateEnabled>
-    <UpdateMode>Foreground</UpdateMode>
-    <UpdateInterval>7</UpdateInterval>
-    <UpdateIntervalUnits>Days</UpdateIntervalUnits>
-    <UpdatePeriodically>false</UpdatePeriodically>
-    <UpdateRequired>false</UpdateRequired>
-    <MapFileExtensions>true</MapFileExtensions>
-    <ApplicationRevision>0</ApplicationRevision>
-    <ApplicationVersion>1.0.0.%2a</ApplicationVersion>
-    <IsWebBootstrapper>false</IsWebBootstrapper>
-    <UseApplicationTrust>false</UseApplicationTrust>
-    <BootstrapperEnabled>true</BootstrapperEnabled>
+    <Authors>Maurício David</Authors>
+    <Copyright>MIT</Copyright>
+    <NeutralLanguage>en-US</NeutralLanguage>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>1701;1702;1705;1591</NoWarn>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <PlatformTarget>x86</PlatformTarget>
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <Prefer32Bit>false</Prefer32Bit>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <PlatformTarget>AnyCPU</PlatformTarget>
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <Prefer32Bit>false</Prefer32Bit>
-  </PropertyGroup>
+  
   <ItemGroup>
-    <Reference Include="System" />
-    <Reference Include="System.Core" />
-    <Reference Include="System.Data" />
+    <ProjectReference Include="..\LiteDB\LiteDB.csproj" />
   </ItemGroup>
-  <ItemGroup>
-    <Compile Include="Commands\Collections\BaseCollection.cs" />
-    <Compile Include="Commands\Collections\Bulk.cs" />
-    <Compile Include="Commands\Collections\Count.cs" />
-    <Compile Include="Commands\Collections\Delete.cs" />
-    <Compile Include="Commands\Collections\Drop.cs" />
-    <Compile Include="Commands\Collections\DropIndex.cs" />
-    <Compile Include="Commands\Collections\EnsureIndex.cs" />
-    <Compile Include="Commands\Collections\Find.cs" />
-    <Compile Include="Commands\Collections\Indexes.cs" />
-    <Compile Include="Commands\Collections\Insert.cs" />
-    <Compile Include="Commands\Collections\Max.cs" />
-    <Compile Include="Commands\Collections\Min.cs" />
-    <Compile Include="Commands\Collections\Rename.cs" />
-    <Compile Include="Commands\Collections\Update.cs" />
-    <Compile Include="Commands\Console\Comment.cs" />
-    <Compile Include="Commands\Console\Debug.cs" />
-    <Compile Include="Commands\Console\Ed.cs" />
-    <Compile Include="Commands\Console\Help.cs" />
-    <Compile Include="Commands\Console\Open.cs" />
-    <Compile Include="Commands\Console\Pretty.cs" />
-    <Compile Include="Commands\Console\Quit.cs" />
-    <Compile Include="Commands\Console\Run.cs" />
-    <Compile Include="Commands\Console\ShowCollections.cs" />
-    <Compile Include="Commands\Console\Spool.cs" />
-    <Compile Include="Commands\Console\Shrink.cs" />
-    <Compile Include="Commands\Console\Timer.cs" />
-    <Compile Include="Commands\Console\Upgrade.cs" />
-    <Compile Include="Commands\Console\Version.cs" />
-    <Compile Include="Commands\Console\UserVersion.cs" />
-    <Compile Include="Commands\ICommand.cs" />
-    <Compile Include="Commands\Storage\BaseStorage.cs" />
-    <Compile Include="Commands\Storage\Delete.cs" />
-    <Compile Include="Commands\Storage\Download.cs" />
-    <Compile Include="Commands\Storage\Find.cs" />
-    <Compile Include="Commands\Storage\Update.cs" />
-    <Compile Include="Commands\Storage\Upload.cs" />
-    <Compile Include="Shell\Env.cs" />
-    <Compile Include="Shell\Display.cs" />
-    <Compile Include="Shell\InputCommand.cs" />
-    <Compile Include="Program.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Shell\ShellException.cs" />
-    <Compile Include="Shell\ShellProgram.cs" />
-    <Compile Include="Utils\OptionSet.cs" />
-    <Compile Include="Utils\StringExtensions.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="App.config" />
-  </ItemGroup>
-  <ItemGroup>
-    <BootstrapperPackage Include="Microsoft.Net.Client.3.5">
-      <Visible>False</Visible>
-      <ProductName>.NET Framework 3.5 SP1 Client Profile</ProductName>
-      <Install>false</Install>
-    </BootstrapperPackage>
-    <BootstrapperPackage Include="Microsoft.Net.Framework.3.5.SP1">
-      <Visible>False</Visible>
-      <ProductName>.NET Framework 3.5 SP1</ProductName>
-      <Install>true</Install>
-    </BootstrapperPackage>
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\LiteDB\LiteDB.csproj">
-      <Project>{e808051a-83b7-4fa9-b004-d064ea162b60}</Project>
-      <Name>LiteDB</Name>
-    </ProjectReference>
-  </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
-       Other similar extension points exist, see Microsoft.Common.targets.
-  <Target Name="BeforeBuild">
-  </Target>
-  <Target Name="AfterBuild">
-  </Target>
-  -->
+  
 </Project>

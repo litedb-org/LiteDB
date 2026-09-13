@@ -1,231 +1,66 @@
-﻿using System;
+﻿using LiteDB.Engine;
+using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
+using static LiteDB.Constants;
 
 namespace LiteDB
 {
     public class BsonDocument : BsonValue, IDictionary<string, BsonValue>
     {
-        public const int MAX_DOCUMENT_SIZE = 256 * BasePage.PAGE_AVAILABLE_BYTES; // limits in 1.044.224b max document size to avoid large documents, memory usage and slow performance
-
         public BsonDocument()
-            : base(new Dictionary<string, BsonValue>())
+            : base(BsonType.Document, new Dictionary<string, BsonValue>(StringComparer.OrdinalIgnoreCase))
         {
         }
 
-        public BsonDocument(Dictionary<string, BsonValue> dict)
-            : base(dict)
+        public BsonDocument(ConcurrentDictionary<string, BsonValue> dict)
+            : this()
         {
-            if (dict == null) throw new ArgumentNullException("dict");
-        }
+            if (dict == null) throw new ArgumentNullException(nameof(dict));
 
-        public new Dictionary<string, BsonValue> RawValue
-        {
-            get
+            foreach(var element in dict)
             {
-                return (Dictionary<string, BsonValue>)base.RawValue;
+                this.Add(element);
             }
         }
+
+        public BsonDocument(IDictionary<string, BsonValue> dict)
+            : this()
+        {
+            if (dict == null) throw new ArgumentNullException(nameof(dict));
+
+            foreach (var element in dict)
+            {
+                this.Add(element);
+            }
+        }
+
+        public new IDictionary<string, BsonValue> RawValue => base.RawValue as IDictionary<string, BsonValue>;
+
+        /// <summary>
+        /// Get/Set position of this document inside database. It's filled when used in Find operation.
+        /// </summary>
+        internal PageAddress RawId { get; set; } = PageAddress.Empty;
 
         /// <summary>
         /// Get/Set a field for document. Fields are case sensitive
         /// </summary>
-        public BsonValue this[string name]
+        public override BsonValue this[string key]
         {
             get
             {
-                return this.RawValue.GetOrDefault(name, BsonValue.Null);
+                return this.RawValue.GetOrDefault(key, BsonValue.Null);
             }
             set
             {
-                if (!IsValidFieldName(name)) throw new ArgumentException(string.Format("Field '{0}' has an invalid name.", name));
-
-                this.RawValue[name] = value ?? BsonValue.Null;
+                this.RawValue[key] = value ?? BsonValue.Null;
             }
         }
 
-        /// <summary>
-        /// Test if field name is a valid string: only [\w$]+(\w-$)*
-        /// </summary>
-        internal static bool IsValidFieldName(string field)
-        {
-            if (string.IsNullOrEmpty(field)) return false;
-
-            // do not use regex because is too slow
-            for (var i = 0; i < field.Length; i++)
-            {
-                var c = field[i];
-
-                if (char.IsLetterOrDigit(c) || c == '_' || c == '$')
-                {
-                    continue;
-                }
-                else if (c == '-' && i > 0)
-                {
-                    continue;
-                }
-                else
-                {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        #region Get/Set methods
-
-        /// <summary>
-        /// Get value from a path - supports dotted path like: Customer.Address.Street
-        /// </summary>
-        public BsonValue Get(string path)
-        {
-            // supports parent.child.name
-            var names = path.Split('.');
-
-            if (names.Length == 1)
-            {
-                return this[path];
-            }
-
-            var value = this;
-
-            for (var i = 0; i < names.Length - 1; i++)
-            {
-                var name = names[i];
-
-                if (value[name].IsDocument)
-                {
-                    value = value[name].AsDocument;
-                }
-                else
-                {
-                    return BsonValue.Null;
-                }
-            }
-
-            return value[names.Last()];
-        }
-
-        /// <summary>
-        /// Set value to a path - supports dotted path like: Customer.Address.Street - Fluent API (returns same BsonDocument)
-        /// </summary>
-        public BsonDocument Set(string path, BsonValue value)
-        {
-            // supports parent.child.name
-            var names = path.Split('.');
-
-            if (names.Length == 1)
-            {
-                this[path] = value;
-                return this;
-            }
-
-            var doc = this;
-
-            // walk on path creating object when do not exists
-            for (var i = 0; i < names.Length - 1; i++)
-            {
-                var name = names[i];
-
-                if (doc[name].IsDocument)
-                {
-                    doc = doc[name].AsDocument;
-                }
-                else if (doc[name].IsNull)
-                {
-                    var d = new BsonDocument();
-                    doc[name] = d;
-                    doc = d;
-                }
-                else
-                {
-                    return this;
-                }
-            }
-
-            doc[names.Last()] = value;
-
-            return this;
-        }
-
-        /// <summary>
-        /// Get a collection of values from a path. Supports array values. If SingleValue=true, returns BsonArray as a single value (BsonArray)
-        /// </summary>
-        public IEnumerable<BsonValue> GetValues(string path, bool distinct = false, bool singleValue = false)
-        {
-            // if single key, use Get method
-            if (singleValue)
-            {
-                yield return this.Get(path);
-            }
-            // implement this first level here to avoid recursive calls do GetKeyValues for almost all documents
-            else if (path.IndexOf(".") == -1)
-            {
-                var value = this[path];
-
-                if (value.IsArray)
-                {
-                    var items = this.GetKeyValues(value, path);
-
-                    foreach (var item in distinct ? items.Distinct() : items)
-                    {
-                        yield return item;
-                    }
-                }
-                else
-                {
-                    yield return value;
-                }
-            }
-            else
-            {
-                // let's call GetKeyValues recursivly until get all base values
-                var items = this.GetKeyValues(this, path);
-
-                foreach (var item in /*distinct ? items.Distinct() :*/ items)
-                {
-                    yield return item;
-                }
-            }
-        }
-
-        /// <summary>
-        /// Get, recursivly, values inside a BsonValue respecting Arrays and Documents path
-        /// </summary>
-        private IEnumerable<BsonValue> GetKeyValues(BsonValue value, string path)
-        {
-            if (value.IsArray)
-            {
-                foreach(var item in value.AsArray)
-                {
-                    foreach(var v in this.GetKeyValues(item, path))
-                    {
-                        yield return v;
-                    }
-                }
-            }
-            else if (value.IsDocument && path != null)
-            {
-                var dot = path.IndexOf(".");
-                var docValue = value.AsDocument[dot == -1 ? path : path.Substring(0, dot)];
-                var rpath = dot == -1 ? null : path.Substring(dot + 1);
-
-                foreach(var v in this.GetKeyValues(docValue, rpath))
-                {
-                    yield return v;
-                }
-            }
-            else
-            {
-                yield return value;
-            }
-        }
-
-        #endregion
-
-        #region CompareTo / ToString
+        #region CompareTo
 
         public override int CompareTo(BsonValue other)
         {
@@ -251,107 +86,87 @@ namespace LiteDB
 
             // test keys length to check which is bigger
             if (i == thisLength) return i == otherLength ? 0 : -1;
-            return 1;
-        }
 
-        public override string ToString()
-        {
-            return JsonSerializer.Serialize(this, false, true);
+            return 1;
         }
 
         #endregion
 
         #region IDictionary
 
-        public ICollection<string> Keys
+        public ICollection<string> Keys => this.RawValue.Keys;
+
+        public ICollection<BsonValue> Values => this.RawValue.Values;
+
+        public int Count => this.RawValue.Count;
+
+        public bool IsReadOnly => false;
+
+        public bool ContainsKey(string key) => this.RawValue.ContainsKey(key);
+
+        /// <summary>
+        /// Get all document elements - Return "_id" as first of all (if exists)
+        /// </summary>
+        public IEnumerable<KeyValuePair<string, BsonValue>> GetElements()
         {
-            get
+            if(this.RawValue.TryGetValue("_id", out var id))
             {
-                return this.RawValue.Keys
-                    .OrderBy(x => x == "_id" ? 1 : 2)
-                    .ToList();
+                yield return new KeyValuePair<string, BsonValue>("_id", id);
+            }
+
+            foreach(var item in this.RawValue.Where(x => !x.Key.Equals("_id", StringComparison.OrdinalIgnoreCase)))
+            {
+                yield return item;
             }
         }
 
-        public ICollection<BsonValue> Values
-        {
-            get
-            {
-                return this.RawValue.Values;
-            }
-        }
+        public void Add(string key, BsonValue value) => this.RawValue.Add(key, value ?? BsonValue.Null);
 
-        public int Count
-        {
-            get
-            {
-                return this.RawValue.Count;
-            }
-        }
+        public bool Remove(string key) => this.RawValue.Remove(key);
 
-        public bool IsReadOnly
-        {
-            get
-            {
-                return false;
-            }
-        }
+        public void Clear() => this.RawValue.Clear();
 
-        public bool ContainsKey(string key)
-        {
-            return this.RawValue.ContainsKey(key);
-        }
+        public bool TryGetValue(string key, out BsonValue value) => this.RawValue.TryGetValue(key, out value);
 
-        public void Add(string key, BsonValue value)
-        {
-            this[key] = value;
-        }
+        public void Add(KeyValuePair<string, BsonValue> item) => this.Add(item.Key, item.Value);
 
-        public bool Remove(string key)
-        {
-            return this.RawValue.Remove(key);
-        }
+        public bool Contains(KeyValuePair<string, BsonValue> item) => this.RawValue.Contains(item);
 
-        public bool TryGetValue(string key, out BsonValue value)
-        {
-            return this.RawValue.TryGetValue(key, out value);
-        }
+        public bool Remove(KeyValuePair<string, BsonValue> item) => this.Remove(item.Key);
 
-        public void Add(KeyValuePair<string, BsonValue> item)
-        {
-            this[item.Key] = item.Value;
-        }
+        public IEnumerator<KeyValuePair<string, BsonValue>> GetEnumerator() => this.RawValue.GetEnumerator();
 
-        public void Clear()
-        {
-            this.RawValue.Clear();
-        }
-
-        public bool Contains(KeyValuePair<string, BsonValue> item)
-        {
-            return this.RawValue.Contains(item);
-        }
+        IEnumerator IEnumerable.GetEnumerator() => this.RawValue.GetEnumerator();
 
         public void CopyTo(KeyValuePair<string, BsonValue>[] array, int arrayIndex)
         {
             ((ICollection<KeyValuePair<string, BsonValue>>)this.RawValue).CopyTo(array, arrayIndex);
         }
 
-        public bool Remove(KeyValuePair<string, BsonValue> item)
+        public void CopyTo(BsonDocument other)
         {
-            return this.RawValue.Remove(item.Key);
-        }
-
-        public IEnumerator<KeyValuePair<string, BsonValue>> GetEnumerator()
-        {
-            return this.RawValue.GetEnumerator();
-        }
-
-        IEnumerator IEnumerable.GetEnumerator()
-        {
-            return this.RawValue.GetEnumerator();
+            foreach(var element in this)
+            {
+                other[element.Key] = element.Value;
+            }
         }
 
         #endregion
+
+        private int _length = 0;
+
+        internal override int GetBytesCount(bool recalc)
+        {
+            if (recalc == false && _length > 0) return _length;
+
+            var length = 5;
+
+            foreach(var element in this.RawValue)
+            {
+                length += this.GetBytesCountElement(element.Key, element.Value);
+            }
+
+            return _length = length;
+        }
     }
 }

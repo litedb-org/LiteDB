@@ -1,46 +1,101 @@
 ﻿using System;
+using static LiteDB.Constants;
 
-namespace LiteDB
+namespace LiteDB.Engine
 {
     internal class DataBlock
     {
-        public const int DATA_BLOCK_FIXED_SIZE = 2 + // Position.Index (ushort)
-                                                 4 + // ExtendedPageID (uint)
-                                                 2; // block.Data.Length (ushort)
+        /// <summary>
+        /// Get fixed part of DataBlock (6 bytes)
+        /// </summary>
+        public const int DATA_BLOCK_FIXED_SIZE = 1 + // Extend
+                                                 PageAddress.SIZE; // NextBlock
+
+        public const int P_EXTEND = 0; // 00-00 [byte]
+        public const int P_NEXT_BLOCK = 1; // 01-05 [pageAddress]
+        public const int P_BUFFER = 6; // 06-EOF [byte[]]
+
+        private readonly DataPage _page;
+        private readonly BufferSlice _segment;
 
         /// <summary>
-        /// Position of this dataBlock inside a page (store only Position.Index)
+        /// Position block inside page
         /// </summary>
-        public PageAddress Position { get; set; }
+        public PageAddress Position { get; }
 
         /// <summary>
-        /// If object is bigger than this page - use a ExtendPage (and do not use Data array)
+        /// Indicate if this data block is first block (false) or extend block (true)
         /// </summary>
-        public uint ExtendPageID { get; set; }
+        public bool Extend { get; }
 
         /// <summary>
-        /// Data of a record - could be empty if is used in ExtedPage
+        /// If document need more than 1 block, use this link to next block
         /// </summary>
-        public byte[] Data { get; set; }
+        public PageAddress NextBlock { get; private set; }
 
         /// <summary>
-        /// Get a reference for page
+        /// Document buffer slice
         /// </summary>
-        public DataPage Page { get; set; }
+        public BufferSlice Buffer { get; }
 
         /// <summary>
-        /// Get length of this dataBlock (persist as ushort 2 bytes)
+        /// Read new DataBlock from filled page segment
         /// </summary>
-        public int Length
+        public DataBlock(DataPage page, byte index, BufferSlice segment)
         {
-            get { return DataBlock.DATA_BLOCK_FIXED_SIZE + this.Data.Length; }
+            _page = page;
+            _segment = segment;
+
+            this.Position = new PageAddress(page.PageID, index);
+
+            // byte 00: Extend
+            this.Extend = segment.ReadBool(P_EXTEND);
+
+            // byte 01-05: NextBlock (PageID, Index)
+            this.NextBlock = segment.ReadPageAddress(P_NEXT_BLOCK);
+
+            // byte 06-EOL: Buffer
+            this.Buffer = segment.Slice(P_BUFFER, segment.Count - P_BUFFER);
         }
 
-        public DataBlock()
+        /// <summary>
+        /// Create new DataBlock and fill into buffer
+        /// </summary>
+        public DataBlock(DataPage page, byte index, BufferSlice segment, bool extend, PageAddress nextBlock)
         {
-            this.Position = PageAddress.Empty;
-            this.ExtendPageID = uint.MaxValue;
-            this.Data = new byte[0];
+            _page = page;
+            _segment = segment;
+
+            this.Position = new PageAddress(page.PageID, index);
+
+            this.NextBlock = nextBlock;
+            this.Extend = extend;
+
+            // byte 00: Data Index
+            segment.Write(extend, P_EXTEND);
+
+            // byte 01-05 (can be updated in "UpdateNextBlock")
+            segment.Write(nextBlock, P_NEXT_BLOCK);
+
+            // byte 06-EOL: Buffer
+            this.Buffer = segment.Slice(P_BUFFER, segment.Count - P_BUFFER);
+
+            page.IsDirty = true;
+        }
+
+        public void SetNextBlock(PageAddress nextBlock)
+        {
+            this.NextBlock = nextBlock;
+
+            // update segment buffer with NextBlock (uint + byte)
+            _segment.Write(nextBlock, P_NEXT_BLOCK);
+
+            _page.IsDirty = true;
+        }
+
+        public override string ToString()
+        {
+            return $"Pos: [{this.Position}] - Ext: [{this.Extend}] - Next: [{this.NextBlock}] - Buffer: [{this.Buffer}]";
         }
     }
 }

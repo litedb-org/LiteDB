@@ -1,17 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.RegularExpressions;
 
 namespace LiteDB.Shell
 {
-    public class Display
+    internal class Display
     {
-        public List<TextWriter> TextWriters { get; set; }
         public bool Pretty { get; set; }
 
         public Display()
         {
-            this.TextWriters = new List<TextWriter>();
             this.Pretty = false;
         }
 
@@ -33,59 +32,40 @@ namespace LiteDB.Shell
             this.WriteLine(ConsoleColor.Gray, text);
         }
 
-        public void WriteError(string err)
+        public void WriteError(Exception ex)
         {
-            this.WriteLine(ConsoleColor.Red, err);
-        }
+            this.WriteLine(ConsoleColor.Red, ex.Message);
 
-        public void WriteHelp(string line1 = null, string line2 = null)
-        {
-            if (string.IsNullOrEmpty(line1))
+            if (ex is LiteException && (ex as LiteException).ErrorCode == LiteException.UNEXPECTED_TOKEN)
             {
-                this.WriteLine("");
-            }
-            else
-            {
-                this.WriteLine(ConsoleColor.Cyan, line1);
+                var err = ex as LiteException;
 
-                if (!string.IsNullOrEmpty(line2))
-                {
-                    this.WriteLine(ConsoleColor.DarkCyan, "    " + line2);
-                    this.WriteLine("");
-                }
+                this.WriteLine(ConsoleColor.DarkYellow, "> " + "^".PadLeft((int)err.Position + 1, ' '));
             }
         }
 
-        public void WriteResult(BsonValue result)
+        public void WriteResult(IBsonDataReader result, Env env)
         {
             var index = 0;
+            var writer = new JsonWriter(Console.Out)
+            {
+                Pretty = this.Pretty,
+                Indent = 2
+            };
 
-            if (result.IsNull) return;
+            foreach (var item in result.ToEnumerable())
+            {
+                if (env.Running == false) return;
 
-            if (result.IsDocument)
-            {
-                this.WriteLine(ConsoleColor.DarkCyan, JsonSerializer.Serialize(result, this.Pretty, false));
-            }
-            else if (result.IsArray)
-            {
-                foreach (var doc in result.AsArray)
-                {
-                    this.Write(ConsoleColor.Cyan, string.Format("[{0}]:{1}", ++index, this.Pretty ? Environment.NewLine : " "));
-                    this.WriteLine(ConsoleColor.DarkCyan, JsonSerializer.Serialize(doc, this.Pretty, false));
-                }
+                this.Write(ConsoleColor.Cyan, string.Format("[{0}]: ", ++index));
 
-                if (index == 0)
-                {
-                    this.WriteLine(ConsoleColor.DarkCyan, "no documents");
-                }
-            }
-            else if (result.IsString)
-            {
-                this.WriteLine(ConsoleColor.DarkCyan, result.AsString);
-            }
-            else
-            {
-                this.WriteLine(ConsoleColor.DarkCyan, JsonSerializer.Serialize(result, this.Pretty, false));
+                if (this.Pretty) Console.WriteLine();
+
+                Console.ForegroundColor = ConsoleColor.DarkCyan;
+
+                writer.Serialize(item);
+
+                Console.WriteLine();
             }
         }
 
@@ -109,13 +89,9 @@ namespace LiteDB.Shell
         public void Write(ConsoleColor color, string text)
         {
             Console.ForegroundColor = color;
-
-            foreach (var writer in this.TextWriters)
-            {
-                writer.Write(text);
-            }
+            Console.Write(text);
         }
 
-        #endregion Private methods
+        #endregion
     }
 }

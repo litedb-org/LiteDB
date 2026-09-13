@@ -1,39 +1,39 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
+using static LiteDB.Constants;
 
-namespace LiteDB
+namespace LiteDB.Engine
 {
     public partial class LiteEngine
     {
         /// <summary>
-        /// Implements insert documents in a collection - returns _id value
+        /// Insert all documents in collection. If document has no _id, use AutoId generation.
         /// </summary>
-        public BsonValue Insert(string collection, BsonDocument doc)
+        public int Insert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId)
         {
-            if (doc == null) throw new ArgumentNullException("doc");
+            if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
+            if (docs == null) throw new ArgumentNullException(nameof(docs));
 
-            this.Insert(collection, new BsonDocument[] { doc });
-            return doc["_id"];
-        }
-
-        /// <summary>
-        /// Implements insert documents in a collection - use a buffer to commit transaction in each buffer count
-        /// </summary>
-        public int Insert(string collection, IEnumerable<BsonDocument> docs)
-        {
-            if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException("collection");
-            if (docs == null) throw new ArgumentNullException("docs");
-
-            return this.Transaction<int>(collection, true, (col) =>
+            return this.AutoTransaction(transaction =>
             {
+                var snapshot = transaction.CreateSnapshot(LockMode.Write, collection, true);
                 var count = 0;
+                var indexer = new IndexService(snapshot, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
+                var data = new DataService(snapshot, _disk.MAX_ITEMS_COUNT);
+                var vectorService = new VectorIndexService(snapshot, _header.Pragmas.Collation);
+
+                LOG($"insert `{collection}`", "COMMAND");
 
                 foreach (var doc in docs)
                 {
-                    InsertDocument(col, doc);
+                    _state.Validate();
 
-                    _trans.CheckPoint();
+                    transaction.Safepoint();
+
+                    this.InsertDocument(snapshot, doc, autoId, indexer, data, vectorService);
 
                     count++;
                 }
@@ -43,36 +43,22 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Bulk documents to a collection - use data chunks for most efficient insert
-        /// </summary>
-        public int InsertBulk(string collection, IEnumerable<BsonDocument> docs, int batchSize = 5000)
-        {
-            if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException("collection");
-            if (docs == null) throw new ArgumentNullException("docs");
-            if (batchSize < 100 || batchSize > 100000) throw new ArgumentException("batchSize must be a value between 100 and 100000");
-            if (this.TransactionCount > 0) throw LiteException.TransactionNotSupported("InsertBulk");
-
-            var count = 0;
-
-            foreach(var batch in docs.Batch(batchSize))
-            {
-                count += this.Insert(collection, batch);
-            }
-
-            return count;
-        }
-
-        /// <summary>
         /// Internal implementation of insert a document
         /// </summary>
-        private void InsertDocument(CollectionPage col, BsonDocument doc)
+        private void InsertDocument(Snapshot snapshot, BsonDocument doc, BsonAutoId autoId, IndexService indexer, DataService data, VectorIndexService vectorService)
         {
-            BsonValue id;
-
-            // if no _id, add one as ObjectId
-            if (!doc.RawValue.TryGetValue("_id", out id))
+            // if no _id, use AutoId
+            if (!doc.TryGetValue("_id", out var id))
             {
-                doc["_id"] = id = ObjectId.NewObjectId();
+                doc["_id"] = id =
+                    autoId == BsonAutoId.ObjectId ? new BsonValue(ObjectId.NewObjectId()) :
+                    autoId == BsonAutoId.Guid ? new BsonValue(Guid.NewGuid()) :
+                    this.GetSequence(snapshot, autoId);
+            }
+            else if(id.IsNumber)
+            {
+                // update memory sequence of numeric _id
+                this.SetSequence(snapshot, id);
             }
 
             // test if _id is a valid type
@@ -81,36 +67,31 @@ namespace LiteDB
                 throw LiteException.InvalidDataType("_id", id);
             }
 
-            _log.Write(Logger.COMMAND, "insert document on '{0}' :: _id = {1}", col.CollectionName, id);
-
-            // serialize object
-            var bytes = BsonSerializer.Serialize(doc);
-
             // storage in data pages - returns dataBlock address
-            var dataBlock = _data.Insert(col, bytes);
+            var dataBlock = data.Insert(doc);
 
-            // store id in a PK index [0 array]
-            var pk = _indexer.AddNode(col.PK, id, null);
-
-            // do link between index <-> data block
-            pk.DataBlock = dataBlock.Position;
+            IndexNode last = null;
 
             // for each index, insert new IndexNode
-            foreach (var index in col.GetIndexes(false))
+            foreach (var index in snapshot.CollectionPage.GetCollectionIndexes().Where(x => x.IndexType == 0))
             {
-                // for each index, get all keys (support now multi-key) - gets distinct values only
+                // for each index, get all keys (supports multi-key) - gets distinct values only
                 // if index are unique, get single key only
-                var keys = doc.GetValues(index.Field, index.Unique);
+                var keys = index.BsonExpr.GetIndexKeys(doc, _header.Pragmas.Collation);
 
                 // do a loop with all keys (multi-key supported)
                 foreach(var key in keys)
                 {
                     // insert node
-                    var node = _indexer.AddNode(index, key, pk);
+                    var node = indexer.AddNode(index, key, dataBlock, last);
 
-                    // link my index node to data block address
-                    node.DataBlock = dataBlock.Position;
+                    last = node;
                 }
+            }
+
+            foreach (var (vectorIndex, metadata) in snapshot.CollectionPage.GetVectorIndexes())
+            {
+                vectorService.Upsert(vectorIndex, metadata, doc, dataBlock);
             }
         }
     }

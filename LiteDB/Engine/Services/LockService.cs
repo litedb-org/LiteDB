@@ -1,276 +1,158 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
+using static LiteDB.Constants;
 
-namespace LiteDB
+namespace LiteDB.Engine
 {
     /// <summary>
-    /// Implement a locker service locking datafile to shared/reserved and exclusive access mode
-    /// Implement both thread lock and process lock
-    /// Shared -> Reserved -> Exclusive => !Reserved => !Shared
-    /// Reserved -> Exclusive => !Reserved
-    /// [Thread Safe]
+    /// Lock service are collection-based locks. Lock will support any threads reading at same time. Writing operations will be locked
+    /// based on collection. Eventualy, write operation can change header page that has an exclusive locker for.
+    /// [ThreadSafe]
     /// </summary>
-    public class LockService
+    internal class LockService : IDisposable
     {
-        #region Properties + Ctor
+        private readonly EnginePragmas _pragmas;
 
-        private TimeSpan _timeout;
-        private IDiskService _disk;
-        private CacheService _cache;
-        private Logger _log;
-        private LockState _state;
-        private bool _shared = false;
-        private ReaderWriterLockSlim _thread = new ReaderWriterLockSlim(LockRecursionPolicy.NoRecursion);
+        private readonly ReaderWriterLockSlim _transaction = new ReaderWriterLockSlim(LockRecursionPolicy.NoRecursion);
+        private readonly ConcurrentDictionary<string, object> _collections = new ConcurrentDictionary<string, object>(StringComparer.OrdinalIgnoreCase);
 
-        internal LockService(IDiskService disk, CacheService cache, TimeSpan timeout, Logger log)
+        internal LockService(EnginePragmas pragmas)
         {
-            _disk = disk;
-            _cache = cache;
-            _log = log;
-            _timeout = timeout;
-            _state = LockState.Unlocked;
+            _pragmas = pragmas;
         }
 
         /// <summary>
-        /// Get current datafile lock state
+        /// Return if current thread have open transaction
         /// </summary>
-        public LockState State { get { return _state; } }
-
-        #endregion
-
-        #region Public Methods
+        public bool IsInTransaction => _transaction.IsReadLockHeld || _transaction.IsWriteLockHeld;
 
         /// <summary>
-        /// Enter in Shared lock mode.
+        /// Return how many transactions are opened
         /// </summary>
-        public LockControl Shared()
-        {
-            var read = this.ThreadRead();
-            var shared = this.LockShared();
+        public int TransactionsCount => _transaction.CurrentReadCount;
 
-            return new LockControl(() =>
+        /// <summary>
+        /// Enter transaction read lock - should be called just before enter a new transaction
+        /// </summary>
+        public void EnterTransaction()
+        {
+            // if current thread already in exclusive mode, just exit
+            if (_transaction.IsWriteLockHeld) return;
+
+            if (_transaction.TryEnterReadLock(_pragmas.Timeout) == false) throw LiteException.LockTimeout("transaction", _pragmas.Timeout);
+        }
+
+        /// <summary>
+        /// Exit transaction read lock
+        /// </summary>
+        public void ExitTransaction()
+        {
+            // if current thread are in reserved mode, do not exit transaction (will be exit from ExitExclusive)
+            if (_transaction.IsWriteLockHeld) return;
+            
+            //This can be called when a lock has either been released by the slim or somewhere else therefore there is no lock to release from ExitReadLock()
+            if (_transaction.IsReadLockHeld)
             {
-                shared();
-                read();
-            });
-        }
-
-        /// <summary>
-        /// Enter in Reserved lock mode.
-        /// </summary>
-        public LockControl Reserved()
-        {
-            var write = this.ThreadWrite();
-            var reserved = this.LockReserved();
-
-            return new LockControl(() =>
-            {
-                reserved();
-                write();
-            });
-        }
-
-        /// <summary>
-        /// Enter in Exclusive lock mode
-        /// </summary>
-        public LockControl Exclusive()
-        {
-            var exclusive = this.LockExclusive();
-
-            return new LockControl(exclusive);
-        }
-
-        #endregion
-
-        #region Process lock control
-
-        /// <summary>
-        /// Try enter in shared lock (read) - Call action if request a new lock
-        /// [Non ThreadSafe]
-        /// </summary>
-        private Action LockShared()
-        {
-            lock(_disk)
-            {
-                if (_state != LockState.Unlocked) return () => { };
-
-                _disk.Lock(LockState.Shared, _timeout);
-
-                _state = LockState.Shared;
-                _shared = true;
-
-                _log.Write(Logger.LOCK, "entered in shared lock mode");
-
-                this.AvoidDirtyRead();
-
-                return () =>
+                try
                 {
-                    _shared = false;
-                    _disk.Unlock(LockState.Shared);
-                    _state = LockState.Unlocked;
-
-                    _log.Write(Logger.LOCK, "exited shared lock mode");
-                };
-            }
-        }
-
-        /// <summary>
-        /// Try enter in reserved mode (read - single reserved)
-        /// [ThreadSafe] (always inside an Write())
-        /// </summary>
-        private Action LockReserved()
-        {
-            lock(_disk)
-            {
-                if (_state == LockState.Reserved) return () => { };
-
-                _disk.Lock(LockState.Reserved, _timeout);
-
-                _state = LockState.Reserved;
-
-                _log.Write(Logger.LOCK, "entered in reserved lock mode");
-
-                // can be a new lock, calls action to notifify
-                if (!_shared)
-                {
-                    this.AvoidDirtyRead();
+                    _transaction.ExitReadLock();
                 }
-
-                // is new lock only when not came from a shared lock
-                return () =>
-                {
-                    _disk.Unlock(LockState.Reserved);
-
-                    _state = _shared ? LockState.Shared : LockState.Unlocked;
-
-                    _log.Write(Logger.LOCK, "exited reserved lock mode");
-                };
+                catch { }
             }
         }
 
         /// <summary>
-        /// Try enter in exclusive mode (single write)
-        /// [ThreadSafe] - always inside Reserved() -> Write() 
+        /// Enter collection write lock mode (only 1 collection per time can have this lock)
         /// </summary>
-        private Action LockExclusive()
+        public void EnterLock(string collectionName)
         {
-            lock (_disk)
-            {
-                if (_state != LockState.Reserved) throw new InvalidOperationException("Lock state must be reserved");
+            ENSURE(_transaction.IsReadLockHeld || _transaction.IsWriteLockHeld, "Use EnterTransaction() before EnterLock(name)");
 
-                // has a shared lock? unlock first (will keep reserved lock)
-                if (_shared)
-                {
-                    _disk.Unlock(LockState.Shared);
-                }
+            // get collection object lock from dictionary (or create new if doesnt exists)
+            var collection = _collections.GetOrAdd(collectionName, (s) => new object());
 
-                _disk.Lock(LockState.Exclusive, _timeout);
-
-                _state = LockState.Exclusive;
-
-                _log.Write(Logger.LOCK, "entered in exclusive lock mode");
-
-                return () =>
-                {
-                    _disk.Unlock(LockState.Exclusive);
-                    _state = LockState.Reserved;
-
-                    _log.Write(Logger.LOCK, "exited exclusive lock mode");
-
-                    // if was in a shared lock before exclusive lock, back to shared again (still reserved lock)
-                    if (_shared)
-                    {
-                        _disk.Lock(LockState.Shared, _timeout);
-
-                        _log.Write(Logger.LOCK, "backed to shared mode");
-                    }
-                };
-            }
-        }
-
-        #endregion
-
-        #region Thread lock control
-
-        /// <summary>
-        /// Start new shared read lock control using timeout
-        /// </summary>
-        private Action ThreadRead()
-        {
-            // if current thread are in read mode, do nothing
-            if (_thread.IsReadLockHeld || _thread.IsWriteLockHeld) return () => { };
-
-            // try enter in read mode
-            _thread.TryEnterReadLock(_timeout);
-
-            // when dispose, close read mode
-            return _thread.ExitReadLock;
+            if (Monitor.TryEnter(collection, _pragmas.Timeout) == false) throw LiteException.LockTimeout("write", collectionName, _pragmas.Timeout);
         }
 
         /// <summary>
-        /// Start new exclusive write lock control using timeout
+        /// Exit collection in reserved lock
         /// </summary>
-        private Action ThreadWrite()
+        public void ExitLock(string collectionName)
         {
-            // if current thread is already in write mode, do nothing
-            if (_thread.IsWriteLockHeld) return () => { };
+            if (_collections.TryGetValue(collectionName, out var collection) == false) throw LiteException.CollectionLockerNotFound(collectionName);
 
-            // if current thread is in read mode, exit read mode first
-            if (_thread.IsReadLockHeld)
-            {
-                _thread.ExitReadLock();
-                _thread.TryEnterWriteLock(_timeout);
-
-                // when dispose write mode, enter again in read mode
-                return () =>
-                {
-                    _thread.ExitWriteLock();
-                    _thread.TryEnterReadLock(_timeout);
-                };
-            }
-
-            // try enter in write mode
-            if (!_thread.TryEnterWriteLock(_timeout))
-            {
-                throw LiteException.LockTimeout(_timeout);
-            }
-
-            // and release when dispose
-            return () => _thread.ExitWriteLock();
+            Monitor.Exit(collection);
         }
 
-        #endregion
+        /// <summary>
+        /// Enter all database in exclusive lock. Wait for all transactions finish. In exclusive mode no one can enter in new transaction (for read/write)
+        /// If current thread already in exclusive mode, returns false
+        /// </summary>
+        public bool EnterExclusive()
+        {
+            // if current thread already in exclusive mode
+            if (_transaction.IsWriteLockHeld) return false;
+
+            // wait finish all transactions before enter in reserved mode
+            if (_transaction.TryEnterWriteLock(_pragmas.Timeout) == false) throw LiteException.LockTimeout("exclusive", _pragmas.Timeout);
+
+            return true;
+        }
 
         /// <summary>
-        /// Test if cache still valid (if datafile was changed by another process reset cache)
-        /// [Thread Safe]
+        /// Try enter in exclusive mode - if not possible, just exit with false (do not wait and no exceptions)
+        /// If mustExit returns true, must call ExitExclusive after use
         /// </summary>
-        private void AvoidDirtyRead()
+        public bool TryEnterExclusive(out bool mustExit)
         {
-            // if disk are exclusive don't need check dirty read
-            if (_disk.IsExclusive) return;
-
-            _log.Write(Logger.CACHE, "checking disk to avoid dirty read");
-
-            // empty cache? just exit
-            if (_cache.CleanUsed == 0) return;
-
-            // get ChangeID from cache
-            var header = _cache.GetPage(0) as HeaderPage;
-            var changeID = header == null ? 0 : header.ChangeID;
-
-            // and get header from disk
-            var disk = BasePage.ReadPage(_disk.ReadPage(0)) as HeaderPage;
-
-            // if header change, clear cache and add new header to cache
-            if (disk.ChangeID != changeID)
+            // if already in exclusive mode return true but "enter" indicator must be false (do not exit)
+            if (_transaction.IsWriteLockHeld)
             {
-                _log.Write(Logger.CACHE, "file changed from another process, cleaning all cache pages");
+                mustExit = false;
+                return true;
+            }
 
-                _cache.ClearPages();
-                _cache.AddPage(disk);
+            // if there is any open transaction, exit with false
+            if (_transaction.IsReadLockHeld || _transaction.CurrentReadCount > 0)
+            {
+                mustExit = false;
+                return false;
+            }
+
+            // try enter in exclusive mode - but if not possible, just exit with false
+            if (_transaction.TryEnterWriteLock(10) == false)
+            {
+                mustExit = false;
+                return false;
+            }
+
+            ENSURE(_transaction.RecursiveReadCount == 0, "must have no other transaction here");
+
+            // now, current thread are in exclusive mode (must run ExitExclusive to exit)
+            mustExit = true;
+            return true;
+        }
+
+        /// <summary>
+        /// Exit exclusive lock
+        /// </summary>
+        public void ExitExclusive()
+        {
+            _transaction.ExitWriteLock();
+        }
+
+        public void Dispose()
+        {
+            try
+            {
+                _transaction.Dispose();
+            }
+            catch (SynchronizationLockException)
+            {
             }
         }
     }

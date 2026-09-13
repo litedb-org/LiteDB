@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Security;
 using System.Threading;
+using static LiteDB.Constants;
 
 namespace LiteDB
 {
@@ -14,29 +15,29 @@ namespace LiteDB
         /// <summary>
         /// A zero 12-bytes ObjectId
         /// </summary>
-        public static readonly ObjectId Empty = new ObjectId();
+        public static ObjectId Empty => new ObjectId();
 
         #region Properties
 
         /// <summary>
         /// Get timestamp
         /// </summary>
-        public int Timestamp { get; private set; }
+        public int Timestamp { get; }
 
         /// <summary>
         /// Get machine number
         /// </summary>
-        public int Machine { get; private set; }
+        public int Machine { get; }
 
         /// <summary>
         /// Get pid number
         /// </summary>
-        public short Pid { get; private set; }
+        public short Pid { get; }
 
         /// <summary>
         /// Get increment
         /// </summary>
-        public int Increment { get; private set; }
+        public int Increment { get; }
 
         /// <summary>
         /// Get creation time
@@ -46,7 +47,7 @@ namespace LiteDB
             get { return BsonValue.UnixEpoch.AddSeconds(this.Timestamp); }
         }
 
-        #endregion Properties
+        #endregion
 
         #region Ctor
 
@@ -94,15 +95,29 @@ namespace LiteDB
         /// <summary>
         /// Initializes a new instance of the ObjectId class from byte array.
         /// </summary>
-        public ObjectId(byte[] bytes)
+        public ObjectId(byte[] bytes, int startIndex = 0)
         {
-            if (bytes == null) throw new ArgumentNullException("bytes");
-            if (bytes.Length != 12) throw new ArgumentException("bytes", "Byte array must be 12 bytes long");
+            if (bytes == null) throw new ArgumentNullException(nameof(bytes));
 
-            this.Timestamp = (bytes[0] << 24) + (bytes[1] << 16) + (bytes[2] << 8) + bytes[3];
-            this.Machine = (bytes[4] << 16) + (bytes[5] << 8) + bytes[6];
-            this.Pid = (short)((bytes[7] << 8) + bytes[8]);
-            this.Increment = (bytes[9] << 16) + (bytes[10] << 8) + bytes[11];
+            this.Timestamp = 
+                (bytes[startIndex + 0] << 24) + 
+                (bytes[startIndex + 1] << 16) + 
+                (bytes[startIndex + 2] << 8) + 
+                bytes[startIndex + 3];
+
+            this.Machine = 
+                (bytes[startIndex + 4] << 16) + 
+                (bytes[startIndex + 5] << 8) + 
+                bytes[startIndex + 6];
+
+            this.Pid = (short)
+                ((bytes[startIndex + 7] << 8) + 
+                bytes[startIndex + 8]);
+
+            this.Increment = 
+                (bytes[startIndex + 9] << 16) + 
+                (bytes[startIndex + 10] << 8) + 
+                bytes[startIndex + 11];
         }
 
         /// <summary>
@@ -110,7 +125,7 @@ namespace LiteDB
         /// </summary>
         private static byte[] FromHex(string value)
         {
-            if (string.IsNullOrEmpty(value)) throw new ArgumentNullException("val");
+            if (string.IsNullOrEmpty(value)) throw new ArgumentNullException(nameof(value));
             if (value.Length != 24) throw new ArgumentException(string.Format("ObjectId strings should be 24 hex characters, got {0} : \"{1}\"", value.Length, value));
 
             var bytes = new byte[12];
@@ -123,7 +138,7 @@ namespace LiteDB
             return bytes;
         }
 
-        #endregion Ctor
+        #endregion
 
         #region Equals/CompareTo/ToString
 
@@ -182,22 +197,27 @@ namespace LiteDB
         /// <summary>
         /// Represent ObjectId as 12 bytes array
         /// </summary>
+        public void ToByteArray(byte[] bytes, int startIndex)
+        {
+            bytes[startIndex + 0] = (byte)(this.Timestamp >> 24);
+            bytes[startIndex + 1] = (byte)(this.Timestamp >> 16);
+            bytes[startIndex + 2] = (byte)(this.Timestamp >> 8);
+            bytes[startIndex + 3] = (byte)(this.Timestamp);
+            bytes[startIndex + 4] = (byte)(this.Machine >> 16);
+            bytes[startIndex + 5] = (byte)(this.Machine >> 8);
+            bytes[startIndex + 6] = (byte)(this.Machine);
+            bytes[startIndex + 7] = (byte)(this.Pid >> 8);
+            bytes[startIndex + 8] = (byte)(this.Pid);
+            bytes[startIndex + 9] = (byte)(this.Increment >> 16);
+            bytes[startIndex + 10] = (byte)(this.Increment >> 8);
+            bytes[startIndex + 11] = (byte)(this.Increment);
+        }
+
         public byte[] ToByteArray()
         {
             var bytes = new byte[12];
 
-            bytes[0] = (byte)(this.Timestamp >> 24);
-            bytes[1] = (byte)(this.Timestamp >> 16);
-            bytes[2] = (byte)(this.Timestamp >> 8);
-            bytes[3] = (byte)(this.Timestamp);
-            bytes[4] = (byte)(this.Machine >> 16);
-            bytes[5] = (byte)(this.Machine >> 8);
-            bytes[6] = (byte)(this.Machine);
-            bytes[7] = (byte)(this.Pid >> 8);
-            bytes[8] = (byte)(this.Pid);
-            bytes[9] = (byte)(this.Increment >> 16);
-            bytes[10] = (byte)(this.Increment >> 8);
-            bytes[11] = (byte)(this.Increment);
+            this.ToByteArray(bytes, 0);
 
             return bytes;
         }
@@ -207,14 +227,14 @@ namespace LiteDB
             return BitConverter.ToString(this.ToByteArray()).Replace("-", "").ToLower();
         }
 
-        #endregion Equals/CompareTo/ToString
+        #endregion
 
         #region Operators
 
         public static bool operator ==(ObjectId lhs, ObjectId rhs)
         {
-            if (object.ReferenceEquals(lhs, null)) return object.ReferenceEquals(rhs, null);
-            if (object.ReferenceEquals(rhs, null)) return false; // don't check type because sometimes different types can be ==
+            if (lhs is null) return rhs is null;
+            if (rhs is null) return false; // don't check type because sometimes different types can be ==
 
             return lhs.Equals(rhs);
         }
@@ -244,19 +264,19 @@ namespace LiteDB
             return lhs.CompareTo(rhs) <= 0;
         }
 
-        #endregion Operators
+        #endregion
 
         #region Static methods
 
-        private static int _machine;
-        private static short _pid;
+        private static readonly int _machine;
+        private static readonly short _pid;
         private static int _increment;
 
         // static constructor
         static ObjectId()
         {
             _machine = (GetMachineHash() +
-#if NET35
+#if HAVE_APP_DOMAIN
                 AppDomain.CurrentDomain.Id
 #else
                 10000 // Magic number
@@ -277,17 +297,17 @@ namespace LiteDB
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static int GetCurrentProcessId()
         {
-#if NET35
+#if HAVE_PROCESS
             return Process.GetCurrentProcess().Id;
 #else
-            return 1000; // Magic number
+            return (new Random()).Next(0, 5000); // Any same number for this process
 #endif
         }
 
         private static int GetMachineHash()
         {
             var hostName =
-#if NET35
+#if HAVE_ENVIRONMENT
                 Environment.MachineName; // use instead of Dns.HostName so it will work offline
 #else
                 "SOMENAME";
@@ -306,6 +326,6 @@ namespace LiteDB
             return new ObjectId((int)timestamp, _machine, _pid, inc);
         }
 
-        #endregion Static methods
+        #endregion
     }
 }

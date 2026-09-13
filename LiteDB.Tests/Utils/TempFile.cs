@@ -1,7 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Text;
 
 namespace LiteDB.Tests
 {
@@ -9,35 +7,32 @@ namespace LiteDB.Tests
     {
         public string Filename { get; private set; }
 
-        public TempFile(string ext = "db")
+        public TempFile()
         {
-            this.Filename = Path.GetFullPath(string.Format("test-{0}.{1}", Guid.NewGuid(), ext));
+            var path = Path.GetTempPath();
+            var name = "litedb-" + Guid.NewGuid().ToString("d").Substring(0, 5) + ".db";
+
+            this.Filename = Path.Combine(path, name);
         }
 
-        public void CreateDatafile()
+        public TempFile(string original)
         {
-            using (var s = new FileStream(Filename, System.IO.FileMode.CreateNew))
-            {
-                LiteEngine.CreateDatabase(s);
-            }
-        }
+            var rnd = Guid.NewGuid().ToString("d").Substring(0, 5);
+            var path = Path.GetTempPath();
+            var name = $"litedb-{rnd}.db";
+            var filename = Path.Combine(path, name);
 
-        public IDiskService Disk(bool journal = true)
-        {
-            return new FileDiskService(Filename, journal);
-        }
+            File.Copy(original, filename, true);
 
-        public IDiskService Disk(FileOptions options)
-        {
-            return new FileDiskService(Filename, options);
-        }
-
-        public string Conn(string connectionString)
-        {
-            return "filename=\"" + this.Filename + "\";" + connectionString;
+            this.Filename = filename;
         }
 
         #region Dispose
+
+        public static implicit operator String(TempFile value)
+        {
+            return value.Filename;
+        }
 
         private bool _disposed;
 
@@ -63,6 +58,8 @@ namespace LiteDB.Tests
                 // IDisposable only
             }
 
+            // check file integrity
+
             File.Delete(this.Filename);
 
             _disposed = true;
@@ -70,49 +67,10 @@ namespace LiteDB.Tests
 
         #endregion
 
-        public long Size
-        {
-            get { return new FileInfo(this.Filename).Length; }
-        }
+        public long Size => new FileInfo(this.Filename).Length;
 
-        public string ReadAsText()
-        {
-            return File.ReadAllText(this.Filename);
-        }
+        public string ReadAsText() => File.ReadAllText(this.Filename);
 
-        #region LoremIpsum Generator
-
-        public static string LoremIpsum(int minWords, int maxWords,
-            int minSentences, int maxSentences,
-            int numParagraphs)
-        {
-            var words = new[] { "lorem", "ipsum", "dolor", "sit", "amet", "consectetuer",
-                "adipiscing", "elit", "sed", "diam", "nonummy", "nibh", "euismod",
-                "tincidunt", "ut", "laoreet", "dolore", "magna", "aliquam", "erat" };
-
-            var rand = new Random(DateTime.Now.Millisecond);
-            var numSentences = rand.Next(maxSentences - minSentences) + minSentences + 1;
-            var numWords = rand.Next(maxWords - minWords) + minWords + 1;
-
-            var result = new StringBuilder();
-
-            for (int p = 0; p < numParagraphs; p++)
-            {
-                for (int s = 0; s < numSentences; s++)
-                {
-                    for (int w = 0; w < numWords; w++)
-                    {
-                        if (w > 0) { result.Append(" "); }
-                        result.Append(words[rand.Next(words.Length)]);
-                    }
-                    result.Append(". ");
-                }
-                result.AppendLine();
-            }
-
-            return result.ToString();
-        }
-
-        #endregion
+        public override string ToString() => this.Filename;
     }
 }

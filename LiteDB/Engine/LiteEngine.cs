@@ -1,217 +1,268 @@
-﻿using System;
-using System.IO;
+﻿using LiteDB.Utils;
 
-namespace LiteDB
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using static LiteDB.Constants;
+
+namespace LiteDB.Engine
 {
     /// <summary>
     /// A public class that take care of all engine data structure access - it´s basic implementation of a NoSql database
-    /// Its isolated from complete solution - works on low level only (no linq, no poco... just Bson objects)
+    /// Its isolated from complete solution - works on low level only (no linq, no poco... just BSON objects)
+    /// [ThreadSafe]
     /// </summary>
-    public partial class LiteEngine : IDisposable
+    public partial class LiteEngine : ILiteEngine
     {
         #region Services instances
 
-        private Logger _log;
-
         private LockService _locker;
 
-        private IDiskService _disk;
+        private DiskService _disk;
 
-        private CacheService _cache;
+        private WalIndexService _walIndex;
 
-        private PageService _pager;
+        private HeaderPage _header;
 
-        private TransactionService _trans;
+        private TransactionMonitor _monitor;
 
-        private IndexService _indexer;
+        private SortDisk _sortDisk;
 
-        private DataService _data;
+        private EngineState _state;
 
-        private CollectionService _collections;
-
-        private AesEncryption _crypto;
-
-        private int _cacheSize;
-
-        private TimeSpan _timeout;
+        // immutable settings
+        private readonly EngineSettings _settings;
 
         /// <summary>
-        /// Get log instance for debug operations
+        /// All system read-only collections for get metadata database information
         /// </summary>
-        public Logger Log { get { return _log; } }
+        private Dictionary<string, SystemCollection> _systemCollections;
 
         /// <summary>
-        /// Get memory cache size limit. Works only with journal enabled (number in pages). If journal is disabled, pages in cache can exceed this limit. Default is 5000 pages
+        /// Sequence cache for collections last ID (for int/long numbers only)
         /// </summary>
-        public int CacheSize { get { return _cacheSize; } }
-
-        /// <summary>
-        /// Get how many pages are on cache
-        /// </summary>
-        public int CacheUsed { get { return _cache.CleanUsed; } }
-
-        /// <summary>
-        /// Gets time waiting write lock operation before throw LiteException timeout
-        /// </summary>
-        public TimeSpan Timeout { get { return _timeout; } }
-
-        /// <summary>
-        /// Instance of locker control
-        /// </summary>
-        public LockService Locker { get { return _locker; } }
+        private ConcurrentDictionary<string, long> _sequences;
 
         #endregion
 
         #region Ctor
 
         /// <summary>
-        /// Initialize LiteEngine using default FileDiskService
+        /// Initialize LiteEngine using connection memory database
         /// </summary>
-        public LiteEngine(string filename, bool journal = true)
-            : this(new FileDiskService(filename, journal))
+        public LiteEngine()
+            : this(new EngineSettings { DataStream = new MemoryStream() })
         {
         }
 
         /// <summary>
-        /// Initialize LiteEngine with password encryption
+        /// Initialize LiteEngine using connection string using key=value; parser
         /// </summary>
-        public LiteEngine(string filename, string password, bool journal = true)
-            : this(new FileDiskService(filename, new FileOptions { Journal = journal }), password)
+        public LiteEngine(string filename)
+            : this (new EngineSettings { Filename = filename })
         {
         }
 
         /// <summary>
-        /// Initialize LiteEngine using StreamDiskService
+        /// Initialize LiteEngine using initial engine settings
         /// </summary>
-        public LiteEngine(Stream stream, string password = null)
-            : this(new StreamDiskService(stream), password)
+        public LiteEngine(EngineSettings settings)
         {
+            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+
+            this.Open();
         }
 
-        /// <summary>
-        /// Initialize LiteEngine using custom disk service implementation and full engine options
-        /// </summary>
-        public LiteEngine(IDiskService disk, string password = null, TimeSpan? timeout = null, int cacheSize = 5000, Logger log = null)
-        {
-            if (disk == null) throw new ArgumentNullException("disk");
+        #endregion
 
-            _timeout = timeout ?? TimeSpan.FromMinutes(1);
-            _cacheSize = cacheSize;
-            _disk = disk;
-            _log = log ?? new Logger();
+        #region Open & Close
+
+        internal bool Open()
+        {
+            LOG($"start initializing{(_settings.ReadOnly ? " (readonly)" : "")}", "ENGINE");
+
+            _systemCollections = new Dictionary<string, SystemCollection>(StringComparer.OrdinalIgnoreCase);
+            _sequences = new ConcurrentDictionary<string, long>(StringComparer.OrdinalIgnoreCase);
 
             try
             {
-                // initialize datafile (create) and set log instance
-                _disk.Initialize(_log, password);
+                // initialize engine state 
+                _state = new EngineState(this, _settings);
 
-                // read header page
-                var header = BasePage.ReadPage(_disk.ReadPage(0)) as HeaderPage;
+                // before initilize, try if must be upgrade
+                if (_settings.Upgrade) this.TryUpgrade();
 
-                // hash password with sha1 or keep as empty byte[20]
-                var sha1 = password == null ? new byte[20] : AesEncryption.HashSHA1(password);
+                // initialize disk service (will create database if needed)
+                _disk = new DiskService(_settings, _state, MEMORY_SEGMENT_SIZES);
 
-                // compare header password with user password even if not passed password (datafile can have password)
-                if (sha1.BinaryCompareTo(header.Password) != 0)
+                // read page with no cache ref (has a own PageBuffer) - do not Release() support
+                var buffer = _disk.ReadFull(FileOrigin.Data).First();
+
+                // if first byte are 1 this datafile are encrypted but has do defined password to open
+                if (buffer[0] == 1) throw new LiteException(0, "This data file is encrypted and needs a password to open");
+
+                // read header database page
+                _header = new HeaderPage(buffer);
+
+                // if database is set to invalid state, need rebuild
+                if (buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0 && _settings.AutoRebuild)
                 {
-                    throw LiteException.DatabaseWrongPassword();
+                    // dispose disk access to rebuild process
+                    _disk.Dispose();
+                    _disk = null;
+
+                    // rebuild database, create -backup file and include _rebuild_errors collection
+                    this.Recovery(_header.Pragmas.Collation);
+
+                    // re-initialize disk service
+                    _disk = new DiskService(_settings, _state, MEMORY_SEGMENT_SIZES);
+
+                    // read buffer header page again
+                    buffer = _disk.ReadFull(FileOrigin.Data).First();
+
+                    _header = new HeaderPage(buffer);
                 }
 
-                // initialize AES encryptor
-                if (password != null)
+                // test for same collation
+                if (_settings.Collation != null && _settings.Collation.ToString() != _header.Pragmas.Collation.ToString())
                 {
-                    _crypto = new AesEncryption(password, header.Salt);
+                    throw new LiteException(0, $"Datafile collation '{_header.Pragmas.Collation}' is different from engine settings. Use Rebuild database to change collation.");
                 }
 
-                // initialize all services
-                this.InitializeServices();
+                // initialize locker service
+                _locker = new LockService(_header.Pragmas);
 
-                // try recovery if has journal file
-                _trans.Recovery();
+                // initialize wal-index service
+                _walIndex = new WalIndexService(_disk, _locker);
+
+                // if exists log file, restore wal index references (can update full _header instance)
+                if (_disk.GetFileLength(FileOrigin.Log) > 0)
+                {
+                    _walIndex.RestoreIndex(ref _header);
+                }
+
+                // initialize sort temp disk
+                _sortDisk = new SortDisk(_settings.CreateTempFactory(), CONTAINER_SORT_SIZE, _header.Pragmas);
+
+                // initialize transaction monitor as last service
+                _monitor = new TransactionMonitor(_header, _locker, _disk, _walIndex, _settings.TransactionPageLimit);
+
+                // register system collections
+                this.InitializeSystemCollections();
+
+                LOG("initialization completed", "ENGINE");
+
+                return true;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // explicit dispose
-                this.Dispose();
+                LOG(ex.Message, "ERROR");
+
+                this.Close(ex);
                 throw;
             }
         }
 
         /// <summary>
-        /// Create instances for all engine services
+        /// Normal close process:
+        /// - Stop any new transaction
+        /// - Stop operation loops over database (throw in SafePoint)
+        /// - Wait for writer queue
+        /// - Close disks
+        /// - Clean variables
         /// </summary>
-        private void InitializeServices()
+        internal List<Exception> Close()
         {
-            _cache = new CacheService(_disk, _log);
-            _locker = new LockService(_disk, _cache, _timeout, _log);
-            _pager = new PageService(_disk, _crypto, _cache, _log);
-            _indexer = new IndexService(_pager, _log);
-            _data = new DataService(_pager, _log);
-            _trans = new TransactionService(_disk, _crypto, _pager, _locker, _cache, _cacheSize, _log);
-            _collections = new CollectionService(_pager, _indexer, _data, _trans, _log);
+            if (_state.Disposed) return new List<Exception>();
+
+            _state.Disposed = true;
+
+            var tc = new TryCatch();
+
+            // stop running all transactions
+            tc.Catch(() => _monitor?.Dispose());
+
+            if (_header?.Pragmas.Checkpoint > 0)
+            {
+                // do a soft checkpoint (only if exclusive lock is possible)
+                tc.Catch(() => _walIndex?.TryCheckpoint());
+            }
+
+            // close all disk streams (and delete log if empty)
+            tc.Catch(() => _disk?.Dispose());
+
+            // delete sort temp file
+            tc.Catch(() => _sortDisk?.Dispose());
+
+            // dispose lockers
+            tc.Catch(() => _locker?.Dispose());
+
+            return tc.Exceptions;
+        }
+
+        /// <summary>
+        /// Exception close database:
+        /// - Stop diskQueue
+        /// - Stop any disk read/write (dispose)
+        /// - Dispose sort disk
+        /// - Dispose locker
+        /// - Checks Exception type for INVALID_DATAFILE_STATE to auto rebuild on open
+        /// </summary>
+        internal List<Exception> Close(Exception ex)
+        {
+            if (_state.Disposed) return new List<Exception>();
+
+            _state.Disposed = true;
+
+            var tc = new TryCatch(ex);
+
+            tc.Catch(() => _monitor?.Dispose());
+
+            if (tc.InvalidDatafileState)
+            {
+                // Keep the data writer alive until the recovery marker is durable.
+                tc.Catch(() => _disk?.MarkAsInvalidState());
+            }
+
+            // close disks streams
+            tc.Catch(() => _disk?.Dispose());
+
+            // close sort disk service
+            tc.Catch(() => _sortDisk?.Dispose());
+
+            // close engine lock service
+            tc.Catch(() => _locker?.Dispose());
+
+            return tc.Exceptions;
         }
 
         #endregion
 
+#if DEBUG || TESTING
+        // exposes for unit tests
+        internal TransactionMonitor GetMonitor() => _monitor;
+        internal Action<PageBuffer> SimulateDiskReadFail { set => _state.SimulateDiskReadFail = value; }
+        internal Action<PageBuffer> SimulateDiskWriteFail { set => _state.SimulateDiskWriteFail = value; }
+#endif
+
         /// <summary>
-        /// Get the collection page only when needed. Gets from pager always to grantee that wil be the last (in case of clear cache will get a new one - pageID never changes)
+        /// Run checkpoint command to copy log file into data file
         /// </summary>
-        private CollectionPage GetCollectionPage(string name, bool addIfNotExits)
-        {
-            if (name == null) return null;
-
-            // search my page on collection service
-            var col = _collections.Get(name);
-
-            if (col == null && addIfNotExits)
-            {
-                _log.Write(Logger.COMMAND, "create new collection '{0}'", name);
-
-                col = _collections.Add(name);
-            }
-
-            return col;
-        }
+        public int Checkpoint() => _walIndex.Checkpoint();
 
         public void Dispose()
         {
-            // if there is any open transaction, rollback
-            if (_transactions.Count > 0)
-            {
-                this.Rollback();
-            }
-
-            // dispose datafile and journal file
-            _disk.Dispose();
-
-            // dispose crypto
-            if (_crypto != null) _crypto.Dispose();
+            this.Dispose(true);
+            GC.SuppressFinalize(this);
         }
 
-        /// <summary>
-        /// Initialize new datafile with header page + lock reserved area zone
-        /// </summary>
-        public static void CreateDatabase(Stream stream, string password = null)
+        protected virtual void Dispose(bool disposing)
         {
-            // create a new header page in bytes (keep second page empty)
-            var header = new HeaderPage() { LastPageID = 1 };
-
-            if (password != null)
-            {
-                header.Password = AesEncryption.HashSHA1(password);
-                header.Salt = AesEncryption.Salt();
-            }
-
-            // point to begin file
-            stream.Seek(0, SeekOrigin.Begin);
-
-            // get header page in bytes
-            var buffer = header.WritePage();
-
-            stream.Write(buffer, 0, BasePage.PAGE_SIZE);
-
-            // write second page empty just to use as lock control
-            stream.Write(new byte[BasePage.PAGE_SIZE], 0, BasePage.PAGE_SIZE);
+            this.Close();
         }
     }
 }

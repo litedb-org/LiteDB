@@ -8,7 +8,7 @@
         /// Parameters:
         /// --exec "command"   : Execute an shell command (can be multiples --exec)
         /// --run script.txt   : Run script commands file
-        /// --pretty           : Show JSON in multiline + indented
+        /// --pretty           : Show JSON in multiline + idented
         /// --exit             : Exit after last command
         /// </summary>
         private static void Main(string[] args)

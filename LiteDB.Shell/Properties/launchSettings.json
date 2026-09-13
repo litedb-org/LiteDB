@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "LiteDB.Shell": {
+      "commandName": "Project",
+      "commandLineArgs": "app.db"
+    }
+  }
+}

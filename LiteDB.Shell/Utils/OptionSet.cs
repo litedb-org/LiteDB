@@ -9,14 +9,14 @@ namespace LiteDB.Shell
     /// </summary>
     internal class OptionSet
     {
-        private Dictionary<string, OptionsParam> _options = new Dictionary<string, OptionsParam>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, OptionsParam> _options = new Dictionary<string, OptionsParam>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
         /// Register all extra non parameter (without -- or /)
         /// </summary>
         public void Register(Action<string> action)
         {
-            _options.Add("_extra_", 
+            _options.Add("_extra_",
                 new OptionsParam { Action = (value) => action((string)value) });
         }
 
@@ -25,7 +25,7 @@ namespace LiteDB.Shell
         /// </summary>
         public void Register<T>(string key, Action<T> action)
         {
-            _options.Add(key, 
+            _options.Add(key,
                 new OptionsParam { Action = (value) => action((T)value), Type = typeof(T) });
         }
 
@@ -34,7 +34,7 @@ namespace LiteDB.Shell
         /// </summary>
         public void Register(string key, Action action)
         {
-            _options.Add(key, 
+            _options.Add(key,
                 new OptionsParam { Action = (value) => action() });
         }
 
@@ -63,7 +63,7 @@ namespace LiteDB.Shell
                     if (!_options.TryGetValue(key, out param)) continue;
 
                     // parameterless
-                    if(param.Type == null)
+                    if (param.Type == null)
                     {
                         param.Action(null);
                         continue;
@@ -94,7 +94,7 @@ namespace LiteDB.Shell
                 else
                 {
                     // call extra
-                    if(_options.TryGetValue("_extra_", out param))
+                    if (_options.TryGetValue("_extra_", out param))
                     {
                         param.Action(arg);
                     }

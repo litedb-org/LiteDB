@@ -1,144 +1,264 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
+using System.Text;
+using LiteDB.Vector;
+using static LiteDB.Constants;
 
-namespace LiteDB
+namespace LiteDB.Engine
 {
-    /// <summary>
-    /// Represents the collection page AND a collection item, because CollectionPage represent a Collection (1 page = 1 collection). All collections pages are linked with Prev/Next links
-    /// </summary>
     internal class CollectionPage : BasePage
     {
-        /// <summary>
-        /// Represent maximum bytes that all collections names can be used in header
-        /// </summary>
-        public const ushort MAX_COLLECTIONS_SIZE = 3000;
+        #region Buffer Field Positions
 
-        public static Regex NamePattern = new Regex(@"^[\w-]{1,30}$", RegexOptions.Compiled);
-
-        /// <summary>
-        /// Page type = Collection
-        /// </summary>
-        public override PageType PageType { get { return PageType.Collection; } }
-
-        /// <summary>
-        /// Name of collection
-        /// </summary>
-        public string CollectionName { get; set; }
-
-        /// <summary>
-        /// Get a reference for the free list data page - its private list per collection - each DataPage contains only data for 1 collection (no mixing)
-        /// Must to be a Field to be used as parameter reference
-        /// </summary>
-        public uint FreeDataPageID;
-
-        /// <summary>
-        /// Get the number of documents inside this collection
-        /// </summary>
-        public long DocumentCount { get; set; }
-
-        /// <summary>
-        /// Get all indexes from this collection - includes non-used indexes
-        /// </summary>
-        public CollectionIndex[] Indexes { get; set; }
-
-        public CollectionPage(uint pageID)
-            : base(pageID)
-        {
-            this.FreeDataPageID = uint.MaxValue;
-            this.DocumentCount = 0;
-            this.ItemCount = 1; // fixed for CollectionPage
-            this.FreeBytes = 0; // no free bytes on collection-page - only one collection per page
-            this.Indexes = new CollectionIndex[CollectionIndex.INDEX_PER_COLLECTION];
-
-            for (var i = 0; i < Indexes.Length; i++)
-            {
-                this.Indexes[i] = new CollectionIndex() { Page = this, Slot = i };
-            }
-        }
-
-        /// <summary>
-        /// Update freebytes + items count
-        /// </summary>
-        public override void UpdateItemCount()
-        {
-            this.ItemCount = 1; // fixed for CollectionPage
-            this.FreeBytes = 0; // no free bytes on collection-page - only one collection per page
-        }
-
-        #region Read/Write pages
-
-        protected override void ReadContent(ByteReader reader)
-        {
-            this.CollectionName = reader.ReadString();
-            this.DocumentCount = reader.ReadInt64();
-            this.FreeDataPageID = reader.ReadUInt32();
-
-            foreach (var index in this.Indexes)
-            {
-                index.Field = reader.ReadString();
-                index.Unique = reader.ReadBoolean();
-                index.HeadNode = reader.ReadPageAddress();
-                index.TailNode = reader.ReadPageAddress();
-                index.FreeIndexPageID = reader.ReadUInt32();
-            }
-        }
-
-        protected override void WriteContent(ByteWriter writer)
-        {
-            writer.Write(this.CollectionName);
-            writer.Write(this.DocumentCount);
-            writer.Write(this.FreeDataPageID);
-
-            foreach (var index in this.Indexes)
-            {
-                writer.Write(index.Field);
-                writer.Write(index.Unique);
-                writer.Write(index.HeadNode);
-                writer.Write(index.TailNode);
-                writer.Write(index.FreeIndexPageID);
-            }
-        }
+        public const int P_INDEXES = 96; // 96-8192 (64 + 32 header = 96)
+        public const int P_INDEXES_COUNT = PAGE_SIZE - P_INDEXES; // 8096
 
         #endregion
 
-        #region Methods to work with index array
+        /// <summary>
+        /// Free data page linked-list (N lists for different range of FreeBlocks)
+        /// </summary>
+        public uint[] FreeDataPageList { get; } = new uint[PAGE_FREE_LIST_SLOTS];
 
         /// <summary>
-        /// Returns first free index slot to be used
+        /// All indexes references for this collection
         /// </summary>
-        public CollectionIndex GetFreeIndex()
+        private readonly Dictionary<string, CollectionIndex> _indexes = new Dictionary<string, CollectionIndex>();
+        private readonly Dictionary<string, VectorIndexMetadata> _vectorIndexes = new Dictionary<string, VectorIndexMetadata>();
+
+        public CollectionPage(PageBuffer buffer, uint pageID)
+            : base(buffer, pageID, PageType.Collection)
         {
-            for (byte i = 0; i < this.Indexes.Length; i++)
+            for(var i = 0; i < PAGE_FREE_LIST_SLOTS; i++)
             {
-                if (this.Indexes[i].IsEmpty) return this.Indexes[i];
+                this.FreeDataPageList[i] = uint.MaxValue;
+            }
+        }
+
+        public CollectionPage(PageBuffer buffer)
+            : base(buffer)
+        {
+            ENSURE(this.PageType == PageType.Collection, "page type must be collection page");
+
+            if (this.PageType != PageType.Collection) throw LiteException.InvalidPageType(PageType.Collection, this);
+
+            // create new buffer area to store BsonDocument indexes
+            var area = _buffer.Slice(PAGE_HEADER_SIZE, PAGE_SIZE - PAGE_HEADER_SIZE);
+
+            using (var r = new BufferReader(new[] { area }, false))
+            {
+                // read position for FreeDataPage and FreeIndexPage
+                for(var i = 0; i < PAGE_FREE_LIST_SLOTS; i++)
+                {
+                    this.FreeDataPageList[i] = r.ReadUInt32();
+                }
+
+                // skip reserved area
+                r.Skip(P_INDEXES - PAGE_HEADER_SIZE - r.Position);
+
+                var count = r.ReadByte(); // 1 byte
+
+                for(var i = 0; i < count; i++)
+                {
+                    var index = new CollectionIndex(r);
+
+                    _indexes[index.Name] = index;
+                }
+
+                var vectorCount = r.ReadByte();
+
+                for (var i = 0; i < vectorCount; i++)
+                {
+                    var name = r.ReadCString();
+                    var metadata = new VectorIndexMetadata(r);
+
+                    _vectorIndexes[name] = metadata;
+                }
+            }
+        }
+
+        public override PageBuffer UpdateBuffer()
+        {
+            this.EnsurePageOwnership();
+
+            // if page was deleted, do not write in content area (must keep with 0 only)
+            if (this.PageType == PageType.Empty) return base.UpdateBuffer();
+
+            var area = _buffer.Slice(PAGE_HEADER_SIZE, PAGE_SIZE - PAGE_HEADER_SIZE);
+
+            using (var w = new BufferWriter(area))
+            {
+                // read position for FreeDataPage and FreeIndexPage
+                for (var i = 0; i < PAGE_FREE_LIST_SLOTS; i++)
+                {
+                    w.Write(this.FreeDataPageList[i]);
+                }
+
+                // skip reserved area (indexes starts at position 96)
+                w.Skip(P_INDEXES - PAGE_HEADER_SIZE - w.Position);
+
+                w.Write((byte)_indexes.Count); // 1 byte
+
+                foreach (var index in _indexes.Values)
+                {
+                    index.UpdateBuffer(w);
+                }
+
+                w.Write((byte)_vectorIndexes.Count);
+
+                foreach (var pair in _vectorIndexes)
+                {
+                    w.WriteCString(pair.Key);
+                    pair.Value.UpdateBuffer(w);
+                }
             }
 
-            throw LiteException.IndexLimitExceeded(this.CollectionName);
+            return base.UpdateBuffer();
         }
 
         /// <summary>
-        /// Get index from field name (index field name is case sensitive) - returns null if not found
+        /// Get PK index
         /// </summary>
-        public CollectionIndex GetIndex(string field)
+        public CollectionIndex PK { get { return _indexes["_id"]; } }
+
+        /// <summary>
+        /// Get index from index name (index name is case sensitive) - returns null if not found
+        /// </summary>
+        public CollectionIndex GetCollectionIndex(string name)
         {
-            return this.Indexes.FirstOrDefault(x => x.Field == field);
+            if (_indexes.TryGetValue(name, out var index))
+            {
+                return index;
+            }
+
+            return null;
         }
 
         /// <summary>
-        /// Get primary key index (_id index)
+        /// Get all indexes in this collection page
         /// </summary>
-        public CollectionIndex PK { get { return this.Indexes[0]; } }
-
-        /// <summary>
-        /// Returns all used indexes
-        /// </summary>
-        public IEnumerable<CollectionIndex> GetIndexes(bool includePK)
+        public ICollection<CollectionIndex> GetCollectionIndexes()
         {
-            return this.Indexes.Where(x => x.IsEmpty == false && x.Slot >= (includePK ? 0 : 1));
+            return _indexes.Values;
         }
 
-        #endregion
+        /// <summary>
+        /// Get all collections array based on slot number
+        /// </summary>
+        public CollectionIndex[] GetCollectionIndexesSlots()
+        {
+            var indexes = new CollectionIndex[_indexes.Max(x => x.Value.Slot) + 1];
+
+            foreach (var index in _indexes.Values)
+            {
+                indexes[index.Slot] = index;
+            }
+
+            return indexes;
+        }
+
+        private int GetSerializedLength(int additionalIndexLength, int additionalVectorLength)
+        {
+            var length = 1 + _indexes.Sum(x => CollectionIndex.GetLength(x.Value)) + additionalIndexLength;
+
+            length += 1 + _vectorIndexes.Sum(x => GetVectorMetadataLength(x.Key)) + additionalVectorLength;
+
+            return length;
+        }
+
+        private static int GetVectorMetadataLength(string name)
+        {
+            return StringEncoding.UTF8.GetByteCount(name) + 1 + VectorIndexMetadata.GetLength();
+        }
+
+        public IEnumerable<(CollectionIndex Index, VectorIndexMetadata Metadata)> GetVectorIndexes()
+        {
+            foreach (var pair in _vectorIndexes)
+            {
+                if (_indexes.TryGetValue(pair.Key, out var index))
+                {
+                    yield return (index, pair.Value);
+                }
+            }
+        }
+
+        public VectorIndexMetadata GetVectorIndexMetadata(string name)
+        {
+            return _vectorIndexes.TryGetValue(name, out var metadata) ? metadata : null;
+        }
+
+        /// <summary>
+        /// Insert new index inside this collection page
+        /// </summary>
+        public CollectionIndex InsertCollectionIndex(string name, string expr, bool unique)
+        {
+            if (_indexes.ContainsKey(name) || _vectorIndexes.ContainsKey(name))
+            {
+                throw LiteException.IndexAlreadyExist(name);
+            }
+
+            var totalLength = this.GetSerializedLength(CollectionIndex.GetLength(name, expr), 0);
+
+            if (_indexes.Count == 255 || totalLength >= P_INDEXES_COUNT) throw new LiteException(0, $"This collection has no more space for new indexes");
+
+            var slot = (byte)(_indexes.Count == 0 ? 0 : (_indexes.Max(x => x.Value.Slot) + 1));
+
+            var index = new CollectionIndex(slot, 0, name, expr, unique);
+
+            _indexes[name] = index;
+
+            this.IsDirty = true;
+
+            return index;
+        }
+
+        public (CollectionIndex Index, VectorIndexMetadata Metadata) InsertVectorIndex(string name, string expr, ushort dimensions, VectorDistanceMetric metric)
+        {
+            if (_indexes.ContainsKey(name) || _vectorIndexes.ContainsKey(name))
+            {
+                throw LiteException.IndexAlreadyExist(name);
+            }
+
+            var totalLength = this.GetSerializedLength(CollectionIndex.GetLength(name, expr), GetVectorMetadataLength(name));
+
+            if (_indexes.Count == 255 || totalLength >= P_INDEXES_COUNT) throw new LiteException(0, $"This collection has no more space for new indexes");
+
+            var slot = (byte)(_indexes.Count == 0 ? 0 : (_indexes.Max(x => x.Value.Slot) + 1));
+
+            var index = new CollectionIndex(slot, 1, name, expr, false);
+            var metadata = new VectorIndexMetadata(slot, dimensions, metric);
+
+            _indexes[name] = index;
+            _vectorIndexes[name] = metadata;
+
+            this.IsDirty = true;
+
+            return (index, metadata);
+        }
+
+        /// <summary>
+        /// Return index instance and mark as updatable
+        /// </summary>
+        public CollectionIndex UpdateCollectionIndex(string name)
+        {
+            this.IsDirty = true;
+
+            return _indexes[name];
+        }
+
+        /// <summary>
+        /// Remove index reference in this page
+        /// </summary>
+        public void DeleteCollectionIndex(string name)
+        {
+            _indexes.Remove(name);
+            _vectorIndexes.Remove(name);
+
+            this.IsDirty = true;
+        }
+
     }
 }

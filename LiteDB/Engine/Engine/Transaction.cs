@@ -1,93 +1,121 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
+using static LiteDB.Constants;
 
-namespace LiteDB
+namespace LiteDB.Engine
 {
-    public partial class LiteEngine : IDisposable
+    public partial class LiteEngine
     {
-        private Stack<LockControl> _transactions = new Stack<LockControl>();
-
         /// <summary>
-        /// Get transaction stack count. If returns 0, there is no transaction.
+        /// Initialize a new transaction. Transaction are created "per-thread". There is only one single transaction per thread.
+        /// Return true if transaction was created or false if current thread already in a transaction.
         /// </summary>
-        internal int TransactionCount { get { return _transactions.Count; } }
-
-        /// <summary>
-        /// Starts a new transaction keeping all changed from now in memory only until Commit() be executed.
-        /// Lock thread in write mode to not accept other transaction
-        /// </summary>
-        public void BeginTrans()
+        public bool BeginTrans()
         {
-            // lock as reserved mode
-            var locker = _locker.Reserved();
+            _state.Validate();
 
-            _transactions.Push(locker);
+            var transacion = _monitor.GetTransaction(true, false, out var isNew);
+
+            transacion.ExplicitTransaction = true;
+
+            if (transacion.OpenCursors.Count > 0) throw new LiteException(0, "This thread contains an open cursors/query. Close cursors before Begin()");
+
+            LOG(isNew, $"begin trans", "COMMAND");
+
+            return isNew;
         }
 
         /// <summary>
-        /// Persist in disk all changed from last BeginTrans()
-        /// Returns true if real commit was done (false to nested commit only)
+        /// Persist all dirty pages into LOG file
         /// </summary>
         public bool Commit()
         {
-            var commit = false;
+            _state.Validate();
 
-            // only do "real commit" if is last transaction in stack or if autocommit = false
-            if (_transactions.Count == 1)
+            var transaction = _monitor.GetTransaction(false, false, out _);
+
+            if (transaction != null)
             {
-                _trans.Commit();
-                commit = true;
+                // do not accept explicit commit transaction when contains open cursors running
+                if (transaction.OpenCursors.Count > 0) throw new LiteException(0, "Current transaction contains open cursors. Close cursors before run Commit()");
+
+                if (transaction.State == TransactionState.Active)
+                {
+                    this.CommitAndReleaseTransaction(transaction);
+
+                    return true;
+                }
             }
 
-            // if contains transactions on stack, remove top and dispose (only last transaction will release lock)
-            if (_transactions.Count > 0)
-            {
-                _transactions.Pop().Dispose();
-            }
-
-            return commit;
+            return false;
         }
 
         /// <summary>
-        /// Discard all changes from last BeginTrans()
+        /// Do rollback to current transaction. Clear dirty pages in memory and return new pages to main empty linked-list
         /// </summary>
-        public void Rollback()
+        public bool Rollback()
         {
-            _trans.Rollback();
+            _state.Validate();
 
-            while (_transactions.Count > 0)
+            var transaction = _monitor.GetTransaction(false, false, out _);
+
+            if (transaction != null && transaction.State == TransactionState.Active)
             {
-                _transactions.Pop().Dispose();
+                transaction.Rollback();
+
+                _monitor.ReleaseTransaction(transaction);
+
+                return true;
             }
+
+            return false;
         }
 
         /// <summary>
-        /// Encapsulate all write transaction operation
+        /// Create (or reuse) a transaction an add try/catch block. Commit transaction if is new transaction
         /// </summary>
-        private T Transaction<T>(string collection, bool addIfNotExists, Func<CollectionPage, T> action)
+        private T AutoTransaction<T>(Func<TransactionService, T> fn)
         {
-            this.BeginTrans();
+            _state.Validate();
+
+            var transaction = _monitor.GetTransaction(true, false, out var isNew);
 
             try
             {
-                var col = this.GetCollectionPage(collection, addIfNotExists);
+                var result = fn(transaction);
 
-                var result = action(col);
-
-                this.Commit();
+                // if this transaction was auto-created for this operation, commit & dispose now
+                if (isNew)
+                    this.CommitAndReleaseTransaction(transaction);
 
                 return result;
             }
-            catch (Exception ex)
+            catch(Exception ex)
             {
-                _log.Write(Logger.ERROR, ex.Message);
+                if (_state.Handle(ex))
+                {
+                    transaction.Rollback();
 
-                // if an error occurs during an operation, rollback must be called to avoid datafile inconsistent
-                this.Rollback();
+                    _monitor.ReleaseTransaction(transaction);
+                }
 
                 throw;
+            }
+        }
+
+        private void CommitAndReleaseTransaction(TransactionService transaction)
+        {
+            transaction.Commit();
+
+            _monitor.ReleaseTransaction(transaction);
+
+            // try checkpoint when finish transaction and log file are bigger than checkpoint pragma value (in pages)
+            if (_header.Pragmas.Checkpoint > 0 &&
+                _disk.GetFileLength(FileOrigin.Log) >= (_header.Pragmas.Checkpoint * PAGE_SIZE))
+            {
+                _walIndex.TryCheckpoint();
             }
         }
     }

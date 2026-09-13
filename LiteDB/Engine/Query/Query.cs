@@ -1,270 +1,145 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using static LiteDB.Constants;
 
 namespace LiteDB
 {
     /// <summary>
-    /// Class helper to create query using indexes in database. All methods are statics.
-    /// Queries can be executed in 2 ways: Index Seek (fast), Index Scan (good)
+    /// Represent full query options
     /// </summary>
-    public abstract class Query
+    public partial class Query
     {
-        private Action<string, string> _indexFactory = null;
+        public BsonExpression Select { get; set; } = BsonExpression.Root;
 
-        public string Field { get; private set; }
+        public List<BsonExpression> Includes { get; } = new List<BsonExpression>();
+        public List<BsonExpression> Where { get; } = new List<BsonExpression>();
 
-        internal Query(string field)
-        {
-            this.Field = field;
-        }
+        public List<QueryOrder> OrderBy { get; } = new List<QueryOrder>();
+
+        public BsonExpression GroupBy { get; set; } = null;
+        public BsonExpression Having { get; set; } = null;
+
+        public int Offset { get; set; } = 0;
+        public int Limit { get; set; } = int.MaxValue;
+        public bool ForUpdate { get; set; } = false;
+
+        public string VectorField { get; set; } = null;
+        public float[] VectorTarget { get; set; } = null;
+        public double VectorMaxDistance { get; set; } = double.MaxValue;
+        public bool HasVectorFilter => VectorField != null && VectorTarget != null;
+
+        public string Into { get; set; }
+        public BsonAutoId IntoAutoId { get; set; } = BsonAutoId.ObjectId;
+
+        public bool ExplainPlan { get; set; }
 
         /// <summary>
-        /// Set, only if not defined yet, a new factory to create index if nedded
+        /// [ EXPLAIN ]
+        ///    SELECT {selectExpr}
+        ///    [ INTO {newcollection|$function} [ : {autoId} ] ]
+        ///    [ FROM {collection|$function} ]
+        /// [ INCLUDE {pathExpr0} [, {pathExprN} ]
+        ///   [ WHERE {filterExpr} ]
+        ///   [ GROUP BY {groupByExpr} ]
+        ///  [ HAVING {filterExpr} ]
+        ///   [ ORDER BY {orderByExpr} [ ASC | DESC ] ]
+        ///   [ LIMIT {number} ]
+        ///  [ OFFSET {number} ]
+        ///     [ FOR UPDATE ]
         /// </summary>
-        internal virtual void IndexFactory(Action<string, string> indexFactory)
+        public string ToSQL(string collection)
         {
-            if (_indexFactory == null)
+            var sb = new StringBuilder();
+
+            if (this.ExplainPlan)
             {
-                _indexFactory = indexFactory;
-            }
-        }
-
-        #region Static Methods
-
-        /// <summary>
-        /// Indicate when a query must execute in ascending order
-        /// </summary>
-        public const int Ascending = 1;
-
-        /// <summary>
-        /// Indicate when a query must execute in descending order
-        /// </summary>
-        public const int Descending = -1;
-
-        /// <summary>
-        /// Returns all documents using _id index order
-        /// </summary>
-        public static Query All(int order = Ascending)
-        {
-            return new QueryAll("_id", order);
-        }
-
-        /// <summary>
-        /// Returns all documents using field index order
-        /// </summary>
-        public static Query All(string field, int order = Ascending)
-        {
-            if (field.IsNullOrWhiteSpace()) throw new ArgumentNullException("field");
-
-            return new QueryAll(field, order);
-        }
-
-        /// <summary>
-        /// Returns all documents that value are equals to value (=)
-        /// </summary>
-        public static Query EQ(string field, BsonValue value)
-        {
-            if (field.IsNullOrWhiteSpace()) throw new ArgumentNullException("field");
-
-            return new QueryEquals(field, value ?? BsonValue.Null);
-        }
-
-        /// <summary>
-        /// Returns all documents that value are less than value (&lt;)
-        /// </summary>
-        public static Query LT(string field, BsonValue value)
-        {
-            if (field.IsNullOrWhiteSpace()) throw new ArgumentNullException("field");
-
-            return new QueryLess(field, value ?? BsonValue.Null, false);
-        }
-
-        /// <summary>
-        /// Returns all documents that value are less than or equals value (&lt;=)
-        /// </summary>
-        public static Query LTE(string field, BsonValue value)
-        {
-            if (field.IsNullOrWhiteSpace()) throw new ArgumentNullException("field");
-
-            return new QueryLess(field, value ?? BsonValue.Null, true);
-        }
-
-        /// <summary>
-        /// Returns all document that value are greater than value (&gt;)
-        /// </summary>
-        public static Query GT(string field, BsonValue value)
-        {
-            if (field.IsNullOrWhiteSpace()) throw new ArgumentNullException("field");
-
-            return new QueryGreater(field, value ?? BsonValue.Null, false);
-        }
-
-        /// <summary>
-        /// Returns all documents that value are greater than or equals value (&gt;=)
-        /// </summary>
-        public static Query GTE(string field, BsonValue value)
-        {
-            if (field.IsNullOrWhiteSpace()) throw new ArgumentNullException("field");
-
-            return new QueryGreater(field, value ?? BsonValue.Null, true);
-        }
-
-        /// <summary>
-        /// Returns all document that values are between "start" and "end" values (BETWEEN)
-        /// </summary>
-        public static Query Between(string field, BsonValue start, BsonValue end)
-        {
-            if (field.IsNullOrWhiteSpace()) throw new ArgumentNullException("field");
-
-            return new QueryBetween(field, start ?? BsonValue.Null, end ?? BsonValue.Null);
-        }
-
-        /// <summary>
-        /// Returns all documents that starts with value (LIKE)
-        /// </summary>
-        public static Query StartsWith(string field, string value)
-        {
-            if (field.IsNullOrWhiteSpace()) throw new ArgumentNullException("field");
-            if (value.IsNullOrWhiteSpace()) throw new ArgumentNullException("value");
-
-            return new QueryStartsWith(field, value);
-        }
-
-        /// <summary>
-        /// Returns all documents that contains value (CONTAINS)
-        /// </summary>
-        public static Query Contains(string field, string value)
-        {
-            if (field.IsNullOrWhiteSpace()) throw new ArgumentNullException("field");
-            if (value.IsNullOrWhiteSpace()) throw new ArgumentNullException("value");
-
-            return new QueryContains(field, value);
-        }
-
-        /// <summary>
-        /// Returns all documents that are not equals to value (not equals)
-        /// </summary>
-        public static Query Not(string field, BsonValue value)
-        {
-            if (field.IsNullOrWhiteSpace()) throw new ArgumentNullException("field");
-
-            return new QueryNotEquals(field, value ?? BsonValue.Null);
-        }
-
-        /// <summary>
-        /// Returns all documents that in query result (not result)
-        /// </summary>
-        public static Query Not(Query query, int order = Query.Ascending)
-        {
-            if (query == null) throw new ArgumentNullException("query");
-
-            return new QueryNot(query, order);
-        }
-
-        /// <summary>
-        /// Returns all documents that has value in values list (IN)
-        /// </summary>
-        public static Query In(string field, BsonArray value)
-        {
-            if (field.IsNullOrWhiteSpace()) throw new ArgumentNullException("field");
-            if (value == null) throw new ArgumentNullException("value");
-
-            return new QueryIn(field, value.RawValue);
-        }
-
-        /// <summary>
-        /// Returns all documents that has value in values list (IN)
-        /// </summary>
-        public static Query In(string field, params BsonValue[] values)
-        {
-            if (field.IsNullOrWhiteSpace()) throw new ArgumentNullException("field");
-            if (values == null) throw new ArgumentNullException("values");
-
-            return new QueryIn(field, values);
-        }
-
-        /// <summary>
-        /// Returns all documents that has value in values list (IN)
-        /// </summary>
-        public static Query In(string field, IEnumerable<BsonValue> values)
-        {
-            if (field.IsNullOrWhiteSpace()) throw new ArgumentNullException("field");
-            if (values == null) throw new ArgumentNullException("values");
-
-            return new QueryIn(field, values);
-        }
-
-        /// <summary>
-        /// Apply a predicate function in an index result. Execute full index scan but it's faster then runs over deserialized document.
-        /// </summary>
-        public static Query Where(string field, Func<BsonValue, bool> predicate, int order = Query.Ascending)
-        {
-            if (field.IsNullOrWhiteSpace()) throw new ArgumentNullException("field");
-            if (predicate == null) throw new ArgumentNullException("predicate");
-
-            return new QueryWhere(field, predicate, order);
-        }
-
-        /// <summary>
-        /// Returns document that exists in BOTH queries results (Intersect).
-        /// </summary>
-        public static Query And(Query left, Query right)
-        {
-            if (left == null) throw new ArgumentNullException("left");
-            if (right == null) throw new ArgumentNullException("right");
-
-            return new QueryAnd(left, right);
-        }
-
-        /// <summary>
-        /// Returns documents that exists in ANY queries results (Union).
-        /// </summary>
-        public static Query Or(Query left, Query right)
-        {
-            if (left == null) throw new ArgumentNullException("left");
-            if (right == null) throw new ArgumentNullException("right");
-
-            return new QueryOr(left, right);
-        }
-
-        #endregion Static Methods
-
-        #region Execute Query
-
-        /// <summary>
-        /// Abstract method that must be implement for index seek/scan - Returns IndexNodes that match with index
-        /// </summary>
-        internal abstract IEnumerable<IndexNode> ExecuteIndex(IndexService indexer, CollectionIndex index);
-
-        /// <summary>
-        /// Find witch index will be used and run Execute method
-        /// </summary>
-        internal virtual IEnumerable<IndexNode> Run(CollectionPage col, IndexService indexer)
-        {
-            // get index for this query
-            var index = col.GetIndex(this.Field);
-
-            // if index not index, let's auto create one
-            if (index == null)
-            {
-                // possible never happend because query always have index factory
-                if (_indexFactory == null) throw LiteException.IndexNotFound(col.CollectionName, this.Field);
-
-                // create needed index
-                _indexFactory(col.CollectionName, this.Field);
-
-                // get index 
-                index = col.GetIndex(this.Field);
-
-                // this should never happend because index already created
-                if (index == null) throw LiteException.IndexNotFound(col.CollectionName, this.Field);
+                sb.AppendLine("EXPLAIN");
             }
 
-            // execute query to get all IndexNodes
-            return this.ExecuteIndex(indexer, index);
-        }
+            sb.AppendLine($"SELECT {this.Select.Source}");
 
-        #endregion Execute Query
+            if (this.Into != null)
+            {
+                sb.AppendLine($"INTO {this.Into}:{IntoAutoId.ToString().ToLower()}");
+            }
+
+            sb.AppendLine($"FROM {collection}");
+
+            if (this.Includes.Count > 0)
+            {
+                sb.AppendLine($"INCLUDE {string.Join(", ", this.Includes.Select(x => x.Source))}");
+            }
+
+            
+
+            if (this.GroupBy != null)
+            {
+                sb.AppendLine($"GROUP BY {this.GroupBy.Source}");
+            }
+
+            if (this.Having != null)
+            {
+                sb.AppendLine($"HAVING {this.Having.Source}");
+            }
+
+            if (this.OrderBy.Count > 0)
+            {
+                var orderBy = this.OrderBy
+                    .Select(x => $"{x.Expression.Source} {(x.Order == Query.Ascending ? "ASC" : "DESC")}");
+
+                sb.AppendLine($"ORDER BY {string.Join(", ", orderBy)}");
+            }
+
+            if (this.Limit != int.MaxValue)
+            {
+                sb.AppendLine($"LIMIT {this.Limit}");
+            }
+
+            if (this.Offset != 0)
+            {
+                sb.AppendLine($"OFFSET {this.Offset}");
+            }
+
+            if (this.ForUpdate)
+            {
+                sb.AppendLine($"FOR UPDATE");
+            }
+
+            if (this.HasVectorFilter)
+            {
+                var field = this.VectorField;
+
+                if (!string.IsNullOrEmpty(field))
+                {
+                    field = field.Trim();
+
+                    if (!field.StartsWith("$", StringComparison.Ordinal))
+                    {
+                        field = field.StartsWith(".", StringComparison.Ordinal)
+                            ? "$" + field
+                            : "$." + field;
+                    }
+                }
+
+                var vectorExpr = $"VECTOR_SIM({field}, [{string.Join(",", this.VectorTarget)}])";
+                if (this.Where.Count > 0)
+                {
+                    sb.AppendLine($"WHERE ({string.Join(" AND ", this.Where.Select(x => x.Source))}) AND {vectorExpr} <= {this.VectorMaxDistance}");
+                }
+                else
+                {
+                    sb.AppendLine($"WHERE {vectorExpr} <= {this.VectorMaxDistance}");
+                }
+            }
+            else if (this.Where.Count > 0)
+            {
+                sb.AppendLine($"WHERE {string.Join(" AND ", this.Where.Select(x => x.Source))}");
+            }
+
+            return sb.ToString().Trim();
+        }
     }
 }

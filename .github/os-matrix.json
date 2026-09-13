@@ -1,0 +1,9 @@
+{
+  "linux": [
+    "ubuntu-22.04",
+    "ubuntu-24.04"
+  ],
+  "windows": [
+    "windows-2022"
+  ]
+}
