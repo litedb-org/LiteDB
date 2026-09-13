@@ -39,6 +39,8 @@ namespace LiteDB
         public const int INDEX_ALREADY_EXIST = 135;
         public const int INVALID_UPDATE_FIELD = 136;
         public const int ENGINE_DISPOSED = 137;
+        /// <summary>The file header declares an unsupported engine format.</summary>
+        public const int UNSUPPORTED_FILE_VERSION = 138;
 
         public const int INVALID_FORMAT = 200;
         public const int DOCUMENT_MAX_DEPTH = 201;
@@ -116,6 +118,12 @@ namespace LiteDB
         internal static LiteException InvalidDatabase()
         {
             return new LiteException(INVALID_DATABASE, "File is not a valid LiteDB database format or contains a invalid password.");
+        }
+
+        internal static LiteException UnsupportedFileVersion(byte version)
+        {
+            return new LiteException(UNSUPPORTED_FILE_VERSION,
+                "Database format version {0} is unsupported. This engine reads versions 8 and 9; use a compatible LiteDB engine.", version);
         }
 
         internal static LiteException FileSizeExceeded(long limit)

@@ -11,7 +11,7 @@ namespace LiteDB
     /// <summary>
     /// The LiteDB repository pattern. A simple way to access your documents in a single class with fluent query api
     /// </summary>
-    public class LiteRepository : ILiteRepository
+    public partial class LiteRepository : ILiteRepository
     {
         #region Properties
 

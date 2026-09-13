@@ -496,12 +496,12 @@ namespace LiteDB.Tests.QueryTest
 
             plan["index"]["mode"].AsString.Should().Be("VECTOR INDEX SEARCH");
             plan["index"]["expr"].AsString.Should().Be("$.Embedding");
-            plan.ContainsKey("orderBy").Should().BeFalse();
+            plan.ContainsKey("orderBy").Should().BeTrue();
 
             var results = query.ToArray();
 
             results.Should().HaveCount(3);
-            results.Select(x => x.Id).Should().BeEquivalentTo(new[] { 1, 2, 3 });
+            results.Select(x => x.Id).Should().Equal(new[] { 2, 1, 3 });
         }
 
         [Fact]
