@@ -1,9 +1,9 @@
-using LiteDB.Engine;
 using System;
 using System.Linq;
-using System.Text;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Text;
+using LiteDB.Engine;
 using static LiteDB.Constants;
 
 namespace LiteDB
@@ -85,6 +85,7 @@ namespace LiteDB
 
         public static Guid ReadGuid(this BufferSlice buffer, int offset)
         {
+            buffer.EnsureReadable();
             var span = new ReadOnlySpan<byte>(buffer.Array, buffer.Offset + offset, 16);
 
             return ReadGuid(span);
@@ -319,6 +320,7 @@ namespace LiteDB
 
         public static void Write(this BufferSlice buffer, Guid value, int offset)
         {
+            buffer.EnsureWritable();
             var span = new Span<byte>(buffer.Array, buffer.Offset + offset, 16);
 
 #if NET8_0_OR_GREATER
