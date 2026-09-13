@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using LiteDB.Vector;
 
 namespace LiteDB.Engine
 {

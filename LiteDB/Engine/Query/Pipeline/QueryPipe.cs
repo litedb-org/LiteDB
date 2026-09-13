@@ -71,7 +71,7 @@ namespace LiteDB.Engine
             // if is an aggregate query, run select transform over all resultset - will return a single value
             if (query.Select.All)
             {
-                return this.SelectAll(source, query.Select.Expression);
+                return this.SelectAll(source, query);
             }
             // run select transform in each document and return a new document or value
             else
@@ -105,12 +105,21 @@ namespace LiteDB.Engine
         /// <summary>
         /// Pipe: Run select expression over all recordset
         /// </summary>
-        private IEnumerable<BsonDocument> SelectAll(IEnumerable<BsonDocument> source, BsonExpression select)
+        private IEnumerable<BsonDocument> SelectAll(IEnumerable<BsonDocument> source, QueryPlan query)
         {
             using var cached = new DocumentCacheEnumerable(source, _lookup, _transaction.Safepoint, drainOnDispose: false);
 
+            // Aggregate expressions replay documents by address. Expand references again
+            // on each enumeration because reloaded BSON contains the original DBRefs.
+            source = cached;
+            foreach (var path in query.IncludeBefore.Concat(query.IncludeAfter).Distinct())
+            {
+                source = this.Include(source, path);
+            }
+
+            var select = query.Select.Expression;
             var defaultName = select.DefaultFieldName();
-            var result = select.Execute(cached, _pragmas.Collation);
+            var result = select.Execute(source, _pragmas.Collation);
 
             foreach (var value in result)
             {

@@ -135,6 +135,17 @@ there for plain/encrypted promotion; v7 upgrade tests use existing fixtures and
 verify backups and read-only access. Header savepoint coverage verifies that
 restoring an older buffer retains the promoted version.
 
+`Issue2881_VectorComposition_Tests` and the bounded scored-query sort-spill test
+cover Euclidean/dot-product parity, projection, snapshot reuse,
+computed expressions, ANN eligibility, and rejected API combinations. The separate
+review reproduction commit has 18 failing cases before the fixes.
+
+`Issue2881_VectorAggregate_Tests` covers repeated aggregates over included documents
+for threshold and top-k queries, with and without included-field filters. Its
+separate test-only commit reproduces four failures. Aggregate replay reapplies
+includes after reloading each document by address, preserving the bounded document
+memory usage of exact vector execution.
+
 ## Durable flush cost
 
 Durable flush requests now reach the underlying file through the encryption and
@@ -163,8 +174,3 @@ commit. A local Linux/.NET 8 sample produced:
 These are single local timing samples; filesystem caching, encryption, and storage
 latency affect them. The flush counts establish the operation boundaries; a
 production throughput comparison needs repeated runs on representative storage.
-
-`Issue2881_VectorComposition_Tests` and the bounded scored-query sort-spill test
-cover non-collinear Euclidean/dot-product parity, projection, snapshot reuse,
-computed expressions, ANN eligibility, and rejected API combinations. The separate
-review reproduction commit has 18 failing cases before the fixes.
