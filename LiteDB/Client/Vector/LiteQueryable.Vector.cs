@@ -58,13 +58,13 @@ namespace LiteDB
         {
             if (field == null) throw new ArgumentNullException(nameof(field));
 
-            var fieldExpr = _mapper.GetExpression(field);
+            var fieldExpr = this.GetExpression(field);
             return this.VectorWhereNear(fieldExpr, target, maxDistance);
         }
 
         internal ILiteQueryableResult<T> VectorTopKNear<K>(Expression<Func<T, K>> field, float[] target, int k)
         {
-            var fieldExpr = _mapper.GetExpression(field);
+            var fieldExpr = this.GetExpression(field);
             return this.VectorTopKNear(fieldExpr, target, k);
         }
 

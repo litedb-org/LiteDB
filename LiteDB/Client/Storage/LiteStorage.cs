@@ -10,6 +10,10 @@ namespace LiteDB
     /// <summary>
     /// Storage is a special collection to store files and streams.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = AotCompatibility.RuntimeModelMapping)]
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050", Justification = AotCompatibility.RuntimeTypeConstruction)]
     public class LiteStorage<TFileId> : ILiteStorage<TFileId>
     {
         private readonly ILiteDatabase _db;
