@@ -115,11 +115,11 @@ namespace LiteDB
         /// <summary>
         /// Copy Int64 bytes direct into buffer
         /// </summary>
-        public static unsafe void ToBytes(this Int64 value, byte[] array, int startIndex)
+        public static void ToBytes(this Int64 value, byte[] array, int startIndex)
         {
-            fixed (byte* ptr = &array[startIndex])
+            unchecked
             {
-                *(Int64*)ptr = value;
+                ToBytes((UInt64)value, array, startIndex);
             }
         }
 
@@ -148,11 +148,40 @@ namespace LiteDB
         /// <summary>
         /// Copy Int64 bytes direct into buffer
         /// </summary>
-        public static unsafe void ToBytes(this UInt64 value, byte[] array, int startIndex)
+        public static void ToBytes(this UInt64 value, byte[] array, int startIndex)
         {
-            fixed (byte* ptr = &array[startIndex])
+            // A single `*(UInt64*)ptr = value` store is lowered to STRD/STM on 32-bit ARM,
+            // which fault with SIGBUS/BUS_ADRALN when the destination is not word-aligned
+            // (see #1759). Byte stores have no alignment requirement.
+            //
+            // The byte order follows the running platform, so the bytes written here are
+            // identical to the ones the previous pointer store produced. That keeps the
+            // on-disk layout unchanged: the matching readers (ReadInt64/ReadUInt64/
+            // ReadDouble) use BitConverter, which is also native-endian.
+            unchecked
             {
-                *(UInt64*)ptr = value;
+                if (BitConverter.IsLittleEndian)
+                {
+                    array[startIndex] = (byte)value;
+                    array[startIndex + 1] = (byte)(value >> 8);
+                    array[startIndex + 2] = (byte)(value >> 16);
+                    array[startIndex + 3] = (byte)(value >> 24);
+                    array[startIndex + 4] = (byte)(value >> 32);
+                    array[startIndex + 5] = (byte)(value >> 40);
+                    array[startIndex + 6] = (byte)(value >> 48);
+                    array[startIndex + 7] = (byte)(value >> 56);
+                }
+                else
+                {
+                    array[startIndex] = (byte)(value >> 56);
+                    array[startIndex + 1] = (byte)(value >> 48);
+                    array[startIndex + 2] = (byte)(value >> 40);
+                    array[startIndex + 3] = (byte)(value >> 32);
+                    array[startIndex + 4] = (byte)(value >> 24);
+                    array[startIndex + 5] = (byte)(value >> 16);
+                    array[startIndex + 6] = (byte)(value >> 8);
+                    array[startIndex + 7] = (byte)value;
+                }
             }
         }
 

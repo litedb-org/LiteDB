@@ -25,12 +25,10 @@
     <None Update="Resources\ingest-20250922-234735.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Update="Resources\Issue1940_CorruptFreeEmptyList.zip">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
-	
-  <ItemGroup Condition="'$(Configuration)' == 'Release'">
-    <Compile Remove="Internals\**" />
-  </ItemGroup>
-
   <ItemGroup>
     <EmbeddedResource Include="Resources\person.json" />
     <EmbeddedResource Include="Resources\zip.json" />
@@ -64,7 +62,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\LiteDB\LiteDB.csproj" />
+    <ProjectReference Include="..\LiteDB\LiteDB.csproj" AdditionalProperties="TestingEnabled=true" />
   </ItemGroup>
 
 </Project>
