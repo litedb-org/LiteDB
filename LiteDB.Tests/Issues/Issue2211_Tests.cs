@@ -64,6 +64,12 @@ namespace LiteDB.Tests.Issues
         [Theory]
         [InlineData("filename=encrypted.db;password=abc=def;readonly=")]
         [InlineData("tenant=acme;readonly=")]
+        [InlineData(@"C:\data\my.db;password=secret")]
+        [InlineData("data/my.db;readonly=true")]
+        [InlineData("filename=encrypted.db;bogus;readonly=true")]
+        [InlineData("filename=encrypted.db;;readonly=true")]
+        [InlineData("filename=encrypted.db;bogus")]
+        [InlineData("filename=encrypted.db;=true")]
         public void Malformed_ConnectionString_Should_Not_Become_A_Filename(string malformed)
         {
             // A typo in an option must be reported. Treating the whole input as
@@ -81,6 +87,106 @@ namespace LiteDB.Tests.Issues
             Assert.Equal("acme", connectionString["tenant"]);
             Assert.Equal("west", connectionString["region"]);
             Assert.Equal(string.Empty, connectionString.Filename);
+        }
+
+        [Theory]
+        [InlineData("memory profile", "LowMemory")]
+        [InlineData("cache size", "64MB")]
+        [InlineData("transaction pages", "32")]
+        [InlineData(" MEMORY PROFILE ", "LowMemory")]
+        [InlineData(" CACHE SIZE ", "64MB")]
+        [InlineData(" TRANSACTION PAGES ", "32")]
+        public void ConnectionString_Should_Preserve_A_Single_Memory_Option(string key, string value)
+        {
+            var connectionString = new ConnectionString(key + "=" + value);
+
+            Assert.Equal(string.Empty, connectionString.Filename);
+            Assert.Equal(value, connectionString[key.Trim()]);
+            Assert.Throws<ArgumentException>(() =>
+            {
+                using (var db = new LiteDatabase(connectionString))
+                {
+                    db.GetCollection<Data>("data").Count();
+                }
+            });
+        }
+
+        [Theory]
+        [InlineData("test=1.LiteDB")]
+        [InlineData("data/test=1.db")]
+        [InlineData("data=1/test.db")]
+        [InlineData(@"C:\data\test=1.db")]
+        [InlineData(@"\\server\data=1\test.db")]
+        [InlineData("./password=secret.db")]
+        [InlineData("tenant=acme")]
+        [InlineData("filenam=production.db")]
+        public void ConnectionString_Should_Treat_Unknown_Single_Key_Input_As_A_Path(string filename)
+        {
+            var connectionString = new ConnectionString(filename);
+
+            Assert.Equal(filename, connectionString.Filename);
+            Assert.Null(connectionString.Password);
+        }
+
+        [Fact]
+        public void ConnectionString_Should_Parse_Quoted_Filename_And_Options()
+        {
+            var connectionString = new ConnectionString(
+                "filename=\"data/my=1;archive.db\";password=\"abc=def;ghi\";readonly=true");
+
+            Assert.Equal("data/my=1;archive.db", connectionString.Filename);
+            Assert.Equal("abc=def;ghi", connectionString.Password);
+            Assert.True(connectionString.ReadOnly);
+        }
+
+        [Theory]
+        [InlineData("password=secret.db")]
+        [InlineData("data/my=1;archive.db")]
+        public void ConnectionString_Should_Accept_An_Explicit_Filename_Without_Parsing(string filename)
+        {
+            var connectionString = new ConnectionString { Filename = filename };
+
+            Assert.Equal(filename, connectionString.Filename);
+            Assert.Null(connectionString.Password);
+        }
+
+        [Theory]
+        [InlineData("data.db", "password=secret", typeof(FormatException))]
+        [InlineData("data.db", "readonly=true", typeof(FormatException))]
+        [InlineData("data=1.db", "password=secret", typeof(ArgumentException))]
+        [InlineData("data=1.db", "readonly=true", typeof(ArgumentException))]
+        public void LiteDatabase_Should_Reject_Path_Plus_Options_Without_Creating_Files(
+            string filename, string option, Type exceptionType)
+        {
+            var directory = Path.Combine(Path.GetTempPath(), "litedb-2211-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(directory);
+
+            try
+            {
+                var malformed = Path.Combine(directory, filename) + ";" + option;
+
+                Assert.Throws(exceptionType, () =>
+                {
+                    using (var db = new LiteDatabase(malformed))
+                    {
+                        db.GetCollection<Data>("data").Count();
+                    }
+                });
+                Assert.Empty(Directory.GetFiles(directory));
+            }
+            finally
+            {
+                Directory.Delete(directory, true);
+            }
+        }
+
+        [Fact]
+        public void ConnectionString_Should_Allow_Whitespace_After_Trailing_Separator()
+        {
+            var connectionString = new ConnectionString("filename=sample=1.db;readonly=true; \t");
+
+            Assert.Equal("sample=1.db", connectionString.Filename);
+            Assert.True(connectionString.ReadOnly);
         }
 
         private static string GetTempDatabasePathWithEqualSign()
