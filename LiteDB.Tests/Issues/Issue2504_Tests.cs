@@ -54,10 +54,10 @@ namespace LiteDB.Tests.Issues
         }
 
         [Fact]
-        public void AutoRebuild_Disabled_ShouldThrow()
+        public void Recoverable_FreeList_Is_Repaired_With_AutoRebuild_Disabled()
         {
             var dbPath = CreateCorruptedDatabase();
-            var backupPath = dbPath + "-backup";
+            var backupPath = Path.Combine(Path.GetDirectoryName(dbPath), Path.GetFileNameWithoutExtension(dbPath) + "-backup.db");
 
             try
             {
@@ -65,7 +65,9 @@ namespace LiteDB.Tests.Issues
                 var col1 = db.GetCollection<Person>("col1");
                 var bulk = Enumerable.Range(3, 5_000).Select(i => new Person(i, "Gamma"));
                 var ex = Record.Exception(() => col1.InsertBulk(bulk));
-                Assert.NotNull(ex);
+                // Current dev validates and repairs this free list on allocation.
+                Assert.Null(ex);
+                Assert.Equal(5_001, col1.Count());
                 Assert.False(File.Exists(backupPath));
             }
             finally
@@ -76,10 +78,10 @@ namespace LiteDB.Tests.Issues
         }
 
         [Fact]
-        public void AutoRebuild_Enabled_ShouldRecover()
+        public void Recoverable_FreeList_Does_Not_Require_AutoRebuild()
         {
             string dbPath = CreateCorruptedDatabase();
-            string backupPath = dbPath + "-backup";
+            string backupPath = Path.Combine(Path.GetDirectoryName(dbPath), Path.GetFileNameWithoutExtension(dbPath) + "-backup.db");
             try
             {
                 using (var db = new LiteDatabase($"Filename={dbPath};AutoRebuild=true"))
@@ -99,7 +101,7 @@ namespace LiteDB.Tests.Issues
                         Assert.True(rebuildErrors.Count() > 0, "Rebuild errors should be logged due to corruption");
                     }
                 }
-                Assert.True(File.Exists(backupPath), "Backup should exist when AutoRebuild has executed");
+                Assert.False(File.Exists(backupPath), "Lazy free-list repair should avoid a full rebuild");
 
             }
             finally

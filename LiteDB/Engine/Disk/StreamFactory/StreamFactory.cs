@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -15,11 +16,14 @@ namespace LiteDB.Engine
     {
         private readonly Stream _stream;
         private readonly string _password;
+        private readonly bool _ownsStream;
+        private int _disposed;
 
-        public StreamFactory(Stream stream, string password)
+        public StreamFactory(Stream stream, string password, bool ownsStream = false)
         {
-            _stream = stream;
+            _stream = stream ?? throw new ArgumentNullException(nameof(stream));
             _password = password;
+            _ownsStream = ownsStream;
         }
 
         /// <summary>
@@ -32,13 +36,16 @@ namespace LiteDB.Engine
         /// </summary>
         public Stream GetStream(bool canWrite, bool sequencial)
         {
+            if (Volatile.Read(ref _disposed) != 0) throw new ObjectDisposedException(nameof(StreamFactory));
+
+            // The factory owns the shared base stream; wrappers only own themselves.
             if (_password == null)
             {
-                return new ConcurrentStream(_stream, canWrite);
+                return new ConcurrentStream(_stream, canWrite, true);
             }
             else
             {
-                return new AesStream(_password, new ConcurrentStream(_stream, canWrite));
+                return new AesStream(_password, new ConcurrentStream(_stream, canWrite, true));
             }
         }
 
@@ -82,8 +89,35 @@ namespace LiteDB.Engine
         public bool IsLocked() => false;
 
         /// <summary>
-        /// Do no dispose on finish
+        /// Wrappers are always disposed. Caller-owned base streams are protected
+        /// by ConcurrentStream's leave-open mode.
         /// </summary>
-        public bool CloseOnDispose => false;
+        public bool CloseOnDispose => true;
+
+        public void TrimCapacity(Stream stream)
+        {
+            if (!_ownsStream) return;
+
+            // Capacity changes must use the same monitor as ConcurrentStream
+            // readers, including when TempStream still stores data in memory.
+            lock (_stream)
+            {
+                if (_stream is MemoryStream memory)
+                {
+                    memory.Capacity = checked((int)memory.Length);
+                }
+                else if (_stream is TempStream temp)
+                {
+                    temp.TrimCapacity();
+                }
+            }
+        }
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+
+            if (_ownsStream) _stream.Dispose();
+        }
     }
 }

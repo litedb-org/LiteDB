@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using LiteDB.Tests.Utils;
 using Xunit;
 
 namespace LiteDB.Tests.Database;
@@ -9,7 +10,7 @@ public class Writing_While_Reading_Test
     public void Test()
     {
         using var f = new TempFile();
-        using (var db = new LiteDatabase(f.Filename))
+        using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, f.Filename))
         {
             var col = db.GetCollection<MyClass>("col");
             col.Insert(new MyClass { Name = "John", Description = "Doe" });
@@ -18,7 +19,7 @@ public class Writing_While_Reading_Test
         }
 
 
-        using (var db = new LiteDatabase(f.Filename))
+        using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, f.Filename))
         {
             var col = db.GetCollection<MyClass>("col");
             foreach (var item in col.FindAll())
@@ -31,7 +32,7 @@ public class Writing_While_Reading_Test
         }
 
 
-        using (var db = new LiteDatabase(f.Filename))
+        using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, f.Filename))
         {
             var col = db.GetCollection<MyClass>("col");
             foreach (var item in col.FindAll())

@@ -226,3 +226,4 @@ FakesAssemblies/
 /LiteDB.BadJsonTest
 /LiteDB/Properties/PublishProfiles/FolderProfile.pubxml
 /LiteDB/README.md
+repro-summary.json

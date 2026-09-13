@@ -1,9 +1,8 @@
-using LiteDB.Engine;
-
 using System;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
+using LiteDB.Engine;
 using System.Globalization;
-
 using static LiteDB.Constants;
 
 namespace LiteDB
@@ -14,6 +13,13 @@ namespace LiteDB
     public class ConnectionString
     {
         private readonly Dictionary<string, string> _values;
+        private int? _transactionPageLimit;
+
+        /// <summary>
+        /// "memory profile": Balanced (default), LowMemory, or Throughput.
+        /// Explicit cache and transaction limits override these defaults.
+        /// </summary>
+        public MemoryProfile MemoryProfile { get; set; } = MemoryProfile.Balanced;
 
         /// <summary>
         /// "connection": Return how engine will be open (default: Direct)
@@ -34,6 +40,22 @@ namespace LiteDB
         /// "initial size": If database is new, initialize with allocated space - support KB, MB, GB (default: 0)
         /// </summary>
         public long InitialSize { get; set; } = 0;
+
+        /// <summary>
+        /// "cache size": Soft page-cache target in bytes. Supports KB, MB,
+        /// and GB suffixes. Zero selects the profile's storage-specific default.
+        /// </summary>
+        public long CacheSize { get; set; } = 0;
+
+        /// <summary>
+        /// "transaction pages": Per-transaction cooperative safepoint limit.
+        /// Defaults to the selected profile; explicit values must be positive.
+        /// </summary>
+        public int TransactionPageLimit
+        {
+            get => _transactionPageLimit ?? MemoryProfileDefaults.GetTransactionPageLimit(this.MemoryProfile);
+            set => _transactionPageLimit = value;
+        }
 
         /// <summary>
         /// "readonly": Open datafile in readonly mode (default: false)
@@ -93,6 +115,15 @@ namespace LiteDB
             }
 
             this.InitialSize = _values.GetFileSize(@"initial size", this.InitialSize);
+            if (_values.TryGetValue("memory profile", out var profile)) this.MemoryProfile = MemoryProfileDefaults.Parse(profile);
+            this.CacheSize = _values.TryGetValue("cache size", out var cacheSizeText) ?
+                ParseCacheSize(cacheSizeText) : this.CacheSize;
+            if (_values.ContainsKey("transaction pages")) this.TransactionPageLimit = _values.GetValue<int>("transaction pages");
+
+            if (this.CacheSize < 0 || this.TransactionPageLimit <= 0)
+            {
+                throw new LiteException(0, "`cache size` must be non-negative and `transaction pages` must be greater than zero");
+            }
             this.ReadOnly = _values.GetValue("readonly", this.ReadOnly);
 
             this.Collation = _values.ContainsKey("collation") ? new Collation(_values.GetValue<string>("collation")) : this.Collation;
@@ -110,6 +141,33 @@ namespace LiteDB
         /// </summary>
         public string this[string key] => _values.GetOrDefault(key);
 
+        private static long ParseCacheSize(string text)
+        {
+            var match = Regex.Match(text.Trim(), @"^([0-9]+)\s*([tgmk])?(b|byte|bytes)?$", RegexOptions.IgnoreCase);
+            if (!match.Success || !long.TryParse(match.Groups[1].Value, out var value))
+            {
+                throw new LiteException(0, "Invalid connection string value for `cache size`");
+            }
+
+            var unit = match.Groups[2].Value.ToLowerInvariant();
+            var exponent = unit.Length == 0 ? 0 : "kmgt".IndexOf(unit, StringComparison.Ordinal) + 1;
+            try
+            {
+                for (var i = 0; i < exponent; i++) value = checked(value * 1024);
+            }
+            catch (OverflowException)
+            {
+                throw new LiteException(0, "`cache size` exceeds the supported byte range");
+            }
+
+            if (value > 0 && value < 1024L * 1024 && unit.Length == 0 && match.Groups[3].Length == 0)
+            {
+                throw new LiteException(0, "`cache size` values below 1 MB must include a size unit (for example, `512KB`)");
+            }
+
+            return value;
+        }
+
         /// <summary>
         /// Create ILiteEngine instance according string connection parameters. For now, only Local/Shared are supported
         /// </summary>
@@ -120,6 +178,9 @@ namespace LiteDB
                 Filename = this.Filename,
                 Password = this.Password,
                 InitialSize = this.InitialSize,
+                MemoryProfile = this.MemoryProfile,
+                CacheSize = this.CacheSize,
+                TransactionPageLimit = this.TransactionPageLimit,
                 ReadOnly = this.ReadOnly,
                 Collation = this.Collation,
                 Upgrade = this.Upgrade,

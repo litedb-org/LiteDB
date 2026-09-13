@@ -24,6 +24,7 @@ namespace LiteDB.Engine
         }
 
         public Collation Collation => _collation;
+        public void Safepoint() => _snapshot.Safepoint();
 
         // GetNodeList(PageAddress)
         public IEnumerable<IndexNode> GetNodeList(PageAddress nodeAddress)
@@ -37,9 +38,10 @@ namespace LiteDB.Engine
                 ENSURE(counter++ < _maxItemsCount, "Detected loop in GetNodeList({0})", nodeAddress);
                 ENSURE(seen.Add(node.Position), "Detected loop in GetNodeList({0})", nodeAddress);
 
+                var next = node.NextNode;
                 yield return node;
 
-                node = this.GetNode(node.NextNode);
+                node = this.GetNode(next);
             }
         }
 
@@ -50,9 +52,10 @@ namespace LiteDB.Engine
             var counter = 0u;
             var seen = new HashSet<PageAddress>();
 
-            while (!cur.GetNextPrev(0, order).IsEmpty)
+            var next = cur.GetNextPrev(0, order);
+            while (!next.IsEmpty)
             {
-                cur = this.GetNode(cur.GetNextPrev(0, order));
+                cur = this.GetNode(next);
 
                 ENSURE(counter++ < _maxItemsCount, "Detected loop in FindAll({0})", index.Name);
                 ENSURE(seen.Add(cur.Position), "Detected loop in FindAll({0})", index.Name);
@@ -60,6 +63,7 @@ namespace LiteDB.Engine
                 // stop if node is head/tail
                 if (cur.Key.IsMinValue || cur.Key.IsMaxValue) yield break;
 
+                next = cur.GetNextPrev(0, order);
                 yield return cur;
             }
         }
@@ -347,6 +351,8 @@ namespace LiteDB.Engine
 
                     next = node.NextNode;
                 }
+
+                _snapshot.Safepoint();
             }
 
             // removing head/tail index nodes

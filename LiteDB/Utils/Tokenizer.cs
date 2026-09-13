@@ -98,7 +98,8 @@ namespace LiteDB
             "LIKE",
             "IN",
             "AND",
-            "OR"
+            "OR",
+            "VECTOR_SIM"
         };
 
         public Token(TokenType tokenType, string value, long position)

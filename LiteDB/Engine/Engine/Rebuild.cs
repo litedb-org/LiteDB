@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using LiteDB.Vector;
 
 using static LiteDB.Constants;
 
@@ -73,6 +74,7 @@ namespace LiteDB.Engine
                 foreach (var collection in reader.GetCollections())
                 {
                     var snapshot = transaction.CreateSnapshot(LockMode.Write, collection, addIfNotExists: true);
+                    var vectorService = new VectorIndexService(snapshot, _header.Pragmas.Collation);
 
                     var indexer = new IndexService(snapshot, _header.Pragmas.Collation, maxItemsCount);
                     var data = new DataService(snapshot, maxItemsCount);
@@ -80,7 +82,8 @@ namespace LiteDB.Engine
                     foreach (var doc in reader.GetDocuments(collection))
                     {
                         transaction.Safepoint();
-                        InsertDocument(snapshot, doc, BsonAutoId.ObjectId, indexer, data);
+
+                        this.InsertDocument(snapshot, doc, BsonAutoId.ObjectId, indexer, data, vectorService);
                     }
 
                     if (!RebuildHelpers.ValidatePkNoCycle(indexer, snapshot.CollectionPage.PK, out var pkCount, maxItemsCount))
@@ -92,10 +95,17 @@ namespace LiteDB.Engine
                     {
                         try
                         {
-                            EnsureIndex(collection,
-                                        idx.Name,
-                                        BsonExpression.Create(idx.Expression),
-                                        idx.Unique);
+                            if (idx.IndexType == 1 && idx.VectorMetadata != null)
+                            {
+                                this.EnsureVectorIndex(collection, idx.Name,
+                                    BsonExpression.Create(idx.Expression),
+                                    new VectorIndexOptions(idx.VectorMetadata.Dimensions, idx.VectorMetadata.Metric));
+                            }
+                            else
+                            {
+                                this.EnsureIndex(collection, idx.Name,
+                                    BsonExpression.Create(idx.Expression), idx.Unique);
+                            }
                         }
                         catch (LiteException ex) when (ex.Message.IndexOf("Detected loop in FindAll", StringComparison.OrdinalIgnoreCase) >= 0)
                         {
