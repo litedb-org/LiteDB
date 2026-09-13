@@ -1,8 +1,9 @@
-using LiteDB.Engine;
 using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+
+using LiteDB.Engine;
 using static LiteDB.Constants;
 
 namespace LiteDB
