@@ -1,6 +1,5 @@
 using System;
 using System.Buffers;
-using System.Buffers.Binary;
 using System.Collections.Generic;
 using static LiteDB.Constants;
 
@@ -20,8 +19,6 @@ namespace LiteDB.Engine
         private bool _isEOF = false;
 
         private readonly ArrayPool<byte> _bufferPool = ArrayPool<byte>.Shared;
-        private const int StackallocThreshold = 16;
-        private delegate void SpanFiller(Span<byte> span);
 
         /// <summary>
         /// Current global cursor position
@@ -170,71 +167,6 @@ namespace LiteDB.Engine
         /// </summary>
         public partial void WriteString(string value, bool specs);
         
-        #endregion
-
-        #region Numbers
-
-        private void WriteNumber(SpanFiller fill, int size)
-        {
-            if (_currentPosition + size <= _current.Count)
-            {
-                _current.EnsureWritable();
-                var span = new Span<byte>(_current.Array, _current.Offset + _currentPosition, size);
-                fill(span);
-
-                this.MoveForward(size);
-            }
-            else
-            {
-                if (size <= StackallocThreshold)
-                {
-                    Span<byte> buffer = stackalloc byte[size];
-
-                    fill(buffer);
-
-                    this.WriteFrom(buffer);
-                }
-                else
-                {
-                    var buffer = _bufferPool.Rent(size);
-
-                    try
-                    {
-                        var span = new Span<byte>(buffer, 0, size);
-                        fill(span);
-
-                        this.Write(buffer, 0, size);
-                    }
-                    finally
-                    {
-                        _bufferPool.Return(buffer, true);
-                    }
-                }
-            }
-        }
-
-        private static unsafe int SingleToInt32Bits(float value)
-        {
-            // Unsafe cast lets the Engine serializer stay allocation-free when writing floats.
-            return *(int*)&value;
-        }
-
-        public void Write(Int32 value) => this.WriteNumber(span => BinaryPrimitives.WriteInt32LittleEndian(span, value), 4);
-        public void Write(Int64 value) => this.WriteNumber(span => BinaryPrimitives.WriteInt64LittleEndian(span, value), 8);
-        public void Write(UInt16 value) => this.WriteNumber(span => BinaryPrimitives.WriteUInt16LittleEndian(span, value), 2);
-        public void Write(UInt32 value) => this.WriteNumber(span => BinaryPrimitives.WriteUInt32LittleEndian(span, value), 4);
-        public void Write(Single value) => this.WriteNumber(span => BinaryPrimitives.WriteInt32LittleEndian(span, SingleToInt32Bits(value)), 4);
-        public void Write(Double value) => this.WriteNumber(span => BinaryPrimitives.WriteInt64LittleEndian(span, BitConverter.DoubleToInt64Bits(value)), 8);
-
-        public void Write(Decimal value)
-        {
-            var bits = Decimal.GetBits(value);
-            this.Write(bits[0]);
-            this.Write(bits[1]);
-            this.Write(bits[2]);
-            this.Write(bits[3]);
-        }
-
         #endregion
 
         #region Complex Types

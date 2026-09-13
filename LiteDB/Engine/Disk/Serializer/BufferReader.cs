@@ -1,6 +1,5 @@
 using System;
 using System.Buffers;
-using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using static LiteDB.Constants;
@@ -22,8 +21,6 @@ namespace LiteDB.Engine
         private bool _isEOF = false;
 
         private readonly ArrayPool<byte> _bufferPool = ArrayPool<byte>.Shared;
-        private const int StackallocThreshold = 16;
-        private delegate T SpanValueReader<T>(ReadOnlySpan<byte> span);
 
         /// <summary>
         /// Current global cursor position
@@ -181,74 +178,6 @@ namespace LiteDB.Engine
             }
             value = null;
             return false;
-        }
-
-        #endregion
-
-        #region Read Numbers
-        private T ReadNumber<T>(SpanValueReader<T> convert, int size)
-        {
-            T value;
-
-            // if fits in current segment, use inner array - otherwise copy from multiples segments
-            if (_currentPosition + size <= _current.Count)
-            {
-                _current.EnsureReadable();
-                var span = new ReadOnlySpan<byte>(_current.Array, _current.Offset + _currentPosition, size);
-                value = convert(span);
-
-                this.MoveForward(size);
-            }
-            else
-            {
-                if (size <= StackallocThreshold)
-                {
-                    Span<byte> buffer = stackalloc byte[size];
-
-                    this.ReadInto(buffer);
-
-                    value = convert(buffer);
-                }
-                else
-                {
-                    var buffer = _bufferPool.Rent(size);
-
-                    try
-                    {
-                        this.Read(buffer, 0, size);
-
-                        value = convert(new ReadOnlySpan<byte>(buffer, 0, size));
-                    }
-                    finally
-                    {
-                        _bufferPool.Return(buffer, true);
-                    }
-                }
-            }
-
-            return value;
-        }
-
-        private static unsafe float Int32BitsToSingle(int value)
-        {
-            // Unsafe re-interpretation keeps Engine serializer span-based without extra allocations.
-            return *(float*)&value;
-        }
-
-        public Int32 ReadInt32() => this.ReadNumber(static span => BinaryPrimitives.ReadInt32LittleEndian(span), 4);
-        public Int64 ReadInt64() => this.ReadNumber(static span => BinaryPrimitives.ReadInt64LittleEndian(span), 8);
-        public UInt16 ReadUInt16() => this.ReadNumber(static span => BinaryPrimitives.ReadUInt16LittleEndian(span), 2);
-        public UInt32 ReadUInt32() => this.ReadNumber(static span => BinaryPrimitives.ReadUInt32LittleEndian(span), 4);
-        public Single ReadSingle() => this.ReadNumber(static span => Int32BitsToSingle(BinaryPrimitives.ReadInt32LittleEndian(span)), 4);
-        public Double ReadDouble() => this.ReadNumber(static span => BitConverter.Int64BitsToDouble(BinaryPrimitives.ReadInt64LittleEndian(span)), 8);
-
-        public Decimal ReadDecimal()
-        {
-            var a = this.ReadInt32();
-            var b = this.ReadInt32();
-            var c = this.ReadInt32();
-            var d = this.ReadInt32();
-            return new Decimal(new int[] { a, b, c, d });
         }
 
         #endregion
