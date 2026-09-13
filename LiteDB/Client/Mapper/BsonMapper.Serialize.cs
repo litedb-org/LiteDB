@@ -225,9 +225,13 @@ namespace LiteDB
                 {
                     var converterType = keyType == typeof(object) ? key.GetType() : keyType;
                     var keyConverter = TypeDescriptor.GetConverter(converterType);
-                    stringKey = keyConverter.CanConvertTo(typeof(string))
-                        ? keyConverter.ConvertToInvariantString(key) ?? string.Empty
-                        : Convert.ToString(key, CultureInfo.InvariantCulture) ?? string.Empty;
+                    // The default EnumConverter rejects unnamed values that the reader accepts.
+                    // Enum.ToString preserves their invariant numeric spelling; honor custom converters.
+                    stringKey = key is Enum && keyConverter.GetType() == typeof(EnumConverter)
+                        ? key.ToString()
+                        : keyConverter.CanConvertTo(typeof(string))
+                            ? keyConverter.ConvertToInvariantString(key) ?? string.Empty
+                            : Convert.ToString(key, CultureInfo.InvariantCulture) ?? string.Empty;
                 }
 
                 if (bsonDocument.ContainsKey(stringKey))

@@ -26,6 +26,9 @@
     <None Update="Resources\Issue1940_CorruptFreeEmptyList.zip">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Update="Resources\Issue2255_Before2753.db">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Resources\person.json" />
