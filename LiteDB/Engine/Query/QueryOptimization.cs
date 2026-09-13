@@ -318,8 +318,15 @@ namespace LiteDB.Engine
         /// </summary>
         private void DefineOrderBy()
         {
-            // if has no order by, returns null
-            if (_query.OrderBy.Count == 0) return;
+            if (_query.OrderBy.Count == 0)
+            {
+                // Unbounded WhereNear preserves metric ranking through the normal sorter.
+                if (_query.GroupBy == null && _queryPlan.Index is VectorIndexQuery vector && vector.RequiresSort)
+                {
+                    _queryPlan.OrderBy = new OrderBy(new[] { vector.CreateOrderByItem(Query.Ascending) });
+                }
+                return;
+            }
 
             var segments = _query.OrderBy.Select(x => new OrderByItem(x.Expression, x.Order)).ToArray();
             if (_vectorOrderConsumed) return;
@@ -329,9 +336,7 @@ namespace LiteDB.Engine
                 // Retain the metric score as the primary key so ThenBy only breaks score ties.
                 // Re-evaluating VECTOR_SIM here would replace Euclidean/dot-product scores with cosine.
                 var index = (VectorIndexQuery)_queryPlan.Index;
-                var direction = index.Metric == LiteDB.Vector.VectorDistanceMetric.DotProduct ? -1 : 1;
-                segments[0] = new OrderByItem(segments[0].Expression, segments[0].Order * direction,
-                    document => index.GetScore(document.RawId));
+                segments[0] = index.CreateOrderByItem(segments[0].Order);
             }
 
             var orderBy = new OrderBy(segments);
