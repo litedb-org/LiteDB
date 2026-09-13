@@ -68,5 +68,96 @@ namespace LiteDB
             : this.IsDocument ? this.RawValue as BsonDocument : null;
 
         #endregion
+
+        #region Collection hash codes
+
+        public override int GetHashCode()
+        {
+            if (this.IsArray) return GetArrayHashCode(this.AsArray);
+            if (this.IsDocument) return GetDocumentHashCode(this.AsDocument);
+
+            return CombineHashCodes(this.Type.GetHashCode(), this.RawValue?.GetHashCode() ?? 0);
+        }
+
+        private static int GetEqualityHashCode(BsonValue value)
+        {
+            if (value.IsNumber)
+            {
+                if (value.IsDouble)
+                {
+                    var number = value.AsDouble;
+
+                    if (Double.IsNaN(number) || Double.IsInfinity(number) ||
+                        number > (double)Decimal.MaxValue || number < (double)Decimal.MinValue)
+                    {
+                        return CombineHashCodes(value.Type.GetHashCode(), number.GetHashCode());
+                    }
+                }
+
+                return Convert.ToDecimal(value.RawValue).GetHashCode();
+            }
+
+            switch (value.Type)
+            {
+                case BsonType.Array: return GetArrayHashCode(value.AsArray);
+                case BsonType.Document: return GetDocumentHashCode(value.AsDocument);
+                case BsonType.Binary: return GetSequenceHashCode(value.Type, value.AsBinary);
+                case BsonType.Vector: return GetSequenceHashCode(value.Type, value.AsVector);
+                case BsonType.DateTime:
+                    var date = value.AsDateTime;
+                    if (date.Kind != DateTimeKind.Utc) date = date.ToUniversalTime();
+                    return CombineHashCodes(value.Type.GetHashCode(), date.Ticks.GetHashCode());
+                default:
+                    return CombineHashCodes(value.Type.GetHashCode(), value.RawValue?.GetHashCode() ?? 0);
+            }
+        }
+
+        private static int GetArrayHashCode(BsonArray array)
+        {
+            var hash = CombineHashCodes(BsonType.Array.GetHashCode(), array.Count);
+
+            foreach (var value in array)
+            {
+                hash = CombineHashCodes(hash, GetEqualityHashCode(value));
+            }
+
+            return hash;
+        }
+
+        private static int GetDocumentHashCode(BsonDocument document)
+        {
+            var elementsHash = 0;
+
+            foreach (var element in document)
+            {
+                var elementHash = CombineHashCodes(
+                    StringComparer.OrdinalIgnoreCase.GetHashCode(element.Key),
+                    GetEqualityHashCode(element.Value));
+                elementsHash = unchecked(elementsHash + elementHash);
+            }
+
+            return CombineHashCodes(
+                CombineHashCodes(BsonType.Document.GetHashCode(), document.Count),
+                elementsHash);
+        }
+
+        private static int GetSequenceHashCode<T>(BsonType type, T[] values)
+        {
+            var hash = CombineHashCodes(type.GetHashCode(), values.Length);
+
+            foreach (var value in values)
+            {
+                hash = CombineHashCodes(hash, value.GetHashCode());
+            }
+
+            return hash;
+        }
+
+        private static int CombineHashCodes(int left, int right)
+        {
+            return unchecked(37 * (37 * 17 + left) + right);
+        }
+
+        #endregion
     }
 }

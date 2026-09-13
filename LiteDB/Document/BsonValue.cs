@@ -669,17 +669,6 @@ namespace LiteDB
             return false;
         }
 
-        public override int GetHashCode()
-        {
-            var rawValue = this.IsArray ? this.AsArray?.RawValue :
-                this.IsDocument ? this.AsDocument?.RawValue :
-                this.RawValue;
-            var hash = 17;
-            hash = 37 * hash + this.Type.GetHashCode();
-            hash = 37 * hash + (rawValue?.GetHashCode() ?? 0);
-            return hash;
-        }
-
         #endregion
 
         #region GetBytesCount()

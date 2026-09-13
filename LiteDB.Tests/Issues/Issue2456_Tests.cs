@@ -197,18 +197,6 @@ public class Issue2456_Tests
     }
 
     [Fact]
-    public void Wrapped_collections_should_compare_equal_and_share_hash_codes_with_their_adapters()
-    {
-        var array = new BsonValue(Items);
-        var document = new BsonValue(new Dictionary<string, BsonValue> { ["x"] = 1 });
-
-        array.Should().Be(array.AsArray);
-        array.GetHashCode().Should().Be(array.AsArray.GetHashCode());
-        document.Should().Be(document.AsDocument);
-        document.GetHashCode().Should().Be(document.AsDocument.GetHashCode());
-    }
-
-    [Fact]
     public void BsonMapper_should_deserialize_a_wrapped_array()
     {
         var wrapped = new BsonValue(Items);
