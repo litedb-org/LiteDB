@@ -15,6 +15,7 @@ namespace LiteDB.Engine
     {
         private readonly MemoryCache _cache;
         private readonly EngineState _state;
+        private readonly bool _readOnly;
 
         private IStreamFactory _dataFactory;
         private readonly IStreamFactory _logFactory;
@@ -25,6 +26,8 @@ namespace LiteDB.Engine
 
         private long _dataLength;
         private long _logLength;
+        private long _dataTrailingLength;
+        private long _logTrailingLength;
         private int _disposed;
 
         private static readonly ArrayPool<byte> _bufferPool = ArrayPool<byte>.Shared;
@@ -36,6 +39,7 @@ namespace LiteDB.Engine
         {
             _cache = new MemoryCache(memorySegmentSizes, settings.GetCacheSize());
             _state = state;
+            _readOnly = settings.ReadOnly;
 
             try
             {
@@ -46,25 +50,32 @@ namespace LiteDB.Engine
                 _logPool = new StreamPool(_logFactory, true);
                 _writer = _logPool.Writer;
 
-                var isNew = _dataFactory.GetLength() == 0L;
+                var dataLength = _dataFactory.GetLength();
+                var isNew = dataLength == 0L;
 
                 if (isNew)
                 {
                     LOG($"creating new database: '{Path.GetFileName(_dataFactory.Name)}'", "DISK");
 
                     this.Initialize(_dataPool.Writer.Value, settings.Collation, settings.InitialSize);
+                    dataLength = _dataFactory.GetLength();
                 }
+
+                if (dataLength < PAGE_SIZE) throw LiteException.InvalidDatabase();
 
                 if (settings.ReadOnly == false)
                 {
                     _ = _dataPool.Writer.Value.CanRead;
                 }
 
-                _dataLength = _dataFactory.GetLength() - PAGE_SIZE;
+                _dataTrailingLength = dataLength % PAGE_SIZE;
+                _dataLength = dataLength - _dataTrailingLength - PAGE_SIZE;
 
                 if (_logFactory.Exists())
                 {
-                    _logLength = _logFactory.GetLength() - PAGE_SIZE;
+                    var logLength = _logFactory.GetLength();
+                    _logTrailingLength = logLength % PAGE_SIZE;
+                    _logLength = logLength - _logTrailingLength - PAGE_SIZE;
                 }
                 else
                 {
@@ -80,6 +91,27 @@ namespace LiteDB.Engine
                 TryDispose(_cache);
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Remove incomplete trailing pages only after the data header was validated.
+        /// </summary>
+        internal void TrimTrailingPages()
+        {
+            if (_readOnly) return;
+
+            this.TrimTrailingPage(_dataPool, _dataLength + PAGE_SIZE, ref _dataTrailingLength);
+            this.TrimTrailingPage(_logPool, _logLength + PAGE_SIZE, ref _logTrailingLength);
+        }
+
+        private void TrimTrailingPage(StreamPool pool, long length, ref long trailingLength)
+        {
+            if (trailingLength == 0) return;
+
+            var stream = pool.Writer.Value;
+            stream.SetLength(length);
+            stream.FlushToDisk();
+            trailingLength = 0;
         }
 
         /// <summary>

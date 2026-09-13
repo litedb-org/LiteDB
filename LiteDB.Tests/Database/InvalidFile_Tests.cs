@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
-using System.Collections.Generic;
+
 using FluentAssertions;
 using Xunit;
 
@@ -9,117 +9,147 @@ namespace LiteDB.Tests.Database
 {
     public class InvalidFile_Tests
     {
-        [Fact]
-        public void Test_AddDatabase_InvalidDatabase()
+        [Theory]
+        [InlineData(15, false)]
+        [InlineData(15, true)]
+        [InlineData(8192, false)]
+        [InlineData(8192, true)]
+        [InlineData(16385, false)]
+        [InlineData(16385, true)]
+        public void Invalid_database_file_is_rejected_without_changes(int length, bool readOnly)
         {
-            // Set the database name and file name
-            string dbName = "invalidDb";
-            string fileName = $"{dbName}.db";
-            
-            // Create an invalid LiteDB database file for testing
-            File.WriteAllText(fileName, "Invalid content");
+            var filename = Path.Combine(
+                Path.GetTempPath(),
+                $"litedb-invalid-{Guid.NewGuid():N}.db");
+            var content = Enumerable.Repeat((byte)'a', length).ToArray();
 
-            // Verify the file exists and content is correct
-            Assert.True(File.Exists(fileName));
-            Assert.Equal("Invalid content", File.ReadAllText(fileName));
-
-            // Act & Assert: Try to open the invalid database and expect an exception
-            Assert.Throws<LiteException>(() =>
+            try
             {
-                using (var db = new LiteDatabase(fileName))
+                File.WriteAllBytes(filename, content);
+
+                Action open = () =>
                 {
-                    // Attempt to perform an operation to ensure the database file is read
-                    var col = db.GetCollection("test");
-                    col.Insert(new BsonDocument { ["name"] = "test" });
-                }
-            });
-
-            // Clean up: Remove the invalid database file after the test
-            if (File.Exists(fileName))
-            {
-                File.Delete(fileName);
-            }
-        }
-
-        [Fact]
-        public void Test_AddDatabase_InvalidDatabase_LargeFile()
-        {
-            // Set the database name and file name
-            string dbName = "largeInvalidDb";
-            string fileName = $"{dbName}.db";
-
-            // Create an invalid LiteDB database file with content larger than 16KB for testing
-            string invalidContent = new string('a', 16 * 1024 + 1);
-            File.WriteAllText(fileName, invalidContent);
-
-            // Verify the file exists and content is correct
-            Assert.True(File.Exists(fileName));
-            Assert.Equal(invalidContent, File.ReadAllText(fileName));
-
-            // Act & Assert: Try to open the invalid database and expect an exception
-            Assert.Throws<LiteException>(() =>
-            {
-                using (var db = new LiteDatabase(fileName))
-                {
-                    // Attempt to perform an operation to ensure the database file is read
-                    var col = db.GetCollection("test");
-                    col.Insert(new BsonDocument { ["name"] = "test" });
-                }
-            });
-
-            // Clean up: Remove the invalid database file after the test
-            if (File.Exists(fileName))
-            {
-                File.Delete(fileName);
-            }
-        }
-
-        [Fact]
-        public void Test_AddDatabase_InvalidDatabase_MemoryStream()
-        {
-            // Create an invalid LiteDB database content
-            byte[] invalidContent = System.Text.Encoding.UTF8.GetBytes("Invalid content");
-
-            using (var stream = new MemoryStream(invalidContent))
-            {
-                // Act & Assert: Try to open the invalid database and expect an exception
-                Exception ex = Record.Exception(() =>
-                {
-                    using (var db = new LiteDatabase(stream))
+                    using var db = new LiteDatabase(new ConnectionString
                     {
-                        // Attempt to perform an operation to ensure the database file is read
-                        var col = db.GetCollection("test");
-                        col.Insert(new BsonDocument { ["name"] = "test" });
-                    }
-                });
+                        Filename = filename,
+                        ReadOnly = readOnly
+                    });
+                };
 
-                Assert.NotNull(ex);
-                Assert.IsType<LiteException>(ex);
+                open.Should().Throw<LiteException>()
+                    .Which.ErrorCode.Should().Be(LiteException.INVALID_DATABASE);
+                File.ReadAllBytes(filename).Should().Equal(content);
+            }
+            finally
+            {
+                File.Delete(filename);
+            }
+        }
+
+        [Theory]
+        [InlineData(15)]
+        [InlineData(8192)]
+        [InlineData(16385)]
+        public void Invalid_database_stream_is_rejected_without_changes(int length)
+        {
+            var content = Enumerable.Repeat((byte)'a', length).ToArray();
+            using var stream = new MemoryStream(content.ToArray());
+
+            Action open = () =>
+            {
+                using var db = new LiteDatabase(stream);
+            };
+
+            open.Should().Throw<LiteException>()
+                .Which.ErrorCode.Should().Be(LiteException.INVALID_DATABASE);
+            stream.ToArray().Should().Equal(content);
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Valid_database_with_incomplete_page_remains_readable(bool readOnly)
+        {
+            var filename = Path.Combine(
+                Path.GetTempPath(),
+                $"litedb-incomplete-{Guid.NewGuid():N}.db");
+
+            try
+            {
+                using (var db = new LiteDatabase(filename))
+                {
+                    db.GetCollection("items").Insert(new BsonDocument { ["value"] = 1 });
+                    db.Checkpoint();
+                }
+
+                var completeLength = new FileInfo(filename).Length;
+                using (var stream = new FileStream(filename, FileMode.Append, FileAccess.Write))
+                {
+                    stream.Write(new byte[37], 0, 37);
+                }
+
+                using (var db = new LiteDatabase(new ConnectionString
+                {
+                    Filename = filename,
+                    ReadOnly = readOnly
+                }))
+                {
+                    db.GetCollection("items").Count().Should().Be(1);
+                }
+
+                new FileInfo(filename).Length.Should().Be(
+                    readOnly ? completeLength + 37 : completeLength);
+            }
+            finally
+            {
+                File.Delete(filename);
             }
         }
 
         [Fact]
-        public void Test_AddDatabase_InvalidDatabase_LargeFile_MemoryStream()
+        public void Legacy_database_rejected_without_upgrade_remains_upgradeable()
         {
-            // Create an invalid LiteDB database content larger than 16KB
-            byte[] invalidContent = new byte[16 * 1024 + 1];
-            for (int i = 0; i < invalidContent.Length; i++) invalidContent[i] = (byte)'a';
+            var source = Path.GetFullPath(Path.Combine(
+                AppContext.BaseDirectory,
+                "../../../Resources/Issue_2494_EncryptedV4.db"));
+            var filename = Path.Combine(
+                Path.GetTempPath(),
+                $"litedb-legacy-{Guid.NewGuid():N}.db");
+            var backup = Path.Combine(
+                Path.GetDirectoryName(filename),
+                Path.GetFileNameWithoutExtension(filename) + "-backup.db");
 
-            using (var stream = new MemoryStream(invalidContent))
+            try
             {
-                // Act & Assert: Try to open the invalid database and expect an exception
-                Exception ex = Record.Exception(() =>
-                {
-                    using (var db = new LiteDatabase(stream))
-                    {
-                        // Attempt to perform an operation to ensure the database file is read
-                        var col = db.GetCollection("test");
-                        col.Insert(new BsonDocument { ["name"] = "test" });
-                    }
-                });
+                File.Copy(source, filename);
+                var content = File.ReadAllBytes(filename);
 
-                Assert.NotNull(ex);
-                Assert.IsType<LiteException>(ex);
+                Action open = () =>
+                {
+                    using var db = new LiteDatabase(new ConnectionString
+                    {
+                        Filename = filename,
+                        Password = "pass123"
+                    });
+                };
+
+                open.Should().Throw<LiteException>();
+                File.ReadAllBytes(filename).Should().Equal(content);
+
+                using (var db = new LiteDatabase(new ConnectionString
+                {
+                    Filename = filename,
+                    Password = "pass123",
+                    Upgrade = true
+                }))
+                {
+                    db.GetCollectionNames().Should().NotBeEmpty();
+                }
+            }
+            finally
+            {
+                File.Delete(filename);
+                File.Delete(backup);
             }
         }
     }
