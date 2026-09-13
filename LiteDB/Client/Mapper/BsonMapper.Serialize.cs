@@ -46,7 +46,10 @@ namespace LiteDB
             return this.Serialize(type, obj, 0);
         }
 
-        internal BsonValue Serialize(Type type, object obj, int depth)
+        /// <summary>
+        /// Serialize a value using its declared type and current nesting depth.
+        /// </summary>
+        public virtual BsonValue Serialize(Type type, object obj, int depth)
         {
             if (++depth > MaxDepth) throw LiteException.DocumentMaxDepth(MaxDepth, type);
 
@@ -145,7 +148,7 @@ namespace LiteDB
             // check if is a list or array
             else if (obj is IEnumerable)
             {
-                return SerializeArray(Reflection.GetListItemType(type), obj as IEnumerable, depth);
+                return SerializeArray(GetListItemType(type, obj), obj as IEnumerable, depth);
             }
             // otherwise serialize as a plain object
             else
@@ -154,7 +157,18 @@ namespace LiteDB
             }
         }
 
-        private BsonArray SerializeArray(Type type, IEnumerable array, int depth)
+        /// <summary>
+        /// Resolve the item type while retaining the declared collection contract.
+        /// </summary>
+        protected virtual Type GetListItemType(Type type, object value)
+        {
+            return Reflection.GetListItemType(type);
+        }
+
+        /// <summary>
+        /// Serialize the items in an enumerable value.
+        /// </summary>
+        protected virtual BsonArray SerializeArray(Type type, IEnumerable array, int depth)
         {
             BsonArray bsonArray = [];
 
@@ -183,7 +197,10 @@ namespace LiteDB
             return Reflection.GetListItemType(declaredType) == typeof(object);
         }
 
-        private BsonDocument SerializeDictionary(Type keyType, Type valueType, IDictionary dict, int depth)
+        /// <summary>
+        /// Serialize dictionary keys and values using their declared types.
+        /// </summary>
+        protected virtual BsonDocument SerializeDictionary(Type keyType, Type valueType, IDictionary dict, int depth)
         {
             BsonDocument bsonDocument = [];
 
@@ -226,7 +243,10 @@ namespace LiteDB
             return bsonDocument;
         }
 
-        private BsonDocument SerializeObject(Type type, object obj, int depth)
+        /// <summary>
+        /// Serialize the mapped members of an object.
+        /// </summary>
+        protected virtual BsonDocument SerializeObject(Type type, object obj, int depth)
         {
             var t = obj.GetType();
             var doc = new BsonDocument();
