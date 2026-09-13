@@ -1,7 +1,5 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text;
 
 namespace LiteDB
@@ -9,156 +7,174 @@ namespace LiteDB
     /// <summary>File storage extension methods that mimic <see cref="System.IO.File"/> methods.</summary>
     public static class LiteStorageExtensions
     {
-        /// <summary>Opens a text file, reads all lines of the file, and then closes the file.</summary>
-        /// <param name="self">The this pointer to the <see cref="ILiteStorage{TFileId}"/> for the extension method.</param>
-        /// <param name="id">The identifier of the file to open for reading.</param>
-        /// <returns>A string containing all lines of the file.</returns>
-        /// <exception cref="FileNotFoundException">The file specified in id was not found.</exception>
+        private static readonly Encoding Utf8NoPreamble = new UTF8Encoding(false);
+
+        /// <summary>Opens a text file, reads all its text, and then closes the file.</summary>
+        /// <param name="self">The storage containing the file.</param>
+        /// <param name="id">The identifier of the file to read.</param>
+        /// <returns>A string containing all text in the file.</returns>
+        /// <exception cref="FileNotFoundException">The specified file was not found.</exception>
         public static string ReadAllText<TFileId>(this ILiteStorage<TFileId> self, TFileId id)
         {
-            if (!self.Exists(id)) throw new FileNotFoundException("The file specified in id was not found.", Convert.ToString(id));
-            try
+            return ReadAllText(self, id, Utf8NoPreamble);
+        }
+
+        /// <summary>Opens a text file, reads all its text using the specified encoding, and then closes the file.</summary>
+        /// <param name="self">The storage containing the file.</param>
+        /// <param name="id">The identifier of the file to read.</param>
+        /// <param name="encoding">The encoding applied to the file content.</param>
+        /// <returns>A string containing all text in the file.</returns>
+        /// <exception cref="FileNotFoundException">The specified file was not found.</exception>
+        public static string ReadAllText<TFileId>(this ILiteStorage<TFileId> self, TFileId id, Encoding encoding)
+        {
+            if (!self.Exists(id))
             {
-                using (LiteFileStream<TFileId> stream = self.OpenRead(id))
-                using (StreamReader reader = new StreamReader(stream))
-                {
-                    return reader.ReadToEnd();
-                }
+                throw new FileNotFoundException("The file specified in id was not found.", Convert.ToString(id));
             }
-            catch (Exception) { throw; }
+
+            using (var stream = self.OpenRead(id))
+            using (var reader = new StreamReader(stream, encoding))
+            {
+                return reader.ReadToEnd();
+            }
+        }
+
+        /// <summary>Opens a binary file, reads all its bytes, and then closes the file.</summary>
+        /// <param name="self">The storage containing the file.</param>
+        /// <param name="id">The identifier of the file to read.</param>
+        /// <returns>A byte array containing the file content.</returns>
+        /// <exception cref="FileNotFoundException">The specified file was not found.</exception>
+        public static byte[] ReadAllBytes<TFileId>(this ILiteStorage<TFileId> self, TFileId id)
+        {
+            if (!self.Exists(id))
+            {
+                throw new FileNotFoundException("The file specified in id was not found.", Convert.ToString(id));
+            }
+
+            using (var stream = self.OpenRead(id))
+            using (var target = new MemoryStream())
+            {
+                stream.CopyTo(target);
+                return target.ToArray();
+            }
+        }
+
+        /// <summary>Creates a file, writes the specified text, and closes the file. An existing file is overwritten.</summary>
+        /// <param name="self">The storage containing the file.</param>
+        /// <param name="id">The identifier of the file to write.</param>
+        /// <param name="filename">The original name of the file.</param>
+        /// <param name="contents">The text to write.</param>
+        public static void WriteAllText<TFileId>(this ILiteStorage<TFileId> self, TFileId id, string filename, string contents)
+        {
+            using (var stream = self.OpenWrite(id, filename))
+            using (var writer = new StreamWriter(stream))
+            {
+                writer.Write(contents);
+            }
+        }
+
+        /// <summary>Creates a file, writes text with the specified encoding, and closes the file. An existing file is overwritten.</summary>
+        /// <param name="self">The storage containing the file.</param>
+        /// <param name="id">The identifier of the file to write.</param>
+        /// <param name="filename">The original name of the file.</param>
+        /// <param name="contents">The text to write.</param>
+        /// <param name="encoding">The encoding applied to the text.</param>
+        public static void WriteAllText<TFileId>(this ILiteStorage<TFileId> self, TFileId id, string filename, string contents, Encoding encoding)
+        {
+            using (var stream = self.OpenWrite(id, filename))
+            using (var writer = new StreamWriter(stream, encoding))
+            {
+                writer.Write(contents);
+            }
+        }
+
+        /// <summary>Creates a file, writes the specified bytes, and closes the file. An existing file is overwritten.</summary>
+        /// <param name="self">The storage containing the file.</param>
+        /// <param name="id">The identifier of the file to write.</param>
+        /// <param name="filename">The original name of the file.</param>
+        /// <param name="bytes">The bytes to write.</param>
+        public static void WriteAllBytes<TFileId>(this ILiteStorage<TFileId> self, TFileId id, string filename, byte[] bytes)
+        {
+            using (var stream = self.OpenWrite(id, filename))
+            {
+                stream.Write(bytes, 0, bytes.Length);
+            }
         }
 
         /// <summary>
-        /// Opens a text file, reads all lines of the file with the specified encoding, and then closes the file.
+        /// Atomically appends text using UTF-8 without a byte-order mark. A missing file is created.
+        /// Existing bytes and metadata are preserved. A failed append is rolled back unless the caller
+        /// supplied the active transaction, in which case the caller must roll it back.
         /// </summary>
-        /// <param name="self">The this pointer to the <see cref="ILiteStorage{TFileId}" /> for the extension method.</param>
-        /// <param name="id">The identifier of the file to open for reading.</param>
-        /// <param name="encoding">The encoding applied to the contents of the file.</param>
-        /// <returns>
-        /// A string containing all lines of the file.
-        /// </returns>
-        /// <exception cref="FileNotFoundException">The file specified in id was not found.</exception>
-        public static string ReadAllText<TFileId>(this ILiteStorage<TFileId> self, TFileId id, Encoding encoding)
-        {
-            if (!self.Exists(id)) throw new FileNotFoundException("The file specified in id was not found.", Convert.ToString(id));
-            try
-            {
-                using (LiteFileStream<TFileId> stream = self.OpenRead(id))
-                using (StreamReader reader = new StreamReader(stream, encoding))
-                {
-                    return reader.ReadToEnd();
-                }
-            }
-            catch (Exception) { throw; }
-        }
-
-        /// <summary>Opens a binary file, reads the contents of the file into a byte array, and then closes the file.</summary>
-        /// <param name="self">The this pointer to the <see cref="ILiteStorage{TFileId}"/> for the extension method.</param>
-        /// <param name="id">The identifier of the file to open for reading.</param>
-        /// <returns>A byte array containing the contents of the file.</returns>
-        /// <exception cref="FileNotFoundException">The file specified in id was not found.</exception>
-        public static byte[] ReadAllBytes<TFileId>(this ILiteStorage<TFileId> self, TFileId id)
-        {
-            if (!self.Exists(id)) throw new FileNotFoundException("The file specified in id was not found.", Convert.ToString(id));
-            try
-            {
-                using (LiteFileStream<TFileId> stream = self.OpenRead(id))
-                using (MemoryStream mstream = new MemoryStream())
-                {
-                    stream.CopyTo(mstream);
-                    return mstream.ToArray();
-                }
-            }
-            catch (Exception) { throw; }
-        }
-
-        /// <summary>Creates a new file, writes the specified string to the file, and then closes the file. If the target file already exists, it is overwritten.</summary>
-        /// <param name="self">The this pointer to the <see cref="ILiteStorage{TFileId}"/> for the extension method.</param>
-        /// <param name="id">The identifier of the file to write to.</param>
-        /// <param name="filename">The original name of the file.</param>
-        /// <param name="contents">The string to write to the file.</param>
-        public static void WriteAllText<TFileId>(this ILiteStorage<TFileId> self, TFileId id, string filename, string contents)
-        {
-            try
-            {
-                using (LiteFileStream<TFileId> stream = self.OpenWrite(id, filename))
-                using (StreamWriter writer = new StreamWriter(stream))
-                {
-                    writer.Write(contents);
-                }
-            }
-            catch (Exception) { throw; }
-        }
-
-        /// <summary>Creates a new file, writes the specified string to the file using the specified encoding, and then closes the file. If the target file already exists, it is overwritten.</summary>
-        /// <param name="self">The this pointer to the <see cref="ILiteStorage{TFileId}"/> for the extension method.</param>
-        /// <param name="id">The identifier of the file to write to.</param>
-        /// <param name="filename">The original name of the file.</param>
-        /// <param name="contents">The string to write to the file.</param>
-        /// <param name="encoding">The encoding to apply to the string.</param>
-        public static void WriteAllText<TFileId>(this ILiteStorage<TFileId> self, TFileId id, string filename, string contents, Encoding encoding)
-        {
-            try
-            {
-                using (LiteFileStream<TFileId> stream = self.OpenWrite(id, filename))
-                using (StreamWriter writer = new StreamWriter(stream, encoding))
-                {
-                    writer.Write(contents);
-                }
-            }
-            catch (Exception) { throw; }
-        }
-
-        /// <summary>Creates a new file, writes the specified byte array to the file, and then closes the file. If the target file already exists, it is overwritten.</summary>
-        /// <param name="self">The this pointer to the <see cref="ILiteStorage{TFileId}"/> for the extension method.</param>
-        /// <param name="id">The identifier of the file to write to.</param>
-        /// <param name="filename">The original name of the file.</param>
-        /// <param name="bytes">The bytes to write to the file.</param>
-        public static void WriteAllBytes<TFileId>(this ILiteStorage<TFileId> self, TFileId id, string filename, byte[] bytes)
-        {
-            try
-            {
-                using (LiteFileStream<TFileId> stream = self.OpenWrite(id, filename))
-                {
-                    stream.Write(bytes, 0, bytes.Length);
-                }
-            }
-            catch (Exception) { throw; }
-        }
-
-        /// <summary>Opens a file, appends the specified string to the file, and then closes the file. If the file does not exist, this method creates a file, writes the specified string to the file, then closes the file.</summary>
-        /// <param name="self">The this pointer to the <see cref="ILiteStorage{TFileId}"/> for the extension method.</param>
-        /// <param name="id">The identifier of the file to append the specified string to.</param>
-        /// <param name="filename">The original name of the file.</param>
-        /// <param name="contents">The string to append to the file.</param>
+        /// <param name="self">The storage containing the file.</param>
+        /// <param name="id">The identifier of the file to append.</param>
+        /// <param name="filename">The filename used only when a new file is created.</param>
+        /// <param name="contents">The text to append.</param>
         public static void AppendAllText<TFileId>(this ILiteStorage<TFileId> self, TFileId id, string filename, string contents)
         {
-            try
-            {
-                if (!self.Exists(id))
-                    WriteAllText(self, id, filename, contents);
-                else
-                    WriteAllText(self, id, filename, ReadAllText(self, id) + contents);
-            }
-            catch (Exception) { throw; }
+            AppendAllText(self, id, filename, contents, Utf8NoPreamble, false);
         }
 
-        /// <summary>Opens a file, appends the specified string to the file, and then closes the file. If the file does not exist, this method creates a file, writes the specified string to the file, then closes the file.</summary>
-        /// <param name="self">The this pointer to the <see cref="ILiteStorage{TFileId}"/> for the extension method.</param>
-        /// <param name="id">The identifier of the file to append the specified string to.</param>
-        /// <param name="filename">The original name of the file.</param>
-        /// <param name="contents">The string to append to the file.</param>
-        /// <param name="encoding">The character encoding to use.</param>
+        /// <summary>
+        /// Atomically appends text using the specified encoding. A missing file is created.
+        /// Existing bytes and metadata are preserved. A failed append is rolled back unless the caller
+        /// supplied the active transaction, in which case the caller must roll it back.
+        /// </summary>
+        /// <param name="self">The storage containing the file.</param>
+        /// <param name="id">The identifier of the file to append.</param>
+        /// <param name="filename">The filename used only when a new file is created.</param>
+        /// <param name="contents">The text to append.</param>
+        /// <param name="encoding">The encoding applied to the appended text.</param>
         public static void AppendAllText<TFileId>(this ILiteStorage<TFileId> self, TFileId id, string filename, string contents, Encoding encoding)
         {
-            try
+            AppendAllText(self, id, filename, contents, encoding, true);
+        }
+
+        private static void AppendAllText<TFileId>(ILiteStorage<TFileId> self, TFileId id, string filename, string contents, Encoding encoding, bool writePreamble)
+        {
+            if (encoding == null) throw new ArgumentNullException(nameof(encoding));
+
+            using (var stream = self.OpenAppend(id, filename))
             {
-                if (!self.Exists(id))
-                    WriteAllText(self, id, filename, contents, encoding);
-                else
-                    WriteAllText(self, id, filename, ReadAllText(self, id, encoding) + contents, encoding);
+                try
+                {
+                    if (writePreamble && stream.Length == 0)
+                    {
+                        var preamble = encoding.GetPreamble();
+                        stream.Write(preamble, 0, preamble.Length);
+                    }
+
+                    using (var writer = new StreamWriter(stream, new NoPreambleEncoding(encoding), 1024, true))
+                    {
+                        writer.Write(contents);
+                    }
+                }
+                catch
+                {
+                    stream.Abort();
+                    throw;
+                }
             }
-            catch (Exception) { throw; }
+        }
+
+        private sealed class NoPreambleEncoding : Encoding
+        {
+            private readonly Encoding _encoding;
+
+            public NoPreambleEncoding(Encoding encoding)
+            {
+                _encoding = encoding;
+            }
+
+            public override int GetByteCount(char[] chars, int index, int count) => _encoding.GetByteCount(chars, index, count);
+            public override int GetBytes(char[] chars, int charIndex, int charCount, byte[] bytes, int byteIndex) => _encoding.GetBytes(chars, charIndex, charCount, bytes, byteIndex);
+            public override int GetCharCount(byte[] bytes, int index, int count) => _encoding.GetCharCount(bytes, index, count);
+            public override int GetChars(byte[] bytes, int byteIndex, int byteCount, char[] chars, int charIndex) => _encoding.GetChars(bytes, byteIndex, byteCount, chars, charIndex);
+            public override int GetMaxByteCount(int charCount) => _encoding.GetMaxByteCount(charCount);
+            public override int GetMaxCharCount(int byteCount) => _encoding.GetMaxCharCount(byteCount);
+            public override Decoder GetDecoder() => _encoding.GetDecoder();
+            public override Encoder GetEncoder() => _encoding.GetEncoder();
+            public override byte[] GetPreamble() => Array.Empty<byte>();
         }
     }
 }

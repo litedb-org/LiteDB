@@ -9,20 +9,69 @@ namespace LiteDB
     {
         public override void Write(byte[] buffer, int offset, int count)
         {
-            _streamPosition += count;
+            if (_mode != FileAccess.Write) throw new NotSupportedException();
 
-            _buffer.Write(buffer, offset, count);
-
-            if (_buffer.Length >= MAX_CHUNK_SIZE)
+            try
             {
-                this.WriteChunks(false);
+                _buffer.Write(buffer, offset, count);
+                _streamPosition += count;
+
+                if (_buffer.Length >= MAX_CHUNK_SIZE)
+                {
+                    this.WriteChunks(false);
+                }
+            }
+            catch
+            {
+                _failed = true;
+                throw;
             }
         }
 
         public override void Flush()
         {
-            // write last unsaved chunks
-            this.WriteChunks(true);
+            if (_mode != FileAccess.Write) return;
+
+            try
+            {
+                // write last unsaved chunks
+                this.WriteChunks(true);
+            }
+            catch
+            {
+                _failed = true;
+                throw;
+            }
+        }
+
+        private void InitializeAppend()
+        {
+            _buffer = new MemoryStream(MAX_CHUNK_SIZE);
+            _streamPosition = _file.Length;
+
+            if (_file.Chunks == 0) return;
+
+            var chunkIndex = _file.Chunks - 1;
+            var chunkId = new BsonDocument
+            {
+                ["f"] = _fileId,
+                ["n"] = chunkIndex
+            };
+            var chunk = _chunks.Query()
+                .Where("_id = { f: @0, n: @1 }", _fileId, chunkIndex)
+                .ForUpdate()
+                .FirstOrDefault();
+
+            ENSURE(chunk != null);
+
+            var data = chunk["data"].AsBinary;
+
+            if (data.Length < MAX_CHUNK_SIZE)
+            {
+                _buffer.Write(data, 0, data.Length);
+                ENSURE(_chunks.Delete(chunkId));
+                _file.Chunks--;
+            }
         }
 
         /// <summary>
@@ -42,7 +91,7 @@ namespace LiteDB
                     ["_id"] = new BsonDocument
                     {
                         ["f"] = _fileId,
-                        ["n"] = _file.Chunks++ // zero-based index
+                        ["n"] = _file.Chunks // zero-based index
                     }
                 };
 
@@ -60,6 +109,7 @@ namespace LiteDB
 
                 // insert chunk part
                 _chunks.Insert(chunk);
+                _file.Chunks++;
             }
 
             // if stream was closed/flush, update file too
