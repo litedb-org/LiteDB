@@ -26,7 +26,7 @@ namespace LiteDB
         /// </summary>
         public virtual BsonDocument ToDocument<T>(T entity)
         {
-            return this.ToDocument(typeof(T), entity).AsDocument;
+            return this.ToDocument(typeof(T), entity)?.AsDocument;
         }
 
         internal BsonValue Serialize(Type type, object obj, int depth)

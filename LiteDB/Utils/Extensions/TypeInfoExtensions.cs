@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Reflection;
+using System.Collections;
+using System.Runtime.CompilerServices;
 
 namespace LiteDB
 {
@@ -21,5 +23,21 @@ namespace LiteDB
             return type;
         }
 #endif
+
+        public static bool IsAnonymousType(this Type type)
+        {
+            bool isAnonymousType =
+                type.FullName.Contains("AnonymousType") &&
+                type.GetTypeInfo().GetCustomAttributes(typeof(CompilerGeneratedAttribute), false).Any();
+
+            return isAnonymousType;
+        }
+
+        public static bool IsEnumerable(this Type type)
+        {
+            return
+                type != typeof(String) &&
+                typeof(IEnumerable).IsAssignableFrom(type);
+        }
     }
 }

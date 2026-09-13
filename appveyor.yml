@@ -4,7 +4,7 @@ branches:
   - master
   - v4
 image: Visual Studio 2017
-configuration: 
+configuration:
   - Debug
   - Release
 before_build:
