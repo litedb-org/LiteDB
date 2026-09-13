@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections;
+using System.ComponentModel;
+using System.Globalization;
 using System.Linq;
 using System.Reflection;
 
@@ -77,7 +79,10 @@ namespace LiteDB
             else if (obj is Int64) return new BsonValue((Int64)obj);
             else if (obj is Double) return new BsonValue((Double)obj);
             else if (obj is Decimal) return new BsonValue((Decimal)obj);
-            else if (obj is Byte[]) return new BsonValue((Byte[])obj);
+            // CLR array type-equivalence makes byte[], sbyte[], and byte-backed
+            // enum arrays pass `is Byte[]`. Only a typed enum-array contract has
+            // enough information to safely opt into BSON Array (#2376).
+            else if (obj is Byte[] bytes && ShouldSerializeAsBinary(type, obj.GetType())) return new BsonValue(bytes);
             else if (obj is ObjectId) return new BsonValue((ObjectId)obj);
             else if (obj is Guid) return new BsonValue((Guid)obj);
             else if (obj is Boolean) return new BsonValue((Boolean)obj);
@@ -110,7 +115,7 @@ namespace LiteDB
             {
                 if (EnumAsInteger)
                 {
-                    return new BsonValue((int)obj);
+                    return new BsonValue(Convert.ToInt32(obj));
                 }
                 else
                 {
@@ -126,14 +131,16 @@ namespace LiteDB
                     type = obj.GetType();
                 }
 
+                Type keyType = typeof(object);
                 Type valueType = typeof(object);
 
                 if (type.GetTypeInfo().IsGenericType) {
                     Type[] generics = type.GetGenericArguments();
+                    keyType = generics[0];
                     valueType = generics[1];
                 }
 
-                return SerializeDictionary(valueType, dict, depth);
+                return SerializeDictionary(keyType, valueType, dict, depth);
             }
             // check if is a list or array
             else if (obj is IEnumerable)
@@ -159,17 +166,58 @@ namespace LiteDB
             return bsonArray;
         }
 
-        private BsonDocument SerializeDictionary(Type valueType, IDictionary dict, int depth)
+        private static bool ShouldSerializeAsBinary(Type declaredType, Type runtimeType)
+        {
+            var runtimeElementType = runtimeType.GetElementType();
+
+            if (runtimeElementType == null || runtimeElementType.GetTypeInfo().IsEnum == false)
+            {
+                return true;
+            }
+
+            if (declaredType == typeof(Byte[]))
+            {
+                return true;
+            }
+
+            return Reflection.GetListItemType(declaredType) == typeof(object);
+        }
+
+        private BsonDocument SerializeDictionary(Type keyType, Type valueType, IDictionary dict, int depth)
         {
             BsonDocument bsonDocument = [];
 
             foreach (object key in dict.Keys)
             {
                 object value = dict[key];
-                
-                var stringKey = key is DateTime dateKey 
-                    ? dateKey.ToString("o") ?? string.Empty
-                    : key.ToString() ?? string.Empty;
+
+                // Keys must be serialized culture-invariantly so they round-trip through
+                // DeserializeDictionary, which parses keys with ConvertFromInvariantString.
+                // (e.g. a double key 9.9 must be stored as "9.9", never "9,9" under de-DE.)
+                string stringKey;
+                if (key is DateTime dateKey)
+                {
+                    stringKey = dateKey.ToString("o", CultureInfo.InvariantCulture) ?? string.Empty;
+                }
+                else if (key is DateTimeOffset dateTimeOffsetKey)
+                {
+                    // Preserve the field spelling written by previous versions.
+                    stringKey = dateTimeOffsetKey.ToString(CultureInfo.CurrentCulture) ?? string.Empty;
+                }
+                else
+                {
+                    var converterType = keyType == typeof(object) ? key.GetType() : keyType;
+                    var keyConverter = TypeDescriptor.GetConverter(converterType);
+                    stringKey = keyConverter.CanConvertTo(typeof(string))
+                        ? keyConverter.ConvertToInvariantString(key) ?? string.Empty
+                        : Convert.ToString(key, CultureInfo.InvariantCulture) ?? string.Empty;
+                }
+
+                if (bsonDocument.ContainsKey(stringKey))
+                {
+                    throw new LiteException(0,
+                        $"Dictionary keys serialize to the same BSON field name '{stringKey}'.");
+                }
 
                 BsonValue bsonValue = Serialize(valueType, value, depth);
                 bsonDocument[stringKey] = bsonValue;

@@ -26,7 +26,7 @@ namespace LiteDB.Tests.Engine
             for (var attempt = 0; attempt < 20; attempt++)
             {
                 Action insert = () => database.GetCollection("new_collection").Insert(new BsonDocument { ["_id"] = 1 });
-                insert.Should().Throw<LiteException>().WithMessage("*Maximum data file size*");
+                insert.Should().Throw<LiteException>().Which.ErrorCode.Should().Be(LiteException.FILE_SIZE_EXCEEDED);
                 cache.WritablePages.Should().Be(0);
                 cache.PinnedPages.Should().Be(0);
                 monitor.Transactions.Should().BeEmpty();

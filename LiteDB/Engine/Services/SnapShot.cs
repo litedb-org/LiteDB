@@ -11,7 +11,7 @@ namespace LiteDB.Engine
     /// <summary>
     /// Represent a single snapshot
     /// </summary>
-    internal class Snapshot : IDisposable
+    internal partial class Snapshot : IDisposable
     {
         // instances from Engine
         private readonly HeaderPage _header;
@@ -374,7 +374,7 @@ namespace LiteDB.Engine
             ENSURE(typeof(T) == typeof(CollectionPage), _collectionPage == null, "there is no new collection page if page already exists");
 
             var pageID = 0u;
-            PageBuffer buffer;
+            PageBuffer buffer = null;
 
             // lock header instance to get new page
             lock (_header)
@@ -382,31 +382,12 @@ namespace LiteDB.Engine
                 // there is need for _header.Savepoint() because changes here will incremental and will be persist later
                 // if any problem occurs here, rollback will catch this changes
 
-                // try get page from Empty free list
-                if (_header.FreeEmptyPageList != uint.MaxValue)
-                {
-                    var free = this.GetPage<BasePage>(_header.FreeEmptyPageList, useLatestVersion: true);
-
-                    ENSURE(free.PageType == PageType.Empty, "empty page must be defined as empty type");
-
-                    // set header free empty page to next free page
-                    _header.FreeEmptyPageList = free.NextPageID;
-
-                    // clear NextPageID
-                    free.NextPageID = uint.MaxValue;
-
-                    // get pageID from empty list
-                    pageID = free.PageID;
-
-                    // get buffer inside re-used page
-                    buffer = free.Buffer;
-                }
-                else
+                if (this.TryAllocateFreePage(out pageID, out buffer) == false)
                 {
                     // checks if not exceeded data file limit size
                     var newLength = (_header.LastPageID + 1) * PAGE_SIZE;
 
-                    if (newLength > _header.Pragmas.LimitSize) throw new LiteException(0, $"Maximum data file size has been reached: {FileHelper.FormatFileSize(_header.Pragmas.LimitSize)}");
+                    if (newLength > _header.Pragmas.LimitSize) throw LiteException.FileSizeExceeded(_header.Pragmas.LimitSize);
 
                     var savepoint = _header.Savepoint();
                     try

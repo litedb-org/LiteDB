@@ -1,11 +1,63 @@
 {
+  "LiteDB.ReproRunner/LiteDB.ReproRunner.Cli/Commands/RunCommand.cs": {
+    "maxLines": 850,
+    "reason": "Existing repro command orchestration and reporting, unchanged since before the size check was introduced in 3996dabe; baseline for the dev-to-master PR. No further growth allowed."
+  },
+  "LiteDB.ReproRunner/LiteDB.ReproRunner.Cli/Execution/ReproExecutor.cs": {
+    "maxLines": 740,
+    "reason": "Existing repro process execution and message handling, unchanged since before the size check was introduced in 3996dabe; baseline for the dev-to-master PR. No further growth allowed."
+  },
+  "LiteDB.ReproRunner/LiteDB.ReproRunner.Cli/Manifests/ManifestValidator.cs": {
+    "maxLines": 750,
+    "reason": "Existing repro manifest validation, unchanged since before the size check was introduced in 3996dabe; baseline for the dev-to-master PR. No further growth allowed."
+  },
+  "LiteDB.ReproRunner/Repros/Issue_2586_RollbackTransaction/Program.cs": {
+    "maxLines": 605,
+    "reason": "Existing rollback transaction reproduction harness, unchanged since before the size check was introduced in 3996dabe; baseline for the dev-to-master PR. No further growth allowed."
+  },
   "LiteDB.Tests/Internals/Cache_Tests.cs": {
     "maxLines": 811,
     "reason": "Existing deterministic cache fixture; this corrective change preserves its race coverage. No further growth allowed."
   },
+  "LiteDB.Tests/Mapper/LinqBsonExpression_Tests.cs": {
+    "maxLines": 674,
+    "reason": "Existing LINQ expression regression fixture, unchanged since before the size check was introduced in 3996dabe; baseline for the dev-to-master PR. No further growth allowed."
+  },
+  "LiteDB.Tests/Query/OrderBy_Tests.cs": {
+    "maxLines": 595,
+    "reason": "Existing query ordering regression fixture, unchanged since before the size check was introduced in 3996dabe; baseline for the dev-to-master PR. No further growth allowed."
+  },
+  "LiteDB.Tests/Query/VectorIndex_Tests.cs": {
+    "maxLines": 1073,
+    "reason": "Existing vector index persistence regression fixture, unchanged since before the size check was introduced in 3996dabe; baseline for the dev-to-master PR. No further growth allowed."
+  },
+  "LiteDB/Client/Database/LiteQueryable.cs": {
+    "maxLines": 587,
+    "reason": "Existing public query API implementation, unchanged since before the size check was introduced in 3996dabe; baseline for the dev-to-master PR. No further growth allowed."
+  },
+  "LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs": {
+    "maxLines": 908,
+    "reason": "Existing LINQ expression translation, unchanged since before the size check was introduced in 3996dabe; baseline for the dev-to-master PR. No further growth allowed."
+  },
+  "LiteDB/Document/BsonValue.cs": {
+    "maxLines": 743,
+    "reason": "Existing BSON value representation and conversions, unchanged since before the size check was introduced in 3996dabe; baseline for the dev-to-master PR. No further growth allowed."
+  },
+  "LiteDB/Document/Expression/Parser/BsonExpressionParser.cs": {
+    "maxLines": 1515,
+    "reason": "Existing BSON expression grammar implementation, unchanged since before the size check was introduced in 3996dabe; baseline for the dev-to-master PR. No further growth allowed."
+  },
+  "LiteDB/Engine/FileReader/FileReaderV8.cs": {
+    "maxLines": 598,
+    "reason": "Existing version 8 database file reader, unchanged since before the size check was introduced in 3996dabe; baseline for the dev-to-master PR. No further growth allowed."
+  },
   "LiteDB/Engine/Pages/BasePage.cs": {
     "maxLines": 829,
     "reason": "Existing page-format implementation; splitting the persisted format is outside the memory-lifecycle correction. No further growth allowed."
+  },
+  "LiteDB/Engine/Query/QueryOptimization.cs": {
+    "maxLines": 613,
+    "reason": "Existing query optimizer implementation, unchanged since before the size check was introduced in 3996dabe; baseline for the dev-to-master PR. No further growth allowed."
   },
   "LiteDB/Engine/Services/SnapShot.cs": {
     "maxLines": 771,
@@ -14,5 +66,9 @@
   "LiteDB/Engine/Services/VectorIndexService.cs": {
     "maxLines": 1038,
     "reason": "Existing HNSW implementation; structural extraction needs a dedicated graph-persistence review. No further growth allowed."
+  },
+  "LiteDB/Utils/Tokenizer.cs": {
+    "maxLines": 705,
+    "reason": "Existing expression tokenizer implementation, unchanged since before the size check was introduced in 3996dabe; baseline for the dev-to-master PR. No further growth allowed."
   }
 }
