@@ -1,0 +1,28 @@
+{
+  "id": "Issue_2846_DropPerformance",
+  "title": "Measure large collection drops with persisted deletion controls",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/issues/2846"
+  ],
+  "timeoutSeconds": 240,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression",
+    "performance"
+  ],
+  "state": "green",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "noRepro",
+      "exitCode": 10,
+      "logContains": "MEASURED_2846"
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 10,
+      "logContains": "MEASURED_2846"
+    }
+  }
+}
