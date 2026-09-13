@@ -12,46 +12,55 @@ namespace LiteDB
 
         public static bool ReadBool(this BufferSlice buffer, int offset)
         {
+            buffer.EnsureReadable();
             return buffer.Array[buffer.Offset + offset] != 0;
         }
 
         public static byte ReadByte(this BufferSlice buffer, int offset)
         {
+            buffer.EnsureReadable();
             return buffer.Array[buffer.Offset + offset];
         }
 
         public static Int16 ReadInt16(this BufferSlice buffer, int offset)
         {
+            buffer.EnsureReadable();
             return BitConverter.ToInt16(buffer.Array, buffer.Offset + offset);
         }
 
         public static UInt16 ReadUInt16(this BufferSlice buffer, int offset)
         {
+            buffer.EnsureReadable();
             return BitConverter.ToUInt16(buffer.Array, buffer.Offset + offset);
         }
 
         public static Int32 ReadInt32(this BufferSlice buffer, int offset)
         {
+            buffer.EnsureReadable();
             return BitConverter.ToInt32(buffer.Array, buffer.Offset + offset);
         }
 
         public static UInt32 ReadUInt32(this BufferSlice buffer, int offset)
         {
+            buffer.EnsureReadable();
             return BitConverter.ToUInt32(buffer.Array, buffer.Offset + offset);
         }
 
         public static float ReadSingle(this BufferSlice buffer, int offset)
         {
+            buffer.EnsureReadable();
             return BitConverter.ToSingle(buffer.Array, buffer.Offset + offset);
         }
 
         public static Int64 ReadInt64(this BufferSlice buffer, int offset)
         {
+            buffer.EnsureReadable();
             return BitConverter.ToInt64(buffer.Array, buffer.Offset + offset);
         }
 
         public static double ReadDouble(this BufferSlice buffer, int offset)
         {
+            buffer.EnsureReadable();
             return BitConverter.ToDouble(buffer.Array, buffer.Offset + offset);
         }
 
@@ -66,6 +75,7 @@ namespace LiteDB
 
         public static ObjectId ReadObjectId(this BufferSlice buffer, int offset)
         {
+            buffer.EnsureReadable();
             return new ObjectId(buffer.Array, buffer.Offset + offset);
         }
 
@@ -76,6 +86,7 @@ namespace LiteDB
 
         public static byte[] ReadBytes(this BufferSlice buffer, int offset, int count)
         {
+            buffer.EnsureReadable();
             var bytes = new byte[count];
 
             Buffer.BlockCopy(buffer.Array, buffer.Offset + offset, bytes, 0, count);
@@ -95,6 +106,7 @@ namespace LiteDB
 
         public static float[] ReadVector(this BufferSlice buffer, int offset)
         {
+            buffer.EnsureReadable();
             var count = buffer.ReadUInt16(offset); 
             offset += 2; // move offset to first float
             var vector = new float[count];
@@ -112,6 +124,7 @@ namespace LiteDB
 
         public static string ReadString(this BufferSlice buffer, int offset, int count)
         {
+            buffer.EnsureReadable();
             return Encoding.UTF8.GetString(buffer.Array, buffer.Offset + offset, count);
         }
 
@@ -120,6 +133,7 @@ namespace LiteDB
         /// </summary>
         public static string ReadCString(this BufferSlice buffer, int offset, out int length)
         {
+            buffer.EnsureReadable();
             length = buffer.Count - buffer.Offset - offset;
 
             for (var i = offset + buffer.Offset; i < buffer.Count; i++)
@@ -191,46 +205,55 @@ namespace LiteDB
 
         public static void Write(this BufferSlice buffer, bool value, int offset)
         {
+            buffer.EnsureWritable();
             buffer.Array[buffer.Offset + offset] = value ? (byte)1 : (byte)0;
         }
 
         public static void Write(this BufferSlice buffer, byte value, int offset)
         {
+            buffer.EnsureWritable();
             buffer.Array[buffer.Offset + offset] = value;
         }
 
         public static void Write(this BufferSlice buffer, Int16 value, int offset)
         {
+            buffer.EnsureWritable();
             value.ToBytes(buffer.Array, buffer.Offset + offset);
         }
 
         public static void Write(this BufferSlice buffer, UInt16 value, int offset)
         {
+            buffer.EnsureWritable();
             value.ToBytes(buffer.Array, buffer.Offset + offset);
         }
 
         public static void Write(this BufferSlice buffer, Int32 value, int offset)
         {
+            buffer.EnsureWritable();
             value.ToBytes(buffer.Array, buffer.Offset + offset);
         }
 
         public static void Write(this BufferSlice buffer, UInt32 value, int offset)
         {
+            buffer.EnsureWritable();
             value.ToBytes(buffer.Array, buffer.Offset + offset);
         }
 
         public static void Write(this BufferSlice buffer, float value, int offset)
         {
+            buffer.EnsureWritable();
             BitConverter.GetBytes(value).CopyTo(buffer.Array, buffer.Offset + offset);
         }
 
         public static void Write(this BufferSlice buffer, Int64 value, int offset)
         {
+            buffer.EnsureWritable();
             value.ToBytes(buffer.Array, buffer.Offset + offset);
         }
 
         public static void Write(this BufferSlice buffer, Double value, int offset)
         {
+            buffer.EnsureWritable();
             value.ToBytes(buffer.Array, buffer.Offset + offset);
         }
 
@@ -245,11 +268,13 @@ namespace LiteDB
 
         public static void Write(this BufferSlice buffer, DateTime value, int offset)
         {
+            buffer.EnsureWritable();
             value.ToUniversalTime().Ticks.ToBytes(buffer.Array, buffer.Offset + offset);
         }
 
         public static void Write(this BufferSlice buffer, PageAddress value, int offset)
         {
+            buffer.EnsureWritable();
             value.PageID.ToBytes(buffer.Array, buffer.Offset + offset);
             buffer[offset + 4] = value.Index;
         }
@@ -261,6 +286,7 @@ namespace LiteDB
 
         public static void Write(this BufferSlice buffer, float[] value, int offset)
         {
+            buffer.EnsureWritable();
             buffer.Write((ushort)value.Length, offset);
             offset += 2;
             foreach (var v in value)
@@ -272,16 +298,19 @@ namespace LiteDB
 
         public static void Write(this BufferSlice buffer, ObjectId value, int offset)
         {
+            buffer.EnsureWritable();
             value.ToByteArray(buffer.Array, buffer.Offset + offset);
         }
 
         public static void Write(this BufferSlice buffer, byte[] value, int offset)
         {
+            buffer.EnsureWritable();
             Buffer.BlockCopy(value, 0, buffer.Array, buffer.Offset + offset, value.Length);
         }
 
         public static void Write(this BufferSlice buffer, string value, int offset)
         {
+            buffer.EnsureWritable();
             Encoding.UTF8.GetBytes(value, 0, value.Length, buffer.Array, buffer.Offset + offset);
         }
 

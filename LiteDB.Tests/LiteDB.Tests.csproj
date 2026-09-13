@@ -25,12 +25,10 @@
     <None Update="Resources\ingest-20250922-234735.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Update="Resources\Issue1940_CorruptFreeEmptyList.zip">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
-
-  <ItemGroup Condition="'$(Configuration)' == 'Release'">
-    <Compile Remove="Internals\**" />
-  </ItemGroup>
-
   <ItemGroup>
     <EmbeddedResource Include="Resources\person.json" />
     <EmbeddedResource Include="Resources\zip.json" />
@@ -43,6 +41,7 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" Condition="'$(TargetFrameworkIdentifier)' != '.NETFramework'" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.0.0" Condition="'$(TargetFramework)' == 'net481'" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.11.0" Condition="'$(TargetFramework)' == 'net461'" />
+    <PackageReference Include="System.Text.Json" Version="9.0.9" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.console" Version="2.9.2">
       <PrivateAssets>all</PrivateAssets>
@@ -64,7 +63,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\LiteDB\LiteDB.csproj" />
+    <ProjectReference Include="..\LiteDB\LiteDB.csproj" AdditionalProperties="TestingEnabled=true" />
   </ItemGroup>
 
 </Project>

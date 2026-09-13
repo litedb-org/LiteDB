@@ -51,4 +51,3 @@ internal static class GeoTestHelpers
         return normalizedLon >= minLon - Epsilon || normalizedLon <= maxLon + Epsilon;
     }
 }
-
