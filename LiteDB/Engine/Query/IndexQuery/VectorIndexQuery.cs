@@ -121,7 +121,7 @@ namespace LiteDB.Engine
 
         internal bool Matches(VectorScoreProjection projection)
         {
-            return string.Equals(Expression, projection.Field, StringComparison.OrdinalIgnoreCase) &&
+            return VectorExpressionIdentity.HasSameSource(Expression, projection.Field) &&
                 _target.SequenceEqual(projection.Target);
         }
 

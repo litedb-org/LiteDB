@@ -97,7 +97,7 @@ namespace LiteDB
 
         private void ValidateMatchingVectorSearch(BsonExpression fieldExpr, float[] target)
         {
-            if (!string.Equals(_query.VectorField, fieldExpr.Source, StringComparison.OrdinalIgnoreCase) ||
+            if (!VectorExpressionIdentity.HasSameSource(_query.VectorField, fieldExpr.Source) ||
                 !_query.VectorTarget.SequenceEqual(target))
             {
                 throw new InvalidOperationException("WhereNear and TopKNear must use the same vector expression and target.");

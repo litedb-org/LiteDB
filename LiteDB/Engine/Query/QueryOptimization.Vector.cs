@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using LiteDB.Vector;
 
 namespace LiteDB.Engine
 {
@@ -22,7 +23,7 @@ namespace LiteDB.Engine
 
             if (_terms.Any(term => ReferenceEquals(term, _query.VectorFilter)) &&
                 this.TryParseVectorPredicate(_query.VectorFilter, out var filterField, out var filterTarget, out var filterDistance) &&
-                string.Equals(filterField, expression, StringComparison.OrdinalIgnoreCase) && target.SequenceEqual(filterTarget))
+                VectorExpressionIdentity.HasSameSource(filterField, expression) && target.SequenceEqual(filterTarget))
             {
                 consumedTerm = _query.VectorFilter;
                 maxDistance = filterDistance;
@@ -30,7 +31,7 @@ namespace LiteDB.Engine
 
             foreach (var (candidate, metadata) in _snapshot.CollectionPage.GetVectorIndexes())
             {
-                if (!string.Equals(candidate.Expression, expression, StringComparison.OrdinalIgnoreCase))
+                if (!VectorExpressionIdentity.HasSameSource(candidate.Expression, expression))
                 {
                     continue;
                 }
@@ -46,7 +47,7 @@ namespace LiteDB.Engine
 
                 _vectorPrimaryOrderMatched = _query.GroupBy == null && _query.OrderBy.Count > 0 &&
                     this.TryParseVectorExpression(_query.OrderBy[0].Expression, out var orderField, out var orderTarget) &&
-                    string.Equals(orderField, expression, StringComparison.OrdinalIgnoreCase) && target.SequenceEqual(orderTarget);
+                    VectorExpressionIdentity.HasSameSource(orderField, expression) && target.SequenceEqual(orderTarget);
                 _vectorOrderConsumed = _vectorPrimaryOrderMatched && _query.OrderBy.Count == 1 &&
                     _query.OrderBy[0].Order == Query.Ascending;
 

@@ -31,9 +31,12 @@ Explicit `WhereNear` / `TopKNear` queries may use approximate HNSW top-k search
 when they have a finite limit, no offset, residual filters, includes, or grouping,
 and their complete ordering is provided by that search. This remains approximate:
 the graph's candidate search does not guarantee exact nearest-neighbor recall.
-These APIs search valid vector hits; they do not synthesize undefined neighbors.
+With a matching vector index, these APIs search valid vector hits and do not
+synthesize undefined neighbors. Without a matching index, they use ordinary scalar
+cosine evaluation, including null distances and normal null ordering. That fallback
+can return documents with undefined vectors.
 
-Explicit vector queries with residual operations, offsets, or no finite limit
+Indexed vector queries with residual operations, offsets, or no finite limit
 evaluate all valid vectors through the collection's primary index. They do not
 inherit HNSW's default 32-candidate ceiling. Queries apply filters, grouping,
 requested sorting, offset, and limit in the normal pipeline. Sorting is removed
@@ -46,6 +49,9 @@ projection, and sorting. Scored query snapshots retain the same API predicate
 identity as their copied WHERE terms, so scoring preserves both metric thresholds
 and eligibility for bounded ANN. Computed index expressions retain their canonical
 expression source, including expressions such as `COALESCE($.Embedding, [0,1])`.
+Expression matching preserves string-literal case while allowing field-name case
+differences, so computed expressions selecting different vectors cannot share an
+index or replace each other's ordering.
 
 A query supports at most one `WhereNear` predicate. Combining it with `TopKNear`
 requires the same expression and target, in either call order. A repeated
@@ -145,6 +151,10 @@ for threshold and top-k queries, with and without included-field filters. Its
 separate test-only commit reproduces four failures. Aggregate replay reapplies
 includes after reloading each document by address, preserving the bounded document
 memory usage of exact vector execution.
+
+`Issue2881_VectorExpressionIdentity_Tests` covers literal-sensitive index selection,
+API composition, scalar ordering, and field-name casing. Its test-only commit
+reproduces eight failures and retains one passing field-name control.
 
 ## Durable flush cost
 
