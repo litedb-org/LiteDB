@@ -125,17 +125,12 @@ namespace LiteDB
         /// </summary>
         private static byte[] FromHex(string value)
         {
+            if (TryParseHex(value, out var bytes)) return bytes;
+
             if (string.IsNullOrEmpty(value)) throw new ArgumentNullException(nameof(value));
             if (value.Length != 24) throw new ArgumentException(string.Format("ObjectId strings should be 24 hex characters, got {0} : \"{1}\"", value.Length, value));
 
-            var bytes = new byte[12];
-
-            for (var i = 0; i < 24; i += 2)
-            {
-                bytes[i / 2] = Convert.ToByte(value.Substring(i, 2), 16);
-            }
-
-            return bytes;
+            throw new FormatException(string.Format("ObjectId string contains non-hexadecimal characters: \"{0}\"", value));
         }
 
         #endregion
@@ -324,6 +319,65 @@ namespace LiteDB
             var inc = Interlocked.Increment(ref _increment) & 0x00ffffff;
 
             return new ObjectId((int)timestamp, _machine, _pid, inc);
+        }
+
+        /// <summary>
+        /// Creates a new ObjectId.
+        /// </summary>
+        public static ObjectId GenerateNewId() => NewObjectId();
+
+        /// <summary>
+        /// Converts a 24-character hexadecimal string to an ObjectId.
+        /// </summary>
+        public static ObjectId Parse(string value)
+        {
+            return new ObjectId(FromHex(value));
+        }
+
+        /// <summary>
+        /// Attempts to convert a 24-character hexadecimal string to an ObjectId.
+        /// </summary>
+        public static bool TryParse(string value, out ObjectId objectId)
+        {
+            if (TryParseHex(value, out var bytes))
+            {
+                objectId = new ObjectId(bytes);
+                return true;
+            }
+
+            objectId = null;
+            return false;
+        }
+
+        private static bool TryParseHex(string value, out byte[] bytes)
+        {
+            bytes = null;
+
+            if (value == null || value.Length != 24) return false;
+
+            var result = new byte[12];
+
+            for (var i = 0; i < value.Length; i += 2)
+            {
+                var high = ParseHexDigit(value[i]);
+                var low = ParseHexDigit(value[i + 1]);
+
+                if (high < 0 || low < 0) return false;
+
+                result[i / 2] = (byte)((high << 4) | low);
+            }
+
+            bytes = result;
+            return true;
+        }
+
+        private static int ParseHexDigit(char value)
+        {
+            if (value >= '0' && value <= '9') return value - '0';
+            if (value >= 'a' && value <= 'f') return value - 'a' + 10;
+            if (value >= 'A' && value <= 'F') return value - 'A' + 10;
+
+            return -1;
         }
 
         #endregion
