@@ -223,9 +223,9 @@ namespace LiteDB.Tests.Expressions
             // DATE functions
             doc = J("{mydate:{$date: '2018-05-01T15:30:45Z'}}");
 
-            S("YEAR($.mydate)").ExpectValue(2018);
-            S("MONTH($.mydate)").ExpectValue(5);
-            S("DAY($.mydate)").ExpectValue(1);
+            S("YEAR($.mydate)").ExpectValue(DateTime.Parse("2018-05-01T15:30:45Z").Year);
+            S("MONTH($.mydate)").ExpectValue(DateTime.Parse("2018-05-01T15:30:45Z").Month);
+            S("DAY($.mydate)").ExpectValue(DateTime.Parse("2018-05-01T15:30:45Z").Day);
 
             // dateParts: "y|year", "M|month", "d|day", "h|hour", "m|minute", "s|second"
 
@@ -234,8 +234,8 @@ namespace LiteDB.Tests.Expressions
             S("DATEADD('M', 12, $.mydate)").ExpectValue(DateTime.Parse("2019-05-01T15:30:45Z"));
 
 
-            S("DATEDIFF('M', $.mydate, DATE_UTC(2018, 6, 1))").ExpectValue(1);
-            S("DATEDIFF('M', $.mydate, DATE_UTC(2018, 4, 1))").ExpectValue(-1);
+            S("DATEDIFF('M', $.mydate, DATETIME('2018-06-01T15:30:45Z'))").ExpectValue(1);
+            S("DATEDIFF('M', $.mydate, DATETIME('2018-04-01T15:30:45Z'))").ExpectValue(-1);
 
             // Length Method
             doc = J("{a:'my string', empty: '', rnull: null, b: {$binary:'MTIz'}, arr: [1, 2, null]}");

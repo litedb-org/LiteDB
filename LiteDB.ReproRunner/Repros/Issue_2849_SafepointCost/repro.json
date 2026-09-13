@@ -1,0 +1,28 @@
+{
+  "id": "Issue_2849_SafepointCost",
+  "title": "Compare single-transaction write cost at default and large page budgets",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/issues/2849"
+  ],
+  "timeoutSeconds": 600,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression",
+    "performance"
+  ],
+  "state": "flaky",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "noRepro",
+      "exitCode": 10,
+      "logContains": "VERIFIED_2849"
+    },
+    "latest": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "BUG_2849_CONFIRMED"
+    }
+  }
+}
