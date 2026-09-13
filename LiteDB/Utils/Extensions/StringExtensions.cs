@@ -37,24 +37,6 @@ namespace LiteDB
             return true;
         }
 
-        public static string Sha1(this string value)
-        {
-            var data = Encoding.UTF8.GetBytes(value);
-
-            using (var sha = SHA1.Create())
-            {
-                var hashData = sha.ComputeHash(data);
-                var hash = new StringBuilder();
-
-                foreach (var b in hashData)
-                {
-                    hash.Append(b.ToString("X2"));
-                }
-
-                return hash.ToString();
-            }
-        }
-
         /// <summary>
         /// Implement SqlLike in C# string - based on
         /// https://stackoverflow.com/a/8583383/3286260

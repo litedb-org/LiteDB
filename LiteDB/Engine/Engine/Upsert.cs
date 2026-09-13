@@ -22,6 +22,7 @@ namespace LiteDB.Engine
                 var collectionPage = snapshot.CollectionPage;
                 var indexer = new IndexService(snapshot, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
                 var data = new DataService(snapshot, _disk.MAX_ITEMS_COUNT);
+                var vectorService = new VectorIndexService(snapshot, _header.Pragmas.Collation);
                 var count = 0;
 
                 LOG($"upsert `{collection}`", "COMMAND");
@@ -33,9 +34,9 @@ namespace LiteDB.Engine
                     transaction.Safepoint();
 
                     // first try update document (if exists _id), if not found, do insert
-                    if (doc["_id"] == BsonValue.Null || this.UpdateDocument(snapshot, collectionPage, doc, indexer, data) == false)
+                    if (doc["_id"] == BsonValue.Null || this.UpdateDocument(snapshot, collectionPage, doc, indexer, data, vectorService) == false)
                     {
-                        this.InsertDocument(snapshot, doc, autoId, indexer, data);
+                        this.InsertDocument(snapshot, doc, autoId, indexer, data, vectorService);
                         count++;
                     }
                 }

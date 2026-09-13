@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using LiteDB.Tests.Utils;
 
 namespace LiteDB.Tests.QueryTest
 {
@@ -13,7 +14,7 @@ namespace LiteDB.Tests.QueryTest
         {
             _local = DataGen.Person().ToArray();
 
-            _db = new LiteDatabase(":memory:");
+            _db = DatabaseFactory.Create();
             _collection = _db.GetCollection<Person>("person");
             _collection.Insert(this._local);
         }

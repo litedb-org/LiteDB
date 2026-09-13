@@ -18,14 +18,22 @@ namespace LiteDB.Engine
         private readonly bool _readonly;
         private readonly bool _hidden;
         private readonly bool _useAesStream;
+        private readonly Action<string> _setHiddenAttribute;
 
-        public FileStreamFactory(string filename, string password, bool readOnly, bool hidden, bool useAesStream = true)
+        public FileStreamFactory(
+            string filename,
+            string password,
+            bool readOnly,
+            bool hidden,
+            bool useAesStream = true,
+            Action<string> setHiddenAttribute = null)
         {
             _filename = filename;
             _password = password;
             _readonly = readOnly;
             _hidden = hidden;
             _useAesStream = useAesStream;
+            _setHiddenAttribute = setHiddenAttribute ?? (value => File.SetAttributes(value, FileAttributes.Hidden));
         }
 
         /// <summary>
@@ -56,7 +64,15 @@ namespace LiteDB.Engine
 
             if (isNewFile && _hidden)
             {
-                File.SetAttributes(_filename, FileAttributes.Hidden);
+                try
+                {
+                    _setHiddenAttribute(_filename);
+                }
+                catch
+                {
+                    stream.Dispose();
+                    throw;
+                }
             }
 
             return _password == null || !_useAesStream ? (Stream)stream : new AesStream(_password, stream);
@@ -123,5 +139,13 @@ namespace LiteDB.Engine
         /// Close all stream on end
         /// </summary>
         public bool CloseOnDispose => true;
+
+        public void TrimCapacity(Stream stream)
+        {
+        }
+
+        public void Dispose()
+        {
+        }
     }
 }

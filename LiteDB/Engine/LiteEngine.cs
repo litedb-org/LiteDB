@@ -107,6 +107,7 @@ namespace LiteDB.Engine
 
                 // read header database page
                 _header = new HeaderPage(buffer);
+                _disk.FileVersion = _header.FileVersion;
 
                 // if database is set to invalid state, need rebuild
                 if (buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0 && _settings.AutoRebuild)
@@ -125,6 +126,7 @@ namespace LiteDB.Engine
                     buffer = _disk.ReadFull(FileOrigin.Data).First();
 
                     _header = new HeaderPage(buffer);
+                    _disk.FileVersion = _header.FileVersion;
                 }
 
                 // test for same collation
@@ -149,7 +151,7 @@ namespace LiteDB.Engine
                 _sortDisk = new SortDisk(_settings.CreateTempFactory(), CONTAINER_SORT_SIZE, _header.Pragmas);
 
                 // initialize transaction monitor as last service
-                _monitor = new TransactionMonitor(_header, _locker, _disk, _walIndex);
+                _monitor = new TransactionMonitor(_header, _locker, _disk, _walIndex, _settings.TransactionPageLimit);
 
                 // register system collections
                 this.InitializeSystemCollections();
@@ -222,6 +224,12 @@ namespace LiteDB.Engine
 
             tc.Catch(() => _monitor?.Dispose());
 
+            if (tc.InvalidDatafileState)
+            {
+                // Keep the data writer alive until the recovery marker is durable.
+                tc.Catch(() => _disk?.MarkAsInvalidState());
+            }
+
             // close disks streams
             tc.Catch(() => _disk?.Dispose());
 
@@ -231,19 +239,12 @@ namespace LiteDB.Engine
             // close engine lock service
             tc.Catch(() => _locker?.Dispose());
 
-            if (tc.InvalidDatafileState)
-            {
-                // mark byte = 1 in HeaderPage.P_INVALID_DATAFILE_STATE - will open in auto-rebuild
-                // this method will throw no errors
-                tc.Catch(() => _disk.MarkAsInvalidState());
-            }
-
             return tc.Exceptions;
         }
 
         #endregion
 
-#if DEBUG
+#if DEBUG || TESTING
         // exposes for unit tests
         internal TransactionMonitor GetMonitor() => _monitor;
         internal Action<PageBuffer> SimulateDiskReadFail { set => _state.SimulateDiskReadFail = value; }

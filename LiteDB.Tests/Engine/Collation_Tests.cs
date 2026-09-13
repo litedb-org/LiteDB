@@ -33,7 +33,10 @@ namespace LiteDB.Tests.Engine
                 e.Insert("col1", names.Select(x => new BsonDocument { ["name"] = x }), BsonAutoId.Int32);
 
                 // sort by merge sort
-                var sortByOrderByName = e.Query("col1", new Query { OrderBy = "name" })
+                var orderQuery = new Query();
+                orderQuery.OrderBy.Add(new QueryOrder("name", Query.Ascending));
+
+                var sortByOrderByName = e.Query("col1", orderQuery)
                     .ToEnumerable()
                     .Select(x => x["name"].AsString)
                     .ToArray();
@@ -53,8 +56,11 @@ namespace LiteDB.Tests.Engine
                 // index test
                 e.EnsureIndex("col1", "idx_name", "name", false);
 
+                var indexOrderQuery = new Query();
+                indexOrderQuery.OrderBy.Add(new QueryOrder("name", Query.Ascending));
+
                 // sort by index
-                var sortByIndexName = e.Query("col1", new Query { OrderBy = "name" })
+                var sortByIndexName = e.Query("col1", indexOrderQuery)
                     .ToEnumerable()
                     .Select(x => x["name"].AsString)
                     .ToArray();
