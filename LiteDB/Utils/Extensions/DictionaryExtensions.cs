@@ -138,7 +138,15 @@ namespace LiteDB
 
                         EatWhitespace();
 
-                        if (position < connectionString.Length && connectionString[position] == ';') position++;
+                        if (position < connectionString.Length)
+                        {
+                            if (connectionString[position] != ';')
+                            {
+                                throw new FormatException("Expected ';' after a quoted connection value.");
+                            }
+
+                            position++;
+                        }
 
                         return sb.ToString();
                     }

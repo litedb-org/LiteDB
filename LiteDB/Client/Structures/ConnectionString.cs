@@ -246,6 +246,15 @@ namespace LiteDB
         /// </summary>
         public string ToStringWithPassword() => BuildConnectionString(true);
 
+        /// <summary>
+        /// Returns a connection-string representation and optionally includes
+        /// the plaintext password.
+        /// </summary>
+        /// <param name="includePlaintextPassword">Whether to include the plaintext password.</param>
+        [Obsolete("Use ToStringWithPassword() to include the plaintext password.")]
+        public string ToString(bool includePlaintextPassword) =>
+            BuildConnectionString(includePlaintextPassword);
+
         private string BuildConnectionString(bool includePlaintextPassword)
         {
             var bld = new StringBuilder();

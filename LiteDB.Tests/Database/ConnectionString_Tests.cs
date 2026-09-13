@@ -177,6 +177,15 @@ namespace LiteDB.Tests.Database
         }
 
         [Fact]
+        public void ConnectionString_Rejects_Missing_Separator_After_Quoted_Value()
+        {
+            Action parse = () => new ConnectionString("Filename=\"demo.db\"ReadOnly=true");
+
+            parse.Should().Throw<FormatException>()
+                .WithMessage("*Expected ';' after a quoted connection value*");
+        }
+
+        [Fact]
         public void ConnectionString_Parses_Memory_Limits()
         {
             var connection = new ConnectionString("filename=test.db;cache size=64MB;transaction pages=32");
