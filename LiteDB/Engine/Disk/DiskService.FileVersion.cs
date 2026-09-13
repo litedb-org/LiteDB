@@ -45,6 +45,7 @@ namespace LiteDB.Engine
 
         private void PreserveFileVersion(PageBuffer page)
         {
+            // Both write paths own this writable/uncached page; no shared read frame is modified.
             if (page.ReadUInt32(BasePage.P_PAGE_ID) == 0 && page.ReadByte(BasePage.P_PAGE_TYPE) == (byte)PageType.Header)
             {
                 page[HeaderPage.P_FILE_VERSION] = Math.Max(page[HeaderPage.P_FILE_VERSION], FileVersion);

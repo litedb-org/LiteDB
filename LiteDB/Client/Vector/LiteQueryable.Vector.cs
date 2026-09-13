@@ -39,6 +39,7 @@ namespace LiteDB
             var filter = CreateVectorSimilarityFilter(fieldExpr, target, maxDistance);
 
             _query.Where.Add(filter);
+            _query.VectorFilter = filter;
 
             _query.VectorField = fieldExpr.Source;
             _query.VectorTarget = target?.ToArray();

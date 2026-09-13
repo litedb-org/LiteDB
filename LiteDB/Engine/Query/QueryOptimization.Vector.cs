@@ -14,41 +14,19 @@ namespace LiteDB.Engine
             // SQL uses ordinary indexes and the streaming, disk-backed query pipeline.
             if (_query.VectorTarget == null) return false;
 
-            string expression = null;
-            float[] target = null;
-            double maxDistance = double.MaxValue;
+            // API arguments choose the index and target. Scalar VECTOR_SIM predicates
+            // always mean cosine distance and must remain in the ordinary filter pipeline.
+            var expression = NormalizeVectorField(_query.VectorField);
+            var target = _query.VectorTarget;
+            var maxDistance = _query.VectorMaxDistance;
+            if (expression == null || target == null) return false;
 
-            foreach (var term in _terms)
+            if (_terms.Any(term => ReferenceEquals(term, _query.VectorFilter)) &&
+                this.TryParseVectorPredicate(_query.VectorFilter, out var filterField, out var filterTarget, out var filterDistance) &&
+                string.Equals(filterField, expression, StringComparison.OrdinalIgnoreCase) && target.SequenceEqual(filterTarget))
             {
-                if (this.TryParseVectorPredicate(term, out expression, out target, out maxDistance))
-                {
-                    consumedTerm = term;
-                    break;
-                }
-            }
-
-            if (expression == null && _query.OrderBy.Count > 0)
-            {
-                foreach (var order in _query.OrderBy)
-                {
-                    if (this.TryParseVectorExpression(order.Expression, out expression, out target))
-                    {
-                        maxDistance = double.MaxValue;
-                        break;
-                    }
-                }
-            }
-
-            if (expression == null && _query.VectorTarget != null && _query.VectorField != null)
-            {
-                expression = NormalizeVectorField(_query.VectorField);
-                target = _query.VectorTarget?.ToArray();
-                maxDistance = _query.VectorMaxDistance;
-            }
-
-            if (expression == null || target == null)
-            {
-                return false;
+                consumedTerm = _query.VectorFilter;
+                maxDistance = filterDistance;
             }
 
             foreach (var (candidate, metadata) in _snapshot.CollectionPage.GetVectorIndexes())

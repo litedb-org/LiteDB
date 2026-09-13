@@ -21,7 +21,8 @@ namespace LiteDB.Engine
             var filename = _settings.Filename;
 
             // Only v7 requires a rebuild. Ordinary v8 files remain compatible.
-            if (_settings.ReadOnly || !File.Exists(filename)) return;
+            // An explicit upgrade runs before the requested read-only connection is opened.
+            if (!File.Exists(filename)) return;
 
             const int bufferSize = 1024;
             var buffer = _bufferPool.Rent(bufferSize);

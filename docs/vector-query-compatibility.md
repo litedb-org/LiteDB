@@ -9,13 +9,19 @@ skip-list indexes (`IndexType == 0`). Vector indexes have their own access path.
 `VECTOR_SIM(field, target)` and `field VECTOR_SIM target` both expose their
 operands to the vector planner. SQL `VECTOR_SIM` means cosine distance
 `1 - dot(a, b) / (length(a) * length(b))`; a SQL expression cannot use an index
-configured for a different metric. Explicit `WhereNear` and `TopKNear` calls
+configured for a different metric. Scalar cosine predicates stay separate from
+API metric thresholds even when combined with an explicit vector query. API
+arguments select the vector index and target; scalar predicates remain residual
+filters and prevent premature ANN candidate truncation. Explicit `WhereNear` and `TopKNear` calls
 continue to use the selected vector index's metric (including minimum similarity
 for dot product).
 
 SQL vector expressions use the ordinary query planner, including bounded ordering
 queries. Ordinary WHERE indexes remain eligible; a vector index does not override
-them. Sorting uses the existing temporary-file sorter.
+them. SQL never uses HNSW, including `ORDER BY VECTOR_SIM(...) LIMIT k`, and SQL
+`EXPLAIN` never reports `VECTOR INDEX SEARCH`. This is a behavior change: ANN is
+available only through the explicit `TopKNear` and `WhereNear` APIs. Sorting uses
+the existing temporary-file sorter.
 They preserve documents with missing, invalid, zero-length, or dimension-mismatched
 vectors and use the scalar expression's null distance and normal null ordering.
 SQL predicates remain in the normal pipeline so null comparison rules are
@@ -52,7 +58,9 @@ have no specified relative order unless the query supplies a tie-breaker.
 New ordinary databases use header version **8**. Existing v8 files open for reads
 and writes without a rebuild, including read-only connections and connections
 with `Upgrade=true`. Ordinary writes keep these files usable by released engines.
-`Upgrade=true` retains the existing v7 rebuild path, with backups.
+`Upgrade=true` retains the existing v7 rebuild path, with backups. An explicit v7
+upgrade runs before applying `ReadOnly=true`; the converted database then opens
+read-only. Combining these flags authorizes the one-time upgrade.
 
 The first persisted BSON vector (including nested values or index keys), vector
 index metadata (including an empty index), or vector-index mutation promotes the
@@ -60,7 +68,8 @@ file to **9**. Before vector pages can enter the WAL, an active write transactio
 and the header lock exclude checkpoint and competing header commits. The engine
 reads the persisted data header, changes its version, writes the full page for
 plain/encrypted stream compatibility, and flushes it before publishing vector
-changes. No uncommitted header fields are copied into the data file. Promotion
+changes. Durable flush requests pass through the encryption and caller-stream
+wrappers to `FileStream.Flush(true)`. No uncommitted header fields are copied into the data file. Promotion
 requires no full-file rebuild or backup copy.
 
 Promotion is conservative: even a rolled-back vector transaction can leave the
@@ -106,3 +115,12 @@ vector value or empty vector index promotes those files, the old engine refuses
 read/write/rebuild/upgrade without changing the data file. The current engine
 reopens the promoted files and verifies their contents. This runs for plain and
 encrypted files, along with vector rebuild checks, in Linux CI.
+
+`Issue2881_VectorPredicate_Tests` distinguishes scalar cosine predicates from API
+thresholds, index selection, targets, and candidate limits. Together with
+`Issue2881_DurablePromotion_Tests` and `Issue2881_ReadOnlyUpgrade_Tests`, the review
+reproduction commit had 12 failures and 3 passing regressions before the fixes.
+Durability tests track the underlying file's durable flush and inject failures
+there for plain/encrypted promotion; v7 upgrade tests use existing fixtures and
+verify backups and read-only access. Header savepoint coverage verifies that
+restoring an older buffer retains the promoted version.

@@ -31,6 +31,8 @@ namespace LiteDB
         public double VectorMaxDistance { get; set; } = double.MaxValue;
         public bool HasVectorFilter => VectorField != null && VectorTarget != null;
 
+        // Only this API-generated predicate may be evaluated with the vector index metric.
+        internal BsonExpression VectorFilter { get; set; }
         internal Engine.VectorScoreProjection VectorScore { get; set; }
 
         public string Into { get; set; }
