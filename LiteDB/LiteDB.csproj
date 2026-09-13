@@ -53,7 +53,7 @@
     <PropertyGroup Condition="'$(TestingEnabled)' == 'true'">
         <DefineConstants>$(DefineConstants);TESTING</DefineConstants>
     </PropertyGroup>
-    
+
 
     <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
         <Compile Remove="**\*.NetCore.cs" />

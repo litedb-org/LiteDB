@@ -26,16 +26,20 @@ internal partial class BufferWriter
         else
         {
             var buffer = _bufferPool.Rent(bytesCount);
+            try
+            {
+                StringEncoding.UTF8.GetBytes(value, 0, value.Length, buffer, 0);
 
-            StringEncoding.UTF8.GetBytes(value, 0, value.Length, buffer, 0);
+                this.Write(buffer, 0, bytesCount);
 
-            this.Write(buffer, 0, bytesCount);
+                _current[_currentPosition] = 0x00;
 
-            _current[_currentPosition] = 0x00;
-
-            this.MoveForward(1);
-
-            _bufferPool.Return(buffer, true);
+                this.MoveForward(1);
+            }
+            finally
+            {
+                _bufferPool.Return(buffer, true);
+            }
         }
     }
 
@@ -62,12 +66,16 @@ internal partial class BufferWriter
         {
             // rent a buffer to be re-usable
             var buffer = _bufferPool.Rent(count);
+            try
+            {
+                StringEncoding.UTF8.GetBytes(value, 0, value.Length, buffer, 0);
 
-            StringEncoding.UTF8.GetBytes(value, 0, value.Length, buffer, 0);
-
-            this.Write(buffer, 0, count);
-
-            _bufferPool.Return(buffer, true);
+                this.Write(buffer, 0, count);
+            }
+            finally
+            {
+                _bufferPool.Return(buffer, true);
+            }
         }
 
         if (specs)
