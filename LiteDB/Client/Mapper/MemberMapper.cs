@@ -52,7 +52,18 @@ namespace LiteDB
         /// <summary>
         /// Is this property an DbRef? Must implement Serialize/Deserialize delegates
         /// </summary>
-        public bool IsDbRef { get; set; }
+        public bool IsDbRef
+        {
+            get => _isDbRef || DbRefCollectionName != null;
+            set 
+            {
+                _isDbRef = value;
+                if (!value)
+                {
+                    DbRefCollectionName = null;
+                }
+            }
+        }
 
         /// <summary>
         /// Indicate that this property contains an list of elements (IEnumerable)
@@ -68,5 +79,12 @@ namespace LiteDB
         /// Is this property ignore
         /// </summary>
         public bool IsIgnore { get; set; }
+
+        /// <summary>
+        /// Sets the name of the referenced collection if this property is a DbRef.
+        /// </summary>
+        internal string DbRefCollectionName { get; set; }
+
+        private bool _isDbRef = false;
     }
 }

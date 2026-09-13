@@ -59,5 +59,10 @@ namespace LiteDB
         {
             return SORT(root, collation, parameters, input, sortExpr, order: 1);
         }
+
+        public static BsonValue VECTOR_SIM(BsonDocument root, Collation collation, BsonDocument parameters, BsonValue left, BsonValue right)
+        {
+            return BsonExpressionMethods.VECTOR_SIM(left, right);
+        }
     }
 }

@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -15,7 +16,13 @@ namespace LiteDB.Engine
         /// <summary>
         /// Get how many pages are involved in this transaction across all snapshots - Will be clear when get MAX_TRANSACTION_SIZE
         /// </summary>
-        public int TransactionSize { get; set; } = 0;
+        private int _transactionSize;
+
+        public int TransactionSize
+        {
+            get => Volatile.Read(ref _transactionSize);
+            set => Volatile.Write(ref _transactionSize, value);
+        }
 
         /// <summary>
         /// Contains all dirty pages already persist in LOG file (used in all snapshots). Store in [uint, PagePosition] to reuse same method in save pages into log and get saved page positions on log

@@ -5,8 +5,6 @@ using LiteDB;
 using LiteDB.Tests.Utils;
 using FluentAssertions;
 using Xunit;
-using Microsoft.VisualStudio.TestPlatform.CommunicationUtilities.ObjectModel;
-
 namespace LiteDB.Tests.Database
 {
     public class Upgrade_Tests
