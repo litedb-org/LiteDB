@@ -24,6 +24,16 @@ namespace LiteDB.Engine
         /// Datafile specification version
         /// </summary>
         public const byte FILE_VERSION = 8;
+        public const byte VECTOR_FILE_VERSION = 9;
+        private volatile byte _fileVersion;
+        public byte FileVersion => _fileVersion;
+
+        internal void EnsureVersion(byte version)
+        {
+            version = Math.Max(_fileVersion, version);
+            _buffer.Write(version, P_FILE_VERSION);
+            _fileVersion = version;
+        }
 
         #region Buffer Field Positions
 
@@ -85,9 +95,9 @@ namespace LiteDB.Engine
             // initialize pragmas
             this.Pragmas = new EnginePragmas(this);
 
-            // writing direct into buffer in Ctor() because there is no change later (write once)
+            // Initialize persisted identity fields; vector writes may later promote the version.
             _buffer.Write(HEADER_INFO, P_HEADER_INFO);
-            _buffer.Write(FILE_VERSION, P_FILE_VERSION);
+            this.EnsureVersion(FILE_VERSION);
             _buffer.Write(this.CreationTime, P_CREATION_TIME);
 
             // initialize collections
@@ -114,10 +124,13 @@ namespace LiteDB.Engine
             var info = _buffer.ReadString(P_HEADER_INFO, HEADER_INFO.Length);
             var ver = _buffer[P_FILE_VERSION];
 
-            if (string.CompareOrdinal(info, HEADER_INFO) != 0 || ver != FILE_VERSION)
+            if (string.CompareOrdinal(info, HEADER_INFO) != 0)
             {
                 throw LiteException.InvalidDatabase();
             }
+
+            if (ver != FILE_VERSION && ver != VECTOR_FILE_VERSION) throw LiteException.UnsupportedFileVersion(ver);
+            _fileVersion = Math.Max(_fileVersion, ver); // Loading must not mutate a readable page.
 
             // CreateTime is readonly
             this.FreeEmptyPageList = _buffer.ReadUInt32(P_FREE_EMPTY_PAGE_ID);
@@ -139,6 +152,7 @@ namespace LiteDB.Engine
 
         public override PageBuffer UpdateBuffer()
         {
+            _buffer.Write(_fileVersion, P_FILE_VERSION);
             _buffer.Write(this.FreeEmptyPageList, P_FREE_EMPTY_PAGE_ID);
             _buffer.Write(this.LastPageID, P_LAST_PAGE_ID);
 
@@ -183,6 +197,7 @@ namespace LiteDB.Engine
             System.Buffer.BlockCopy(savepoint.Array, savepoint.Offset, _buffer.Array, _buffer.Offset, PAGE_SIZE);
 
             this.LoadPage();
+            this.EnsureVersion(_fileVersion); // Restore owns this buffer; preserve a durable promotion.
         }
 
         /// <summary>

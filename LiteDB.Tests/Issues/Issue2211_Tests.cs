@@ -189,6 +189,15 @@ namespace LiteDB.Tests.Issues
             Assert.True(connectionString.ReadOnly);
         }
 
+        [Fact]
+        public void ConnectionString_Should_Preserve_Empty_Password_Compatibility()
+        {
+            var connectionString = new ConnectionString("filename=sample=1.db;password=");
+
+            Assert.Equal("sample=1.db", connectionString.Filename);
+            Assert.Null(connectionString.Password);
+        }
+
         private static string GetTempDatabasePathWithEqualSign()
         {
             var filename = "litedb-" + Guid.NewGuid().ToString("d").Substring(0, 5) + "=issue2211.db";

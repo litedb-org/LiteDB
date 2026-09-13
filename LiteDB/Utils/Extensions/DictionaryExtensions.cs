@@ -74,8 +74,7 @@ namespace LiteDB
 
             string ReadValue()
             {
-                if (position == connectionString.Length) throw new FormatException("Expected a connection option value.");
-
+                if (position >= connectionString.Length) return string.Empty;
                 var sb = new StringBuilder();
                 var quote =
                     connectionString[position] == '"' ? '"' :
