@@ -41,12 +41,21 @@ namespace LiteDB.Engine
             _settings = settings;
         }
 
+        internal FileReaderV7(EngineSettings settings, Stream stream)
+        {
+            _settings = settings;
+            _stream = stream;
+        }
+
         public void Open()
         {
-            var streamFactory = _settings.CreateDataFactory(false);
+            if (_stream == null)
+            {
+                var streamFactory = _settings.CreateDataFactory(false);
 
-            // open datafile from stream factory
-            _stream = streamFactory.GetStream(true, true);
+                // open datafile from stream factory
+                _stream = streamFactory.GetStream(true, true);
+            }
 
             // only userVersion was avaiable in old file format versions
             _header = this.ReadPage(0);

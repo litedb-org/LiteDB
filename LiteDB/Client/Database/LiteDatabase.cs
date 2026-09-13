@@ -55,14 +55,8 @@ namespace LiteDB
         /// <param name="stream">DataStream reference </param>
         /// <param name="mapper">BsonMapper mapper reference</param>
         /// <param name="logStream">LogStream reference </param>
-        /// <param name="upgrade">Try to upgrade the stream. If specifying true and the stream needs to be upgraded, the stream must be writeable</param>
-        public LiteDatabase(Stream stream, BsonMapper mapper = null, Stream logStream = null, bool upgrade = false)
+        public LiteDatabase(Stream stream, BsonMapper mapper = null, Stream logStream = null)
         {
-            if (upgrade && !LiteEngine.Upgrade(stream))
-            {//Assume it's already upgraded and rewind the stream
-                stream.Seek(0, SeekOrigin.Begin);
-            }
-
             var settings = new EngineSettings
             {
                 DataStream = stream ?? throw new ArgumentNullException(nameof(stream)),
