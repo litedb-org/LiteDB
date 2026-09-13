@@ -69,6 +69,8 @@ namespace LiteDB.Engine
                 throw LiteException.InvalidIndexKey($"BsonValue MaxValue/MinValue are not supported as index key");
             }
 
+            _snapshot.CheckVectorVersion(key);
+
             // random level (flip coin mode) - return number between 1-32
             var levels = this.Flip();
 
