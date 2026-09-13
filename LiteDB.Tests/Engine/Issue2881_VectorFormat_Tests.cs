@@ -64,6 +64,10 @@ namespace LiteDB.Tests.Engine
                 File.ReadAllBytes(file.Filename)[HeaderPage.P_FILE_VERSION].Should().Be(9);
                 using var reopened = new LiteDatabase(file.Filename);
                 reopened.GetCollection("docs").FindById(1)["Embedding"].IsVector.Should().BeTrue();
+                var query = reopened.GetCollection("docs").Query().TopKNear("Embedding", new[] { 1f, 0f }, 1);
+                query.GetPlan()["index"]["name"].AsString.Should().Be("embedding_idx");
+                query.GetPlan()["index"]["mode"].AsString.Should().Be("VECTOR INDEX SEARCH");
+                query.ToArray().Should().ContainSingle();
             }
             finally
             {
