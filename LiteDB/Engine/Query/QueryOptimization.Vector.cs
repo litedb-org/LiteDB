@@ -10,62 +10,27 @@ namespace LiteDB.Engine
             index = null;
             consumedTerm = null;
 
-            string expression = null;
-            float[] target = null;
-            double maxDistance = double.MaxValue;
-            var matchedFromOrderBy = false;
+            // SQL uses ordinary indexes and the streaming, disk-backed query pipeline.
+            if (_query.VectorTarget == null) return false;
 
-            foreach (var term in _terms)
+            // API arguments choose the index and target. Scalar VECTOR_SIM predicates
+            // always mean cosine distance and must remain in the ordinary filter pipeline.
+            var expression = CanonicalVectorExpression(_query.VectorField);
+            var target = _query.VectorTarget;
+            var maxDistance = _query.VectorMaxDistance;
+            if (expression == null || target == null) return false;
+
+            if (_terms.Any(term => ReferenceEquals(term, _query.VectorFilter)) &&
+                this.TryParseVectorPredicate(_query.VectorFilter, out var filterField, out var filterTarget, out var filterDistance) &&
+                VectorExpressionIdentity.HasSameSource(filterField, expression) && target.SequenceEqual(filterTarget))
             {
-                if (this.TryParseVectorPredicate(term, out expression, out target, out maxDistance))
-                {
-                    consumedTerm = term;
-                    break;
-                }
+                consumedTerm = _query.VectorFilter;
+                maxDistance = filterDistance;
             }
-
-            if (expression == null && _query.OrderBy.Count > 0)
-            {
-                foreach (var order in _query.OrderBy)
-                {
-                    if (this.TryParseVectorExpression(order.Expression, out expression, out target))
-                    {
-                        matchedFromOrderBy = true;
-                        maxDistance = double.MaxValue;
-                        break;
-                    }
-                }
-            }
-
-            if (expression == null && _query.VectorTarget != null && _query.VectorField != null)
-            {
-                expression = NormalizeVectorField(_query.VectorField);
-                target = _query.VectorTarget?.ToArray();
-                maxDistance = _query.VectorMaxDistance;
-                matchedFromOrderBy = matchedFromOrderBy || (_query.OrderBy.Any(order => order.Expression?.Type == BsonExpressionType.VectorSim));
-            }
-
-            if (expression == null || target == null)
-            {
-                return false;
-            }
-
-            // Keep the candidate budget, but defer truncation when the pipeline still needs
-            // to filter, page, group, or sort those candidates.
-            int? limit = _query.Limit != int.MaxValue
-                ? (int)Math.Min((long)_query.Limit + _query.Offset, int.MaxValue)
-                : (int?)null;
-            var primaryVectorOrder = matchedFromOrderBy && _query.OrderBy.Count > 0 &&
-                _query.OrderBy[0].Expression.Type == BsonExpressionType.VectorSim;
-            var selectedTerm = consumedTerm;
-            var applyLimit = _query.Offset == 0 && _query.GroupBy == null &&
-                !_terms.Any(term => term != selectedTerm) &&
-                (_query.OrderBy.Count == 0 || (primaryVectorOrder && _query.OrderBy.Count == 1 &&
-                    _query.OrderBy[0].Order == Query.Ascending));
 
             foreach (var (candidate, metadata) in _snapshot.CollectionPage.GetVectorIndexes())
             {
-                if (!string.Equals(candidate.Expression, expression, StringComparison.OrdinalIgnoreCase))
+                if (!VectorExpressionIdentity.HasSameSource(candidate.Expression, expression))
                 {
                     continue;
                 }
@@ -75,12 +40,25 @@ namespace LiteDB.Engine
                     continue;
                 }
 
-                index = new VectorIndexQuery(candidate.Name, _snapshot, candidate, metadata, target, maxDistance, limit, _collation, applyLimit);
+                // A strict threshold still needs its predicate after the inclusive index search.
+                if (consumedTerm?.Type == BsonExpressionType.LessThan ||
+                    consumedTerm?.Type == BsonExpressionType.GreaterThan) consumedTerm = null;
 
-                if (primaryVectorOrder)
-                {
-                    _vectorOrderConsumed = true;
-                }
+                _vectorPrimaryOrderMatched = _query.GroupBy == null && _query.OrderBy.Count > 0 &&
+                    this.TryParseVectorExpression(_query.OrderBy[0].Expression, out var orderField, out var orderTarget) &&
+                    VectorExpressionIdentity.HasSameSource(orderField, expression) && target.SequenceEqual(orderTarget);
+                _vectorOrderConsumed = _vectorPrimaryOrderMatched && _query.OrderBy.Count == 1 &&
+                    _query.OrderBy[0].Order == Query.Ascending;
+
+                // ANN top-k is only valid when no remaining operation can discard or reorder candidates.
+                // All other shapes use a complete document scan, including unbounded vector queries.
+                int? limit = _query.Limit > 0 && _query.Limit < int.MaxValue && _query.Offset == 0 &&
+                    _query.GroupBy == null && _query.Includes.Count == 0 &&
+                    (_terms.Count == 0 || (_terms.Count == 1 && _terms[0] == consumedTerm)) &&
+                    (_query.OrderBy.Count == 0 || _vectorOrderConsumed) ? _query.Limit : (int?)null;
+
+                index = new VectorIndexQuery(candidate.Name, _snapshot, candidate, metadata, target, maxDistance, limit, _collation);
+                _vectorOrderConsumed &= limit.HasValue;
 
                 return true;
             }
@@ -100,14 +78,14 @@ namespace LiteDB.Engine
             }
 
             if ((predicate.Type == BsonExpressionType.LessThan || predicate.Type == BsonExpressionType.LessThanOrEqual) &&
-                this.TryParseVectorExpression(predicate.Left, out expression, out target) &&
+                this.TryParseVectorExpression(predicate.Left, out expression, out target) && predicate.Right.IsValue &&
                 TryConvertToDouble(predicate.Right?.ExecuteScalar(_collation), out maxDistance))
             {
                 return true;
             }
 
             if ((predicate.Type == BsonExpressionType.GreaterThan || predicate.Type == BsonExpressionType.GreaterThanOrEqual) &&
-                this.TryParseVectorExpression(predicate.Right, out expression, out target) &&
+                this.TryParseVectorExpression(predicate.Right, out expression, out target) && predicate.Left.IsValue &&
                 TryConvertToDouble(predicate.Left?.ExecuteScalar(_collation), out maxDistance))
             {
                 return true;
@@ -130,7 +108,7 @@ namespace LiteDB.Engine
             }
 
             var field = expression.Left;
-            if (field == null || string.IsNullOrEmpty(field.Source))
+            if (field == null || string.IsNullOrEmpty(field.Source) || expression.Right?.IsValue != true)
             {
                 return false;
             }
@@ -205,7 +183,7 @@ namespace LiteDB.Engine
             return !double.IsNaN(number);
         }
 
-        private static string NormalizeVectorField(string field)
+        private static string CanonicalVectorExpression(string field)
         {
             if (string.IsNullOrWhiteSpace(field))
             {
@@ -214,17 +192,18 @@ namespace LiteDB.Engine
 
             field = field.Trim();
 
-            if (field.StartsWith("$", StringComparison.Ordinal))
+            // API overloads already supply expression sources; parsing also accepts bare field names.
+            // Prefix only a legacy leading-dot path, never a computed expression such as COALESCE(...).
+            try
             {
-                return field;
+                return BsonExpression.Create(field.StartsWith(".", StringComparison.Ordinal) ? "$" + field : field).Source;
             }
-
-            if (field.StartsWith(".", StringComparison.Ordinal))
+            catch (LiteException)
             {
-                field = field.Substring(1);
+                // Hand-built Query instances may contain an invalid index expression.
+                // Preserve their ordinary WHERE/ORDER BY execution when no index can match.
+                return null;
             }
-
-            return "$." + field;
         }
 
     }

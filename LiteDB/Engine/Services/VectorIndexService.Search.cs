@@ -12,7 +12,8 @@ namespace LiteDB.Engine
             float[] target,
             double maxDistance,
             int? limit,
-            bool applyLimit = true)
+            bool applyLimit = true,
+            DatafileLookup documentLookup = null)
         {
             if (metadata.Root.IsEmpty)
             {
@@ -20,7 +21,7 @@ namespace LiteDB.Engine
                 return Enumerable.Empty<(BsonDocument Document, double Distance)>();
             }
 
-            var data = new DataService(_snapshot, uint.MaxValue);
+            var lookup = documentLookup ?? new DatafileLookup(new DataService(_snapshot, _snapshot.MaxItemsCount), false, null);
             var vectorCache = new Dictionary<PageAddress, float[]>();
             var visited = new HashSet<PageAddress>();
 
@@ -77,9 +78,7 @@ namespace LiteDB.Engine
 
                 var node = this.GetNode(candidate.Address);
                 var dataBlock = node.DataBlock;
-                using var reader = new BufferReader(data.Read(dataBlock));
-                var document = reader.ReadDocument().GetValue();
-                document.RawId = dataBlock;
+                var document = lookup.Load(dataBlock);
                 results.Add((document, candidate.Distance, candidate.Similarity));
                 _snapshot.Safepoint();
             }

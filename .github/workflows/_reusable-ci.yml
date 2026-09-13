@@ -42,6 +42,9 @@ jobs:
       - name: Build
         run: dotnet build LiteDB.sln --configuration Release --no-restore /p:TestingEnabled=true
 
+      - name: Verify vector file compatibility with LiteDB 5.0.21
+        run: python3 scripts/test-vector-compatibility.py
+
       - name: Build memory validation runner
         run: dotnet build tools/MemoryValidation/MemoryValidation.csproj --configuration Release
 

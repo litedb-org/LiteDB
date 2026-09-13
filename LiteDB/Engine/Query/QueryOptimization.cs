@@ -16,6 +16,7 @@ namespace LiteDB.Engine
         private readonly QueryPlan _queryPlan;
         private readonly List<BsonExpression> _terms = new List<BsonExpression>();
         private bool _vectorOrderConsumed;
+        private bool _vectorPrimaryOrderMatched;
 
         public QueryOptimization(Snapshot snapshot, Query query, IEnumerable<BsonDocument> source, Collation collation)
         {
@@ -218,7 +219,7 @@ namespace LiteDB.Engine
             }
 
             // if is only 1 field to deserialize and this field are same as index, use IndexKeyOnly = rue
-            if (_queryPlan.Fields.Count == 1 && _queryPlan.IndexExpression == "$." + _queryPlan.Fields.First())
+            if (!(_queryPlan.Index is VectorIndexQuery) && _queryPlan.Fields.Count == 1 && _queryPlan.IndexExpression == "$." + _queryPlan.Fields.First())
             {
                 // best choice - no need lookup for document (use only index)
                 _queryPlan.IsIndexKeyOnly = true;
@@ -238,7 +239,7 @@ namespace LiteDB.Engine
         /// </summary>
         private IndexCost ChooseIndex(HashSet<string> fields)
         {
-            var indexes = _snapshot.CollectionPage.GetCollectionIndexes().ToArray();
+            var indexes = _snapshot.CollectionPage.GetCollectionIndexes().Where(x => x.IndexType == 0).ToArray();
 
             // if query contains a single field used, give preferred if this index exists
             var preferred = fields.Count == 1 ? "$." + fields.First() : null;
@@ -317,26 +318,31 @@ namespace LiteDB.Engine
         /// </summary>
         private void DefineOrderBy()
         {
-            // if has no order by, returns null
-            if (_query.OrderBy.Count == 0) return;
+            if (_query.OrderBy.Count == 0)
+            {
+                // Unbounded WhereNear preserves metric ranking through the normal sorter.
+                if (_query.GroupBy == null && _queryPlan.Index is VectorIndexQuery vector && vector.RequiresSort)
+                {
+                    _queryPlan.OrderBy = new OrderBy(new[] { vector.CreateOrderByItem(Query.Ascending) });
+                }
+                return;
+            }
 
             var segments = _query.OrderBy.Select(x => new OrderByItem(x.Expression, x.Order)).ToArray();
-            if (_vectorOrderConsumed)
-            {
-                if (segments.Length == 1 && segments[0].Order == Query.Ascending) return;
+            if (_vectorOrderConsumed) return;
 
+            if (_vectorPrimaryOrderMatched)
+            {
                 // Retain the metric score as the primary key so ThenBy only breaks score ties.
                 // Re-evaluating VECTOR_SIM here would replace Euclidean/dot-product scores with cosine.
                 var index = (VectorIndexQuery)_queryPlan.Index;
-                var direction = index.Metric == LiteDB.Vector.VectorDistanceMetric.DotProduct ? -1 : 1;
-                segments[0] = new OrderByItem(segments[0].Expression, segments[0].Order * direction,
-                    document => index.GetScore(document.RawId));
+                segments[0] = index.CreateOrderByItem(segments[0].Order);
             }
 
             var orderBy = new OrderBy(segments);
 
             // if index expression are same as primary OrderBy segment, use index order configuration
-            if (orderBy.PrimaryExpression.Source == _queryPlan.IndexExpression)
+            if (!(_queryPlan.Index is VectorIndexQuery) && orderBy.PrimaryExpression.Source == _queryPlan.IndexExpression)
             {
                 _queryPlan.Index.Order = orderBy.PrimaryOrder;
 
@@ -365,7 +371,7 @@ namespace LiteDB.Engine
             var groupOrderBy = (OrderBy)null;
 
             // if groupBy use same expression in index, no additional ordering is required before grouping
-            if (expression.Source == _queryPlan.IndexExpression)
+            if (!(_queryPlan.Index is VectorIndexQuery) && expression.Source == _queryPlan.IndexExpression)
             {
                 // index already provides grouped ordering
             }

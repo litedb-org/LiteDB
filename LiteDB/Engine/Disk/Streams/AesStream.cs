@@ -235,6 +235,9 @@ namespace LiteDB.Engine
             return salt;
         }
 
+        // Encrypted page writes are complete blocks; preserve durable flush requests at the file boundary.
+        internal void FlushToDisk() => _stream.FlushToDisk();
+
         public override void Flush()
         {
             _stream.Flush();

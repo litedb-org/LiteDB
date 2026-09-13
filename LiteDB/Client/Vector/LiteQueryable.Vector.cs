@@ -38,7 +38,14 @@ namespace LiteDB
         {
             var filter = CreateVectorSimilarityFilter(fieldExpr, target, maxDistance);
 
+            if (_query.VectorFilter != null)
+            {
+                throw new InvalidOperationException("Only one WhereNear predicate is supported per query.");
+            }
+            if (_query.HasVectorFilter) this.ValidateMatchingVectorSearch(fieldExpr, target);
+
             _query.Where.Add(filter);
+            _query.VectorFilter = filter;
 
             _query.VectorField = fieldExpr.Source;
             _query.VectorTarget = target?.ToArray();
@@ -72,6 +79,7 @@ namespace LiteDB
             if (fieldExpr == null) throw new ArgumentNullException(nameof(fieldExpr));
             if (target == null || target.Length == 0) throw new ArgumentException("Target vector must be provided.", nameof(target));
             if (k <= 0) throw new ArgumentOutOfRangeException(nameof(k), "Top-K must be greater than zero.");
+            if (_query.VectorFilter != null) this.ValidateMatchingVectorSearch(fieldExpr, target);
 
             var targetArray = new BsonArray(target.Select(v => new BsonValue(v)));
 
@@ -85,6 +93,15 @@ namespace LiteDB
             return this
                 .OrderBy(simExpr, Query.Ascending)
                 .Limit(k);
+        }
+
+        private void ValidateMatchingVectorSearch(BsonExpression fieldExpr, float[] target)
+        {
+            if (!VectorExpressionIdentity.HasSameSource(_query.VectorField, fieldExpr.Source) ||
+                !_query.VectorTarget.SequenceEqual(target))
+            {
+                throw new InvalidOperationException("WhereNear and TopKNear must use the same vector expression and target.");
+            }
         }
 
         [Obsolete("Add `using LiteDB.Vector;` and call the LiteQueryableVectorExtensions.WhereNear extension instead.")]
@@ -151,6 +168,7 @@ namespace LiteDB
                 VectorField = _query.VectorField,
                 VectorTarget = _query.VectorTarget.ToArray(),
                 VectorMaxDistance = _query.VectorMaxDistance,
+                VectorFilter = _query.VectorFilter,
                 VectorScore = new VectorScoreProjection(_query.VectorField, _query.VectorTarget)
             };
             query.Where.AddRange(_query.Where);

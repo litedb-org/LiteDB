@@ -46,6 +46,9 @@ namespace LiteDB.Engine
         internal Action Safepoint => _safepoint;
         internal int Epoch => _epoch;
 
+        /// <summary>Maximum chain traversal count for this snapshot's engine.</summary>
+        internal uint MaxItemsCount => _disk.MAX_ITEMS_COUNT;
+
         public Snapshot(
             LockMode mode, 
             string collectionName, 

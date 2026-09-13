@@ -41,6 +41,7 @@ namespace LiteDB.Engine
 
         public void Upsert(CollectionIndex index, VectorIndexMetadata metadata, BsonDocument document, PageAddress dataBlock)
         {
+            _snapshot.RequireVectorVersion();
             var value = index.BsonExpr.ExecuteScalar(document, _collation);
 
             if (!TryExtractVector(value, metadata.Dimensions, out var vector))
@@ -55,6 +56,7 @@ namespace LiteDB.Engine
 
         public void Delete(VectorIndexMetadata metadata, PageAddress dataBlock)
         {
+            _snapshot.RequireVectorVersion();
             if (!this.TryFindNode(metadata, dataBlock, out var address, out var node))
             {
                 return;
@@ -65,6 +67,7 @@ namespace LiteDB.Engine
 
         public void Drop(VectorIndexMetadata metadata)
         {
+            _snapshot.RequireVectorVersion();
             this.ClearTree(metadata);
 
             metadata.Root = PageAddress.Empty;
@@ -724,7 +727,7 @@ namespace LiteDB.Engine
 
         private DataService GetVectorDataService()
         {
-            return _vectorData ??= new DataService(_snapshot, uint.MaxValue);
+            return _vectorData ??= new DataService(_snapshot, _snapshot.MaxItemsCount);
         }
 
         private byte SampleLevel()
@@ -836,8 +839,8 @@ namespace LiteDB.Engine
 
             for (var i = 0; i < candidate.Length; i++)
             {
-                var c = candidate[i];
-                var t = target[i];
+                double c = candidate[i];
+                double t = target[i];
 
                 dot += c * t;
                 magCandidate += c * c;
@@ -878,7 +881,7 @@ namespace LiteDB.Engine
             return sum;
         }
 
-        private static bool TryExtractVector(BsonValue value, ushort expectedDimensions, out float[] vector)
+        internal static bool TryExtractVector(BsonValue value, ushort expectedDimensions, out float[] vector)
         {
             vector = null;
 
