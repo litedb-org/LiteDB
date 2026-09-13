@@ -26,6 +26,10 @@ namespace LiteDB
         public int Limit { get; set; } = int.MaxValue;
         public bool ForUpdate { get; set; } = false;
 
+        /// <summary>
+        /// Vector index expression. An expression that cannot be parsed or matched
+        /// leaves a hand-built query's ordinary predicates and ordering in effect.
+        /// </summary>
         public string VectorField { get; set; } = null;
         public float[] VectorTarget { get; set; } = null;
         public double VectorMaxDistance { get; set; } = double.MaxValue;

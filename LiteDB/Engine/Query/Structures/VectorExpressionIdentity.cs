@@ -1,6 +1,6 @@
 using System;
 
-namespace LiteDB.Vector
+namespace LiteDB.Engine
 {
     internal static class VectorExpressionIdentity
     {

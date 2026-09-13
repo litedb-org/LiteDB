@@ -51,6 +51,9 @@ expression source, including expressions such as `COALESCE($.Embedding, [0,1])`.
 Expression matching preserves string-literal case while allowing field-name case
 differences, so computed expressions selecting different vectors cannot share an
 index or replace each other's ordering.
+For hand-built `Query` objects, an unparseable `VectorField` selects no vector
+index; ordinary predicates and ordering still execute. Public vector API overloads
+continue to validate their expressions when the query is constructed.
 
 A query supports at most one `WhereNear` predicate. Combining it with `TopKNear`
 requires the same expression and target, in either call order. A repeated
@@ -150,6 +153,10 @@ for threshold and top-k queries, with and without included-field filters. Its
 separate test-only commit reproduces four failures. Aggregate replay reapplies
 includes after reloading each document by address, preserving the bounded document
 memory usage of exact vector execution.
+The aggregate replay fix also applies to ordinary queries. `AggregateIncludeReplay_Tests`
+covers an ordinary secondary index with repeated `FIRST` and `SUM` expressions,
+including filters on referenced fields and sorted/unsorted execution. No vector
+data or index is involved in that fixture.
 
 `Issue2881_VectorExpressionIdentity_Tests` covers literal-sensitive index selection,
 API composition, scalar ordering, and field-name casing. Its test-only commit

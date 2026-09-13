@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using LiteDB.Vector;
 
 namespace LiteDB.Engine
 {
@@ -195,7 +194,16 @@ namespace LiteDB.Engine
 
             // API overloads already supply expression sources; parsing also accepts bare field names.
             // Prefix only a legacy leading-dot path, never a computed expression such as COALESCE(...).
-            return BsonExpression.Create(field.StartsWith(".", StringComparison.Ordinal) ? "$" + field : field).Source;
+            try
+            {
+                return BsonExpression.Create(field.StartsWith(".", StringComparison.Ordinal) ? "$" + field : field).Source;
+            }
+            catch (LiteException)
+            {
+                // Hand-built Query instances may contain an invalid index expression.
+                // Preserve their ordinary WHERE/ORDER BY execution when no index can match.
+                return null;
+            }
         }
 
     }

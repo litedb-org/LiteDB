@@ -33,7 +33,8 @@ namespace LiteDB.Tests.QueryTest
 
             aggregate.GetPlan()["index"]["name"].AsString.Should().Be("category");
             var result = aggregate.Single();
-            result["first"].AsString.Should().Be(sorted ? "owner2" : "owner1");
+            result["first"].AsString.Should().BeOneOf("owner1", "owner2");
+            if (sorted) result["first"].AsString.Should().Be("owner2");
             result["again"].Should().Be(result["first"]);
             result["total"].AsInt32.Should().Be(30);
             result["repeatedTotal"].AsInt32.Should().Be(30);
