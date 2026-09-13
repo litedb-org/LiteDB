@@ -14,8 +14,9 @@ namespace LiteDB.Engine
         private readonly double _maxDistance;
         private readonly int? _limit;
         private readonly Collation _collation;
+        private readonly bool _preserveUndefined;
 
-        private readonly Dictionary<PageAddress, BsonDocument> _cache = new Dictionary<PageAddress, BsonDocument>();
+        private readonly Dictionary<PageAddress, (BsonDocument Document, BsonValue Score)> _cache = new Dictionary<PageAddress, (BsonDocument, BsonValue)>();
 
         public string Expression => _index.Expression;
 
@@ -27,7 +28,8 @@ namespace LiteDB.Engine
             float[] target,
             double maxDistance,
             int? limit,
-            Collation collation)
+            Collation collation,
+            bool preserveUndefined)
             : base(name, Query.Ascending)
         {
             _snapshot = snapshot;
@@ -37,6 +39,7 @@ namespace LiteDB.Engine
             _maxDistance = maxDistance;
             _limit = limit;
             _collation = collation;
+            _preserveUndefined = preserveUndefined;
         }
 
         public override uint GetCost(CollectionIndex index)
@@ -56,7 +59,9 @@ namespace LiteDB.Engine
             var service = new VectorIndexService(_snapshot, _collation);
             var results = _limit.HasValue
                 ? service.Search(_metadata, _target, _maxDistance, _limit)
-                : this.Scan(indexer).OrderBy(x => _metadata.Metric == VectorDistanceMetric.DotProduct ? -x.Distance : x.Distance);
+                    .Select(x => (x.Document, Distance: new BsonValue(x.Distance)))
+                : this.Scan(indexer).OrderBy(x => _metadata.Metric == VectorDistanceMetric.DotProduct && x.Distance.IsNumber
+                    ? new BsonValue(-x.Distance.AsDouble) : x.Distance);
 
             foreach (var result in results)
             {
@@ -67,20 +72,27 @@ namespace LiteDB.Engine
                     continue;
                 }
 
-                _cache[rawId] = result.Document;
+                _cache[rawId] = (result.Document, result.Distance);
                 yield return new IndexNode(result.Document);
             }
         }
 
-        private IEnumerable<(BsonDocument Document, double Distance)> Scan(IndexService indexer)
+        private IEnumerable<(BsonDocument Document, BsonValue Distance)> Scan(IndexService indexer)
         {
-            var data = new DataService(_snapshot, uint.MaxValue);
+            var data = new DataService(_snapshot, _snapshot.MaxItemsCount);
             var lookup = new DatafileLookup(data, false, null);
+            var target = new BsonVector(_target);
             foreach (var node in indexer.FindAll(_snapshot.CollectionPage.PK, Query.Ascending))
             {
                 var document = lookup.Load(node);
                 var value = _index.BsonExpr.ExecuteScalar(document, _collation);
                 _snapshot.Safepoint();
+                if (_preserveUndefined)
+                {
+                    // Use the scalar evaluator for SQL, including null and non-indexable values.
+                    yield return (document, BsonExpressionMethods.VECTOR_SIM(value, target));
+                    continue;
+                }
                 if (!VectorIndexService.TryExtractVector(value, _metadata.Dimensions, out var vector)) continue;
 
                 var distance = VectorIndexService.ComputeDistance(vector, _target, _metadata.Metric, out var similarity);
@@ -106,8 +118,30 @@ namespace LiteDB.Engine
 
         public BsonDocument Load(PageAddress rawId)
         {
-            return _cache.TryGetValue(rawId, out var document) ? document : null;
+            return _cache.TryGetValue(rawId, out var result) ? result.Document : null;
         }
+
+        internal bool Matches(VectorScoreProjection projection)
+        {
+            return string.Equals(Expression, projection.Field, StringComparison.OrdinalIgnoreCase) &&
+                _target.SequenceEqual(projection.Target);
+        }
+
+        internal bool TryGetScore(PageAddress rawId, out double score)
+        {
+            score = default;
+            if (!_cache.TryGetValue(rawId, out var result) || !result.Score.IsNumber)
+            {
+                return false;
+            }
+
+            score = result.Score.AsDouble;
+            return true;
+        }
+
+        internal BsonValue GetScore(PageAddress rawId) => _cache[rawId].Score;
+
+        internal LiteDB.Vector.VectorDistanceMetric Metric => _metadata.Metric;
 
         public override string ToString()
         {

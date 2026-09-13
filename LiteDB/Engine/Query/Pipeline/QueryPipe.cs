@@ -63,6 +63,11 @@ namespace LiteDB.Engine
                 source = this.Include(source, path);
             }
 
+            if (query.VectorScore != null)
+            {
+                return query.VectorScore.Project(source, query.Select.Expression, query.Index as VectorIndexQuery, _pragmas.Collation);
+            }
+
             // if is an aggregate query, run select transform over all resultset - will return a single value
             if (query.Select.All)
             {

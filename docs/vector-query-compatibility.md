@@ -13,18 +13,27 @@ configured for a different metric. Explicit `WhereNear` and `TopKNear` calls
 continue to use the selected vector index's metric (including minimum similarity
 for dot product).
 
-A finite nearest-neighbor query may use approximate HNSW top-k search when it has
-no offset, residual filters, includes, or grouping, and its complete ordering is
-provided by that search. This remains approximate: the graph's candidate search
-does not guarantee exact nearest-neighbor recall. A vector threshold query without
-an explicit sort likewise permits this bounded search when it has a finite limit.
+SQL vector expressions use complete evaluation, including bounded ordering queries.
+They preserve documents with missing, invalid, zero-length, or dimension-mismatched
+vectors and use the scalar expression's null distance and normal null ordering.
+SQL predicates remain in the normal pipeline so null comparison rules are
+identical with and without an index. Adding an index does not remove these rows.
 
-Queries with residual operations, offsets, or no finite limit evaluate all valid
-vectors through the collection's primary index. They do not inherit HNSW's default
-32-candidate ceiling. They apply filters, grouping, requested sorting, offset, and
-limit in the normal pipeline. Sorting is removed only for a single ascending
-vector key that matches the selected field and target. Descending order, secondary
-keys, and an independent vector target retain their requested sort.
+Explicit `WhereNear` / `TopKNear` queries may use approximate HNSW top-k search
+when they have a finite limit, no offset, residual filters, includes, or grouping,
+and their complete ordering is provided by that search. This remains approximate:
+the graph's candidate search does not guarantee exact nearest-neighbor recall.
+These APIs search valid vector hits; they do not synthesize undefined neighbors.
+
+Explicit vector queries with residual operations, offsets, or no finite limit
+evaluate all valid vectors through the collection's primary index. They do not
+inherit HNSW's default 32-candidate ceiling. Queries apply filters, grouping,
+requested sorting, offset, and limit in the normal pipeline. Sorting is removed
+only for a single ascending vector key that matches the selected field and target.
+Descending order, secondary keys, and an independent vector target retain their
+requested sort. Explicit vector APIs reuse the index metric score for matching
+primary keys, including Euclidean and dot-product ordering with secondary keys.
+`WithScore` preserves those metric scores through complete evaluation and sorting.
 
 Complete evaluation loads and ranks the matching documents, so these query shapes
 can require O(N) memory and O(N log N) ranking work. Simple bounded top-k queries
@@ -56,7 +65,9 @@ byte as a substitute for migration.
 
 `Issue2881_VectorPlanning_Tests` compares indexed results with a full-scan cosine
 reference, including more than 32 documents, filtering, offsets, strict bounds,
-grouping, descending ordering, and distance ties. The initial test-only commit
+grouping, descending ordering, and distance ties.
+`Issue2881_UndefinedVector_Tests` covers missing/invalid/zero/non-finite vectors,
+null ordering, bounded and composite sorts, SQL predicates, and grouping. The initial test-only commit
 also corrects an existing test that asserted the broken removal of secondary sort.
 Its focused run had 22 failures and 9 passing regressions before the fix.
 

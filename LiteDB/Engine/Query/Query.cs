@@ -31,6 +31,8 @@ namespace LiteDB
         public double VectorMaxDistance { get; set; } = double.MaxValue;
         public bool HasVectorFilter => VectorField != null && VectorTarget != null;
 
+        internal Engine.VectorScoreProjection VectorScore { get; set; }
+
         public string Into { get; set; }
         public BsonAutoId IntoAutoId { get; set; } = BsonAutoId.ObjectId;
 

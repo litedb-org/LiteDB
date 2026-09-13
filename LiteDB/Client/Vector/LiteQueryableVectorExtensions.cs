@@ -7,7 +7,7 @@ namespace LiteDB.Vector
     /// <summary>
     /// Extension methods that surface vector-aware query capabilities for <see cref="ILiteQueryable{T}"/>.
     /// </summary>
-    public static class LiteQueryableVectorExtensions
+    public static partial class LiteQueryableVectorExtensions
     {
         public static ILiteQueryable<T> WhereNear<T>(this ILiteQueryable<T> source, string vectorField, float[] target, double maxDistance)
         {
@@ -45,7 +45,7 @@ namespace LiteDB.Vector
             return Unwrap(source).VectorTopKNear(fieldExpr, target, k);
         }
 
-        private static LiteQueryable<T> Unwrap<T>(ILiteQueryable<T> source)
+        private static LiteQueryable<T> Unwrap<T>(ILiteQueryableResult<T> source)
         {
             if (source is null)
             {

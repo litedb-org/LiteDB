@@ -72,6 +72,8 @@ namespace LiteDB.Engine
         /// </summary>
         public Select Select { get; set; }
 
+        internal VectorScoreProjection VectorScore { get; set; }
+
         /// <summary>
         /// Get fields name that will be deserialize from disk
         /// </summary>

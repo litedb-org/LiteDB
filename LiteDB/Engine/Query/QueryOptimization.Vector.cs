@@ -67,19 +67,25 @@ namespace LiteDB.Engine
                 if (consumedTerm?.Type == BsonExpressionType.LessThan ||
                     consumedTerm?.Type == BsonExpressionType.GreaterThan) consumedTerm = null;
 
-                _vectorOrderConsumed = _query.GroupBy == null && _query.Includes.Count == 0 && _query.OrderBy.Count == 1 &&
-                    _query.OrderBy[0].Order == Query.Ascending &&
+                _vectorPrimaryOrderMatched = _query.GroupBy == null && _query.Includes.Count == 0 && _query.OrderBy.Count > 0 &&
                     this.TryParseVectorExpression(_query.OrderBy[0].Expression, out var orderField, out var orderTarget) &&
                     string.Equals(orderField, expression, StringComparison.OrdinalIgnoreCase) && target.SequenceEqual(orderTarget);
+                _vectorOrderConsumed = _vectorPrimaryOrderMatched && _query.OrderBy.Count == 1 &&
+                    _query.OrderBy[0].Order == Query.Ascending;
+
+                // SQL expressions retain every row, including undefined cosine distances.
+                // Keep SQL predicates in the normal pipeline so null comparison rules apply.
+                var preserveUndefined = _query.VectorTarget == null;
+                if (preserveUndefined) consumedTerm = null;
 
                 // ANN top-k is only valid when no remaining operation can discard or reorder candidates.
                 // All other shapes use a complete document scan, including unbounded vector queries.
-                int? limit = _query.Limit > 0 && _query.Limit < int.MaxValue && _query.Offset == 0 &&
+                int? limit = !preserveUndefined && _query.Limit > 0 && _query.Limit < int.MaxValue && _query.Offset == 0 &&
                     _query.GroupBy == null && _query.Includes.Count == 0 &&
                     (_terms.Count == 0 || (_terms.Count == 1 && _terms[0] == consumedTerm)) &&
                     (_query.OrderBy.Count == 0 || _vectorOrderConsumed) ? _query.Limit : (int?)null;
 
-                index = new VectorIndexQuery(candidate.Name, _snapshot, candidate, metadata, target, maxDistance, limit, _collation);
+                index = new VectorIndexQuery(candidate.Name, _snapshot, candidate, metadata, target, maxDistance, limit, _collation, preserveUndefined);
 
                 return true;
             }
