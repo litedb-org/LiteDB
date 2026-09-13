@@ -155,6 +155,9 @@ memory usage of exact vector execution.
 `Issue2881_VectorExpressionIdentity_Tests` covers literal-sensitive index selection,
 API composition, scalar ordering, and field-name casing. Its test-only commit
 reproduces eight failures and retains one passing field-name control.
+`Issue2881_QuotedVectorField_Tests` adds eight regressions for quoted member names,
+including computed expressions and both API composition orders. Quoted path
+identifiers retain case-insensitive matching; quoted values remain case-sensitive.
 
 ## Durable flush cost
 
