@@ -6,7 +6,7 @@ using LiteDB.Vector;
 
 namespace LiteDB.Engine
 {
-    internal sealed class VectorIndexService
+    internal sealed partial class VectorIndexService
     {
         private const int EfConstruction = 24;
         private const int DefaultEfSearch = 32;
@@ -41,6 +41,7 @@ namespace LiteDB.Engine
 
         public void Upsert(CollectionIndex index, VectorIndexMetadata metadata, BsonDocument document, PageAddress dataBlock)
         {
+            _snapshot.RequireVectorVersion();
             var value = index.BsonExpr.ExecuteScalar(document, _collation);
 
             if (!TryExtractVector(value, metadata.Dimensions, out var vector))
@@ -55,6 +56,7 @@ namespace LiteDB.Engine
 
         public void Delete(VectorIndexMetadata metadata, PageAddress dataBlock)
         {
+            _snapshot.RequireVectorVersion();
             if (!this.TryFindNode(metadata, dataBlock, out var address, out var node))
             {
                 return;
@@ -63,116 +65,9 @@ namespace LiteDB.Engine
             this.RemoveNode(metadata, address, node);
         }
 
-        public IEnumerable<(BsonDocument Document, double Distance)> Search(
-            VectorIndexMetadata metadata,
-            float[] target,
-            double maxDistance,
-            int? limit)
-        {
-            if (metadata.Root.IsEmpty)
-            {
-                this.LastVisitedCount = 0;
-                return Enumerable.Empty<(BsonDocument Document, double Distance)>();
-            }
-
-            var data = new DataService(_snapshot, uint.MaxValue);
-            var vectorCache = new Dictionary<PageAddress, float[]>();
-            var visited = new HashSet<PageAddress>();
-
-            this.LastVisitedCount = 0;
-
-            var entryPoint = metadata.Root;
-            var entryNode = this.GetNode(entryPoint);
-            var entryTopLevel = entryNode.LevelCount - 1;
-            var currentEntry = entryPoint;
-
-            for (var level = entryTopLevel; level > 0; level--)
-            {
-                currentEntry = this.GreedySearch(metadata, target, currentEntry, level, vectorCache, visited);
-            }
-
-            var effectiveLimit = limit.HasValue && limit.Value > 0
-                ? Math.Max(limit.Value * 4, DefaultEfSearch)
-                : DefaultEfSearch;
-
-            var candidates = this.SearchLayer(
-                metadata,
-                target,
-                currentEntry,
-                0,
-                effectiveLimit,
-                effectiveLimit,
-                visited,
-                vectorCache);
-
-            var results = new List<(BsonDocument Document, double Distance, double Similarity)>();
-
-            var pruneDistance = metadata.Metric == VectorDistanceMetric.DotProduct
-                ? double.PositiveInfinity
-                : maxDistance;
-
-            var hasExplicitSimilarity = metadata.Metric == VectorDistanceMetric.DotProduct
-                && !double.IsPositiveInfinity(maxDistance)
-                && maxDistance < double.MaxValue;
-
-            var baseMinSimilarity = hasExplicitSimilarity ? maxDistance : double.NegativeInfinity;
-            var minSimilarity = baseMinSimilarity;
-
-            foreach (var candidate in candidates)
-            {
-                var compareDistance = candidate.Distance;
-                var meetsThreshold = metadata.Metric == VectorDistanceMetric.DotProduct
-                    ? !double.IsNaN(candidate.Similarity) && candidate.Similarity >= minSimilarity
-                    : !double.IsNaN(compareDistance) && compareDistance <= pruneDistance;
-
-                if (!meetsThreshold)
-                {
-                    continue;
-                }
-
-                var node = this.GetNode(candidate.Address);
-                using var reader = new BufferReader(data.Read(node.DataBlock));
-                var document = reader.ReadDocument().GetValue();
-                document.RawId = node.DataBlock;
-                results.Add((document, candidate.Distance, candidate.Similarity));
-            }
-
-            if (metadata.Metric == VectorDistanceMetric.DotProduct)
-            {
-                results = results
-                    .OrderByDescending(x => x.Similarity)
-                    .ToList();
-
-                if (limit.HasValue)
-                {
-                    results = results.Take(limit.Value).ToList();
-                    if (results.Count == limit.Value)
-                    {
-                        minSimilarity = Math.Max(baseMinSimilarity, results.Min(x => x.Similarity));
-                    }
-                }
-
-                return results.Select(x => (x.Document, x.Similarity));
-            }
-
-            results = results
-                .OrderBy(x => x.Distance)
-                .ToList();
-
-            if (limit.HasValue)
-            {
-                results = results.Take(limit.Value).ToList();
-                if (results.Count == limit.Value)
-                {
-                    pruneDistance = Math.Min(pruneDistance, results.Max(x => x.Distance));
-                }
-            }
-
-            return results.Select(x => (x.Document, x.Distance));
-        }
-
         public void Drop(VectorIndexMetadata metadata)
         {
+            _snapshot.RequireVectorVersion();
             this.ClearTree(metadata);
 
             metadata.Root = PageAddress.Empty;
@@ -258,7 +153,8 @@ namespace LiteDB.Engine
 
             var entryPoint = metadata.Root;
             var entryNode = this.GetNode(entryPoint);
-            var entryTopLevel = entryNode.LevelCount - 1;
+            var entryLevelCount = entryNode.LevelCount;
+            var entryTopLevel = entryLevelCount - 1;
             var newTopLevel = levelCount - 1;
 
             if (newTopLevel > entryTopLevel)
@@ -275,7 +171,7 @@ namespace LiteDB.Engine
                 currentEntry = this.GreedySearch(metadata, vector, currentEntry, level, vectorCache, null);
             }
 
-            var maxLevelToConnect = Math.Min(entryNode.LevelCount - 1, newTopLevel);
+            var maxLevelToConnect = Math.Min(entryLevelCount - 1, newTopLevel);
 
             for (var level = maxLevelToConnect; level >= 0; level--)
             {
@@ -293,11 +189,18 @@ namespace LiteDB.Engine
                     candidates.Where(x => x.Address != newAddress).ToList(),
                     VectorIndexNode.MaxNeighborsPerLevel);
 
-                node.SetNeighbors(level, selected.Select(x => x.Address).ToList());
+                var selectedAddresses = selected.Select(x => x.Address).ToList();
 
-                foreach (var neighbor in selected)
+                node = this.GetNode(newAddress);
+                node.SetNeighbors(level, selectedAddresses);
+
+                foreach (var neighbor in selectedAddresses)
                 {
-                    this.EnsureBidirectional(metadata, neighbor.Address, newAddress, level, vectorCache);
+                    if (!this.EnsureBidirectional(metadata, neighbor, newAddress, level, vectorCache))
+                    {
+                        node = this.GetNode(newAddress);
+                        node.RemoveNeighbor(level, neighbor);
+                    }
                 }
 
                 if (selected.Count > 0)
@@ -328,7 +231,10 @@ namespace LiteDB.Engine
                 improved = false;
 
                 var node = this.GetNode(current);
-                foreach (var neighbor in node.GetNeighbors(level))
+                var neighbors = node.GetNeighbors(level).ToArray();
+                _snapshot.Safepoint();
+
+                foreach (var neighbor in neighbors)
                 {
                     if (neighbor.IsEmpty)
                     {
@@ -396,8 +302,10 @@ namespace LiteDB.Engine
                 }
 
                 var node = this.GetNode(current.Address);
+                var neighbors = node.GetNeighbors(level).ToArray();
+                _snapshot.Safepoint();
 
-                foreach (var neighbor in node.GetNeighbors(level))
+                foreach (var neighbor in neighbors)
                 {
                     if (neighbor.IsEmpty || !visited.Add(neighbor))
                     {
@@ -420,10 +328,11 @@ namespace LiteDB.Engine
             return this.SelectNeighbors(results, Math.Max(1, maxResults));
         }
 
-        private void EnsureBidirectional(VectorIndexMetadata metadata, PageAddress source, PageAddress target, int level, Dictionary<PageAddress, float[]> vectorCache)
+        private bool EnsureBidirectional(VectorIndexMetadata metadata, PageAddress source, PageAddress target, int level, Dictionary<PageAddress, float[]> vectorCache)
         {
             var node = this.GetNode(source);
-            var neighbors = node.GetNeighbors(level).ToList();
+            var neighbors = node.GetNeighbors(level).Where(x => !x.IsEmpty).ToList();
+            var before = neighbors.ToList();
 
             if (!neighbors.Contains(target))
             {
@@ -432,6 +341,33 @@ namespace LiteDB.Engine
 
             var pruned = this.PruneNeighbors(metadata, source, neighbors, vectorCache);
             node.SetNeighbors(level, pruned);
+
+            foreach (var removed in before)
+            {
+                if (!pruned.Contains(removed))
+                {
+                    this.RemoveBackLink(removed, source, level);
+                }
+            }
+
+            return pruned.Contains(target);
+        }
+
+        private void RemoveBackLink(PageAddress source, PageAddress target, int level)
+        {
+            if (source.IsEmpty || target.IsEmpty)
+            {
+                return;
+            }
+
+            var node = this.GetNode(source);
+
+            if (level < 0 || level >= node.LevelCount)
+            {
+                return;
+            }
+
+            node.RemoveNeighbor(level, target);
         }
 
         private IReadOnlyList<PageAddress> PruneNeighbors(VectorIndexMetadata metadata, PageAddress source, List<PageAddress> neighbors, Dictionary<PageAddress, float[]> vectorCache)
@@ -492,6 +428,7 @@ namespace LiteDB.Engine
             {
                 metadata.Root = this.SelectNewRoot(metadata, address, start);
                 _snapshot.CollectionPage.IsDirty = true;
+                node = this.GetNode(address);
             }
 
             this.ReleaseNode(metadata, node);
@@ -521,6 +458,12 @@ namespace LiteDB.Engine
 
                 var node = this.GetNode(current);
                 var levelCount = node.LevelCount;
+                var neighbors = new List<PageAddress>();
+
+                for (var level = 0; level < levelCount; level++)
+                {
+                    neighbors.AddRange(node.GetNeighbors(level));
+                }
 
                 if (best.IsEmpty || levelCount > bestLevel)
                 {
@@ -528,14 +471,13 @@ namespace LiteDB.Engine
                     bestLevel = levelCount;
                 }
 
-                for (var level = 0; level < levelCount; level++)
+                _snapshot.Safepoint();
+
+                foreach (var neighbor in neighbors)
                 {
-                    foreach (var neighbor in node.GetNeighbors(level))
+                    if (!neighbor.IsEmpty && neighbor != removed)
                     {
-                        if (!neighbor.IsEmpty && neighbor != removed)
-                        {
-                            queue.Enqueue(neighbor);
-                        }
+                        queue.Enqueue(neighbor);
                     }
                 }
             }
@@ -574,14 +516,19 @@ namespace LiteDB.Engine
                     return true;
                 }
 
+                var neighbors = new List<PageAddress>();
                 for (var level = 0; level < candidate.LevelCount; level++)
                 {
-                    foreach (var neighbor in candidate.GetNeighbors(level))
+                    neighbors.AddRange(candidate.GetNeighbors(level));
+                }
+
+                _snapshot.Safepoint();
+
+                foreach (var neighbor in neighbors)
+                {
+                    if (!neighbor.IsEmpty)
                     {
-                        if (!neighbor.IsEmpty)
-                        {
-                            queue.Enqueue(neighbor);
-                        }
+                        queue.Enqueue(neighbor);
                     }
                 }
             }
@@ -609,19 +556,23 @@ namespace LiteDB.Engine
                 }
 
                 var node = this.GetNode(address);
+                var neighbors = new List<PageAddress>();
 
                 for (var level = 0; level < node.LevelCount; level++)
                 {
-                    foreach (var neighbor in node.GetNeighbors(level))
+                    neighbors.AddRange(node.GetNeighbors(level));
+                }
+
+                foreach (var neighbor in neighbors)
+                {
+                    if (!neighbor.IsEmpty && !visited.Contains(neighbor))
                     {
-                        if (!neighbor.IsEmpty && !visited.Contains(neighbor))
-                        {
-                            stack.Push(neighbor);
-                        }
+                        stack.Push(neighbor);
                     }
                 }
 
                 this.ReleaseNode(metadata, node);
+                _snapshot.Safepoint();
             }
         }
 
@@ -677,6 +628,8 @@ namespace LiteDB.Engine
 
             foreach (var slice in this.GetVectorDataService().Read(node.ExternalVector))
             {
+                slice.EnsureReadable();
+
                 if (bytesCopied >= totalBytes)
                 {
                     break;
@@ -730,6 +683,7 @@ namespace LiteDB.Engine
 
                 var dataPage = _snapshot.GetFreeDataPage(chunk + DataBlock.DATA_BLOCK_FIXED_SIZE);
                 var block = dataPage.InsertBlock(chunk, bytesWritten > 0);
+                block.Buffer.EnsureWritable();
 
                 if (lastBlock != null)
                 {
@@ -773,7 +727,7 @@ namespace LiteDB.Engine
 
         private DataService GetVectorDataService()
         {
-            return _vectorData ??= new DataService(_snapshot, uint.MaxValue);
+            return _vectorData ??= new DataService(_snapshot, _snapshot.MaxItemsCount);
         }
 
         private byte SampleLevel()
@@ -885,8 +839,8 @@ namespace LiteDB.Engine
 
             for (var i = 0; i < candidate.Length; i++)
             {
-                var c = candidate[i];
-                var t = target[i];
+                double c = candidate[i];
+                double t = target[i];
 
                 dot += c * t;
                 magCandidate += c * c;
@@ -927,7 +881,7 @@ namespace LiteDB.Engine
             return sum;
         }
 
-        private static bool TryExtractVector(BsonValue value, ushort expectedDimensions, out float[] vector)
+        internal static bool TryExtractVector(BsonValue value, ushort expectedDimensions, out float[] vector)
         {
             vector = null;
 
@@ -975,4 +929,3 @@ namespace LiteDB.Engine
         }
     }
 }
-

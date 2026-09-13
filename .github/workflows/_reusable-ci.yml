@@ -10,7 +10,7 @@ on:
           [
             { "display": ".NET 8",  "sdk": "8.0.x",           "framework": "net8.0", "includePrerelease": false, "msbuildProps": "" },
             { "display": ".NET 9",  "sdk": "9.0.x\n8.0.x",    "framework": "net8.0", "includePrerelease": true,  "msbuildProps": "" },
-            { "display": ".NET 10", "sdk": "10.0.x\n8.0.x",   "framework": "net10.0", "includePrerelease": true, "msbuildProps": "-p:LiteDBTestsEnableNet10=true" }
+            { "display": ".NET 10", "sdk": "10.0.x",          "framework": "net10.0", "includePrerelease": false, "msbuildProps": "" }
           ]
 
 jobs:
@@ -27,13 +27,29 @@ jobs:
       - name: Set up .NET SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: |
+            10.0.x
+            8.0.x
+
+      - name: Check changed C# file sizes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: python scripts/check-csharp-size.py --base "${BASE_SHA:-HEAD^}"
 
       - name: Restore
         run: dotnet restore LiteDB.sln
 
       - name: Build
         run: dotnet build LiteDB.sln --configuration Release --no-restore /p:TestingEnabled=true
+
+      - name: Verify vector file compatibility with LiteDB 5.0.21
+        run: python3 scripts/test-vector-compatibility.py
+
+      - name: Build memory validation runner
+        run: dotnet build tools/MemoryValidation/MemoryValidation.csproj --configuration Release
+
+      - name: Build memory profile measurements
+        run: dotnet build tools/MemoryProfiles/MemoryProfiles.csproj --configuration Release
 
       - name: Package build outputs
         run: tar -czf tests-build-linux.tar.gz LiteDB/bin/Release LiteDB/obj/Release LiteDB.Tests/bin/Release LiteDB.Tests/obj/Release
@@ -107,7 +123,9 @@ jobs:
       - name: Set up .NET SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: |
+            10.0.x
+            8.0.x
 
       - name: Restore
         run: dotnet restore LiteDB.sln
@@ -187,7 +205,9 @@ jobs:
       - name: Set up .NET SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: |
+            10.0.x
+            8.0.x
 
       - name: Restore
         run: dotnet restore LiteDB.sln
@@ -365,4 +385,3 @@ jobs:
           --logger "trx;LogFileName=TestResults-arm64.trx"
           --logger "console;verbosity=detailed"
           ${{ matrix.item.msbuildProps }}
-
