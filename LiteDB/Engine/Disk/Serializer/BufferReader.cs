@@ -2,7 +2,6 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.InteropServices;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -263,7 +262,7 @@ namespace LiteDB.Engine
 
                 this.Read(buffer);
 
-                value = MemoryMarshal.Read<Guid>(buffer);
+                value = BufferSliceExtensions.ReadGuid(buffer);
             }
 
             return value;

@@ -1,8 +1,6 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -237,14 +235,7 @@ namespace LiteDB.Engine
                 _current.EnsureWritable();
                 var span = new Span<byte>(_current.Array, _current.Offset + _currentPosition, 16);
 
-#if NET8_0_OR_GREATER
-                if (!value.TryWriteBytes(span))
-                {
-                    throw new InvalidOperationException("Failed to write Guid into span.");
-                }
-#else
-                Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(span), value);
-#endif
+                BufferSliceExtensions.Write(span, value);
 
                 this.MoveForward(16);
             }
@@ -252,14 +243,7 @@ namespace LiteDB.Engine
             {
                 Span<byte> buffer = stackalloc byte[16];
 
-#if NET8_0_OR_GREATER
-                if (!value.TryWriteBytes(buffer))
-                {
-                    throw new InvalidOperationException("Failed to write Guid into span.");
-                }
-#else
-                Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(buffer), value);
-#endif
+                BufferSliceExtensions.Write(buffer, value);
 
                 this.Write(buffer);
             }

@@ -1,14 +1,12 @@
 using System;
 using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Text;
 using LiteDB.Engine;
 using static LiteDB.Constants;
 
 namespace LiteDB
 {
-    internal static class BufferSliceExtensions
+    internal static partial class BufferSliceExtensions
     {
         #region Read Extensions
 
@@ -83,14 +81,6 @@ namespace LiteDB
             return ReadObjectId(span);
         }
 
-        public static Guid ReadGuid(this BufferSlice buffer, int offset)
-        {
-            buffer.EnsureReadable();
-            var span = new ReadOnlySpan<byte>(buffer.Array, buffer.Offset + offset, 16);
-
-            return ReadGuid(span);
-        }
-
         internal static ObjectId ReadObjectId(ReadOnlySpan<byte> span)
         {
             ENSURE(span.Length >= 12, "span must contain at least 12 bytes");
@@ -114,13 +104,6 @@ namespace LiteDB
                 span[11];
 
             return new ObjectId(timestamp, machine, pid, increment);
-        }
-
-        internal static Guid ReadGuid(ReadOnlySpan<byte> span)
-        {
-            ENSURE(span.Length >= 16, "span must contain at least 16 bytes");
-
-            return MemoryMarshal.Read<Guid>(span);
         }
 
         public static byte[] ReadBytes(this BufferSlice buffer, int offset, int count)
@@ -316,21 +299,6 @@ namespace LiteDB
             buffer.EnsureWritable();
             value.PageID.ToBytes(buffer.Array, buffer.Offset + offset);
             buffer[offset + 4] = value.Index;
-        }
-
-        public static void Write(this BufferSlice buffer, Guid value, int offset)
-        {
-            buffer.EnsureWritable();
-            var span = new Span<byte>(buffer.Array, buffer.Offset + offset, 16);
-
-#if NET8_0_OR_GREATER
-            if (!value.TryWriteBytes(span))
-            {
-                throw new InvalidOperationException("Failed to write Guid into span.");
-            }
-#else
-            Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(span), value);
-#endif
         }
 
         public static void Write(this BufferSlice buffer, float[] value, int offset)
