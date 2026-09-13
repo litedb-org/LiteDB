@@ -44,12 +44,39 @@ namespace LiteDB.Tests.Document
             oid1.Equals(oid0).Should().BeFalse();
         }
 
+        [Theory]
+        [InlineData("000000000000000000000000")]
+        [InlineData("0123456789abcdefABCDEF01")]
+        [InlineData("FFFFFFFFFFFFFFFFFFFFFFFF")]
+        public void ObjectId_Hex_RoundTrips_Valid_Values(string hex)
+        {
+            var objectId = new ObjectId(hex);
+            var formatted = objectId.ToString();
+
+            formatted.Should().Be(hex.ToLowerInvariant());
+            new ObjectId(formatted).Should().Be(objectId);
+        }
+
+        [Theory]
+        [InlineData("00000000000000000000000g")]
+        [InlineData("z123456789abcdefabcdef01")]
+        public void ObjectId_FromHex_Rejects_Invalid_Characters(string hex)
+        {
+            var parse = () => new ObjectId(hex);
+
+            parse.Should().Throw<FormatException>();
+        }
+
+#if NET8_0_OR_GREATER
         [Fact]
         public void ObjectId_ToString_Minimizes_Allocations()
         {
             var objectId = ObjectId.NewObjectId();
 
-            objectId.ToString();
+            for (var i = 0; i < 10; i++)
+            {
+                objectId.ToString();
+            }
 
             GC.Collect();
             GC.WaitForPendingFinalizers();
@@ -60,7 +87,7 @@ namespace LiteDB.Tests.Document
             var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
             hex.Should().HaveLength(24);
-            allocated.Should().BeLessThan(220);
+            allocated.Should().BeLessThan(128);
         }
 
         [Fact]
@@ -69,7 +96,10 @@ namespace LiteDB.Tests.Document
             var original = ObjectId.NewObjectId();
             var hex = original.ToString();
 
-            _ = new ObjectId(hex);
+            for (var i = 0; i < 10; i++)
+            {
+                _ = new ObjectId(hex);
+            }
 
             GC.Collect();
             GC.WaitForPendingFinalizers();
@@ -82,5 +112,6 @@ namespace LiteDB.Tests.Document
             parsed.Should().Be(original);
             allocated.Should().BeLessThan(220);
         }
+#endif
     }
 }

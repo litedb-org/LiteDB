@@ -223,11 +223,13 @@ namespace LiteDB
         public override string ToString()
         {
 #if NET8_0_OR_GREATER
-            Span<byte> buffer = stackalloc byte[ObjectIdByteLength];
+            return string.Create(ObjectIdStringLength, this, static (chars, objectId) =>
+            {
+                Span<byte> buffer = stackalloc byte[ObjectIdByteLength];
 
-            this.WriteBytes(buffer);
-
-            return Convert.ToHexString(buffer).ToLowerInvariant();
+                objectId.WriteBytes(buffer);
+                WriteHexLower(buffer, chars);
+            });
 #else
             Span<byte> buffer = stackalloc byte[ObjectIdByteLength];
 
@@ -270,7 +272,6 @@ namespace LiteDB
             destination[11] = (byte)(this.Increment);
         }
 
-#if !NET8_0_OR_GREATER
         private static void WriteHexLower(ReadOnlySpan<byte> source, Span<char> destination)
         {
             if (destination.Length < ObjectIdStringLength)
@@ -291,6 +292,7 @@ namespace LiteDB
             return (char)(value < 10 ? '0' + value : 'a' + (value - 10));
         }
 
+#if !NET8_0_OR_GREATER
         private static void WriteBytesFromHex(ReadOnlySpan<char> hex, Span<byte> destination)
         {
             if (destination.Length < ObjectIdByteLength)
