@@ -10,7 +10,7 @@ namespace LiteDB
     /// <summary>
     /// Storage is a special collection to store files and streams.
     /// </summary>
-    public class LiteStorage<TFileId> : ILiteStorage<TFileId>
+    public partial class LiteStorage<TFileId> : ILiteStorage<TFileId>
     {
         private readonly ILiteDatabase _db;
         private readonly ILiteCollection<LiteFileInfo<TFileId>> _files;

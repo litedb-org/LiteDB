@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using static LiteDB.Constants;
 
 namespace LiteDB
@@ -17,6 +18,7 @@ namespace LiteDB
         private readonly LiteFileInfo<TFileId> _file;
         private readonly BsonValue _fileId;
         private readonly FileAccess _mode;
+        private readonly Action<bool> _complete;
 
         private long _streamPosition = 0;
         private int _currentChunkIndex = 0;
@@ -24,20 +26,32 @@ namespace LiteDB
         private int _positionInChunk = 0;
         private MemoryStream _buffer;
 
-        internal LiteFileStream(ILiteCollection<LiteFileInfo<TFileId>> files, ILiteCollection<BsonDocument> chunks, LiteFileInfo<TFileId> file, BsonValue fileId, FileAccess mode)
+        internal LiteFileStream(
+            ILiteCollection<LiteFileInfo<TFileId>> files,
+            ILiteCollection<BsonDocument> chunks,
+            LiteFileInfo<TFileId> file,
+            BsonValue fileId,
+            FileAccess mode,
+            bool append = false,
+            Action<bool> complete = null)
         {
             _files = files;
             _chunks = chunks;
             _file = file;
             _fileId = fileId;
             _mode = mode;
+            _complete = complete;
 
             if (mode == FileAccess.Read)
             {
                 // initialize first data block
                 _currentChunkData = this.GetChunkData(_currentChunkIndex);
             }
-            else if(mode == FileAccess.Write)
+            else if (append)
+            {
+                this.InitializeAppend();
+            }
+            else if (mode == FileAccess.Write)
             {
                 _buffer = new MemoryStream(MAX_CHUNK_SIZE);
 
@@ -99,20 +113,53 @@ namespace LiteDB
         #region Dispose
 
         private bool _disposed = false;
+        private bool _failed = false;
 
         protected override void Dispose(bool disposing)
         {
-            base.Dispose(disposing);
-
             if (_disposed) return;
 
-            if (disposing && this.CanWrite)
+            Exception error = null;
+
+            if (disposing && this.CanWrite && !_failed)
             {
-                this.Flush();
-                _buffer?.Dispose();
+                try
+                {
+                    this.Flush();
+                }
+                catch (Exception ex)
+                {
+                    _failed = true;
+                    error = ex;
+                }
+            }
+
+            _buffer?.Dispose();
+
+            if (disposing && _complete != null)
+            {
+                try
+                {
+                    _complete(!_failed);
+                }
+                catch (Exception ex)
+                {
+                    error = error == null ? ex : new AggregateException(error, ex);
+                }
             }
 
             _disposed = true;
+            base.Dispose(disposing);
+
+            if (error != null)
+            {
+                ExceptionDispatchInfo.Capture(error).Throw();
+            }
+        }
+
+        internal void Abort()
+        {
+            _failed = true;
         }
 
         #endregion
