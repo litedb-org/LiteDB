@@ -4,109 +4,289 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
+using System.Text.RegularExpressions;
+using static LiteDB.Constants;
 
 namespace LiteDB
 {
-    public partial class BsonExpression
+    internal partial class BsonExpressionMethods
     {
         /// <summary>
-        /// Return lower case from string value. Support multiple values (only string)
+        /// Return lower case from string value
         /// </summary>
-        public static IEnumerable<BsonValue> LOWER(IEnumerable<BsonValue> values)
+        public static BsonValue LOWER(BsonValue value)
         {
-            foreach (var value in values)
+            if (value.IsString)
             {
-                if (value.IsString)
+                return value.AsString.ToLowerInvariant();
+            }
+
+            return BsonValue.Null;
+        }
+
+        /// <summary>
+        /// Return UPPER case from string value
+        /// </summary>
+        public static BsonValue UPPER(BsonValue value)
+        {
+            if (value.IsString)
+            {
+                return value.AsString.ToUpperInvariant();
+            }
+
+            return BsonValue.Null;
+        }
+
+        /// <summary>
+        /// Apply Left TRIM (start) from string value
+        /// </summary>
+        public static BsonValue LTRIM(BsonValue value)
+        {
+            if (value.IsString)
+            {
+                return value.AsString.TrimStart();
+            }
+
+            return BsonValue.Null;
+        }
+
+        /// <summary>
+        /// Apply Right TRIM (end) from string value
+        /// </summary>
+        public static BsonValue RTRIM(BsonValue value)
+        {
+            if (value.IsString)
+            {
+                return value.AsString.TrimEnd();
+            }
+
+            return BsonValue.Null;
+
+        }
+
+        /// <summary>
+        /// Apply TRIM from string value
+        /// </summary>
+        public static BsonValue TRIM(BsonValue value)
+        {
+            if (value.IsString)
+            {
+                return value.AsString.Trim();
+            }
+
+            return BsonValue.Null;
+        }
+
+        /// <summary>
+        /// Reports the zero-based index of the first occurrence of the specified string in this instance
+        /// </summary>
+        public static BsonValue INDEXOF(BsonValue value, BsonValue search)
+        {
+            if (value.IsString && search.IsString)
+            {
+                return value.AsString.IndexOf(search.AsString);
+            }
+
+            return BsonValue.Null;
+        }
+
+        /// <summary>
+        /// Reports the zero-based index of the first occurrence of the specified string in this instance
+        /// </summary>
+        public static BsonValue INDEXOF(BsonValue value, BsonValue search, BsonValue startIndex)
+        {
+            if (value.IsString && search.IsString && startIndex.IsNumber)
+            {
+                return value.AsString.IndexOf(search.AsString, startIndex.AsInt32);
+            }
+
+            return BsonValue.Null;
+        }
+
+        /// <summary>
+        /// Returns substring from string value using index and length (zero-based)
+        /// </summary>
+        public static BsonValue SUBSTRING(BsonValue value, BsonValue startIndex)
+        {
+            if (value.IsString && startIndex.IsNumber)
+            {
+                return value.AsString.Substring(startIndex.AsInt32);
+            }
+
+            return BsonValue.Null;
+        }
+
+        /// <summary>
+        /// Returns substring from string value using index and length (zero-based)
+        /// </summary>
+        public static BsonValue SUBSTRING(BsonValue value, BsonValue startIndex, BsonValue length)
+        {
+            if (value.IsString && startIndex.IsNumber && length.IsNumber)
+            {
+                return value.AsString.Substring(startIndex.AsInt32, length.AsInt32);
+            }
+
+            return BsonValue.Null;
+        }
+
+        /// <summary>
+        /// Returns replaced string changing oldValue with newValue
+        /// </summary>
+        public static BsonValue REPLACE(BsonValue value, BsonValue oldValue, BsonValue newValue)
+        {
+            if (value.IsString && oldValue.IsString && newValue.IsString)
+            {
+                return value.AsString.Replace(oldValue.AsString, newValue.AsString);
+            }
+
+            return BsonValue.Null;
+        }
+
+        /// <summary>
+        /// Return value string with left padding
+        /// </summary>
+        public static BsonValue LPAD(BsonValue value, BsonValue totalWidth, BsonValue paddingChar)
+        {
+            if (value.IsString && totalWidth.IsNumber && paddingChar.IsString)
+            {
+                var c = paddingChar.AsString;
+
+                if (string.IsNullOrEmpty(c)) throw new ArgumentOutOfRangeException(nameof(paddingChar));
+
+                return value.AsString.PadLeft(totalWidth.AsInt32, c[0]);
+            }
+
+            return BsonValue.Null;
+        }
+
+        /// <summary>
+        /// Return value string with right padding
+        /// </summary>
+        public static BsonValue RPAD(BsonValue value, BsonValue totalWidth, BsonValue paddingChar)
+        {
+            if (value.IsString && totalWidth.IsNumber && paddingChar.IsString)
+            {
+                var c = paddingChar.AsString;
+
+                if (string.IsNullOrEmpty(c)) throw new ArgumentOutOfRangeException(nameof(paddingChar));
+
+                return value.AsString.PadRight(totalWidth.AsInt32, c[0]);
+            }
+
+            return BsonValue.Null;
+        }
+
+        /// <summary>
+        /// Slit value string based on separator 
+        /// </summary>
+        public static IEnumerable<BsonValue> SPLIT(BsonValue value, BsonValue separator)
+        {
+            if (value.IsString && separator.IsString)
+            {
+                var values = value.AsString.Split(new string[] { separator.AsString }, StringSplitOptions.RemoveEmptyEntries);
+
+                foreach (var str in values)
                 {
-                    yield return value.AsString.ToLower();
+                    yield return str;
                 }
             }
         }
 
         /// <summary>
-        /// Return UPPER case from string value. Support multiple values (only string)
+        /// Slit value string based on regular expression pattern
         /// </summary>
-        public static IEnumerable<BsonValue> UPPER(IEnumerable<BsonValue> values)
+        public static IEnumerable<BsonValue> SPLIT(BsonValue value, BsonValue pattern, BsonValue useRegex)
         {
-            foreach (var value in values)
+            if (useRegex.IsBoolean && useRegex.AsBoolean)
             {
-                if (value.IsString)
+                if (value.IsString && pattern.IsString)
                 {
-                    yield return value.AsString.ToUpper();
+                    var values = Regex.Split(value.AsString, pattern.AsString, RegexOptions.Compiled);
+
+                    foreach (var str in values)
+                    {
+                        yield return str;
+                    }
+                }
+            }
+            else
+            {
+                foreach(var str in SPLIT(value, pattern))
+                {
+                    yield return str;
                 }
             }
         }
 
         /// <summary>
-        /// Returns substring from string value using index and length (zero-based). Support multiple values (only string)
+        /// Return format value string using format definition (same as String.Format("{0:~}", values)).
         /// </summary>
-        public static IEnumerable<BsonValue> SUBSTRING(IEnumerable<BsonValue> values, IEnumerable<BsonValue> index)
+        public static BsonValue FORMAT(BsonValue value, BsonValue format)
         {
-            var idx = index?.Where(x => x.IsInt32).FirstOrDefault()?.AsInt32 ?? 0;
-
-            foreach (var value in values)
+            if (format.IsString)
             {
-                if (value.IsString)
-                {
-                    yield return value.AsString.Substring(idx);
-                }
+                return string.Format("{0:" +  format.AsString + "}", value.RawValue);
             }
+
+            return BsonValue.Null;
         }
 
         /// <summary>
-        /// Returns substring from string value using index and length (zero-based). Support multiple values (only string)
+        /// Join all values into a single string with ',' separator.
         /// </summary>
-        public static IEnumerable<BsonValue> SUBSTRING(IEnumerable<BsonValue> values, IEnumerable<BsonValue> index, IEnumerable<BsonValue> length)
+        public static BsonValue JOIN(IEnumerable<BsonValue> values)
         {
-            var idx = index?.Where(x => x.IsInt32).FirstOrDefault()?.AsInt32 ?? 0;
-            var len = length?.Where(x => x.IsInt32).FirstOrDefault()?.AsInt32 ?? 0;
-
-            foreach (var value in values)
-            {
-                if (value.IsString)
-                {
-                    yield return value.AsString.Substring(idx, len);
-                }
-            }
+            return JOIN(values, "");
         }
 
         /// <summary>
-        /// Return value string with left padding. Support multiple values (only string)
+        /// Join all values into a single string with a string separator
         /// </summary>
-        public static IEnumerable<BsonValue> LPAD(IEnumerable<BsonValue> values, IEnumerable<BsonValue> totalWidth, IEnumerable<BsonValue> paddingChar)
+        public static BsonValue JOIN(IEnumerable<BsonValue> values, BsonValue separator)
         {
-            var width = totalWidth?.Where(x => x.IsInt32).FirstOrDefault()?.AsInt32 ?? 0;
-            var pchar = paddingChar?.Where(x => x.IsString).FirstOrDefault()?.AsString.ToCharArray()[0] ?? '0';
-
-            foreach (var value in values)
+            if (separator.IsString)
             {
-                yield return value.AsString.PadLeft(width, pchar);
+                return string.Join(
+                    separator.AsString,
+                    values.Select(x => STRING(x).AsString).ToArray()
+                );
             }
-        }
 
-
-        /// <summary>
-        /// Return value string with right padding. Support multiple values (only string)
-        /// </summary>
-        public static IEnumerable<BsonValue> RPAD(IEnumerable<BsonValue> values, IEnumerable<BsonValue> totalWidth, IEnumerable<BsonValue> paddingChar)
-        {
-            var width = totalWidth?.Where(x => x.IsInt32).FirstOrDefault()?.AsInt32 ?? 0;
-            var pchar = paddingChar?.Where(x => x.IsString).FirstOrDefault()?.AsString.ToCharArray()[0] ?? '0';
-
-            foreach (var value in values)
-            {
-                yield return value.AsString.PadRight(width, pchar);
-            }
+            return BsonValue.Null;
         }
 
         /// <summary>
-        /// Return format value string using format definition (same as String.Format("{0:~}", values)). Support multiple values (only string)
+        /// Test if value is match with regular expression pattern
         /// </summary>
-        public static IEnumerable<BsonValue> FORMAT(IEnumerable<BsonValue> values, IEnumerable<BsonValue> format)
+        public static BsonValue IS_MATCH(BsonValue value, BsonValue pattern)
         {
-            foreach (var value in values.ZipValues(format).Where(x => x.Second.IsString))
+            if (value.IsString == false || pattern.IsString == false) return false;
+
+            return Regex.IsMatch(value.AsString, pattern.AsString);
+        }
+
+        /// <summary>
+        /// Apply regular expression pattern over value to get group data. Return null if not found
+        /// </summary>
+        public static BsonValue MATCH(BsonValue value, BsonValue pattern, BsonValue group)
+        {
+            if (value.IsString == false || pattern.IsString == false) return null;
+
+            var match = Regex.Match(value.AsString, pattern.AsString);
+
+            if (match.Success == false) return BsonValue.Null;
+
+            if (group.IsNumber)
             {
-                yield return string.Format("{0:" + value.Second.AsString + "}", value.First.RawValue);
+                return match.Groups[group.AsInt32].Value;
+            }
+            else if (group.IsString)
+            {
+                return match.Groups[group.AsString].Value;
+            }
+            else
+            {
+                return BsonValue.Null;
             }
         }
     }

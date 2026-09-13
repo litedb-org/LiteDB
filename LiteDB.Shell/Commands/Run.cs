@@ -4,7 +4,6 @@ using System.IO;
 namespace LiteDB.Shell.Commands
 {
     [Help(
-        Category = "Shell",
         Name = "run",
         Syntax = "run <filename>",
         Description = "Queue shell commands inside filename to be run in order.",
@@ -21,7 +20,7 @@ namespace LiteDB.Shell.Commands
 
         public void Execute(StringScanner s, Env env)
         {
-            if (env.Engine == null) throw ShellException.NoDatabase();
+            if (env.Database == null) throw new Exception("Database not connected");
 
             var filename = s.Scan(@".+").Trim();
 

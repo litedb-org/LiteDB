@@ -4,127 +4,154 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
+using static LiteDB.Constants;
 
 namespace LiteDB
 {
-    public partial class BsonExpression
+    internal partial class BsonExpressionMethods
     {
         #region Year/Month/Day/Hour/Minute/Second
 
         /// <summary>
-        /// Get year from date. Support multiple values
+        /// Get year from date
         /// </summary>
-        public static IEnumerable<BsonValue> YEAR(IEnumerable<BsonValue> values)
+        public static BsonValue YEAR(BsonValue value)
         {
-            foreach (var value in values.Where(x => x.IsDateTime).Select(x => x.AsDateTime))
-            {
-                yield return value.Year;
-            }
+            if (value.IsDateTime) return value.AsDateTime.Year;
+
+            return BsonValue.Null;
         }
 
         /// <summary>
-        /// Get month from date. Support multiple values
+        /// Get month from date
         /// </summary>
-        public static IEnumerable<BsonValue> MONTH(IEnumerable<BsonValue> values)
+        public static BsonValue MONTH(BsonValue value)
         {
-            foreach (var value in values.Where(x => x.IsDateTime).Select(x => x.AsDateTime))
-            {
-                yield return value.Month;
-            }
+            if (value.IsDateTime) return value.AsDateTime.Month;
+
+            return BsonValue.Null;
         }
 
         /// <summary>
-        /// Get day from date. Support multiple values
+        /// Get day from date
         /// </summary>
-        public static IEnumerable<BsonValue> DAY(IEnumerable<BsonValue> values)
+        public static BsonValue DAY(BsonValue value)
         {
-            foreach (var value in values.Where(x => x.IsDateTime).Select(x => x.AsDateTime))
-            {
-                yield return value.Day;
-            }
+            if (value.IsDateTime) return value.AsDateTime.Day;
+
+            return BsonValue.Null;
+
         }
 
         /// <summary>
-        /// Get hour from date. Support multiple values
+        /// Get hour from date
         /// </summary>
-        public static IEnumerable<BsonValue> HOUR(IEnumerable<BsonValue> values)
+        public static BsonValue HOUR(BsonValue value)
         {
-            foreach (var value in values.Where(x => x.IsDateTime).Select(x => x.AsDateTime))
-            {
-                yield return value.Hour;
-            }
+            if (value.IsDateTime) return value.AsDateTime.Hour;
+
+            return BsonValue.Null;
         }
 
         /// <summary>
-        /// Get minute from date. Support multiple values
+        /// Get minute from date
         /// </summary>
-        public static IEnumerable<BsonValue> MINUTE(IEnumerable<BsonValue> values)
+        public static BsonValue MINUTE(BsonValue value)
         {
-            foreach (var value in values.Where(x => x.IsDateTime).Select(x => x.AsDateTime))
-            {
-                yield return value.Minute;
-            }
+            if (value.IsDateTime) return value.AsDateTime.Minute;
+
+            return BsonValue.Null;
+
         }
 
         /// <summary>
-        /// Get seconds from date. Support multiple values
+        /// Get seconds from date
         /// </summary>
-        public static IEnumerable<BsonValue> SECOND(IEnumerable<BsonValue> values)
+        public static BsonValue SECOND(BsonValue value)
         {
-            foreach (var value in values.Where(x => x.IsDateTime).Select(x => x.AsDateTime))
-            {
-                yield return value.Second;
-            }
+            if (value.IsDateTime) return value.AsDateTime.Second;
+
+            return BsonValue.Null;
         }
 
         #endregion
 
-        /// <summary>
-        /// Add an interval to date. Use dateParts: "y|year", "M|month", "d|day", "h|hour", "m|minute", "s|second". Support multi values
-        /// </summary>
-        public static IEnumerable<BsonValue> DATEADD(IEnumerable<BsonValue> dateParts, IEnumerable<BsonValue> numbers, IEnumerable<BsonValue> values)
-        {
-            foreach (var value in dateParts.ZipValues(numbers, values))
-            {
-                if (!value.First.IsString || !value.Second.IsNumber || !value.Third.IsDateTime) continue;
+        #region Date Functions
 
-                var datePart = value.First.AsString;
-                var number = value.Second.AsInt32;
-                var date = value.Third.AsDateTime;
+        /// <summary>
+        /// Add an interval to date. Use dateInterval: "y" (or "year"), "M" (or "month"), "d" (or "day"), "h" (or "hour"), "m" (or "minute"), "s" or ("second")
+        /// </summary>
+        public static BsonValue DATEADD(BsonValue dateInterval, BsonValue number, BsonValue value)
+        {
+            if (dateInterval.IsString && number.IsNumber && value.IsDateTime)
+            {
+                var datePart = dateInterval.AsString;
+                var numb = number.AsInt32;
+                var date = value.AsDateTime;
 
                 datePart = datePart == "M" ? "month" : datePart.ToLower();
 
-                if (datePart == "y" || datePart== "year") yield return date.AddYears(number);
-                else if (datePart == "month") yield return date.AddMonths(number);
-                else if (datePart == "d" || datePart == "day") yield return date.AddDays(number);
-                else if (datePart == "h" || datePart == "hour") yield return date.AddHours(number);
-                else if (datePart == "m" || datePart == "minute") yield return date.AddMinutes(number);
-                else if (datePart == "s" || datePart == "second") yield return date.AddSeconds(number);
+                if (datePart == "y" || datePart == "year") return date.AddYears(numb);
+                else if (datePart == "month") return date.AddMonths(numb);
+                else if (datePart == "d" || datePart == "day") return date.AddDays(numb);
+                else if (datePart == "h" || datePart == "hour") return date.AddHours(numb);
+                else if (datePart == "m" || datePart == "minute") return date.AddMinutes(numb);
+                else if (datePart == "s" || datePart == "second") return date.AddSeconds(numb);
             }
+
+            return BsonValue.Null;
         }
 
         /// <summary>
-        /// Returns an interval about 2 dates. Use dateParts: "y|year", "M|month", "d|day", "h|hour", "m|minute", "s|second". Support multi values
+        /// Returns an interval about 2 dates. Use dateInterval: "y|year", "M|month", "d|day", "h|hour", "m|minute", "s|second"
         /// </summary>
-        public static IEnumerable<BsonValue> DATEDIFF(IEnumerable<BsonValue> dateParts, IEnumerable<BsonValue> starts, IEnumerable<BsonValue> ends)
+        public static BsonValue DATEDIFF(BsonValue dateInterval, BsonValue starts, BsonValue ends)
         {
-            foreach (var value in dateParts.ZipValues(starts, ends))
-            {
-                if (!value.First.IsString || !value.Second.IsDateTime || !value.Third.IsDateTime) continue;
-
-                var datePart = value.First.AsString;
-                var start = value.Second.AsDateTime;
-                var end = value.Third.AsDateTime;
+            if (dateInterval.IsString && starts.IsDateTime && ends.IsDateTime)
+            { 
+                var datePart = dateInterval.AsString;
+                var start = starts.AsDateTime;
+                var end = ends.AsDateTime;
 
                 datePart = datePart == "M" ? "month" : datePart.ToLower();
 
-                if (datePart == "y" || datePart == "year") yield return start.YearDifference(end);
-                else if (datePart == "month") yield return start.MonthDifference(end);
-                else if (datePart == "d" || datePart == "day") yield return Convert.ToInt32(Math.Truncate(end.Subtract(start).TotalDays));
-                else if (datePart == "h" || datePart == "hour") yield return Convert.ToInt32(Math.Truncate(end.Subtract(start).TotalHours));
-                else if (datePart == "m" || datePart == "minute") yield return Convert.ToInt32(Math.Truncate(end.Subtract(start).TotalMinutes));
-                else if (datePart == "s" || datePart == "second") yield return Convert.ToInt32(Math.Truncate(end.Subtract(start).TotalSeconds));
+                if (datePart == "y" || datePart == "year") return start.YearDifference(end);
+                else if (datePart == "month") return start.MonthDifference(end);
+                else if (datePart == "d" || datePart == "day") return Convert.ToInt32(Math.Truncate(end.Subtract(start).TotalDays));
+                else if (datePart == "h" || datePart == "hour") return Convert.ToInt32(Math.Truncate(end.Subtract(start).TotalHours));
+                else if (datePart == "m" || datePart == "minute") return Convert.ToInt32(Math.Truncate(end.Subtract(start).TotalMinutes));
+                else if (datePart == "s" || datePart == "second") return Convert.ToInt32(Math.Truncate(end.Subtract(start).TotalSeconds));
             }
+
+            return BsonValue.Null;
         }
+
+        /// <summary>
+        /// Convert UTC date into LOCAL date
+        /// </summary>
+        public static BsonValue TO_LOCAL(BsonValue date)
+        {
+            if (date.IsDateTime)
+            {
+                return date.AsDateTime.ToLocalTime();
+            }
+
+            return BsonValue.Null;
+        }
+
+        /// <summary>
+        /// Convert LOCAL date into UTC date
+        /// </summary>
+        public static BsonValue TO_UTC(BsonValue date)
+        {
+            if (date.IsDateTime)
+            {
+                return date.AsDateTime.ToUniversalTime();
+            }
+
+            return BsonValue.Null;
+        }
+
+        #endregion
     }
 }

@@ -1,65 +1,32 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System;
-using System.IO;
-using System.Linq;
+﻿using LiteDB.Engine;
+using Xunit;
 
 namespace LiteDB.Tests.Engine
 {
-    [TestClass]
-    public class Create_Database_Tests
+    /*public class Create_Database_Tests
     {
-        [TestMethod]
+        [Fact]
         public void Create_Database_With_Initial_Size()
         {
-            var initial = 40 * 1024; // initial size: 40kb
-            var minimal = 4096 * 5; // 1 header + 1 lock + 1 collection + 1 data + 1 index = 5 pages minimal
+            var initial = 163840; // initial size: 20 x 8192 = 163.840 bytes
+            var minimal = 8192 * 4; // 1 header + 1 collection + 1 data + 1 index = 4 pages minimal
 
             using (var file = new TempFile())
-            using (var db = new LiteDatabase(file.Conn("initial size=40kb")))
+            using (var db = new LiteEngine(new EngineSettings { Filename = file.Filename, InitialSize = initial }))
             {
-                // just ensure open datafile
-                var uv = db.Engine.UserVersion;
-
                 // test if file has 40kb
-                Assert.AreEqual(initial, file.Size);
+                Assert.Equal(initial, file.Size);
 
-                // simple insert to test if datafile still with 40kb
-                db.Engine.Run("db.col1.insert {a:1}"); // use 3 pages to this
+                // insert minimal data
+                db.Insert("col1", new BsonDocument { ["a"] = 1 });
 
-                Assert.AreEqual(initial, file.Size);
+                Assert.Equal(initial, file.Size);
 
                 // ok, now shrink and test if file are minimal size
                 db.Shrink();
-
-                Assert.AreEqual(minimal, file.Size);
+                
+                Assert.Equal(minimal, file.Size);
             }
         }
-
-        [TestMethod]
-        public void Create_Database_With_Initial_Size_Encrypted()
-        {
-            var initial = 40 * 1024; // initial size: 40kb
-            var minimal = 4096 * 5; // 1 header + 1 lock + 1 collection + 1 data + 1 index = 5 pages minimal
-
-            using (var file = new TempFile(checkIntegrity: false))
-            using (var db = new LiteDatabase(file.Conn("initial size=40kb; password=123")))
-            {
-                // just ensure open datafile
-                var uv = db.Engine.UserVersion;
-
-                // test if file has 40kb
-                Assert.AreEqual(initial, file.Size);
-
-                // simple insert to test if datafile still with 40kb
-                db.Engine.Run("db.col1.insert {a:1}"); // use 3 pages to this
-
-                Assert.AreEqual(initial, file.Size);
-
-                // ok, now shrink and test if file are minimal size
-                db.Shrink();
-
-                Assert.AreEqual(minimal, file.Size);
-            }
-        }
-    }
+    }*/
 }

@@ -1,29 +1,35 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using FluentAssertions;
+using LiteDB.Tests.Utils;
+using Xunit;
 
 namespace LiteDB.Tests.Database
 {
-    #region Model
-
-    public class MultiKeyDoc
-    {
-        public int Id { get; set; }
-        public int[] Keys { get; set; }
-        public List<Customer> Customers { get; set; }
-    }
-
-    #endregion
-
-    [TestClass]
     public class MultiKey_Mapper_Tests
     {
-        [TestMethod]
+        #region Model
+
+        public class MultiKeyDoc
+        {
+            public int Id { get; set; }
+            public int[] Keys { get; set; }
+            public List<Customer> Customers { get; set; }
+        }
+
+        public class Customer
+        {
+            public string Login { get; set; }
+            public string Name { get; set; }
+        }
+
+        #endregion
+
+        [Fact]
         public void MultiKey_Mapper()
         {
-            using (var file = new TempFile())
-            using (var db = new LiteDatabase(file.Filename))
+            using (var db = DatabaseFactory.Create())
             {
                 var col = db.GetCollection<MultiKeyDoc>("col");
 
@@ -35,7 +41,8 @@ namespace LiteDB.Tests.Database
                     {
                         new Customer { Name = "John" },
                         new Customer { Name = "Ana" },
-                        new Customer { Name = "Doe" }
+                        new Customer { Name = "Doe" },
+                        new Customer { Name = "Dante" }
                     }
                 });
 
@@ -53,11 +60,18 @@ namespace LiteDB.Tests.Database
                 col.EnsureIndex(x => x.Customers.Select(z => z.Name));
 
                 // Query.EQ("Keys", 2)
-                Assert.AreEqual(2, col.Count(x => x.Keys.Contains(2)));
+                col.Count(Query.Any().EQ("Keys", 2)).Should().Be(2);
+                col.Count(x => x.Keys.Contains(2)).Should().Be(2);
 
-                // Query.StartsWith("Customers.Name", "Ana");
-                Assert.AreEqual(2, col.Count(x => x.Customers.Any(z => z.Name.StartsWith("Ana"))));
+                col.Count(Query.Any().StartsWith("Customers[*].Name", "An")).Should().Be(2);
+                col.Count(Query.Any().EndsWith("Customers[*].Name", "na")).Should().Be(2);
+                col.Count(Query.Any().Contains("Customers[*].Name", "Ana")).Should().Be(2);
+                col.Count(x => x.Customers.Select(z => z.Name).Any(z => z.StartsWith("An"))).Should().Be(2);
+                col.Count(x => x.Customers.Select(z => z.Name).Any(z => z.EndsWith("na"))).Should().Be(2);
+                col.Count(x => x.Customers.Select(z => z.Name).Any(z => z.Contains("Ana"))).Should().Be(2);
 
+                col.Count(Query.Any().StartsWith("Customers[*].Name", "D")).Should().Be(1);
+                col.Count(x => x.Customers.Select(z => z.Name).Any(z => z.StartsWith("D"))).Should().Be(1);
             }
         }
     }

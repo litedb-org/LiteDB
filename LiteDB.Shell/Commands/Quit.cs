@@ -3,7 +3,6 @@
 namespace LiteDB.Shell.Commands
 {
     [Help(
-        Category = "Shell",
         Name = "quit",
         Syntax = "quit|exit",
         Description = "Close shell application"
@@ -17,7 +16,7 @@ namespace LiteDB.Shell.Commands
 
         public void Execute(StringScanner s, Env env)
         {
-            env.Close();
+            env.Database?.Dispose();
             env.Input.Running = false;
         }
     }

@@ -1,73 +1,116 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
+using static LiteDB.Constants;
 
-namespace LiteDB
+namespace LiteDB.Engine
 {
     public partial class LiteEngine
     {
         /// <summary>
-        /// Implement delete command based on _id value. Returns true if deleted
+        /// Implements delete based on IDs enumerable
         /// </summary>
-        public bool Delete(string collection, BsonValue id)
-        {
-            return this.Delete(collection, Query.EQ("_id", id)) == 1;
-        }
-
-        /// <summary>
-        /// Implements delete based on a query result
-        /// </summary>
-        public int Delete(string collection, Query query)
+        public int Delete(string collection, IEnumerable<BsonValue> ids)
         {
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
-            if (query == null) throw new ArgumentNullException(nameof(query));
+            if (ids == null) throw new ArgumentNullException(nameof(ids));
 
-            return this.Transaction<int>(collection, false, (col) =>
+            return this.AutoTransaction(transaction =>
             {
-                if (col == null) return 0;
+                var snapshot = transaction.CreateSnapshot(LockMode.Write, collection, false);
+                var collectionPage = snapshot.CollectionPage;
+                var data = new DataService(snapshot, _disk.MAX_ITEMS_COUNT);
+                var indexer = new IndexService(snapshot, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
+                var vectorService = new VectorIndexService(snapshot, _header.Pragmas.Collation);
 
-                _log.Write(Logger.COMMAND, "delete documents in '{0}'", collection);
+                if (collectionPage == null) return 0;
 
-                var nodes = query.Run(col, _indexer);
-
-                _log.Write(Logger.QUERY, "{0} :: {1}", collection, query);
+                LOG($"delete `{collection}`", "COMMAND");
 
                 var count = 0;
+                var pk = collectionPage.PK;
 
-                foreach (var node in nodes)
+                foreach (var id in ids)
                 {
-                    // checks if cache are full
-                    _trans.CheckPoint();
+                    var pkNode = indexer.Find(pk, id, false, LiteDB.Query.Ascending);
 
-                    // if use filter need deserialize document
-                    if (query.UseFilter)
+                    // if pk not found, continue
+                    if (pkNode == null)
                     {
-                        var buffer = _data.Read(node.DataBlock);
-                        var doc = _bsonReader.Deserialize(buffer).AsDocument;
-
-                        if (query.FilterDocument(doc) == false) continue;
+                        transaction.Safepoint();
+                        continue;
                     }
 
-                    _log.Write(Logger.COMMAND, "delete document :: _id = {0}", node.Key.RawValue);
+                    _state.Validate();
 
-                    // get all indexes nodes from this data block
-                    var allNodes = _indexer.GetNodeList(node, true).ToArray();
-
-                    // lets remove all indexes that point to this in dataBlock
-                    foreach (var linkNode in allNodes)
+                    foreach (var (_, metadata) in collectionPage.GetVectorIndexes())
                     {
-                        var index = col.Indexes[linkNode.Slot];
-
-                        _indexer.Delete(index, linkNode.Position);
+                        vectorService.Delete(metadata, pkNode.DataBlock);
                     }
 
                     // remove object data
-                    _data.Delete(col, node.DataBlock);
+                    data.Delete(pkNode.DataBlock);
+
+                    // delete all nodes (start in pk node)
+                    indexer.DeleteAll(pkNode.Position);
+
+                    transaction.Safepoint();
 
                     count++;
                 }
 
                 return count;
             });
+        }
+
+        /// <summary>
+        /// Implements delete based on filter expression
+        /// </summary>
+        public int DeleteMany(string collection, BsonExpression predicate)
+        {
+            if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
+
+            // do optimization for when using "_id = value" key
+            if (predicate != null &&
+                predicate.Type == BsonExpressionType.Equal && 
+                predicate.Left.Type == BsonExpressionType.Path && 
+                predicate.Left.Source == "$._id" && 
+                predicate.Right.IsValue)
+            {
+                var id = predicate.Right.Execute(_header.Pragmas.Collation).First();
+
+                return this.Delete(collection, new BsonValue[] { id });
+            }
+            else
+            {
+                IEnumerable<BsonValue> getIds()
+                {
+                    // this is intresting: if _id returns an document (like in FileStorage) you can't run direct _id
+                    // field because "reader.Current" will return _id document - but not - { _id: [document] }
+                    // create inner document to ensure _id will be a document
+                    var query = new Query { Select = "{ i: _id }", ForUpdate = true };
+
+                    if(predicate != null)
+                    {
+                        query.Where.Add(predicate);
+                    }
+
+                    using (var reader = this.Query(collection, query))
+                    {
+                        while (reader.Read())
+                        {
+                            var value = reader.Current["i"];
+
+                            if (value != BsonValue.Null)
+                            {
+                                yield return value;
+                            }
+                        }
+                    }
+                }
+
+                return this.Delete(collection, getIds());
+            }
         }
     }
 }

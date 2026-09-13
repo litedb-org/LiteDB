@@ -1,31 +1,30 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System;
-using System.IO;
+﻿using System;
 using System.Linq;
+using FluentAssertions;
+using LiteDB.Tests.Utils;
+using Xunit;
 
 namespace LiteDB.Tests.Database
 {
-    #region Model
-
-    public class EntityMinMax
-    {
-        public int Id { get; set; }
-        public byte ByteValue { get; set; }
-        public int IntValue { get; set; }
-        public uint UintValue { get; set; }
-        public long LongValue { get; set; }
-    }
-
-    #endregion
-
-    [TestClass]
     public class Query_Min_Max_Tests
     {
-        [TestMethod]
+        #region Model
+
+        public class EntityMinMax
+        {
+            public int Id { get; set; }
+            public byte ByteValue { get; set; }
+            public int IntValue { get; set; }
+            public uint UintValue { get; set; }
+            public long LongValue { get; set; }
+        }
+
+        #endregion
+
+        [Fact]
         public void Query_Min_Max()
         {
-            using (var f = new TempFile())
-            using (var db = new LiteDatabase(f.Filename))
+            using (var db = DatabaseFactory.Create())
             {
                 var c = db.GetCollection<EntityMinMax>("col");
 
@@ -43,10 +42,10 @@ namespace LiteDB.Tests.Database
                 c.EnsureIndex(x => x.LongValue);
                 c.EnsureIndex(x => x.UintValue);
 
-                Assert.AreEqual(200, c.Max(x => x.ByteValue).AsInt32);
-                Assert.AreEqual(443500, c.Max(x => x.IntValue).AsInt32);
-                Assert.AreEqual(443500, c.Max(x => x.LongValue).AsInt64);
-                Assert.AreEqual(443500, c.Max(x => x.UintValue).AsInt32);
+                c.Max(x => x.ByteValue).Should().Be(200);
+                c.Max(x => x.IntValue).Should().Be(443500);
+                c.Max(x => x.LongValue).Should().Be(443500);
+                c.Max(x => x.UintValue).Should().Be(443500);
 
             }
         }

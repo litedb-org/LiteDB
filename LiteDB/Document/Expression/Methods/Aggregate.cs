@@ -4,69 +4,76 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
+using static LiteDB.Constants;
 
 namespace LiteDB
 {
-    public partial class BsonExpression
+    internal partial class BsonExpressionMethods
     {
         /// <summary>
         /// Count all values. Return a single value
         /// </summary>
-        public static IEnumerable<BsonValue> COUNT(IEnumerable<BsonValue> values)
+        public static BsonValue COUNT(IEnumerable<BsonValue> values)
         {
-            yield return values.Count();
+            return values.Count();
         }
 
         /// <summary>
         /// Find minimal value from all values (number values only). Return a single value
         /// </summary>
-        public static IEnumerable<BsonValue> MIN(IEnumerable<BsonValue> values)
+        public static BsonValue MIN(IEnumerable<BsonValue> values)
         {
             var min = BsonValue.MaxValue;
 
-            foreach(var value in values.Where(x => x.IsNumber))
+            foreach(var value in values)
             {
-                min = value < min ? value : min;
+                if (value.CompareTo(min) <= 0)
+                {
+                    min = value;
+                }
             }
 
-            yield return min == BsonValue.MaxValue ? BsonValue.MinValue : min;
+            return min == BsonValue.MaxValue ? BsonValue.MinValue : min;
         }
 
         /// <summary>
         /// Find max value from all values (number values only). Return a single value
         /// </summary>
-        public static IEnumerable<BsonValue> MAX(IEnumerable<BsonValue> values)
+        public static BsonValue MAX(IEnumerable<BsonValue> values)
         {
             var max = BsonValue.MinValue;
 
-            foreach (var value in values.Where(x => x.IsNumber))
+            foreach (var value in values)
             {
-                max = value > max ? value : max;
+                if (value.CompareTo(max) >= 0)
+                {
+                    max = value;
+                }
             }
 
-            yield return max == BsonValue.MinValue ? BsonValue.MaxValue : max;
+            return max == BsonValue.MinValue ? BsonValue.MaxValue : max;
         }
 
         /// <summary>
-        /// Returns first value from an list of values
+        /// Returns first value from an list of values (scan all source)
         /// </summary>
-        public static IEnumerable<BsonValue> FIRST(IEnumerable<BsonValue> values)
+        public static BsonValue FIRST(IEnumerable<BsonValue> values)
         {
-            yield return values.FirstOrDefault();
+            return values.FirstOrDefault();
         }
 
         /// <summary>
         /// Returns last value from an list of values
         /// </summary>
-        public static IEnumerable<BsonValue> LAST(IEnumerable<BsonValue> values)
+        public static BsonValue LAST(IEnumerable<BsonValue> values)
         {
-            yield return values.LastOrDefault();
+            return values.LastOrDefault();
         }
 
         /// <summary>
         /// Find average value from all values (number values only). Return a single value
         /// </summary>
-        public static IEnumerable<BsonValue> AVG(IEnumerable<BsonValue> values)
+        public static BsonValue AVG(IEnumerable<BsonValue> values)
         {
             var sum = new BsonValue(0);
             var count = 0;
@@ -79,14 +86,18 @@ namespace LiteDB
 
             if (count > 0)
             {
-                yield return sum / count;
+                return sum / count;
+            }
+            else
+            {
+                return 0;
             }
         }
 
         /// <summary>
         /// Sum all values (number values only). Return a single value
         /// </summary>
-        public static IEnumerable<BsonValue> SUM(IEnumerable<BsonValue> values)
+        public static BsonValue SUM(IEnumerable<BsonValue> values)
         {
             var sum = new BsonValue(0);
 
@@ -95,44 +106,16 @@ namespace LiteDB
                 sum += value;
             }
 
-            yield return sum;
+            return sum;
         }
 
         /// <summary>
-        /// Return "true" only if all values are true
-        /// ALL($.items[*] > 0)
+        /// Return "true" if inner collection contains any result
+        /// ANY($.items[*])
         /// </summary>
-        public static IEnumerable<BsonValue> ALL(IEnumerable<BsonValue> values)
+        public static BsonValue ANY(IEnumerable<BsonValue> values)
         {
-            foreach (var value in values.Where(x => x.IsBoolean).Select(x => x.AsBoolean))
-            {
-                if (value == false)
-                {
-                    yield return false;
-                    yield break;
-                }
-            }
-
-            yield return true;
-        }
-
-        /// <summary>
-        /// Join all values into a single string with ',' separator. Return a single value
-        /// </summary>
-        public static IEnumerable<BsonValue> JOIN(IEnumerable<BsonValue> values)
-        {
-            return JOIN(values, null);
-        }
-
-        /// <summary>
-        /// Join all values into a single string with a string separator. Return a single value
-        /// </summary>
-        public static IEnumerable<BsonValue> JOIN(IEnumerable<BsonValue> values, IEnumerable<BsonValue> separator = null)
-        {
-            yield return string.Join(
-                separator?.FirstOrDefault().AsString ?? ",",
-                values.Select(x => x.AsString).ToArray()
-            );
+            return values.Any(); 
         }
     }
 }

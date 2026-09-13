@@ -6,7 +6,6 @@ using System.Linq;
 namespace LiteDB.Shell.Commands
 {
     [Help(
-        Category = "Database",
         Name = "open",
         Syntax = "open <filename|connectionString>",
         Description = "Open (or create) a new datafile. Can be used a single filename or a connection string with all supported parameters.",
@@ -26,7 +25,13 @@ namespace LiteDB.Shell.Commands
         {
             var connectionString = new ConnectionString(s.Scan(@".+").TrimToNull());
 
-            env.Open(connectionString);
+            if (env.Database != null)
+            {
+                env.Database.Dispose();
+                env.Database = null;
+            }
+
+            env.Database = new LiteDatabase(connectionString);
         }
     }
 }

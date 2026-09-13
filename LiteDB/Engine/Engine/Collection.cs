@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
+using static LiteDB.Constants;
 
-namespace LiteDB
+namespace LiteDB.Engine
 {
     public partial class LiteEngine
     {
@@ -11,66 +13,76 @@ namespace LiteDB
         /// </summary>
         public IEnumerable<string> GetCollectionNames()
         {
-            using (_locker.Read())
-            {
-                var header = _pager.GetPage<HeaderPage>(0);
-
-                return header.CollectionPages.Keys.AsEnumerable();
-            }
+            return _header.GetCollections().Select(x => x.Key);
         }
 
         /// <summary>
-        /// Drop collection including all documents, indexes and extended pages
+        /// Drop collection including all documents, indexes and extended pages (do not support transactions)
         /// </summary>
-        public bool DropCollection(string collection)
+        public bool DropCollection(string name)
         {
-            if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
+            if (name.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(name));
 
-            return this.Transaction<bool>(collection, false, (col) =>
+            // drop collection is possible only in exclusive transaction for this
+            if (_locker.IsInTransaction) throw LiteException.AlreadyExistsTransaction();
+
+            return this.AutoTransaction(transaction =>
             {
-                if (col == null) return false;
+                var snapshot = transaction.CreateSnapshot(LockMode.Write, name, false);
 
-                _log.Write(Logger.COMMAND, "drop collection {0}", collection);
+                // if collection do not exist, just exit
+                if (snapshot.CollectionPage == null) return false;
 
-                _collections.Drop(col);
+                LOG($"drop collection `{name}`", "COMMAND");
+
+                // call drop collection service
+                snapshot.DropCollection(transaction.Safepoint);
+
+                // remove sequence number (if exists)
+                _sequences.TryRemove(name, out var dummy);
 
                 return true;
             });
         }
 
         /// <summary>
-        /// Rename a collection
+        /// Rename a collection (do not support transactions)
         /// </summary>
         public bool RenameCollection(string collection, string newName)
         {
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
             if (newName.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(newName));
 
-            return this.Transaction<bool>(collection, false, (col) =>
+            // rename collection is possible only in exclusive transaction for this
+            if (_locker.IsInTransaction) throw LiteException.AlreadyExistsTransaction();
+
+            // check for collection name
+            if (collection.Equals(newName, StringComparison.OrdinalIgnoreCase)) throw LiteException.InvalidCollectionName(newName, "New name must be different from current name");
+
+            // checks if newName are compatible
+            CollectionService.CheckName(newName, _header);
+
+            // rename collection is possible only in exclusive transaction for this
+            if (_locker.IsInTransaction) throw LiteException.AlreadyExistsTransaction();
+
+            return this.AutoTransaction(transaction =>
             {
-                if (col == null) return false;
+                var currentSnapshot = transaction.CreateSnapshot(LockMode.Write, collection, false);
+                var newSnapshot = transaction.CreateSnapshot(LockMode.Write, newName, false);
 
-                _log.Write(Logger.COMMAND, "rename collection '{0}' -> '{1}'", collection, newName);
+                if (currentSnapshot.CollectionPage == null) return false;
 
-                // check if newName already exists
-                if (this.GetCollectionNames().Contains(newName, StringComparer.OrdinalIgnoreCase))
+                // checks if do not already exists this collection name
+                if (_header.GetCollectionPageID(newName) != uint.MaxValue)
                 {
                     throw LiteException.AlreadyExistsCollectionName(newName);
                 }
 
-                // change collection name and save
-                col.CollectionName = newName;
-
-                // set collection page as dirty
-                _pager.SetDirty(col);
-
-                // update header collection reference
-                var header = _pager.GetPage<HeaderPage>(0);
-
-                header.CollectionPages.Remove(collection);
-                header.CollectionPages.Add(newName, col.PageID);
-
-                _pager.SetDirty(header);
+                // rename collection and set page as dirty (there is no need to set IsDirty in HeaderPage)
+                transaction.Pages.Commit += (h) =>
+                {
+                    h.RenameCollection(collection, newName);
+                };
 
                 return true;
             });

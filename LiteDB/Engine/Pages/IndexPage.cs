@@ -1,119 +1,87 @@
 ﻿using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using static LiteDB.Constants;
 
-namespace LiteDB
+namespace LiteDB.Engine
 {
+    /// <summary>
+    /// The IndexPage thats stores object data.
+    /// </summary>
     internal class IndexPage : BasePage
     {
         /// <summary>
-        /// Page type = Index
+        /// Read existing IndexPage in buffer
         /// </summary>
-        public override PageType PageType { get { return PageType.Index; } }
+        public IndexPage(PageBuffer buffer)
+            : base(buffer)
+        {
+            ENSURE(this.PageType == PageType.Index, "page type must be index page");
+
+            if (this.PageType != PageType.Index) throw LiteException.InvalidPageType(PageType.Index, this);
+        }
 
         /// <summary>
-        /// If a Index Page has less that this free space, it's considered full page for new items.
+        /// Create new IndexPage
         /// </summary>
-        public const int INDEX_RESERVED_BYTES = 100;
-
-        private Dictionary<ushort, IndexNode> _nodes = new Dictionary<ushort, IndexNode>();
-
-        public IndexPage(uint pageID)
-            : base(pageID)
+        public IndexPage(PageBuffer buffer, uint pageID)
+            : base(buffer, pageID, PageType.Index)
         {
         }
 
         /// <summary>
-        /// Get an index node from this page
+        /// Read single IndexNode
         /// </summary>
-        public IndexNode GetNode(ushort index)
+        public IndexNode GetIndexNode(byte index)
         {
-            return _nodes[index];
+            var segment = base.Get(index);
+
+            var node = new IndexNode(this, index, segment);
+
+            return node;
         }
 
         /// <summary>
-        /// Add new index node into this page. Update counters and free space
+        /// Insert new IndexNode. After call this, "node" instance can't be changed
         /// </summary>
-        public void AddNode(IndexNode node)
+        public IndexNode InsertIndexNode(byte slot, byte level, BsonValue key, PageAddress dataBlock, int bytesLength)
         {
-            var index = _nodes.NextIndex();
+            var segment = base.Insert((ushort)bytesLength, out var index);
 
-            node.Position = new PageAddress(this.PageID, index);
+            var node = new IndexNode(this, index, segment, slot, level, key, dataBlock);
 
-            this.ItemCount++;
-            this.FreeBytes -= node.Length;
-
-            _nodes.Add(index, node);
+            return node;
         }
 
         /// <summary>
-        /// Delete node from this page and update counter and free space
+        /// Delete index node based on page index
         /// </summary>
-        public void DeleteNode(IndexNode node)
+        public void DeleteIndexNode(byte index)
         {
-            this.ItemCount--;
-            this.FreeBytes += node.Length;
-
-            _nodes.Remove(node.Position.Index);
+            base.Delete(index);
         }
 
         /// <summary>
-        /// Get node counter
+        /// Get all index nodes inside this page
         /// </summary>
-        public int NodesCount => _nodes.Count;
-
-        #region Read/Write pages
-
-        protected override void ReadContent(ByteReader reader)
+        public IEnumerable<IndexNode> GetIndexNodes()
         {
-            _nodes = new Dictionary<ushort, IndexNode>(this.ItemCount);
-
-            for (var i = 0; i < this.ItemCount; i++)
+            foreach (var index in base.GetUsedIndexs())
             {
-                var index = reader.ReadUInt16();
-                var levels = reader.ReadByte();
-
-                var node = new IndexNode(levels);
-
-                node.Page = this;
-                node.Position = new PageAddress(this.PageID, index);
-                node.Slot = reader.ReadByte();
-                node.PrevNode = reader.ReadPageAddress();
-                node.NextNode = reader.ReadPageAddress();
-                node.KeyLength = reader.ReadUInt16();
-                node.Key = reader.ReadBsonValue(node.KeyLength);
-                node.DataBlock = reader.ReadPageAddress();
-
-                for (var j = 0; j < node.Prev.Length; j++)
-                {
-                    node.Prev[j] = reader.ReadPageAddress();
-                    node.Next[j] = reader.ReadPageAddress();
-                }
-
-                _nodes.Add(node.Position.Index, node);
+                yield return this.GetIndexNode(index);
             }
         }
 
-        protected override void WriteContent(ByteWriter writer)
+        /// <summary>
+        /// Get page index slot on FreeIndexPageID 
+        /// 8160 - 600 : Slot #0
+        /// 599  -   0 : Slot #1 (no page in list)
+        /// </summary>
+        public static byte FreeIndexSlot(int freeBytes)
         {
-            foreach (var node in _nodes.Values)
-            {
-                writer.Write(node.Position.Index); // node Index on this page
-                writer.Write((byte)node.Prev.Length); // level length
-                writer.Write(node.Slot); // index slot
-                writer.Write(node.PrevNode); // prev node list
-                writer.Write(node.NextNode); // next node list
-                writer.Write(node.KeyLength); // valueLength
-                writer.WriteBsonValue(node.Key, node.KeyLength); // value
-                writer.Write(node.DataBlock); // data block reference
+            ENSURE(freeBytes >= 0, "freeBytes must be positive");
 
-                for (var j = 0; j < node.Prev.Length; j++)
-                {
-                    writer.Write(node.Prev[j]);
-                    writer.Write(node.Next[j]);
-                }
-            }
+            return freeBytes >= MAX_INDEX_LENGTH ? (byte)0 : (byte)1;
         }
-
-        #endregion
     }
 }

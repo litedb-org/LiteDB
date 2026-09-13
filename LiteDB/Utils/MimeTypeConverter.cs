@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using static LiteDB.Constants;
 
 namespace LiteDB
 {
@@ -9,7 +10,7 @@ namespace LiteDB
     /// </summary>
     internal class MimeTypeConverter
     {
-        private static IDictionary<string, string> _mappings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        private static readonly IDictionary<string, string> _mappings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
         #region Big freaking list of mime types
 
@@ -506,6 +507,7 @@ namespace LiteDB
         {".wdb", "application/vnd.ms-works"},
         {".wdp", "image/vnd.ms-photo"},
         {".webarchive", "application/x-safari-webarchive"},
+        {".webp", "image/webp"},
         {".webtest", "application/xml"},
         {".wiq", "application/xml"},
         {".wiz", "application/msword"},

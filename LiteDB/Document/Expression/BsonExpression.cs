@@ -7,531 +7,471 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
+using static LiteDB.Constants;
 
 namespace LiteDB
 {
     /// <summary>
-    /// Compile and execute simple expressions using BsonDocuments. Used in indexes and updates operations. See https://github.com/mbdavid/LiteDB/wiki/Expressions
+    /// Delegate function to get compiled enumerable expression
     /// </summary>
-    public partial class BsonExpression
+    internal delegate IEnumerable<BsonValue> BsonExpressionEnumerableDelegate(IEnumerable<BsonDocument> source, BsonDocument root, BsonValue current, Collation collation, BsonDocument parameters);
+
+    /// <summary>
+    /// Delegate function to get compiled scalar expression
+    /// </summary>
+    internal delegate BsonValue BsonExpressionScalarDelegate(IEnumerable<BsonDocument> source, BsonDocument root, BsonValue current, Collation collation, BsonDocument parameters);
+
+    /// <summary>
+    /// Compile and execute string expressions using BsonDocuments. Used in all document manipulation (transform, filter, indexes, updates). See https://github.com/mbdavid/LiteDB/wiki/Expressions
+    /// </summary>
+    public sealed class BsonExpression
     {
-        #region Operator Functions Cache
+        /// <summary>
+        /// Get formatted expression
+        /// </summary>
+        public string Source { get; internal set; }
 
         /// <summary>
-        /// Operation definition by methods
+        /// Indicate expression type
         /// </summary>
-        private static Dictionary<string, MethodInfo> _operators = new Dictionary<string, MethodInfo>
-        {
-            ["%"] = typeof(ExpressionOperators).GetMethod("MOD"),
-            ["/"] = typeof(ExpressionOperators).GetMethod("DIVIDE"),
-            ["*"] = typeof(ExpressionOperators).GetMethod("MULTIPLY"),
-            ["+"] = typeof(ExpressionOperators).GetMethod("ADD"),
-            ["-"] = typeof(ExpressionOperators).GetMethod("MINUS"),
-            [">"] = typeof(ExpressionOperators).GetMethod("GT"),
-            [">="] = typeof(ExpressionOperators).GetMethod("GTE"),
-            ["<"] = typeof(ExpressionOperators).GetMethod("LT"),
-            ["<="] = typeof(ExpressionOperators).GetMethod("LTE"),
-            ["="] = typeof(ExpressionOperators).GetMethod("EQ"),
-            ["!="] = typeof(ExpressionOperators).GetMethod("NEQ"),
-            ["&&"] = typeof(ExpressionOperators).GetMethod("AND"),
-            ["||"] = typeof(ExpressionOperators).GetMethod("OR")
-        };
+        public BsonExpressionType Type { get; internal set; }
 
         /// <summary>
-        /// List of all methods avaiable in expressions
+        /// If true, this expression do not change if same document/paramter are passed (only few methods change - like NOW() - or parameters)
         /// </summary>
-        private static MethodInfo[] _methods = typeof(BsonExpression).GetMethods(BindingFlags.Public | BindingFlags.Static);
+        public bool IsImmutable { get; internal set; }
 
-        #endregion
+        /// <summary>
+        /// Get/Set parameter values that will be used on expression execution
+        /// </summary>
+        public BsonDocument Parameters { get; internal set; }
 
-        #region Ctor
+        /// <summary>
+        /// In predicate expressions, indicate Left side
+        /// </summary>
+        internal BsonExpression Left { get; set; }
 
-        private Func<BsonDocument, BsonValue, IEnumerable<BsonValue>> _func;
+        /// <summary>
+        /// In predicate expressions, indicate Rigth side
+        /// </summary>
+        internal BsonExpression Right { get; set; }
 
-        public string Source { get; private set; }
+        /// <summary>
+        /// Get/Set this expression (or any inner expression) use global Source (*)
+        /// </summary>
+        internal bool UseSource { get; set; }
 
-        public BsonExpression(string expression)
+        /// <summary>
+        /// Get transformed LINQ expression
+        /// </summary>
+        internal Expression Expression { get; set; }
+
+        /// <summary>
+        /// Fill this hashset with all fields used in root level of document (be used to partial deserialize) - "$" means all fields
+        /// </summary>
+        public HashSet<string> Fields { get; internal set; }
+
+        /// <summary>
+        /// Indicate if this expressions returns a single value or IEnumerable value
+        /// </summary>
+        public bool IsScalar { get; internal set; }
+
+        /// <summary>
+        /// Indicate that expression evaluate to TRUE or FALSE (=, >, ...). OR and AND are not considered Predicate expressions
+        /// Predicate expressions must have Left/Right expressions
+        /// </summary>
+        internal bool IsPredicate =>
+            this.Type == BsonExpressionType.Equal ||
+            this.Type == BsonExpressionType.Like ||
+            this.Type == BsonExpressionType.Between ||
+            this.Type == BsonExpressionType.GreaterThan ||
+            this.Type == BsonExpressionType.GreaterThanOrEqual ||
+            this.Type == BsonExpressionType.LessThan ||
+            this.Type == BsonExpressionType.LessThanOrEqual ||
+            this.Type == BsonExpressionType.NotEqual ||
+            this.Type == BsonExpressionType.In;
+
+        /// <summary>
+        /// This expression can be indexed? To index some expression must contains fields (at least 1) and
+        /// must use only immutable methods and no parameters
+        /// </summary>
+        internal bool IsIndexable =>
+            this.Fields.Count > 0 &&
+            this.IsImmutable == true &&
+            this.Parameters.Count == 0;
+
+        /// <summary>
+        /// This expression has no dependency of BsonDocument so can be used as user value (when select index)
+        /// </summary>
+        internal bool IsValue =>
+            this.Fields.Count == 0;
+
+        /// <summary>
+        /// Indicate when predicate expression uses ANY keywork for filter array items
+        /// </summary>
+        internal bool IsANY =>
+            this.IsPredicate &&
+            this.Expression.ToString().Contains("_ANY");
+
+        /// <summary>
+        /// Compiled Expression into a function to be executed: func(source[], root, current, parameters)[]
+        /// </summary>
+        private BsonExpressionEnumerableDelegate _funcEnumerable;
+
+        /// <summary>
+        /// Compiled Expression into a scalar function to be executed: func(source[], root, current, parameters)1
+        /// </summary>
+        private BsonExpressionScalarDelegate _funcScalar;
+
+        /// <summary>
+        /// Get default field name when need convert simple BsonValue into BsonDocument
+        /// </summary>
+        internal string DefaultFieldName()
         {
-            if (expression != null)
-            {
-                this.Source = expression;
-                _func = Compile(expression);
-            }
+            var name = string.Join("_", this.Fields.Where(x => x != "$"));
+
+            return string.IsNullOrEmpty(name) ? "expr" : name;
         }
 
-        internal BsonExpression(StringScanner s, bool pathOnly, bool arithmeticOnly)
-        {
-            var start = s.Index;
-            _func = Compile(s, pathOnly, arithmeticOnly);
-            this.Source = s.Source.Substring(start, s.Index - start);
-
-            // add this expression to cache if not exists
-            if (!_cache.ContainsKey(this.Source))
-            {
-                lock(_cache)
-                {
-                    _cache[this.Source] = _func;
-                }
-            }
-        }
-
-        #endregion
-
-        #region Execution
-
         /// <summary>
-        /// Execute expression and returns IEnumerable values (can returns NULL if no elements).
+        /// Only internal ctor (from BsonParserExpression)
         /// </summary>
-        public IEnumerable<BsonValue> Execute(BsonDocument doc, bool includeNullIfEmpty = true)
+        internal BsonExpression()
         {
-            return this.Execute(doc, doc, includeNullIfEmpty);
         }
 
         /// <summary>
-        /// Execute expression and returns IEnumerable values (can returns NULL if no elements).
+        /// Implicit string converter
         /// </summary>
-        public IEnumerable<BsonValue> Execute(BsonDocument root, BsonValue current, bool includeNullIfEmpty = true)
+        public static implicit operator String(BsonExpression expr)
         {
-            if (this.Source == null) throw new ArgumentNullException("ctor(expression)");
+            return expr.Source;
+        }
 
-            var index = 0;
-            var values = _func(root, current ?? root);
+        /// <summary>
+        /// Implicit string converter
+        /// </summary>
+        public static implicit operator BsonExpression(String expr)
+        {
+            return BsonExpression.Create(expr);
+        }
 
-            foreach (var value in values)
+        #region Execute Enumerable
+
+        /// <summary>
+        /// Execute expression with an empty document (used only for resolve math/functions).
+        /// </summary>
+        public IEnumerable<BsonValue> Execute(Collation collation = null)
+        {
+            var root = new BsonDocument();
+            var source = new BsonDocument[] { root };
+
+            return this.Execute(source, root, root, collation);
+        }
+
+        /// <summary>
+        /// Execute expression and returns IEnumerable values
+        /// </summary>
+        public IEnumerable<BsonValue> Execute(BsonDocument root, Collation collation = null)
+        {
+            if (root == null) throw new ArgumentNullException(nameof(root));
+
+            var source = new BsonDocument[] { root };
+
+            return this.Execute(source, root, root, collation);
+        }
+
+        /// <summary>
+        /// Execute expression and returns IEnumerable values
+        /// </summary>
+        public IEnumerable<BsonValue> Execute(IEnumerable<BsonDocument> source, Collation collation = null)
+        {
+            if (source == null) throw new ArgumentNullException(nameof(source));
+
+            return this.Execute(source, null, null, collation);
+        }
+
+        /// <summary>
+        /// Execute expression and returns IEnumerable values - returns NULL if no elements
+        /// </summary>
+        internal IEnumerable<BsonValue> Execute(IEnumerable<BsonDocument> source, BsonDocument root, BsonValue current, Collation collation)
+        {
+            if (this.IsScalar)
             {
-                index++;
+                var value = _funcScalar(source, root, current, collation ?? Collation.Binary, this.Parameters);
+
                 yield return value;
-            }
-
-            if (index == 0 && includeNullIfEmpty) yield return BsonValue.Null;
-        }
-
-        #endregion
-
-        #region Compiler
-
-        private static Dictionary<string, Func<BsonDocument, BsonValue, IEnumerable<BsonValue>>> _cache = new Dictionary<string, Func<BsonDocument, BsonValue, IEnumerable<BsonValue>>>();
-
-        /// <summary>
-        /// Parse and compile an expression from a string. Do cache of expressions
-        /// </summary>
-        public static Func<BsonDocument, BsonValue, IEnumerable<BsonValue>> Compile(string expression)
-        {
-            Func<BsonDocument, BsonValue, IEnumerable<BsonValue>> fn;
-
-            if (_cache.TryGetValue(expression, out fn)) return fn;
-
-            lock (_cache)
-            {
-                if (_cache.TryGetValue(expression, out fn)) return fn;
-
-                fn = Compile(new StringScanner(expression), false, true);
-
-                _cache[expression] = fn;
-
-                return fn;
-            }
-        }
-
-        /// <summary>
-        /// Parse and compile an expression from a stringscanner. Must define if will read a path only or support for full expression. Can parse only arithmetic (+/-/*/..) or full logic operators (=/!=/>/...)
-        /// </summary>
-        private static Func<BsonDocument, BsonValue, IEnumerable<BsonValue>> Compile(StringScanner s, bool pathOnly, bool arithmeticOnly)
-        {
-            var isRoot = pathOnly;
-            var root = Expression.Parameter(typeof(BsonDocument), "root");
-            var current = Expression.Parameter(typeof(BsonValue), "current");
-            Expression expr;
-
-            if (pathOnly)
-            {
-                // if read path, read first expression only
-                // support missing $ as root
-                s.Scan(@"\$\.?");
-                expr = ParseSingleExpression(s, root, current, true);
             }
             else
             {
-                // read all expression (a + b)
-                // if include operator, support = > < && || too
-                expr = ParseExpression(s, root, current, arithmeticOnly);
+                var values = _funcEnumerable(source, root, current, collation ?? Collation.Binary, this.Parameters);
+
+                foreach (var value in values)
+                {
+                    yield return value;
+                }
             }
+        }
 
-            var lambda = Expression.Lambda<Func<BsonDocument, BsonValue, IEnumerable<BsonValue>>>(expr, root, current);
-
-            return lambda.Compile();
+        /// <summary>
+        /// Execute expression over document to get all index keys. 
+        /// Return distinct value (no duplicate key to same document)
+        /// </summary>
+        internal IEnumerable<BsonValue> GetIndexKeys(BsonDocument doc, Collation collation)
+        {
+            return this.Execute(doc, collation).Distinct();
         }
 
         #endregion
 
-        #region Expression Parser
-
-        private static Regex _reArithmetic = new Regex(@"^\s*(\+|\-|\*|\/|%)\s*");
-        private static Regex _reOperator = new Regex(@"^\s*(\+|\-|\*|\/|%|=|!=|>=|>|<=|<|&&|\|\|)\s*");
+        #region ExecuteScalar
 
         /// <summary>
-        /// Start parse string into linq expression. Read path, function or base type bson values (int, double, bool, string)
+        /// Execute scalar expression with an blank document and empty source (used only for resolve math/functions).
         /// </summary>
-        internal static Expression ParseExpression(StringScanner s, ParameterExpression root, ParameterExpression current, bool arithmeticOnly)
+        public BsonValue ExecuteScalar(Collation collation = null)
         {
-            var first = ParseSingleExpression(s, root, current, false);
-            var values = new List<Expression> { first };
-            var ops = new List<string>();
+            var root = new BsonDocument();
+            var source = new BsonDocument[] { };
 
-            // read all blocks and operation first
-            while (!s.HasTerminated)
-            {
-                // checks if must support arithmetic only (+, -, *, /)
-                var op = s.Scan(arithmeticOnly ? _reArithmetic : _reOperator, 1);
-
-                if (op.Length == 0) break;
-
-                var expr = ParseSingleExpression(s, root, current, false);
-
-                values.Add(expr);
-                ops.Add(op);
-            }
-
-            var order = 0;
-
-            // now, process operator in correct order
-            while(values.Count >= 2)
-            {
-                var op = _operators.ElementAt(order);
-                var n = ops.IndexOf(op.Key);
-
-                if (n == -1)
-                {
-                    order++;
-                }
-                else
-                {
-                    // get left/right values to execute operator
-                    var left = values.ElementAt(n);
-                    var right = values.ElementAt(n + 1);
-
-                    // process result in a single value
-                    var result = Expression.Call(op.Value, left, right);
-
-                    // remove left+right and insert result
-                    values.Insert(n, result);
-                    values.RemoveRange(n + 1, 2);
-
-                    // remove operation
-                    ops.RemoveAt(n);
-                }
-            }
-
-            return values.Single();
+            return this.ExecuteScalar(source, root, root, collation);
         }
 
         /// <summary>
-        /// Start parse string into linq expression. Read path, function or base type bson values (int, double, bool, string)
+        /// Execute scalar expression over single document and return a single value (or BsonNull when empty). Throws exception if expression are not scalar expression
         /// </summary>
-        internal static Expression ParseSingleExpression(StringScanner s, ParameterExpression root, ParameterExpression current, bool isRoot)
+        public BsonValue ExecuteScalar(BsonDocument root, Collation collation = null)
         {
-            if (s.Match(@"[\$@]") || isRoot) // read root path
-            {
-                var r = s.Scan(@"[\$@]"); // read root/current
-                var method = typeof(BsonExpression).GetMethod("Root");
-                var name = Expression.Constant(s.Scan(@"\.?([\$\-\w]+)", 1));
-                var expr = Expression.Call(method, r == "@" ? current : root, name) as Expression;
+            if (root == null) throw new ArgumentNullException(nameof(root));
 
-                // parse the rest of path
-                while (!s.HasTerminated)
-                {
-                    var result = ParsePath(s, expr, root);
+            var source = new BsonDocument[] { root };
 
-                    if (result == null) break;
-
-                    expr = result;
-                }
-
-                return expr;
-            }
-            else if (s.Match(@"-?\d*\.\d+")) // read double
-            {
-                var number = Convert.ToDouble(s.Scan(@"-?\d*\.\d+"), CultureInfo.InvariantCulture.NumberFormat);
-                var value = Expression.Constant(new BsonValue(number));
-
-                return Expression.NewArrayInit(typeof(BsonValue), value);
-            }
-            else if (s.Match(@"-?\d+")) // read int
-            {
-                var number = Convert.ToInt32(s.Scan(@"-?\d+"), CultureInfo.InvariantCulture.NumberFormat);
-                var value = Expression.Constant(new BsonValue(number));
-
-                return Expression.NewArrayInit(typeof(BsonValue), value);
-            }
-            else if (s.Match(@"(true|false)")) // read bool
-            {
-                var boolean = Convert.ToBoolean(s.Scan(@"(true|false)"));
-                var value = Expression.Constant(new BsonValue(boolean));
-
-                return Expression.NewArrayInit(typeof(BsonValue), value);
-            }
-            else if (s.Match(@"null")) // read null
-            {
-                var value = Expression.Constant(BsonValue.Null);
-
-                return Expression.NewArrayInit(typeof(BsonValue), value);
-            }
-            else if (s.Match(@"'")) // read string
-            {
-                var str = s.Scan(@"'([\s\S]*?)'", 1);
-                var value = Expression.Constant(new BsonValue(str));
-
-                return Expression.NewArrayInit(typeof(BsonValue), value);
-            }
-            else if (s.Scan(@"\{\s*").Length > 0) // read document {
-            {
-                // read key value
-                var method = typeof(ExpressionOperators).GetMethod("DOCUMENT");
-                var keys = new List<Expression>();
-                var values = new List<Expression>();
-
-                while (!s.HasTerminated)
-                {
-                    // read key + value
-                    var key = s.Scan(@"(.+?)\s*:\s*", 1).ThrowIfEmpty("Invalid token", s);
-                    var value = ParseExpression(s, root, current, false);
-
-                    // add key and value to parameter list (as an expression)
-                    keys.Add(Expression.Constant(new BsonValue(key)));
-                    values.Add(value);
-
-                    if (s.Scan(@"\s*,\s*").Length > 0) continue;
-                    else if (s.Scan(@"\s*\}\s*").Length > 0) break;
-                    throw LiteException.SyntaxError(s);
-                }
-
-                var arrKeys = Expression.NewArrayInit(typeof(BsonValue), keys.ToArray());
-                var arrValues = Expression.NewArrayInit(typeof(IEnumerable<BsonValue>), values.ToArray());
-
-                return Expression.Call(method, new Expression[] { arrKeys, arrValues });
-            }
-            else if (s.Scan(@"\[\s*").Length > 0) // read array [
-            {
-                var method = typeof(ExpressionOperators).GetMethod("ARRAY");
-                var values = new List<Expression>();
-
-                while (!s.HasTerminated)
-                {
-                    // read value expression
-                    var value = ParseExpression(s, root, current, false);
-
-                    values.Add(value);
-
-                    if (s.Scan(@"\s*,\s*").Length > 0) continue;
-                    else if (s.Scan(@"\s*\]\s*").Length > 0) break;
-                    throw LiteException.SyntaxError(s);
-                }
-
-                var arrValues = Expression.NewArrayInit(typeof(IEnumerable<BsonValue>), values.ToArray());
-
-                return Expression.Call(method, new Expression[] { arrValues });
-            }
-            else if (s.Scan(@"\(\s*").Length > 0) // read inner (
-            {
-                // read a inner expression inside ( and )
-                var inner = ParseExpression(s, root, current, false);
-
-                if (s.Scan(@"\s*\)").Length == 0) throw LiteException.SyntaxError(s);
-
-                return inner;
-            }
-            else if (s.Match(@"\w+\s*\(")) // read function
-            {
-                // get static method from this class
-                var name = s.Scan(@"(\w+)\s*\(", 1).ToUpper();
-                var parameters = new List<Expression>();
-
-                if (s.Scan(@"\s*\)\s*").Length == 0)
-                {
-                    while (!s.HasTerminated)
-                    {
-                        var parameter = ParseExpression(s, root, current, false);
-
-                        parameters.Add(parameter);
-
-                        if (s.Scan(@"\s*,\s*").Length > 0) continue;
-                        else if (s.Scan(@"\s*\)\s*").Length > 0) break;
-                        throw LiteException.SyntaxError(s);
-                    }
-                }
-
-                var method = _methods.FirstOrDefault(x => x.Name == name && x.GetParameters().Count() == parameters.Count);
-
-                if (method == null) throw LiteException.SyntaxError(s, "Method " + name + " not exist or invalid parameter count");
-
-                return Expression.Call(method, parameters.ToArray());
-            }
-
-            throw LiteException.SyntaxError(s);
+            return this.ExecuteScalar(source, root, root, collation);
         }
 
         /// <summary>
-        /// Implement a JSON-Path like navigation on BsonDocument. Support a simple range of paths
+        /// Execute scalar expression over multiple documents and return a single value (or BsonNull when empty). Throws exception if expression are not scalar expression
         /// </summary>
-        private static Expression ParsePath(StringScanner s, Expression expr, ParameterExpression root)
+        public BsonValue ExecuteScalar(IEnumerable<BsonDocument> source, Collation collation = null)
         {
-            if (s.Match(@"\.[\$\-\w]+"))
-            {
-                var method = typeof(BsonExpression).GetMethod("Member");
-                var name = Expression.Constant(s.Scan(@"\.([\$\-\w]+)", 1));
-                return Expression.Call(method, expr, name);
-            }
-            else if (s.Match(@"\["))
-            {
-                var method = typeof(BsonExpression).GetMethod("Array");
-                var i = s.Scan(@"\[\s*(-?[\d+\*])\s*\]", 1);
-                var index = i != "*" && i != "" ? Convert.ToInt32(i) : int.MaxValue;
-                var inner = new BsonExpression(null);
+            if (source == null) throw new ArgumentNullException(nameof(source));
 
-                if (i == "") // if array operation are not index based, read expression 
-                {
-                    s.Scan(@"\[\s*");
-                    // read expression with full support to all operators/formulas
-                    inner = ReadExpression(s, true, false, false);
-                    if (inner == null) throw LiteException.SyntaxError(s, "Invalid expression formula");
-                    s.Scan(@"\s*\]");
-                }
+            return this.ExecuteScalar(source, null, null, collation);
+        }
 
-                return Expression.Call(method, expr, Expression.Constant(index), Expression.Constant(inner), root);
+        /// <summary>
+        /// Execute expression and returns IEnumerable values - returns NULL if no elements
+        /// </summary>
+        internal BsonValue ExecuteScalar(IEnumerable<BsonDocument> source, BsonDocument root, BsonValue current, Collation collation)
+        {
+            if (this.IsScalar)
+            {
+                return _funcScalar(source, root, current, collation ?? Collation.Binary, this.Parameters);
             }
             else
             {
-                return null;
+                throw new LiteException(0, $"Expression `{this.Source}` is not a scalar expression and can return more than one result");
             }
         }
 
         #endregion
 
-        #region Expression reader from a StringScanner
+        #region Static method
+
+        private static readonly CompiledExpressionCache _compiledCache = new CompiledExpressionCache(1000);
+
+        internal static int CompiledExpressionCount => _compiledCache.Count;
 
         /// <summary>
-        /// Extract expression or a path from a StringScanner. If required = true, throw error if is not a valid expression. If required = false, returns null for not valid expression and back Index in StringScanner to original position
+        /// Parse string and create new instance of BsonExpression - can be cached
         /// </summary>
-        internal static BsonExpression ReadExpression(StringScanner s, bool required, bool pathOnly, bool arithmeticOnly = true)
+        public static BsonExpression Create(string expression)
         {
-            var start = s.Index;
+            return Create(expression, new BsonDocument());
+        }
 
-            try
+        /// <summary>
+        /// Parse string and create new instance of BsonExpression - can be cached
+        /// </summary>
+        public static BsonExpression Create(string expression, params BsonValue[] args)
+        {
+            var parameters = new BsonDocument();
+
+            for(var i = 0; i < args.Length; i++)
             {
-                return new BsonExpression(s, pathOnly, arithmeticOnly);
+                parameters[i.ToString()] = args[i];
             }
-            catch (LiteException ex) when (required == false && ex.ErrorCode == LiteException.SYNTAX_ERROR)
+
+            return Create(expression, parameters);
+        }
+
+        /// <summary>
+        /// Parse string and create new instance of BsonExpression - can be cached
+        /// </summary>
+        public static BsonExpression Create(string expression, BsonDocument parameters)
+        {
+            if (string.IsNullOrWhiteSpace(expression)) throw new ArgumentNullException(nameof(expression));
+
+            var tokenizer = new Tokenizer(expression);
+
+            var expr = Create(tokenizer, BsonExpressionParserMode.Full, parameters);
+
+            tokenizer.LookAhead().Expect(TokenType.EOF);
+
+            return expr;
+        }
+
+        /// <summary>
+        /// Parse tokenizer and create new instance of BsonExpression - for now, do not use cache
+        /// </summary>
+        internal static BsonExpression Create(Tokenizer tokenizer, BsonExpressionParserMode mode, BsonDocument parameters)
+        {
+            if (tokenizer == null) throw new ArgumentNullException(nameof(tokenizer));
+
+            return ParseAndCompile(tokenizer, mode, parameters, DocumentScope.Root);
+        }
+
+        /// <summary>
+        /// Parse and compile string expression and return BsonExpression
+        /// </summary>
+        internal static BsonExpression ParseAndCompile(Tokenizer tokenizer, BsonExpressionParserMode mode, BsonDocument parameters, DocumentScope scope)
+        {
+            if (tokenizer == null) throw new ArgumentNullException(nameof(tokenizer));
+
+            var context = new ExpressionContext();
+
+            var expr =
+                mode == BsonExpressionParserMode.Full ? BsonExpressionParser.ParseFullExpression(tokenizer, context, parameters, scope) :
+                mode == BsonExpressionParserMode.Single ? BsonExpressionParser.ParseSingleExpression(tokenizer, context, parameters, scope) :
+                mode == BsonExpressionParserMode.SelectDocument ? BsonExpressionParser.ParseSelectDocumentBuilder(tokenizer, context, parameters) :
+                BsonExpressionParser.ParseUpdateDocumentBuilder(tokenizer, context, parameters);
+
+            // compile linq expression (with left+right expressions)
+            Compile(expr, context);
+
+            return expr;
+        }
+
+        internal static void Compile(BsonExpression expr, ExpressionContext context)
+        {
+            // Nested path/filter expressions are parsed and compiled with
+            // their own ExpressionContext before being embedded in the outer
+            // expression. A concurrent cap rollover can clear their cache
+            // entry before the outer recursive walk reaches them; recompiling
+            // such an expression against the outer context produces an
+            // invalid lambda. Its instance delegate is already complete and
+            // remains valid independently of cache eviction.
+            if (expr.IsScalar ? expr._funcScalar != null : expr._funcEnumerable != null)
             {
-                s.Index = start;
-                return null;
+                return;
             }
+
+            // compile linq expression according with return type (scalar or enumerable)
+            // in both case, try use cached compiled version
+            if (expr.IsScalar)
+            {
+                var cached = _compiledCache.Get<BsonExpressionScalarDelegate>(expr.Source);
+                if (cached == null)
+                {
+                    var lambda = System.Linq.Expressions.Expression.Lambda<BsonExpressionScalarDelegate>(expr.Expression, context.Source, context.Root, context.Current, context.Collation, context.Parameters);
+                    cached = lambda.Compile();
+                    _compiledCache.Add(expr.Source, cached);
+                }
+
+                expr._funcScalar = cached;
+            }
+            else
+            {
+                var cached = _compiledCache.Get<BsonExpressionEnumerableDelegate>(expr.Source);
+                if (cached == null)
+                {
+                    var lambda = System.Linq.Expressions.Expression.Lambda<BsonExpressionEnumerableDelegate>(expr.Expression, context.Source, context.Root, context.Current, context.Collation, context.Parameters);
+                    cached = lambda.Compile();
+                    _compiledCache.Add(expr.Source, cached);
+                }
+
+                expr._funcEnumerable = cached;
+            }
+
+            // compile child expressions (left/right)
+            if (expr.Left != null) Compile(expr.Left, context);
+            if (expr.Right != null) Compile(expr.Right, context);
+        }
+
+        /// <summary>
+        /// Set same parameter referente to all expression child (left, right)
+        /// </summary>
+        internal static void SetParameters(BsonExpression expr, BsonDocument parameters)
+        {
+            expr.Parameters = parameters;
+
+            if (expr.Left != null) SetParameters(expr.Left, parameters);
+            if (expr.Right != null) SetParameters(expr.Right, parameters);
+        }
+
+        /// <summary>
+        /// Get root document $ expression
+        /// </summary>
+        public static BsonExpression Root = Create("$");
+
+        #endregion
+
+        #region MethodCall quick access
+
+        /// <summary>
+        /// Get all registered methods for BsonExpressions
+        /// </summary>
+        public static IEnumerable<MethodInfo> Methods => _methods.Values;
+
+        /// <summary>
+        /// Load all static methods from BsonExpressionMethods class. Use a dictionary using name + parameter count
+        /// </summary>
+        private static readonly Dictionary<string, MethodInfo> _methods =
+            typeof(BsonExpressionMethods).GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .ToDictionary(m => m.Name.ToUpperInvariant() + "~" + m.GetParameters().Where(p => p.ParameterType != typeof(Collation)).Count());
+
+        /// <summary>
+        /// Get expression method with same name and same parameter - return null if not found
+        /// </summary>
+        internal static MethodInfo GetMethod(string name, int parameterCount)
+        {
+            var key = name.ToUpperInvariant() + "~" + parameterCount;
+
+            return _methods.GetOrDefault(key);
         }
 
         #endregion
 
-        #region Path static methods
+        #region FunctionCall quick access
 
         /// <summary>
-        /// Returns value from root document. Returns same document if name are empty
+        /// Get all registered functions for BsonExpressions
         /// </summary>
-        public static IEnumerable<BsonValue> Root(BsonValue value, string name)
-        {
-            if (string.IsNullOrEmpty(name))
-            {
-                yield return value;
-            }
-            else if (value.IsDocument)
-            {
-                if (value.AsDocument.TryGetValue(name, out BsonValue item))
-                {
-                    // fill destroy action to remove value from root
-                    item.Destroy = () => value.AsDocument.Remove(name);
-
-                    yield return item;
-                }
-            }
-        }
+        public static IEnumerable<MethodInfo> Functions => _functions.Values;
 
         /// <summary>
-        /// Return a value from a value as document. If has no name, just return values ($). If value are not a document, do not return anything
+        /// Load all static methods from BsonExpressionFunctions class. Use a dictionary using name + parameter count
         /// </summary>
-        public static IEnumerable<BsonValue> Member(IEnumerable<BsonValue> values, string name)
-        {
-            foreach (var doc in values.Where(x => x.IsDocument).Select(x => x.AsDocument))
-            {
-                if (doc.TryGetValue(name, out BsonValue item))
-                {
-                    // fill destroy action to remove value from parent document
-                    item.Destroy = () => doc.Remove(name);
-
-                    yield return item;
-                }
-            }
-        }
+        private static readonly Dictionary<string, MethodInfo> _functions =
+            typeof(BsonExpressionFunctions).GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .ToDictionary(m => m.Name.ToUpperInvariant() + "~" + m.GetParameters()
+            .Skip(5).Count());
 
         /// <summary>
-        /// Returns all values from array according index. If index are MaxValue, return all values
+        /// Get expression function with same name and same parameter - return null if not found
         /// </summary>
-        public static IEnumerable<BsonValue> Array(IEnumerable<BsonValue> values, int index, BsonExpression expr, BsonDocument root)
+        internal static MethodInfo GetFunction(string name, int parameterCount = 0)
         {
-            foreach (var value in values)
-            {
-                if (value.IsArray)
-                {
-                    var arr = value.AsArray;
+            var key = name.ToUpperInvariant() + "~" + parameterCount;
 
-                    // [<expr>] - index are an expression
-                    if (expr.Source != null)
-                    {
-                        foreach (var item in arr)
-                        {
-                            // execute for each child value and except a first bool value (returns if true)
-                            var c = expr.Execute(root, item, true).First();
-
-                            if (c.IsBoolean && c.AsBoolean == true)
-                            {
-                                // fill destroy action to remove value from parent array
-                                item.Destroy = () => arr.Remove(item);
-
-                                yield return item;
-                            }
-                        }
-                    }
-                    // [*] - index are all values
-                    else if (index == int.MaxValue)
-                    {
-                        foreach (var item in arr)
-                        {
-                            // fill destroy action to remove value from parent array
-                            item.Destroy = () => arr.Remove(item);
-
-                            yield return item;
-                        }
-                    }
-                    // [n] - fixed index
-                    else
-                    {
-                        var idx = index < 0 ? arr.Count + index : index;
-
-                        if (arr.Count > idx)
-                        {
-                            var item = arr[idx];
-
-                            // fill destroy action to remove value from parent array
-                            item.Destroy = () => arr.Remove(item);
-
-                            yield return item;
-                        }
-                    }
-                }
-            }
+            return _functions.GetOrDefault(key);
         }
 
         #endregion
 
         public override string ToString()
         {
-            return this.Source;
+            return $"`{this.Source}` [{this.Type}]";
         }
     }
 }

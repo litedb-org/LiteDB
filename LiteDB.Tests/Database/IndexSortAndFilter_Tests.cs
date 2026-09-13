@@ -1,87 +1,81 @@
-﻿//using Microsoft.VisualStudio.TestTools.UnitTesting;
-//using System.Collections.Generic;
-//using System.Linq;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using FluentAssertions;
+using LiteDB.Tests.Utils;
+using Xunit;
 
-//namespace LiteDB.Tests.Database
-//{
-//    [TestClass]
-//    public class IndexSortAndFilterTest
-//    {
-//        private LiteCollection<Item> _collection;
-//        private TempFile _tempFile;
-//        private LiteDatabase _database;
+namespace LiteDB.Tests.Database
+{
+    public class IndexSortAndFilterTest : IDisposable
+    {
+        #region Model
 
-//        [TestInitialize]
-//        public void Init()
-//        {
-//            _tempFile = new TempFile();
-//            _database = new LiteDatabase(_tempFile.Filename);
-//            _collection = _database.GetCollection<Item>("items");
-//        }
+        public class Item
+        {
+            public string Id { get; set; }
+            public string Value { get; set; }
+        }
 
-//        [TestCleanup]
-//        public void Cleanup()
-//        {
-//            _database.Dispose();
-//            _tempFile.Dispose();
-//        }
+        #endregion
 
-//        [TestMethod]
-//        public void FilterAndSortAscending()
-//        {
-//            _collection.EnsureIndex(nameof(Item.Value));
+        private readonly ILiteCollection<Item> _collection;
+        private readonly ILiteDatabase _database;
 
-//            PrepareData(_collection);
-//            var result = FilterAndSortById(_collection, Query.Ascending);
+        public IndexSortAndFilterTest()
+        {
+            _database = DatabaseFactory.Create();
+            _collection = _database.GetCollection<Item>("items");
 
-//            Assert.AreEqual("B", result[0].Id);
-//            Assert.AreEqual("C", result[1].Id);
-//        }
+            _collection.Upsert(new Item() { Id = "C", Value = "Value 1" });
+            _collection.Upsert(new Item() { Id = "A", Value = "Value 2" });
+            _collection.Upsert(new Item() { Id = "B", Value = "Value 1" });
 
-//        [TestMethod]
-//        public void FilterAndSortAscendingWithoutIndex()
-//        {
-//            PrepareData(_collection);
-//            var result = FilterAndSortById(_collection, Query.Ascending);
+            _collection.EnsureIndex("idx_value", x => x.Value);
+        }
 
-//            Assert.AreEqual("B", result[0].Id);
-//            Assert.AreEqual("C", result[1].Id);
-//        }
+        public void Dispose()
+        {
+            _database.Dispose();
+        }
 
-//        [TestMethod]
-//        public void FilterAndSortDescending()
-//        {
-//            _collection.EnsureIndex(nameof(Item.Value));
+        [Fact]
+        public void FilterAndSortAscending()
+        {
+            var result = _collection.Query()
+                .Where(x => x.Value == "Value 1")
+                .OrderBy(x => x.Id, Query.Ascending)
+                .ToList();
 
-//            PrepareData(_collection);
-//            var result = FilterAndSortById(_collection, Query.Descending);
+            result[0].Id.Should().Be("B");
+            result[1].Id.Should().Be("C");
+        }
 
-//            Assert.AreEqual("C", result[0].Id);
-//            Assert.AreEqual("B", result[1].Id);
-//        }
+        [Fact]
+        public void FilterAndSortDescending()
+        {
+            var result = _collection.Query()
+                .Where(x => x.Value == "Value 1")
+                .OrderBy(x => x.Id, Query.Descending)
+                .ToList();
 
-//        private void PrepareData(LiteCollection<Item> collection)
-//        {
-//            collection.Upsert(new Item() { Id = "C", Value = "Value 1" });
-//            collection.Upsert(new Item() { Id = "A", Value = "Value 2" });
-//            collection.Upsert(new Item() { Id = "B", Value = "Value 1" });
-//        }
+            result[0].Id.Should().Be("C");
+            result[1].Id.Should().Be("B");
+        }
 
-//        private List<Item> FilterAndSortById(LiteCollection<Item> collection, int order)
-//        {
-//            var filterQuery = Query.EQ(nameof(Item.Value), "Value 1");
-//            var sortQuery = Query.All(order);
-//            var query = Query.And(sortQuery, filterQuery);
+        [Fact]
+        public void FilterAndSortAscendingWithoutIndex()
+        {
+            _collection.DropIndex("idx_value");
 
-//            var result = collection.Find(query).ToList();
-//            return result;
-//        }
+            var result = _collection.Query()
+                .Where(x => x.Value == "Value 1")
+                .OrderBy(x => x.Id, Query.Ascending)
+                .ToList();
 
-//        public class Item
-//        {
-//            public string Id { get; set; }
+            result[0].Id.Should().Be("B");
+            result[1].Id.Should().Be("C");
+        }
 
-//            public string Value { get; set; }
-//        }
-//    }
-//}
+    }
+}

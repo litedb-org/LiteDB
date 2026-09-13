@@ -6,7 +6,7 @@ namespace LiteDB.Shell
     {
         public static string ThrowIfEmpty(this string str, string message)
         {
-            if(string.IsNullOrEmpty(str) || str.Trim().Length == 0)
+            if (string.IsNullOrEmpty(str) || str.Trim().Length == 0)
             {
                 throw new ArgumentException(message);
             }

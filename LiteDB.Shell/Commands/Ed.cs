@@ -5,7 +5,6 @@ using System.IO;
 namespace LiteDB.Shell.Commands
 {
     [Help(
-        Category = "Shell",
         Name = "ed",
         Syntax = "ed",
         Description = "Open your last command in notepad."

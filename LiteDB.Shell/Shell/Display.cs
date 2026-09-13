@@ -5,14 +5,12 @@ using System.Text.RegularExpressions;
 
 namespace LiteDB.Shell
 {
-    public class Display
+    internal class Display
     {
-        public List<TextWriter> TextWriters { get; set; }
         public bool Pretty { get; set; }
 
         public Display()
         {
-            this.TextWriters = new List<TextWriter>();
             this.Pretty = false;
         }
 
@@ -20,7 +18,7 @@ namespace LiteDB.Shell
         {
             this.WriteInfo("Welcome to LiteDB Shell");
             this.WriteInfo("");
-            this.WriteInfo("Getting started with `help`, `help full` or `help <command>`");
+            this.WriteInfo("Getting started with `help`");
             this.WriteInfo("");
         }
 
@@ -38,35 +36,36 @@ namespace LiteDB.Shell
         {
             this.WriteLine(ConsoleColor.Red, ex.Message);
 
-            if (ex is LiteException && (ex as LiteException).ErrorCode == LiteException.SYNTAX_ERROR)
+            if (ex is LiteException && (ex as LiteException).ErrorCode == LiteException.UNEXPECTED_TOKEN)
             {
                 var err = ex as LiteException;
 
-                this.WriteLine(ConsoleColor.DarkYellow, "> " + err.Line);
-                this.WriteLine(ConsoleColor.DarkYellow, "> " + "^".PadLeft(err.Position + 1, ' '));
+                this.WriteLine(ConsoleColor.DarkYellow, "> " + "^".PadLeft((int)err.Position + 1, ' '));
             }
         }
 
-        public void WriteResult(IEnumerable<BsonValue> results)
+        public void WriteResult(IBsonDataReader result, Env env)
         {
             var index = 0;
-
-            foreach(var result in results)
+            var writer = new JsonWriter(Console.Out)
             {
+                Pretty = this.Pretty,
+                Indent = 2
+            };
+
+            foreach (var item in result.ToEnumerable())
+            {
+                if (env.Running == false) return;
+
                 this.Write(ConsoleColor.Cyan, string.Format("[{0}]: ", ++index));
 
-                if (result.IsString)
-                {
-                    this.WriteLine(ConsoleColor.DarkCyan, result.AsString);
-                }
-                else if (result.IsNumber)
-                {
-                    this.WriteLine(ConsoleColor.DarkCyan, result.RawValue.ToString());
-                }
-                else
-                {
-                    this.WriteLine(ConsoleColor.DarkCyan, JsonSerializer.Serialize(result, this.Pretty, false));
-                }
+                if (this.Pretty) Console.WriteLine();
+
+                Console.ForegroundColor = ConsoleColor.DarkCyan;
+
+                writer.Serialize(item);
+
+                Console.WriteLine();
             }
         }
 
@@ -90,11 +89,7 @@ namespace LiteDB.Shell
         public void Write(ConsoleColor color, string text)
         {
             Console.ForegroundColor = color;
-
-            foreach (var writer in this.TextWriters)
-            {
-                writer.Write(Regex.Unescape(text));
-            }
+            Console.Write(text);
         }
 
         #endregion

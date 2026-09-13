@@ -1,47 +1,38 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
 
 namespace LiteDB.Tests
 {
     public class TempFile : IDisposable
     {
-        private bool _checkIntegrity = false;
-
         public string Filename { get; private set; }
 
-        public TempFile(string ext = "db", bool checkIntegrity = true)
+        public TempFile()
         {
-            this.Filename = Path.Combine(Path.GetTempPath(), string.Format("test-{0}.{1}", Guid.NewGuid(), ext));
-            _checkIntegrity = checkIntegrity;
+            var path = Path.GetTempPath();
+            var name = "litedb-" + Guid.NewGuid().ToString("d").Substring(0, 5) + ".db";
+
+            this.Filename = Path.Combine(path, name);
         }
 
-        public void CreateDatafile()
+        public TempFile(string original)
         {
-            using (var s = new FileStream(Filename, System.IO.FileMode.CreateNew))
-            {
-                LiteEngine.CreateDatabase(s);
-            }
-        }
+            var rnd = Guid.NewGuid().ToString("d").Substring(0, 5);
+            var path = Path.GetTempPath();
+            var name = $"litedb-{rnd}.db";
+            var filename = Path.Combine(path, name);
 
-        public IDiskService Disk(bool journal = true)
-        {
-            return new FileDiskService(Filename, journal);
-        }
+            File.Copy(original, filename, true);
 
-        public IDiskService Disk(FileOptions options)
-        {
-            return new FileDiskService(Filename, options);
-        }
-
-        public string Conn(string connectionString)
-        {
-            return "filename=\"" + this.Filename + "\";" + connectionString;
+            this.Filename = filename;
         }
 
         #region Dispose
+
+        public static implicit operator String(TempFile value)
+        {
+            return value.Filename;
+        }
 
         private bool _disposed;
 
@@ -68,10 +59,6 @@ namespace LiteDB.Tests
             }
 
             // check file integrity
-            if (_checkIntegrity)
-            {
-                this.CheckIntegrity();
-            }
 
             File.Delete(this.Filename);
 
@@ -80,89 +67,10 @@ namespace LiteDB.Tests
 
         #endregion
 
-        public long Size
-        {
-            get { return new FileInfo(this.Filename).Length; }
-        }
+        public long Size => new FileInfo(this.Filename).Length;
 
-        public string ReadAsText()
-        {
-            return File.ReadAllText(this.Filename);
-        }
+        public string ReadAsText() => File.ReadAllText(this.Filename);
 
-        /// <summary>
-        /// Read all colleciton, indexes and documents inside current datafile
-        /// Drop per index, per collection and shrink
-        /// This steps will check/validate all file data
-        /// </summary>
-        private void CheckIntegrity()
-        {
-            using (var db = new LiteEngine(this.Filename))
-            {
-                var cols = db.GetCollectionNames().ToArray();
-
-                foreach(var col in cols)
-                {
-                    var indexes = db.GetIndexes(col).ToArray();
-
-                    foreach(var idx in indexes)
-                    {
-                        var q = db.Find(col, Query.All(idx.Field));
-
-                        foreach(var doc in q)
-                        {
-                            // document are ok!
-                        }
-
-                        // lets drop this index (if not _id)
-                        if(idx.Field != "_id")
-                        {
-                            db.DropIndex(col, idx.Field);
-                        }
-                    }
-
-                    // and drop collection
-                    db.DropCollection(col);
-                }
-
-                // and now shrink
-                db.Shrink();
-            }
-        }
-
-        #region LoremIpsum Generator
-
-        public static string LoremIpsum(int minWords, int maxWords,
-            int minSentences, int maxSentences,
-            int numParagraphs)
-        {
-            var words = new[] { "lorem", "ipsum", "dolor", "sit", "amet", "consectetuer",
-                "adipiscing", "elit", "sed", "diam", "nonummy", "nibh", "euismod",
-                "tincidunt", "ut", "laoreet", "dolore", "magna", "aliquam", "erat" };
-
-            var rand = new Random(DateTime.Now.Millisecond);
-            var numSentences = rand.Next(maxSentences - minSentences) + minSentences + 1;
-            var numWords = rand.Next(maxWords - minWords) + minWords + 1;
-
-            var result = new StringBuilder();
-
-            for (int p = 0; p < numParagraphs; p++)
-            {
-                for (int s = 0; s < numSentences; s++)
-                {
-                    for (int w = 0; w < numWords; w++)
-                    {
-                        if (w > 0) { result.Append(" "); }
-                        result.Append(words[rand.Next(words.Length)]);
-                    }
-                    result.Append(". ");
-                }
-                result.AppendLine();
-            }
-
-            return result.ToString();
-        }
-
-        #endregion
+        public override string ToString() => this.Filename;
     }
 }

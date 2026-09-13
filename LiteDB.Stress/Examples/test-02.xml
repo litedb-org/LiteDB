@@ -1,0 +1,22 @@
+<test timeout="60s" filename="test-01.db" delete="true">
+  <insert collection="col1" autoId="objectId" docs="100~500" sleep="0ms">
+    <fullName type="name" />
+    <age type="int" range="8~75" />
+  </insert>
+  <insert collection="col2" autoId="objectId" docs="100~500" sleep="0ms">
+    <fullName type="name" />
+    <age type="int" range="8~75" />
+  </insert>
+  <insert collection="col3" autoId="objectId" docs="100~500" sleep="0ms">
+    <fullName type="name" />
+    <age type="int" range="8~75" />
+  </insert>
+  <insert collection="col4" autoId="objectId" docs="100~500" sleep="0ms">
+    <fullName type="name" />
+    <age type="int" range="8~75" />
+  </insert>
+  <insert collection="col5" autoId="objectId" docs="100~500" sleep="0ms">
+    <fullName type="name" />
+    <age type="int" range="8~75" />
+  </insert>
+</test>

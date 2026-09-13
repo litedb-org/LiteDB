@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LiteDbPackageVersion>5.0.20</LiteDbPackageVersion>
+    <UseLocalLiteDb Condition="'$(UseLocalLiteDb)' == ''">false</UseLocalLiteDb>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(UseLocalLiteDb)' == 'true'">
+    <ProjectReference Include="..\LiteDB\LiteDB.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(UseLocalLiteDb)' != 'true'">
+    <PackageReference Include="LiteDB" Version="$(LiteDbPackageVersion)" />
+  </ItemGroup>
+
+</Project>

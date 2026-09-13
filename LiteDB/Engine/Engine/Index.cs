@@ -1,73 +1,161 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
+using LiteDB.Vector;
+using static LiteDB.Constants;
 
-namespace LiteDB
+namespace LiteDB.Engine
 {
     public partial class LiteEngine
     {
         /// <summary>
         /// Create a new index (or do nothing if already exists) to a collection/field
         /// </summary>
-        public bool EnsureIndex(string collection, string field, bool unique = false)
-        {
-            return this.EnsureIndex(collection, field, null, unique);
-        }
-
-        /// <summary>
-        /// Create a new index (or do nothing if already exists) to a collection/field
-        /// </summary>
-        public bool EnsureIndex(string collection, string field, string expression, bool unique = false)
+        public bool EnsureIndex(string collection, string name, BsonExpression expression, bool unique)
         {
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
-            if (!CollectionIndex.IndexPattern.IsMatch(field)) throw new ArgumentException("Invalid field format pattern: " + CollectionIndex.IndexPattern.ToString(), "field");
-            if (field == "_id") return false; // always exists
-            if (expression != null && expression.Length > 200) throw new ArgumentException("expression is limited in 200 characters", "expression");
+            if (name.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(name));
+            if (expression == null) throw new ArgumentNullException(nameof(expression));
+            if (expression.IsIndexable == false) throw new ArgumentException("Index expressions must contains at least one document field. Used methods must be immutable. Parameters are not supported.", nameof(expression));
 
-            return this.Transaction<bool>(collection, true, (col) =>
+            if (name.Length > INDEX_NAME_MAX_LENGTH) throw LiteException.InvalidIndexName(name, collection, "MaxLength = " + INDEX_NAME_MAX_LENGTH);
+            if (!name.IsWord()) throw LiteException.InvalidIndexName(name, collection, "Use only [a-Z$_]");
+            if (name.StartsWith("$")) throw LiteException.InvalidIndexName(name, collection, "Index name can't start with `$`");
+            if (expression.IsScalar == false && unique) throw new LiteException(0, "Multikey index expression do not support unique option");
+
+            if (expression.Source == "$._id") return false; // always exists
+
+            return this.AutoTransaction(transaction =>
             {
+                var snapshot = transaction.CreateSnapshot(LockMode.Write, collection, true);
+                var collectionPage = snapshot.CollectionPage;
+                var indexer = new IndexService(snapshot, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
+                var data = new DataService(snapshot, _disk.MAX_ITEMS_COUNT);
+
                 // check if index already exists
-                var current = col.GetIndex(field);
+                var current = collectionPage.GetCollectionIndex(name);
 
                 // if already exists, just exit
                 if (current != null)
                 {
-                    // do not test any difference between current index and new defition
+                    // but if expression are different, throw error
+                    if (current.Expression != expression.Source) throw LiteException.IndexAlreadyExist(name);
+
                     return false;
                 }
 
+                LOG($"create index `{collection}.{name}`", "COMMAND");
+
                 // create index head
-                var index = _indexer.CreateIndex(col);
-
-                index.Field = field;
-                index.Expression = expression ?? "$." + field;
-                index.Unique = unique;
-
-                _log.Write(Logger.COMMAND, "create index on '{0}' :: {1} unique: {2}", collection, index.Expression, unique);
+                var index = indexer.CreateIndex(name, expression.Source, unique);
+                var count = 0u;
 
                 // read all objects (read from PK index)
-                foreach (var pkNode in new QueryAll("_id", Query.Ascending).Run(col, _indexer))
+                foreach (var pkNode in new IndexAll("_id", LiteDB.Query.Ascending).Run(collectionPage, indexer))
                 {
-                    // read binary and deserialize document
-                    var buffer = _data.Read(pkNode.DataBlock);
-                    var doc = _bsonReader.Deserialize(buffer).AsDocument;
-                    var expr = new BsonExpression(index.Expression);
-
-                    // get values from expression in document
-                    var keys = expr.Execute(doc, true);
-
-                    // adding index node for each value
-                    foreach (var key in keys)
+                    using (var reader = new BufferReader(data.Read(pkNode.DataBlock)))
                     {
-                        // insert new index node
-                        var node = _indexer.AddNode(index, key, pkNode);
+                        var doc = reader.ReadDocument(expression.Fields).GetValue();
 
-                        // link index node to datablock
-                        node.DataBlock = pkNode.DataBlock;
+                        // first/last node in this document that will be added
+                        IndexNode last = null;
+                        IndexNode first = null;
+
+                        // get values from expression in document
+                        var keys = expression.GetIndexKeys(doc, _header.Pragmas.Collation);
+
+                        // adding index node for each value
+                        foreach (var key in keys)
+                        {
+                            _state.Validate();
+
+                            // insert new index node
+                            var node = indexer.AddNode(index, key, pkNode.DataBlock, last);
+
+                            if (first == null) first = node;
+
+                            last = node;
+
+                            count++;
+                        }
+
+                        // fix single linked-list in pkNode
+                        if (first != null)
+                        {
+                            last.SetNextNode(pkNode.NextNode);
+                            pkNode.SetNextNode(first.Position);
+                        }
                     }
 
-                    // check memory usage
-                    _trans.CheckPoint();
+                    transaction.Safepoint();
+                }
+
+                return true;
+            });
+        }
+
+        /// <summary>
+        /// Create a new vector index (or do nothing if already exists) for a collection/field.
+        /// </summary>
+        public bool EnsureVectorIndex(string collection, string name, BsonExpression expression, VectorIndexOptions options)
+        {
+            if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
+            if (name.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(name));
+            if (expression == null) throw new ArgumentNullException(nameof(expression));
+            if (options == null) throw new ArgumentNullException(nameof(options));
+            if (expression.Fields.Count == 0) throw new ArgumentException("Vector index expressions must reference a document field.", nameof(expression));
+
+            if (name.Length > INDEX_NAME_MAX_LENGTH) throw LiteException.InvalidIndexName(name, collection, "MaxLength = " + INDEX_NAME_MAX_LENGTH);
+            if (!name.IsWord()) throw LiteException.InvalidIndexName(name, collection, "Use only [a-Z$_]");
+            if (name.StartsWith("$")) throw LiteException.InvalidIndexName(name, collection, "Index name can't start with `$`");
+
+            return this.AutoTransaction(transaction =>
+            {
+                var snapshot = transaction.CreateSnapshot(LockMode.Write, collection, true);
+                var collectionPage = snapshot.CollectionPage;
+                var indexer = new IndexService(snapshot, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
+                var data = new DataService(snapshot, _disk.MAX_ITEMS_COUNT);
+                var vectorService = new VectorIndexService(snapshot, _header.Pragmas.Collation);
+
+                var existing = collectionPage.GetCollectionIndex(name);
+                var existingMetadata = collectionPage.GetVectorIndexMetadata(name);
+
+                if (existing != null && existing.IndexType != 1)
+                {
+                    throw LiteException.IndexAlreadyExist(name);
+                }
+
+                if (existing != null && existingMetadata != null)
+                {
+                    if (existing.Expression != expression.Source)
+                    {
+                        throw LiteException.IndexAlreadyExist(name);
+                    }
+
+                    if (existingMetadata.Dimensions != options.Dimensions || existingMetadata.Metric != options.Metric)
+                    {
+                        throw new LiteException(0, $"Vector index '{name}' already exists with different options.");
+                    }
+
+                    return false;
+                }
+
+                LOG($"create vector index `{collection}.{name}`", "COMMAND");
+
+                var tuple = collectionPage.InsertVectorIndex(name, expression.Source, options.Dimensions, options.Metric);
+
+                foreach (var pkNode in new IndexAll("_id", LiteDB.Query.Ascending).Run(collectionPage, indexer))
+                {
+                    _state.Validate();
+
+                    using (var reader = new BufferReader(data.Read(pkNode.DataBlock)))
+                    {
+                        var doc = reader.ReadDocument(expression.Fields).GetValue();
+                        vectorService.Upsert(tuple.Index, tuple.Metadata, doc, pkNode.DataBlock);
+                    }
+
+                    transaction.Safepoint();
                 }
 
                 return true;
@@ -77,57 +165,49 @@ namespace LiteDB
         /// <summary>
         /// Drop an index from a collection
         /// </summary>
-        public bool DropIndex(string collection, string field)
+        public bool DropIndex(string collection, string name)
         {
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
-            if (field.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(field));
+            if (name.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(name));
 
-            if (field == "_id") throw LiteException.IndexDropId();
+            if (name == "_id") throw LiteException.IndexDropId();
 
-            return this.Transaction<bool>(collection, false, (col) =>
+            return this.AutoTransaction(transaction =>
             {
+                var snapshot = transaction.CreateSnapshot(LockMode.Write, collection, false);
+                var col = snapshot.CollectionPage;
+                var indexer = new IndexService(snapshot, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
+            
                 // no collection, no index
                 if (col == null) return false;
-
+            
                 // search for index reference
-                var index = col.GetIndex(field);
-
+                var index = col.GetCollectionIndex(name);
+            
                 // no index, no drop
                 if (index == null) return false;
 
-                _log.Write(Logger.COMMAND, "drop index on '{0}' :: '{1}'", collection, field);
+                if (index.IndexType == 1)
+                {
+                    var metadata = col.GetVectorIndexMetadata(name);
+                    if (metadata != null)
+                    {
+                        var vectorService = new VectorIndexService(snapshot, _header.Pragmas.Collation);
+                        vectorService.Drop(metadata);
+                    }
+
+                    snapshot.CollectionPage.DeleteCollectionIndex(name);
+                    return true;
+                }
 
                 // delete all data pages + indexes pages
-                _indexer.DropIndex(index);
+                indexer.DropIndex(index);
 
-                // clear index reference
-                index.Clear();
-
-                // mark collection page as dirty
-                _pager.SetDirty(col);
+                // remove index entry in collection page
+                snapshot.CollectionPage.DeleteCollectionIndex(name);
 
                 return true;
             });
-        }
-
-        /// <summary>
-        /// List all indexes inside a collection
-        /// </summary>
-        public IEnumerable<IndexInfo> GetIndexes(string collection)
-        {
-            if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
-
-            using (_locker.Read())
-            {
-                var col = this.GetCollectionPage(collection, false);
-
-                if (col == null) yield break;
-
-                foreach (var index in col.GetIndexes(true))
-                {
-                    yield return new IndexInfo(index);
-                }
-            }
         }
     }
 }

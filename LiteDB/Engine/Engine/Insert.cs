@@ -1,40 +1,39 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
+using static LiteDB.Constants;
 
-namespace LiteDB
+namespace LiteDB.Engine
 {
     public partial class LiteEngine
     {
         /// <summary>
-        /// Implements insert documents in a collection - returns _id value
+        /// Insert all documents in collection. If document has no _id, use AutoId generation.
         /// </summary>
-        public BsonValue Insert(string collection, BsonDocument doc, BsonType autoId = BsonType.ObjectId)
-        {
-            if (doc == null) throw new ArgumentNullException(nameof(doc));
-
-            this.Insert(collection, new BsonDocument[] { doc }, autoId);
-
-            return doc["_id"];
-        }
-
-        /// <summary>
-        /// Implements insert documents in a collection - use a buffer to commit transaction in each buffer count
-        /// </summary>
-        public int Insert(string collection, IEnumerable<BsonDocument> docs, BsonType autoId = BsonType.ObjectId)
+        public int Insert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId)
         {
             if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
             if (docs == null) throw new ArgumentNullException(nameof(docs));
 
-            return this.Transaction<int>(collection, true, (col) =>
+            return this.AutoTransaction(transaction =>
             {
+                var snapshot = transaction.CreateSnapshot(LockMode.Write, collection, true);
                 var count = 0;
+                var indexer = new IndexService(snapshot, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
+                var data = new DataService(snapshot, _disk.MAX_ITEMS_COUNT);
+                var vectorService = new VectorIndexService(snapshot, _header.Pragmas.Collation);
+
+                LOG($"insert `{collection}`", "COMMAND");
 
                 foreach (var doc in docs)
                 {
-                    this.InsertDocument(col, doc, autoId);
+                    _state.Validate();
 
-                    _trans.CheckPoint();
+                    transaction.Safepoint();
+
+                    this.InsertDocument(snapshot, doc, autoId, indexer, data, vectorService);
 
                     count++;
                 }
@@ -44,65 +43,22 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Bulk documents to a collection - use data chunks for most efficient insert
-        /// </summary>
-        public int InsertBulk(string collection, IEnumerable<BsonDocument> docs, int batchSize = 5000, BsonType autoId = BsonType.ObjectId)
-        {
-            if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
-            if (docs == null) throw new ArgumentNullException(nameof(docs));
-            if (batchSize < 100 || batchSize > 100000) throw new ArgumentException("batchSize must be a value between 100 and 100000");
-
-            var count = 0;
-
-            foreach(var batch in docs.Batch(batchSize))
-            {
-                count += this.Insert(collection, batch, autoId);
-            }
-
-            return count;
-        }
-
-        /// <summary>
         /// Internal implementation of insert a document
         /// </summary>
-        private void InsertDocument(CollectionPage col, BsonDocument doc, BsonType autoId)
+        private void InsertDocument(Snapshot snapshot, BsonDocument doc, BsonAutoId autoId, IndexService indexer, DataService data, VectorIndexService vectorService)
         {
-            // collection Sequence was created after release current datafile version. 
-            // In this case, Sequence will be 0 but already has documents. Let's fix this
-            // ** this code can be removed when datafile change from 7 (HeaderPage.FILE_VERSION) **
-            if (col.Sequence == 0 && col.DocumentCount > 0)
-            {
-                var max = this.Max(col.CollectionName, "_id");
-
-                // if max value is a number, convert to Sequence last value
-                // if not, just set sequence as document count
-                col.Sequence = (max.IsInt32 || max.IsInt64 || max.IsDouble || max.IsDecimal) ?
-                    Convert.ToInt64(max.RawValue) :
-                    Convert.ToInt64(col.DocumentCount);
-            }
-
-            // increase collection sequence _id
-            col.Sequence++;
-
-            _pager.SetDirty(col);
-
-            // if no _id, add one
-            if (!doc.RawValue.TryGetValue("_id", out var id))
+            // if no _id, use AutoId
+            if (!doc.TryGetValue("_id", out var id))
             {
                 doc["_id"] = id =
-                    autoId == BsonType.ObjectId ? new BsonValue(ObjectId.NewObjectId()) :
-                    autoId == BsonType.Guid ? new BsonValue(Guid.NewGuid()) :
-                    autoId == BsonType.DateTime ? new BsonValue(DateTime.Now) :
-                    autoId == BsonType.Int32 ? new BsonValue((Int32)col.Sequence) :
-                    autoId == BsonType.Int64 ? new BsonValue(col.Sequence) : BsonValue.Null;
+                    autoId == BsonAutoId.ObjectId ? new BsonValue(ObjectId.NewObjectId()) :
+                    autoId == BsonAutoId.Guid ? new BsonValue(Guid.NewGuid()) :
+                    this.GetSequence(snapshot, autoId);
             }
-            // create bubble in sequence number if _id is bigger than current sequence
-            else if(autoId == BsonType.Int32 || autoId == BsonType.Int64)
+            else if(id.IsNumber)
             {
-                var current = id.AsInt64;
-
-                // if current id is bigger than sequence, jump sequence to this number. Other was, do not increse sequnce
-                col.Sequence = current >= col.Sequence ? current : col.Sequence - 1;
+                // update memory sequence of numeric _id
+                this.SetSequence(snapshot, id);
             }
 
             // test if _id is a valid type
@@ -111,37 +67,31 @@ namespace LiteDB
                 throw LiteException.InvalidDataType("_id", id);
             }
 
-            _log.Write(Logger.COMMAND, "insert document on '{0}' :: _id = {1}", col.CollectionName, id.RawValue);
-
-            // serialize object
-            var bytes = _bsonWriter.Serialize(doc);
-
             // storage in data pages - returns dataBlock address
-            var dataBlock = _data.Insert(col, bytes);
+            var dataBlock = data.Insert(doc);
 
-            // store id in a PK index [0 array]
-            var pk = _indexer.AddNode(col.PK, id, null);
-
-            // do link between index <-> data block
-            pk.DataBlock = dataBlock.Position;
+            IndexNode last = null;
 
             // for each index, insert new IndexNode
-            foreach (var index in col.GetIndexes(false))
+            foreach (var index in snapshot.CollectionPage.GetCollectionIndexes().Where(x => x.IndexType == 0))
             {
-                // for each index, get all keys (support now multi-key) - gets distinct values only
+                // for each index, get all keys (supports multi-key) - gets distinct values only
                 // if index are unique, get single key only
-                var expr = new BsonExpression(index.Expression);
-                var keys = expr.Execute(doc, true);
+                var keys = index.BsonExpr.GetIndexKeys(doc, _header.Pragmas.Collation);
 
                 // do a loop with all keys (multi-key supported)
                 foreach(var key in keys)
                 {
                     // insert node
-                    var node = _indexer.AddNode(index, key, pk);
+                    var node = indexer.AddNode(index, key, dataBlock, last);
 
-                    // link my index node to data block address
-                    node.DataBlock = dataBlock.Position;
+                    last = node;
                 }
+            }
+
+            foreach (var (vectorIndex, metadata) in snapshot.CollectionPage.GetVectorIndexes())
+            {
+                vectorService.Upsert(vectorIndex, metadata, doc, dataBlock);
             }
         }
     }

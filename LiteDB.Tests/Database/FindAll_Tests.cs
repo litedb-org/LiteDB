@@ -1,29 +1,30 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
+using FluentAssertions;
+using LiteDB.Tests.Utils;
+using Xunit;
 
 namespace LiteDB.Tests.Database
 {
-    #region Model
-
-    public class Person
-    {
-        public int Id { get; set; }
-        public string Fullname { get; set; }
-    }
-
-    #endregion
-
-    [TestClass]
     public class FindAll_Tests
     {
-        [TestMethod]
+        #region Model
+
+        public class Person
+        {
+            public int Id { get; set; }
+            public string Fullname { get; set; }
+        }
+
+        #endregion
+
+        [Fact]
         public void FindAll()
         {
             using (var f = new TempFile())
             {
-                using (var db = new LiteDatabase(f.Filename))
+                using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, f.Filename))
                 {
                     var col = db.GetCollection<Person>("Person");
 
@@ -34,11 +35,11 @@ namespace LiteDB.Tests.Database
                 }
                 // close datafile
 
-                using (var db = new LiteDatabase(f.Filename))
+                using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, f.Filename))
                 {
                     var p = db.GetCollection<Person>("Person").Find(Query.All("Fullname", Query.Ascending));
 
-                    Assert.AreEqual(4, p.Count());
+                    p.Count().Should().Be(4);
                 }
             }
 

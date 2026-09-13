@@ -1,40 +1,43 @@
-﻿//using Microsoft.VisualStudio.TestTools.UnitTesting;
-//using System.Collections.Generic;
-//using System.IO;
-//using System.Linq;
+﻿using System.Collections.Generic;
+using System.Linq;
+using FluentAssertions;
+using LiteDB.Tests.Utils;
+using Xunit;
 
-//namespace LiteDB.Tests
-//{
-//    public class MissingIdDoc
-//    {
-//        public string Name { get; set; }
-//        public int Age { get; set; }
-//    }
+namespace LiteDB.Tests.Database
+{
+    public class MissingIdDocTest
+    {
+        #region Model
 
-//    [TestClass]
-//    public class MissingIdDocTest
-//    {
-//        [TestMethod]
-//        public void MissingIdDoc_Test()
-//        {
-//            using (var file = new TempFile())
-//            using (var db = new LiteDatabase(file.Filename))
-//            {
-//                var col = db.GetCollection<MissingIdDoc>("col");
+        public class MissingIdDoc
+        {
+            public string Name { get; set; }
+            public int Age { get; set; }
+        }
 
-//                var p = new MissingIdDoc { Name = "John", Age = 39 };
+        #endregion
 
-//                // ObjectID will be generated 
-//                var id = col.Insert(p);
+        [Fact]
+        public void MissingIdDoc_Test()
+        {
+            using (var db = DatabaseFactory.Create())
+            {
+                var col = db.GetCollection<MissingIdDoc>("col");
 
-//                p.Age = 41;
+                var p = new MissingIdDoc { Name = "John", Age = 39 };
 
-//                col.Update(id, p);
+                // ObjectID will be generated 
+                var id = col.Insert(p);
 
-//                var r = col.FindById(id);
+                p.Age = 41;
 
-//                Assert.AreEqual(p.Name, r.Name);
-//            }
-//        }
-//    }
-//}
+                col.Update(id, p);
+
+                var r = col.FindById(id);
+
+                r.Name.Should().Be(p.Name);
+            }
+        }
+    }
+}

@@ -1,53 +1,55 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
+using LiteDB;
+using LiteDB.Tests.Utils;
+using FluentAssertions;
+using Xunit;
 
 namespace LiteDB.Tests.Database
 {
-    #region Model
-
-    public class EntityInt
-    {
-        public int Id { get; set; }
-        public string Name { get; set; }
-    }
-
-    public class EntityLong
-    {
-        public long Id { get; set; }
-        public string Name { get; set; }
-    }
-
-    public class EntityGuid
-    {
-        public Guid Id { get; set; }
-        public string Name { get; set; }
-    }
-
-    public class EntityOid
-    {
-        public ObjectId Id { get; set; }
-        public string Name { get; set; }
-    }
-
-    public class EntityString
-    {
-        public string Id { get; set; }
-        public string Name { get; set; }
-    }
-
-    #endregion
-
-    [TestClass]
     public class AutoId_Tests
     {
-        [TestMethod]
+        #region Model
+
+        public class EntityInt
+        {
+            public int Id { get; set; }
+            public string Name { get; set; }
+        }
+
+        public class EntityLong
+        {
+            public long Id { get; set; }
+            public string Name { get; set; }
+        }
+
+        public class EntityGuid
+        {
+            public Guid Id { get; set; }
+            public string Name { get; set; }
+        }
+
+        public class EntityOid
+        {
+            public ObjectId Id { get; set; }
+            public string Name { get; set; }
+        }
+
+        public class EntityString
+        {
+            public string Id { get; set; }
+            public string Name { get; set; }
+        }
+
+        #endregion
+
+        [Fact]
         public void AutoId_Strong_Typed()
         {
             var mapper = new BsonMapper();
 
-            using (var db = new LiteDatabase(new MemoryStream(), mapper))
+            using (var db = new LiteDatabase(new MemoryStream(), mapper, new MemoryStream()))
             {
                 var cs_int = db.GetCollection<EntityInt>("int");
                 var cs_long = db.GetCollection<EntityLong>("long");
@@ -106,11 +108,11 @@ namespace LiteDB.Tests.Database
                 var nu_oid = cs_oid.Update(coid_2);
                 var nu_str = cs_str.Update(cstr_2);
 
-                Assert.IsTrue(nu_int);
-                Assert.IsTrue(nu_long);
-                Assert.IsTrue(nu_guid);
-                Assert.IsTrue(nu_oid);
-                Assert.IsTrue(nu_str);
+                nu_int.Should().BeTrue();
+                nu_long.Should().BeTrue();
+                nu_guid.Should().BeTrue();
+                nu_oid.Should().BeTrue();
+                nu_str.Should().BeTrue();
 
                 // change document 3
                 cint_3.Name = "Changed 3";
@@ -126,18 +128,18 @@ namespace LiteDB.Tests.Database
                 var fu_oid = cs_oid.Upsert(coid_3);
                 var fu_str = cs_str.Upsert(cstr_3);
 
-                Assert.IsFalse(fu_int);
-                Assert.IsFalse(fu_long);
-                Assert.IsFalse(fu_guid);
-                Assert.IsFalse(fu_oid);
-                Assert.IsFalse(fu_str);
+                fu_int.Should().BeFalse();
+                fu_long.Should().BeFalse();
+                fu_guid.Should().BeFalse();
+                fu_oid.Should().BeFalse();
+                fu_str.Should().BeFalse();
 
                 // test if was changed
-                Assert.AreEqual(cint_3.Name, cs_int.FindOne(x => x.Id == cint_3.Id).Name);
-                Assert.AreEqual(clong_3.Name, cs_long.FindOne(x => x.Id == clong_3.Id).Name);
-                Assert.AreEqual(cguid_3.Name, cs_guid.FindOne(x => x.Id == cguid_3.Id).Name);
-                Assert.AreEqual(coid_3.Name, cs_oid.FindOne(x => x.Id == coid_3.Id).Name);
-                Assert.AreEqual(cstr_3.Name, cs_str.FindOne(x => x.Id == cstr_3.Id).Name);
+                cs_int.FindOne(x => x.Id == cint_3.Id).Name.Should().Be(cint_3.Name);
+                cs_long.FindOne(x => x.Id == clong_3.Id).Name.Should().Be(clong_3.Name);
+                cs_guid.FindOne(x => x.Id == cguid_3.Id).Name.Should().Be(cguid_3.Name);
+                cs_oid.FindOne(x => x.Id == coid_3.Id).Name.Should().Be(coid_3.Name);
+                cs_str.FindOne(x => x.Id == cstr_3.Id).Name.Should().Be(cstr_3.Name);
 
                 // upsert (insert) document 4
                 var tu_int = cs_int.Upsert(cint_4);
@@ -146,25 +148,25 @@ namespace LiteDB.Tests.Database
                 var tu_oid = cs_oid.Upsert(coid_4);
                 var tu_str = cs_str.Upsert(cstr_4);
 
-                Assert.IsTrue(tu_int);
-                Assert.IsTrue(tu_long);
-                Assert.IsTrue(tu_guid);
-                Assert.IsTrue(tu_oid);
-                Assert.IsTrue(tu_str);
+                tu_int.Should().BeTrue();
+                tu_long.Should().BeTrue();
+                tu_guid.Should().BeTrue();
+                tu_oid.Should().BeTrue();
+                tu_str.Should().BeTrue();
 
                 // test if was included
-                Assert.AreEqual(cint_4.Name, cs_int.FindOne(x => x.Id == cint_4.Id).Name);
-                Assert.AreEqual(clong_4.Name, cs_long.FindOne(x => x.Id == clong_4.Id).Name);
-                Assert.AreEqual(cguid_4.Name, cs_guid.FindOne(x => x.Id == cguid_4.Id).Name);
-                Assert.AreEqual(coid_4.Name, cs_oid.FindOne(x => x.Id == coid_4.Id).Name);
-                Assert.AreEqual(cstr_4.Name, cs_str.FindOne(x => x.Id == cstr_4.Id).Name);
+                cs_int.FindOne(x => x.Id == cint_4.Id).Name.Should().Be(cint_4.Name);
+                cs_long.FindOne(x => x.Id == clong_4.Id).Name.Should().Be(clong_4.Name);
+                cs_guid.FindOne(x => x.Id == cguid_4.Id).Name.Should().Be(cguid_4.Name);
+                cs_oid.FindOne(x => x.Id == coid_4.Id).Name.Should().Be(coid_4.Name);
+                cs_str.FindOne(x => x.Id == cstr_4.Id).Name.Should().Be(cstr_4.Name);
 
                 // count must be 4
-                Assert.AreEqual(4, cs_int.Count(Query.All()));
-                Assert.AreEqual(4, cs_long.Count(Query.All()));
-                Assert.AreEqual(4, cs_guid.Count(Query.All()));
-                Assert.AreEqual(4, cs_oid.Count(Query.All()));
-                Assert.AreEqual(4, cs_str.Count(Query.All()));
+                cs_int.Count(Query.All()).Should().Be(4);
+                cs_long.Count(Query.All()).Should().Be(4);
+                cs_guid.Count(Query.All()).Should().Be(4);
+                cs_oid.Count(Query.All()).Should().Be(4);
+                cs_str.Count(Query.All()).Should().Be(4);
 
                 // for Int32 (or Int64) - add "bouble" on sequence
                 var cint_10 = new EntityInt { Id = 10, Name = "R10" };
@@ -177,14 +179,14 @@ namespace LiteDB.Tests.Database
                 cs_int.Insert(cint_7); // insert as 7
                 cs_int.Insert(cint_12); // insert as 12
 
-                Assert.AreEqual(10, cint_10.Id);
-                Assert.AreEqual(11, cint_11.Id);
-                Assert.AreEqual(7, cint_7.Id);
-                Assert.AreEqual(12, cint_12.Id);
+                cint_10.Id.Should().Be(10);
+                cint_11.Id.Should().Be(11);
+                cint_7.Id.Should().Be(7);
+                cint_12.Id.Should().Be(12);
             }
         }
 
-        [TestMethod]
+        [Fact]
         public void AutoId_BsonDocument()
         {
             using (var db = new LiteDatabase(new MemoryStream()))
@@ -196,16 +198,16 @@ namespace LiteDB.Tests.Database
                 // create an index in name field
                 col.EnsureIndex("LowerName", "LOWER($.Name)");
 
-                var mark = col.FindOne(Query.EQ("LowerName", "mark twain"));
-                var jack = col.FindOne(Query.EQ("LowerName", "jack london"));
+                var mark = col.FindOne(Query.EQ("LOWER($.Name)", "mark twain"));
+                var jack = col.FindOne(Query.EQ("LOWER($.Name)", "jack london"));
 
                 // checks if auto-id is a ObjectId
-                Assert.IsTrue(mark["_id"].IsObjectId);
-                Assert.IsTrue(jack["_id"].IsInt32); // jack do not use AutoId (fixed in int32)
+                mark["_id"].IsObjectId.Should().BeTrue();
+                jack["_id"].IsInt32.Should().BeTrue(); // jack do not use AutoId (fixed in int32)
             }
         }
 
-        [TestMethod]
+        [Fact]
         public void AutoId_No_Duplicate_After_Delete()
         {
             // using strong type
@@ -222,8 +224,8 @@ namespace LiteDB.Tests.Database
                 col.Insert(one);
                 col.Insert(two);
 
-                Assert.AreEqual(1, one.Id);
-                Assert.AreEqual(2, two.Id);
+                one.Id.Should().Be(1);
+                two.Id.Should().Be(2);
 
                 // now delete first 2 rows
                 col.Delete(one.Id);
@@ -232,33 +234,61 @@ namespace LiteDB.Tests.Database
                 // and insert new documents
                 col.Insert(new EntityInt[] { three, four });
 
-                Assert.AreEqual(3, three.Id);
-                Assert.AreEqual(4, four.Id);
+                three.Id.Should().Be(3);
+                four.Id.Should().Be(4);
             }
 
             // using bsondocument/engine
-            using (var db = new LiteEngine(new MemoryStream()))
+            using (var db = new LiteDatabase(new MemoryStream()))
             {
                 var one = new BsonDocument { ["Name"] = "One" };
                 var two = new BsonDocument { ["Name"] = "Two" };
                 var three = new BsonDocument { ["Name"] = "Three" };
                 var four = new BsonDocument { ["Name"] = "Four" };
 
-                db.Insert("col", one, BsonType.Int32);
-                db.Insert("col", two, BsonType.Int32);
+                var col = db.GetCollection("col", BsonAutoId.Int32);
 
-                Assert.AreEqual(1, one["_id"].AsInt32);
-                Assert.AreEqual(2, two["_id"].AsInt32);
+                col.Insert(one);
+                col.Insert(two);
+
+                one["_id"].AsInt32.Should().Be(1);
+                two["_id"].AsInt32.Should().Be(2);
 
                 // now delete first 2 rows
-                db.Delete("col", one["_id"].AsInt32);
-                db.Delete("col", two["_id"].AsInt32);
+                col.Delete(one["_id"].AsInt32);
+                col.Delete(two["_id"].AsInt32);
 
                 // and insert new documents
-                db.Insert("col", new BsonDocument[] { three, four }, BsonType.Int32);
+                col.Insert(new BsonDocument[] { three, four });
 
-                Assert.AreEqual(3, three["_id"].AsInt32);
-                Assert.AreEqual(4, four["_id"].AsInt32);
+                three["_id"].AsInt32.Should().Be(3);
+                four["_id"].AsInt32.Should().Be(4);
+            }
+        }
+
+        [Fact]
+        public void AutoId_Zero_Int()
+        {
+            using (var db = DatabaseFactory.Create())
+            {
+                var test = db.GetCollection("Test", BsonAutoId.Int32);
+                var doc = new BsonDocument() { ["_id"] = 0, ["p1"] = 1 };
+                test.Insert(doc); // -> NullReferenceException
+            }
+        }
+
+        [Fact]
+        public void AutoId_property()
+        {
+            using (var db = new LiteDatabase(new MemoryStream()))
+            {
+                // default auto id
+                var col1 = db.GetCollection("Col1");
+                col1.AutoId.Should().Be(BsonAutoId.ObjectId);
+
+                // specified auto id
+                var col2 = db.GetCollection("Col2", BsonAutoId.Int32);
+                col2.AutoId.Should().Be(BsonAutoId.Int32);
             }
         }
     }

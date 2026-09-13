@@ -1,25 +1,18 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net40</TargetFrameworks>
-    <AssemblyName>LiteDB.Shell</AssemblyName>
-    <PackageId>LiteDB.Shell</PackageId>    
+        <TargetFramework>net8.0</TargetFramework>
+	<AssemblyName>LiteDB.Shell</AssemblyName>
+    <PackageId>LiteDB.Shell</PackageId>
     <OutputType>Exe</OutputType>
     <RootNamespace>LiteDB.Shell</RootNamespace>
-    <AssemblyVersion>4.1.1.0</AssemblyVersion>
-    <FileVersion>4.1.1</FileVersion>
-    <VersionPrefix>4.1.1</VersionPrefix>
     <Authors>Maurício David</Authors>
     <Copyright>MIT</Copyright>
     <NeutralLanguage>en-US</NeutralLanguage>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <NoWarn>1701;1702;1705;1591</NoWarn>
   </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU'">
-    <DefineConstants>TRACE;DEBUG</DefineConstants>
-  </PropertyGroup>
-
+  
   <ItemGroup>
     <ProjectReference Include="..\LiteDB\LiteDB.csproj" />
   </ItemGroup>

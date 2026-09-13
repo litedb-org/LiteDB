@@ -3,25 +3,36 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using static LiteDB.Constants;
 
 namespace LiteDB
 {
-    internal class JsonWriter
+    public class JsonWriter
     {
-        private const int INDENT_SIZE = 4;
+        private readonly static IFormatProvider _numberFormat = CultureInfo.InvariantCulture.NumberFormat;
 
-        private TextWriter _writer;
+        private readonly TextWriter _writer;
         private int _indent;
         private string _spacer = "";
 
-        public bool Pretty { get; set; }
-        public bool WriteBinary { get; set; }
+        /// <summary>
+        /// Get/Set indent size
+        /// </summary>
+        public int Indent { get; set; } = 4;
+
+        /// <summary>
+        /// Get/Set if writer must print pretty (with new line/indent)
+        /// </summary>
+        public bool Pretty { get; set; } = false;
 
         public JsonWriter(TextWriter writer)
         {
             _writer = writer;
         }
 
+        /// <summary>
+        /// Serialize value into text writer
+        /// </summary>
         public void Serialize(BsonValue value)
         {
             _indent = 0;
@@ -40,52 +51,62 @@ namespace LiteDB
                     break;
 
                 case BsonType.Array:
-                    this.WriteArray(new BsonArray((List<BsonValue>)value.RawValue));
+                    this.WriteArray(value.AsArray);
                     break;
 
                 case BsonType.Document:
-                    this.WriteObject(new BsonDocument((Dictionary<string, BsonValue>)value.RawValue));
+                    this.WriteObject(value.AsDocument);
                     break;
 
                 case BsonType.Boolean:
-                    _writer.Write(((bool)value.RawValue).ToString().ToLower());
+                    _writer.Write(value.AsBoolean.ToString().ToLower());
                     break;
 
                 case BsonType.String:
-                    this.WriteString((string)value.RawValue);
+                    this.WriteString(value.AsString);
                     break;
 
                 case BsonType.Int32:
-                    _writer.Write((Int32)value.RawValue);
+                    _writer.Write(value.AsInt32.ToString(_numberFormat));
                     break;
 
                 case BsonType.Double:
-                    _writer.Write(((Double)value.RawValue).ToString("0.0########", NumberFormatInfo.InvariantInfo));
+                    var d = value.AsDouble;
+
+                    if (double.IsNaN(d) || double.IsNegativeInfinity(d) || double.IsPositiveInfinity(d))
+                    {
+                        _writer.Write("null");
+                    }
+                    else
+                    {
+                        _writer.Write(value.AsDouble.ToString("0.0########", _numberFormat));
+                    }
+
                     break;
 
                 case BsonType.Binary:
-                    var bytes = (byte[])value.RawValue;
-                    this.WriteExtendDataType("$binary", this.WriteBinary ? Convert.ToBase64String(bytes, 0, bytes.Length) : "-- " + bytes.Length + " bytes --");
+                    var bytes = value.AsBinary;
+                    this.WriteExtendDataType("$binary", Convert.ToBase64String(bytes, 0, bytes.Length));
                     break;
 
                 case BsonType.ObjectId:
-                    this.WriteExtendDataType("$oid", ((ObjectId)value.RawValue).ToString());
+                    this.WriteExtendDataType("$oid", value.AsObjectId.ToString());
                     break;
 
                 case BsonType.Guid:
-                    this.WriteExtendDataType("$guid", ((Guid)value.RawValue).ToString());
+                    this.WriteExtendDataType("$guid", value.AsGuid.ToString());
                     break;
 
                 case BsonType.DateTime:
-                    this.WriteExtendDataType("$date", ((DateTime)value.RawValue).ToUniversalTime().ToString("o"));
+                    this.WriteExtendDataType("$date", value.AsDateTime.ToUniversalTime().ToString("o"));
                     break;
 
                 case BsonType.Int64:
-                    this.WriteExtendDataType("$numberLong", ((Int64)value.RawValue).ToString());
+                    this.WriteExtendDataType("$numberLong", value.AsInt64.ToString(_numberFormat));
                     break;
 
                 case BsonType.Decimal:
-                    this.WriteExtendDataType("$numberDecimal", ((Decimal)value.RawValue).ToString());
+                    this.WriteExtendDataType("$numberDecimal", value.AsDecimal.ToString(_numberFormat));
                     break;
 
                 case BsonType.MinValue:
@@ -94,6 +115,12 @@ namespace LiteDB
 
                 case BsonType.MaxValue:
                     this.WriteExtendDataType("$maxValue", "1");
+                    break;
+
+                case BsonType.Vector:
+                    var vector = value.AsVector;
+                    var array = new BsonArray(vector.Select(x => (BsonValue)x));
+                    this.WriteArray(array);
                     break;
             }
         }
@@ -107,9 +134,9 @@ namespace LiteDB
 
             var index = 0;
 
-            foreach (var key in obj.Keys)
+            foreach (var el in obj.GetElements())
             {
-                this.WriteKeyValue(key, obj[key], index++ < length - 1);
+                this.WriteKeyValue(el.Key, el.Value, index++ < length - 1);
             }
 
             this.WriteEndBlock("}", hasData);
@@ -126,7 +153,7 @@ namespace LiteDB
                 var item = arr[i];
 
                 // do not do this tests if is not pretty format - to better performance
-                if (this.Pretty)
+                if (this.Pretty && item != null)
                 {
                     if (!((item.IsDocument && item.AsDocument.Keys.Any()) || (item.IsArray && item.AsArray.Count > 0)))
                     {
@@ -184,15 +211,33 @@ namespace LiteDB
                         break;
 
                     default:
-                        int i = (int)c;
-                        if (i < 32 || i > 127)
+                        switch (CharUnicodeInfo.GetUnicodeCategory(c))
                         {
-                            _writer.Write("\\u");
-                            _writer.Write(i.ToString("x04"));
-                        }
-                        else
-                        {
-                            _writer.Write(c);
+                            case UnicodeCategory.UppercaseLetter:
+                            case UnicodeCategory.LowercaseLetter:
+                            case UnicodeCategory.TitlecaseLetter:
+                            case UnicodeCategory.OtherLetter:
+                            case UnicodeCategory.DecimalDigitNumber:
+                            case UnicodeCategory.LetterNumber:
+                            case UnicodeCategory.OtherNumber:
+                            case UnicodeCategory.SpaceSeparator:
+                            case UnicodeCategory.ConnectorPunctuation:
+                            case UnicodeCategory.DashPunctuation:
+                            case UnicodeCategory.OpenPunctuation:
+                            case UnicodeCategory.ClosePunctuation:
+                            case UnicodeCategory.InitialQuotePunctuation:
+                            case UnicodeCategory.FinalQuotePunctuation:
+                            case UnicodeCategory.OtherPunctuation:
+                            case UnicodeCategory.MathSymbol:
+                            case UnicodeCategory.CurrencySymbol:
+                            case UnicodeCategory.ModifierSymbol:
+                            case UnicodeCategory.OtherSymbol:
+                                _writer.Write(c);
+                                break;
+                            default:
+                                _writer.Write("\\u");
+                                _writer.Write(((int)c).ToString("x04"));
+                                break;
                         }
                         break;
                 }
@@ -226,7 +271,7 @@ namespace LiteDB
             {
                 _writer.Write(' ');
 
-                if ((value.IsDocument && value.AsDocument.Keys.Any()) || (value.IsArray && value.AsArray.Count > 0))
+                if (value != null && ((value.IsDocument && value.AsDocument.Keys.Any()) || (value.IsArray && value.AsArray.Count > 0)))
                 {
                     this.WriteNewLine();
                 }
@@ -283,7 +328,7 @@ namespace LiteDB
         {
             if (this.Pretty)
             {
-                _writer.Write("".PadRight(_indent * INDENT_SIZE, ' '));
+                _writer.Write("".PadRight(_indent * this.Indent, ' '));
             }
         }
     }

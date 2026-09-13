@@ -6,7 +6,6 @@ using System.Linq;
 namespace LiteDB.Shell.Commands
 {
     [Help(
-        Category = "Database",
         Name = "close",
         Syntax = "close",
         Description = "Close current datafile"
@@ -20,7 +19,11 @@ namespace LiteDB.Shell.Commands
 
         public void Execute(StringScanner s, Env env)
         {
-            env.Close();
+            if (env.Database != null)
+            {
+                env.Database.Dispose();
+                env.Database = null;
+            }
         }
     }
 }

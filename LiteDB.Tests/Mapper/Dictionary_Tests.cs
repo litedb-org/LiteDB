@@ -1,81 +1,85 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System;
-using System.IO;
-using System.Linq;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
-using System.Text.RegularExpressions;
+using System.Linq;
+using FluentAssertions;
+using Xunit;
 
 namespace LiteDB.Tests.Mapper
 {
-    #region Model
-
-    public class DictListData
-    {
-        public int Id { get; set; }
-        public Dictionary<string, List<int?>> MyDict { get; set; }
-    }
-
-    #endregion
-
-    [TestClass]
     public class Dictionary_Tests
     {
-        [TestMethod]
-        public void Nested_Dictionary()
+        public class Dict
         {
-            var mapper = new BsonMapper();
-
-            // map dictionary to bsondocument
-            var dict = new Dictionary<string, object>
-            {
-                ["_id"] = 1,
-                ["MyString"] = "This is string",
-                ["Nested"] = new Dictionary<string, object>()
-                {
-                    ["One"] = 1,
-                    ["Two"] = 2,
-                    ["Nested2"] = new Dictionary<string, object>()
-                    {
-                        ["Last"] = true
-                    }
-                },
-                ["Array"] = new string[] { "one", "two" }
-            };
-
-            var doc = mapper.ToDocument(dict);
-            var nobj = mapper.ToObject<Dictionary<string, object>>(doc);
-
-            Assert.AreEqual(dict["_id"], nobj["_id"]);
-            Assert.AreEqual(dict["MyString"], nobj["MyString"]);
-            Assert.AreEqual(((Dictionary<string, object>)dict["Nested"])["One"], ((Dictionary<string, object>)nobj["Nested"])["One"]);
-            Assert.AreEqual(((string[])dict["Array"])[0], ((object[])nobj["Array"])[0].ToString());
+            public IDictionary<DateTime, string> DateDict { get; set; } = new Dictionary<DateTime, string>();
         }
 
-        [TestMethod]
-        public void Dictionary_Of_List_T()
+        private readonly BsonMapper _mapper = new BsonMapper();
+
+        [Fact]
+        public void Dictionary_Map()
         {
-            var source = new DictListData
-            {
-                Id = 1,
-                MyDict = new Dictionary<string, List<int?>>()
-                {
-                    { "one", new List<int?> { 1, null, 3, null, 5 } }
-                }
-            };
+            var obj = new Dict();
 
-            var mapper = new BsonMapper();
+            obj.DateDict[DateTime.Now] = "now!";
 
-            var doc = mapper.ToDocument(source);
-            var json = doc.ToString();
+            var doc = _mapper.ToDocument(obj);
 
-            var dest = mapper.ToObject<DictListData>(doc);
+            var newobj = _mapper.ToObject<Dict>(doc);
 
-            Assert.AreEqual(source.MyDict["one"][0], dest.MyDict["one"][0]);
-            Assert.AreEqual(source.MyDict["one"][1], dest.MyDict["one"][1]);
-            Assert.AreEqual(source.MyDict["one"][2], dest.MyDict["one"][2]);
-            Assert.AreEqual(source.MyDict["one"][3], dest.MyDict["one"][3]);
-            Assert.AreEqual(source.MyDict["one"][4], dest.MyDict["one"][4]);
+            newobj.DateDict.Keys.First().Should().Be(obj.DateDict.Keys.First());
+        }
 
+        [Fact]
+        public void Deserialize_Object()
+        {
+            var doc = new BsonDocument() { ["x"] = 1 };
+
+            var result = _mapper.Deserialize(typeof(object), doc);
+            Assert.Equal(typeof(Dictionary<string, object>), result.GetType());
+
+            //! used to be empty
+            var dic = (Dictionary<string, object>)result;
+            Assert.Single(dic);
+            Assert.Equal(1, dic["x"]);
+        }
+
+        [Fact]
+        public void Deserialize_Hashtable()
+        {
+            var doc = new BsonDocument() { ["x"] = 1 };
+
+            var result = _mapper.Deserialize(typeof(Hashtable), doc);
+            Assert.Equal(typeof(Hashtable), result.GetType());
+
+            //! used to be empty
+            var dic = (Hashtable)result;
+            Assert.Single(dic);
+            Assert.Equal(1, dic["x"]);
+        }
+
+        [Fact]
+        public void Serialize_Hashtable()
+        {
+            var data = new Hashtable() { ["x"] = 1 };
+
+            //! used to fail
+            var result = _mapper.Serialize(data).AsDocument;
+
+            Assert.Single(result);
+            Assert.Equal(1, result["x"].AsInt32);
+        }
+
+        [Fact]
+        public void Deserialize_Uri()
+        {
+            var dict = new Dictionary<Uri, string>();
+            dict.Add(new Uri("http://www.litedb.org/"), "LiteDB website");
+            var doc = _mapper.Serialize(dict).AsDocument;
+            var dict2 = _mapper.Deserialize<Dictionary<Uri, string>>(doc);
+
+            Assert.Single(dict2);
+            Assert.Equal(dict.Keys.Single(), dict2.Keys.Single());
         }
     }
 }

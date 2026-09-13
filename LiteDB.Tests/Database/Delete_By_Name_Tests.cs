@@ -1,18 +1,27 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System;
-using System.IO;
+﻿using System;
 using System.Linq;
+using FluentAssertions;
+using LiteDB.Tests.Utils;
+using Xunit;
 
 namespace LiteDB.Tests.Database
 {
-    [TestClass]
     public class Delete_By_Name_Tests
     {
-        [TestMethod]
+        #region Model
+
+        public class Person
+        {
+            public int Id { get; set; }
+            public string Fullname { get; set; }
+        }
+
+        #endregion
+
+        [Fact]
         public void Delete_By_Name()
         {
-            using (var f = new TempFile())
-            using (var db = new LiteDatabase(f.Filename))
+            using (var db = DatabaseFactory.Create())
             {
                 var col = db.GetCollection<Person>("Person");
 
@@ -22,9 +31,9 @@ namespace LiteDB.Tests.Database
                 col.Insert(new Person { Fullname = "Marcus" });
 
                 // lets auto-create index in FullName and delete from a non-pk node
-                var del = col.Delete(x => x.Fullname.StartsWith("J"));
+                var del = col.DeleteMany(x => x.Fullname.StartsWith("J"));
 
-                Assert.AreEqual(2, del);
+                del.Should().Be(2);
             }
         }
     }

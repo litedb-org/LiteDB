@@ -1,48 +1,48 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System.IO;
+﻿using System.IO;
+using FluentAssertions;
+using Xunit;
 
 namespace LiteDB.Tests.Database
 {
-    #region Model
-
-    public class DCustomer
-    {
-        public string Login { get; set; }
-        public string Name { get; set; }
-    }
-
-    public class DOrder
-    {
-        public int OrderNumber { get; set; }
-        public DCustomer Customer { get; set; }
-    }
-
-    #endregion
-
-    [TestClass]
     public class DbRef_Index_Tests
     {
-        [TestMethod]
+        #region Model
+
+        public class Customer
+        {
+            public string Login { get; set; }
+            public string Name { get; set; }
+        }
+
+        public class Order
+        {
+            public int OrderNumber { get; set; }
+            public Customer Customer { get; set; }
+        }
+
+        #endregion
+
+        [Fact]
         public void DbRef_Index()
         {
             var mapper = new BsonMapper();
 
-            mapper.Entity<DCustomer>()
+            mapper.Entity<Customer>()
                 .Id(x => x.Login)
                 .Field(x => x.Name, "customer_name");
 
-            mapper.Entity<DOrder>()
+            mapper.Entity<Order>()
                 .Id(x => x.OrderNumber)
                 .Field(x => x.Customer, "cust")
                 .DbRef(x => x.Customer, "customers");
 
-            using (var db = new LiteDatabase(new MemoryStream(), mapper))
+            using (var db = new LiteDatabase(new MemoryStream(), mapper, new MemoryStream()))
             {
-                var customer = new DCustomer { Login = "jd", Name = "John Doe" };
-                var order = new DOrder { Customer = customer };
+                var customer = new Customer { Login = "jd", Name = "John Doe" };
+                var order = new Order { Customer = customer };
 
-                var customers = db.GetCollection<DCustomer>("Customers");
-                var orders = db.GetCollection<DOrder>("Orders");
+                var customers = db.GetCollection<Customer>("Customers");
+                var orders = db.GetCollection<Order>("Orders");
 
                 customers.Insert(customer);
                 orders.Insert(order);
@@ -55,7 +55,7 @@ namespace LiteDB.Tests.Database
                     .Include(x => x.Customer)
                     .FindOne(x => x.Customer.Login == "jd");
 
-                Assert.AreEqual(customer.Name, query.Customer.Name);
+                query.Customer.Name.Should().Be(customer.Name);
             }
         }
     }

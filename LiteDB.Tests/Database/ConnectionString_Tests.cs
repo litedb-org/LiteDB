@@ -1,226 +1,104 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System;
-using System.Collections.Generic;
+﻿using System;
+using System.IO;
 using System.Linq;
+using System.Collections.Generic;
+using FluentAssertions;
+using Xunit;
 
 namespace LiteDB.Tests.Database
 {
-    [TestClass]
     public class ConnectionString_Tests
     {
-        [TestMethod]
-        public void ConnectionString_NoArguments()
-        {
-            // Verify that the default ConnectionString contains the appropriate defaults
-            var defaults = new ConnectionString();
-            AssertDefaults(defaults, false);
-        }
-
-        [TestMethod]
-        public void ConnectionString_Passwords()
-        {
-            var parsed = new ConnectionString(@"filename=demo;password=""ab\""|    c;785;""");
-            Assert.AreEqual("demo", parsed.Filename);
-            Assert.AreEqual(@"ab""|    c;785;", parsed.Password);
-
-            var nonParsed = new ConnectionString
-            {
-                Filename = "demo",
-                Password = @"ab""|    c;785;"
-            };
-
-            Assert.AreEqual(parsed.Filename, nonParsed.Filename);
-            Assert.AreEqual(parsed.Password, nonParsed.Password);
-
-            parsed = new ConnectionString(@"filename=demo;password=ab\""123");
-            Assert.AreEqual(@"ab""123", parsed.Password);
-
-
-            parsed = new ConnectionString(@"filename=demo;password=""ab;123"";");
-            Assert.AreEqual(@"ab;123", parsed.Password);
-
-            Assert.ThrowsException<FormatException>(() => new ConnectionString(@"filename=demo;password=ab;123"));
-        }
-
-        [TestMethod]
-        public void ConnectionString_Bools()
-        {
-            var parsed = new ConnectionString("filename=demo.db; jOuRnal  =  FALSE  ; upgrade=True;async =true;");
-            Assert.AreEqual(false, parsed.Journal);
-            Assert.AreEqual(true, parsed.Upgrade);
-            Assert.AreEqual(true, parsed.Async);
-
-            parsed = new ConnectionString("filename=demo.db; journal=true; upgrade=false;async =false");
-            Assert.AreEqual(true, parsed.Journal);
-            Assert.AreEqual(false, parsed.Upgrade);
-            Assert.AreEqual(false, parsed.Async);
-
-            Assert.ThrowsException<FormatException>(() => new ConnectionString("filename=demo.db; journal=string"));
-        }
-
-        [TestMethod]
-        public void ConnectionString_Ints()
-        {
-            var parsed = new ConnectionString("filename=one;cache size = 1234");
-            Assert.AreEqual(1234, parsed.CacheSize);
-            
-            parsed = new ConnectionString(@"filename=one;cache size = ""8"";");
-            Assert.AreEqual(8, parsed.CacheSize);
-            
-            Assert.ThrowsException<FormatException>(() => new ConnectionString("filename=one;cache size = 8s;"));
-        }
-
-        [TestMethod]
-        public void ConnectionString_TimeSpan()
-        {
-            var parsed = new ConnectionString("filename=one;Timeout = 12:34:56");
-            Assert.AreEqual(new TimeSpan(12, 34, 56), parsed.Timeout);
-
-            parsed = new ConnectionString(@"filename=one;Timeout =""12:34:56""");
-            Assert.AreEqual(new TimeSpan(12, 34, 56), parsed.Timeout);
-            
-            Assert.ThrowsException<FormatException>(() => new ConnectionString("filename=one;Timeout = 12:234:56"));
-        }
-
-        [TestMethod]
-        public void ConnectionString_Sizes()
-        {
-            var parsed = new ConnectionString(@"filename=one;initial   size=1234 ;LIMIT size = ""852""");
-            Assert.AreEqual(1234, parsed.InitialSize);
-            Assert.AreEqual(852, parsed.LimitSize);
-
-            parsed = new ConnectionString(@"filename=one;initial   size=1234  mb ;LIMIT size = ""852KB""");
-            Assert.AreEqual(1234 * 1024 * 1024, parsed.InitialSize);
-            Assert.AreEqual(852 * 1024, parsed.LimitSize);
-
-            parsed = new ConnectionString(@"filename=one;initial   size=  8  Gb ;LIMIT size =  ""28 KB""");
-            Assert.AreEqual(8L * 1024 * 1024 * 1024, parsed.InitialSize);
-            Assert.AreEqual(28 * 1024, parsed.LimitSize);
-
-            Assert.ThrowsException<FormatException>(() =>
-                new ConnectionString(@"filename=one;initial   size=1234p ;LIMIT size = ""852"""));
-
-            Assert.ThrowsException<FormatException>(() =>
-                new ConnectionString(@"filename=one;initial   size=1234 ;LIMIT size = ""852]"""));
-        }
-
-        [TestMethod]
-        public void ConnectionString_InvalidSettings()
-        {
-            Assert.ThrowsException<FormatException>(()=> new ConnectionString(@"NoSuchSetting=one"));
-            Assert.ThrowsException<FormatException>(() => new ConnectionString(@"filename=one;nosuchsetting=two"));
-            
-            // need filename
-            Assert.ThrowsException<FormatException>(() => new ConnectionString(@"password=one"));
-        }
-
-        [TestMethod]
+        [Fact]
         public void ConnectionString_Parser()
         {
             // only filename
             var onlyfile = new ConnectionString(@"demo.db");
 
-            Assert.AreEqual(@"demo.db", onlyfile.Filename);
-            AssertDefaults(onlyfile, true);
+            onlyfile.Filename.Should().Be(@"demo.db");
 
             // file with spaces without "
-            var normal = new ConnectionString(@"filename=c:\only file\demo.db; journal=false");
+            var normal = new ConnectionString(@"filename=c:\only file\demo.db");
 
-            Assert.AreEqual(@"c:\only file\demo.db", normal.Filename);
-            Assert.AreEqual(false, normal.Journal);
+            normal.Filename.Should().Be(@"c:\only file\demo.db");
 
             // filename with timeout
-            var filenameTimeout = new ConnectionString(@"filename = my demo.db ; timeout = 1:00:00");
-
-            Assert.AreEqual(@"my demo.db", filenameTimeout.Filename);
-            Assert.AreEqual(TimeSpan.FromHours(1), filenameTimeout.Timeout);
 
             // file with spaces with " and ;
-            var fullConnectionString = @"filename=""c:\only;file\""d\""emo.db""; 
-                  journal =false;
+            var full = new ConnectionString(
+                @"filename=""c:\only;file\""d\""emo.db""; 
                   password =   ""john-doe "" ;
-                  cache SIZE = 1000 ;
-                  timeout = 00:05:00 ;
                   initial size = 10 MB ;
-                  mode =  excluSIVE ;
-                  limit SIZE = 20mb;
-                  log = 255 ;
-                  utc=true ;
-                  upgrade=true;
-                  async=true";
-            var full = new ConnectionString(fullConnectionString);
+                  readONLY =  TRUE;");
 
-            Assert.AreEqual(@"c:\only;file""d""emo.db", full.Filename);
-            Assert.AreEqual(false, full.Journal);
-            Assert.AreEqual("john-doe ", full.Password);
-            Assert.AreEqual(1000, full.CacheSize);
-            Assert.AreEqual(FileMode.Exclusive, full.Mode);
-            Assert.AreEqual(TimeSpan.FromMinutes(5), full.Timeout);
-            Assert.AreEqual(10 * 1024 * 1024, full.InitialSize);
-            Assert.AreEqual(20 * 1024 * 1024, full.LimitSize);
-            Assert.AreEqual(255, full.Log);
-            Assert.AreEqual(true, full.UtcDate);
-            Assert.AreEqual(true, full.Upgrade);
-            Assert.AreEqual(true, full.Async);
+            full.Filename.Should().Be(@"c:\only;file""d""emo.db");
+            full.Password.Should().Be("john-doe ");
+            full.ReadOnly.Should().BeTrue();
+            full.InitialSize.Should().Be(10 * 1024 * 1024);
+
         }
 
-        [TestMethod]
-        public void ConnectionString_Sets_Log_Level()
+        [Fact]
+        public void ConnectionString_Very_Long()
         {
-            var connectionString = "filename=foo;";
-            var db = new LiteDatabase(connectionString);
-            Assert.AreEqual(0, db.Log.Level);
+            var cn = new ConnectionString(@"Filename=C:\Users\yup\AppData\Roaming\corex\storecore.file;Password='1495c305c5312dd1a9a18d9502daa0369216763ca7a6f537ddbe290241cf8aad1ca326313adec74bb98d1955747347cf0e3f087899d8bb2e0aa002ff825e1c0f25eaa79e5dfbf1c0e2daf6746a3a3f140244b764204c20c0ccede3521eaf8537ae32d4b13a04f1c387f56a8d6fa095bc53451c1892a46b8182afd94559cd7377aebc8d4a2b4883c637a359e6e67e1d8c2d789721351ebb000409329b2e875d21278b7c76724c68729e53dac50168564b8c3432018212a111c952e593829b42c296458cc0020174aaef9ca6b5661ca965004404c2bbb256bc41a8aa5c5349c615e40328a3263c45e5f96e61048149e98aa8b6f2afb59d73379e1dce5429752d8d'");
 
-            connectionString = "filename=foo;log=" + Logger.FULL;
-            db = new LiteDatabase(connectionString);
-            Assert.AreEqual(Logger.FULL, db.Log.Level);
+            cn.Filename.Length.Should().Be(49);
+            cn.Password.Length.Should().Be(512);
+
         }
 
-        [TestMethod]
-        public void ConnectionString_MetaTest()
+        [Fact]
+        public void ConnectionString_Parses_Memory_Limits()
         {
-            // This test is a meta test that verifies that all of the properties present in ConnectionString are also tested by this test.
-            // If this test fails, you should make sure that you don't need to update this test. (In particular, you almost certainly need to update AssertDefaults.)
-            var expectedProperties = new HashSet<string>()
-            {
-                "Filename",
-                "Journal",
-                "Password",
-                "CacheSize",
-                "Timeout",
-                "Mode",
-                "InitialSize",
-                "LimitSize",
-                "Log",
-                "UtcDate",
-                "Upgrade",
-                "Async",
-                "Flush"
-            };
+            var connection = new ConnectionString("filename=test.db;cache size=64MB;transaction pages=32");
 
-            var actualProperties = new HashSet<string>(typeof(ConnectionString).GetProperties().Select(p => p.Name));
-            actualProperties.ExceptWith(expectedProperties);
-            
-            // If the below assert fails, properties were added to ConnectionString without updating this test.
-            Assert.AreEqual(0, actualProperties.Count);
+            connection.CacheSize.Should().Be(64L * 1024 * 1024);
+            connection.TransactionPageLimit.Should().Be(32);
         }
 
-        private void AssertDefaults(ConnectionString connectionString, bool skipFilename)
+        [Fact]
+        public void ConnectionString_Requires_Units_For_Small_Cache_Sizes()
         {
-            if (!skipFilename)
-            { Assert.AreEqual("", connectionString.Filename); }
+            Action parse = () => new ConnectionString("filename=test.db;cache size=512");
 
-            Assert.AreEqual(true, connectionString.Journal);
-            Assert.AreEqual(null, connectionString.Password);
-            Assert.AreEqual(5000, connectionString.CacheSize);
-            Assert.AreEqual(new TimeSpan(0, 1, 0), connectionString.Timeout);
-            Assert.AreEqual(FileMode.Shared, connectionString.Mode);
-            Assert.AreEqual(0, connectionString.InitialSize);
-            Assert.AreEqual(long.MaxValue, connectionString.LimitSize);
-            Assert.AreEqual(Logger.NONE, connectionString.Log);
-            Assert.AreEqual(false, connectionString.UtcDate);
-            Assert.AreEqual(false, connectionString.Upgrade);
-            Assert.AreEqual(false, connectionString.Async);
+            parse.Should().Throw<LiteException>()
+                .WithMessage("*below 1 MB*include a size unit*");
+        }
+
+        [Fact]
+        public void ConnectionString_Accepts_Explicit_Kilobytes()
+        {
+            var connection = new ConnectionString("filename=test.db;cache size=512KB");
+
+            connection.CacheSize.Should().Be(512L * 1024);
+        }
+
+        [Theory]
+        [InlineData("abc")]
+        [InlineData("-1")]
+        [InlineData("1XB")]
+        [InlineData("999999999999999999999999TB")]
+        [InlineData("1.5MB")]
+        [InlineData("9223372036854775808")]
+        [InlineData("9223372036854775807TB")]
+        [InlineData("''")]
+        [InlineData("")]
+        public void ConnectionString_Rejects_Invalid_Cache_Sizes(string value)
+        {
+            Action parse = () => new ConnectionString("filename=:memory:;cache size=" + value);
+            parse.Should().Throw<LiteException>();
+        }
+
+        [Theory]
+        [InlineData("0", 0L)]
+        [InlineData("0MB", 0L)]
+        [InlineData("512bytes", 512L)]
+        [InlineData("1048576", 1048576L)]
+        [InlineData("64 mb", 67108864L)]
+        public void ConnectionString_Accepts_Default_And_Explicit_Byte_Units(string value, long expected)
+        {
+            new ConnectionString("filename=:memory:;cache size=" + value).CacheSize.Should().Be(expected);
         }
     }
 }
