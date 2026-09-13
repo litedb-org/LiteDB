@@ -23,7 +23,7 @@ namespace LiteDB
             }
             catch
             {
-                _failed = true;
+                if (_complete != null) _failed = true;
                 throw;
             }
         }
@@ -39,7 +39,7 @@ namespace LiteDB
             }
             catch
             {
-                _failed = true;
+                if (_complete != null) _failed = true;
                 throw;
             }
         }
