@@ -201,7 +201,13 @@ namespace LiteDB
         }
 
         /// <inheritdoc />
-        public override string ToString()
+        public override string ToString() => ToString(false);
+
+        /// <summary>
+        /// Serilizes the ConnectionString.
+        /// </summary>
+        /// <param name="includePlaintextPassword">Whether to include the plain text password.</param>
+        public string ToString(bool includePlaintextPassword)
         {
             if (string.IsNullOrEmpty(Filename))
             {
@@ -221,10 +227,18 @@ namespace LiteDB
                     .Append(';');
             }
 
-            if (Password != null)
+            if (!includePlaintextPassword || !string.IsNullOrEmpty(Password))
             {
                 bld.Append("Password=");
-                AppendQuotedString(bld, Password);
+                if (includePlaintextPassword)
+                {
+                    AppendQuotedString(bld, Password);
+                }
+                else
+                {
+                    bld.Append('*', 8);
+                }
+
                 bld.Append(';');
             }
 

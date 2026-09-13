@@ -53,14 +53,15 @@ namespace LiteDB.Tests.Database
         {
             var empty = new ConnectionString();
 
-            empty.ToString().Should().BeEmpty();
+            empty.ToString(true).Should().BeEmpty();
 
             var onlyfile = new ConnectionString
             {
                 Filename = @"c:\only file\demo.db",
             };
 
-            onlyfile.ToString().Should().Be(@"c:\only file\demo.db");
+            onlyfile.ToString(true).Should().Be(@"c:\only file\demo.db");
+            onlyfile.ToString().Should().Be("""Filename="c:\only file\demo.db";Password=********""");
 
             // filename with =
             var fileWithSpecials = new ConnectionString
@@ -68,21 +69,21 @@ namespace LiteDB.Tests.Database
                 Filename = @"c:\only file\d""e=mo.db",
             };
 
-            fileWithSpecials.ToString().Should().Be(@"Filename=""c:\only file\d\""e=mo.db""");
+            fileWithSpecials.ToString(true).Should().Be(@"Filename=""c:\only file\d\""e=mo.db""");
 
             // file with spaces with " and ;
             var full = new ConnectionString
             {
-                Filename = @"c:\only;file""d""emo.db",
-                Password = "john-doe ",
+                Filename = """c:\only;file"d"emo.db""",
+                Password = "john-doe\\ ",
                 ReadOnly = true,
                 InitialSize = 10_485_760,
             };
 
-            full.ToString().Should().Be(@"Filename=""c:\only;file\""d\""emo.db"";Password=""john-doe "";Initial Size=10485760;ReadOnly=True");
+            full.ToString(true).Should().Be("""Filename="c:\only;file\"d\"emo.db";Password="john-doe\ ";Initial Size=10485760;ReadOnly=True""");
 
             // ToString/Parse round trips
-            var parsed = new ConnectionString(full.ToString());
+            var parsed = new ConnectionString(full.ToString(true));
             parsed.Should().BeEquivalentTo(full);
         }
 
