@@ -101,11 +101,7 @@ namespace LiteDB
             }
             else if (obj is UInt64)
             {
-                var value = (UInt64)obj;
-
-                return value <= Int64.MaxValue
-                    ? new BsonValue((Int64)value)
-                    : new BsonValue((Decimal)value);
+                return (BsonValue)(UInt64)obj;
             }
             else if (obj is Single)
             {

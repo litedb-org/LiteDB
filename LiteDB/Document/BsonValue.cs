@@ -11,7 +11,7 @@ namespace LiteDB
     /// <summary>
     /// Represent a Bson Value used in BsonDocument
     /// </summary>
-    public class BsonValue : IComparable<BsonValue>, IEquatable<BsonValue>
+    public partial class BsonValue : IComparable<BsonValue>, IEquatable<BsonValue>
     {
         public static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
@@ -152,6 +152,7 @@ namespace LiteDB
                 var v = (BsonValue)value;
                 this.Type = v.Type;
                 this.RawValue = v.RawValue;
+                _isUInt64 = v._isUInt64;
             }
             else
             {
@@ -237,13 +238,6 @@ namespace LiteDB
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         public long AsInt64 => Convert.ToInt64(this.RawValue);
-
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        internal ulong AsUInt64 => this.IsDouble
-            ? Convert.ToUInt64(this.AsDouble)
-            : this.IsDecimal
-                ? checked((UInt64)this.AsDecimal)
-                : unchecked((UInt64)this.AsInt64);
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         public double AsDouble => Convert.ToDouble(this.RawValue);
@@ -369,22 +363,6 @@ namespace LiteDB
         public static implicit operator BsonValue(Decimal value)
         {
             return new BsonValue(value);
-        }
-
-        // UInt64 is stored as Int64 now, but legacy direct writes used Double.
-        // Keep both readable so old files do not need a rewrite just to load values.
-        public static implicit operator UInt64(BsonValue value)
-        {
-            return value.AsUInt64;
-        }
-
-        // Preserve the existing Int64 representation while it is unambiguous.
-        // Decimal stores the high half without colliding with negative Int64 keys.
-        public static implicit operator BsonValue(UInt64 value)
-        {
-            return value <= Int64.MaxValue
-                ? new BsonValue((Int64)value)
-                : new BsonValue((Decimal)value);
         }
 
         // String

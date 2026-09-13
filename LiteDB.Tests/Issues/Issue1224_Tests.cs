@@ -176,6 +176,11 @@ public class Issue1224_Tests
             ["_id"] = new BsonValue((double)id),
             ["Name"] = "written by 5.0.21"
         });
+        raw.Insert(new BsonDocument
+        {
+            ["_id"] = 1,
+            ["Name"] = "control"
+        });
 
         var found = raw.FindById(id);
 
@@ -194,14 +199,15 @@ public class Issue1224_Tests
     }
 
     [Fact]
-    public void Legacy_double_outside_the_ulong_range_should_fail_clearly()
+    public void Legacy_double_rounded_to_two_power_64_should_map_to_ulong_max()
     {
         var mapper = new BsonMapper();
         var roundedTwoToThePowerOf64 = new BsonValue(Math.Pow(2, 64));
 
         // ulong.MaxValue was rounded to exactly 2^64 by the legacy Double format.
-        // Silently turning that out-of-range value into 0 or ulong.MaxValue is unsafe.
-        Assert.Throws<OverflowException>(() => mapper.Deserialize<ulong>(roundedTwoToThePowerOf64));
+        var result = mapper.Deserialize<ulong>(roundedTwoToThePowerOf64);
+
+        Assert.Equal(ulong.MaxValue, result);
     }
 
     [Fact]
