@@ -283,6 +283,27 @@ namespace LiteDB
                     .Append(';');
             }
 
+            if (MemoryProfile != MemoryProfile.Balanced)
+            {
+                bld.Append("Memory Profile")
+                    .Append(MemoryProfile)
+                    .Append(';');
+            }
+
+            if (CacheSize != 0)
+            {
+                bld.Append("Cache Size=")
+                    .AppendFormat(CultureInfo.InvariantCulture, "{0:D}", CacheSize)
+                    .Append(';');
+            }
+
+            if (_transactionPageLimit is > 0)
+            {
+                bld.Append("Transaction Pages=")
+                    .AppendFormat(CultureInfo.InvariantCulture, "{0:D}", _transactionPageLimit.Value)
+                    .Append(';');
+            }
+
             if (bld.Length == fileNameLength && !Filename.Contains("="))
             {
                 return Filename;
