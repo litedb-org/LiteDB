@@ -11,7 +11,7 @@ namespace LiteDB.Benchmarks.Models.Generators
         private static T Generate()
         {
             var docGuid = Guid.NewGuid();
-
+            
             var generatedFileMeta = new T
             {
                 FileId = docGuid,
@@ -20,7 +20,7 @@ namespace LiteDB.Benchmarks.Models.Generators
                 MimeType = "application/pdf",
                 IsFavorite = _random.Next(10) >= 9,
                 ShouldBeShown = _random.Next(10) >= 7,
-                Vectors = Enumerable.Range(0, 128).Select(_ => (float)_random.NextDouble()).ToArray()
+                Vectors =  Enumerable.Range(0, 128).Select(_ => (float)_random.NextDouble()).ToArray()
             };
 
             if (_random.Next(10) >= 5)

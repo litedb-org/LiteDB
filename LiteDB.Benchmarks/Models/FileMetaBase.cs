@@ -2,7 +2,6 @@ using System;
 
 namespace LiteDB.Benchmarks.Models
 {
-
     public class FileMetaBase
     {
         [BsonIgnore]
