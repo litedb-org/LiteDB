@@ -8,14 +8,14 @@ namespace LiteDB
     {
         /// <summary>
         /// Open/create a file and return a stream that atomically appends to its content.
-        /// Existing file metadata is preserved. A failed append is rolled back when this
-        /// method owns the current transaction. The stream must be used and disposed on
-        /// the opening thread. A caller-owned transaction remains the caller's responsibility.
+        /// Existing file metadata is preserved and a failed append is rolled back. The stream
+        /// must be used and disposed on the opening thread and cannot be nested in a transaction.
         /// </summary>
         /// <param name="id">The identifier of the file to append.</param>
         /// <param name="filename">The filename used only when a new file is created.</param>
         /// <param name="metadata">The metadata used only when a new file is created.</param>
         /// <returns>A write-only stream positioned at the end of the file.</returns>
+        /// <exception cref="InvalidOperationException">The opening thread already has an active transaction.</exception>
         public LiteFileStream<TFileId> OpenAppend(TFileId id, string filename, BsonDocument metadata = null)
         {
             if (id == null) throw new ArgumentNullException(nameof(id));
@@ -23,12 +23,18 @@ namespace LiteDB
 
             var sync = LiteStorageAppendLock.Get(_db);
             var ownsTransaction = false;
-
-            Monitor.Enter(sync);
+            var lockTaken = false;
 
             try
             {
                 ownsTransaction = _db.BeginTrans();
+
+                if (!ownsTransaction)
+                {
+                    throw new InvalidOperationException("OpenAppend cannot be used inside an active transaction.");
+                }
+
+                Monitor.Enter(sync, ref lockTaken);
 
                 var fileId = _db.Mapper.Serialize(typeof(TFileId), id);
                 var file = _files.Query()
@@ -56,11 +62,8 @@ namespace LiteDB
                 {
                     try
                     {
-                        if (ownsTransaction)
-                        {
-                            if (success) _db.Commit();
-                            else _db.Rollback();
-                        }
+                        if (success) _db.Commit();
+                        else _db.Rollback();
                     }
                     finally
                     {
@@ -76,7 +79,7 @@ namespace LiteDB
                 }
                 finally
                 {
-                    Monitor.Exit(sync);
+                    if (lockTaken) Monitor.Exit(sync);
                 }
 
                 throw;

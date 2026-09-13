@@ -103,8 +103,7 @@ namespace LiteDB
 
         /// <summary>
         /// Atomically appends text using UTF-8 without a byte-order mark. A missing file is created.
-        /// Existing bytes and metadata are preserved. A failed append is rolled back unless the caller
-        /// supplied the active transaction, in which case the caller must roll it back.
+        /// Existing bytes and metadata are preserved and a failed append is rolled back.
         /// </summary>
         /// <param name="self">The storage containing the file.</param>
         /// <param name="id">The identifier of the file to append.</param>
@@ -117,8 +116,7 @@ namespace LiteDB
 
         /// <summary>
         /// Atomically appends text using the specified encoding. A missing file is created.
-        /// Existing bytes and metadata are preserved. A failed append is rolled back unless the caller
-        /// supplied the active transaction, in which case the caller must roll it back.
+        /// Existing bytes and metadata are preserved and a failed append is rolled back.
         /// </summary>
         /// <param name="self">The storage containing the file.</param>
         /// <param name="id">The identifier of the file to append.</param>

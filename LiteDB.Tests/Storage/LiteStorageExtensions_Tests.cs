@@ -180,6 +180,39 @@ namespace LiteDB.Tests.Storage
             storage.FindById("text").Filename.Should().Be("original.txt");
         }
 
+        [Fact]
+        public void OpenWrite_finalizes_metadata_after_a_stream_write_fails()
+        {
+            using var database = new LiteDatabase(new MemoryStream());
+            var storage = database.FileStorage;
+
+            storage.WriteAllBytes("text", "original.txt", Encoding.UTF8.GetBytes("committed"));
+
+            using (var stream = storage.OpenWrite("text", "replacement.txt"))
+            {
+                Action invalidWrite = () => stream.Write(new byte[1], 0, 2);
+                invalidWrite.Should().Throw<ArgumentException>();
+            }
+
+            storage.ReadAllBytes("text").Should().BeEmpty();
+            storage.FindById("text").Filename.Should().Be("replacement.txt");
+            storage.FindById("text").Length.Should().Be(0);
+            storage.FindById("text").Chunks.Should().Be(0);
+        }
+
+        [Fact]
+        public void OpenAppend_rejects_a_caller_owned_transaction()
+        {
+            using var database = new LiteDatabase(new MemoryStream());
+            var storage = database.FileStorage;
+
+            database.BeginTrans().Should().BeTrue();
+            Action open = () => storage.OpenAppend("text", "text.txt");
+
+            open.Should().Throw<InvalidOperationException>().WithMessage("*active transaction*");
+            database.Rollback().Should().BeTrue();
+        }
+
         private static int CountSequence(byte[] bytes, byte[] sequence)
         {
             return Enumerable.Range(0, bytes.Length - sequence.Length + 1)
