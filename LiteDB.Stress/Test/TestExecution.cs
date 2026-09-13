@@ -47,7 +47,10 @@ namespace LiteDB.Stress
             this.CreateThreads();
 
             // start report thread
-            var t = new Thread(() => this.ReportThread());
+            var t = new Thread(() => this.ReportThread())
+            {
+                IsBackground = true
+            };
             t.Name = "REPORT";
             t.Start();
         }
@@ -100,7 +103,10 @@ namespace LiteDB.Stress
                             info.Counter++;
                             info.LastRun = DateTime.Now;
                         }
-                    });
+                    })
+                    {
+                        IsBackground = true
+                    };
 
                     _threads[thread.ManagedThreadId] = new ThreadInfo
                     {

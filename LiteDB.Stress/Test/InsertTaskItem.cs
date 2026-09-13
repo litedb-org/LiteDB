@@ -41,26 +41,23 @@ namespace LiteDB.Stress
 
         public BsonValue Execute(LiteDatabase db)
         {
-            IEnumerable<BsonDocument> source()
-            {
-                var count = _rnd.Next(this.MinRange, this.MaxRange);
-
-                for(var i = 0; i < count; i++)
-                {
-                    var doc = new BsonDocument();
-
-                    foreach(var field in this.Fields)
-                    {
-                        doc[field.Name] = field.GetValue();
-                    }
-
-                    yield return doc;
-                }
-            }
-
             _collection ??= db.GetCollection(this.Collection, this.AutoId);
 
-            return _collection.Insert(source());
+            var count = _rnd.Next(this.MinRange, this.MaxRange);
+
+            for(var i = 0; i < count; i++)
+            {
+                var doc = new BsonDocument();
+
+                foreach(var field in this.Fields)
+                {
+                    doc[field.Name] = field.GetValue();
+                }
+
+                _collection.Insert(doc);
+            }
+
+            return count;
         }
     }
 }

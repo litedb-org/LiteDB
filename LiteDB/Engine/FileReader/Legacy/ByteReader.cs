@@ -103,7 +103,7 @@ namespace LiteDB
             return new Decimal(new int[] {  a, b, c, d });
         }
 
-        public Byte[] ReadBytes(int count)
+        public byte[] ReadBytes(int count)
         {
             var buffer = new byte[count];
 

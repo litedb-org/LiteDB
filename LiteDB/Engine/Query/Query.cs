@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -17,8 +17,7 @@ namespace LiteDB
         public List<BsonExpression> Includes { get; } = new List<BsonExpression>();
         public List<BsonExpression> Where { get; } = new List<BsonExpression>();
 
-        public BsonExpression OrderBy { get; set; } = null;
-        public int Order { get; set; } = Query.Ascending;
+        public List<QueryOrder> OrderBy { get; } = new List<QueryOrder>();
 
         public BsonExpression GroupBy { get; set; } = null;
         public BsonExpression Having { get; set; } = null;
@@ -26,6 +25,19 @@ namespace LiteDB
         public int Offset { get; set; } = 0;
         public int Limit { get; set; } = int.MaxValue;
         public bool ForUpdate { get; set; } = false;
+
+        /// <summary>
+        /// Vector index expression. An expression that cannot be parsed or matched
+        /// leaves a hand-built query's ordinary predicates and ordering in effect.
+        /// </summary>
+        public string VectorField { get; set; } = null;
+        public float[] VectorTarget { get; set; } = null;
+        public double VectorMaxDistance { get; set; } = double.MaxValue;
+        public bool HasVectorFilter => VectorField != null && VectorTarget != null;
+
+        // Only this API-generated predicate may be evaluated with the vector index metric.
+        internal BsonExpression VectorFilter { get; set; }
+        internal Engine.VectorScoreProjection VectorScore { get; set; }
 
         public string Into { get; set; }
         public BsonAutoId IntoAutoId { get; set; } = BsonAutoId.ObjectId;
@@ -69,10 +81,7 @@ namespace LiteDB
                 sb.AppendLine($"INCLUDE {string.Join(", ", this.Includes.Select(x => x.Source))}");
             }
 
-            if (this.Where.Count > 0)
-            {
-                sb.AppendLine($"WHERE {string.Join(" AND ", this.Where.Select(x => x.Source))}");
-            }
+            
 
             if (this.GroupBy != null)
             {
@@ -84,9 +93,12 @@ namespace LiteDB
                 sb.AppendLine($"HAVING {this.Having.Source}");
             }
 
-            if (this.OrderBy != null)
+            if (this.OrderBy.Count > 0)
             {
-                sb.AppendLine($"ORDER BY {this.OrderBy.Source} {(this.Order == Query.Ascending ? "ASC" : "DESC")}");
+                var orderBy = this.OrderBy
+                    .Select(x => $"{x.Expression.Source} {(x.Order == Query.Ascending ? "ASC" : "DESC")}");
+
+                sb.AppendLine($"ORDER BY {string.Join(", ", orderBy)}");
             }
 
             if (this.Limit != int.MaxValue)
@@ -102,6 +114,37 @@ namespace LiteDB
             if (this.ForUpdate)
             {
                 sb.AppendLine($"FOR UPDATE");
+            }
+
+            if (this.HasVectorFilter)
+            {
+                var field = this.VectorField;
+
+                if (!string.IsNullOrEmpty(field))
+                {
+                    field = field.Trim();
+
+                    if (!field.StartsWith("$", StringComparison.Ordinal))
+                    {
+                        field = field.StartsWith(".", StringComparison.Ordinal)
+                            ? "$" + field
+                            : "$." + field;
+                    }
+                }
+
+                var vectorExpr = $"VECTOR_SIM({field}, [{string.Join(",", this.VectorTarget)}])";
+                if (this.Where.Count > 0)
+                {
+                    sb.AppendLine($"WHERE ({string.Join(" AND ", this.Where.Select(x => x.Source))}) AND {vectorExpr} <= {this.VectorMaxDistance}");
+                }
+                else
+                {
+                    sb.AppendLine($"WHERE {vectorExpr} <= {this.VectorMaxDistance}");
+                }
+            }
+            else if (this.Where.Count > 0)
+            {
+                sb.AppendLine($"WHERE {string.Join(" AND ", this.Where.Select(x => x.Source))}");
             }
 
             return sb.ToString().Trim();

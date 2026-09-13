@@ -28,6 +28,8 @@ namespace LiteDB.Engine
         private readonly IndexPage _page;
         private readonly BufferSlice _segment;
 
+        private static readonly byte[] arrayByteEmpty = new byte[0];
+
         /// <summary>
         /// Position of this node inside a IndexPage (not persist)
         /// </summary>
@@ -164,7 +166,7 @@ namespace LiteDB.Engine
         public IndexNode(BsonDocument doc)
         {
             _page = null;
-            _segment = new BufferSlice(new byte[0], 0, 0);
+            _segment = new BufferSlice(arrayByteEmpty, 0, 0);
 
             this.Position = new PageAddress(0, 0);
             this.Slot = 0;

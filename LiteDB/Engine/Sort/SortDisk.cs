@@ -83,7 +83,7 @@ namespace LiteDB.Engine
         /// </summary>
         public void Write(long position, BufferSlice buffer)
         {
-            var writer = _pool.Writer;
+            var writer = _pool.Writer.Value;
 
             // there is only a single writer instance, must be lock to ensure only 1 single thread are writing
             lock(writer)

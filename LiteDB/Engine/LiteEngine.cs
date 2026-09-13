@@ -107,6 +107,7 @@ namespace LiteDB.Engine
 
                 // read header database page
                 _header = new HeaderPage(buffer);
+                _disk.FileVersion = _header.FileVersion;
 
                 // if database is set to invalid state, need rebuild
                 if (buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0 && _settings.AutoRebuild)
@@ -125,6 +126,7 @@ namespace LiteDB.Engine
                     buffer = _disk.ReadFull(FileOrigin.Data).First();
 
                     _header = new HeaderPage(buffer);
+                    _disk.FileVersion = _header.FileVersion;
                 }
 
                 // test for same collation
@@ -140,7 +142,7 @@ namespace LiteDB.Engine
                 _walIndex = new WalIndexService(_disk, _locker);
 
                 // if exists log file, restore wal index references (can update full _header instance)
-                if (_disk.GetVirtualLength(FileOrigin.Log) > 0)
+                if (_disk.GetFileLength(FileOrigin.Log) > 0)
                 {
                     _walIndex.RestoreIndex(ref _header);
                 }
@@ -149,7 +151,7 @@ namespace LiteDB.Engine
                 _sortDisk = new SortDisk(_settings.CreateTempFactory(), CONTAINER_SORT_SIZE, _header.Pragmas);
 
                 // initialize transaction monitor as last service
-                _monitor = new TransactionMonitor(_header, _locker, _disk, _walIndex);
+                _monitor = new TransactionMonitor(_header, _locker, _disk, _walIndex, _settings.TransactionPageLimit);
 
                 // register system collections
                 this.InitializeSystemCollections();
@@ -185,12 +187,6 @@ namespace LiteDB.Engine
 
             // stop running all transactions
             tc.Catch(() => _monitor?.Dispose());
-
-            // wait for writer queue
-            if (_disk != null && _disk.Queue.IsValueCreated)
-            {
-                tc.Catch(() => _disk.Queue.Value.Wait());
-            }
 
             if (_header?.Pragmas.Checkpoint > 0)
             {
@@ -228,9 +224,10 @@ namespace LiteDB.Engine
 
             tc.Catch(() => _monitor?.Dispose());
 
-            if (_disk != null && _disk.Queue.IsValueCreated)
+            if (tc.InvalidDatafileState)
             {
-                tc.Catch(() => _disk.Queue.Value.Dispose());
+                // Keep the data writer alive until the recovery marker is durable.
+                tc.Catch(() => _disk?.MarkAsInvalidState());
             }
 
             // close disks streams
@@ -242,19 +239,12 @@ namespace LiteDB.Engine
             // close engine lock service
             tc.Catch(() => _locker?.Dispose());
 
-            if (tc.InvalidDatafileState)
-            {
-                // mark byte = 1 in HeaderPage.P_INVALID_DATAFILE_STATE - will open in auto-rebuild
-                // this method will throw no errors
-                tc.Catch(() => _disk.MarkAsInvalidState());
-            }
-
             return tc.Exceptions;
         }
 
         #endregion
 
-#if DEBUG
+#if DEBUG || TESTING
         // exposes for unit tests
         internal TransactionMonitor GetMonitor() => _monitor;
         internal Action<PageBuffer> SimulateDiskReadFail { set => _state.SimulateDiskReadFail = value; }

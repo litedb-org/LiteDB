@@ -72,6 +72,8 @@ namespace LiteDB.Engine
         /// </summary>
         public Select Select { get; set; }
 
+        internal VectorScoreProjection VectorScore { get; set; }
+
         /// <summary>
         /// Get fields name that will be deserialize from disk
         /// </summary>
@@ -116,6 +118,12 @@ namespace LiteDB.Engine
         {
             var data = new DataService(snapshot, maxItemsCount);
             var indexer = new IndexService(snapshot, pragmas.Collation, maxItemsCount);
+
+            if (this.Index is VectorIndexQuery vector)
+            {
+                vector.ConfigureLookup(data, pragmas.UtcDate, this.Fields);
+                return vector;
+            }
 
             // define document loader
             // if index are VirtualIndex - it's also lookup document
@@ -179,11 +187,11 @@ namespace LiteDB.Engine
 
             if (this.OrderBy != null)
             {
-                doc["orderBy"] = new BsonDocument
+                doc["orderBy"] = new BsonArray(this.OrderBy.Segments.Select(x => new BsonDocument
                 {
-                    ["expr"] = this.OrderBy.Expression.Source,
-                    ["order"] = this.OrderBy.Order,
-                };
+                    ["expr"] = x.Expression.Source,
+                    ["order"] = x.Order,
+                }));
             }
 
             if (this.Limit != int.MaxValue)
@@ -203,12 +211,23 @@ namespace LiteDB.Engine
 
             if (this.GroupBy != null)
             {
-                doc["groupBy"] = new BsonDocument
+                var group = new BsonDocument
                 {
                     ["expr"] = this.GroupBy.Expression.Source,
                     ["having"] = this.GroupBy.Having?.Source,
                     ["select"] = this.GroupBy.Select?.Source
                 };
+
+                if (this.GroupBy.OrderBy != null)
+                {
+                    group["orderBy"] = new BsonArray(this.GroupBy.OrderBy.Segments.Select(x => new BsonDocument
+                    {
+                        ["expr"] = x.Expression.Source,
+                        ["order"] = x.Order
+                    }));
+                }
+
+                doc["groupBy"] = group;
             }
             else
             {

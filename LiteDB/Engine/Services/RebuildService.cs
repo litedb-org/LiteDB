@@ -22,14 +22,19 @@ namespace LiteDB.Engine
         {
             _settings = settings;
 
+            // test for prior version
+            var bufferV7 = this.ReadFirstBytes(false);
+            if (FileReaderV7.IsVersion(bufferV7))
+            {
+                _fileVersion = 7;
+                return;
+            }
+
             // open, read first 16kb, and close data file
             var buffer = this.ReadFirstBytes();
 
             // test for valid reader to use
-            _fileVersion = 
-                FileReaderV7.IsVersion(buffer) ? 7 :
-                FileReaderV8.IsVersion(buffer) ? 8 : throw LiteException.InvalidDatabase();
-
+            _fileVersion = FileReaderV8.IsVersion(buffer) ? 8 : throw LiteException.InvalidDatabase();
         }
 
         public long Rebuild(RebuildOptions options)
@@ -109,10 +114,10 @@ namespace LiteDB.Engine
         /// <summary>
         /// Read first 16kb (2 PAGES) in bytes
         /// </summary>
-        private byte[] ReadFirstBytes()
+        private byte[] ReadFirstBytes(bool useAesStream = true)
         {
             var buffer = new byte[PAGE_SIZE * 2];
-            var factory = _settings.CreateDataFactory();
+            var factory = _settings.CreateDataFactory(useAesStream);
 
             using (var stream = factory.GetStream(false, true))
             {

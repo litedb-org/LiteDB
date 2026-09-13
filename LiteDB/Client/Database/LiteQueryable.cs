@@ -12,7 +12,7 @@ namespace LiteDB
     /// <summary>
     /// An IQueryable-like class to write fluent query in documents in collection.
     /// </summary>
-    public class LiteQueryable<T> : ILiteQueryable<T>
+    public partial class LiteQueryable<T> : ILiteQueryable<T>
     {
         protected readonly ILiteEngine _engine;
         protected readonly BsonMapper _mapper;
@@ -103,14 +103,13 @@ namespace LiteDB
         #region OrderBy
 
         /// <summary>
-        /// Sort the documents of resultset in ascending (or descending) order according to a key (support only one OrderBy)
+        /// Sort the documents of resultset in ascending (or descending) order according to a key.
         /// </summary>
         public ILiteQueryable<T> OrderBy(BsonExpression keySelector, int order = Query.Ascending)
         {
-            if (_query.OrderBy != null) throw new ArgumentException("ORDER BY already defined in this query builder");
+            if (_query.OrderBy.Count > 0) throw new ArgumentException("Multiple OrderBy calls are not supported. Use ThenBy for additional sort keys.");
 
-            _query.OrderBy = keySelector;
-            _query.Order = order;
+            _query.OrderBy.Add(new QueryOrder(keySelector, order));
             return this;
         }
 
@@ -123,18 +122,70 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Sort the documents of resultset in descending order according to a key (support only one OrderBy)
+        /// Sort the documents of resultset in descending order according to a key.
         /// </summary>
         public ILiteQueryable<T> OrderByDescending(BsonExpression keySelector) => this.OrderBy(keySelector, Query.Descending);
 
         /// <summary>
-        /// Sort the documents of resultset in descending order according to a key (support only one OrderBy)
+        /// Sort the documents of resultset in descending order according to a key.
         /// </summary>
         public ILiteQueryable<T> OrderByDescending<K>(Expression<Func<T, K>> keySelector) => this.OrderBy(keySelector, Query.Descending);
+
+        /// <summary>
+        /// Appends an ascending sort expression that is applied when previous keys are equal.
+        /// </summary>
+        public ILiteQueryable<T> ThenBy(BsonExpression keySelector)
+        {
+            if (_query.OrderBy.Count == 0) return this.OrderBy(keySelector, Query.Ascending);
+
+            _query.OrderBy.Add(new QueryOrder(keySelector, Query.Ascending));
+            return this;
+        }
+
+        /// <summary>
+        /// Appends an ascending sort expression that is applied when previous keys are equal.
+        /// </summary>
+        public ILiteQueryable<T> ThenBy<K>(Expression<Func<T, K>> keySelector)
+        {
+            return this.ThenBy(_mapper.GetExpression(keySelector));
+        }
+
+        /// <summary>
+        /// Appends a descending sort expression that is applied when previous keys are equal.
+        /// </summary>
+        public ILiteQueryable<T> ThenByDescending(BsonExpression keySelector)
+        {
+            if (_query.OrderBy.Count == 0) return this.OrderBy(keySelector, Query.Descending);
+
+            _query.OrderBy.Add(new QueryOrder(keySelector, Query.Descending));
+            return this;
+        }
+
+        /// <summary>
+        /// Appends a descending sort expression that is applied when previous keys are equal.
+        /// </summary>
+        public ILiteQueryable<T> ThenByDescending<K>(Expression<Func<T, K>> keySelector)
+        {
+            return this.ThenByDescending(_mapper.GetExpression(keySelector));
+        }
 
         #endregion
 
         #region GroupBy
+
+        /// <summary>
+        /// Groups the documents of resultset according to a specified key selector expression (support only one GroupBy)
+        /// </summary>
+        public ILiteQueryable<IGrouping<K, T>> GroupBy<K>(Expression<Func<T, K>> keySelector)
+        {
+            var expression = _mapper.GetExpression(keySelector);
+
+            this.GroupBy(expression);
+
+            _mapper.RegisterGroupingType<K, T>();
+
+            return new LiteQueryable<IGrouping<K, T>>(_engine, _mapper, _collection, _query);
+        }
 
         /// <summary>
         /// Groups the documents of resultset according to a specified key selector expression (support only one GroupBy)
@@ -169,7 +220,7 @@ namespace LiteDB
         /// <summary>
         /// Transform input document into a new output document. Can be used with each document, group by or all source
         /// </summary>
-        public ILiteQueryableResult<BsonDocument> Select(BsonExpression selector)
+        public ILiteQueryable<BsonDocument> Select(BsonExpression selector)
         {
             _query.Select = selector;
 
@@ -179,10 +230,8 @@ namespace LiteDB
         /// <summary>
         /// Project each document of resultset into a new document/value based on selector expression
         /// </summary>
-        public ILiteQueryableResult<K> Select<K>(Expression<Func<T, K>> selector)
+        public ILiteQueryable<K> Select<K>(Expression<Func<T, K>> selector)
         {
-            if (_query.GroupBy != null) throw new ArgumentException("Use Select(BsonExpression selector) when using GroupBy query");
-
             _query.Select = _mapper.GetExpression(selector);
 
             return new LiteQueryable<K>(_engine, _mapper, _collection, _query);

@@ -1,0 +1,47 @@
+{
+  "Label": "current",
+  "Runtime": ".NET 8.0.30",
+  "OS": "Microsoft Windows 10.0.26200",
+  "ProcessorCount": 32,
+  "Assembly": "C:\\Users\\Jonas\\AppData\\Local\\Temp\\litedb-validation-current\\LiteDB.dll",
+  "AssemblySha256": "BF65FC100251D6C1C50AFADFF0F9B3C44148159CFB29E6685193D1306F0FEAE8",
+  "CacheMiB": 64,
+  "Documents": 900000,
+  "Measurements": {
+    "seedMs": 5228.6798,
+    "scanColdMs": 1068.5856,
+    "scanWarmMs": 922.185,
+    "lookupThreads1": {
+      "Samples": 2000,
+      "P50Microseconds": 21.5,
+      "P99Microseconds": 85.3
+    },
+    "lookupThreads1TotalMs": 49.9665,
+    "lookupThreads1FramesExaminedPerLookup": 1.0725,
+    "lookupThreads1FramesExaminedPerMiss": 1.0004664179104477,
+    "lookupThreads4": {
+      "Samples": 8000,
+      "P50Microseconds": 36.1,
+      "P99Microseconds": 306.5
+    },
+    "lookupThreads4TotalMs": 95.4808,
+    "lookupThreads4FramesExaminedPerLookup": 1.464375,
+    "lookupThreads4FramesExaminedPerMiss": 3.332859174964438,
+    "lookupThreads16": {
+      "Samples": 32000,
+      "P50Microseconds": 108.5,
+      "P99Microseconds": 1284.7
+    },
+    "lookupThreads16TotalMs": 424.3601,
+    "lookupThreads16FramesExaminedPerLookup": 1.71046875,
+    "lookupThreads16FramesExaminedPerMiss": 2.6369417545888134,
+    "transactionRelease": {
+      "Samples": 100,
+      "P50Microseconds": 36.5,
+      "P99Microseconds": 90.5
+    },
+    "ensureIndexMs": 2987.5176,
+    "indexWalBytes": 96526336,
+    "cacheAfterIndex": "{\u0022limitBytes\u0022:{\u0022$numberLong\u0022:\u002267108864\u0022},\u0022limitPagesRounded\u0022:8200,\u0022allocatedBytes\u0022:{\u0022$numberLong\u0022:\u002267174400\u0022},\u0022segments\u0022:65,\u0022totalPages\u0022:8200,\u0022readablePages\u0022:8200,\u0022idleReadablePages\u0022:8200,\u0022loadingPages\u0022:0,\u0022pinnedPages\u0022:0,\u0022retainedBySegments\u0022:0,\u0022evictedPages\u0022:{\u0022$numberLong\u0022:\u0022679290\u0022},\u0022releasedSegments\u0022:{\u0022$numberLong\u0022:\u00220\u0022},\u0022overflowSegments\u0022:{\u0022$numberLong\u0022:\u00220\u0022},\u0022framesExamined\u0022:{\u0022$numberLong\u0022:\u00221396065\u0022},\u0022budgetExceeded\u0022:{\u0022$numberLong\u0022:\u0022212\u0022},\u0022lostFrames\u0022:{\u0022$numberLong\u0022:\u00220\u0022},\u0022hits\u0022:{\u0022$numberLong\u0022:\u0022963461\u0022},\u0022misses\u0022:{\u0022$numberLong\u0022:\u0022562404\u0022},\u0022compiledExpressions\u0022:5,\u0022extendSegments\u0022:65,\u0022extendPages\u0022:8200,\u0022freePages\u0022:0,\u0022writablePages\u0022:0,\u0022pagesInUse\u0022:0}"
+  }
+}

@@ -1,16 +1,25 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
+
 using static LiteDB.Constants;
 
 namespace LiteDB
 {
     internal static class StringExtensions
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsNullOrWhiteSpace(this string str)
         {
-            return str == null || str.Trim().Length == 0;
+            return string.IsNullOrWhiteSpace(str);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool IsNullOrEmpty(this string str)
+        {
+            return string.IsNullOrEmpty(str);
         }
 
         /// <summary>
@@ -26,31 +35,6 @@ namespace LiteDB
             }
 
             return true;
-        }
-
-        public static string TrimToNull(this string str)
-        {
-            var v = str.Trim();
-
-            return v.Length == 0 ? null : v;
-        }
-
-        public static string Sha1(this string value)
-        {
-            var data = Encoding.UTF8.GetBytes(value);
-
-            using (var sha = SHA1.Create())
-            {
-                var hashData = sha.ComputeHash(data);
-                var hash = new StringBuilder();
-
-                foreach (var b in hashData)
-                {
-                    hash.Append(b.ToString("X2"));
-                }
-
-                return hash.ToString();
-            }
         }
 
         /// <summary>

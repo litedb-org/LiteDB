@@ -1,4 +1,4 @@
-﻿using LiteDB.Engine;
+using LiteDB.Engine;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -56,12 +56,19 @@ namespace LiteDB
                 if (_source.MoveNext())
                 {
                     _hasValues = _isFirst = true;
-                    _current = _source.Current;
+                    _current = _state.ReadTransform(_collection, _source.Current);
                 }
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
-                _state.Handle(ex);
+                try
+                {
+                    this.Dispose();
+                }
+                finally
+                {
+                    _state.Handle(ex);
+                }
                 throw;
             }
         }
@@ -102,10 +109,10 @@ namespace LiteDB
                     try
                     {
                         var read = _source.MoveNext(); // can throw any error here
-                        _current = _source.Current;
+                        _current = _state.ReadTransform(_collection, _source.Current);
                         return read;
                     }
-                    catch(Exception ex)
+                    catch (Exception ex)
                     {
                         _state.Handle(ex);
                         throw ex;
@@ -117,7 +124,7 @@ namespace LiteDB
                 }
             }
         }
-        
+
         public BsonValue this[string field]
         {
             get

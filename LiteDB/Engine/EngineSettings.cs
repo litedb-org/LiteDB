@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -7,6 +7,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
+
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -16,6 +17,14 @@ namespace LiteDB.Engine
     /// </summary>
     public class EngineSettings
     {
+        private int? _transactionPageLimit;
+
+        /// <summary>
+        /// Memory and transaction defaults for this database. Explicit limits
+        /// take precedence regardless of property assignment order.
+        /// </summary>
+        public MemoryProfile MemoryProfile { get; set; } = MemoryProfile.Balanced;
+
         /// <summary>
         /// Get/Set custom stream to be used as datafile (can be MemoryStream or TempStream). Do not use FileStream - to use physical file, use "filename" attribute (and keep DataStream/WalStream null)
         /// </summary>
@@ -47,6 +56,22 @@ namespace LiteDB.Engine
         public long InitialSize { get; set; } = 0;
 
         /// <summary>
+        /// Soft page-cache target in bytes. Zero selects the storage-specific
+        /// default of the selected <see cref="MemoryProfile"/>.
+        /// </summary>
+        public long CacheSize { get; set; } = 0;
+
+        /// <summary>
+        /// Pages retained by one transaction before a cooperative safepoint.
+        /// Defaults to the profile threshold; explicit values must be positive.
+        /// </summary>
+        public int TransactionPageLimit
+        {
+            get => _transactionPageLimit ?? MemoryProfileDefaults.GetTransactionPageLimit(this.MemoryProfile);
+            set => _transactionPageLimit = value;
+        }
+
+        /// <summary>
         /// Create database with custom string collection (used only to create database) (default: Collation.Default)
         /// </summary>
         public Collation Collation { get; set; }
@@ -62,33 +87,52 @@ namespace LiteDB.Engine
         public bool AutoRebuild { get; set; } = false;
 
         /// <summary>
-        /// If detect it's a older version (v4) do upgrade in datafile to new v5. A backup file will be keeped in same directory
+        /// Rebuild format v7 files before opening, retaining a backup. Ordinary v8 files remain compatible without migration.
         /// </summary>
         public bool Upgrade { get; set; } = false;
 
         /// <summary>
+        /// Is used to transform a <see cref="BsonValue"/> from the database on read. This can be used to upgrade data from older versions.
+        /// </summary>
+        public Func<string, BsonValue, BsonValue> ReadTransform { get; set; }
+        
+        /// <summary>
+        /// Determines how the mutex name is generated.
+        /// </summary>
+        public SharedMutexNameStrategy SharedMutexNameStrategy { get; set; }
+
+        /// <summary>
         /// Create new IStreamFactory for datafile
         /// </summary>
-        internal IStreamFactory CreateDataFactory()
+        internal IStreamFactory CreateDataFactory(bool useAesStream = true)
         {
             if (this.DataStream != null)
             {
-                return new StreamFactory(this.DataStream, this.Password);
+                return new StreamFactory(this.DataStream, this.Password, false);
             }
             else if (this.Filename == ":memory:")
             {
-                return new StreamFactory(new MemoryStream(), this.Password);
+                return new StreamFactory(new MemoryStream(), this.Password, true);
             }
             else if (this.Filename == ":temp:")
             {
-                return new StreamFactory(new TempStream(), this.Password);
+                return new StreamFactory(new TempStream(), this.Password, true);
             }
             else if (!string.IsNullOrEmpty(this.Filename))
             {
-                return new FileStreamFactory(this.Filename, this.Password, this.ReadOnly, false);
+                return new FileStreamFactory(this.Filename, this.Password, this.ReadOnly, false, useAesStream);
             }
 
             throw new ArgumentException("EngineSettings must have Filename or DataStream as data source");
+        }
+
+        internal long GetCacheSize()
+        {
+            var defaultSize = MemoryProfileDefaults.GetCacheSize(this.MemoryProfile,
+                this.Filename == ":memory:" || this.DataStream is MemoryStream);
+            if (this.CacheSize < 0) throw new ArgumentOutOfRangeException(nameof(this.CacheSize));
+            if (this.CacheSize > 0) return this.CacheSize;
+            return defaultSize;
         }
 
         /// <summary>
@@ -98,15 +142,15 @@ namespace LiteDB.Engine
         {
             if (this.LogStream != null)
             {
-                return new StreamFactory(this.LogStream, this.Password);
+                return new StreamFactory(this.LogStream, this.Password, false);
             }
             else if (this.Filename == ":memory:")
             {
-                return new StreamFactory(new MemoryStream(), this.Password);
+                return new StreamFactory(new MemoryStream(), this.Password, true);
             }
             else if (this.Filename == ":temp:")
             {
-                return new StreamFactory(new TempStream(), this.Password);
+                return new StreamFactory(new TempStream(), this.Password, true);
             }
             else if (!string.IsNullOrEmpty(this.Filename))
             {
@@ -115,7 +159,7 @@ namespace LiteDB.Engine
                 return new FileStreamFactory(logName, this.Password, this.ReadOnly, false);
             }
 
-            return new StreamFactory(new MemoryStream(), this.Password);
+            return new StreamFactory(new MemoryStream(), this.Password, true);
         }
 
         /// <summary>
@@ -125,15 +169,15 @@ namespace LiteDB.Engine
         {
             if (this.TempStream != null)
             {
-                return new StreamFactory(this.TempStream, this.Password);
+                return new StreamFactory(this.TempStream, this.Password, false);
             }
             else if (this.Filename == ":memory:")
             {
-                return new StreamFactory(new MemoryStream(), this.Password);
+                return new StreamFactory(new MemoryStream(), this.Password, true);
             }
             else if (this.Filename == ":temp:")
             {
-                return new StreamFactory(new TempStream(), this.Password);
+                return new StreamFactory(new TempStream(), this.Password, true);
             }
             else if (!string.IsNullOrEmpty(this.Filename))
             {
@@ -142,7 +186,7 @@ namespace LiteDB.Engine
                 return new FileStreamFactory(tempName, this.Password, false, true);
             }
 
-            return new StreamFactory(new TempStream(), this.Password);
+            return new StreamFactory(new TempStream(), this.Password, true);
         }
     }
 }

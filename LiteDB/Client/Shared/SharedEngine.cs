@@ -3,10 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
-#if NETFRAMEWORK
-using System.Security.AccessControl;
-using System.Security.Principal;
-#endif
+using LiteDB.Client.Shared;
+using LiteDB.Vector;
 
 namespace LiteDB
 {
@@ -21,24 +19,19 @@ namespace LiteDB
         {
             _settings = settings;
 
-            var name = Path.GetFullPath(settings.Filename).ToLower().Sha1();
+            var name = SharedMutexNameFactory.Create(settings.Filename, settings.SharedMutexNameStrategy);
 
             try
             {
-#if NETFRAMEWORK
-                var allowEveryoneRule = new MutexAccessRule(new SecurityIdentifier(WellKnownSidType.WorldSid, null),
-                           MutexRights.FullControl, AccessControlType.Allow);
-
-                var securitySettings = new MutexSecurity();
-                securitySettings.AddAccessRule(allowEveryoneRule);
-
-                _mutex = new Mutex(false, "Global\\" + name + ".Mutex", out _, securitySettings);
-#else
-                _mutex = new Mutex(false, "Global\\" + name + ".Mutex");
-#endif
+                _mutex = SharedMutexFactory.Create(name);
             }
             catch (NotSupportedException ex)
             {
+                if (ex is PlatformNotSupportedException)
+                {
+                    throw;
+                }
+
                 throw new PlatformNotSupportedException("Shared mode is not supported in platforms that do not implement named mutex.", ex);
             }
         }
@@ -46,7 +39,8 @@ namespace LiteDB
         /// <summary>
         /// Open database in safe mode
         /// </summary>
-        private void OpenDatabase()
+        /// <returns>true if successfully opened; false if already open</returns>
+        private bool OpenDatabase()
         {
             try
             {
@@ -61,12 +55,17 @@ namespace LiteDB
                 try
                 {
                     _engine = new LiteEngine(_settings);
+                    return true;
                 }
                 catch
                 {
                     _mutex.ReleaseMutex();
                     throw;
                 }
+            }
+            else
+            {
+                return false;
             }
         }
 
@@ -76,7 +75,7 @@ namespace LiteDB
         private void CloseDatabase()
         {
             // Don't dispose the engine while a transaction is running.
-            if (!this._transactionRunning && _engine != null)
+            if (!_transactionRunning && _engine != null)
             {
                 // If no transaction pending, dispose the engine.
                 _engine.Dispose();
@@ -91,17 +90,17 @@ namespace LiteDB
 
         public bool BeginTrans()
         {
-            this.OpenDatabase();
+            OpenDatabase();
 
             try
             {
-                this._transactionRunning = _engine.BeginTrans();
+                _transactionRunning = _engine.BeginTrans();
 
-                return this._transactionRunning;
+                return _transactionRunning;
             }
             catch
             {
-                this.CloseDatabase();
+                CloseDatabase();
                 throw;
             }
         }
@@ -116,8 +115,8 @@ namespace LiteDB
             }
             finally
             {
-                this._transactionRunning = false;
-                this.CloseDatabase();
+                _transactionRunning = false;
+                CloseDatabase();
             }
         }
 
@@ -131,8 +130,8 @@ namespace LiteDB
             }
             finally
             {
-                this._transactionRunning = false;
-                this.CloseDatabase();
+                _transactionRunning = false;
+                CloseDatabase();
             }
         }
 
@@ -142,39 +141,27 @@ namespace LiteDB
 
         public IBsonDataReader Query(string collection, Query query)
         {
-            this.OpenDatabase();
+            bool opened = OpenDatabase();
 
             var reader = _engine.Query(collection, query);
 
-            return new SharedDataReader(reader, () => this.CloseDatabase());
+            return new SharedDataReader(reader, () =>
+            {
+                if (opened)
+                {
+                    CloseDatabase();
+                }
+            });
         }
 
         public BsonValue Pragma(string name)
         {
-            this.OpenDatabase();
-
-            try
-            {
-                return _engine.Pragma(name);
-            }
-            finally
-            {
-                this.CloseDatabase();
-            }
+            return QueryDatabase(() => _engine.Pragma(name));
         }
 
         public bool Pragma(string name, BsonValue value)
         {
-            this.OpenDatabase();
-
-            try
-            {
-                return _engine.Pragma(name, value);
-            }
-            finally
-            {
-                this.CloseDatabase();
-            }
+            return QueryDatabase(() => _engine.Pragma(name, value));
         }
 
         #endregion
@@ -183,183 +170,80 @@ namespace LiteDB
 
         public int Checkpoint()
         {
-            this.OpenDatabase();
-
-            try
-            {
-                return _engine.Checkpoint();
-            }
-            finally
-            {
-                this.CloseDatabase();
-            }
+            return QueryDatabase(() => _engine.Checkpoint());
         }
 
         public long Rebuild(RebuildOptions options)
         {
-            this.OpenDatabase();
-
-            try
-            {
-                return _engine.Rebuild(options);
-            }
-            finally
-            {
-                this.CloseDatabase();
-            }
+            return QueryDatabase(() => _engine.Rebuild(options));
         }
 
         public int Insert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId)
         {
-            this.OpenDatabase();
-
-            try
-            {
-                return _engine.Insert(collection, docs, autoId);
-            }
-            finally
-            {
-                this.CloseDatabase();
-            }
+            return QueryDatabase(() => _engine.Insert(collection, docs, autoId));
         }
 
         public int Update(string collection, IEnumerable<BsonDocument> docs)
         {
-            this.OpenDatabase();
-
-            try
-            {
-                return _engine.Update(collection, docs);
-            }
-            finally
-            {
-                this.CloseDatabase();
-            }
+            return QueryDatabase(() => _engine.Update(collection, docs));
         }
 
         public int UpdateMany(string collection, BsonExpression extend, BsonExpression predicate)
         {
-            this.OpenDatabase();
-
-            try
-            {
-                return _engine.UpdateMany(collection, extend, predicate);
-            }
-            finally
-            {
-                this.CloseDatabase();
-            }
+            return QueryDatabase(() => _engine.UpdateMany(collection, extend, predicate));
         }
 
         public int Upsert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId)
         {
-            this.OpenDatabase();
-
-            try
-            {
-                return _engine.Upsert(collection, docs, autoId);
-            }
-            finally
-            {
-                this.CloseDatabase();
-            }
+            return QueryDatabase(() => _engine.Upsert(collection, docs, autoId));
         }
 
         public int Delete(string collection, IEnumerable<BsonValue> ids)
         {
-            this.OpenDatabase();
-
-            try
-            {
-                return _engine.Delete(collection, ids);
-            }
-            finally
-            {
-                this.CloseDatabase();
-            }
+            return QueryDatabase(() => _engine.Delete(collection, ids));
         }
 
         public int DeleteMany(string collection, BsonExpression predicate)
         {
-            this.OpenDatabase();
-
-            try
-            {
-                return _engine.DeleteMany(collection, predicate);
-            }
-            finally
-            {
-                this.CloseDatabase();
-            }
+            return QueryDatabase(() => _engine.DeleteMany(collection, predicate));
         }
 
         public bool DropCollection(string name)
         {
-            this.OpenDatabase();
-
-            try
-            {
-                return _engine.DropCollection(name);
-            }
-            finally
-            {
-                this.CloseDatabase();
-            }
+            return QueryDatabase(() => _engine.DropCollection(name));
         }
 
         public bool RenameCollection(string name, string newName)
         {
-            this.OpenDatabase();
-
-            try
-            {
-                return _engine.RenameCollection(name, newName);
-            }
-            finally
-            {
-                this.CloseDatabase();
-            }
+            return QueryDatabase(() => _engine.RenameCollection(name, newName));
         }
 
         public bool DropIndex(string collection, string name)
         {
-            this.OpenDatabase();
-
-            try
-            {
-                return _engine.DropIndex(collection, name);
-            }
-            finally
-            {
-                this.CloseDatabase();
-            }
+            return QueryDatabase(() => _engine.DropIndex(collection, name));
         }
 
         public bool EnsureIndex(string collection, string name, BsonExpression expression, bool unique)
         {
-            this.OpenDatabase();
+            return QueryDatabase(() => _engine.EnsureIndex(collection, name, expression, unique));
+        }
 
-            try
-            {
-                return _engine.EnsureIndex(collection, name, expression, unique);
-            }
-            finally
-            {
-                this.CloseDatabase();
-            }
+        public bool EnsureVectorIndex(string collection, string name, BsonExpression expression, VectorIndexOptions options)
+        {
+            return QueryDatabase(() => _engine.EnsureVectorIndex(collection, name, expression, options));
         }
 
         #endregion
 
         public void Dispose()
         {
-            this.Dispose(true);
+            Dispose(true);
             GC.SuppressFinalize(this);
         }
 
         ~SharedEngine()
         {
-            this.Dispose(false);
+            Dispose(false);
         }
 
         protected virtual void Dispose(bool disposing)
@@ -371,6 +255,22 @@ namespace LiteDB
                     _engine.Dispose();
                     _engine = null;
                     _mutex.ReleaseMutex();
+                }
+            }
+        }
+
+        private T QueryDatabase<T>(Func<T> Query)
+        {
+            bool opened = OpenDatabase();
+            try
+            {
+                return Query();
+            }
+            finally
+            {
+                if (opened)
+                {
+                    CloseDatabase();
                 }
             }
         }
