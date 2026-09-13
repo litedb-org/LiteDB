@@ -26,7 +26,7 @@ namespace LiteDB.Tests.QueryTest
             }));
             docs.EnsureIndex("category", "$.Category");
             var query = docs.Query().Include("$.Owner").Where("$.Category = 'keep'");
-            if (filterIncluded) query.Where("$.Owner.Weight >= 10");
+            if (filterIncluded) query.Where("$.Owner.Weight >= 20");
             if (sorted) query.OrderBy("$._id", Query.Descending);
             var aggregate = query.Select("{first: FIRST(*.Owner.Name), again: FIRST(*.Owner.Name), " +
                 "total: SUM(*.Owner.Weight), repeatedTotal: SUM(*.Owner.Weight)}");
@@ -34,10 +34,10 @@ namespace LiteDB.Tests.QueryTest
             aggregate.GetPlan()["index"]["name"].AsString.Should().Be("category");
             var result = aggregate.Single();
             result["first"].AsString.Should().BeOneOf("owner1", "owner2");
-            if (sorted) result["first"].AsString.Should().Be("owner2");
+            if (filterIncluded || sorted) result["first"].AsString.Should().Be("owner2");
             result["again"].Should().Be(result["first"]);
-            result["total"].AsInt32.Should().Be(30);
-            result["repeatedTotal"].AsInt32.Should().Be(30);
+            result["total"].AsInt32.Should().Be(filterIncluded ? 20 : 30);
+            result["repeatedTotal"].AsInt32.Should().Be(filterIncluded ? 20 : 30);
         }
     }
 }
