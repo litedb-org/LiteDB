@@ -1,0 +1,538 @@
+{
+  "observedDate": "2026-09-15",
+  "ciRun": "https://github.com/litedb-org/LiteDB/actions/runs/34955909408",
+  "testedCommit": "d2e01fd32bf400d0d2472cd7c53f822ef18149f8",
+  "testSourceTree": "53a7578bbc696c4caa78e68cfefcfe6163d47938",
+  "attemptsPerVariantAndPlatform": 3,
+  "reportedFailureReproduced": false,
+  "allDataControlsPassed": true,
+  "notes": [
+    "The final fixture also checks predicate Find cardinality and the minimum reader population.",
+    "The original comparison at 514ceb2e in run 34955486554 also passed 3/3 per variant and platform.",
+    "Rebuild drains active database operations. Original damaged file, full model/settings and unsynchronized rebuild/storage history remain unavailable."
+  ],
+  "reports": {
+    "ubuntu-22.04": {
+      "GeneratedAt": "2026-09-15T10:05:00.8985727+00:00",
+      "Root": "/home/runner/work/LiteDB/LiteDB/LiteDB.ReproRunner",
+      "Repros": [
+        {
+          "Id": "Issue_2043_BulkLifecycle",
+          "State": 1,
+          "Failed": false,
+          "Warned": false,
+          "Package": {
+            "Expected": 1,
+            "ExpectedExitCode": 10,
+            "ExpectedLogContains": "VERIFIED_2043",
+            "Actual": 1,
+            "Met": true,
+            "ExitCode": 10,
+            "DurationSeconds": 20.5247753,
+            "UseProjectReference": false,
+            "FailureReason": null,
+            "Output": [
+              {
+                "Stream": "stdout",
+                "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T10:05:18.0070211+00:00\",\"payload\":{\"useProjectReference\":false,\"liteDBPackageVersion\":\"5.0.8\"}}"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SEED_2043: rows=1792, databaseBytes=60268544, firstId=31000"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "LEDGER_2043: inserted=2560, deleted=1280, survivors=1280, cleanupCommits=20, readerSnapshots=108, rebuilds=2, files=24, payloadBytes=32768"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "PERSISTENCE_2043: recoveryId=33560, databaseBytes=52723712, reopens=2, readOnlyBytesUnchanged=true"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "CHILD_2043_VERIFIED"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2043_1: verified in fresh process"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SEED_2043: rows=1792, databaseBytes=60243968, firstId=31000"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "LEDGER_2043: inserted=2560, deleted=1280, survivors=1280, cleanupCommits=20, readerSnapshots=112, rebuilds=2, files=24, payloadBytes=32768"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "PERSISTENCE_2043: recoveryId=33560, databaseBytes=50585600, reopens=2, readOnlyBytesUnchanged=true"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "CHILD_2043_VERIFIED"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2043_2: verified in fresh process"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SEED_2043: rows=1792, databaseBytes=60252160, firstId=31000"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "LEDGER_2043: inserted=2560, deleted=1344, survivors=1216, cleanupCommits=21, readerSnapshots=125, rebuilds=2, files=24, payloadBytes=32768"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "PERSISTENCE_2043: recoveryId=33560, databaseBytes=48414720, reopens=2, readOnlyBytesUnchanged=true"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "CHILD_2043_VERIFIED"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2043_3: verified in fresh process"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "VERIFIED_2043: 3 fresh processes; reported duplicate-auto-ID failure not reproduced"
+              }
+            ]
+          },
+          "Latest": {
+            "Expected": 1,
+            "ExpectedExitCode": 10,
+            "ExpectedLogContains": "VERIFIED_2043",
+            "Actual": 1,
+            "Met": true,
+            "ExitCode": 10,
+            "DurationSeconds": 22.5502733,
+            "UseProjectReference": true,
+            "FailureReason": null,
+            "Output": [
+              {
+                "Stream": "stdout",
+                "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T10:05:38.5211236+00:00\",\"payload\":{\"useProjectReference\":true,\"liteDBPackageVersion\":\"5.0.8\"}}"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SEED_2043: rows=1792, databaseBytes=60252160, firstId=31000"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "LEDGER_2043: inserted=2560, deleted=1472, survivors=1088, cleanupCommits=23, readerSnapshots=124, rebuilds=2, files=24, payloadBytes=32768"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "PERSISTENCE_2043: recoveryId=33560, databaseBytes=50536448, reopens=2, readOnlyBytesUnchanged=true"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "CHILD_2043_VERIFIED"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2043_1: verified in fresh process"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SEED_2043: rows=1792, databaseBytes=60252160, firstId=31000"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "LEDGER_2043: inserted=2560, deleted=1216, survivors=1344, cleanupCommits=19, readerSnapshots=106, rebuilds=2, files=24, payloadBytes=32768"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "PERSISTENCE_2043: recoveryId=33560, databaseBytes=58081280, reopens=2, readOnlyBytesUnchanged=true"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "CHILD_2043_VERIFIED"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2043_2: verified in fresh process"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SEED_2043: rows=1792, databaseBytes=60252160, firstId=31000"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "LEDGER_2043: inserted=2560, deleted=1472, survivors=1088, cleanupCommits=23, readerSnapshots=120, rebuilds=2, files=24, payloadBytes=32768"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "PERSISTENCE_2043: recoveryId=33560, databaseBytes=46276608, reopens=2, readOnlyBytesUnchanged=true"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "CHILD_2043_VERIFIED"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2043_3: verified in fresh process"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "VERIFIED_2043: 3 fresh processes; reported duplicate-auto-ID failure not reproduced"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "ubuntu-24.04": {
+      "GeneratedAt": "2026-09-15T10:05:03.6566861+00:00",
+      "Root": "/home/runner/work/LiteDB/LiteDB/LiteDB.ReproRunner",
+      "Repros": [
+        {
+          "Id": "Issue_2043_BulkLifecycle",
+          "State": 1,
+          "Failed": false,
+          "Warned": false,
+          "Package": {
+            "Expected": 1,
+            "ExpectedExitCode": 10,
+            "ExpectedLogContains": "VERIFIED_2043",
+            "Actual": 1,
+            "Met": true,
+            "ExitCode": 10,
+            "DurationSeconds": 20.4290897,
+            "UseProjectReference": false,
+            "FailureReason": null,
+            "Output": [
+              {
+                "Stream": "stdout",
+                "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T10:05:18.9337015+00:00\",\"payload\":{\"useProjectReference\":false,\"liteDBPackageVersion\":\"5.0.8\"}}"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SEED_2043: rows=1792, databaseBytes=60243968, firstId=31000"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "LEDGER_2043: inserted=2560, deleted=1472, survivors=1088, cleanupCommits=23, readerSnapshots=113, rebuilds=2, files=24, payloadBytes=32768"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "PERSISTENCE_2043: recoveryId=33560, databaseBytes=46276608, reopens=2, readOnlyBytesUnchanged=true"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "CHILD_2043_VERIFIED"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2043_1: verified in fresh process"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SEED_2043: rows=1792, databaseBytes=60260352, firstId=31000"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "LEDGER_2043: inserted=2560, deleted=1344, survivors=1216, cleanupCommits=21, readerSnapshots=132, rebuilds=2, files=24, payloadBytes=32768"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "PERSISTENCE_2043: recoveryId=33560, databaseBytes=47349760, reopens=2, readOnlyBytesUnchanged=true"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "CHILD_2043_VERIFIED"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2043_2: verified in fresh process"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SEED_2043: rows=1792, databaseBytes=60243968, firstId=31000"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "LEDGER_2043: inserted=2560, deleted=1280, survivors=1280, cleanupCommits=20, readerSnapshots=110, rebuilds=2, files=24, payloadBytes=32768"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "PERSISTENCE_2043: recoveryId=33560, databaseBytes=51650560, reopens=2, readOnlyBytesUnchanged=true"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "CHILD_2043_VERIFIED"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2043_3: verified in fresh process"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "VERIFIED_2043: 3 fresh processes; reported duplicate-auto-ID failure not reproduced"
+              }
+            ]
+          },
+          "Latest": {
+            "Expected": 1,
+            "ExpectedExitCode": 10,
+            "ExpectedLogContains": "VERIFIED_2043",
+            "Actual": 1,
+            "Met": true,
+            "ExitCode": 10,
+            "DurationSeconds": 21.962,
+            "UseProjectReference": true,
+            "FailureReason": null,
+            "Output": [
+              {
+                "Stream": "stdout",
+                "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T10:05:39.3377065+00:00\",\"payload\":{\"useProjectReference\":true,\"liteDBPackageVersion\":\"5.0.8\"}}"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SEED_2043: rows=1792, databaseBytes=60252160, firstId=31000"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "LEDGER_2043: inserted=2560, deleted=1344, survivors=1216, cleanupCommits=21, readerSnapshots=109, rebuilds=2, files=24, payloadBytes=32768"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "PERSISTENCE_2043: recoveryId=33560, databaseBytes=54837248, reopens=2, readOnlyBytesUnchanged=true"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "CHILD_2043_VERIFIED"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2043_1: verified in fresh process"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SEED_2043: rows=1792, databaseBytes=60252160, firstId=31000"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "LEDGER_2043: inserted=2560, deleted=1216, survivors=1344, cleanupCommits=19, readerSnapshots=110, rebuilds=2, files=24, payloadBytes=32768"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "PERSISTENCE_2043: recoveryId=33560, databaseBytes=58081280, reopens=2, readOnlyBytesUnchanged=true"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "CHILD_2043_VERIFIED"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2043_2: verified in fresh process"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SEED_2043: rows=1792, databaseBytes=60252160, firstId=31000"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "LEDGER_2043: inserted=2560, deleted=1408, survivors=1152, cleanupCommits=22, readerSnapshots=118, rebuilds=2, files=24, payloadBytes=32768"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "PERSISTENCE_2043: recoveryId=33560, databaseBytes=51601408, reopens=2, readOnlyBytesUnchanged=true"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "CHILD_2043_VERIFIED"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2043_3: verified in fresh process"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "VERIFIED_2043: 3 fresh processes; reported duplicate-auto-ID failure not reproduced"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "windows-2022": {
+      "GeneratedAt": "2026-09-15T10:05:42.2620453+00:00",
+      "Root": "D:\\a\\LiteDB\\LiteDB\\LiteDB.ReproRunner",
+      "Repros": [
+        {
+          "Id": "Issue_2043_BulkLifecycle",
+          "State": 1,
+          "Failed": false,
+          "Warned": false,
+          "Package": {
+            "Expected": 1,
+            "ExpectedExitCode": 10,
+            "ExpectedLogContains": "VERIFIED_2043",
+            "Actual": 1,
+            "Met": true,
+            "ExitCode": 10,
+            "DurationSeconds": 23.9428195,
+            "UseProjectReference": false,
+            "FailureReason": null,
+            "Output": [
+              {
+                "Stream": "stdout",
+                "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T10:06:03.3160606+00:00\",\"payload\":{\"useProjectReference\":false,\"liteDBPackageVersion\":\"5.0.8\"}}"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SEED_2043: rows=1792, databaseBytes=60260352, firstId=31000"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "LEDGER_2043: inserted=2560, deleted=1472, survivors=1088, cleanupCommits=23, readerSnapshots=82, rebuilds=2, files=24, payloadBytes=32768"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "PERSISTENCE_2043: recoveryId=33560, databaseBytes=46276608, reopens=2, readOnlyBytesUnchanged=true"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "CHILD_2043_VERIFIED"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2043_1: verified in fresh process"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SEED_2043: rows=1792, databaseBytes=60243968, firstId=31000"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "LEDGER_2043: inserted=2560, deleted=1472, survivors=1088, cleanupCommits=23, readerSnapshots=84, rebuilds=2, files=24, payloadBytes=32768"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "PERSISTENCE_2043: recoveryId=33560, databaseBytes=46276608, reopens=2, readOnlyBytesUnchanged=true"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "CHILD_2043_VERIFIED"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2043_2: verified in fresh process"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SEED_2043: rows=1792, databaseBytes=60252160, firstId=31000"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "LEDGER_2043: inserted=2560, deleted=1408, survivors=1152, cleanupCommits=22, readerSnapshots=85, rebuilds=2, files=24, payloadBytes=32768"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "PERSISTENCE_2043: recoveryId=33560, databaseBytes=44122112, reopens=2, readOnlyBytesUnchanged=true"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "CHILD_2043_VERIFIED"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2043_3: verified in fresh process"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "VERIFIED_2043: 3 fresh processes; reported duplicate-auto-ID failure not reproduced"
+              }
+            ]
+          },
+          "Latest": {
+            "Expected": 1,
+            "ExpectedExitCode": 10,
+            "ExpectedLogContains": "VERIFIED_2043",
+            "Actual": 1,
+            "Met": true,
+            "ExitCode": 10,
+            "DurationSeconds": 23.310371,
+            "UseProjectReference": true,
+            "FailureReason": null,
+            "Output": [
+              {
+                "Stream": "stdout",
+                "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T10:06:27.2372069+00:00\",\"payload\":{\"useProjectReference\":true,\"liteDBPackageVersion\":\"5.0.8\"}}"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SEED_2043: rows=1792, databaseBytes=60252160, firstId=31000"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "LEDGER_2043: inserted=2560, deleted=1536, survivors=1024, cleanupCommits=24, readerSnapshots=89, rebuilds=2, files=24, payloadBytes=32768"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "PERSISTENCE_2043: recoveryId=33560, databaseBytes=46276608, reopens=2, readOnlyBytesUnchanged=true"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "CHILD_2043_VERIFIED"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2043_1: verified in fresh process"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SEED_2043: rows=1792, databaseBytes=60252160, firstId=31000"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "LEDGER_2043: inserted=2560, deleted=1600, survivors=960, cleanupCommits=25, readerSnapshots=91, rebuilds=2, files=24, payloadBytes=32768"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "PERSISTENCE_2043: recoveryId=33560, databaseBytes=44130304, reopens=2, readOnlyBytesUnchanged=true"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "CHILD_2043_VERIFIED"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2043_2: verified in fresh process"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SEED_2043: rows=1792, databaseBytes=60252160, firstId=31000"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "LEDGER_2043: inserted=2560, deleted=1536, survivors=1024, cleanupCommits=24, readerSnapshots=94, rebuilds=2, files=24, payloadBytes=32768"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "PERSISTENCE_2043: recoveryId=33560, databaseBytes=46276608, reopens=2, readOnlyBytesUnchanged=true"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "CHILD_2043_VERIFIED"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2043_3: verified in fresh process"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "VERIFIED_2043: 3 fresh processes; reported duplicate-auto-ID failure not reproduced"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

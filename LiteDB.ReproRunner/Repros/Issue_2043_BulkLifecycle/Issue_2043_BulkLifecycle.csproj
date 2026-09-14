@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseProjectReference Condition="'$(UseProjectReference)' == ''">false</UseProjectReference>
+    <LiteDBPackageVersion Condition="'$(LiteDBPackageVersion)' == ''">5.0.8</LiteDBPackageVersion>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(UseProjectReference)' == 'true'">
+    <ProjectReference Include="../../../LiteDB/LiteDB.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UseProjectReference)' != 'true'">
+    <PackageReference Include="LiteDB" Version="$(LiteDBPackageVersion)" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="FluentAssertions" Version="6.12.1" />
+    <Compile Include="../../../LiteDB.Tests/Issues/Issue2043_BulkLifecycle*.cs" Link="%(Filename)%(Extension)" />
+    <ProjectReference Include="../../LiteDB.ReproRunner.Shared/LiteDB.ReproRunner.Shared.csproj" />
+    <AssemblyMetadata Include="LiteDB.ReproRunner.UseProjectReference" Value="$(UseProjectReference)" />
+    <AssemblyMetadata Include="LiteDB.ReproRunner.LiteDBPackageVersion" Value="$(LiteDBPackageVersion)" />
+  </ItemGroup>
+</Project>
