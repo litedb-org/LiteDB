@@ -1,0 +1,1304 @@
+{
+  "observedDate": "2026-09-15",
+  "ciRun": "https://github.com/litedb-org/LiteDB/actions/runs/34943724023",
+  "reports": {
+    "logs-Issue_2825_FreeListRace-ubuntu-24.04": {
+      "GeneratedAt": "2026-09-15T07:51:27.8445942+00:00",
+      "Root": "/home/runner/work/LiteDB/LiteDB/LiteDB.ReproRunner",
+      "Repros": [
+        {
+          "Id": "Issue_2825_FreeListRace",
+          "State": 1,
+          "Failed": false,
+          "Warned": false,
+          "Package": {
+            "Expected": 0,
+            "ExpectedExitCode": 0,
+            "ExpectedLogContains": "BUG_2825_CONFIRMED",
+            "Actual": 0,
+            "Met": true,
+            "ExitCode": 0,
+            "DurationSeconds": 0.6853378,
+            "UseProjectReference": false,
+            "FailureReason": null,
+            "Output": [
+              {
+                "Stream": "stdout",
+                "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T07:51:43.6701104+00:00\",\"payload\":{\"useProjectReference\":false,\"liteDBPackageVersion\":\"5.0.20\"}}"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_1: System.AggregateException: One or more errors occurred. (empty page must be defined as empty type) (empty page must be defined as empty type) (empty page must be defined as empty type) (empty page must be defined as empty type)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": " ---> LiteDB.LiteException: empty page must be defined as empty type"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.EngineState.Validate()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.AutoTransaction[T](Func`2 fn)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.Insert(String collection, IEnumerable`1 docs, BsonAutoId autoId)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.LiteCollection`1.Insert(IEnumerable`1 entities)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2825_Tests.<>c__DisplayClass0_0.<Parallel_collection_page_reuse_preserves_every_surviving_payload_after_reopen>b__0(Int32 worker) in /home/runner/work/LiteDB/LiteDB/LiteDB.Tests/Issues/Issue2825_Tests.cs:line 27"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "--- End of stack trace from previous location ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.TaskReplicator.Replica.Execute()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   --- End of inner exception stack trace ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.TaskReplicator.Run[TState](ReplicatableUserAction`1 action, ParallelOptions options, Boolean stopOnFirstFailure)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.ForWorker[TLocal,TInt](TInt fromInclusive, TInt toExclusive, ParallelOptions parallelOptions, Action`1 body, Action`2 bodyWithState, Func`4 bodyWithLocal, Func`1 localInit, Action`1 localFinally)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "--- End of stack trace from previous location ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.ForWorker[TLocal,TInt](TInt fromInclusive, TInt toExclusive, ParallelOptions parallelOptions, Action`1 body, Action`2 bodyWithState, Func`4 bodyWithLocal, Func`1 localInit, Action`1 localFinally)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.For(Int32 fromInclusive, Int32 toExclusive, Action`1 body)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2825_Tests.Parallel_collection_page_reuse_preserves_every_surviving_payload_after_reopen() in /home/runner/work/LiteDB/LiteDB/LiteDB.Tests/Issues/Issue2825_Tests.cs:line 20"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Program.Main() in /home/runner/work/LiteDB/LiteDB/LiteDB.ReproRunner/Repros/Issue_2825_FreeListRace/Program.cs:line 16"
+              },
+              {
+                "Stream": "stdout",
+                "Text": " ---> (Inner Exception #3) LiteDB.LiteException: empty page must be defined as empty type"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Constants.ENSURE(Boolean conditional, String message)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.Snapshot.NewPage[T]()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.Snapshot.GetFreeDataPage(Int32 bytesLength)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.DataService.<>c__DisplayClass4_0.<<Insert>g__source|0>d.MoveNext()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.BufferWriter..ctor(IEnumerable`1 source)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.DataService.Insert(BsonDocument doc)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.InsertDocument(Snapshot snapshot, BsonDocument doc, BsonAutoId autoId, IndexService indexer, DataService data)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.<>c__DisplayClass7_0.<Insert>b__0(TransactionService transaction)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.AutoTransaction[T](Func`2 fn)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.Insert(String collection, IEnumerable`1 docs, BsonAutoId autoId)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.LiteCollection`1.Insert(IEnumerable`1 entities)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2825_Tests.<>c__DisplayClass0_0.<Parallel_collection_page_reuse_preserves_every_surviving_payload_after_reopen>b__0(Int32 worker) in /home/runner/work/LiteDB/LiteDB/LiteDB.Tests/Issues/Issue2825_Tests.cs:line 27"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "--- End of stack trace from previous location ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.TaskReplicator.Replica.Execute()<---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": ""
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2: System.AggregateException: One or more errors occurred. (empty page must be defined as empty type) (empty page must be defined as empty type) (empty page must be defined as empty type) (empty page must be defined as empty type)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": " ---> LiteDB.LiteException: empty page must be defined as empty type"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.EngineState.Validate()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.AutoTransaction[T](Func`2 fn)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.Insert(String collection, IEnumerable`1 docs, BsonAutoId autoId)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.LiteCollection`1.Insert(IEnumerable`1 entities)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2825_Tests.<>c__DisplayClass0_0.<Parallel_collection_page_reuse_preserves_every_surviving_payload_after_reopen>b__0(Int32 worker) in /home/runner/work/LiteDB/LiteDB/LiteDB.Tests/Issues/Issue2825_Tests.cs:line 27"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "--- End of stack trace from previous location ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.TaskReplicator.Replica.Execute()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   --- End of inner exception stack trace ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.TaskReplicator.Run[TState](ReplicatableUserAction`1 action, ParallelOptions options, Boolean stopOnFirstFailure)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.ForWorker[TLocal,TInt](TInt fromInclusive, TInt toExclusive, ParallelOptions parallelOptions, Action`1 body, Action`2 bodyWithState, Func`4 bodyWithLocal, Func`1 localInit, Action`1 localFinally)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "--- End of stack trace from previous location ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.ForWorker[TLocal,TInt](TInt fromInclusive, TInt toExclusive, ParallelOptions parallelOptions, Action`1 body, Action`2 bodyWithState, Func`4 bodyWithLocal, Func`1 localInit, Action`1 localFinally)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.For(Int32 fromInclusive, Int32 toExclusive, Action`1 body)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2825_Tests.Parallel_collection_page_reuse_preserves_every_surviving_payload_after_reopen() in /home/runner/work/LiteDB/LiteDB/LiteDB.Tests/Issues/Issue2825_Tests.cs:line 20"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Program.Main() in /home/runner/work/LiteDB/LiteDB/LiteDB.ReproRunner/Repros/Issue_2825_FreeListRace/Program.cs:line 16"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_3: System.AggregateException: One or more errors occurred. (empty page must be defined as empty type) (empty page must be defined as empty type) (empty page must be defined as empty type) (empty page must be defined as empty type)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": " ---> LiteDB.LiteException: empty page must be defined as empty type"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.EngineState.Validate()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.AutoTransaction[T](Func`2 fn)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.Insert(String collection, IEnumerable`1 docs, BsonAutoId autoId)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.LiteCollection`1.Insert(IEnumerable`1 entities)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2825_Tests.<>c__DisplayClass0_0.<Parallel_collection_page_reuse_preserves_every_surviving_payload_after_reopen>b__0(Int32 worker) in /home/runner/work/LiteDB/LiteDB/LiteDB.Tests/Issues/Issue2825_Tests.cs:line 27"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "--- End of stack trace from previous location ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.TaskReplicator.Replica.Execute()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   --- End of inner exception stack trace ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.TaskReplicator.Run[TState](ReplicatableUserAction`1 action, ParallelOptions options, Boolean stopOnFirstFailure)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.ForWorker[TLocal,TInt](TInt fromInclusive, TInt toExclusive, ParallelOptions parallelOptions, Action`1 body, Action`2 bodyWithState, Func`4 bodyWithLocal, Func`1 localInit, Action`1 localFinally)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "--- End of stack trace from previous location ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.ForWorker[TLocal,TInt](TInt fromInclusive, TInt toExclusive, ParallelOptions parallelOptions, Action`1 body, Action`2 bodyWithState, Func`4 bodyWithLocal, Func`1 localInit, Action`1 localFinally)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.For(Int32 fromInclusive, Int32 toExclusive, Action`1 body)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2825_Tests.Parallel_collection_page_reuse_preserves_every_surviving_payload_after_reopen() in /home/runner/work/LiteDB/LiteDB/LiteDB.Tests/Issues/Issue2825_Tests.cs:line 20"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Program.Main() in /home/runner/work/LiteDB/LiteDB/LiteDB.ReproRunner/Repros/Issue_2825_FreeListRace/Program.cs:line 16"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "REPEATS_2825: attempts=3, reportedFailures=3"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "BUG_2825_CONFIRMED"
+              }
+            ]
+          },
+          "Latest": {
+            "Expected": 1,
+            "ExpectedExitCode": 10,
+            "ExpectedLogContains": "VERIFIED_2825",
+            "Actual": 1,
+            "Met": true,
+            "ExitCode": 10,
+            "DurationSeconds": 1.4124898,
+            "UseProjectReference": true,
+            "FailureReason": null,
+            "Output": [
+              {
+                "Stream": "stdout",
+                "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T07:51:44.3525719+00:00\",\"payload\":{\"useProjectReference\":true,\"liteDBPackageVersion\":\"5.0.20\"}}"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_1: all regression and persistence assertions passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2: all regression and persistence assertions passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_3: all regression and persistence assertions passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "REPEATS_2825: attempts=3, reportedFailures=0"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "VERIFIED_2825"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "logs-Issue_2825_FreeListRace-ubuntu-22.04": {
+      "GeneratedAt": "2026-09-15T07:51:32.4556756+00:00",
+      "Root": "/home/runner/work/LiteDB/LiteDB/LiteDB.ReproRunner",
+      "Repros": [
+        {
+          "Id": "Issue_2825_FreeListRace",
+          "State": 1,
+          "Failed": false,
+          "Warned": false,
+          "Package": {
+            "Expected": 0,
+            "ExpectedExitCode": 0,
+            "ExpectedLogContains": "BUG_2825_CONFIRMED",
+            "Actual": 0,
+            "Met": true,
+            "ExitCode": 0,
+            "DurationSeconds": 0.7121573,
+            "UseProjectReference": false,
+            "FailureReason": null,
+            "Output": [
+              {
+                "Stream": "stdout",
+                "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T07:51:48.4092251+00:00\",\"payload\":{\"useProjectReference\":false,\"liteDBPackageVersion\":\"5.0.20\"}}"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_1: System.AggregateException: One or more errors occurred. (empty page must be defined as empty type) (empty page must be defined as empty type) (empty page must be defined as empty type) (empty page must be defined as empty type)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": " ---> LiteDB.LiteException: empty page must be defined as empty type"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.EngineState.Validate()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.AutoTransaction[T](Func`2 fn)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.Insert(String collection, IEnumerable`1 docs, BsonAutoId autoId)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.LiteCollection`1.Insert(IEnumerable`1 entities)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2825_Tests.<>c__DisplayClass0_0.<Parallel_collection_page_reuse_preserves_every_surviving_payload_after_reopen>b__0(Int32 worker) in /home/runner/work/LiteDB/LiteDB/LiteDB.Tests/Issues/Issue2825_Tests.cs:line 27"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "--- End of stack trace from previous location ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.TaskReplicator.Replica.Execute()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.TaskReplicator.Replica.Execute()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.Insert(String collection, IEnumerable`1 docs, BsonAutoId autoId)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.LiteCollection`1.Insert(IEnumerable`1 entities)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2825_Tests.<>c__DisplayClass0_0.<Parallel_collection_page_reuse_preserves_every_surviving_payload_after_reopen>b__0(Int32 worker) in /home/runner/work/LiteDB/LiteDB/LiteDB.Tests/Issues/Issue2825_Tests.cs:line 27"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "--- End of stack trace from previous location ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.TaskReplicator.Replica.Execute()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   --- End of inner exception stack trace ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.TaskReplicator.Run[TState](ReplicatableUserAction`1 action, ParallelOptions options, Boolean stopOnFirstFailure)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.ForWorker[TLocal,TInt](TInt fromInclusive, TInt toExclusive, ParallelOptions parallelOptions, Action`1 body, Action`2 bodyWithState, Func`4 bodyWithLocal, Func`1 localInit, Action`1 localFinally)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "--- End of stack trace from previous location ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.ForWorker[TLocal,TInt](TInt fromInclusive, TInt toExclusive, ParallelOptions parallelOptions, Action`1 body, Action`2 bodyWithState, Func`4 bodyWithLocal, Func`1 localInit, Action`1 localFinally)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.For(Int32 fromInclusive, Int32 toExclusive, Action`1 body)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2825_Tests.Parallel_collection_page_reuse_preserves_every_surviving_payload_after_reopen() in /home/runner/work/LiteDB/LiteDB/LiteDB.Tests/Issues/Issue2825_Tests.cs:line 20"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Program.Main() in /home/runner/work/LiteDB/LiteDB/LiteDB.ReproRunner/Repros/Issue_2825_FreeListRace/Program.cs:line 16"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2: System.AggregateException: One or more errors occurred. (empty page must be defined as empty type) (empty page must be defined as empty type) (empty page must be defined as empty type) (discarded page must be writable)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": " ---> LiteDB.LiteException: empty page must be defined as empty type"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.EngineState.Validate()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.AutoTransaction[T](Func`2 fn)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.Insert(String collection, IEnumerable`1 docs, BsonAutoId autoId)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.LiteCollection`1.Insert(IEnumerable`1 entities)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2825_Tests.<>c__DisplayClass0_0.<Parallel_collection_page_reuse_preserves_every_surviving_payload_after_reopen>b__0(Int32 worker) in /home/runner/work/LiteDB/LiteDB/LiteDB.Tests/Issues/Issue2825_Tests.cs:line 27"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "--- End of stack trace from previous location ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.TaskReplicator.Replica.Execute()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   --- End of inner exception stack trace ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.TaskReplicator.Run[TState](ReplicatableUserAction`1 action, ParallelOptions options, Boolean stopOnFirstFailure)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.ForWorker[TLocal,TInt](TInt fromInclusive, TInt toExclusive, ParallelOptions parallelOptions, Action`1 body, Action`2 bodyWithState, Func`4 bodyWithLocal, Func`1 localInit, Action`1 localFinally)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "--- End of stack trace from previous location ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.ForWorker[TLocal,TInt](TInt fromInclusive, TInt toExclusive, ParallelOptions parallelOptions, Action`1 body, Action`2 bodyWithState, Func`4 bodyWithLocal, Func`1 localInit, Action`1 localFinally)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.For(Int32 fromInclusive, Int32 toExclusive, Action`1 body)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2825_Tests.Parallel_collection_page_reuse_preserves_every_surviving_payload_after_reopen() in /home/runner/work/LiteDB/LiteDB/LiteDB.Tests/Issues/Issue2825_Tests.cs:line 20"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Program.Main() in /home/runner/work/LiteDB/LiteDB/LiteDB.ReproRunner/Repros/Issue_2825_FreeListRace/Program.cs:line 16"
+              },
+              {
+                "Stream": "stdout",
+                "Text": " ---> (Inner Exception #3) LiteDB.LiteException: discarded page must be writable"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Constants.ENSURE(Boolean conditional, String message)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.MemoryCache.DiscardPage(PageBuffer page)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.DiskService.DiscardDirtyPages(IEnumerable`1 pages)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.TransactionService.Rollback()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.AutoTransaction[T](Func`2 fn)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.Delete(String collection, IEnumerable`1 ids)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.DeleteMany(String collection, BsonExpression predicate)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.LiteCollection`1.DeleteAll()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2825_Tests.<>c__DisplayClass0_0.<Parallel_collection_page_reuse_preserves_every_surviving_payload_after_reopen>b__0(Int32 worker) in /home/runner/work/LiteDB/LiteDB/LiteDB.Tests/Issues/Issue2825_Tests.cs:line 25"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "--- End of stack trace from previous location ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.TaskReplicator.Replica.Execute()<---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": ""
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_3: System.AggregateException: One or more errors occurred. (empty page must be defined as empty type) (empty page must be defined as empty type) (discarded page must be writable) (discarded page must be writable)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": " ---> LiteDB.LiteException: empty page must be defined as empty type"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.EngineState.Validate()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.AutoTransaction[T](Func`2 fn)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.Insert(String collection, IEnumerable`1 docs, BsonAutoId autoId)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.LiteCollection`1.Insert(IEnumerable`1 entities)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2825_Tests.<>c__DisplayClass0_0.<Parallel_collection_page_reuse_preserves_every_surviving_payload_after_reopen>b__0(Int32 worker) in /home/runner/work/LiteDB/LiteDB/LiteDB.Tests/Issues/Issue2825_Tests.cs:line 27"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "--- End of stack trace from previous location ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.TaskReplicator.Replica.Execute()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   --- End of inner exception stack trace ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.TaskReplicator.Run[TState](ReplicatableUserAction`1 action, ParallelOptions options, Boolean stopOnFirstFailure)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.ForWorker[TLocal,TInt](TInt fromInclusive, TInt toExclusive, ParallelOptions parallelOptions, Action`1 body, Action`2 bodyWithState, Func`4 bodyWithLocal, Func`1 localInit, Action`1 localFinally)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "--- End of stack trace from previous location ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.ForWorker[TLocal,TInt](TInt fromInclusive, TInt toExclusive, ParallelOptions parallelOptions, Action`1 body, Action`2 bodyWithState, Func`4 bodyWithLocal, Func`1 localInit, Action`1 localFinally)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.For(Int32 fromInclusive, Int32 toExclusive, Action`1 body)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2825_Tests.Parallel_collection_page_reuse_preserves_every_surviving_payload_after_reopen() in /home/runner/work/LiteDB/LiteDB/LiteDB.Tests/Issues/Issue2825_Tests.cs:line 20"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Program.Main() in /home/runner/work/LiteDB/LiteDB/LiteDB.ReproRunner/Repros/Issue_2825_FreeListRace/Program.cs:line 16"
+              },
+              {
+                "Stream": "stdout",
+                "Text": " ---> (Inner Exception #2) LiteDB.LiteException: discarded page must be writable"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Constants.ENSURE(Boolean conditional, String message)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.MemoryCache.DiscardPage(PageBuffer page)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.DiskService.DiscardDirtyPages(IEnumerable`1 pages)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.TransactionService.Rollback()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.AutoTransaction[T](Func`2 fn)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.Delete(String collection, IEnumerable`1 ids)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.DeleteMany(String collection, BsonExpression predicate)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.LiteCollection`1.DeleteAll()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2825_Tests.<>c__DisplayClass0_0.<Parallel_collection_page_reuse_preserves_every_surviving_payload_after_reopen>b__0(Int32 worker) in /home/runner/work/LiteDB/LiteDB/LiteDB.Tests/Issues/Issue2825_Tests.cs:line 25"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "--- End of stack trace from previous location ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.TaskReplicator.Replica.Execute()<---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": ""
+              },
+              {
+                "Stream": "stdout",
+                "Text": " ---> (Inner Exception #3) LiteDB.LiteException: discarded page must be writable"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Constants.ENSURE(Boolean conditional, String message)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.MemoryCache.DiscardPage(PageBuffer page)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.DiskService.DiscardDirtyPages(IEnumerable`1 pages)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.TransactionService.Rollback()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.AutoTransaction[T](Func`2 fn)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.Delete(String collection, IEnumerable`1 ids)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.DeleteMany(String collection, BsonExpression predicate)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.LiteCollection`1.DeleteAll()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2825_Tests.<>c__DisplayClass0_0.<Parallel_collection_page_reuse_preserves_every_surviving_payload_after_reopen>b__0(Int32 worker) in /home/runner/work/LiteDB/LiteDB/LiteDB.Tests/Issues/Issue2825_Tests.cs:line 25"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "--- End of stack trace from previous location ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.TaskReplicator.Replica.Execute()<---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": ""
+              },
+              {
+                "Stream": "stdout",
+                "Text": "REPEATS_2825: attempts=3, reportedFailures=3"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "BUG_2825_CONFIRMED"
+              }
+            ]
+          },
+          "Latest": {
+            "Expected": 1,
+            "ExpectedExitCode": 10,
+            "ExpectedLogContains": "VERIFIED_2825",
+            "Actual": 1,
+            "Met": true,
+            "ExitCode": 10,
+            "DurationSeconds": 1.4473455,
+            "UseProjectReference": true,
+            "FailureReason": null,
+            "Output": [
+              {
+                "Stream": "stdout",
+                "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T07:51:49.1204871+00:00\",\"payload\":{\"useProjectReference\":true,\"liteDBPackageVersion\":\"5.0.20\"}}"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_1: all regression and persistence assertions passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2: all regression and persistence assertions passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_3: all regression and persistence assertions passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "REPEATS_2825: attempts=3, reportedFailures=0"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "VERIFIED_2825"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "logs-Issue_2825_FreeListRace-windows-2022": {
+      "GeneratedAt": "2026-09-15T07:52:06.5598747+00:00",
+      "Root": "D:\\a\\LiteDB\\LiteDB\\LiteDB.ReproRunner",
+      "Repros": [
+        {
+          "Id": "Issue_2825_FreeListRace",
+          "State": 1,
+          "Failed": false,
+          "Warned": false,
+          "Package": {
+            "Expected": 0,
+            "ExpectedExitCode": 0,
+            "ExpectedLogContains": "BUG_2825_CONFIRMED",
+            "Actual": 0,
+            "Met": true,
+            "ExitCode": 0,
+            "DurationSeconds": 0.8395569,
+            "UseProjectReference": false,
+            "FailureReason": null,
+            "Output": [
+              {
+                "Stream": "stdout",
+                "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T07:52:27.9816968+00:00\",\"payload\":{\"useProjectReference\":false,\"liteDBPackageVersion\":\"5.0.20\"}}"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_1: System.AggregateException: One or more errors occurred. (empty page must be defined as empty type) (empty page must be defined as empty type) (empty page must be defined as empty type) (empty page must be defined as empty type)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": " ---> LiteDB.LiteException: empty page must be defined as empty type"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.EngineState.Validate()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.AutoTransaction[T](Func`2 fn)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.Insert(String collection, IEnumerable`1 docs, BsonAutoId autoId)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.LiteCollection`1.Insert(IEnumerable`1 entities)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2825_Tests.<>c__DisplayClass0_0.<Parallel_collection_page_reuse_preserves_every_surviving_payload_after_reopen>b__0(Int32 worker) in D:\\a\\LiteDB\\LiteDB\\LiteDB.Tests\\Issues\\Issue2825_Tests.cs:line 27"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "--- End of stack trace from previous location ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.TaskReplicator.Replica.Execute()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.Insert(String collection, IEnumerable`1 docs, BsonAutoId autoId)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.LiteCollection`1.Insert(IEnumerable`1 entities)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2825_Tests.<>c__DisplayClass0_0.<Parallel_collection_page_reuse_preserves_every_surviving_payload_after_reopen>b__0(Int32 worker) in D:\\a\\LiteDB\\LiteDB\\LiteDB.Tests\\Issues\\Issue2825_Tests.cs:line 27"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "--- End of stack trace from previous location ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.TaskReplicator.Replica.Execute()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   --- End of inner exception stack trace ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.TaskReplicator.Run[TState](ReplicatableUserAction`1 action, ParallelOptions options, Boolean stopOnFirstFailure)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.ForWorker[TLocal,TInt](TInt fromInclusive, TInt toExclusive, ParallelOptions parallelOptions, Action`1 body, Action`2 bodyWithState, Func`4 bodyWithLocal, Func`1 localInit, Action`1 localFinally)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "--- End of stack trace from previous location ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.ForWorker[TLocal,TInt](TInt fromInclusive, TInt toExclusive, ParallelOptions parallelOptions, Action`1 body, Action`2 bodyWithState, Func`4 bodyWithLocal, Func`1 localInit, Action`1 localFinally)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.For(Int32 fromInclusive, Int32 toExclusive, Action`1 body)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2825_Tests.Parallel_collection_page_reuse_preserves_every_surviving_payload_after_reopen() in D:\\a\\LiteDB\\LiteDB\\LiteDB.Tests\\Issues\\Issue2825_Tests.cs:line 20"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Program.Main() in D:\\a\\LiteDB\\LiteDB\\LiteDB.ReproRunner\\Repros\\Issue_2825_FreeListRace\\Program.cs:line 16"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2: System.AggregateException: One or more errors occurred. (empty page must be defined as empty type) (empty page must be defined as empty type) (empty page must be defined as empty type) (empty page must be defined as empty type)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": " ---> LiteDB.LiteException: empty page must be defined as empty type"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.EngineState.Validate()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.AutoTransaction[T](Func`2 fn)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.Insert(String collection, IEnumerable`1 docs, BsonAutoId autoId)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.LiteCollection`1.Insert(IEnumerable`1 entities)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2825_Tests.<>c__DisplayClass0_0.<Parallel_collection_page_reuse_preserves_every_surviving_payload_after_reopen>b__0(Int32 worker) in D:\\a\\LiteDB\\LiteDB\\LiteDB.Tests\\Issues\\Issue2825_Tests.cs:line 27"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "--- End of stack trace from previous location ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.TaskReplicator.Replica.Execute()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.Insert(String collection, IEnumerable`1 docs, BsonAutoId autoId)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.LiteCollection`1.Insert(IEnumerable`1 entities)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2825_Tests.<>c__DisplayClass0_0.<Parallel_collection_page_reuse_preserves_every_surviving_payload_after_reopen>b__0(Int32 worker) in D:\\a\\LiteDB\\LiteDB\\LiteDB.Tests\\Issues\\Issue2825_Tests.cs:line 27"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "--- End of stack trace from previous location ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.TaskReplicator.Replica.Execute()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   --- End of inner exception stack trace ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.TaskReplicator.Run[TState](ReplicatableUserAction`1 action, ParallelOptions options, Boolean stopOnFirstFailure)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.ForWorker[TLocal,TInt](TInt fromInclusive, TInt toExclusive, ParallelOptions parallelOptions, Action`1 body, Action`2 bodyWithState, Func`4 bodyWithLocal, Func`1 localInit, Action`1 localFinally)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "--- End of stack trace from previous location ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.ForWorker[TLocal,TInt](TInt fromInclusive, TInt toExclusive, ParallelOptions parallelOptions, Action`1 body, Action`2 bodyWithState, Func`4 bodyWithLocal, Func`1 localInit, Action`1 localFinally)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.For(Int32 fromInclusive, Int32 toExclusive, Action`1 body)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2825_Tests.Parallel_collection_page_reuse_preserves_every_surviving_payload_after_reopen() in D:\\a\\LiteDB\\LiteDB\\LiteDB.Tests\\Issues\\Issue2825_Tests.cs:line 20"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Program.Main() in D:\\a\\LiteDB\\LiteDB\\LiteDB.ReproRunner\\Repros\\Issue_2825_FreeListRace\\Program.cs:line 16"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_3: System.AggregateException: One or more errors occurred. (empty page must be defined as empty type) (empty page must be defined as empty type) (empty page must be defined as empty type) (empty page must be defined as empty type)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": " ---> LiteDB.LiteException: empty page must be defined as empty type"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.EngineState.Validate()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.BsonDataReader..ctor(IEnumerable`1 values, String collection, EngineState state)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.QueryExecutor.ExecuteQuery(Boolean executionPlan)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.QueryExecutor.ExecuteQuery()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.Query(String collection, Query query)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.LiteQueryable`1.ExecuteReader()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.LiteQueryable`1.ToDocuments()+MoveNext()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Linq.Enumerable.SelectEnumerableIterator`2.GetCount(Boolean onlyIfCheap)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at FluentAssertions.Collections.GenericCollectionAssertions`3.HaveCount(Int32 expected, String because, Object[] becauseArgs)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2825_Tests.<>c__DisplayClass0_0.<Parallel_collection_page_reuse_preserves_every_surviving_payload_after_reopen>b__0(Int32 worker) in D:\\a\\LiteDB\\LiteDB\\LiteDB.Tests\\Issues\\Issue2825_Tests.cs:line 31"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "--- End of stack trace from previous location ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.TaskReplicator.Replica.Execute()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Engine.LiteEngine.Insert(String collection, IEnumerable`1 docs, BsonAutoId autoId)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.LiteCollection`1.Insert(IEnumerable`1 entities)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2825_Tests.<>c__DisplayClass0_0.<Parallel_collection_page_reuse_preserves_every_surviving_payload_after_reopen>b__0(Int32 worker) in D:\\a\\LiteDB\\LiteDB\\LiteDB.Tests\\Issues\\Issue2825_Tests.cs:line 27"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "--- End of stack trace from previous location ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.<>c__DisplayClass19_0`2.<ForWorker>b__1(RangeWorker& currentWorker, Int64 timeout, Boolean& replicationDelegateYieldedBeforeCompletion)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.TaskReplicator.Replica.Execute()"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   --- End of inner exception stack trace ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.TaskReplicator.Run[TState](ReplicatableUserAction`1 action, ParallelOptions options, Boolean stopOnFirstFailure)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.ForWorker[TLocal,TInt](TInt fromInclusive, TInt toExclusive, ParallelOptions parallelOptions, Action`1 body, Action`2 bodyWithState, Func`4 bodyWithLocal, Func`1 localInit, Action`1 localFinally)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "--- End of stack trace from previous location ---"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.ForWorker[TLocal,TInt](TInt fromInclusive, TInt toExclusive, ParallelOptions parallelOptions, Action`1 body, Action`2 bodyWithState, Func`4 bodyWithLocal, Func`1 localInit, Action`1 localFinally)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.Threading.Tasks.Parallel.For(Int32 fromInclusive, Int32 toExclusive, Action`1 body)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2825_Tests.Parallel_collection_page_reuse_preserves_every_surviving_payload_after_reopen() in D:\\a\\LiteDB\\LiteDB\\LiteDB.Tests\\Issues\\Issue2825_Tests.cs:line 20"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Program.Main() in D:\\a\\LiteDB\\LiteDB\\LiteDB.ReproRunner\\Repros\\Issue_2825_FreeListRace\\Program.cs:line 16"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "REPEATS_2825: attempts=3, reportedFailures=3"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "BUG_2825_CONFIRMED"
+              }
+            ]
+          },
+          "Latest": {
+            "Expected": 1,
+            "ExpectedExitCode": 10,
+            "ExpectedLogContains": "VERIFIED_2825",
+            "Actual": 1,
+            "Met": true,
+            "ExitCode": 10,
+            "DurationSeconds": 1.5450314,
+            "UseProjectReference": true,
+            "FailureReason": null,
+            "Output": [
+              {
+                "Stream": "stdout",
+                "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T07:52:28.8242468+00:00\",\"payload\":{\"useProjectReference\":true,\"liteDBPackageVersion\":\"5.0.20\"}}"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_1: all regression and persistence assertions passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2: all regression and persistence assertions passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_3: all regression and persistence assertions passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "REPEATS_2825: attempts=3, reportedFailures=0"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "VERIFIED_2825"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
