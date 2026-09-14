@@ -1,0 +1,28 @@
+{
+  "id": "Issue_2775_ScanRetention",
+  "title": "Index scan retained memory must be bounded independently of row count",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/issues/2775"
+  ],
+  "timeoutSeconds": 240,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression",
+    "performance"
+  ],
+  "state": "red",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "BUG_2775_CONFIRMED"
+    },
+    "latest": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "BUG_2775_CONFIRMED"
+    }
+  }
+}
