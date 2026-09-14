@@ -1,0 +1,52 @@
+{
+  "observedDate": "2026-09-15",
+  "productionSourceTree": "aa51b25f9b071266616fb818c958083c61d010b2",
+  "testSourceTree": "53a7578bbc696c4caa78e68cfefcfe6163d47938",
+  "releaseSolutionBuild": {
+    "testingEnabled": true,
+    "errors": 0,
+    "warnings": 116
+  },
+  "focusedSuite": {
+    "framework": "net8.0",
+    "platform": "Linux x64",
+    "filter": "FullyQualifiedName~Issue2043_|FullyQualifiedName~Issue2169_",
+    "passed": 4,
+    "failed": 1,
+    "skipped": 0,
+    "results": [
+      {
+        "name": "LiteDB.Tests.Issues.Issue2169_CheckpointFailureTests.Parallel_inserts_preserve_the_checkpoint_error_and_every_committed_payload",
+        "outcome": "Failed",
+        "message": "Expected failures to refer to System.UnauthorizedAccessException: issue 2169: checkpoint access denied\n   at LiteDB.Tests.Issues.Issue2169_CheckpointFailureTests.DeniedCheckpointStream.Write(Byte[] buffer, Int32 offset, Int32 count) in /home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB.Tests/Issues/Issue2169_CheckpointFailureTests.cs:line 107\n   at LiteDB.Engine.ConcurrentStream.Write(Byte[] buffer, Int32 offset, Int32 count) in /home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB/Engine/Disk/Streams/ConcurrentStream.cs:line 93\n   at LiteDB.Engine.DiskService.WriteDataDisk(IEnumerable`1 pages) in /home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB/Engine/Disk/DiskService.cs:line 356\n   at LiteDB.Engine.WalIndexService.CheckpointInternal() in /home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB/Engine/Services/WalIndexService.cs:line 355\n   at LiteDB.Engine.WalIndexService.TryCheckpoint() in /home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB/Engine/Services/WalIndexService.cs:line 299\n   at LiteDB.Engine.LiteEngine.CommitAndReleaseTransaction(TransactionService transaction) in /home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB/Engine/Engine/Transaction.cs:line 118\n   at LiteDB.Engine.LiteEngine.AutoTransaction[T](Func`2 fn) in /home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB/Engine/Engine/Transaction.cs:line 87 because rollback of the disposed transaction must not mask the original write failure, but found LiteDB.LiteException: transaction must be active to rollback (current state: Disposed)\n   at LiteDB.Constants.ENSURE(Boolean conditional, String format, Object[] args) in /home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB/Utils/Constants.cs:line 160\n   at LiteDB.Engine.TransactionService.Rollback() in /home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB/Engine/Services/TransactionService.cs:line 291\n   at LiteDB.Engine.LiteEngine.AutoTransaction[T](Func`2 fn) in /home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB/Engine/Engine/Transaction.cs:line 99\n   at LiteDB.Engine.LiteEngine.Insert(String collection, IEnumerable`1 docs, BsonAutoId autoId) in /home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB/Engine/Engine/Insert.cs:line 20\n   at LiteDB.LiteCollection`1.Insert(T entity) in /home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB/Client/Database/Collections/Insert.cs:line 20\n   at LiteDB.Tests.Issues.Issue2169_CheckpointFailureTests.<>c__DisplayClass0_1.<Parallel_inserts_preserve_the_checkpoint_error_and_every_committed_payload>b__2() in /home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB.Tests/Issues/Issue2169_CheckpointFailureTests.cs:line 40\n   at Xunit.Record.Exception(Func`1 testCode) in /_/src/xunit.core/Record.cs:line 47."
+      },
+      {
+        "name": "LiteDB.Tests.Issues.Issue2169_Tests.Parallel_insert_or_upsert_preserves_every_acknowledged_row(upsert: False)",
+        "outcome": "Passed",
+        "message": ""
+      },
+      {
+        "name": "LiteDB.Tests.Issues.Issue2169_Tests.Parallel_insert_or_upsert_preserves_every_acknowledged_row(upsert: True)",
+        "outcome": "Passed",
+        "message": ""
+      },
+      {
+        "name": "LiteDB.Tests.Issues.Issue2043_BulkLifecycleTests.Bulk_auto_ids_survive_timer_cleanup_ordered_readers_and_quiesced_rebuilds",
+        "outcome": "Passed",
+        "message": ""
+      },
+      {
+        "name": "LiteDB.Tests.Issues.Issue2043_Tests.Concurrent_Int64_auto_ids_match_document_ids_and_continue_after_rebuild_and_reopen",
+        "outcome": "Passed",
+        "message": ""
+      }
+    ]
+  },
+  "reproRunnerUnitTests": {
+    "passed": 24,
+    "failed": 0
+  },
+  "manifestsValid": 26,
+  "priorFullSuiteTestTree": "ae8f89bf949c7771df5ef7a42977fe6a37778487",
+  "note": "The full-suite result predates these issue changes; the final source is validated by the focused suite and historical/platform comparisons."
+}
