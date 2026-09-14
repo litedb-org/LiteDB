@@ -1,0 +1,114 @@
+{
+  "observedDate": "2026-09-15",
+  "ciRun": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771",
+  "testedCommit": "ed866e540a680ac871e31918b6d8b3635b54f658",
+  "test": "Issue2820_Tests.Read_only_open_recovers_a_torn_v5_tail_without_trimming_or_rewriting_it",
+  "result": "Read-only tail preservation passes all nine Linux/macOS jobs and fails all twelve Windows jobs. Windows reports 229376 bytes while the expected unchanged file has 234379 bytes.",
+  "observations": [
+    {
+      "job": "build-and-test / Test (Linux .NET 9)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307843603",
+      "readOnlyTailTest": "Failed"
+    },
+    {
+      "job": "build-and-test / Test (Linux .NET 8)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307843612",
+      "readOnlyTailTest": "Failed"
+    },
+    {
+      "job": "build-and-test / Test (Linux .NET 10)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307843631",
+      "readOnlyTailTest": "Failed"
+    },
+    {
+      "job": "build-and-test / Test (Linux ARM64 - .NET 9)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307843639",
+      "readOnlyTailTest": "Failed"
+    },
+    {
+      "job": "build-and-test / Test (Linux ARM64 - .NET 8)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307843648",
+      "readOnlyTailTest": "Failed"
+    },
+    {
+      "job": "build-and-test / Test (Linux ARM64 - .NET 10)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307843653",
+      "readOnlyTailTest": "Failed"
+    },
+    {
+      "job": "build-and-test / Test (macOS .NET 9)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307866601",
+      "readOnlyTailTest": "Failed"
+    },
+    {
+      "job": "build-and-test / Test (macOS .NET 8)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307866603",
+      "readOnlyTailTest": "Failed"
+    },
+    {
+      "job": "build-and-test / Test (macOS .NET 10)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307866685",
+      "readOnlyTailTest": "Failed"
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-latest - x64 - .NET 10)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180859",
+      "readOnlyTailTest": "Failed"
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-2022 - x64 - .NET 9)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180866",
+      "readOnlyTailTest": "Failed"
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-latest - x86 - .NET 8)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180871",
+      "readOnlyTailTest": "Failed"
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-2022 - x86 - .NET 9)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180877",
+      "readOnlyTailTest": "Failed"
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-2022 - x64 - .NET 8)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180883",
+      "readOnlyTailTest": "Failed"
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-2022 - x86 - .NET 8)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180924",
+      "readOnlyTailTest": "Failed"
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-latest - x86 - .NET 9)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180934",
+      "readOnlyTailTest": "Failed"
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-latest - x64 - .NET 9)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180938",
+      "readOnlyTailTest": "Failed"
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-latest - x86 - .NET 10)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180988",
+      "readOnlyTailTest": "Failed"
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-latest - x64 - .NET 8)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308181013",
+      "readOnlyTailTest": "Failed"
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-2022 - x64 - .NET 10)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308181095",
+      "readOnlyTailTest": "Failed"
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-2022 - x86 - .NET 10)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308181132",
+      "readOnlyTailTest": "Failed"
+    }
+  ]
+}
