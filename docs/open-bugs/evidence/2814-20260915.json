@@ -1,0 +1,54 @@
+{
+  "observedAt": "2026-09-15T01:37:51.2071194+00:00",
+  "productionSource": "a50661a9d1a25b5713586d0096c6325d76bf5dfe",
+  "sourceReportSha256": "00ce1533bba32f6aec94f9f424f3040f2011ed4e8b0791165cc941049b085972",
+  "repro": "Issue_2814_WalGrowth",
+  "variants": {
+    "package": {
+      "configuration": {
+        "useProjectReference": false,
+        "liteDBPackageVersion": "5.0.11"
+      },
+      "exitCode": 0,
+      "expectationMet": true,
+      "output": [
+        "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T01:37:54.707049+00:00\",\"payload\":{\"useProjectReference\":false,\"liteDBPackageVersion\":\"5.0.11\"}}",
+        "ATTEMPT_1: all regression and persistence assertions passed",
+        "ATTEMPT_2: all regression and persistence assertions passed",
+        "ATTEMPT_3: all regression and persistence assertions passed",
+        "ATTEMPT_4: all regression and persistence assertions passed",
+        "ATTEMPT_5: all regression and persistence assertions passed",
+        "ATTEMPT_6: all regression and persistence assertions passed",
+        "ATTEMPT_7: Expected peak to be less than or equal to 6553600L because auto-checkpoint needs bounded escalation under continuous short readers, but found 7442432L (difference of 888832).",
+        "ATTEMPT_8: all regression and persistence assertions passed",
+        "ATTEMPT_9: all regression and persistence assertions passed",
+        "ATTEMPT_10: all regression and persistence assertions passed",
+        "10S_2814: attempts=10, reportedFailures=1",
+        "BUG_2814_CONFIRMED"
+      ]
+    },
+    "latest": {
+      "configuration": {
+        "useProjectReference": true,
+        "liteDBPackageVersion": "5.0.11"
+      },
+      "exitCode": 0,
+      "expectationMet": true,
+      "output": [
+        "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T01:38:00.6051147+00:00\",\"payload\":{\"useProjectReference\":true,\"liteDBPackageVersion\":\"5.0.11\"}}",
+        "ATTEMPT_1: Expected peak to be less than or equal to 6553600L because auto-checkpoint needs bounded escalation under continuous short readers, but found 8011776L (difference of 1458176).",
+        "ATTEMPT_2: Expected peak to be less than or equal to 6553600L because auto-checkpoint needs bounded escalation under continuous short readers, but found 13746176L (difference of 7192576).",
+        "ATTEMPT_3: Expected peak to be less than or equal to 6553600L because auto-checkpoint needs bounded escalation under continuous short readers, but found 7143424L (difference of 589824).",
+        "ATTEMPT_4: Expected peak to be less than or equal to 6553600L because auto-checkpoint needs bounded escalation under continuous short readers, but found 11051008L (difference of 4497408).",
+        "ATTEMPT_5: Expected peak to be less than or equal to 6553600L because auto-checkpoint needs bounded escalation under continuous short readers, but found 8445952L (difference of 1892352).",
+        "ATTEMPT_6: Expected peak to be less than or equal to 6553600L because auto-checkpoint needs bounded escalation under continuous short readers, but found 17530880L (difference of 10977280).",
+        "ATTEMPT_7: Expected peak to be less than or equal to 6553600L because auto-checkpoint needs bounded escalation under continuous short readers, but found 10059776L (difference of 3506176).",
+        "ATTEMPT_8: Expected peak to be less than or equal to 6553600L because auto-checkpoint needs bounded escalation under continuous short readers, but found 9093120L (difference of 2539520).",
+        "ATTEMPT_9: Expected peak to be less than or equal to 6553600L because auto-checkpoint needs bounded escalation under continuous short readers, but found 8126464L (difference of 1572864).",
+        "ATTEMPT_10: Expected peak to be less than or equal to 6553600L because auto-checkpoint needs bounded escalation under continuous short readers, but found 14254080L (difference of 7700480).",
+        "10S_2814: attempts=10, reportedFailures=10",
+        "BUG_2814_CONFIRMED"
+      ]
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "id": "Issue_2814_WalGrowth",
+  "title": "Issue 2814: repeat historical and current-source regression",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/issues/2814"
+  ],
+  "timeoutSeconds": 180,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "state": "flaky",
+  "tags": [
+    "regression",
+    "historical"
+  ],
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "BUG_2814_CONFIRMED"
+    },
+    "latest": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "BUG_2814_CONFIRMED"
+    }
+  }
+}
