@@ -1,0 +1,27 @@
+{
+  "id": "Issue_2746_CollectionNameDiagnostic",
+  "title": "Issue 2746: repeat historical and current-source regression",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/issues/2746"
+  ],
+  "timeoutSeconds": 180,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "state": "red",
+  "tags": [
+    "regression",
+    "historical"
+  ],
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "BUG_2746_CONFIRMED"
+    },
+    "latest": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "BUG_2746_CONFIRMED"
+    }
+  }
+}

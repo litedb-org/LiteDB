@@ -1,0 +1,40 @@
+{
+  "observedAt": "2026-09-15T06:46:45.8167766+00:00",
+  "productionSource": "a50661a9d1a25b5713586d0096c6325d76bf5dfe",
+  "sourceReportSha256": "190e0bea0cdca471568241ac3739ce56a7ba8e88a115fc2c9c5d3d4d98727594",
+  "repro": "Issue_2746_CollectionNameDiagnostic",
+  "variants": {
+    "package": {
+      "configuration": {
+        "useProjectReference": false,
+        "liteDBPackageVersion": "5.0.21"
+      },
+      "exitCode": 0,
+      "expectationMet": true,
+      "output": [
+        "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T06:46:53.7459012+00:00\",\"payload\":{\"useProjectReference\":false,\"liteDBPackageVersion\":\"5.0.21\"}}",
+        "ATTEMPT_1: Expected failure.Message to match regex \"(?i)(?:(?:cannot|can't|must not|may not)\\s+(?:start|begin).{0,40}(?:digit|number|0-9)|(?:must|should)\\s+(?:start|begin).{0,40}(?:letter|alphabetic)|(?:first|initial)\\s+character.{0,30}(?:cannot|must not|may not).{0,30}(?:digit|number|0-9))\" because the diagnostic must explain the initial-digit restriction, not only list allowed characters, but \"Invalid collection name '2e4e2069_da7c_4dbd_8c11_a5ac31041079': Use only [a-Z$_]\" does not match.",
+        "ATTEMPT_2: Expected failure.Message to match regex \"(?i)(?:(?:cannot|can't|must not|may not)\\s+(?:start|begin).{0,40}(?:digit|number|0-9)|(?:must|should)\\s+(?:start|begin).{0,40}(?:letter|alphabetic)|(?:first|initial)\\s+character.{0,30}(?:cannot|must not|may not).{0,30}(?:digit|number|0-9))\" because the diagnostic must explain the initial-digit restriction, not only list allowed characters, but \"Invalid collection name '2e4e2069_da7c_4dbd_8c11_a5ac31041079': Use only [a-Z$_]\" does not match.",
+        "ATTEMPT_3: Expected failure.Message to match regex \"(?i)(?:(?:cannot|can't|must not|may not)\\s+(?:start|begin).{0,40}(?:digit|number|0-9)|(?:must|should)\\s+(?:start|begin).{0,40}(?:letter|alphabetic)|(?:first|initial)\\s+character.{0,30}(?:cannot|must not|may not).{0,30}(?:digit|number|0-9))\" because the diagnostic must explain the initial-digit restriction, not only list allowed characters, but \"Invalid collection name '2e4e2069_da7c_4dbd_8c11_a5ac31041079': Use only [a-Z$_]\" does not match.",
+        "REPEATS_2746: attempts=3, reportedFailures=3",
+        "BUG_2746_CONFIRMED"
+      ]
+    },
+    "latest": {
+      "configuration": {
+        "useProjectReference": true,
+        "liteDBPackageVersion": "5.0.21"
+      },
+      "exitCode": 0,
+      "expectationMet": true,
+      "output": [
+        "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T06:46:54.2212846+00:00\",\"payload\":{\"useProjectReference\":true,\"liteDBPackageVersion\":\"5.0.21\"}}",
+        "ATTEMPT_1: Expected failure.Message to match regex \"(?i)(?:(?:cannot|can't|must not|may not)\\s+(?:start|begin).{0,40}(?:digit|number|0-9)|(?:must|should)\\s+(?:start|begin).{0,40}(?:letter|alphabetic)|(?:first|initial)\\s+character.{0,30}(?:cannot|must not|may not).{0,30}(?:digit|number|0-9))\" because the diagnostic must explain the initial-digit restriction, not only list allowed characters, but \"Invalid collection name '2e4e2069_da7c_4dbd_8c11_a5ac31041079': Use only [a-Z$_]\" does not match.",
+        "ATTEMPT_2: Expected failure.Message to match regex \"(?i)(?:(?:cannot|can't|must not|may not)\\s+(?:start|begin).{0,40}(?:digit|number|0-9)|(?:must|should)\\s+(?:start|begin).{0,40}(?:letter|alphabetic)|(?:first|initial)\\s+character.{0,30}(?:cannot|must not|may not).{0,30}(?:digit|number|0-9))\" because the diagnostic must explain the initial-digit restriction, not only list allowed characters, but \"Invalid collection name '2e4e2069_da7c_4dbd_8c11_a5ac31041079': Use only [a-Z$_]\" does not match.",
+        "ATTEMPT_3: Expected failure.Message to match regex \"(?i)(?:(?:cannot|can't|must not|may not)\\s+(?:start|begin).{0,40}(?:digit|number|0-9)|(?:must|should)\\s+(?:start|begin).{0,40}(?:letter|alphabetic)|(?:first|initial)\\s+character.{0,30}(?:cannot|must not|may not).{0,30}(?:digit|number|0-9))\" because the diagnostic must explain the initial-digit restriction, not only list allowed characters, but \"Invalid collection name '2e4e2069_da7c_4dbd_8c11_a5ac31041079': Use only [a-Z$_]\" does not match.",
+        "REPEATS_2746: attempts=3, reportedFailures=3",
+        "BUG_2746_CONFIRMED"
+      ]
+    }
+  }
+}
