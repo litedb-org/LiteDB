@@ -1,0 +1,35 @@
+{
+  "id": "Issue_1087_LinuxLockRetry",
+  "title": "Linux lock contention must be classified and retried",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/issues/1087"
+  ],
+  "failingSince": "4.1.x",
+  "timeoutSeconds": 45,
+  "requiresParallel": true,
+  "defaultInstances": 2,
+  "sharedDatabaseKey": "issue1087-linux-lock",
+  "args": [],
+  "tags": [
+    "concurrency",
+    "filesystem",
+    "linux",
+    "regression"
+  ],
+  "supports": [
+    "linux"
+  ],
+  "state": "red",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "BUG_1087_CONFIRMED"
+    },
+    "latest": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "BUG_1087_CONFIRMED"
+    }
+  }
+}
