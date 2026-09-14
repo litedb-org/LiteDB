@@ -1,0 +1,15 @@
+{
+  "id": "Issue_2059_FrameworkLookup",
+  "title": "Large indexed lookup lifecycle with real backup locking and 32-bit .NET Framework",
+  "issues": ["https://github.com/litedb-org/LiteDB/issues/2059"],
+  "timeoutSeconds": 600,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "supports": ["windows", "linux"],
+  "state": "flaky",
+  "tags": ["regression", "historical", "unconfirmed", "cross-process"],
+  "expectedOutcomes": {
+    "package": {"kind": "noRepro", "exitCode": 10, "logContains": "VERIFIED_2059"},
+    "latest": {"kind": "noRepro", "exitCode": 10, "logContains": "VERIFIED_2059"}
+  }
+}

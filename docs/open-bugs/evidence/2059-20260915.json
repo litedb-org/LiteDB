@@ -1,0 +1,15 @@
+{
+  "platform": "Linux x64 / .NET 8",
+  "observations": [
+    {
+      "case": "2059-5.0.10",
+      "tests": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2059_Tests.Reported_indexed_lookup_matches_external_ledger_after_variable_size_churn_and_reopens",
+          "outcome": "Passed",
+          "message": ""
+        }
+      ]
+    }
+  ]
+}
