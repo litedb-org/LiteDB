@@ -1,0 +1,77 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UseProjectReference Condition="'$(UseProjectReference)' == ''">false</UseProjectReference>
+    <LiteDBPackageVersion Condition="'$(LiteDBPackageVersion)' == ''">5.0.21</LiteDBPackageVersion>
+    <NativeProbeBuild Condition="'$(NativeProbeBuild)' == ''">false</NativeProbeBuild>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(NativeProbeBuild)' == 'true'">
+    <PublishAot>true</PublishAot>
+    <SelfContained>true</SelfContained>
+    <StripSymbols>true</StripSymbols>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(UseProjectReference)' == 'true'">
+    <ProjectReference Include="..\..\..\LiteDB\LiteDB.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(UseProjectReference)' != 'true'">
+    <PackageReference Include="LiteDB" Version="$(LiteDBPackageVersion)" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(NativeProbeBuild)' != 'true'">
+    <!-- The net8.0 host does not restore these Mono inputs transitively. Pin and
+         download them explicitly so a clean package cache builds the same probe. -->
+    <PackageDownload Include="System.Buffers" Version="[4.5.1]" />
+    <PackageDownload Include="System.Memory" Version="[4.5.0]" />
+    <PackageDownload Include="System.Runtime.CompilerServices.Unsafe" Version="[4.5.0]" />
+    <Compile Remove="NativeAotProgram.cs" />
+    <Compile Remove="MonoFullAotProgram.cs" />
+    <None Include="NativeAotProgram.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="MonoFullAotProgram.cs" CopyToOutputDirectory="PreserveNewest" />
+    <ProjectReference Include="..\..\LiteDB.ReproRunner.Shared\LiteDB.ReproRunner.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(NativeProbeBuild)' == 'true'">
+    <Compile Remove="Program.cs" />
+    <Compile Remove="MonoFullAotProgram.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(NativeProbeBuild)' != 'true'">
+    <AssemblyMetadata Include="LiteDB.ReproRunner.UseProjectReference" Value="$(UseProjectReference)" />
+    <AssemblyMetadata Include="LiteDB.ReproRunner.LiteDBPackageVersion" Value="$(LiteDBPackageVersion)" />
+    <AssemblyMetadata Include="LiteDB.ReproRunner.ProjectPath" Value="$(MSBuildProjectFullPath)" />
+  </ItemGroup>
+
+  <Target Name="StageMonoFullAotInputs"
+          AfterTargets="Build"
+          Condition="'$(NativeProbeBuild)' != 'true'">
+    <PropertyGroup>
+      <_MonoInputDirectory>$([System.IO.Path]::Combine('$(OutputPath)', 'mono-input'))</_MonoInputDirectory>
+      <_MonoSourceOutput>$([System.IO.Path]::Combine('$(_MonoInputDirectory)', 'source-build'))</_MonoSourceOutput>
+    </PropertyGroup>
+
+    <MSBuild Projects="..\..\..\LiteDB\LiteDB.csproj"
+             Targets="Build"
+             Properties="Configuration=$(Configuration);TargetFramework=netstandard2.0;TestingEnabled=false;GitVersionEnabled=false;OutputPath=$(_MonoSourceOutput)/;AppendTargetFrameworkToOutputPath=false"
+             Condition="'$(UseProjectReference)' == 'true'">
+      <Output TaskParameter="TargetOutputs" ItemName="_MonoSourceLiteDb" />
+    </MSBuild>
+
+    <ItemGroup>
+      <_MonoLiteDb Include="@(_MonoSourceLiteDb)" Condition="'$(UseProjectReference)' == 'true'" />
+      <_MonoLiteDb Include="$(NuGetPackageRoot)/litedb/$(LiteDBPackageVersion)/lib/netstandard2.0/LiteDB.dll"
+                   Condition="'$(UseProjectReference)' != 'true'" />
+      <_MonoDependency Include="$(NuGetPackageRoot)/system.buffers/4.5.1/lib/netstandard2.0/System.Buffers.dll" />
+      <_MonoDependency Include="$(NuGetPackageRoot)/system.memory/4.5.0/lib/netstandard2.0/System.Memory.dll" />
+      <_MonoDependency Include="$(NuGetPackageRoot)/system.runtime.compilerservices.unsafe/4.5.0/lib/netstandard2.0/System.Runtime.CompilerServices.Unsafe.dll" />
+    </ItemGroup>
+
+    <MakeDir Directories="$(_MonoInputDirectory)" />
+    <Copy SourceFiles="@(_MonoLiteDb);@(_MonoDependency)" DestinationFolder="$(_MonoInputDirectory)" />
+  </Target>
+</Project>
