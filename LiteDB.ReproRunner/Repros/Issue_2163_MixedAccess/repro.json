@@ -1,0 +1,37 @@
+{
+  "id": "Issue_2163_MixedAccess",
+  "title": "Mixed Direct and Shared owners must not acknowledge and lose a write",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/issues/2163"
+  ],
+  "failingSince": "5.0.11 (current when filed; exact reported version is unknown)",
+  "timeoutSeconds": 60,
+  "requiresParallel": true,
+  "defaultInstances": 2,
+  "sharedDatabaseKey": "issue2163-mixed-access",
+  "args": [],
+  "tags": [
+    "concurrency",
+    "cross-process",
+    "data-loss",
+    "filesystem",
+    "linux",
+    "regression"
+  ],
+  "supports": [
+    "linux"
+  ],
+  "state": "red",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "BUG_2163_CONFIRMED"
+    },
+    "latest": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "BUG_2163_CONFIRMED"
+    }
+  }
+}
