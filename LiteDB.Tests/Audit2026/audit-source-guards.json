@@ -1,0 +1,1192 @@
+[
+  {
+    "id": 1,
+    "file": "LiteDB/Engine/Disk/DiskService.cs",
+    "line": 244,
+    "title": "Committed WAL pages are acknowledged without an fsync of the log file",
+    "context": "                }\n                stream.Flush();\n            }"
+  },
+  {
+    "id": 2,
+    "file": "LiteDB/Engine/Engine/Rebuild.cs",
+    "line": 29,
+    "title": "Rebuild(RebuildOptions) ignores the engine's own password, rewriting an encrypted database as plaintext on disk",
+    "context": "            // return how many bytes of diference from original/rebuild version\n            var diff = rebuilder.Rebuild(options);"
+  },
+  {
+    "id": 4,
+    "file": "LiteDB/Engine/FileReader/FileReaderV8.cs",
+    "line": 88,
+    "title": "FileReaderV8.Open() swallows every non-IO exception, so a partially readable file rebuilds into an EMPTY database",
+    "context": "            }\n            catch (Exception ex)\n            {"
+  },
+  {
+    "id": 5,
+    "file": "LiteDB/Client/Shared/SharedEngine.cs",
+    "line": 48,
+    "title": "OpenDatabase() acquires the cross-process mutex unconditionally but callers only release it when it returned true, so every nested/in-transaction operation permanently leaks one mutex recursion level",
+    "context": "                // Acquire mutex for every call to open DB.\n                _mutex.WaitOne();\n            }"
+  },
+  {
+    "id": 7,
+    "file": "LiteDB/Utils/Extensions/StringExtensions.cs",
+    "line": 136,
+    "title": "SqlLike backtracking is unbounded: patterns with repeated '%' hang forever or throw IndexOutOfRangeException",
+    "context": "                            int back = patternIndex - lastWildCard - 1;\n                            i -= back;\n                            patternIndex = lastWildCard;"
+  },
+  {
+    "id": 8,
+    "file": "LiteDB/Engine/Services/TransactionService.cs",
+    "line": 70,
+    "title": "Transaction ID is allocated before the transaction read lock is taken, so a concurrent Checkpoint() can reset the ID counter and hand the same transactionID to two transactions",
+    "context": "            // create new transactionID\n            _transactionID = walIndex.NextTransactionID();\n            _startTime = DateTime.UtcNow;"
+  },
+  {
+    "id": 9,
+    "file": "LiteDB/Engine/Services/IndexService.cs",
+    "line": 398,
+    "title": "IndexService.Find returns the head/tail sentinel node on an exact match, letting Delete destroy an index's tail node",
+    "context": "                    // if equals, return index node\n                    if (diff == 0)\n                    {"
+  },
+  {
+    "id": 11,
+    "file": "LiteDB/Document/Expression/Parser/BsonExpressionParser.cs",
+    "line": 36,
+    "title": "Operator precedence table gives `-` lower precedence than `+` (and `*` lower than `/` and `%`), so `a - b + c` is evaluated as `a - (b + c)`",
+    "context": "            [\"+\"] = Tuple.Create(\"+\", M(\"ADD\"), BsonExpressionType.Add),\n            [\"-\"] = Tuple.Create(\"-\", M(\"MINUS\"), BsonExpressionType.Subtract),"
+  },
+  {
+    "id": 12,
+    "file": "LiteDB/Utils/Extensions/StringExtensions.cs",
+    "line": 61,
+    "title": "SqlLike compares trailing input characters against a stale pattern character, matching strings longer than the pattern",
+    "context": "\n                endOfPattern = (patternIndex >= pattern.Length);"
+  },
+  {
+    "id": 13,
+    "file": "LiteDB/Utils/Extensions/StringExtensions.cs",
+    "line": 95,
+    "title": "SqlLike treats '_' as a literal when it directly follows '%', so every pattern containing \"%_\" fails to match",
+    "context": "                {\n                    if (collation.Compare(c.ToString(), p.ToString()) == 0)\n                    {"
+  },
+  {
+    "id": 14,
+    "file": "LiteDB/Utils/Extensions/StringExtensions.cs",
+    "line": 190,
+    "title": "SqlLikeStartsWith reports hasMore=false for a pattern ending in '_', so indexed LIKE skips the wildcard check and returns extra rows",
+    "context": "\n            hasMore = !(i == len || i == len - 1);"
+  },
+  {
+    "id": 15,
+    "file": "LiteDB/Client/Mapper/Linq/TypeResolver/StringResolver.cs",
+    "line": 34,
+    "title": "StartsWith/Contains/EndsWith inject the raw search string into a LIKE pattern, so '%' and '_' in user input act as wildcards",
+    "context": "                case \"Substring\": return qtParams == 1 ? \"SUBSTRING(#, @0)\" : \"SUBSTRING(#, @0, @1)\";\n                case \"StartsWith\": return \"# LIKE (@0 + '%')\";\n                case \"Contains\": return \"# LIKE ('%' + @0 + '%')\";"
+  },
+  {
+    "id": 16,
+    "file": "LiteDB/Document/BsonDocument.cs",
+    "line": 82,
+    "title": "BsonDocument.CompareTo is not antisymmetric: two documents with disjoint key sets each compare greater than the other, corrupting skip-list index order",
+    "context": "            for (; 0 == result && i < stop; i++)\n                result = this[thisKeys[i]].CompareTo(otherDoc[thisKeys[i]]);"
+  },
+  {
+    "id": 17,
+    "file": "LiteDB/Document/Expression/BsonExpression.cs",
+    "line": 373,
+    "title": "Compiled-expression cache keyed only on the source string reuses delegates that have an older sub-expression (and its parameter document) baked in as a constant",
+    "context": "            {\n                var cached = _compiledCache.Get<BsonExpressionScalarDelegate>(expr.Source);\n                if (cached == null)"
+  },
+  {
+    "id": 18,
+    "file": "LiteDB/Engine/Query/QueryOptimization.cs",
+    "line": 229,
+    "title": "Index-consumed `!=` predicate is evaluated with binary collation, so the dropped filter changes query results",
+    "context": "            // fill filter using all expressions (remove selected term used in Index)\n            _queryPlan.Filters.AddRange(_terms.Where(x => x != selected));\n        }"
+  },
+  {
+    "id": 19,
+    "file": "LiteDB/Engine/Query/IndexQuery/IndexRange.cs",
+    "line": 55,
+    "title": "IndexRange duplicate-group backward walk compares keys with binary collation and silently drops matching documents",
+    "context": "                // going backward in same value list to get first value\n                while (!node.GetNextPrev(0, -this.Order).IsEmpty && ((node = indexer.GetNode(node.GetNextPrev(0, -this.Order))).Key.CompareTo(start) == 0))\n                {"
+  },
+  {
+    "id": 20,
+    "file": "LiteDB/Document/BsonValue.cs",
+    "line": 551,
+    "title": "Relational operators (> >= < <=) hardcode Collation.Binary, so range predicates ignore the database collation and disagree with index range scans",
+    "context": "        {\n            return this.CompareTo(other, Collation.Binary);\n        }"
+  },
+  {
+    "id": 21,
+    "file": "LiteDB/Engine/Query/IndexQuery/IndexLike.cs",
+    "line": 96,
+    "title": "LIKE index range scan matches non-string index keys, producing documents the LIKE operator rejects",
+    "context": "\n                var valueString =\n                    node.Key.IsString ? node.Key.AsString :"
+  },
+  {
+    "id": 22,
+    "file": "LiteDB/Engine/Query/IndexQuery/IndexLike.cs",
+    "line": 42,
+    "title": "ORDER BY DESC on an indexed field combined with LIKE 'prefix%' returns an empty result set",
+    "context": "            // find first indexNode\n            var first = indexer.Find(index, _startsWith, true, this.Order);\n            var node = first;"
+  },
+  {
+    "id": 23,
+    "file": "LiteDB/Engine/Query/QueryOptimization.cs",
+    "line": 345,
+    "title": "ORDER BY is silently dropped for IN predicates, but IndexIn returns nodes in the IN-list order",
+    "context": "            // if index expression are same as primary OrderBy segment, use index order configuration\n            if (!(_queryPlan.Index is VectorIndexQuery) && orderBy.PrimaryExpression.Source == _queryPlan.IndexExpression)\n            {"
+  },
+  {
+    "id": 24,
+    "file": "LiteDB/Engine/Query/QueryOptimization.cs",
+    "line": 275,
+    "title": "Index chosen from the right-hand side for LIKE/IN builds a non-equivalent index query while the predicate is dropped",
+    "context": "                        .Select(x => Tuple.Create(x, expr.Right))\n                        .Union(indexes\n                            .Where(x => x.Expression == expr.Right.Source && expr.Left.IsValue)"
+  },
+  {
+    "id": 25,
+    "file": "LiteDB/Engine/Query/QueryOptimization.cs",
+    "line": 349,
+    "title": "GROUP BY re-sorts the stream after DefineOrderBy has discarded the user's ORDER BY as \"provided by the index\"",
+    "context": "\n                if (orderBy.Segments.Count == 1)\n                {"
+  },
+  {
+    "id": 26,
+    "file": "LiteDB/Client/Vector/LiteQueryable.Vector.cs",
+    "line": 26,
+    "title": "Undefined VECTOR_SIM (null) satisfies the `<= maxDistance` predicate, so WhereNear returns non-matching documents (the entire collection on a dimension mismatch)",
+    "context": "            var targetArray = new BsonArray(target.Select(v => new BsonValue(v)));\n            return BsonExpression.Create($\"{fieldExpr.Source} VECTOR_SIM @0 <= @1\", targetArray, new BsonValue(maxDistance));\n        }"
+  },
+  {
+    "id": 27,
+    "file": "LiteDB/Client/Vector/LiteQueryable.Vector.cs",
+    "line": 94,
+    "title": "TopKNear orders by VECTOR_SIM ascending, and null (undefined similarity) sorts first, so garbage documents fill the top-k in the unindexed fallback",
+    "context": "            return this\n                .OrderBy(simExpr, Query.Ascending)\n                .Limit(k);"
+  },
+  {
+    "id": 28,
+    "file": "LiteDB/Engine/Engine/Index.cs",
+    "line": 43,
+    "title": "EnsureIndex silently ignores an upgrade from non-unique to unique, leaving the uniqueness constraint unenforced",
+    "context": "                    // but if expression are different, throw error\n                    if (current.Expression != expression.Source) throw LiteException.IndexAlreadyExist(name);"
+  },
+  {
+    "id": 29,
+    "file": "LiteDB/Document/Expression/Methods/Aggregate.cs",
+    "line": 106,
+    "title": "SUM/AVG accumulate in Int32 and silently wrap, returning wrong totals",
+    "context": "            {\n                sum += value;\n            }"
+  },
+  {
+    "id": 31,
+    "file": "LiteDB/Utils/ExtendedLengthHelper.cs",
+    "line": 21,
+    "title": "6-bit BsonType mask in index-key header cannot represent BsonType.Vector (100); vector index keys are written but can never be read back",
+    "context": "        {\n            var bsonType = (byte)(typeByte & 0b0011_1111);\n            var lengthLSByte = lengthByte;"
+  },
+  {
+    "id": 33,
+    "file": "LiteDB/Engine/Pages/VectorIndexPage.cs",
+    "line": 52,
+    "title": "Vector page free-list slot uses MAX_INDEX_LENGTH (1400), so GetFreeVectorPage hands back a page too small for the node and the insert throws \"InvalidDatafileState\"",
+    "context": "\n            return freeBytes >= MAX_INDEX_LENGTH ? (byte)0 : (byte)1;\n        }"
+  },
+  {
+    "id": 36,
+    "file": "LiteDB/Engine/Services/VectorIndexService.cs",
+    "line": 197,
+    "title": "Insert drops the new node's forward links when the reverse prune rejects it, permanently orphaning the node (document silently missing from every vector search)",
+    "context": "\n                foreach (var neighbor in selectedAddresses)\n                {"
+  },
+  {
+    "id": 37,
+    "file": "LiteDB/Engine/Disk/DiskReader.cs",
+    "line": 81,
+    "title": "DiskReader.ReadStream discards Stream.Read's return value, so a short read silently serves another page's bytes",
+    "context": "\n            stream.Read(buffer.Array, buffer.Offset, buffer.Count);"
+  },
+  {
+    "id": 38,
+    "file": "LiteDB/Engine/Disk/Serializer/BufferReader.cs",
+    "line": 368,
+    "title": "BufferReader.ReadIndexKey cannot decode extended-length (>=256 byte) string/binary index keys written by BufferSlice.WriteIndexKey",
+    "context": "                // Use +1 byte only for length\n                case BsonType.String: return this.ReadString(this.ReadByte());"
+  },
+  {
+    "id": 40,
+    "file": "LiteDB/Engine/Query/Lookup/IndexKeyLoader.cs",
+    "line": 34,
+    "title": "IndexLookup.Load(PageAddress) treats a DataBlock address as an index-node address, breaking every index-key-only plan that sorts or replays documents",
+    "context": "\n        public BsonDocument Load(PageAddress rawId)\n        {"
+  },
+  {
+    "id": 41,
+    "file": "LiteDB/Document/BsonValue.cs",
+    "line": 563,
+    "title": "Cross-type numeric CompareTo throws OverflowException for Doubles outside decimal range or NaN",
+    "context": "                {\n                    return Convert.ToDecimal(this.RawValue).CompareTo(Convert.ToDecimal(other.RawValue));\n                }"
+  },
+  {
+    "id": 42,
+    "file": "LiteDB/Engine/Services/TransactionService.cs",
+    "line": 91,
+    "title": "CreateSnapshot disposes a read snapshot that an open cursor is still iterating, turning a common transaction pattern into an engine shutdown that stamps the data file as invalid",
+    "context": "                    // dispose current read-only snapshot\n                    snapshot.Dispose();"
+  },
+  {
+    "id": 43,
+    "file": "LiteDB/Engine/Engine/Transaction.cs",
+    "line": 110,
+    "title": "If TransactionService.Commit() or Rollback() throws, the transaction is never released: collection write lock and engine read lock stay held for the life of the engine",
+    "context": "        {\n            transaction.Commit();"
+  },
+  {
+    "id": 44,
+    "file": "LiteDB/Engine/Services/TransactionMonitor.cs",
+    "line": 125,
+    "title": "Releasing a query transaction from a different thread silently fails to exit the transaction read lock, permanently disabling checkpoints and poisoning the original thread with LockRecursionException",
+    "context": "                // Removal must precede this check, including when disposal fails.\n                if (_transactions.FindForThread(Environment.CurrentManagedThreadId) == null)\n                {"
+  },
+  {
+    "id": 45,
+    "file": "LiteDB/Client/Database/LiteDatabase.cs",
+    "line": 400,
+    "title": "LiteDatabase.Dispose throws and skips engine disposal when an explicit transaction is still open",
+    "context": "                {\n                    _engine.Pragma(Pragmas.CHECKPOINT, _checkpointOverride.Value);\n                }"
+  },
+  {
+    "id": 46,
+    "file": "LiteDB/Client/Storage/LiteFileStream.cs",
+    "line": 47,
+    "title": "LiteFileStream overwrite deletes all existing chunks non-atomically; an interrupted upload yields silent truncation on read and a permanently un-writable file id",
+    "context": "                    // delete all chunks before re-write\n                    var count = _chunks.DeleteMany(\"_id BETWEEN { f: @0, n: 0 } AND { f: @0, n: 99999999 }\", _fileId);"
+  },
+  {
+    "id": 48,
+    "file": "LiteDB/Client/Mapper/BsonMapper.Deserialize.cs",
+    "line": 141,
+    "title": "Deserialize returns RawValue unconverted for the 10 native BSON types, so any stored/declared numeric-width mismatch throws InvalidCastException from the compiled setter",
+    "context": "            {\n                return value.RawValue;\n            }"
+  },
+  {
+    "id": 49,
+    "file": "LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs",
+    "line": 453,
+    "title": "ANY/ALL operator text is emitted without parentheses, so the BsonExpression parser re-associates it and the predicate silently matches nothing",
+    "context": "\n            this.VisitAsPredicate(node.Left, andOr);"
+  },
+  {
+    "id": 50,
+    "file": "LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs",
+    "line": 199,
+    "title": "Dictionary/indexer string key is interpolated into the expression text without escaping, allowing expression injection",
+    "context": "                    _builder.Append(\".\");\n                    _builder.Append($\"['{index}']\");\n                }"
+  },
+  {
+    "id": 51,
+    "file": "LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs",
+    "line": 457,
+    "title": "Enum name substitution fires for every binary operator and compiles the right operand even when it references the lambda parameter",
+    "context": "\n            if (!_mapper.EnumAsInteger &&\n                node.Left.NodeType == ExpressionType.Convert &&"
+  },
+  {
+    "id": 52,
+    "file": "LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs",
+    "line": 463,
+    "title": "Enum comparison emits a null parameter when Enum.GetName has no name for the value (flags combinations, undefined casts)",
+    "context": "            {\n                this.VisitAsPredicate(Expression.Constant(Enum.GetName(unex.Operand.Type, this.Evaluate(node.Right))), andOr);\n            }"
+  },
+  {
+    "id": 53,
+    "file": "LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs",
+    "line": 257,
+    "title": "Member-access stack is applied to every constant visited below it, throwing TargetException for a property access on a filtered collection result",
+    "context": "            // https://stackoverflow.com/a/29708655/3286260\n            foreach (var memberAccessNode in _memberAccessNodes)\n            {"
+  },
+  {
+    "id": 54,
+    "file": "LiteDB/Document/Expression/Methods/String.cs",
+    "line": 126,
+    "title": "SUBSTRING/INDEXOF do not clamp indices; ArgumentOutOfRangeException aborts the whole query",
+    "context": "            {\n                return value.AsString.Substring(startIndex.AsInt32, length.AsInt32);\n            }"
+  },
+  {
+    "id": 55,
+    "file": "LiteDB/Document/Expression/Methods/Aggregate.cs",
+    "line": 62,
+    "title": "FIRST/LAST return CLR null on an empty sequence, causing NullReferenceException when nested",
+    "context": "        {\n            return values.FirstOrDefault();\n        }"
+  },
+  {
+    "id": 56,
+    "file": "LiteDB/Document/Json/JsonReader.cs",
+    "line": 76,
+    "title": "Unbounded recursion in JsonReader lets untrusted JSON kill the process with an uncatchable StackOverflowException",
+    "context": "                case TokenType.String: return value;\n                case TokenType.OpenBrace: return this.ReadObject();\n                case TokenType.OpenBracket: return this.ReadArray();"
+  },
+  {
+    "id": 58,
+    "file": "LiteDB/Engine/SystemCollections/SysFileCsv.cs",
+    "line": 240,
+    "title": "$file CSV import silently drops the last row of any file without a trailing newline — including LiteDB's own CSV export",
+    "context": "\n            newLine = (c == '\\n' || c == '\\r');"
+  },
+  {
+    "id": 59,
+    "file": "LiteDB/Engine/SystemCollections/SysFileJson.cs",
+    "line": 58,
+    "title": "$file output with overwritten:true uses FileMode.OpenOrCreate, leaving the tail of a longer previous file",
+    "context": "                    {\n                        fs = new FileStream(filename, overwritten ? FileMode.OpenOrCreate : FileMode.CreateNew);\n                        writer = new StreamWriter(fs, Encoding.GetEncoding(encoding));"
+  },
+  {
+    "id": 60,
+    "file": "LiteDB/Engine/SystemCollections/SysCols.cs",
+    "line": 13,
+    "title": "$cols and $indexes lazily enumerate HeaderPage's plain Dictionary while commits mutate it",
+    "context": "        {\n            foreach (var col in _header.GetCollections())\n            {"
+  },
+  {
+    "id": 61,
+    "file": "LiteDB/Engine/SystemCollections/SysTransactions.cs",
+    "line": 27,
+    "title": "$transactions can trip ENSURE on a concurrently-disposed snapshot, closing the engine and stamping the data file as invalid",
+    "context": "                    [\"deletedPages\"] = transaction.Pages.DeletedPages,\n                    [\"modifiedPages\"] = transaction.Snapshots.Select(x => x.GetWritablePages(true, true).Count()).Sum()\n                };"
+  },
+  {
+    "id": 62,
+    "file": "LiteDB/Client/Shared/SharedEngine.cs",
+    "line": 146,
+    "title": "SharedEngine.Query leaves the cross-process mutex permanently held (and the engine open) when LiteEngine.Query throws",
+    "context": "\n            var reader = _engine.Query(collection, query);"
+  },
+  {
+    "id": 64,
+    "file": "LiteDB/Client/Shared/SharedEngine.cs",
+    "line": 110,
+    "title": "Commit()/Rollback() are not mutex-guarded: called from a thread with no transaction they dispose an engine another thread is actively using and call ReleaseMutex without owning the mutex",
+    "context": "        {\n            if (_engine == null) return false;"
+  },
+  {
+    "id": 65,
+    "file": "LiteDB/Client/Shared/SharedEngine.cs",
+    "line": 148,
+    "title": "The shared mutex is thread-affine but is held across a lazily-enumerated reader, so the release can happen on a different thread than the acquire",
+    "context": "\n            return new SharedDataReader(reader, () =>\n            {"
+  },
+  {
+    "id": 66,
+    "file": "LiteDB/Client/SqlParser/Commands/Rebuild.cs",
+    "line": 25,
+    "title": "Plain `REBUILD` passes null options and throws NullReferenceException after the engine has already been closed, permanently wedging the connection",
+    "context": "            {\n                options = null;"
+  },
+  {
+    "id": 67,
+    "file": "LiteDB/Client/Mapper/BsonMapper.GetEntityMapper.cs",
+    "line": 27,
+    "title": "BsonMapper.GetEntityMapper disposes the CancellationTokenSource whose token the cached EntityMapper keeps, so a concurrent first-time map of the same type can throw ObjectDisposedException",
+    "context": "\n        using var cts = new CancellationTokenSource();\n        try"
+  },
+  {
+    "id": 68,
+    "file": "LiteDB/Engine/Engine/Rebuild.cs",
+    "line": 21,
+    "title": "Rebuild() on a :memory: or :temp: database destroys all data and then throws \"Invalid database\"",
+    "context": "        {\n            if (string.IsNullOrEmpty(_settings.Filename)) return 0; // works only with os file"
+  },
+  {
+    "id": 69,
+    "file": "LiteDB/Engine/Disk/Streams/AesStream.cs",
+    "line": 121,
+    "title": "A zeroed verification block makes AesStream accept any password and re-key the file; on read-only streams the same path throws NullReferenceException",
+    "context": "                    _stream.Read(checkBuffer, 0, checkBufferSize);\n                    isNew = checkBuffer.All(x => x == 0);"
+  },
+  {
+    "id": 70,
+    "file": "LiteDB/Engine/Disk/Streams/AesStream.cs",
+    "line": 92,
+    "title": "Datafile encryption uses AES-ECB with one key for the whole file and no integrity check; the derived IV is never used",
+    "context": "                _aes.Padding = PaddingMode.None;\n                _aes.Mode = CipherMode.ECB;"
+  },
+  {
+    "id": 72,
+    "file": "LiteDB/Engine/Pages/BasePage.cs",
+    "line": 317,
+    "title": "Page segment access validates position and length independently but never position+length, letting a malformed page produce BufferSlices and raw Array.Fill/BlockCopy that run past PAGE_SIZE into neighbouring pages of the shared cache array",
+    "context": "            // return buffer slice with content only data\n            return this.OwnedSlice(position, length);\n        }"
+  },
+  {
+    "id": 73,
+    "file": "LiteDB/Engine/Query/IndexQuery/IndexLike.cs",
+    "line": 19,
+    "title": "LIKE with a null or non-string parameter throws NullReferenceException/InvalidCastException when an index exists",
+    "context": "            _pattern = value.AsString;\n            _startsWith = _pattern.SqlLikeStartsWith(out _testSqlLike);\n            _equals = _pattern == _startsWith;"
+  },
+  {
+    "id": 75,
+    "file": "LiteDB/Engine/FileReader/FileReaderV7.cs",
+    "line": 387,
+    "title": "FileReaderV7.ReadExtendData() loops forever (and grows a MemoryStream without bound) on a truncated or cyclic extend chain",
+    "context": "            {\n                while(extendPageID != uint.MaxValue)\n                {"
+  },
+  {
+    "id": 76,
+    "file": "LiteDB/Engine/FileReader/FileReaderV8.cs",
+    "line": 176,
+    "title": "FileReaderV8.GetDocuments() extend-block walk has no cycle detection - self-referencing data block allocates until OOM/IOException and aborts the rebuild",
+    "context": "\n                            while (nextBlock.IsEmpty == false)\n                            {"
+  },
+  {
+    "id": 77,
+    "file": "LiteDB/Client/Mapper/TypeNameBinder/DefaultTypeNameBinder.cs",
+    "line": 67,
+    "title": "_type deny-list is trivially bypassed: blocked gadget types can be reached as generic arguments, dictionary value types, or declared member types",
+    "context": "\n            if (_disallowedTypeNames.Contains(type.FullName))\n            {"
+  },
+  {
+    "id": 78,
+    "file": "LiteDB/Document/BsonValue.cs",
+    "line": 473,
+    "title": "Mixed-type numeric arithmetic routes through Convert.ToDecimal, throwing OverflowException for doubles outside decimal range",
+    "context": "\n            var result = left.AsDecimal + right.AsDecimal;\n            var type = (BsonType)Math.Max((int)left.Type, (int)right.Type);"
+  },
+  {
+    "id": 80,
+    "file": "LiteDB/Engine/Engine/Sequence.cs",
+    "line": 40,
+    "title": "Int32 auto-id silently wraps to a negative value via an unchecked (int) cast",
+    "context": "            return autoId == BsonAutoId.Int32 ?\n                new BsonValue((int)next) :\n                new BsonValue(next);"
+  },
+  {
+    "id": 82,
+    "file": "LiteDB/Engine/Services/SnapShot.cs",
+    "line": 633,
+    "title": "Deleted-page chain is never linked into the header free list when a safepoint flushes the chain's tail page, permanently leaking every page freed by a large transaction",
+    "context": "                _transPages.FirstDeletedPageID = page.PageID;\n                _transPages.LastDeletedPageID = page.PageID;\n            }"
+  },
+  {
+    "id": 83,
+    "file": "LiteDB/Engine/Services/IndexService.cs",
+    "line": 320,
+    "title": "IndexService.DropIndex frees index nodes but never reclaims the pages, permanently leaking them from the file",
+    "context": "                        // delete node from page (mark as dirty)\n                        node.Page.DeleteIndexNode(node.Position.Index);"
+  },
+  {
+    "id": 85,
+    "file": "LiteDB/Engine/Services/SnapShot.cs",
+    "line": 219,
+    "title": "Snapshot local page cache is keyed only by pageID and cast unchecked, so a page first fetched as BasePage throws InvalidCastException when later fetched as DataPage/IndexPage",
+    "context": "\n                return (T)page;\n            }"
+  },
+  {
+    "id": 86,
+    "file": "LiteDB/Document/BsonValue.cs",
+    "line": 588,
+    "title": "Document/Array comparison silently drops the Collation argument, so nested strings are always compared ordinally",
+    "context": "\n                case BsonType.Document: return this.AsDocument.CompareTo(other);\n                case BsonType.Array: return this.AsArray.CompareTo(other);"
+  },
+  {
+    "id": 87,
+    "file": "LiteDB/Document/Expression/Methods/Aggregate.cs",
+    "line": 30,
+    "title": "MIN/MAX compare with hard-coded ordinal collation, disagreeing with the database collation and ORDER BY",
+    "context": "            {\n                if (value.CompareTo(min) <= 0)\n                {"
+  },
+  {
+    "id": 88,
+    "file": "LiteDB/Document/BsonValue.cs",
+    "line": 678,
+    "title": "Equals/GetHashCode contract violation: values that compare equal hash differently, breaking Distinct() over index keys",
+    "context": "\n        public override int GetHashCode()\n        {"
+  },
+  {
+    "id": 89,
+    "file": "LiteDB/Engine/Disk/Serializer/BufferReader.cs",
+    "line": 406,
+    "title": "ReadDocument/ReadArray accept an out-of-range BSON length prefix and silently return an empty document instead of reporting corruption",
+    "context": "                var length = this.ReadInt32();\n                var end = _position + length - 5;\n                var remaining = fields == null || fields.Count == 0 ? null : new HashSet<string>(fields, StringComparer.OrdinalIgnoreCase);"
+  },
+  {
+    "id": 90,
+    "file": "LiteDB/Engine/Disk/Streams/AesStream.cs",
+    "line": 151,
+    "title": "AesStream derives its blank-page sentinel from an uninitialized ArrayPool buffer, silently disabling zeroed-page detection",
+    "context": "                _stream.FlushToDisk();\n                using (var ms = new MemoryStream(msBuffer))\n                using (var tempStream = new CryptoStream(ms, _decryptor, CryptoStreamMode.Read))"
+  },
+  {
+    "id": 92,
+    "file": "LiteDB/Engine/Disk/Streams/AesStream.cs",
+    "line": 94,
+    "title": "Key derivation uses Rfc2898DeriveBytes defaults: 1000 PBKDF2 iterations with HMAC-SHA1",
+    "context": "\n                var pdb = new Rfc2898DeriveBytes(password, this.Salt);"
+  },
+  {
+    "id": 93,
+    "file": "LiteDB/Client/Storage/LiteFileStream.Write.cs",
+    "line": 22,
+    "title": "LiteFileStream.Flush/Write dereference the null write buffer on read-mode streams",
+    "context": "\n        public override void Flush()\n        {"
+  },
+  {
+    "id": 95,
+    "file": "LiteDB/Client/Database/LiteDatabase.cs",
+    "line": 398,
+    "title": "Restoring the CHECKPOINT pragma before engine close can disable the shutdown checkpoint and discard the in-memory WAL",
+    "context": "            {\n                if (_checkpointOverride.HasValue)\n                {"
+  },
+  {
+    "id": 96,
+    "file": "LiteDB/Client/Database/LiteQueryable.cs",
+    "line": 456,
+    "title": "LiteQueryable.Into() permanently leaves Query.Into set, so reusing the queryable re-inserts the whole result set",
+    "context": "        {\n            _query.Into = newCollection;\n            _query.IntoAutoId = autoId;"
+  },
+  {
+    "id": 97,
+    "file": "LiteDB/Client/Database/LiteRepository.cs",
+    "line": 398,
+    "title": "LiteRepository disposes a caller-supplied ILiteDatabase it does not own, and never null-checks it",
+    "context": "            {\n                _db.Dispose();\n            }"
+  },
+  {
+    "id": 98,
+    "file": "LiteDB/Client/Database/Collections/Aggregate.cs",
+    "line": 165,
+    "title": "Min<K>/Max<K> throw NullReferenceException when the extreme key is a BSON null and K is a non-nullable value type",
+    "context": "            // cast fail for an incompatible non-nullable K instead of inventing 0.\n            return (K)result;\n        }"
+  },
+  {
+    "id": 99,
+    "file": "LiteDB/Engine/Engine/Index.cs",
+    "line": 40,
+    "title": "EnsureIndex silently reports success for a name already taken by a vector index, so no B-tree index is created",
+    "context": "                // if already exists, just exit\n                if (current != null)\n                {"
+  },
+  {
+    "id": 100,
+    "file": "LiteDB/Engine/Pages/HeaderPage.cs",
+    "line": 140,
+    "title": "HeaderPage.LoadPage() replaces the Pragmas instance, orphaning the reference LockService and SortDisk captured at engine open, so later PRAGMA changes are silently ignored",
+    "context": "            // initialize engine pragmas\n            this.Pragmas = new EnginePragmas(_buffer, this);"
+  },
+  {
+    "id": 101,
+    "file": "LiteDB/Engine/Services/VectorIndexService.cs",
+    "line": 488,
+    "title": "Upsert always runs a full-graph BFS to locate the node, making bulk insert O(N^2) and allocating a queue proportional to 32*N per operation",
+    "context": "\n        private bool TryFindNode(VectorIndexMetadata metadata, PageAddress dataBlock, out PageAddress address, out VectorIndexNode node)\n        {"
+  },
+  {
+    "id": 102,
+    "file": "LiteDB/Engine/Services/VectorIndexService.cs",
+    "line": 685,
+    "title": "External vector payloads are written as non-extend DataBlocks in the collection's data pages, so Rebuild/Recovery parses raw float bytes as BSON documents",
+    "context": "                var dataPage = _snapshot.GetFreeDataPage(chunk + DataBlock.DATA_BLOCK_FIXED_SIZE);\n                var block = dataPage.InsertBlock(chunk, bytesWritten > 0);\n                block.Buffer.EnsureWritable();"
+  },
+  {
+    "id": 103,
+    "file": "LiteDB/Client/Vector/LiteQueryable.Vector.cs",
+    "line": 33,
+    "title": "String-overload WhereNear/TopKNear build `$.{field}` by concatenation, so a non-word field name silently parses into a different expression and matches every document",
+    "context": "\n            var fieldExpr = BsonExpression.Create($\"$.{vectorField}\");\n            return this.VectorWhereNear(fieldExpr, target, maxDistance);"
+  },
+  {
+    "id": 104,
+    "file": "LiteDB/Engine/Query/Query.cs",
+    "line": 119,
+    "title": "Query.ToSQL emits the WHERE clause after ORDER BY / LIMIT / OFFSET / FOR UPDATE, producing SQL that LiteDB itself cannot parse",
+    "context": "\n            if (this.HasVectorFilter)\n            {"
+  },
+  {
+    "id": 105,
+    "file": "LiteDB/Client/Vector/LiteQueryable.Vector.cs",
+    "line": 89,
+    "title": "TopKNear mutates the shared Query before the OrderBy that can throw, leaving a half-configured vector query behind a misleading 'Multiple OrderBy calls' error",
+    "context": "\n            _query.VectorField = fieldExpr.Source;\n            _query.VectorTarget = target?.ToArray();"
+  },
+  {
+    "id": 106,
+    "file": "LiteDB/Engine/SystemCollections/SysOpenCursors.cs",
+    "line": 16,
+    "title": "$open_cursors / $snapshots / $transactions enumerate other threads' live List/Dictionary, throwing \"Collection was modified\"",
+    "context": "            {\n                foreach(var cursor in transaction.OpenCursors)\n                {"
+  },
+  {
+    "id": 107,
+    "file": "LiteDB/Engine/SystemCollections/SysIndexes.cs",
+    "line": 20,
+    "title": "$indexes and $page_list dereference a null CollectionPage when a collection is dropped mid-enumeration",
+    "context": "\n                foreach(var index in snapshot.CollectionPage.GetCollectionIndexes())\n                {"
+  },
+  {
+    "id": 108,
+    "file": "LiteDB/Engine/SystemCollections/SysFileCsv.cs",
+    "line": 180,
+    "title": "CSV export writes JSON-escaped strings, so any value containing a quote, delimiter or newline corrupts the file",
+    "context": "                default:\n                    writer.Write(value.ToString());\n                    break;"
+  },
+  {
+    "id": 109,
+    "file": "LiteDB/Engine/SystemCollections/SysDatabase.cs",
+    "line": 33,
+    "title": "$database reports dataFileSize/logFileSize through an unchecked (int) cast of a long",
+    "context": "\n                [\"dataFileSize\"] = (int)_disk.GetFileLength(FileOrigin.Data),\n                [\"logFileSize\"] = (int)_disk.GetFileLength(FileOrigin.Log),"
+  },
+  {
+    "id": 110,
+    "file": "LiteDB/Document/BsonValue.cs",
+    "line": 138,
+    "title": "BsonValue(object) can produce Document/Array-typed values that are not BsonDocument/BsonArray, making AsDocument/AsArray null and every consumer throw NullReferenceException",
+    "context": "            else if (value is String) this.Type = BsonType.String;\n            else if (value is IDictionary<string, BsonValue>) this.Type = BsonType.Document;\n            else if (value is IList<BsonValue>) this.Type = BsonType.Array;"
+  },
+  {
+    "id": 111,
+    "file": "LiteDB/Document/BsonValue.cs",
+    "line": 368,
+    "title": "UInt64 implicit conversions are asymmetric: BsonValue stores a Double but the reverse cast unboxes a UInt64, throwing InvalidCastException on round trip",
+    "context": "        // UInt64 (to avoid ambigous between Double-Decimal)\n        public static implicit operator UInt64(BsonValue value)\n        {"
+  },
+  {
+    "id": 112,
+    "file": "LiteDB/Document/BsonValue.cs",
+    "line": 717,
+    "title": "Unbounded recursion in GetBytesCount/ToString for self-referencing BsonDocument kills the process with StackOverflowException",
+    "context": "\n                case BsonType.Document: return this.AsDocument.GetBytesCount(recalc);\n                case BsonType.Array: return this.AsArray.GetBytesCount(recalc);"
+  },
+  {
+    "id": 113,
+    "file": "LiteDB/Document/Expression/Parser/BsonExpressionParser.cs",
+    "line": 854,
+    "title": "Recursive-descent expression parser has no nesting-depth limit: a few thousand nested parentheses/brackets/braces terminate the process with StackOverflowException",
+    "context": "            // read a inner expression inside ( and )\n            var inner = ParseFullExpression(tokenizer, context, parameters, scope);"
+  },
+  {
+    "id": 114,
+    "file": "LiteDB/Utils/Tokenizer.cs",
+    "line": 467,
+    "title": "Tokenizer recurses once per `--` comment line, so a script with many comment lines overflows the stack",
+    "context": "                        this.ReadLine();\n                        token = this.ReadNext(eatWhitespace);\n                    }"
+  },
+  {
+    "id": 115,
+    "file": "LiteDB/Document/Expression/Parser/BsonExpressionParser.cs",
+    "line": 135,
+    "title": "`ANY`/`ALL` followed by AND/OR/VECTOR_SIM builds an operator key absent from the precedence table, and the reduce loop walks past the end of the table (ArgumentOutOfRangeException)",
+    "context": "            {\n                var op = _operators.ElementAt(order);\n                var n = ops.IndexOf(op.Key);"
+  },
+  {
+    "id": 116,
+    "file": "LiteDB/Document/Expression/Parser/BsonExpressionParser.Functions.cs",
+    "line": 93,
+    "title": "ParseFunction does not check that a MAP/FILTER/SORT overload was found, so a wrong argument count throws ArgumentNullException from Expression.Call",
+    "context": "\n            var method = BsonExpression.GetFunction(functionName, args.Count - 5);"
+  },
+  {
+    "id": 117,
+    "file": "LiteDB/Document/Expression/Parser/BsonExpressionParser.cs",
+    "line": 1410,
+    "title": "IIF immutability is computed with C# `&&`/`||` precedence, marking volatile expressions as immutable and letting them be used as index expressions",
+    "context": "                Parameters = test.Parameters, // should be == ifTrue|ifFalse parameters\n                IsImmutable = test.IsImmutable && ifTrue.IsImmutable || ifFalse.IsImmutable,\n                UseSource = test.UseSource || ifTrue.UseSource || ifFalse.UseSource,"
+  },
+  {
+    "id": 118,
+    "file": "LiteDB/Utils/Tokenizer.cs",
+    "line": 637,
+    "title": "Tokenizer silently deletes unrecognised string escape sequences instead of erroring or keeping them literally",
+    "context": "\n                    switch (_char)\n                    {"
+  },
+  {
+    "id": 119,
+    "file": "LiteDB/Document/Expression/Methods/String.cs",
+    "line": 273,
+    "title": "MATCH returns CLR null instead of BsonValue.Null for non-string input",
+    "context": "        {\n            if (value.IsString == false || pattern.IsString == false) return null;"
+  },
+  {
+    "id": 120,
+    "file": "LiteDB/Document/Expression/Methods/Math.cs",
+    "line": 40,
+    "title": "ABS and ROUND throw unhandled exceptions on edge-value arguments instead of returning Null",
+    "context": "                    case BsonType.Int64: return value.AsInt64;\n                    case BsonType.Double: return Math.Round(value.AsDouble, digits.AsInt32);\n                    case BsonType.Decimal: return Math.Round(value.AsDecimal, digits.AsInt32);"
+  },
+  {
+    "id": 123,
+    "file": "LiteDB/Document/Expression/Methods/Date.cs",
+    "line": 123,
+    "title": "DATEDIFF('s'|'h'|'d') and DATEADD overflow/throw on wide but realistic date ranges",
+    "context": "                else if (datePart == \"m\" || datePart == \"minute\") return Convert.ToInt32(Math.Truncate(end.Subtract(start).TotalMinutes));\n                else if (datePart == \"s\" || datePart == \"second\") return Convert.ToInt32(Math.Truncate(end.Subtract(start).TotalSeconds));\n            }"
+  },
+  {
+    "id": 125,
+    "file": "LiteDB/Document/Json/JsonReader.cs",
+    "line": 126,
+    "title": "Empty JSON object key throws IndexOutOfRangeException out of the parser and breaks LiteDB's own JSON export/import round trip",
+    "context": "                // check if not a special data type - only if is first attribute\n                if (key[0] == '$' && obj.Count == 0)\n                {"
+  },
+  {
+    "id": 127,
+    "file": "LiteDB/Document/Json/JsonWriter.cs",
+    "line": 266,
+    "title": "JsonWriter does not escape document keys, producing invalid JSON and allowing structural injection into exported JSON",
+    "context": "            _writer.Write('\\\"');\n            _writer.Write(key);\n            _writer.Write(\"\\\":\");"
+  },
+  {
+    "id": 128,
+    "file": "LiteDB/Document/Json/JsonWriter.cs",
+    "line": 82,
+    "title": "Double values are serialized with a fixed 9-decimal format, silently zeroing small magnitudes and truncating precision",
+    "context": "                    {\n                        _writer.Write(value.AsDouble.ToString(\"0.0########\", _numberFormat));\n                    }"
+  },
+  {
+    "id": 129,
+    "file": "LiteDB/Document/Json/JsonReader.cs",
+    "line": 92,
+    "title": "Integer literals larger than Int64.MaxValue raise an unhandled OverflowException from the JSON parser",
+    "context": "                    else\n                        return new BsonValue(Int64.Parse(value, NumberStyles.Any, _numberFormat));\n                case TokenType.Double: return new BsonValue(Convert.ToDouble(value, _numberFormat));"
+  },
+  {
+    "id": 130,
+    "file": "LiteDB/Document/Json/JsonReader.cs",
+    "line": 176,
+    "title": "Extended data types pass unvalidated token text to framework constructors, leaking FormatException/ArgumentException/ArgumentNullException from the parser",
+    "context": "            {\n                case \"$binary\": val = new BsonValue(Convert.FromBase64String(value)); break;\n                case \"$oid\": val = new BsonValue(new ObjectId(value)); break;"
+  },
+  {
+    "id": 131,
+    "file": "LiteDB/Document/Json/JsonReader.cs",
+    "line": 179,
+    "title": "$date is parsed with the ambient CurrentCulture although it is always written with the invariant ISO-8601 round-trip format",
+    "context": "                case \"$guid\": val = new BsonValue(new Guid(value)); break;\n                case \"$date\": val = new BsonValue(DateTime.Parse(value).ToLocalTime()); break;\n                case \"$numberLong\": val = new BsonValue(Convert.ToInt64(value, _numberFormat)); break;"
+  },
+  {
+    "id": 132,
+    "file": "LiteDB/Client/Mapper/Reflection/Reflection.cs",
+    "line": 39,
+    "title": "Reflection.CreateInstance reads the shared ctor cache Dictionary outside the lock that guards its writes",
+    "context": "            {\n                if (_cacheCtor.TryGetValue(type, out CreateObject c))\n                {"
+  },
+  {
+    "id": 133,
+    "file": "LiteDB/Client/Mapper/BsonMapper.Serialize.cs",
+    "line": 143,
+    "title": "Dictionary key/value types are taken from the type's own generic arguments, so a single-type-parameter Dictionary subclass throws IndexOutOfRangeException on both serialize and deserialize",
+    "context": "                    keyType = generics[0];\n                    valueType = generics[1];\n                }"
+  },
+  {
+    "id": 134,
+    "file": "LiteDB/Client/Mapper/BsonMapper.Deserialize.cs",
+    "line": 241,
+    "title": "Deserializing into a non-generic subclass of Dictionary<K,V> keeps keyType=object, producing string keys that the target dictionary rejects",
+    "context": "\n                    if (instance.GetType().GetTypeInfo().IsGenericType)\n                    {"
+  },
+  {
+    "id": 135,
+    "file": "LiteDB/Client/Mapper/BsonMapper.GetEntityMapper.cs",
+    "line": 213,
+    "title": "Constructor parameter matching uses culture-sensitive ToLower(), so immutable entities fail to deserialize under Turkish/Azeri cultures",
+    "context": "                {\n                    if (member.MemberName.ToLower() == par.Name.ToLower() && member.DataType == par.ParameterType)\n                    {"
+  },
+  {
+    "id": 136,
+    "file": "LiteDB/Client/Mapper/BsonMapper.Serialize.cs",
+    "line": 222,
+    "title": "DateTimeOffset dictionary keys are written with CurrentCulture but always parsed invariantly, making the documents unreadable",
+    "context": "                    // Preserve the field spelling written by previous versions.\n                    stringKey = dateTimeOffsetKey.ToString(CultureInfo.CurrentCulture) ?? string.Empty;\n                }"
+  },
+  {
+    "id": 137,
+    "file": "LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs",
+    "line": 617,
+    "title": "Bitwise & and | are translated to logical AND/OR, producing an InvalidCastException at query execution",
+    "context": "                case ExpressionType.LessThanOrEqual: return \" <= \";\n                case ExpressionType.And: return \" AND \";\n                case ExpressionType.AndAlso: return \" AND \";"
+  },
+  {
+    "id": 138,
+    "file": "LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs",
+    "line": 634,
+    "title": "_dbRefType leaks past a terminal DbRef member access and rewrites the root document's _id to $id",
+    "context": "            // checks if parent field are not DbRef (checks for same dataType)\n            var isParentDbRef = _dbRefType != null && member.DeclaringType.IsAssignableFrom(_dbRefType);"
+  },
+  {
+    "id": 139,
+    "file": "LiteDB/Client/Shared/SharedEngine.cs",
+    "line": 114,
+    "title": "Commit()/Rollback() dispose the engine in their finally when the engine throws, silently discarding a still-active transaction and making retry impossible",
+    "context": "            {\n                return _engine.Commit();\n            }"
+  },
+  {
+    "id": 140,
+    "file": "LiteDB/Client/Shared/SharedDataReader.cs",
+    "line": 51,
+    "title": "SharedDataReader.Dispose leaks the cross-process mutex if the inner reader's Dispose throws",
+    "context": "            {\n                _reader.Dispose();\n                _dispose();"
+  },
+  {
+    "id": 141,
+    "file": "LiteDB/Client/Shared/SharedMutexNameFactory.cs",
+    "line": 36,
+    "title": "Long database paths on Linux/macOS bypass the SHA-1 mutex-name fallback and fail mutex creation",
+    "context": "\n        if (IsWindows() &&\n            uri.Length + CONSERVATIVE_EXTERNAL_PREFIX_LENGTH > WINDOWS_MUTEX_NAME_MAX)"
+  },
+  {
+    "id": 142,
+    "file": "LiteDB/Client/SqlParser/SqlParser.cs",
+    "line": 28,
+    "title": "Everything after the first statement's `;` is silently discarded — multi-statement SQL executes only the first command with no error",
+    "context": "\n        public IBsonDataReader Execute()\n        {"
+  },
+  {
+    "id": 143,
+    "file": "LiteDB/Client/SqlParser/SqlParser.cs",
+    "line": 34,
+    "title": "Statement and auto-id keyword dispatch uses culture-sensitive ToUpper(), breaking lowercase `insert`/`begin`/`commit`/`rebuild`/`checkpoint`/`explain` under Turkish-family cultures",
+    "context": "\n            switch (ahead.Value.ToUpper())\n            {"
+  },
+  {
+    "id": 144,
+    "file": "LiteDB/Client/SqlParser/Commands/Rollback.cs",
+    "line": 18,
+    "title": "BEGIN/COMMIT/ROLLBACK silently swallow an unrecognized trailing clause and execute anyway",
+    "context": "\n            var token = _tokenizer.ReadToken().Expect(TokenType.Word, TokenType.EOF, TokenType.SemiColon);"
+  },
+  {
+    "id": 145,
+    "file": "LiteDB/Utils/Collation.cs",
+    "line": 83,
+    "title": "Collation implements IEqualityComparer<BsonValue> with a hash code that contradicts its Equals",
+    "context": "\n        public int GetHashCode(BsonValue obj)\n        {"
+  },
+  {
+    "id": 146,
+    "file": "LiteDB/Utils/Extensions/DictionaryExtensions.cs",
+    "line": 168,
+    "title": "DictionaryExtensions.GetValue swallows every exception and discards the original as inner, hiding the real connection-string error",
+    "context": "            }\n            catch (Exception)\n            {"
+  },
+  {
+    "id": 147,
+    "file": "LiteDB/Client/Mapper/BsonMapper.GetEntityMapper.cs",
+    "line": 41,
+    "title": "On a mapping failure the half-built EntityMapper is removed from the cache but a concurrent thread keeps using it, silently serializing documents with missing fields",
+    "context": "                {\n                    _entities.TryRemove(type, out _);\n                    throw new LiteException(LiteException.MAPPING_ERROR, $\"Error in '{type.Name}' mapping: {ex.Message}\", ex);"
+  },
+  {
+    "id": 148,
+    "file": "LiteDB/Document/Expression/Parser/BsonExpressionOperators.cs",
+    "line": 295,
+    "title": "ARRAY_INDEX passes an unclamped negative index straight to the array indexer (`arr.Count > idx` accepts negative idx)",
+    "context": "\n            var idx = index < 0 ? arr.Count + index : index;"
+  },
+  {
+    "id": 149,
+    "file": "LiteDB/Engine/Sort/SortContainer.cs",
+    "line": 70,
+    "title": "SortContainer.Insert validates key length after writing it, so oversized sort keys surface as ArgumentOutOfRangeException instead of the intended LiteException",
+    "context": "            {\n                buffer.WriteIndexKey(item.Key, offset);"
+  },
+  {
+    "id": 151,
+    "file": "LiteDB/Engine/Query/Pipeline/GroupByPipe.cs",
+    "line": 241,
+    "title": "Sorting a grouped projection buffers every group and its sort key in memory with no spill path",
+    "context": "            var orders = segments.Select(x => x.Order).ToArray();\n            var buffer = new List<(SortKey Key, GroupedResult Result)>();"
+  },
+  {
+    "id": 152,
+    "file": "LiteDB/Engine/FileReader/FileReaderV7.cs",
+    "line": 193,
+    "title": "FileReaderV7.ReadPage() ignores the short-read count and reuses an uncleared buffer, parsing a mix of two pages",
+    "context": "\n            _stream.Read(_buffer, 0, V7_PAGE_SIZE);"
+  },
+  {
+    "id": 153,
+    "file": "LiteDB/Engine/FileReader/FileReaderV7.cs",
+    "line": 148,
+    "title": "FileReaderV7 dereferences ReadPage()'s null result in three places - NullReferenceException aborts the v4 upgrade",
+    "context": "\n                        if (dataPage[\"pageType\"].AsInt32 != 4) continue;"
+  },
+  {
+    "id": 154,
+    "file": "LiteDB/Engine/FileReader/FileReaderV7.cs",
+    "line": 335,
+    "title": "FileReaderV7.ReadPage() uses unvalidated length/level fields from the file: negative array size and out-of-range copies",
+    "context": "                    // skip Prev/Next[1..N]\n                    reader.ReadBytes((levels - 1) * (6 + 6));"
+  },
+  {
+    "id": 155,
+    "file": "LiteDB/Engine/FileReader/FileReaderV7.cs",
+    "line": 54,
+    "title": "FileReaderV7.Open() throws NullReferenceException when page 0 is not parsed as a header page",
+    "context": "\n            if (_settings.Password == null && _header[\"salt\"].AsBinary.IsFullZero() == false)\n            {"
+  },
+  {
+    "id": 156,
+    "file": "LiteDB/Engine/FileReader/FileReaderV8.cs",
+    "line": 202,
+    "title": "FileReaderV8 extend-block loop skips the footer position/length validation applied to the first block",
+    "context": "                                // get segment slice\n                                segment = nextBuffer.Slice(position, length);\n                                extend = segment.ReadBool(DataBlock.P_EXTEND);"
+  },
+  {
+    "id": 157,
+    "file": "LiteDB/Engine/Engine/Recovery.cs",
+    "line": 19,
+    "title": "Recovery ignores EngineSettings.ReadOnly and destructively renames/replaces a read-only database",
+    "context": "            // run build service\n            var rebuilder = new RebuildService(_settings);\n            var options = new RebuildOptions"
+  },
+  {
+    "id": 158,
+    "file": "LiteDB/Engine/Engine/Recovery.cs",
+    "line": 28,
+    "title": "Auto-rebuild on a stream-backed database fails with ArgumentNullException from Path.Combine",
+    "context": "            // run rebuild process\n            rebuilder.Rebuild(options);\n        }"
+  },
+  {
+    "id": 159,
+    "file": "LiteDB/Engine/Disk/DiskService.cs",
+    "line": 322,
+    "title": "ReadFull turns a legal short read into a bogus 'invalid datafile state' instead of completing the page read",
+    "context": "\n                    var bytesRead = stream.Read(buffer, 0, PAGE_SIZE);"
+  },
+  {
+    "id": 160,
+    "file": "LiteDB/Engine/Services/LockService.cs",
+    "line": 101,
+    "title": "Checkpoint() called from inside an explicit transaction throws LockRecursionException instead of a LiteDB error",
+    "context": "            // wait finish all transactions before enter in reserved mode\n            if (_transaction.TryEnterWriteLock(_pragmas.Timeout) == false) throw LiteException.LockTimeout(\"exclusive\", _pragmas.Timeout);"
+  },
+  {
+    "id": 167,
+    "file": "LiteDB/Engine/Pages/CollectionPage.cs",
+    "line": 207,
+    "title": "CollectionIndex slot allocation overflows a byte after index churn, giving two live indexes the same slot and corrupting the per-document index node chain",
+    "context": "\n            var slot = (byte)(_indexes.Count == 0 ? 0 : (_indexes.Max(x => x.Value.Slot) + 1));"
+  },
+  {
+    "id": 168,
+    "file": "LiteDB/Engine/Disk/Streams/AesStream.cs",
+    "line": 248,
+    "title": "AesStream.Seek adds the page offset for every origin and returns the underlying stream position instead of the logical one",
+    "context": "        {\n            return _stream.Seek(offset + PAGE_SIZE, origin);\n        }"
+  },
+  {
+    "id": 169,
+    "file": "LiteDB/Engine/Pages/BasePage.cs",
+    "line": 647,
+    "title": "GetFreeIndex's byte loop wraps around forever when HighestIndex == byte.MaxValue, hanging the writer thread while it holds the collection write lock",
+    "context": "            // check for all slot area to get first empty slot [safe for byte loop]\n            for (byte index = _startIndex; index <= this.HighestIndex; index++)\n            {"
+  },
+  {
+    "id": 170,
+    "file": "LiteDB/Engine/Disk/Serializer/BufferReader.cs",
+    "line": 346,
+    "title": "ReadBytes/ReadString allocate directly from an unvalidated 32-bit on-disk length, allowing OutOfMemoryException on a corrupt file",
+    "context": "        {\n            var buffer = new byte[count];\n            this.Read(buffer, 0, count);"
+  },
+  {
+    "id": 171,
+    "file": "LiteDB/Utils/Extensions/BufferSliceExtensions.cs",
+    "line": 110,
+    "title": "BufferSliceExtensions.ReadVector trusts the on-disk element count with no bound against the slice, and page slices share one multi-page array so an overread silently returns other pages' bytes",
+    "context": "            var vector = new float[count];\n            for (var i = 0; i < count; i++)\n            {"
+  },
+  {
+    "id": 172,
+    "file": "LiteDB/Engine/Structures/VectorIndexNode.cs",
+    "line": 148,
+    "title": "VectorIndexNode trusts on-disk neighbour-count and inline-dimension counts, reading past the node segment",
+    "context": "            var offset = GetLevelOffset(level);\n            var count = _segment.ReadByte(offset);\n            var neighbors = new List<PageAddress>(count);"
+  },
+  {
+    "id": 173,
+    "file": "LiteDB/Engine/Structures/PageBuffer.cs",
+    "line": 82,
+    "title": "PageBuffer finalizer throws LiteException, terminating the process when a cache with pinned frames is collected without disposal",
+    "context": "        {\n            ENSURE(this.ShareCounter == 0, $\"share count must be 0 in destroy PageBuffer (current: {this.ShareCounter})\");\n        }"
+  },
+  {
+    "id": 174,
+    "file": "LiteDB/Engine/LiteEngine.cs",
+    "line": 182,
+    "title": "Close()'s disposed guard is a non-atomic check-then-set, so two concurrent closes can interleave and skip the invalid-datafile marker",
+    "context": "        {\n            if (_state.Disposed) return new List<Exception>();"
+  },
+  {
+    "id": 175,
+    "file": "LiteDB/Engine/LiteEngine.cs",
+    "line": 257,
+    "title": "LiteEngine.Checkpoint() skips the engine-state check and operates on disposed services",
+    "context": "        /// </summary>\n        public int Checkpoint() => _walIndex.Checkpoint();"
+  },
+  {
+    "id": 176,
+    "file": "LiteDB/Engine/Disk/DiskService.cs",
+    "line": 271,
+    "title": "MarkAsInvalidState can stall error-close for 60 seconds and then silently fail to persist the recovery marker",
+    "context": "        {\n            FileHelper.TryExec(60, () =>\n            {"
+  },
+  {
+    "id": 177,
+    "file": "LiteDB/Engine/Disk/DiskService.cs",
+    "line": 403,
+    "title": "Dispose materialises the log writer only to read Length, deleting the log file even for a ReadOnly engine",
+    "context": "\n            TryAction(() => delete = _logFactory.Exists() && _logPool.Writer.Value.Length == 0, errors);\n            TryAction(() => _dataPool.Dispose(), errors);"
+  },
+  {
+    "id": 178,
+    "file": "LiteDB/Engine/Disk/DiskService.cs",
+    "line": 129,
+    "title": "MAX_ITEMS_COUNT is computed in wrapping uint arithmetic, producing a near-zero loop limit on very large databases",
+    "context": "        /// </summary>\n        public uint MAX_ITEMS_COUNT => (uint)(((_dataLength + _logLength) / PAGE_SIZE) + 10) * byte.MaxValue;"
+  },
+  {
+    "id": 179,
+    "file": "LiteDB/Engine/Services/WalIndexService.cs",
+    "line": 76,
+    "title": "WalIndexService.Clear() resets transaction-ID and read-version bookkeeping before the log truncation that justifies it",
+    "context": "\n                _lastTransactionID = 0;\n                _currentReadVersion = 0;"
+  },
+  {
+    "id": 180,
+    "file": "LiteDB/Engine/Services/SnapShot.cs",
+    "line": 101,
+    "title": "Snapshot constructor cleanup releases the collection write lock outside a finally, so a failure while discarding pages wedges the collection permanently",
+    "context": "                }\n                if (_mode == LockMode.Write) _locker.ExitLock(_collectionName);\n                throw;"
+  },
+  {
+    "id": 181,
+    "file": "LiteDB/Engine/Services/SnapShot.cs",
+    "line": 664,
+    "title": "DropCollection overwrites the transaction's existing deleted-page chain instead of appending to it",
+    "context": "            // CollectionPage will be last deleted page (there is no NextPageID from CollectionPage)\n            _transPages.FirstDeletedPageID = _collectionPage.PageID;\n            _transPages.LastDeletedPageID = _collectionPage.PageID;"
+  },
+  {
+    "id": 182,
+    "file": "LiteDB/Engine/Pages/BasePage.cs",
+    "line": 165,
+    "title": "The \"content area must be zero\" DEBUG assertions skip the last page byte, which is the high byte of slot 0's segment position",
+    "context": "\n            DEBUG(buffer.Slice(PAGE_HEADER_SIZE, PAGE_SIZE - PAGE_HEADER_SIZE - 1).All(0), \"new page buffer must be empty before use in a new page\");"
+  },
+  {
+    "id": 183,
+    "file": "LiteDB/Engine/Disk/Serializer/BufferReader.cs",
+    "line": 243,
+    "title": "BufferReader.ReadDateTime applies the utcDate flag inverted relative to BsonElementReader",
+    "context": "\n            return _utcDate ? date.ToLocalTime() : date;\n        }"
+  },
+  {
+    "id": 184,
+    "file": "LiteDB/Engine/Services/VectorIndexService.cs",
+    "line": 97,
+    "title": "Unvalidated VectorDistanceMetric is persisted and later throws ArgumentOutOfRangeException out of the engine, wedging the index",
+    "context": "                default:\n                    throw new ArgumentOutOfRangeException(nameof(metric));\n            }"
+  },
+  {
+    "id": 185,
+    "file": "LiteDB/Client/Storage/LiteStorage.cs",
+    "line": 236,
+    "title": "LiteStorage.Delete removes the file document before its chunks, orphaning unreachable chunk documents",
+    "context": "            // remove file reference\n            var deleted = _files.Delete(fileId);"
+  },
+  {
+    "id": 186,
+    "file": "LiteDB/Engine/Engine/Collection.cs",
+    "line": 82,
+    "title": "RenameCollection leaves the auto-id sequence cache keyed to the old collection name",
+    "context": "                // rename collection and set page as dirty (there is no need to set IsDirty in HeaderPage)\n                transaction.Pages.Commit += (h) =>\n                {"
+  },
+  {
+    "id": 187,
+    "file": "LiteDB/Client/Database/Collections/Find.cs",
+    "line": 30,
+    "title": "Find/FindAll add the collection's includes twice, doubling include work per document",
+    "context": "            return this.Query()\n                .Include(_includes)\n                .Where(predicate)"
+  },
+  {
+    "id": 188,
+    "file": "LiteDB/Engine/Sort/SortService.cs",
+    "line": 60,
+    "title": "SortService allocates an 800 KB LOH buffer per sort operation while its ArrayPool field is never used",
+    "context": "\n            var bytes = new byte [disk.ContainerSize];"
+  },
+  {
+    "id": 189,
+    "file": "LiteDB/Engine/Sort/SortDisk.cs",
+    "line": 101,
+    "title": "SortDisk.Dispose skips temp-file deletion if closing the stream pool throws",
+    "context": "        {\n            _pool.Dispose();"
+  },
+  {
+    "id": 191,
+    "file": "LiteDB/Document/Json/JsonReader.cs",
+    "line": 38,
+    "title": "Deserialize and DeserializeArray silently ignore trailing content after the first JSON value",
+    "context": "\n            var value = this.ReadValue(token);"
+  },
+  {
+    "id": 192,
+    "file": "LiteDB/Client/SqlParser/Commands/Select.cs",
+    "line": 163,
+    "title": "LIMIT/OFFSET use Convert.ToInt32 on the raw token, so a large integer literal escapes as System.OverflowException instead of a parse error",
+    "context": "\n                query.Limit = Convert.ToInt32(limit);\n            }"
+  },
+  {
+    "id": 193,
+    "file": "LiteDB/Client/SqlParser/Commands/Rebuild.cs",
+    "line": 45,
+    "title": "REBUILD with an options document never validates the statement terminator, so trailing input is silently ignored",
+    "context": "                }\n            }"
+  },
+  {
+    "id": 194,
+    "file": "LiteDB/Client/SqlParser/Commands/Rebuild.cs",
+    "line": 49,
+    "title": "REBUILD result truncates the long byte-difference to int, reporting a wrong or negative saving for large files",
+    "context": "\n            return new BsonDataReader((int)diff);\n        }"
+  },
+  {
+    "id": 195,
+    "file": "LiteDB/Engine/Query/Query.cs",
+    "line": 135,
+    "title": "ToSQL formats the vector target and threshold with the current culture and re-appends a predicate already present in Where",
+    "context": "\n                var vectorExpr = $\"VECTOR_SIM({field}, [{string.Join(\",\", this.VectorTarget)}])\";\n                if (this.Where.Count > 0)"
+  },
+  {
+    "id": 196,
+    "file": "LiteDB/Utils/Extensions/BufferSliceExtensions.cs",
+    "line": 137,
+    "title": "BufferSliceExtensions.ReadCString mixes slice-relative and array-absolute indices and computes a nonsensical length",
+    "context": "            buffer.EnsureReadable();\n            length = buffer.Count - buffer.Offset - offset;"
+  },
+  {
+    "id": 198,
+    "file": "LiteDB/Engine/FileReader/Legacy/ByteReader.cs",
+    "line": 157,
+    "title": "Legacy v7 ByteReader.ReadCString indexes the buffer before its bounds check, so the intended fallback is dead code",
+    "context": "            {\n                if (_buffer[pos] == 0x00)\n                {"
+  },
+  {
+    "id": 199,
+    "file": "LiteDB.Shell/Shell/InputCommand.cs",
+    "line": 40,
+    "title": "LiteDB.Shell hangs forever and grows a string without bound when a non-terminated statement reaches EOF or --exit",
+    "context": "            {\n                while (!cmd.EndsWith(\";\"))\n                {"
+  },
+  {
+    "id": 202,
+    "file": ".github/scripts/test-crossuser-windows.ps1",
+    "line": 13,
+    "title": "CI helper script hardcodes a local-account password and creates interactive Windows accounts that survive an interrupted run",
+    "context": "$TestUsers = @(\"LiteDBTest1\", \"LiteDBTest2\")\n$TestPassword = ConvertTo-SecureString \"Test@Password123!\" -AsPlainText -Force\n$DbPath = Join-Path $env:TEMP \"litedb_crossuser_test.db\""
+  },
+  {
+    "id": 203,
+    "file": "LiteDB.Shell/Commands/Ed.cs",
+    "line": 21,
+    "title": "Shell 'ed' command writes the last command - which may contain the database password - to a predictable path in the shared temp directory",
+    "context": "        {\n            var temp = Path.GetTempPath() + \"LiteDB.Shell.txt\";"
+  }
+]
