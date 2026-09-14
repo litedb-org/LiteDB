@@ -1,0 +1,15 @@
+{
+  "id": "Issue_1472_MonoCompoundQueries",
+  "title": "Issue 1472: concurrent cached predicates must not mutate enumerated parameters",
+  "issues": ["https://github.com/litedb-org/LiteDB/issues/1472"],
+  "timeoutSeconds": 240,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "supports": ["linux"],
+  "state": "flaky",
+  "tags": ["regression", "historical", "mono", "docker", "query"],
+  "expectedOutcomes": {
+    "package": {"kind": "reproduce", "exitCode": 0, "logContains": "BUG_1472_CONFIRMED"},
+    "latest": {"kind": "noRepro", "exitCode": 10, "logContains": "VERIFIED_1472"}
+  }
+}
