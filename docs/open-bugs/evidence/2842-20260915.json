@@ -1,0 +1,43 @@
+{
+  "observedAt": "2026-09-14T19:00:13.4823285+00:00",
+  "productionSource": "a50661a9d1a25b5713586d0096c6325d76bf5dfe",
+  "sourceReportSha256": "65b0c92365d46204b117d7deb8fcaa9096a365facdef0eb87912a7e5da161ecc",
+  "repro": "Issue_2842_LimitError",
+  "variants": {
+    "package": {
+      "configuration": {
+        "useProjectReference": false,
+        "liteDBPackageVersion": "5.0.20"
+      },
+      "exitCode": 0,
+      "expectationMet": true,
+      "output": [
+        "{\"type\":\"configuration\",\"timestamp\":\"2026-09-14T19:00:21.7019942+00:00\",\"payload\":{\"useProjectReference\":false,\"liteDBPackageVersion\":\"5.0.20\"}}",
+        "ATTEMPT_1: Expected lite.ErrorCode to be 105, but found 0 (difference of -105).",
+        "",
+        "ATTEMPT_2: Expected lite.ErrorCode to be 105, but found 0 (difference of -105).",
+        "",
+        "ATTEMPT_3: Expected lite.ErrorCode to be 105, but found 0 (difference of -105).",
+        "",
+        "REPEATS_2842: attempts=3, reportedFailures=3",
+        "BUG_2842_CONFIRMED"
+      ]
+    },
+    "latest": {
+      "configuration": {
+        "useProjectReference": true,
+        "liteDBPackageVersion": "5.0.20"
+      },
+      "exitCode": 10,
+      "expectationMet": true,
+      "output": [
+        "{\"type\":\"configuration\",\"timestamp\":\"2026-09-14T19:00:23.7716827+00:00\",\"payload\":{\"useProjectReference\":true,\"liteDBPackageVersion\":\"5.0.20\"}}",
+        "ATTEMPT_1: all regression and persistence assertions passed",
+        "ATTEMPT_2: all regression and persistence assertions passed",
+        "ATTEMPT_3: all regression and persistence assertions passed",
+        "REPEATS_2842: attempts=3, reportedFailures=0",
+        "VERIFIED_2842"
+      ]
+    }
+  }
+}
