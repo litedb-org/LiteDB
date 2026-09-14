@@ -1,0 +1,179 @@
+{
+  "productionSource": "a50661a9d1a25b5713586d0096c6325d76bf5dfe",
+  "reports": [
+    {
+      "android": true,
+      "androidVersion": "15",
+      "runtime": ".NET 10.0.11",
+      "liteDbAssembly": "LiteDB, Version=5.0.21.0, Culture=neutral, PublicKeyToken=4ee40123013c9f27",
+      "build": {
+        "UseProjectReference": "false",
+        "LiteDBPackageVersion": "5.0.21"
+      },
+      "cases": 12,
+      "reportedFailures": 0,
+      "unrelatedFailures": 0,
+      "outcomes": [
+        {
+          "attempt": 1,
+          "connection": "Direct",
+          "startWithEmptyFile": false,
+          "outcome": "passed"
+        },
+        {
+          "attempt": 1,
+          "connection": "Direct",
+          "startWithEmptyFile": true,
+          "outcome": "passed"
+        },
+        {
+          "attempt": 1,
+          "connection": "Shared",
+          "startWithEmptyFile": false,
+          "outcome": "passed"
+        },
+        {
+          "attempt": 1,
+          "connection": "Shared",
+          "startWithEmptyFile": true,
+          "outcome": "passed"
+        },
+        {
+          "attempt": 2,
+          "connection": "Direct",
+          "startWithEmptyFile": false,
+          "outcome": "passed"
+        },
+        {
+          "attempt": 2,
+          "connection": "Direct",
+          "startWithEmptyFile": true,
+          "outcome": "passed"
+        },
+        {
+          "attempt": 2,
+          "connection": "Shared",
+          "startWithEmptyFile": false,
+          "outcome": "passed"
+        },
+        {
+          "attempt": 2,
+          "connection": "Shared",
+          "startWithEmptyFile": true,
+          "outcome": "passed"
+        },
+        {
+          "attempt": 3,
+          "connection": "Direct",
+          "startWithEmptyFile": false,
+          "outcome": "passed"
+        },
+        {
+          "attempt": 3,
+          "connection": "Direct",
+          "startWithEmptyFile": true,
+          "outcome": "passed"
+        },
+        {
+          "attempt": 3,
+          "connection": "Shared",
+          "startWithEmptyFile": false,
+          "outcome": "passed"
+        },
+        {
+          "attempt": 3,
+          "connection": "Shared",
+          "startWithEmptyFile": true,
+          "outcome": "passed"
+        }
+      ]
+    },
+    {
+      "android": true,
+      "androidVersion": "15",
+      "runtime": ".NET 10.0.11",
+      "liteDbAssembly": "LiteDB, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "build": {
+        "UseProjectReference": "true",
+        "LiteDBPackageVersion": "5.0.21"
+      },
+      "cases": 12,
+      "reportedFailures": 0,
+      "unrelatedFailures": 0,
+      "outcomes": [
+        {
+          "attempt": 1,
+          "connection": "Direct",
+          "startWithEmptyFile": false,
+          "outcome": "passed"
+        },
+        {
+          "attempt": 1,
+          "connection": "Direct",
+          "startWithEmptyFile": true,
+          "outcome": "passed"
+        },
+        {
+          "attempt": 1,
+          "connection": "Shared",
+          "startWithEmptyFile": false,
+          "outcome": "passed"
+        },
+        {
+          "attempt": 1,
+          "connection": "Shared",
+          "startWithEmptyFile": true,
+          "outcome": "passed"
+        },
+        {
+          "attempt": 2,
+          "connection": "Direct",
+          "startWithEmptyFile": false,
+          "outcome": "passed"
+        },
+        {
+          "attempt": 2,
+          "connection": "Direct",
+          "startWithEmptyFile": true,
+          "outcome": "passed"
+        },
+        {
+          "attempt": 2,
+          "connection": "Shared",
+          "startWithEmptyFile": false,
+          "outcome": "passed"
+        },
+        {
+          "attempt": 2,
+          "connection": "Shared",
+          "startWithEmptyFile": true,
+          "outcome": "passed"
+        },
+        {
+          "attempt": 3,
+          "connection": "Direct",
+          "startWithEmptyFile": false,
+          "outcome": "passed"
+        },
+        {
+          "attempt": 3,
+          "connection": "Direct",
+          "startWithEmptyFile": true,
+          "outcome": "passed"
+        },
+        {
+          "attempt": 3,
+          "connection": "Shared",
+          "startWithEmptyFile": false,
+          "outcome": "passed"
+        },
+        {
+          "attempt": 3,
+          "connection": "Shared",
+          "startWithEmptyFile": true,
+          "outcome": "passed"
+        }
+      ]
+    }
+  ]
+}
