@@ -1,0 +1,62 @@
+{
+  "observedDate": "2026-09-15",
+  "sourceCommit": "a50661a9d1a25b5713586d0096c6325d76bf5dfe",
+  "fixtureBlob": "55f11c008b52f6a49ce8fadf744a40ea976d0915",
+  "platform": "Linux x64",
+  "targetFramework": "net8.0",
+  "configuration": "Release",
+  "testingEnabled": false,
+  "rows": 1000000,
+  "exitCode": 0,
+  "insertRatio": 2.911,
+  "deleteRatio": 2.495,
+  "samples": [
+    {
+      "round": 0,
+      "largeBudget": false,
+      "insertMs": 44837.426,
+      "deleteMs": 33748.685
+    },
+    {
+      "round": 0,
+      "largeBudget": true,
+      "insertMs": 14584.133,
+      "deleteMs": 13525.793
+    },
+    {
+      "round": 1,
+      "largeBudget": true,
+      "insertMs": 15259.717,
+      "deleteMs": 13530.412
+    },
+    {
+      "round": 1,
+      "largeBudget": false,
+      "insertMs": 43529.093,
+      "deleteMs": 33778.629
+    },
+    {
+      "round": 2,
+      "largeBudget": false,
+      "insertMs": 43187.444,
+      "deleteMs": 33135.476
+    },
+    {
+      "round": 2,
+      "largeBudget": true,
+      "insertMs": 14953.548,
+      "deleteMs": 13451.514
+    }
+  ],
+  "output": [
+    "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T07:58:20.5016454+00:00\",\"payload\":{\"useProjectReference\":true,\"liteDBPackageVersion\":\"5.0.21\"}}",
+    "SAMPLE round=0, largeBudget=False, insertMs=44837.426, deleteMs=33748.685",
+    "SAMPLE round=0, largeBudget=True, insertMs=14584.133, deleteMs=13525.793",
+    "SAMPLE round=1, largeBudget=True, insertMs=15259.717, deleteMs=13530.412",
+    "SAMPLE round=1, largeBudget=False, insertMs=43529.093, deleteMs=33778.629",
+    "SAMPLE round=2, largeBudget=False, insertMs=43187.444, deleteMs=33135.476",
+    "SAMPLE round=2, largeBudget=True, insertMs=14953.548, deleteMs=13451.514",
+    "MEASUREMENT rows=1000000, configurable=True, insertRatio=2.911, deleteRatio=2.495",
+    "BUG_2849_CONFIRMED: default median write cost exceeds twice the large-budget control"
+  ]
+}

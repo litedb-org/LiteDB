@@ -1,0 +1,235 @@
+{
+  "observedDate": "2026-09-15",
+  "runUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34943291885",
+  "note": "Windows job completed and its report was captured. Remaining duplicate Linux jobs were canceled after the Windows failure was diagnosed; parameterized comparison runs separately. This stack overflow is not page-budget performance evidence.",
+  "report": {
+    "GeneratedAt": "2026-09-15T07:47:47.7517921+00:00",
+    "Root": "D:\\a\\LiteDB\\LiteDB\\LiteDB.ReproRunner",
+    "Repros": [
+      {
+        "Id": "Issue_2849_SafepointCost",
+        "State": 0,
+        "Failed": true,
+        "Warned": true,
+        "Package": {
+          "Expected": 1,
+          "ExpectedExitCode": 10,
+          "ExpectedLogContains": "VERIFIED_2849",
+          "Actual": 1,
+          "Met": false,
+          "ExitCode": -1073741571,
+          "DurationSeconds": 87.1352758,
+          "UseProjectReference": false,
+          "FailureReason": "Expected exit code 10 but observed -1073741571.",
+          "Output": [
+            {
+              "Stream": "stdout",
+              "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T07:48:06.6261069+00:00\",\"payload\":{\"useProjectReference\":false,\"liteDBPackageVersion\":\"5.0.21\"}}"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "Stack overflow."
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at DynamicClass.lambda_method6(System.Runtime.CompilerServices.Closure, System.Collections.Generic.IEnumerable`1<LiteDB.BsonDocument>, LiteDB.BsonDocument, LiteDB.BsonValue, LiteDB.Collation, LiteDB.BsonDocument)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.BsonExpression+<Execute>d__57.MoveNext()"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at System.Linq.Enumerable+SelectEnumerableIterator`2[[System.__Canon, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[System.__Canon, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]].MoveNext()"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at System.Linq.Enumerable.TryGetFirst[[System.__Canon, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]](System.Collections.Generic.IEnumerable`1<System.__Canon>, Boolean ByRef)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at System.Linq.Enumerable.FirstOrDefault[[System.__Canon, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]](System.Collections.Generic.IEnumerable`1<System.__Canon>)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.IndexCost..ctor(LiteDB.Engine.CollectionIndex, LiteDB.BsonExpression, LiteDB.BsonExpression, LiteDB.Collation)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.QueryOptimization.ChooseIndex(System.Collections.Generic.HashSet`1<System.String>)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.QueryOptimization.DefineIndex()"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.QueryOptimization.ProcessQuery()"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.QueryExecutor+<>c__DisplayClass12_0+<<ExecuteQuery>g__RunQuery|2>d.MoveNext()"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Utils.Extensions.EnumerableExtensions+<OnDispose>d__0`1[[System.__Canon, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]].MoveNext()"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.BsonDataReader..ctor(System.Collections.Generic.IEnumerable`1<LiteDB.BsonValue>, System.String, LiteDB.Engine.EngineState)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.QueryExecutor.ExecuteQuery(Boolean)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.QueryExecutor.ExecuteQuery()"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.LiteEngine.Query(System.String, LiteDB.Query)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.LiteEngine+<>c__DisplayClass4_0+<<DeleteMany>g__getIds|0>d.MoveNext()"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.LiteEngine+<>c__DisplayClass3_0.<Delete>b__0(LiteDB.Engine.TransactionService)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.LiteEngine.AutoTransaction[[System.Int32, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]](System.Func`2<LiteDB.Engine.TransactionService,Int32>)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.LiteEngine.Delete(System.String, System.Collections.Generic.IEnumerable`1<LiteDB.BsonValue>)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.LiteEngine.DeleteMany(System.String, LiteDB.BsonExpression)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.LiteCollection`1[[System.__Canon, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]].DeleteMany(LiteDB.BsonExpression)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at Program.Main()"
+            }
+          ]
+        },
+        "Latest": {
+          "Expected": 0,
+          "ExpectedExitCode": 0,
+          "ExpectedLogContains": "BUG_2849_CONFIRMED",
+          "Actual": 1,
+          "Met": false,
+          "ExitCode": -1073741571,
+          "DurationSeconds": 104.2388875,
+          "UseProjectReference": true,
+          "FailureReason": "Expected exit code 0 but observed -1073741571.",
+          "Output": [
+            {
+              "Stream": "stdout",
+              "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T07:49:33.7327938+00:00\",\"payload\":{\"useProjectReference\":true,\"liteDBPackageVersion\":\"5.0.21\"}}"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "Stack overflow."
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at DynamicClass.lambda_method6(System.Runtime.CompilerServices.Closure, System.Collections.Generic.IEnumerable`1<LiteDB.BsonDocument>, LiteDB.BsonDocument, LiteDB.BsonValue, LiteDB.Collation, LiteDB.BsonDocument)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.BsonExpression+<Execute>d__57.MoveNext()"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at System.Linq.Enumerable+SelectEnumerableIterator`2[[System.__Canon, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[System.__Canon, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]].MoveNext()"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at System.Linq.Enumerable.TryGetFirst[[System.__Canon, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]](System.Collections.Generic.IEnumerable`1<System.__Canon>, Boolean ByRef)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at System.Linq.Enumerable.FirstOrDefault[[System.__Canon, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]](System.Collections.Generic.IEnumerable`1<System.__Canon>)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.IndexCost..ctor(LiteDB.Engine.CollectionIndex, LiteDB.BsonExpression, LiteDB.BsonExpression, LiteDB.Collation)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.QueryOptimization.ChooseIndex(System.Collections.Generic.HashSet`1<System.String>)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.QueryOptimization.DefineIndex()"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.QueryOptimization.ProcessQuery()"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.QueryExecutor+<>c__DisplayClass12_0+<<ExecuteQuery>g__RunQuery|2>d.MoveNext()"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Utils.Extensions.EnumerableExtensions+<OnDispose>d__0`1[[System.__Canon, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]].MoveNext()"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.BsonDataReader..ctor(System.Collections.Generic.IEnumerable`1<LiteDB.BsonValue>, System.String, LiteDB.Engine.EngineState)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.QueryExecutor.ExecuteQuery(Boolean)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.QueryExecutor.ExecuteQuery()"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.LiteEngine.Query(System.String, LiteDB.Query)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.LiteEngine+<>c__DisplayClass4_0+<<DeleteMany>g__getIds|0>d.MoveNext()"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.LiteEngine+<>c__DisplayClass3_0.<Delete>b__0(LiteDB.Engine.TransactionService)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.LiteEngine.AutoTransaction[[System.Int32, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]](System.Func`2<LiteDB.Engine.TransactionService,Int32>)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.LiteEngine.Delete(System.String, System.Collections.Generic.IEnumerable`1<LiteDB.BsonValue>)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.LiteEngine.DeleteMany(System.String, LiteDB.BsonExpression)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.LiteCollection`1[[System.__Canon, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]].DeleteMany(LiteDB.BsonExpression)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at Program.Main()"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

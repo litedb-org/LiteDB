@@ -1,0 +1,357 @@
+{
+  "observedDate": "2026-09-15",
+  "runUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34944166719",
+  "fixtureRevision": "7137075d6caf9d495cf777d1c8aa089bbab1ab07",
+  "metrics": {
+    "ubuntu-22.04": {
+      "insertRatio": 2.691,
+      "deleteRatio": 2.114,
+      "allDataControlsPassed": true,
+      "samplesPerVariant": 6
+    },
+    "ubuntu-24.04": {
+      "insertRatio": 2.683,
+      "deleteRatio": 2.163,
+      "allDataControlsPassed": true,
+      "samplesPerVariant": 6
+    },
+    "windows-2022": {
+      "insertRatio": 3.475,
+      "deleteRatio": 2.634,
+      "allDataControlsPassed": true,
+      "samplesPerVariant": 6
+    }
+  },
+  "reports": {
+    "ubuntu-22.04": {
+      "GeneratedAt": "2026-09-15T07:56:23.951161+00:00",
+      "Root": "/home/runner/work/LiteDB/LiteDB/LiteDB.ReproRunner",
+      "Repros": [
+        {
+          "Id": "Issue_2849_SafepointCost",
+          "State": 1,
+          "Failed": false,
+          "Warned": false,
+          "Package": {
+            "Expected": 1,
+            "ExpectedExitCode": 10,
+            "ExpectedLogContains": "VERIFIED_2849",
+            "Actual": 1,
+            "Met": true,
+            "ExitCode": 10,
+            "DurationSeconds": 525.5570466,
+            "UseProjectReference": false,
+            "FailureReason": null,
+            "Output": [
+              {
+                "Stream": "stdout",
+                "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T07:56:40.2912275+00:00\",\"payload\":{\"useProjectReference\":false,\"liteDBPackageVersion\":\"5.0.21\"}}"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=0, largeBudget=False, insertMs=23958.371, deleteMs=22732.669"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=0, largeBudget=True, insertMs=21366.927, deleteMs=19598.009"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=1, largeBudget=True, insertMs=19360.323, deleteMs=20290.154"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=1, largeBudget=False, insertMs=21607.617, deleteMs=20641.358"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=2, largeBudget=False, insertMs=18308.419, deleteMs=19931.957"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=2, largeBudget=True, insertMs=19686.533, deleteMs=23229.831"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "MEASUREMENT rows=1000000, configurable=False, insertRatio=1.098, deleteRatio=1.017"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "VERIFIED_2849: persisted write effects passed; no twofold slowdown at this size"
+              }
+            ]
+          },
+          "Latest": {
+            "Expected": 0,
+            "ExpectedExitCode": 0,
+            "ExpectedLogContains": "BUG_2849_CONFIRMED",
+            "Actual": 0,
+            "Met": true,
+            "ExitCode": 0,
+            "DurationSeconds": 525.6937178,
+            "UseProjectReference": true,
+            "FailureReason": null,
+            "Output": [
+              {
+                "Stream": "stdout",
+                "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T08:05:25.8384819+00:00\",\"payload\":{\"useProjectReference\":true,\"liteDBPackageVersion\":\"5.0.21\"}}"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=0, largeBudget=False, insertMs=48868.886, deleteMs=35833.353"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=0, largeBudget=True, insertMs=17731.274, deleteMs=16902.521"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=1, largeBudget=True, insertMs=19057.861, deleteMs=17759.106"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=1, largeBudget=False, insertMs=51277.185, deleteMs=38673.687"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=2, largeBudget=False, insertMs=51943.711, deleteMs=37543.232"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=2, largeBudget=True, insertMs=19552.035, deleteMs=18520.086"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "MEASUREMENT rows=1000000, configurable=True, insertRatio=2.691, deleteRatio=2.114"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "BUG_2849_CONFIRMED: default median write cost exceeds twice the large-budget control"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "ubuntu-24.04": {
+      "GeneratedAt": "2026-09-15T07:56:38.4314272+00:00",
+      "Root": "/home/runner/work/LiteDB/LiteDB/LiteDB.ReproRunner",
+      "Repros": [
+        {
+          "Id": "Issue_2849_SafepointCost",
+          "State": 1,
+          "Failed": false,
+          "Warned": false,
+          "Package": {
+            "Expected": 1,
+            "ExpectedExitCode": 10,
+            "ExpectedLogContains": "VERIFIED_2849",
+            "Actual": 1,
+            "Met": true,
+            "ExitCode": 10,
+            "DurationSeconds": 477.2756437,
+            "UseProjectReference": false,
+            "FailureReason": null,
+            "Output": [
+              {
+                "Stream": "stdout",
+                "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T07:56:49.9876631+00:00\",\"payload\":{\"useProjectReference\":false,\"liteDBPackageVersion\":\"5.0.21\"}}"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=0, largeBudget=False, insertMs=16395.633, deleteMs=15739.204"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=0, largeBudget=True, insertMs=16444.474, deleteMs=16877.664"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=1, largeBudget=True, insertMs=17337.901, deleteMs=17175.037"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=1, largeBudget=False, insertMs=17603.343, deleteMs=18251.265"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=2, largeBudget=False, insertMs=17825.214, deleteMs=16463.345"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=2, largeBudget=True, insertMs=15526.303, deleteMs=16236.190"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "MEASUREMENT rows=1000000, configurable=False, insertRatio=1.070, deleteRatio=0.975"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "VERIFIED_2849: persisted write effects passed; no twofold slowdown at this size"
+              }
+            ]
+          },
+          "Latest": {
+            "Expected": 0,
+            "ExpectedExitCode": 0,
+            "ExpectedLogContains": "BUG_2849_CONFIRMED",
+            "Actual": 0,
+            "Met": true,
+            "ExitCode": 0,
+            "DurationSeconds": 483.6014588,
+            "UseProjectReference": true,
+            "FailureReason": null,
+            "Output": [
+              {
+                "Stream": "stdout",
+                "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T08:04:47.261668+00:00\",\"payload\":{\"useProjectReference\":true,\"liteDBPackageVersion\":\"5.0.21\"}}"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=0, largeBudget=False, insertMs=37112.972, deleteMs=27647.571"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=0, largeBudget=True, insertMs=14682.591, deleteMs=12621.894"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=1, largeBudget=True, insertMs=13790.990, deleteMs=13638.274"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=1, largeBudget=False, insertMs=37005.413, deleteMs=27303.125"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=2, largeBudget=False, insertMs=34475.551, deleteMs=26358.356"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=2, largeBudget=True, insertMs=12972.059, deleteMs=12621.098"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "MEASUREMENT rows=1000000, configurable=True, insertRatio=2.683, deleteRatio=2.163"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "BUG_2849_CONFIRMED: default median write cost exceeds twice the large-budget control"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "windows-2022": {
+      "GeneratedAt": "2026-09-15T07:56:58.575505+00:00",
+      "Root": "D:\\a\\LiteDB\\LiteDB\\LiteDB.ReproRunner",
+      "Repros": [
+        {
+          "Id": "Issue_2849_SafepointCost",
+          "State": 1,
+          "Failed": false,
+          "Warned": false,
+          "Package": {
+            "Expected": 1,
+            "ExpectedExitCode": 10,
+            "ExpectedLogContains": "VERIFIED_2849",
+            "Actual": 1,
+            "Met": true,
+            "ExitCode": 10,
+            "DurationSeconds": 604.22151,
+            "UseProjectReference": false,
+            "FailureReason": null,
+            "Output": [
+              {
+                "Stream": "stdout",
+                "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T07:57:16.4825285+00:00\",\"payload\":{\"useProjectReference\":false,\"liteDBPackageVersion\":\"5.0.21\"}}"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=0, largeBudget=False, insertMs=21200.969, deleteMs=20274.790"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=0, largeBudget=True, insertMs=18019.944, deleteMs=18951.052"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=1, largeBudget=True, insertMs=18170.432, deleteMs=19165.211"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=1, largeBudget=False, insertMs=18099.663, deleteMs=19686.171"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=2, largeBudget=False, insertMs=17569.545, deleteMs=19110.080"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=2, largeBudget=True, insertMs=18401.389, deleteMs=19771.261"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "MEASUREMENT rows=1000000, configurable=False, insertRatio=0.996, deleteRatio=1.027"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "VERIFIED_2849: persisted write effects passed; no twofold slowdown at this size"
+              }
+            ]
+          },
+          "Latest": {
+            "Expected": 0,
+            "ExpectedExitCode": 0,
+            "ExpectedLogContains": "BUG_2849_CONFIRMED",
+            "Actual": 0,
+            "Met": true,
+            "ExitCode": 0,
+            "DurationSeconds": 684.924412,
+            "UseProjectReference": true,
+            "FailureReason": null,
+            "Output": [
+              {
+                "Stream": "stdout",
+                "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T08:07:20.7936907+00:00\",\"payload\":{\"useProjectReference\":true,\"liteDBPackageVersion\":\"5.0.21\"}}"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=0, largeBudget=False, insertMs=60352.410, deleteMs=44470.219"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=0, largeBudget=True, insertMs=17367.366, deleteMs=16047.147"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=1, largeBudget=True, insertMs=17910.205, deleteMs=17363.309"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=1, largeBudget=False, insertMs=63209.746, deleteMs=42948.064"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=2, largeBudget=False, insertMs=59200.885, deleteMs=42212.454"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "SAMPLE round=2, largeBudget=True, insertMs=16838.014, deleteMs=16305.314"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "MEASUREMENT rows=1000000, configurable=True, insertRatio=3.475, deleteRatio=2.634"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "BUG_2849_CONFIRMED: default median write cost exceeds twice the large-budget control"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
