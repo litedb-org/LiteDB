@@ -1,0 +1,30 @@
+name: Issue 2793 Windows accounts
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'tools/Issue2793Windows/**'
+      - '.github/workflows/issue-2793.yml'
+permissions:
+  contents: read
+jobs:
+  windows-accounts:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.x
+            8.0.x
+      - name: Compare two real accounts on 5.0.19 and dev
+        shell: pwsh
+        run: ./tools/Issue2793Windows/run.ps1 -OutputDirectory '${{ runner.temp }}/issue2793'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: issue2793-windows
+          path: ${{ runner.temp }}/issue2793

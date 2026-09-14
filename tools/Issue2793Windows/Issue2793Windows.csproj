@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseProjectReference Condition="'$(UseProjectReference)' == ''">false</UseProjectReference>
+    <LiteDBPackageVersion Condition="'$(LiteDBPackageVersion)' == ''">5.0.19</LiteDBPackageVersion>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(UseProjectReference)' == 'true'">
+    <ProjectReference Include="../../LiteDB/LiteDB.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UseProjectReference)' != 'true'">
+    <PackageReference Include="LiteDB" Version="$(LiteDBPackageVersion)" />
+  </ItemGroup>
+</Project>
