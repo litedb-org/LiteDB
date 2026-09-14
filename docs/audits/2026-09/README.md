@@ -41,6 +41,9 @@ The committed copies are byte-for-byte identical to the supplied attachments.
 - Baseline suite before adding the expected-failing regressions: 864 passed,
   7 skipped, 0 failed (`net8.0`).
 - Release test-project build: succeeds.
+- The whole-solution build is unavailable in this Linux environment because the
+  `net462` and `net481` reference assemblies are not installed; the affected
+  `net8.0` library and test projects build successfully.
 - `AuditBehavior`: 60 failed as expected, 0 passed.
 - `AuditSourceGuard`: 170 failed as expected, 0 passed.
 - `AuditInfrastructure`: expected to pass and proves all canonical finding IDs
