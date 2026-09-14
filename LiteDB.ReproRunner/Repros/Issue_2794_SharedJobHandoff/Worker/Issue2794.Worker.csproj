@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <WorkerTargetFramework Condition="'$(WorkerTargetFramework)' == '' and '$(OS)' == 'Windows_NT'">net48</WorkerTargetFramework>
+    <WorkerTargetFramework Condition="'$(WorkerTargetFramework)' == ''">net8.0</WorkerTargetFramework>
+    <TargetFramework>$(WorkerTargetFramework)</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <UseProjectReference Condition="'$(UseProjectReference)' == ''">false</UseProjectReference>
+    <LiteDBPackageVersion Condition="'$(LiteDBPackageVersion)' == ''">5.0.7</LiteDBPackageVersion>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(UseProjectReference)' == 'true'">
+    <ProjectReference Include="../../../../LiteDB/LiteDB.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UseProjectReference)' != 'true'">
+    <PackageReference Include="LiteDB" Version="$(LiteDBPackageVersion)" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+</Project>
