@@ -1,0 +1,29 @@
+{
+  "id": "Issue_2797_LikeWildcards",
+  "title": "LIKE wildcard matching must terminate and agree with an independent matcher",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/issues/2797"
+  ],
+  "timeoutSeconds": 30,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "query",
+    "wildcard",
+    "regression"
+  ],
+  "state": "red",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "BUG_2797_CONFIRMED"
+    },
+    "latest": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "BUG_2797_CONFIRMED"
+    }
+  }
+}
