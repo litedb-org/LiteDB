@@ -1,0 +1,27 @@
+{
+  "id": "Issue_2816_DisposeFailure",
+  "title": "Issue 2816: repeat historical and current-source regression",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/issues/2816"
+  ],
+  "timeoutSeconds": 180,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "state": "green",
+  "tags": [
+    "regression",
+    "historical"
+  ],
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "BUG_2816_CONFIRMED"
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 10,
+      "logContains": "VERIFIED_2816"
+    }
+  }
+}
