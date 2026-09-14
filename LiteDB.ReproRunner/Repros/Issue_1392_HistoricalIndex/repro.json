@@ -1,0 +1,14 @@
+{
+  "id": "Issue_1392_HistoricalIndex",
+  "title": "Repeat indexed reads and upserts on 5.0.9 and current source",
+  "issues": ["https://github.com/litedb-org/LiteDB/issues/1392"],
+  "timeoutSeconds": 240,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "state": "flaky",
+  "tags": ["regression", "historical", "unconfirmed"],
+  "expectedOutcomes": {
+    "package": {"kind": "noRepro", "exitCode": 10, "logContains": "VERIFIED_1392"},
+    "latest": {"kind": "noRepro", "exitCode": 10, "logContains": "VERIFIED_1392"}
+  }
+}

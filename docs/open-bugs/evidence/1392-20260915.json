@@ -1,0 +1,42 @@
+{
+  "observedAt": "2026-09-15T02:16:41.0798817+00:00",
+  "productionSource": "a50661a9d1a25b5713586d0096c6325d76bf5dfe",
+  "sourceReportSha256": "8cdf64b9fbc26bc6a2fd63445d8b6e370fbf0f5744cffe6bab8112267fb40672",
+  "repro": "Issue_1392_HistoricalIndex",
+  "variants": {
+    "package": {
+      "configuration": {
+        "useProjectReference": false,
+        "liteDBPackageVersion": "5.0.9"
+      },
+      "exitCode": 10,
+      "expectationMet": true,
+      "output": [
+        "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T02:16:48.0848112+00:00\",\"payload\":{\"useProjectReference\":false,\"liteDBPackageVersion\":\"5.0.9\"}}",
+        "CACHE_RECYCLING_REQUIRED=False; historical releases use their original cache policy",
+        "ATTEMPT_1: all index, upsert and persisted ledger assertions passed",
+        "ATTEMPT_2: all index, upsert and persisted ledger assertions passed",
+        "ATTEMPT_3: all index, upsert and persisted ledger assertions passed",
+        "REPEATS_1392: attempts=3, reportedFailures=0",
+        "VERIFIED_1392: no failure in these attempts"
+      ]
+    },
+    "latest": {
+      "configuration": {
+        "useProjectReference": true,
+        "liteDBPackageVersion": "5.0.9"
+      },
+      "exitCode": 10,
+      "expectationMet": true,
+      "output": [
+        "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T02:16:51.0529284+00:00\",\"payload\":{\"useProjectReference\":true,\"liteDBPackageVersion\":\"5.0.9\"}}",
+        "CACHE_RECYCLING_REQUIRED=True; historical releases use their original cache policy",
+        "ATTEMPT_1: all index, upsert and persisted ledger assertions passed",
+        "ATTEMPT_2: all index, upsert and persisted ledger assertions passed",
+        "ATTEMPT_3: all index, upsert and persisted ledger assertions passed",
+        "REPEATS_1392: attempts=3, reportedFailures=0",
+        "VERIFIED_1392: no failure in these attempts"
+      ]
+    }
+  }
+}
