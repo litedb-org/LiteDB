@@ -455,7 +455,8 @@ jobs:
     outputs:
       agentic_engine_timeout: ${{ steps.detect-agent-errors.outputs.agentic_engine_timeout || 'false' }}
       ai_credits_rate_limit_error: ${{ steps.parse-mcp-gateway.outputs.ai_credits_rate_limit_error || 'false' }}
-      aic: ${{ steps.parse-mcp-gateway.outputs.aic }}
+      aic: ${{ steps.bugfix-accounting.outputs.aic || '1000' }}
+      bugfix_accounting_source: ${{ steps.bugfix-accounting.outputs.source }}
       ambient_context: ${{ steps.parse-mcp-gateway.outputs.ambient_context }}
       checkout_pr_success: ${{ steps.checkout-pr.outputs.checkout_pr_success || 'true' }}
       effective_tokens: ${{ steps.parse-mcp-gateway.outputs.effective_tokens }}
@@ -1003,6 +1004,57 @@ jobs:
             setupGlobals(core, github, context, exec, io, getOctokit);
             const { main } = require('${{ runner.temp }}/gh-aw/actions/parse_token_usage.cjs');
             await main();
+      - name: Account trusted bugfix proxy usage
+        id: bugfix-accounting
+        if: always()
+        env:
+          BUGFIX_CREDIT_CAP: "1000"
+          BUGFIX_EXECUTION_OUTCOME: ${{ steps.agentic_execution.outcome }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import math
+          import os
+          from pathlib import Path
+
+          env = os.environ
+          cap = float(env['BUGFIX_CREDIT_CAP'])
+          if not math.isfinite(cap) or cap <= 0:
+              raise SystemExit('A positive finite worker credit cap is required')
+          path = Path('/tmp/gh-aw/sandbox/firewall/logs/api-proxy-logs/token-usage.jsonl')
+          observed = 0.0
+          uncertain = False
+          try:
+              if path.is_symlink() or path.stat().st_size > 64 * 1024 * 1024:
+                  raise ValueError('Unsafe or oversized accounting file')
+              for line in path.read_text(encoding='utf-8').splitlines():
+                  if not line.strip():
+                      continue
+                  try:
+                      record = json.loads(line)
+                      if not isinstance(record, dict):
+                          raise ValueError('Accounting record must be an object')
+                      if record.get('event') != 'token_usage':
+                          continue
+                      value = record.get('ai_credits_total')
+                      if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
+                          raise ValueError('Invalid cumulative credit value')
+                      observed = max(observed, value)
+                  except (ValueError, TypeError):
+                      uncertain = True
+          except (OSError, ValueError):
+              uncertain = True
+          if observed > 0 and not uncertain:
+              amount, source = observed, 'proxy_total'
+          elif observed == 0 and env['BUGFIX_EXECUTION_OUTCOME'] == 'skipped':
+              amount, source = 0.0, 'not_started'
+          else:
+              amount, source = max(cap, observed), 'cap_reservation'
+          with open(env['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write(f'aic={amount}\nsource={source}\n')
+          with open(env['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
+              summary.write(f'\nBugfix accounting: {amount:g} nominal credits ({source}).\n')
+          PY
       - name: Print AWF reflect summary
         if: always()
         continue-on-error: true
@@ -1118,6 +1170,44 @@ jobs:
           mkdir -p /tmp/gh-aw/
           find "/tmp/gh-aw/" -type f -print
           echo "GH_AW_AGENT_OUTPUT=/tmp/gh-aw/agent_output.json" >> "$GITHUB_OUTPUT"
+      - name: Publish canonical bugfix usage record
+        if: always()
+        env:
+          BUGFIX_CREDIT_CAP: "1000"
+          BUGFIX_ACCOUNTED_CREDITS: ${{ needs.agent.outputs.aic }}
+          BUGFIX_ACCOUNTING_SOURCE: ${{ needs.agent.outputs.bugfix_accounting_source }}
+          BUGFIX_AGENT_RESULT: ${{ needs.agent.result }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import math
+          import os
+          from pathlib import Path
+
+          env = os.environ
+          cap = float(env['BUGFIX_CREDIT_CAP'])
+          if not math.isfinite(cap) or cap <= 0:
+              raise SystemExit('A positive finite worker credit cap is required')
+          source = env['BUGFIX_ACCOUNTING_SOURCE']
+          try:
+              amount = float(env['BUGFIX_ACCOUNTED_CREDITS'])
+              if not math.isfinite(amount) or amount < 0:
+                  raise ValueError('Invalid accounted credits')
+          except ValueError:
+              amount, source = cap, 'cap_reservation'
+          if env['BUGFIX_AGENT_RESULT'] == 'skipped':
+              amount, source = 0.0, 'not_started'
+          elif amount == 0 and source != 'not_started':
+              amount, source = cap, 'cap_reservation'
+          record = {'aic': amount, 'accounting_source': source,
+                    'run_id': int(env['GITHUB_RUN_ID']), 'run_attempt': int(env['GITHUB_RUN_ATTEMPT'])}
+          root = Path('/tmp/gh-aw')
+          root.mkdir(parents=True, exist_ok=True)
+          path = root / 'agent_usage.jsonl'
+          if path.is_symlink():
+              raise SystemExit('Accounting summary must not be a symlink')
+          path.write_text(json.dumps(record, sort_keys=True) + '\n', encoding='utf-8')
+          PY
       - name: Collect usage artifact files
         if: always()
         continue-on-error: true

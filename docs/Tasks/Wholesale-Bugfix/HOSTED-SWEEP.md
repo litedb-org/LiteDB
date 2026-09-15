@@ -143,12 +143,32 @@ the report digest in durable state. Missing or malformed reports are not budget
 deferrals. A budget pause must not consume a failed-fix/infrastructure attempt;
 the existing total dispatch cap still bounds repeated work. No cap is disabled.
 
-Observed accounting limitation: v8's framework daily-usage cache recorded zero
+Observed accounting defect: v8's framework daily-usage cache recorded zero
 credits for workers whose proxy logs and collector metadata reported positive
-`accounted_ai_credits`. The framework's default 5000-credit daily threshold is
-therefore not established as an effective cumulative limit for this transport.
-The separate AWF per-run limits remain configured (2000 fixer, 1000 reviewer);
-collector metadata records usage but is not itself a daily-budget enforcer.
-All credit prices are conservative accounting assumptions, not actual provider
-charges. The budget artifact reports the framework's decision faithfully; it
-does not repair missing upstream usage accounting or establish a spending SLA.
+`accounted_ai_credits`. The pinned parser understands explicit `aic`, but not the
+proxy's cumulative `ai_credits_total`, and its catalog does not price these aliases.
+
+The future runtime's trusted post-agent step takes the greatest finite cumulative
+proxy credit value, including after failed/cancelled execution, and exposes it as
+the agent job's `aic` output. The conclusion job publishes one canonical explicit
+`aic` record in `agent_usage.jsonl` before the existing usage artifact and daily
+cache are built. Raw proxy records remain available for audit. Missing or invalid
+usage reserves the full per-run allowance; it cannot silently turn possibly
+charged execution into zero usage. A proven skipped execution can record zero.
+Observed totals exceeding the configured allowance are retained, not clamped.
+
+An offline replay against the exact pinned runtime
+`21e402d7a4b5367258a7692cbb84fee60b507598` helper/catalog and actual run
+`35012206609` usage artifact changed its computed total from **0** to
+**1209.1325**, exactly matching the proxy total. Keep this accounting check when
+upgrading the parser or model catalog. Tests cover conservative failure paths
+and canonical publication order. A hosted canary must still verify the resulting
+usage artifact/cache and subsequent activation guard in Actions.
+
+Existing historical v8 zero cache entries are not rewritten by this future-run
+correction. They can understate the initial rolling window until they age out;
+an audited historical backfill is required to claim a corrected historical total.
+The default 5000 daily threshold and AWF per-run limits (2000 fixer, 1000 reviewer)
+are unchanged. Collector metadata alone is not a daily-budget enforcer. All
+credits use conservative accounting assumptions, not actual provider charges;
+the budget evidence does not establish a monetary spending SLA.
