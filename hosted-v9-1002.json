@@ -62,6 +62,7 @@
   "infrastructure_retries": {},
   "issue": 1002,
   "orchestration": {
+    "cooldown_until": 1789593355.0,
     "requests": {
       "baseline-0-0": {
         "inputs": {
@@ -79,6 +80,23 @@
         "workflow": "bugfix-check.yml"
       },
       "fix-1-0": {
+        "budget": {
+          "artifact_id": 10418642788,
+          "artifact_sha256": "ac0761a4fc8fa21917a9f6f9096a4ec0ca1d6b55f5a1db6f413bec108f3eee86",
+          "reason": "daily_credit_limit",
+          "report": {
+            "exceeded": true,
+            "observed_at": "2026-09-15T21:15:55Z",
+            "run_attempt": 1,
+            "run_id": 35024027102,
+            "schema_version": 1,
+            "threshold": 5000.0,
+            "total": 13971.885,
+            "workflow_sha": "167f2677ca07b2e67ccd701fb730b4ea055dc950"
+          },
+          "report_sha256": "f4d312efeaaa661212dd69081e865d8f2a95817e0c349956f6270e0e3a57f89b",
+          "resume_after": 1789593355.0
+        },
         "inputs": {
           "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
           "feedback": "",
