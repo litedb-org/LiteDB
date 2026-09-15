@@ -155,6 +155,8 @@ def validate(data, event):
                                 and 0 < counts["executed"] <= counts["total"], "Required targeted tests did not execute")
         if "protocol" in event:
             require(report.get("protocol") == event["protocol"], "CI protocol changed")
+        if "source_context_changes" in event:
+            require(report.get("source_context_changes") == event["source_context_changes"], "CI source-context observations changed")
         require(report.get("accepted") is True, "CI payload did not accept the candidate")
         expected_outcome = "bug_present" if event["kind"] == "baseline" else "behavior_correct"
         require(report.get("outcome") == expected_outcome, "CI payload outcome mismatch")

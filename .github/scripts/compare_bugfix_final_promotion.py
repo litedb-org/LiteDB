@@ -26,6 +26,8 @@ from compare_bugfix_full_ci import (
     tests_by_identity,
     validate_job,
 )
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts/bugfix"))
+from source_context import consume as consume_source_context, final_observations
 
 
 SHA = re.compile(r"[0-9a-f]{40}\Z")
@@ -317,8 +319,9 @@ def baseline_target_contract(job, accepted, errors):
 
 
 def compare_test_job(before, after, target_names, intermittent_classes, errors,
-                     unexpected_passes, inconclusive):
+                     unexpected_passes, inconclusive, observations=(), source_changes=None):
     old, current = tests_by_identity(before), tests_by_identity(after)
+    consumed = []
     if set(old) != set(current):
         errors.append(f"Frozen test identities changed in {before['name']}: "
                       f"missing={sorted(old.keys() - current.keys())}; "
@@ -341,13 +344,22 @@ def compare_test_job(before, after, target_names, intermittent_classes, errors,
                                  "baseline_outcome": previous["outcome"],
                                  "candidate_outcome": candidate["outcome"]})
         elif previous["outcome"] == "failed" and candidate["outcome"] == "passed":
-            unexpected_passes.append(f"{before['name']} :: {name}")
+            observation = consume_source_context(previous, candidate, observations)
+            if observation is None:
+                unexpected_passes.append(f"{before['name']} :: {name}")
+            else:
+                consumed.append(observation["test_name"])
+                source_changes.append({"job": before["name"], **observation})
         elif candidate["outcome"] != previous["outcome"]:
             errors.append(f"Outcome changed {previous['outcome']} -> {candidate['outcome']} "
                           f"in {before['name']}: {name}")
         elif (previous["outcome"] == "failed"
               and candidate["failure_classification"] != previous["failure_classification"]):
             errors.append(f"Failure classification changed in {before['name']}: {name}")
+    observed_names = {item["test_name"] for item in observations}
+    present = {item["name"] for item in old.values()} | {item["name"] for item in current.values()}
+    if observed_names & present != set(consumed):
+        errors.append(f"Recorded source observation did not match completed frozen guard transitions in {before['name']}")
 
 
 def required_environments(accepted):
@@ -379,7 +391,7 @@ def proven_environment(job):
 
 
 def compare(baseline, candidate, accepted, allowed_classes, allowed_skips,
-            intermittent_classes):
+            intermittent_classes, source_observations=()):
     before_evidence, before_jobs = baseline
     after_evidence, after_jobs = candidate
     errors, blockers, unexpected_passes, inconclusive = [], [], [], []
@@ -392,6 +404,7 @@ def compare(baseline, candidate, accepted, allowed_classes, allowed_skips,
     target_names = {case["name"] for value in accepted.values()
                     for case in value["regressions"] + value["controls"]}
     target_jobs, known_failures, repro_transitions = [], [], []
+    source_changes = []
     architecture_limitations, proven_environments = [], set()
     observed_declared_repros = defaultdict(set)
     accepted_issues = set(accepted)
@@ -426,7 +439,7 @@ def compare(baseline, candidate, accepted, allowed_classes, allowed_skips,
                     target_jobs.append(name)
                     baseline_target_contract(before, accepted, errors)
             compare_test_job(before, after, target_names, intermittent_classes,
-                             errors, unexpected_passes, inconclusive)
+                             errors, unexpected_passes, inconclusive, source_observations, source_changes)
             known_failures.extend(f"{name} :: {test['name']}" for test in after["tests"]
                                   if test["outcome"] == "failed")
         elif before["kind"] == "repro":
@@ -487,6 +500,7 @@ def compare(baseline, candidate, accepted, allowed_classes, allowed_skips,
         "accepted_test_execution_count": len(target_names) * len(target_jobs),
         "accepted_test_jobs": target_jobs,
         "accepted_repro_transitions": repro_transitions,
+        "source_context_changes": source_changes,
         "remaining_known_failures": known_failures,
         "coverage_gaps": before_evidence["coverage_gaps"],
         "architecture_limitations": sorted(set(architecture_limitations)),
@@ -563,7 +577,8 @@ def main(argv=None):
                                   args.final_integration_sha, validation,
                                   quarantine, normalization_sha, overlays,
                                   args.workflow_path)
-        report = compare(baseline, candidate, accepted, classes, skips, intermittent)
+        observations = final_observations(args.repository, accepted, args.final_integration_sha)
+        report = compare(baseline, candidate, accepted, classes, skips, intermittent, observations)
         report["provenance"] = {
             "base_sha": args.base_sha,
             "final_integration_sha": args.final_integration_sha,

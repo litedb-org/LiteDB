@@ -8,6 +8,7 @@ from pathlib import Path
 
 from failure_normalization import canonical_failure
 from trx import GateError
+from source_context import bind_observations, consume
 
 
 def require_sha(value):
@@ -88,7 +89,7 @@ def make_ledger(run, provenance, allowed_classes, expected_tests, allowed_skips,
 
 
 def compare_ledger(ledger, run, issue, provenance, expected_tests,
-                   failure_normalization):
+                   failure_normalization, source_observations=()):
     if (ledger.get("schema_version") != 1 or not ledger.get("tests")
             or not isinstance(ledger.get("definitions"), dict)):
         raise GateError("Invalid or empty baseline ledger")
@@ -115,9 +116,11 @@ def compare_ledger(ledger, run, issue, provenance, expected_tests,
         raise GateError(f"Candidate result instances changed: missing={sorted(missing)}; "
                         f"extra={sorted(extra)}")
     verify_target(run, issue, baseline=False)
+    bind_observations(issue, provenance, source_observations)
     target_names = {case["name"] for case in issue["regressions"]}
     errors, unexpected_passes, known_failures = [], [], []
     inconclusive_changes, classification_changes = [], []
+    source_context_changes = []
     for key, current in sorted(run.tests.items()):
         previous = before.get(key)
         name = current.name
@@ -136,7 +139,11 @@ def compare_ledger(ledger, run, issue, provenance, expected_tests,
                                          "candidate_outcome": current.outcome})
         elif previous_outcome == "Failed" and current.outcome == "Passed":
             if current.name not in target_names:
-                unexpected_passes.append(name)
+                observed = consume(previous, vars(current), source_observations)
+                if observed is None:
+                    unexpected_passes.append(name)
+                else:
+                    source_context_changes.append(observed)
         elif previous_outcome != current.outcome:
             errors.append(f"Outcome changed {previous_outcome} -> {current.outcome}: {name}")
         elif current.outcome == "Failed":
@@ -157,10 +164,13 @@ def compare_ledger(ledger, run, issue, provenance, expected_tests,
                 })
             else:
                 known_failures.append(name)
+    if source_context_changes != list(source_observations):
+        errors.append("Declared source-context change did not match the completed frozen guard transition")
     return {"accepted": not errors and not unexpected_passes and not inconclusive_changes,
             "errors": errors, "inconclusive_changes": inconclusive_changes,
             "classification_changes": classification_changes,
             "unexpected_passes": unexpected_passes, "known_failures": known_failures,
+            "source_context_changes": source_context_changes,
             "test_count": len(run.tests), "candidate_trx_sha256": run.sha256}
 
 

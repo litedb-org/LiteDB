@@ -10,6 +10,7 @@ import unittest
 from unittest.mock import patch
 
 import compare_bugfix_final_promotion as promotion
+from source_context import CLASS as GUARD_CLASS, DECLARATION, TEST as GUARD_TEST
 
 
 BASE = "a" * 40
@@ -160,6 +161,51 @@ class MultiIssueComparisonTests(unittest.TestCase):
         report = self.compare([self.before, nonaccepted], [self.after, changed])
         self.assertFalse(report["accepted"])
         self.assertTrue(any("Nonaccepted repro" in error for error in report["errors"]))
+
+
+class SourceObservationComparisonTests(unittest.TestCase):
+    def setUp(self):
+        self.observation = {"issue": 2871, **DECLARATION, "behavior_unverified": True,
+                            "issue_credit": False, "baseline_failure": "Exact frozen source guard failure"}
+        previous = result("guard", GUARD_TEST, "failed", self.observation["baseline_failure"])
+        previous["class_name"] = GUARD_CLASS
+        self.before = test_job([previous])
+        current = {"identity": "guard", "name": GUARD_TEST, "class_name": GUARD_CLASS, "outcome": "passed"}
+        self.after = test_job([current])
+
+    def compare(self):
+        errors, unexpected, inconclusive, observations = [], [], [], []
+        promotion.compare_test_job(self.before, self.after, set(), set(), errors, unexpected,
+                                   inconclusive, [self.observation], observations)
+        return errors, unexpected, observations
+
+    def test_only_declared_source_guard_is_observed_without_issue_credit(self):
+        errors, unexpected, observations = self.compare()
+        self.assertEqual(([], []), (errors, unexpected))
+        self.assertEqual([{**self.observation, "job": self.before["name"]}], observations)
+        self.assertTrue(observations[0]["behavior_unverified"])
+        self.assertFalse(observations[0]["issue_credit"])
+
+    def test_behavioral_m111_and_other_guard_passes_remain_unexpected(self):
+        for name in ("LiteDB.Tests.Audit2026.ExpressionAuditRegression_Tests.M111_uint64_round_trips_through_bson_value",
+                     GUARD_TEST.replace("id: 132,", "id: 111,")):
+            self.before["tests"].append(result(name, name, "failed", "Original failure"))
+            self.after["tests"].append(result(name, name, "passed"))
+        errors, unexpected, observations = self.compare()
+        self.assertEqual([], errors)
+        self.assertEqual(2, len(unexpected))
+        self.assertEqual(1, len(observations))
+
+    def test_missing_skipped_or_wrong_failure_guard_cannot_be_observed(self):
+        self.after["tests"][0]["outcome"] = "skipped"
+        self.assertTrue(self.compare()[0])
+        self.after["tests"] = []
+        self.assertTrue(self.compare()[0])
+        self.after = copy.deepcopy(self.before)
+        self.after["tests"][0]["outcome"] = "passed"
+        self.before["tests"][0]["failure"] = "Wrong failure"
+        with self.assertRaisesRegex(ValueError, "exact baseline"):
+            self.compare()
 
 
 class AcceptedLedgerTests(unittest.TestCase):

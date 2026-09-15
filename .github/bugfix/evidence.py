@@ -11,7 +11,7 @@ import tempfile
 
 from artifacts import download, read_members, validate, validate_worker_model
 from runs import select_artifact
-from profiles import profile_complete_check
+from profiles import observe_source_context, profile_complete_check
 from state import IDENTITY, require
 
 MATRIX = tuple(f"bugfix-check-{os_name}-{framework}" for os_name in
@@ -139,6 +139,10 @@ def check_event(repo, state, workflow_run, artifacts, control):
         event["reason"] = f"Check workflow concluded {workflow_run['conclusion']}"
         return event
     event["outcome"] = "bug_present" if kind == "baseline" else ("behavior_correct" if kind == "focused" else "pass")
+    if kind in ("broad", "acceptance") and control is not None:
+        observations = observe_source_context(control, control, state)
+        if observations:
+            event["source_context_changes"] = observations
     names = state["acceptance_profile"]["required_lanes"] if profile_complete_check(state, kind) else (
         MATRIX if kind == "acceptance" else (artifact_name,))
     matrix = []

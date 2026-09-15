@@ -56,7 +56,8 @@ class IntegrationTests(unittest.TestCase):
 
     def test_finish_preserves_existing_pass_ledger_and_explicit_quarantine(self):
         report = {"provenance": {"candidate_run_id": 123}, "target_jobs": ["test job"],
-                  "coverage_gaps": [{"issue": 2854, "status": "unverified"}]}
+                  "coverage_gaps": [{"issue": 2854, "status": "unverified"}],
+                  "source_context_changes": [{"test_name": "source-only guard", "behavior_unverified": True, "issue_credit": False}]}
         contract = {"regressions": [{"name": "new regression"}], "controls": [{"name": "valid input"}]}
         ledger = {"schema_version": 1, "issues": {"1000": {"tests": ["previous regression"]}}}
         store = Mock()
@@ -69,6 +70,8 @@ class IntegrationTests(unittest.TestCase):
         self.assertEqual(["previous regression"], saved["issues"]["1000"]["tests"])
         self.assertEqual(report["coverage_gaps"], saved["issues"]["2874"]["coverage_gaps"])
         self.assertNotIn("2854", saved["issues"])
+        self.assertEqual(report["source_context_changes"], saved["issues"]["2874"]["source_context_changes"])
+        self.assertNotIn("source-only guard", saved["issues"]["2874"]["tests"])
         self.assertFalse(json.loads(files["integration-lock.json"])["active"])
 
     def invoke_pipeline(self, matrix_failure=False):

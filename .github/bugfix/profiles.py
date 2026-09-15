@@ -37,6 +37,16 @@ def build_profile(control, repository, state, candidate=None):
     return validate_profile(result, {**state, "candidate_sha": candidate})
 
 
+def observe_source_context(control, repository, state):
+    contract = json.loads((control / "scripts/bugfix/issues.json").read_bytes())["issues"][str(state["issue"])]
+    if not contract.get("source_context_observations"):
+        return []
+    spec = importlib.util.spec_from_file_location("_trusted_source_context", control / "scripts/bugfix/source_context.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.observe(repository, contract, state["base_sha"], state["candidate_sha"])
+
+
 def profile_complete_check(state, kind):
     return "acceptance_profile" in state and (kind == "acceptance" or
            kind == "broad" and state.get("protocol") == "compressed-v1")

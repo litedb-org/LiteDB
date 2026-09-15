@@ -13,6 +13,7 @@ from policy import (compare_ledger, load_baseline_policy, load_issue,
                     verify_target)
 from protect import verify_changes, verify_frozen_tests
 from trx import GateError, read_trx
+from source_context import observe
 
 
 def parser():
@@ -45,6 +46,7 @@ def parser():
             command.add_argument("--failure-normalization", required=True)
         if name == "compare":
             command.add_argument("--ledger", required=True)
+            command.add_argument("--repository", help="Exact source repository for declared source-context observations")
     return root
 
 
@@ -93,7 +95,8 @@ def evaluate(args):
         normalization, normalization_hash = load_failure_normalization(args.failure_normalization)
         provenance["failure_normalization_sha256"] = normalization_hash
         result = compare_ledger(ledger, candidate, issue, provenance,
-                                load_test_inventory(args.test_inventory), normalization)
+                                load_test_inventory(args.test_inventory), normalization,
+                                observe(args.repository, issue, args.base_sha, args.candidate_sha))
         result["outcome"] = "behavior_correct" if result["accepted"] else "inconclusive"
     result["provenance"] = provenance
     return result

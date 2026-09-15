@@ -39,6 +39,8 @@ class PassingGraderTests(unittest.TestCase):
                     output = Path(arguments[arguments.index("--output") + 1])
                     output.mkdir(parents=True)
                     (output / "execution.json").write_text(json.dumps({"runs": {"focused": 1, "broad": 0, "required-pass": 0}}))
+                if "compare" in arguments:
+                    Path(arguments[arguments.index("--output") + 1]).write_text('{"source_context_changes": []}')
 
             def read(path, exit_code):
                 reads.append(path)

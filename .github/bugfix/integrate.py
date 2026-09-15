@@ -9,7 +9,7 @@ from evidence import event_for
 from integrate_evidence import acceptance_evidence, evidence_manifest
 from integrate_storage import IntegrationStore, LEDGER_NAME, LOCK_NAME, encoded
 from patching import git, worktree
-from profiles import build_profile
+from profiles import build_profile, observe_source_context
 from state import NAME, SHA, Rejected, apply_event, require
 from storage import github
 
@@ -60,6 +60,7 @@ def finish(store, state, lock, report, contract, tree):
              "validation_provenance": report["provenance"], "target_jobs": report["target_jobs"],
              "coverage_gaps": report["coverage_gaps"], "architecture_limitations": report.get("architecture_limitations", [])}
     entry["final_matrix_status"] = "pending"
+    entry["source_context_changes"] = report.get("source_context_changes", [])
     if "acceptance_profile" in state:
         entry["acceptance_profile"] = state["acceptance_profile"]
     if report["provenance"].get("validation_scope") != "per-fix":
@@ -92,20 +93,26 @@ def execute(args):
         state["candidate_sha"], state["workflow_sha"], definition)
     tree = tested_tree(args.repository, args.repo, state)
     files = acceptance_evidence(args.repo, state)
+    stage = "broad" if state.get("protocol") == "compressed-v1" else "acceptance"
+    accepted = state["evidence"][stage]
+    observations = []
     if "acceptance_profile" in state:
         with worktree(args.repository, definition) as control:
             require(build_profile(control, args.repository, state) == state["acceptance_profile"],
                     "Acceptance profile cannot be reproduced from trusted definition and exact candidate diff")
             files["acceptance-profile.json"] = encoded(state["acceptance_profile"])
             files["acceptance_profile.py"] = (control / ".github/bugfix/acceptance_profile.py").read_bytes()
-    stage = "broad" if state.get("protocol") == "compressed-v1" else "acceptance"
-    accepted = state["evidence"][stage]
+            observations = observe_source_context(control, args.repository, state)
+            require(accepted.get("source_context_changes", []) == observations, "Accepted source-context observations changed")
+            if observations:
+                files["source_context.py"] = (control / "scripts/bugfix/source_context.py").read_bytes()
     report = {"provenance": {"validation_scope": "per-fix", "candidate_run_id": accepted["run_id"],
               "baseline_run_id": state["evidence"]["baseline"]["run_id"], "base_sha": state["base_sha"],
               "candidate_sha": state["candidate_sha"], "test_source_sha": state["test_source_sha"],
               "worker_review_workflow_sha": state["workflow_sha"], "check_workflow_sha": definition,
               "acceptance_profile_sha256": state.get("acceptance_profile", {}).get("profile_sha256")},
-              "target_jobs": [lane["artifact"] for lane in accepted.get("matrix", [])], "coverage_gaps": []}
+              "target_jobs": [lane["artifact"] for lane in accepted.get("matrix", [])], "coverage_gaps": [],
+              "source_context_changes": observations}
     files["per-fix-verdict.json"] = encoded(report)
     raw_manifest = git(args.repository, "show", f"{state['workflow_sha']}:scripts/bugfix/issues.json")
     contract = json.loads(raw_manifest)["issues"][str(state["issue"])]

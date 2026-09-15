@@ -589,7 +589,9 @@
       "inventory_issue": 2871,
       "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
       "frozen_test_blobs": {
-        "LiteDB.Tests/Issues/Issue2871_Tests.cs": "85b265f26e6b995a7af450319bd53424c5959cbd"
+        "LiteDB.Tests/Issues/Issue2871_Tests.cs": "85b265f26e6b995a7af450319bd53424c5959cbd",
+        "LiteDB.Tests/Audit2026/AuditFindingSourceGuard_Tests.cs": "ba8272e35980a36ced33dcb4d61661b0061ebeb0",
+        "LiteDB.Tests/Audit2026/audit-source-guards.json": "9f1b6689cb13fe3df06663a8f47fa17d96d0c986"
       },
       "filter": "FullyQualifiedName~Issue2871_Tests",
       "environments": [
@@ -624,9 +626,23 @@
       ],
       "review_requirements": {
         "lifecycle": [
-          "Establish actual synchronization of constructor-cache reads and writes, including concurrent misses and resizing, from the candidate code. A non-Dictionary cache bypasses the deterministic monitor assertion; changing the cache type alone is not evidence of thread safety. Verify fresh object creation, safe cached factories and interface recursion, and assess concurrent execution using the separate bounded stress control. Record evidence and any limitations."
+          "Establish actual synchronization of constructor-cache reads and writes, including concurrent misses and resizing, from the candidate code. A non-Dictionary cache bypasses the deterministic monitor assertion; changing the cache type alone is not evidence of thread safety. Verify fresh object creation, safe cached factories and interface recursion, and assess concurrent execution using the separate bounded stress control. Record evidence and any limitations.",
+          "Inspect the trusted task source_context_changes observation for source guard 132. A changed three-line source context has behavior_unverified=true and issue_credit=false; it is not synchronization proof. Establish from the actual candidate that constructor-cache reads and writes share appropriate synchronization, and report the concrete evidence independently of the static guard result."
         ]
-      }
+      },
+      "source_context_observations": [
+        {
+          "guard_id": 132,
+          "test_name": "LiteDB.Tests.Audit2026.AuditFindingSourceGuard_Tests.Audited_source_context_must_be_replaced(id: 132, file: \"LiteDB/Client/Mapper/Reflection/Reflection.cs\", line: 39, title: \"Reflection.CreateInstance reads the shared ctor ca\"···, context: \"            {\\n                if (_cacheCtor.TryG\"···)",
+          "source_path": "LiteDB/Client/Mapper/Reflection/Reflection.cs",
+          "frozen_source_blob": "fd66327f298d785da70776bcc8623d061c0f147b",
+          "fixture_blobs": {
+            "LiteDB.Tests/Audit2026/AuditFindingSourceGuard_Tests.cs": "ba8272e35980a36ced33dcb4d61661b0061ebeb0",
+            "LiteDB.Tests/Audit2026/audit-source-guards.json": "9f1b6689cb13fe3df06663a8f47fa17d96d0c986"
+          },
+          "context_sha256": "316e6638a079552c0284ddff9221ad696da899ed86188a00143ffee14c3a368a"
+        }
+      ]
     },
     "1159": {
       "inventory_issue": 1159,

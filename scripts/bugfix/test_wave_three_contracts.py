@@ -35,6 +35,14 @@ class WaveThreeContracts(unittest.TestCase):
         current = json.loads(MANIFEST.read_text(encoding="utf-8"))
         self.assertEqual(13, len(previous["issues"]))
         for number, definition in previous["issues"].items():
+            if number == "2871":
+                from source_context import DECLARATION
+                updated = current["issues"][number]
+                self.assertEqual([DECLARATION], updated.pop("source_context_observations"))
+                for path, expected in DECLARATION["fixture_blobs"].items():
+                    self.assertEqual(expected, updated["frozen_test_blobs"].pop(path))
+                requirement = updated["review_requirements"]["lifecycle"].pop()
+                self.assertIn("behavior_unverified=true and issue_credit=false", requirement)
             self.assertEqual(definition, current["issues"][number], number)
 
     def test_original_blobs_include_all_neighbor_control_files(self):

@@ -38,6 +38,7 @@ FINAL_POLICY_PATHS = (
     "scripts/bugfix/failure-normalization.json",
     "scripts/bugfix/failure_normalization.py",
     "scripts/bugfix/trx.py",
+    "scripts/bugfix/source_context.py",
 )
 
 CAPTURE_DEFINITION_PATHS = (

@@ -92,6 +92,7 @@ def main():
               "--failure-normalization", FAILURE_NORMALIZATION,
               "--output", ARTIFACTS / "baseline-ledger.json"])
         call([GATE, "compare", *shared, *provenance,
+              "--repository", ROOT / "candidate",
               "--candidate-sha", candidate, "--ledger", ARTIFACTS / "baseline-ledger.json",
               "--candidate-trx", ARTIFACTS / "candidate/broad.trx",
               "--candidate-exit-code", executions["candidate"]["runs"]["broad"],
@@ -107,6 +108,9 @@ def main():
     if profile is not None:
         summary["acceptance_profile"] = profile
         summary["targeted_test_coverage"] = coverage
+    if run_level == "broad":
+        broad_report = json.loads((ARTIFACTS / "broad-verdict.json").read_bytes())
+        summary["source_context_changes"] = broad_report.get("source_context_changes", [])
     summary["protocol"] = os.environ.get("PROTOCOL", "legacy-six-lane-v1")
     (ARTIFACTS / "verdict.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(json.dumps(summary))

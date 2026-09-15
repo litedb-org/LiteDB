@@ -116,6 +116,7 @@ steps:
           (".github/scripts/redact_gh_aw_codex_artifacts.py", "redact.py"),
           (".github/scripts/probe_gh_aw_reasoning.py", "probe.py"),
           ("scripts/bugfix/issues.json", "issues.json"),
+          ("scripts/bugfix/source_context.py", "source_context.py"),
       ):
           data = subprocess.check_output(["git", "show", f"{trusted_sha}:{source}"])
           (control / target).write_bytes(data)
@@ -124,12 +125,16 @@ steps:
       spec.loader.exec_module(collector)
       expected = collector.identity(dict(os.environ))
       contract = collector.validate_contract(Path.cwd(), json.loads((control / "issues.json").read_text()), expected)
+      source_spec = importlib.util.spec_from_file_location("source_context", control / "source_context.py")
+      source_context = importlib.util.module_from_spec(source_spec)
+      source_spec.loader.exec_module(source_context)
+      observations = source_context.observe(Path.cwd(), contract, expected["base_sha"], expected["candidate_sha"])
       output = Path("/tmp/gh-aw/bugfix")
       output.mkdir(parents=True, exist_ok=True)
       repair_requirements = os.environ.get("BUGFIX_REPAIR_REQUIREMENTS", "")
       if len(repair_requirements) > 24000:
           raise SystemExit("Repair requirements are too large")
-      (output / "task.json").write_text(json.dumps({"identity": expected, "contract": contract, "source_run": os.environ.get("BUGFIX_SOURCE_RUN", ""), "repair_requirements": repair_requirements}, indent=2))
+      (output / "task.json").write_text(json.dumps({"identity": expected, "contract": contract, "source_context_changes": observations, "source_run": os.environ.get("BUGFIX_SOURCE_RUN", ""), "repair_requirements": repair_requirements}, indent=2))
       PY
   - name: Setup .NET 8
     uses: actions/setup-dotnet@v4
@@ -180,6 +185,12 @@ checks and their outcomes. These requirements supplement the role guidance below
 If a required conclusion lacks evidence, use `inconclusive` and describe the
 missing evidence in `findings`; use `changes_requested` for a supported defect.
 Do not approve a candidate while a requirement for your role remains unverified.
+
+Read `source_context_changes` in the trusted task. These are observations from
+the immutable Git source pair, with `behavior_unverified=true` and
+`issue_credit=false`. A static context disappearing does not establish a fix.
+Keep the observation visible in `coverage`; independently validate actual
+behavior and the synchronization requirement for the lifecycle role.
 
 Perform the perspective selected by `role`:
 

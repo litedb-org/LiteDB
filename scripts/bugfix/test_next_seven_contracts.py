@@ -51,7 +51,11 @@ class NextSevenContracts(unittest.TestCase):
                 actual = subprocess.check_output([
                     "git", "-C", str(ROOT), "rev-parse", f"{frozen}:{case['source']}"], text=True).strip()
                 self.assertEqual(case["source_blob"], actual)
-                self.assertEqual({case["source"]: actual}, issue["frozen_test_blobs"])
+                expected_blobs = {case["source"]: actual}
+                if number == 2871:
+                    from source_context import DECLARATION
+                    expected_blobs.update(DECLARATION["fixture_blobs"])
+                self.assertEqual(expected_blobs, issue["frozen_test_blobs"])
                 self.assertEqual(case["paths"], issue["allowed_production_paths"])
                 self.assertEqual(case["required_environments"], issue["required_environments"])
                 self.assertEqual(f"FullyQualifiedName~Issue{number}_Tests", issue["filter"])
