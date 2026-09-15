@@ -274,6 +274,15 @@ engine `COUNT` implementation's Int32 ceiling. This candidate preserves an Int64
 value supplied by `ILiteEngine`; it does not claim validation on a physical
 multi-billion-document database.
 
+All three reviews passed without findings. Compatibility additionally verified
+plain/encrypted file-backed query/reopen cycles without byte changes, current/
+LiteDB 5.0.21 file compatibility, and 173 `Issue2881_` upgrade/vector tests.
+The controller advanced directly from reviewing to ready, with no acceptance
+rerun. Integration then advanced to the exact candidate
+`824dfce9d27a6c0c7ea3890c1ecc9aff31833c83`; the accepted ledger at
+`9a3ab0f489d3450c33d723f609d638920113b16e` contains #2874 and #2839 and requires
+ten distinct passing cases. Both entries retain `final_matrix_status: pending`.
+
 ## Prepared serial expansion
 
 Runtime v7, `d020aceb92799d9325a2f47669d1d39e5d700248` on immutable
@@ -285,3 +294,9 @@ the queue never dispatches the full matrix. Special review requirements travel
 in the immutable task contract, with explicit worker/reviewer instructions.
 Combined checks passed: 167 controller tests, 81 gate tests, and 76 workflow/helper
 tests. The live #2839 campaign retains its original v6 pin.
+
+After #2839 integrated, queue `expansion-v7` started with the eleven IDs in the
+order above. Its first campaign, `expansion-v7-2869`, uses integration base
+`824dfce9d27a6c0c7ea3890c1ecc9aff31833c83` and the ten-case accepted ledger.
+The queue remains locally monitored and uses GitHub only for the bounded worker
+and check runs; no long-running GitHub controller job waits between them.
