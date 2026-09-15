@@ -44,7 +44,8 @@
   "events": {
     "run-34997535368-baseline-ci": "4ac0d09148ddf5c500776880b23e0cfdfb459d256d361213a99d6ffa6bdec138",
     "run-34997678016-candidate-ci": "a86fc9516d44dfee7635ebe9cce335e99a2e46eda81078ff510f955ed835087d",
-    "run-34998488756-broad-ci": "fab0b9dd0cb7f93abb75d70db6e0b43f91f4e7cc784896f9e50de404a054fb2d"
+    "run-34998488756-broad-ci": "fab0b9dd0cb7f93abb75d70db6e0b43f91f4e7cc784896f9e50de404a054fb2d",
+    "run-34998827373-review-behavior": "588581155b89dfc702c2ede99baf45ac3949c3bcadc6972ba567ad3c0663b191"
   },
   "evidence": {
     "baseline": {
@@ -147,6 +148,33 @@
       "protocol": "compressed-v1",
       "report_sha256": "ffd410c6f258f7c809908d1229dcca9ca3fe13e4a74d7e6dfdcceb6c875bb63f",
       "run_id": 34998488756,
+      "schema_version": 1,
+      "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "workflow_sha": "ebf413d240e747ead603d5076bdff6d09a35ccf3"
+    },
+    "review:behavior": {
+      "artifact": "bugfix-review-2839-behavior",
+      "artifact_sha256": "07091d964f45328164e653ffcd435dbccce6510ab861576ca30dbfc4c7826bb6",
+      "base_sha": "79e5c69cb9e6a1bcc08e919c2993aaa5401148b7",
+      "campaign": "sweep-2839-v2",
+      "candidate_sha": "824dfce9d27a6c0c7ea3890c1ecc9aff31833c83",
+      "environment": "independent-agent",
+      "event_id": "run-34998827373-review-behavior",
+      "findings": [],
+      "issue": 2839,
+      "kind": "review",
+      "outcome": "pass",
+      "passing_contract": {
+        "case_count": 7,
+        "cases_sha256": "846eeb9b3861851516702e1e3e71971c7bdbbf9a36af5ea458219fe7a3e70563",
+        "ledger_sha256": "ba0ddd4460f272085e0df611b299ecbfb90bb7799eec72f14f2e3b493cc7d6e3",
+        "schema_version": 1,
+        "state_commit": "ff3701819065d1682a3147e201a50091a0a1c206"
+      },
+      "protocol": "compressed-v1",
+      "report_sha256": "fe815fd5b4be2d48404b7c5afcc14c474a8899a43049d48e00ef727c7f39de06",
+      "role": "behavior",
+      "run_id": 34998827373,
       "schema_version": 1,
       "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
       "workflow_sha": "ebf413d240e747ead603d5076bdff6d09a35ccf3"
@@ -341,6 +369,33 @@
       "protocol": "compressed-v1",
       "report_sha256": "ffd410c6f258f7c809908d1229dcca9ca3fe13e4a74d7e6dfdcceb6c875bb63f",
       "run_id": 34998488756,
+      "schema_version": 1,
+      "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "workflow_sha": "ebf413d240e747ead603d5076bdff6d09a35ccf3"
+    },
+    {
+      "artifact": "bugfix-review-2839-behavior",
+      "artifact_sha256": "07091d964f45328164e653ffcd435dbccce6510ab861576ca30dbfc4c7826bb6",
+      "base_sha": "79e5c69cb9e6a1bcc08e919c2993aaa5401148b7",
+      "campaign": "sweep-2839-v2",
+      "candidate_sha": "824dfce9d27a6c0c7ea3890c1ecc9aff31833c83",
+      "environment": "independent-agent",
+      "event_id": "run-34998827373-review-behavior",
+      "findings": [],
+      "issue": 2839,
+      "kind": "review",
+      "outcome": "pass",
+      "passing_contract": {
+        "case_count": 7,
+        "cases_sha256": "846eeb9b3861851516702e1e3e71971c7bdbbf9a36af5ea458219fe7a3e70563",
+        "ledger_sha256": "ba0ddd4460f272085e0df611b299ecbfb90bb7799eec72f14f2e3b493cc7d6e3",
+        "schema_version": 1,
+        "state_commit": "ff3701819065d1682a3147e201a50091a0a1c206"
+      },
+      "protocol": "compressed-v1",
+      "report_sha256": "fe815fd5b4be2d48404b7c5afcc14c474a8899a43049d48e00ef727c7f39de06",
+      "role": "behavior",
+      "run_id": 34998827373,
       "schema_version": 1,
       "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
       "workflow_sha": "ebf413d240e747ead603d5076bdff6d09a35ccf3"
@@ -566,7 +621,35 @@
   "phase": "reviewing",
   "protocol": "compressed-v1",
   "repair_attempts": 1,
-  "reviews": {},
+  "reviews": {
+    "behavior": {
+      "artifact": "bugfix-review-2839-behavior",
+      "artifact_sha256": "07091d964f45328164e653ffcd435dbccce6510ab861576ca30dbfc4c7826bb6",
+      "base_sha": "79e5c69cb9e6a1bcc08e919c2993aaa5401148b7",
+      "campaign": "sweep-2839-v2",
+      "candidate_sha": "824dfce9d27a6c0c7ea3890c1ecc9aff31833c83",
+      "environment": "independent-agent",
+      "event_id": "run-34998827373-review-behavior",
+      "findings": [],
+      "issue": 2839,
+      "kind": "review",
+      "outcome": "pass",
+      "passing_contract": {
+        "case_count": 7,
+        "cases_sha256": "846eeb9b3861851516702e1e3e71971c7bdbbf9a36af5ea458219fe7a3e70563",
+        "ledger_sha256": "ba0ddd4460f272085e0df611b299ecbfb90bb7799eec72f14f2e3b493cc7d6e3",
+        "schema_version": 1,
+        "state_commit": "ff3701819065d1682a3147e201a50091a0a1c206"
+      },
+      "protocol": "compressed-v1",
+      "report_sha256": "fe815fd5b4be2d48404b7c5afcc14c474a8899a43049d48e00ef727c7f39de06",
+      "role": "behavior",
+      "run_id": 34998827373,
+      "schema_version": 1,
+      "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "workflow_sha": "ebf413d240e747ead603d5076bdff6d09a35ccf3"
+    }
+  },
   "schema_version": 1,
   "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
   "workflow_sha": "ebf413d240e747ead603d5076bdff6d09a35ccf3"
