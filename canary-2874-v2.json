@@ -2,9 +2,47 @@
   "base_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
   "campaign": "canary-2874-v2",
   "candidate_sha": null,
-  "events": {},
-  "evidence": {},
-  "history": [],
+  "events": {
+    "run-34978718032-baseline-ci": "cac758cbfa834775e958c27efb0ca053ce0cc4b82838a5c0a1662bd8bdf2578b"
+  },
+  "evidence": {
+    "baseline": {
+      "artifact": "bugfix-check-ubuntu-latest-net8.0",
+      "artifact_sha256": "5a6df32d800cf2c321916127548ab78ad575eccab9a2727a9c66c1f3f68aabc8",
+      "base_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "campaign": "canary-2874-v2",
+      "candidate_sha": null,
+      "environment": "linux-x64-net8.0",
+      "event_id": "run-34978718032-baseline-ci",
+      "issue": 2874,
+      "kind": "baseline",
+      "outcome": "bug_present",
+      "report_sha256": "413fe6c1abb3bd4c571704ef4c0cbf8e1d89ad819e4dea7921f92a6ea9b35d55",
+      "run_id": 34978718032,
+      "schema_version": 1,
+      "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "workflow_sha": "83ff67a3d81c43bcae7aca6f2439ee0454811fde"
+    }
+  },
+  "history": [
+    {
+      "artifact": "bugfix-check-ubuntu-latest-net8.0",
+      "artifact_sha256": "5a6df32d800cf2c321916127548ab78ad575eccab9a2727a9c66c1f3f68aabc8",
+      "base_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "campaign": "canary-2874-v2",
+      "candidate_sha": null,
+      "environment": "linux-x64-net8.0",
+      "event_id": "run-34978718032-baseline-ci",
+      "issue": 2874,
+      "kind": "baseline",
+      "outcome": "bug_present",
+      "report_sha256": "413fe6c1abb3bd4c571704ef4c0cbf8e1d89ad819e4dea7921f92a6ea9b35d55",
+      "run_id": 34978718032,
+      "schema_version": 1,
+      "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "workflow_sha": "83ff67a3d81c43bcae7aca6f2439ee0454811fde"
+    }
+  ],
   "infrastructure_retries": {},
   "issue": 2874,
   "orchestration": {
@@ -26,7 +64,7 @@
     "workflow_ref": "automation/bugfix-runtime-v2"
   },
   "paused": false,
-  "phase": "baseline",
+  "phase": "repairing",
   "repair_attempts": 0,
   "reviews": {},
   "schema_version": 1,
