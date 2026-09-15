@@ -23,5 +23,5 @@ jobs:
         env:
           CODEX_LB_BASE_URL: ${{ secrets.CODEX_LB_BASE_URL }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          CANARY_MODEL: ${{ vars.GH_AW_MODEL_AGENT_CODEX || 'gpt-5.4' }}
+          CANARY_MODEL: ${{ vars.GH_AW_MODEL_AGENT_CODEX }}
         run: python3 .github/scripts/probe_codex_endpoint.py
