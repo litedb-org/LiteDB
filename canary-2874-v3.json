@@ -8,7 +8,21 @@
   "infrastructure_retries": {},
   "issue": 2874,
   "orchestration": {
-    "requests": {},
+    "requests": {
+      "baseline-0-0": {
+        "inputs": {
+          "accepted_ledger_sha256": "c9f58a9c7ddd359d61b38aebee80f31fbe0f7d5135a5830dbfa58f514891b7f3",
+          "accepted_state_sha": "92901cbe1253f5ba1e6c9b9b9167732f2320c1c4",
+          "base_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+          "candidate_sha": "",
+          "issue": "2874",
+          "level": "baseline"
+        },
+        "request_id": "bf-1d3fc5e0e53149b28f215a309ecb9df5",
+        "started_at": 1789481687.3446379,
+        "workflow": "bugfix-check.yml"
+      }
+    },
     "worker_retries": 0,
     "workflow_ref": "automation/bugfix-runtime-v3"
   },
