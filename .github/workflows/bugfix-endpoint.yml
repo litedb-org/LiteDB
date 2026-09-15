@@ -1,0 +1,27 @@
+name: Bugfix endpoint canary
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [automation/wholesale-bugfix]
+    paths:
+      - .github/workflows/bugfix-endpoint.yml
+      - .github/scripts/probe_codex_endpoint.py
+
+permissions:
+  contents: read
+
+jobs:
+  endpoint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check configured Responses endpoint
+        env:
+          CODEX_LB_BASE_URL: ${{ secrets.CODEX_LB_BASE_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CANARY_MODEL: ${{ vars.GH_AW_MODEL_AGENT_CODEX || 'gpt-5.4' }}
+        run: python3 .github/scripts/probe_codex_endpoint.py
