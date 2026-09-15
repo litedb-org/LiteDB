@@ -331,7 +331,7 @@ namespace LiteDB
         // Int64
         public static implicit operator Int64(BsonValue value)
         {
-            return (Int64)value.RawValue;
+            return value.IsInt32 ? (Int32)value.RawValue : (Int64)value.RawValue;
         }
 
         // Int64
@@ -343,7 +343,7 @@ namespace LiteDB
         // Double
         public static implicit operator Double(BsonValue value)
         {
-            return (Double)value.RawValue;
+            return value.IsInt32 ? (Int32)value.RawValue : (Double)value.RawValue;
         }
 
         // Double
