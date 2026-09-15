@@ -1094,6 +1094,21 @@
         "started_at": 1789484327.4279845,
         "workflow": "bugfix-check.yml"
       },
+      "revalidate-807054e37840-34988724926": {
+        "inputs": {
+          "acceptance_profile_sha256": "53e3b0681d4d419e663cc6703fbdee33203b6dbf9f84301e04d581caae7891e9",
+          "accepted_ledger_sha256": "c9f58a9c7ddd359d61b38aebee80f31fbe0f7d5135a5830dbfa58f514891b7f3",
+          "accepted_state_sha": "dfd372c9371f3ff99c9990c907a57bbf9ccf5bb4",
+          "base_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+          "candidate_sha": "79e5c69cb9e6a1bcc08e919c2993aaa5401148b7",
+          "issue": "2874",
+          "level": "acceptance",
+          "protocol": "legacy-six-lane-v1"
+        },
+        "request_id": "bf-c60c7358b3664f1ebc8c5c7e3f68c156",
+        "started_at": 1789490101.5503054,
+        "workflow": "bugfix-check.yml"
+      },
       "review-1-behavior-0": {
         "inputs": {
           "base_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
