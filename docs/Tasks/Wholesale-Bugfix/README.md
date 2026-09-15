@@ -1,8 +1,9 @@
 # Wholesale bug-fix plan
 
-Status: canary rollout in progress. Frozen-test gates, gh-aw workers, and a
-resumable controller are implemented. Integration and scale-up remain gated on
-the canary's complete validation evidence.
+Status: canary rollout in progress. The user clarified the sweep budget on
+2026-09-15: use one compressed candidate CI run per repair attempt; run the
+expensive original matrix once, after the sweep. The acceptance profile and
+integration gate are being updated to enforce this split.
 
 Prepared: 2026-09-15.
 
@@ -10,19 +11,22 @@ The regression source is pinned to
 `dd937719f7eee53c512f50ac604cab639bf42a4c` from
 `codex/implement-regression-tests-for-all`. Fix workers use `gpt-6-astra` with
 high reasoning; all three reviewers use `gpt-5.6-sol` with high reasoning.
-Model fallback is disabled. See [worker runtime](Worker-runtime.md), the
+Model fallback is disabled. Workers pin Codex 0.154.0 and verify outgoing
+high-reasoning requests before inference. See [worker runtime](Worker-runtime.md), the
 [controller runbook](../../../.github/bugfix/README.md), and the
 [canary log](Canary-log.md) for implementation details and rollout evidence.
-The full matrix also uses a [versioned #2794 harness timing correction](Harness-2794.md)
-with original/effective source provenance; it does not change the frozen bug tests.
+Final-promotion full-matrix captures apply separately attested
+[#2794 timing](Harness-2794.md) and [#2825 classifier](Harness-2825.md) corrections.
+The frozen issue fixtures remain unchanged. Existing full runs are pilot
+diagnostics; they are not a requirement for each integration merge.
 
 ## Objective
 
 Reliably fix the confirmed open issue reports covered by this regression branch.
 For every accepted fix, preserve evidence that the original regression fails on
 the integration base, passes with the fix, and introduces no detected regressions
-under the required validation. Use fast checks during repair and broader checks
-before integration.
+under the selected validation profile. Use a small CI gate for each candidate
+and reserve the original platform/process/performance matrix for final promotion.
 
 Use gh-aw for fix and validation agents. Ordinary GitHub Actions and a small,
 deterministic controller own scheduling, evidence checks, retries, and merges.
@@ -56,16 +60,19 @@ Agent conclusions alone do not establish that an issue is fixed.
 
 ```mermaid
 flowchart TD
-    A[Select eligible issue] --> B[Confirm expected failure on integration base]
+    A[Select eligible issue] --> B[Confirm regression is red on integration base]
     B -->|Confirmed| C[Fix agent]
-    B -->|Unconfirmed or harness failure| X[Record investigation needed]
-    C --> D[Fast CI]
+    B -->|Unconfirmed or harness failure| X[Investigate]
+    C --> D[One candidate CI run: focused tests, fast regression suite, required extras]
     D -->|Code failure| C
     D -->|Pass| E[Three independent validation agents]
     E -->|Actionable findings| C
-    E -->|Reviews complete| F[Final tests and full compatibility matrix]
-    F -->|Code failure| C
-    F -->|Pass| G[Merge tested candidate into integration]
+    E -->|All approve unchanged candidate| G[Integrate exact tested commit]
+    G --> H{More eligible bugs?}
+    H -->|Yes| A
+    H -->|No| F[Run full matrix once on completed integration]
+    F -->|Pass| P[Ready for final promotion]
+    F -->|New defect| X
 ```
 
 The diagram shows the successful path and repair loop. Infrastructure errors,
@@ -140,15 +147,40 @@ to succeed when its precise contract is met. Do not blanket-ignore errors or
 exclude the entire Issues folder. Remaining known failures continue to execute
 at the applicable broader validation level.
 
-## 3. Split CI into three levels
+## 3. Compress CI during the sweep
 
-| Level | When | Work |
+| Gate | When | Work |
 | --- | --- | --- |
-| Focused | Every repair attempt | Selected regression, controls, nearby tests, C# size checks |
-| Broad | Focused checks pass | Full ordinary .NET 8 suite against the ledger; additional required platforms |
-| Acceptance | Reviews complete | Supported platform/framework checks, compatibility tests, relevant process and performance repros |
+| Baseline | Before the first fix attempt for an issue/base | Original selected regressions and controls; confirm the expected red result |
+| Candidate | Once per changed candidate | Focused checks first, then the fast ordinary regression suite against the ledger, production compile, and only profile-required extras |
+| Final promotion | After the entire sweep | Original full platform/framework/process/performance matrix against every accepted issue and the remaining failure ledger |
 
-Focused CI should:
+The candidate workflow already runs focused checks before the broader ordinary
+suite. Do not dispatch a separate focused workflow and rebuild the same candidate
+again for broad CI. Three reviews follow a green candidate run. If the candidate
+is unchanged, their approval goes directly to integration; no redundant
+post-review acceptance rerun is needed.
+
+The trusted controller derives a versioned acceptance profile from the issue
+contract and exact production diff. Workers cannot choose or shrink it:
+
+- Ordinary reviewed API fixes use Ubuntu/.NET 8, the focused regressions and
+  controls, the fast ordinary suite, and a production build.
+- Storage, serialization, WAL, encryption, upgrade, and vector changes add
+  relevant compatibility checks and related tests.
+- Platform or runtime-sensitive changes add the required OS/framework lanes.
+- Unknown scope uses a conservative ordinary-test platform profile and
+  compatibility checks; it does not automatically schedule the long process or
+  performance matrix.
+- Expensive targeted repros are required only when they establish the selected
+  issue's contract. A performance bug may need its specific performance test;
+  unrelated fixes do not run every historical benchmark.
+
+Record the profile, rule version, selected lanes, reasons, and source SHAs with
+CI evidence. All required tests must actually execute. Extra test filters should
+not rerun cases already covered by the same ordinary-suite execution.
+
+Candidate CI should:
 
 - Default to one Linux runner and .NET 8; use the required environment immediately
   for platform-specific defects.
@@ -160,24 +192,26 @@ Focused CI should:
   dependency, and environment identities still match.
 - Record actual selected and executed test cases; fail on zero or missing cases.
 
-Target 2–5 minutes for ordinary focused checks, then measure pilot performance.
+Target 2–5 minutes for an ordinary candidate check, then measure pilot performance.
 This is an initial target, not a promise for process, race, or performance repros.
 
-Move expensive million-row performance runs into a dedicated lane. Require them
-for relevant storage, indexing, safepoint, and performance changes; schedule them
-periodically for the integration branch and include them in final promotion
-validation. Select required lanes through reviewed rules based on the issue and
-changed behavior, with a conservative fallback for unknown scope.
+Keep expensive million-row performance runs out of ordinary repair checks. Run
+a specific performance repro during repair only when the selected issue needs
+it to establish red-to-green behavior; include the complete set in final
+promotion validation. Record such requirements in the reviewed issue contract.
 
-During the pilot, retain the full existing matrix before every integration merge.
-Only reduce the acceptance subset after establishing reliable coverage. Ordinary
-repair commits should trigger focused CI rather than the entire matrix.
+Run the original full matrix once after the sweep, before promotion from the
+integration branch. Completed pilot captures help diagnose harness problems but
+are not repeated per fix. Do not launch fresh full matrices for grading-policy
+or historical-harness corrections during the sweep. A genuinely new defect found
+by final validation returns to the repair process and requires renewed relevant
+evidence before final promotion.
 
 Temporary user-authorized exception (2026-09-15): quarantine the three #2854
 process jobs because the frozen fixture fails compilation before either variant
 executes. Preserve the fixture source and its unverified issue status. Record
 the exact excluded jobs and reason alongside every acceptance result; all other
-original matrix jobs remain required. See the [canary log](Canary-log.md).
+original matrix jobs remain required at final promotion. See the [canary log](Canary-log.md).
 
 Verify that matrix labels describe actual execution. Add runtime-architecture
 assertions for x86 and ARM64 coverage; a job name or QEMU setup alone does not
@@ -220,13 +254,19 @@ Seed `integration/bugfixes` from the agreed regression branch snapshot. Create
 one branch per issue, such as `fix/issue-2874` or `fix/issue-2803`, based on a
 recorded integration commit. Fix PRs target the integration branch.
 
-For acceptance:
+For each integration merge:
 
-1. Acquire the integration merge lock.
-2. Incorporate the latest integration state into the candidate.
-3. Renew required review and CI evidence for that exact candidate.
-4. Merge only if candidate and integration base remain unchanged.
+1. Verify the exact candidate completed its selected CI profile and all three reviews.
+2. Acquire the integration merge lock and require the recorded base to remain current.
+3. If the base moved, incorporate it and renew CI/review evidence for the new commit.
+4. Integrate only the tested commit, without rerunning unchanged evidence.
 5. Record the accepted issue and make its passing tests permanent requirements.
+
+The per-fix integration command does not require original full-matrix run IDs.
+A separate final-promotion gate verifies the completed integration SHA, the
+accepted ledger for all fixed issues, and the final full matrix. It must handle
+all accepted fixes together rather than treating other fixed issues as unexpected
+passes in a single-issue comparison.
 
 Implement the final branch update with an expected-current-base check. If the
 base moves, recompute and revalidate; conflict-free Git merging does not establish
@@ -243,10 +283,11 @@ explicit report of any remaining unresolved defects.
 | Proposed component | Responsibility |
 | --- | --- |
 | `bugfix-controller.yml` and small Python modules | Queue selection, state transitions, dispatch, retries, and stale-result rejection |
-| `bugfix-check.yml` | Baseline, focused, broad, and acceptance execution modes |
+| `bugfix-check.yml` | Baseline and combined candidate profile; legacy acceptance for audited canary revalidation |
 | `bugfix-fix.md` | Implement one issue's fix and produce a candidate through safe outputs |
 | `bugfix-validate.md` | Run independently for each validator role |
-| `bugfix-integrate.yml` | Verify complete evidence and merge the tested candidate |
+| `.github/bugfix/integrate.py` | Verify per-fix profile and reviews, then integrate the exact tested commit |
+| Final-promotion validator | Compare the completed sweep against all accepted contracts and the full matrix |
 
 Use the setup in `C:/Users/Jonas/repos/private/JKamsker/JKamsker.CodexSDK` as a
 reference, particularly:
@@ -313,12 +354,14 @@ and [workflow triggering](https://docs.github.com/en/actions/how-tos/write-workf
    and valid-input controls offer a small, explicit starting point.
 4. **Add the fix worker and three validators:** confirm evidence is tied to the
    final candidate, and that actionable reviewer feedback returns to repair.
-5. **Pilot storage/recovery behavior, such as #2803:** exercise compatibility,
-   persistence controls, and the broader acceptance lanes.
+5. **Scale with #2839 and #2869:** use the prepared frozen contracts, then add
+   storage/recovery issues with their selected compatibility requirements.
 6. **Enable automatic integration:** first one issue at a time, then gradually
    increase parallel fix work while retaining serialized merges.
-7. **Optimize measured bottlenecks:** reduce redundant builds and unnecessary
-   matrix work only after the pilot demonstrates reliable coverage.
+7. **Measure the compressed path:** one candidate CI run per attempt, no unchanged
+   post-review rerun, and no full matrix until the sweep is complete.
+8. **Validate final promotion:** run the full pipeline against the complete
+   accepted-issue ledger and preserve its exact source and harness provenance.
 
 A pilot succeeds when it demonstrates a real baseline failure, a passing fixed
 candidate, complete independent reviews, required acceptance checks, and an
