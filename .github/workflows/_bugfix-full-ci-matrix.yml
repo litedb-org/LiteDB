@@ -11,7 +11,7 @@ on:
         type: string
       issue:
         required: true
-        type: number
+        type: string
       quarantine-sha256:
         required: true
         type: string

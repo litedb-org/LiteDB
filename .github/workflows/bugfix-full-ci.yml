@@ -13,7 +13,7 @@ on:
       issue:
         description: Issue execution contract to validate
         required: true
-        type: number
+        type: string
       source_sha:
         description: Exact candidate or integration-base commit to test
         required: true
