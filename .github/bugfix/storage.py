@@ -13,7 +13,7 @@ STATE_BRANCH = "automation/bugfix-state"
 
 
 def run(command, cwd=None, input_text=None):
-    result = subprocess.run(command, cwd=cwd, input=input_text, text=True,
+    result = subprocess.run(command, cwd=cwd, input=input_text, text=True, encoding="utf-8",
                             capture_output=True, check=False)
     if result.returncode:
         raise Rejected(f"Command failed ({result.returncode}): {result.stderr.strip()}")
@@ -65,7 +65,7 @@ class Store:
 
     def current_sha(self):
         result = subprocess.run(["gh", "api", f"repos/{self.repo}/git/ref/heads/{STATE_BRANCH}"],
-                                text=True, capture_output=True, check=False)
+                                text=True, encoding="utf-8", capture_output=True, check=False)
         if result.returncode:
             if "(HTTP 404)" in result.stderr:
                 return None
