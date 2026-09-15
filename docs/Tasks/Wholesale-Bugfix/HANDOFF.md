@@ -6,8 +6,8 @@ Repository copy: [HANDOFF.md](https://github.com/litedb-org/LiteDB/blob/automati
 ## Instructions to the continuing agent
 
 This issue is the complete entry point. No previous chat or longer prompt is
-required. Continue executing the wholesale bugfix sweep: repair the current
-blocker and any workflow defects, safely resume the queue, monitor actual Actions
+required. Continue executing the wholesale bugfix sweep: repair any workflow
+defects, maintain unattended GitHub-hosted execution, monitor actual Actions
 runs, and integrate only verified candidates. Do not stop at a plan or status
 summary. Read this issue and its linked handoff/runbooks, refresh the authoritative
 state, then act within the already authorized scope described below.
@@ -19,24 +19,39 @@ excluded or blocked reports, the accepted fixes have passed final full-matrix
 validation, and the integration branch is ready for final promotion. A green
 worker workflow alone is not acceptance; inspect its collected review verdict.
 
-Snapshot: **2026-09-15, approximately 20:00 UTC / 22:00 Europe/Vienna**.
+The user explicitly requires **24/7 unattended execution without an open chat or
+local machine**. Do not replace the hosted scheduler with a local blocking queue.
+One blocked issue must retain its evidence while independent approved work can
+continue. Infrastructure and usage-limit waits need durable automatic recovery.
+
+Snapshot: **2026-09-15, approximately 20:36 UTC / 22:36 Europe/Vienna**.
 Re-read GitHub state before acting: this document is a snapshot, not the controller's state store.
 
 ## Current state and first action
 
-**Four fixes are integrated. The serial queue has stopped at #1002, attempt 2,
-because its repair changed eight existing #2811 failures. No #1002 candidate is
-accepted. No controller was running when this snapshot was taken.**
+**Four fixes are integrated. The hosted bootstrap is deployed on `dev`, but
+execution remains disabled while the new immutable runtime finishes review.
+No hosted sweep has been initialized yet. No #1002 candidate is accepted.**
 
-First investigate the #1002/#2811 overlap below. Do not simply redispatch the
-queue, clear its blocker, broaden an allowlist, or claim its second candidate is
-green. Preserve the failed runs and the first lifecycle review finding. This is
-a real behavioral overlap requiring an explicit repair/contract decision.
+Default-branch bootstrap: [9b2f122fb85ee16ed1fd1457df19fa9811769945](https://github.com/litedb-org/LiteDB/commit/9b2f122fb85ee16ed1fd1457df19fa9811769945).
+It adds only `.github/workflows/bugfix-sweep.yml`. GitHub registered the active
+[Wholesale bugfix sweep workflow](https://github.com/litedb-org/LiteDB/actions/workflows/bugfix-sweep.yml),
+ID `359078992`. `BUGFIX_SWEEP_ENABLED=false`; scheduler SHA and active-sweep
+variables are not set yet. No full-matrix or package-publish run was launched.
 
-The previous local exec session `13996` exited with code 1 after recording the
-block. Session IDs are not portable; inspect local processes and GitHub before
-starting any replacement controller. Nothing will advance while this blocker
-remains unresolved.
+Next, finish independent review and combined tests, create an immutable v9 pin,
+initialize a fresh one-issue #1002 hosted canary, and verify automatic wakeups
+through candidate publication, compressed CI, three reviews and integration.
+Expand only after that hosted cycle works. Follow the
+[hosted runbook](https://github.com/litedb-org/LiteDB/blob/automation/wholesale-bugfix/docs/Tasks/Wholesale-Bugfix/HOSTED-SWEEP.md).
+
+The old local controller exited after the #1002/#2811 overlap described below.
+Its `expansion-v8-1002` journal and both rejected candidates remain unchanged.
+An explicit independently reviewed **nine-regression, two-control co-repair
+contract** is now prepared in `dde8fc56`; see
+[COREPAIR-1002-2811.md](https://github.com/litedb-org/LiteDB/blob/automation/wholesale-bugfix/docs/Tasks/Wholesale-Bugfix/COREPAIR-1002-2811.md).
+Use a fresh campaign on the current integration base; do not clear the old
+blocker or reinterpret its failed CI as passing.
 
 ## Key branches and immutable revisions
 
@@ -48,8 +63,9 @@ Remote `upstream` is litedb-org/LiteDB; `origin` is JKamsker/LiteDB.
 | --- | --- | --- |
 | Accepted production fixes | [integration/bugfixes](https://github.com/litedb-org/LiteDB/tree/integration/bugfixes) | `bbb0253bc06324f0bb14a21a727a37e8c7f2b213` |
 | Durable campaign journal, accepted tests, evidence, integration locks | [automation/bugfix-state](https://github.com/litedb-org/LiteDB/tree/automation/bugfix-state) | `0106f6321a051c1b5a63613b681476009d612230` |
-| **Live campaign's immutable runtime** | [automation/bugfix-runtime-v8](https://github.com/litedb-org/LiteDB/tree/automation/bugfix-runtime-v8) | `61ee4aec705024c189345de25508ea19ffc2584e` |
-| Future automation code and preparation | [automation/wholesale-bugfix](https://github.com/litedb-org/LiteDB/tree/automation/wholesale-bugfix) | `db0c0ea910d7e46c655cb1e21826d035503b73ba` before this handoff commit |
+| Historical blocked campaign's immutable runtime | [automation/bugfix-runtime-v8](https://github.com/litedb-org/LiteDB/tree/automation/bugfix-runtime-v8) | `61ee4aec705024c189345de25508ea19ffc2584e` |
+| Reviewed preparation, before pending controller/accounting bundle | [automation/wholesale-bugfix](https://github.com/litedb-org/LiteDB/tree/automation/wholesale-bugfix) | `d5f763a8cec04330fa7b2cc74a954fb5ff411270` before this handoff update |
+| Hosted default-branch bootstrap | [dev](https://github.com/litedb-org/LiteDB/tree/dev) | `9b2f122fb85ee16ed1fd1457df19fa9811769945` |
 | Rejected #1002 attempt 1 | [fix/issue-1002-expansion-v8-1002-a1](https://github.com/litedb-org/LiteDB/tree/fix/issue-1002-expansion-v8-1002-a1) | `a98b29089c01e21e50856abd0cc9bbea1ecc5631` |
 | Blocked #1002 attempt 2 | [fix/issue-1002-expansion-v8-1002-a2](https://github.com/litedb-org/LiteDB/tree/fix/issue-1002-expansion-v8-1002-a2) | `d600cab9aa8be419f0d3069a21bb5e03ff713307` |
 | **Frozen regression source** from codex/implement-regression-tests-for-all | [exact original tree](https://github.com/litedb-org/LiteDB/tree/dd937719f7eee53c512f50ac604cab639bf42a4c) | `dd937719f7eee53c512f50ac604cab639bf42a4c` |
@@ -107,7 +123,7 @@ Both used capture definition `cd6046b622b9dfa444bcc1286c69b523eecf9854` on
 These historical captures do not validate the current integration head and must
 not be mistaken for final promotion evidence or rerun for every individual fix.
 
-## Immediate blocker: #1002 repair overlaps #2811
+## Preserved blocker history: #1002 repair overlaps #2811
 
 Campaign [expansion-v8-1002.json](https://github.com/litedb-org/LiteDB/blob/automation/bugfix-state/expansion-v8-1002.json):
 phase `blocked`, paused `false`, repair_attempts `2`, original integration base
@@ -146,10 +162,13 @@ partial behavioral improvement, **not harmless formatting drift** and not a full
 #2811 fix. All eight changed failures have candidate canonical hash
 `dde6a56c8a25d10036b186fca0c8f5446699f147f12f134d1092d3a41a575159`.
 
-Next agent should inspect the complete frozen #2811 fixture and adjacent typed
-write paths, then decide between a narrowly scoped #1002 repair or a separately
-reviewed explicit behavioral co-repair contract. Any new contract needs real red
-evidence, genuine positive controls and an immutable runtime/campaign identity.
+The new independently reviewed co-repair contract explicitly incorporates the
+eight frozen #2811 cases, the nullable-Int32 regression and two genuine positive
+controls. Original/repeated/current-base evidence passed the unchanged strict
+classification gates. Required review obligations include the old get-only
+nullable-ID finding, throwing custom setters, batch atomicity and caller-owned
+transactions. This contract still requires fresh hosted red/green evidence and
+an immutable new runtime/campaign identity before acceptance.
 An unexpected pass is also gated; merely changing the exception so other tests
 turn green will not authorize unreviewed co-repair. Preserve the lifecycle
 obligation through any infrastructure/contract transition and require fresh CI
@@ -174,7 +193,7 @@ Retained local evidence (also downloadable from the linked runs):
 - Known unfixed failures are allowed only under strict classification checks. New failures, changed unapproved classifications, unexpected passes, missing cases and accepted-test regressions block. Do not normalize away behavior changes.
 - **No original full matrix per fix.** Run final full validation only after the eligible sweep and dispositions are complete. No unchanged post-review CI rerun is needed.
 - Integration verifies exact tested commit/tree, runtime, profile, artifacts, three reviews, current-base lease and permanent ledger before moving the branch. Agents do not self-certify acceptance.
-- Bounds: three candidate attempts, two infrastructure retries per stage/role, max 40 workflow runs per campaign. Inconclusive evidence stops immediately.
+- Bounds: three candidate attempts, two infrastructure retries per stage/role, max 40 workflow runs per campaign. Inconclusive evidence blocks that candidate; the hosted queue records the disposition and can continue independent approved issues. It must never weaken acceptance to keep moving.
 - Exactly three #2854 process jobs remain quarantined for the missing RawPageListFixture compilation blocker. They are unverified, not fixed. No blanket quarantine is authorized.
 
 ## Remaining queue and prepared runtime changes
@@ -186,9 +205,8 @@ python .github/bugfix/serial_queue.py --repo litedb-org/LiteDB --workflow-sha 61
 ```
 
 #1506 is accepted, #1002 blocked, and the sixteen issues after it have not started
-in this queue. Preserve campaign names and journals when resuming compatible
-work. Check no other controller is running before launching one. A dry-run is
-read-only, but also refuses incompatible or blocked campaign state.
+in this old queue. Preserve its campaign names and journals as historical
+evidence. Do not launch this local queue alongside the hosted scheduler.
 
 The mutable preparation branch has **28 approved contracts**, versus v8's 21.
 The additional seven are #2746, #2807, #1829, #1444, #2860, #2870 and #2367.
@@ -201,7 +219,7 @@ These are prepared, not swept. Important changes awaiting a new immutable runtim
 - #2367 (`e6d76f7d`): three captured-member regressions, two genuine controls, Ubuntu net8/net10, original/repeat evidence independently reviewed. Guard53 has no exemption. The vacuous array-navigation test is not a control.
 - Combined latest checks passed **210 controller + 122 gate + 87 workflow/helper tests**. A future canary must still validate these runtime changes in GitHub.
 
-No v9 runtime ref has been created. For a transition, drain/pause the old queue
+No v9 runtime ref has been created at this snapshot. For a transition, drain/pause the old queue
 at an explicit boundary, finish existing evidence under its original runtime,
 verify no old controller remains, then start fresh campaigns on the current
 integration base and ledger under the new immutable pin. Never silently rewrite
@@ -231,6 +249,7 @@ gh run view 35013331767 -R litedb-org/LiteDB
 
 Read the [plan](https://github.com/litedb-org/LiteDB/blob/automation/wholesale-bugfix/docs/Tasks/Wholesale-Bugfix/README.md),
 [controller runbook](https://github.com/litedb-org/LiteDB/blob/automation/wholesale-bugfix/.github/bugfix/README.md),
+[hosted runbook](https://github.com/litedb-org/LiteDB/blob/automation/wholesale-bugfix/docs/Tasks/Wholesale-Bugfix/HOSTED-SWEEP.md),
 [serial queue runbook](https://github.com/litedb-org/LiteDB/blob/automation/wholesale-bugfix/.github/bugfix/QUEUE.md),
 and [canary log](https://github.com/litedb-org/LiteDB/blob/automation/wholesale-bugfix/docs/Tasks/Wholesale-Bugfix/Canary-log.md).
 Run relevant checks for any changed controller/gate logic, use structured evidence
