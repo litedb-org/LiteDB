@@ -24,6 +24,10 @@ class M111ContractTests(unittest.TestCase):
         current = json.loads(MANIFEST.read_text(encoding="utf-8"))
         self.assertEqual(21, len(before["issues"]))
         contract = current["issues"]["1224"]
+        approved = json.loads(subprocess.check_output([
+            "git", "-C", str(ROOT), "show",
+            "dc7c03ac7c44cbe8708d9961f5d53fab7780a10e:scripts/bugfix/issues.json"]))["issues"]["1224"]
+        self.assertEqual(approved, contract)
         self.assertEqual({"name": NAME, "failure_first_line": FAILURE}, contract["regressions"].pop())
         self.assertEqual(EVIDENCE["frozen_test_blob"], contract["frozen_test_blobs"].pop(EVIDENCE["frozen_test_path"]))
         suffix = "|FullyQualifiedName=" + NAME
@@ -31,7 +35,10 @@ class M111ContractTests(unittest.TestCase):
         contract["filter"] = contract["filter"][:-len(suffix)]
         self.assertIn("all six permanently accepted #2869", contract["review_requirements"]["behavior"].pop())
         self.assertIn("precision already lost", contract["review_requirements"]["compatibility"].pop())
-        self.assertEqual(before, current)
+        for number, definition in before["issues"].items():
+            self.assertEqual(definition, current["issues"][number], number)
+        self.assertEqual({key: value for key, value in before.items() if key != "issues"},
+                         {key: value for key, value in current.items() if key != "issues"})
 
     def test_all_six_observations_bind_original_frozen_case_and_artifact_hash(self):
         wave = json.loads((ROOT / "scripts/bugfix/fixtures/wave-three-baseline.json").read_text(encoding="utf-8"))

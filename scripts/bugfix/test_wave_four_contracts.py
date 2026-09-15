@@ -33,8 +33,18 @@ class WaveFourContracts(unittest.TestCase):
             "git", "-C", str(ROOT), "show", "58440a15d433caacbd44af2599127f9f3e13b6f4"]))
         current = json.loads(MANIFEST.read_text(encoding="utf-8"))
         self.assertEqual(21, len(previous["issues"]))
+        self.assertEqual(set(previous["issues"]) | {str(number) for number in COUNTS}, set(current["issues"]))
+        approved_m111 = json.loads(subprocess.check_output([
+            "git", "-C", str(ROOT), "show",
+            "dc7c03ac7c44cbe8708d9961f5d53fab7780a10e:scripts/bugfix/issues.json"]))["issues"]["1224"]
         for number, definition in previous["issues"].items():
-            self.assertEqual(definition, current["issues"][number], number)
+            expected = approved_m111 if number == "1224" else definition
+            self.assertEqual(expected, current["issues"][number], number)
+        approved_wave = json.loads(subprocess.check_output([
+            "git", "-C", str(ROOT), "show",
+            "1aeb49ad5e1447c6268d2321a660e007be689656:scripts/bugfix/issues.json"]))
+        for number in COUNTS:
+            self.assertEqual(approved_wave["issues"][str(number)], current["issues"][str(number)])
 
     def test_original_blobs_include_all_neighbor_control_files(self):
         for number in COUNTS:
