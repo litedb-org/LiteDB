@@ -3,12 +3,6 @@ name: Wholesale bugfix agent canary
 description: Verify the Codex worker can read the regression contract and return checked evidence.
 on:
   bots: ["github-actions[bot]"]
-  push:
-    branches: [automation/wholesale-bugfix]
-    paths:
-      - .github/workflows/bugfix-agent-canary.md
-      - .github/workflows/bugfix-agent-canary.lock.yml
-      - .github/scripts/*gh_aw*.py
   workflow_dispatch:
 permissions:
   contents: read

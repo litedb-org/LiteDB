@@ -33,6 +33,13 @@ jobs:
                 text = (workflows / name).read_text(encoding="utf-8")
                 bots = [line.strip() for line in text.splitlines() if "GH_AW_ALLOWED_BOTS:" in line]
                 roles = [line.strip() for line in text.splitlines() if "GH_AW_REQUIRED_ROLES:" in line]
+                if name == 'bugfix-agent-canary.lock.yml':
+                    # Dispatch authorization is enforced by GitHub itself. The
+                    # compiler omits pre-activation for dispatch-only workflows.
+                    self.assertIn('\n  workflow_dispatch:', text)
+                    self.assertNotIn('\n  push:', text)
+                    self.assertNotIn('\n  pre_activation:', text)
+                    continue
                 self.assertTrue(bots, "Controller bot must be allowed through activation")
                 self.assertEqual({'GH_AW_ALLOWED_BOTS: "github-actions[bot]"'}, set(bots))
                 self.assertTrue(roles, "Human role checks must remain enabled")

@@ -15,6 +15,7 @@ from pathlib import Path
 
 from patch_gh_aw_budget_evidence import insert_budget_evidence
 from patch_gh_aw_accounting import insert_accounting
+from patch_gh_aw_daily_guard import insert_daily_guard
 
 
 CONFIG_WRITE = '> "${RUNNER_TEMP}/gh-aw/awf-config.json"'
@@ -283,6 +284,7 @@ def patch_lockfile(path: Path) -> bool:
     lines, reasoning_effort_count = insert_codex_reasoning_effort(lines)
     lines, detection_redaction_count = insert_detection_redaction(lines)
     lines = insert_runtime_probe(lines)
+    lines = insert_daily_guard(path, lines)
     lines = insert_budget_evidence(path, lines)
     lines = insert_accounting(path, lines)
     lines = [line.rstrip() for line in lines]

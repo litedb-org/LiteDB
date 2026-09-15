@@ -130,8 +130,8 @@ literal argument passing, token scope, time limits, and status publication guard
 ## Daily credit deferrals
 
 The maintained gh-aw compiler patch emits artifact `bugfix-budget` containing
-`budget-status.json` only when activation explicitly reports its daily limit
-exceeded. A fresh conclusion runner writes the file from trusted job outputs;
+`budget-status.json` when activation explicitly reports its daily limit
+exceeded or cannot establish complete accounting. A fresh conclusion runner writes the file from trusted job outputs;
 agent text and an arbitrary skipped job cannot produce this disposition.
 The report contains schema version, run ID/attempt, immutable workflow SHA,
 positive finite threshold, observed total, `exceeded: true`, and observation time.
@@ -142,6 +142,13 @@ artifact and skipped agent before applying a conservative 24-hour cooldown. Keep
 the report digest in durable state. Missing or malformed reports are not budget
 deferrals. A budget pause must not consume a failed-fix/infrastructure attempt;
 the existing total dispatch cap still bounds repeated work. No cap is disabled.
+
+The separate `accounting_unavailable` report has only schema version, run
+ID/attempt, workflow SHA, that status, and observation time. It does not invent
+a usage total. The scheduler authenticates it in the same way and retries after
+15 minutes without charging a fix/infrastructure failure. Partial enumeration,
+API failures, or changed pinned helper source prevent model execution until a
+later tick can establish accounting. Thus a temporary outage needs no operator.
 
 Observed accounting defect: v8's framework daily-usage cache recorded zero
 credits for workers whose proxy logs and collector metadata reported positive
@@ -165,10 +172,29 @@ upgrading the parser or model catalog. Tests cover conservative failure paths
 and canonical publication order. A hosted canary must still verify the resulting
 usage artifact/cache and subsequent activation guard in Actions.
 
-Existing historical v8 zero cache entries are not rewritten by this future-run
-correction. They can understate the initial rolling window until they age out;
-an audited historical backfill is required to claim a corrected historical total.
+Existing historical v8 zero entries are not rewritten. The guard rechecks their
+artifacts and takes the greater of the legacy parser total and cumulative totals
+from the existing bounded `agent/token_usage.jsonl`, validating both. This needs no extra
+artifact download. It reserves the full per-run allowance only if usage remains zero and an
+authenticated job listing does not prove the agent was skipped. This is a
+conservative reservation, not reconstruction of actual historic charges; old
+usage may have exceeded its allowance. An audited historical backfill is required
+to claim an exact historical total. These reservations age out of the rolling
+window automatically.
+
+The adapter enables the check for worker dispatches: the original pinned helper
+deliberately bypassed them. It enumerates completed runs for the current workflow
+ID and retrieves usage artifacts for cache misses. The retained pinned-source
+replay verifies three concurrent reviews where a cache fork contains only one:
+both missing reviews are fetched and all three counted. Cache lineage therefore
+does not silently omit completed reviews. In-flight parallel runs are not yet
+counted and can overshoot the admission threshold by their bounded allowances.
 The default 5000 daily threshold and AWF per-run limits (2000 fixer, 1000 reviewer)
-are unchanged. Collector metadata alone is not a daily-budget enforcer. All
+are unchanged. The daily threshold applies separately to the fix and validation
+workflow IDs; it is not a global spending ceiling. Collector metadata alone is
+not a daily-budget enforcer. All
 credits use conservative accounting assumptions, not actual provider charges;
 the budget evidence does not establish a monetary spending SLA.
+
+The read-only endpoint/agent canary is now dispatch-only. Compiler-helper pushes
+do not automatically spend another 500-credit canary allowance.

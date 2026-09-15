@@ -41,6 +41,15 @@ class BudgetEvidenceTests(unittest.TestCase):
             with self.subTest(changes=changes), self.assertRaises(SystemExit):
                 self.report(**changes)
 
+    def test_unknown_accounting_is_distinct_from_exceeded(self):
+        report = self.report(BUDGET_STATUS='accounting_unavailable', BUDGET_EXCEEDED='false',
+                             BUDGET_THRESHOLD='', BUDGET_TOTAL='')
+        self.assertEqual({'schema_version', 'run_id', 'run_attempt', 'workflow_sha', 'status',
+                          'observed_at'}, set(report))
+        self.assertEqual('accounting_unavailable', report['status'])
+        with self.assertRaises(SystemExit):
+            self.report(BUDGET_STATUS='accounting_unavailable')
+
     def test_patch_is_idempotent_and_only_uses_trusted_job_outputs(self):
         fixture = ['  activation:', '    outputs:', '      daily_ai_credits_exceeded: value',
                    '      daily_ai_credits_threshold: value', '      daily_ai_credits_total_effective_tokens: value',

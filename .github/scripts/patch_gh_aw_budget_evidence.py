@@ -14,20 +14,25 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 env = os.environ
-if env['BUDGET_EXCEEDED'] != 'true':
-    raise SystemExit('Budget deferral requires an explicit exceeded decision')
-threshold = float(env['BUDGET_THRESHOLD'])
-total = float(env['BUDGET_TOTAL'])
-if not math.isfinite(threshold) or threshold <= 0 or not math.isfinite(total) or total < threshold:
-    raise SystemExit('Invalid daily budget accounting evidence')
 if not re.fullmatch(r'[0-9a-f]{40}', env['BUDGET_WORKFLOW_SHA']):
     raise SystemExit('Budget evidence requires the immutable workflow SHA')
 if not all(re.fullmatch(r'[1-9][0-9]*', env[key]) for key in ('GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT')):
     raise SystemExit('Budget evidence requires a positive run ID and attempt')
 report = {'schema_version': 1, 'run_id': int(env['GITHUB_RUN_ID']),
           'run_attempt': int(env['GITHUB_RUN_ATTEMPT']), 'workflow_sha': env['BUDGET_WORKFLOW_SHA'],
-          'exceeded': True, 'threshold': threshold, 'total': total,
           'observed_at': datetime.now(timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z')}
+if env.get('BUDGET_STATUS') == 'accounting_unavailable':
+    if env['BUDGET_EXCEEDED'] == 'true':
+        raise SystemExit('Ambiguous budget disposition')
+    report['status'] = 'accounting_unavailable'
+else:
+    if env['BUDGET_EXCEEDED'] != 'true':
+        raise SystemExit('Budget deferral requires an explicit exceeded decision')
+    threshold = float(env['BUDGET_THRESHOLD'])
+    total = float(env['BUDGET_TOTAL'])
+    if not math.isfinite(threshold) or threshold <= 0 or not math.isfinite(total) or total < threshold:
+        raise SystemExit('Invalid daily budget accounting evidence')
+    report.update(exceeded=True, threshold=threshold, total=total)
 root = Path(env['RUNNER_TEMP']) / 'bugfix-budget'
 root.mkdir(parents=True, exist_ok=False)
 (root / 'budget-status.json').write_text(json.dumps(report, sort_keys=True) + '\\n', encoding='utf-8')
@@ -38,8 +43,9 @@ def evidence_steps():
     return [
         MARKER,
         "        id: bugfix-budget",
-        "        if: always() && needs.activation.outputs.daily_ai_credits_exceeded == 'true'",
+        "        if: always() && (needs.activation.outputs.daily_ai_credits_exceeded == 'true' || needs.activation.outputs.bugfix_budget_status == 'accounting_unavailable')",
         "        env:",
+        "          BUDGET_STATUS: ${{ needs.activation.outputs.bugfix_budget_status }}",
         "          BUDGET_EXCEEDED: ${{ needs.activation.outputs.daily_ai_credits_exceeded }}",
         "          BUDGET_THRESHOLD: ${{ needs.activation.outputs.daily_ai_credits_threshold }}",
         "          BUDGET_TOTAL: ${{ needs.activation.outputs.daily_ai_credits_total_effective_tokens }}",
