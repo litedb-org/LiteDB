@@ -1154,6 +1154,265 @@
           "Preserve mapper initialization, entity configuration isolation, factory invocation count and concurrent readers. Do not globally disable member population or swallow factory failures."
         ]
       }
+    },
+    "2746": {
+      "inventory_issue": 2746,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2746_Tests.cs": "3b4d3213b45bb1fd1a2ab9157f2a3463c016da42"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue2746_",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Engine/Services/CollectionService.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2746_Tests.Initial_digit_error_explains_the_position_rule_and_preserves_committed_data",
+          "failure_first_line": "Expected failure.Message to match regex \"(?i)(?:(?:cannot|can't|must not|may not)\\s+(?:start|begin).{0,40}(?:digit|number|0-9)|(?:must|should)\\s+(?:start|begin).{0,40}(?:letter|alphabetic)|(?:first|initial)\\s+character.{0,30}(?:cannot|must not|may not).{0,30}(?:digit|number|0-9))\" because the diagnostic must explain the initial-digit restriction, not only list allowed characters, but \"Invalid collection name '2e4e2069_da7c_4dbd_8c11_a5ac31041079': Use only [a-Z$_]\" does not match."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2746_Tests.Collection_name_contract_distinguishes_initial_digits_from_later_digits(name: \"2e4e2069_da7c_4dbd_8c11_a5ac31041079\", valid: False)"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2746_Tests.Collection_name_contract_distinguishes_initial_digits_from_later_digits(name: \"_2\", valid: True)"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2746_Tests.Collection_name_contract_distinguishes_initial_digits_from_later_digits(name: \"a2e4e2069_da7c_4dbd_8c11_a5ac31041079\", valid: True)"
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Preserve the collection-name grammar, INVALID_COLLECTION_NAME error code and rejected-write boundary. Explain the initial-digit restriction without accepting previously invalid names or rejecting valid later digits."
+        ],
+        "compatibility": [
+          "Preserve committed documents and subsequent valid writes after invalid collection creation, including checkpoint and reopen. Do not change file format or collection naming acceptance to satisfy the diagnostic."
+        ]
+      }
+    },
+    "2807": {
+      "inventory_issue": 2807,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2807_Tests.cs": "bf5e8414ada777029c93c93ee07bbd2c0908e754",
+        "LiteDB.Tests/Query/QueryApi_Tests.cs": "9cef4afa20be0ef4403567e86e4e42c235a2ae26"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue2807_|FullyQualifiedName=LiteDB.Tests.QueryTest.QueryApi_Tests.Query_And|FullyQualifiedName=LiteDB.Tests.QueryTest.QueryApi_Tests.Query_StartsWith",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Structures/Query.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"Between\")",
+          "failure_first_line": "Expected first.Source to be \"$.value BETWEEN \"b\" AND \"bz\"\" because different values must not require recompilation, but \"$.value BETWEEN \"a\" AND \"az\"\" differs near \"a\" \" (index 17)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"Contains\")",
+          "failure_first_line": "Expected first.Source to be \"$.value LIKE \"%b%\"\" because different values must not require recompilation, but \"$.value LIKE \"%a%\"\" differs near \"a%\"\" (index 15)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"EQ\")",
+          "failure_first_line": "Expected first.Source to be \"$.value=\"b\"\" because different values must not require recompilation, but \"$.value=\"a\"\" differs near \"a\"\" (index 9)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"EndsWith\")",
+          "failure_first_line": "Expected first.Source to be \"$.value LIKE \"%b\"\" because different values must not require recompilation, but \"$.value LIKE \"%a\"\" differs near \"a\"\" (index 15)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"GT\")",
+          "failure_first_line": "Expected first.Source to be \"$.value>\"b\"\" because different values must not require recompilation, but \"$.value>\"a\"\" differs near \"a\"\" (index 9)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"GTE\")",
+          "failure_first_line": "Expected first.Source to be \"$.value>=\"b\"\" because different values must not require recompilation, but \"$.value>=\"a\"\" differs near \"a\"\" (index 10)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"In\")",
+          "failure_first_line": "Expected first.Source to be \"$.value IN [\"b\",\"ba\"]\" because different values must not require recompilation, but \"$.value IN [\"a\",\"aa\"]\" differs near \"a\",\" (index 13)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"LT\")",
+          "failure_first_line": "Expected first.Source to be \"$.value<\"b\"\" because different values must not require recompilation, but \"$.value<\"a\"\" differs near \"a\"\" (index 9)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"LTE\")",
+          "failure_first_line": "Expected first.Source to be \"$.value<=\"b\"\" because different values must not require recompilation, but \"$.value<=\"a\"\" differs near \"a\"\" (index 10)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"Not\")",
+          "failure_first_line": "Expected first.Source to be \"$.value!=\"b\"\" because different values must not require recompilation, but \"$.value!=\"a\"\" differs near \"a\"\" (index 10)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"StartsWith\")",
+          "failure_first_line": "Expected first.Source to be \"$.value LIKE \"b%\"\" because different values must not require recompilation, but \"$.value LIKE \"a%\"\" differs near \"a%\"\" (index 14)."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.QueryTest.QueryApi_Tests.Query_And"
+        },
+        {
+          "name": "LiteDB.Tests.QueryTest.QueryApi_Tests.Query_StartsWith"
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Parameterize all eleven Query helpers while preserving independent values, operation boundaries and existing LIKE wildcard/literal semantics. Compare Query.And/Or/Not composition and parameter-name collisions; equal expression source must not cause different queries to share values. The separate Query_And and Query_StartsWith controls execute actual database queries against in-memory expected results."
+        ],
+        "lifecycle": [
+          "Review repeated and concurrent query use, cache reuse and parameter ownership. Do not introduce a shared mutable parameter dictionary or retain values from a previous expression."
+        ]
+      }
+    },
+    "1829": {
+      "inventory_issue": 1829,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue1829_Tests.cs": "dddd92292528613e080fa8eb777f2406267e8c2c"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue1829_",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue1829_Tests.Predicate_builder_or_keeps_matches_from_each_independent_predicate(idPredicateFirst: True)",
+          "failure_first_line": "Expected count to be 3, but found 1."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1829_Tests.Predicate_builder_or_matches_direct_linq_in_both_operand_orders(falseFirst: True)",
+          "failure_first_line": "Expected count to be 2, but found 0 (difference of -2)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1829_Tests.Predicate_builder_or_preserves_same_named_nested_parameter_scopes(falseFirst: True)",
+          "failure_first_line": "Expected count to be 2, but found 0 (difference of -2)."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue1829_Tests.Predicate_builder_or_keeps_matches_from_each_independent_predicate(idPredicateFirst: False)"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1829_Tests.Predicate_builder_or_matches_direct_linq_in_both_operand_orders(falseFirst: False)"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1829_Tests.Predicate_builder_or_preserves_same_named_nested_parameter_scopes(falseFirst: False)"
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Preserve invocation argument binding by parameter identity, not parameter name. Both operand orders, independent predicates and same-named nested scopes must return the hard-coded IDs, with Count equal to enumeration. Do not rewrite the frozen PredicateBuilder helper or coerce all nested parameters into the root scope. Review interaction with #2770/#2779/#2322 in LinqExpressionVisitor and keep their accepted cases passing."
+        ]
+      }
+    },
+    "1444": {
+      "inventory_issue": 1444,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue1444_Tests.cs": "322c10d4a4c2aa51bafb0fd6a18f0bb7fe227a5f"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue1444_",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Document/ObjectId.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue1444_Tests.Comparison_follows_the_unsigned_timestamp_then_the_remaining_bytes(earlierHex: \"7fffffffffffffffffffffff\", laterHex: \"800000000000000000000000\")",
+          "failure_first_line": "Expected earlier.CompareTo(later) to be less than 0, but found 1 (difference of 1)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1444_Tests.Primary_index_round_trips_and_orders_the_full_unsigned_timestamp_range",
+          "failure_first_line": "Expected actual to be equal to {000000001122334455667788, 7fffffff1122334455667788, 800000001122334455667788, ffffffff1122334455667788} because FindAll must follow the ObjectId primary-index order, but {800000001122334455667788, ffffffff1122334455667788, 000000001122334455667788, 7fffffff1122334455667788} differs at index 0."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1444_Tests.Timestamp_bits_round_trip_and_creation_time_uses_unsigned_seconds(expectedBytes: [128, 0, 0, 0, 17, ···], expectedHex: \"800000001122334455667788\", expectedTimestamp: 2147483648, expectedCreationTime: 2038-01-19T03:14:08.0000000Z)",
+          "failure_first_line": "Expected fromBytes.CreationTime to be <2038-01-19 03:14:08>, but found <1901-12-13 20:45:52>."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1444_Tests.Timestamp_bits_round_trip_and_creation_time_uses_unsigned_seconds(expectedBytes: [255, 255, 255, 255, 17, ···], expectedHex: \"ffffffff1122334455667788\", expectedTimestamp: 4294967295, expectedCreationTime: 2106-02-07T06:28:15.0000000Z)",
+          "failure_first_line": "Expected fromBytes.CreationTime to be <2106-02-07 06:28:15>, but found <1969-12-31 23:59:59>."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue1444_Tests.Comparison_follows_the_unsigned_timestamp_then_the_remaining_bytes(earlierHex: \"00000000ffffffffffffffff\", laterHex: \"7fffffff0000000000000000\")"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1444_Tests.Comparison_follows_the_unsigned_timestamp_then_the_remaining_bytes(earlierHex: \"800000000000000000000000\", laterHex: \"800000000000000000000001\")"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1444_Tests.Comparison_follows_the_unsigned_timestamp_then_the_remaining_bytes(earlierHex: \"80000000ffffffffffffffff\", laterHex: \"ffffffff0000000000000000\")"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1444_Tests.Timestamp_bits_round_trip_and_creation_time_uses_unsigned_seconds(expectedBytes: [0, 0, 0, 0, 17, ···], expectedHex: \"000000001122334455667788\", expectedTimestamp: 0, expectedCreationTime: 1970-01-01T00:00:00.0000000Z)"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1444_Tests.Timestamp_bits_round_trip_and_creation_time_uses_unsigned_seconds(expectedBytes: [127, 255, 255, 255, 17, ···], expectedHex: \"7fffffff1122334455667788\", expectedTimestamp: 2147483647, expectedCreationTime: 2038-01-19T03:14:07.0000000Z)"
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Interpret the ObjectId timestamp bits as unsigned seconds for CreationTime and ordering while preserving the remaining-byte tie break, equality, JSON and 12-byte wire representation. Preserve accepted #2874 constructor window validation."
+        ],
+        "compatibility": [
+          "Examine old ObjectId indexes written with signed timestamp ordering, especially mixed pre/post-2038 keys: lookup, range traversal and insert behavior under a new comparer may require rebuild or migration. The frozen primary-index test creates a fresh database and does not prove old indexes are compatible; generic vector compatibility does not exercise this ordering. Supply evidence and explicitly report unresolved compatibility limitations. Preserve the public Timestamp API type/ABI and raw timestamp bits unless an independently reviewed API change is authorized."
+        ]
+      }
     }
   }
 }

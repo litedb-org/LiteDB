@@ -392,3 +392,7 @@ The queue covers ten additional deterministic reproduced reports, not the comple
 ## Further bounded preparation
 
 [WAVE-3.md](WAVE-3.md) prepares eight additional ordinary reports with exact neighboring controls and records #2860/#2870 deferrals. It preserves the thirteen contracts prepared here and belongs to a later immutable runtime.
+
+## Fourth bounded preparation
+
+See [WAVE-4.md](WAVE-4.md) for four further exact contracts (#2746/#2807/#1829/#1444), preserved six-lane evidence, compact profiles and held source-observation/environment candidates.

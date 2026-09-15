@@ -41,7 +41,7 @@ class ProfileSelectionTests(unittest.TestCase):
                 self.assertEqual([], profile["targeted_test_filters"])
 
     def test_another_issue_in_same_file_does_not_inherit_small_profile(self):
-        profile = self.profile(["LiteDB/Document/ObjectId.cs"], issue=1444)
+        profile = self.profile(["LiteDB/Document/ObjectId.cs"], issue=9999)
         self.assertEqual(6, len(profile["required_lanes"]))
         self.assertTrue(profile["compatibility"])
 

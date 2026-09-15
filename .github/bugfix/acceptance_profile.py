@@ -11,8 +11,10 @@ import sys
 
 
 POLICY = {
-    "version": "compressed-acceptance-v4",
+    "version": "compressed-acceptance-v5",
     "ordinary_pairs": {
+        "2807": ["LiteDB/Client/Structures/Query.cs"],
+        "1829": ["LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs"],
         "1159": ["LiteDB/Client/Mapper/EntityBuilder.cs"],
         "2322": ["LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs"],
         "2874": ["LiteDB/Document/ObjectId.cs"],
@@ -26,6 +28,8 @@ POLICY = {
         "2871": ["LiteDB/Client/Mapper/Reflection/Reflection.cs"],
     },
     "compatibility_pairs": {
+        "1444": {"paths": ["LiteDB/Document/ObjectId.cs"],
+                 "tests": ["LiteDB.Tests.Document.ObjectId_Tests"]},
         "1224": {
             "paths": [
                 "LiteDB/Document/BsonValue.cs"

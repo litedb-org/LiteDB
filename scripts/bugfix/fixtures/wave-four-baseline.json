@@ -1,0 +1,539 @@
+{
+  "schema_version": 1,
+  "source_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+  "workflow_sha": "7629236e73bde318e934509244c3e61ef820d8db",
+  "run_id": 34988724926,
+  "artifacts": [
+    {
+      "id": 10405370121,
+      "name": "bugfix-check-ubuntu-latest-net8.0",
+      "baseline_trx_sha256": "a4d3b367c661fa8768fbb8668d4a8827713618fa3b488f15f02ca1607c8bd56b"
+    },
+    {
+      "id": 10405505060,
+      "name": "bugfix-check-ubuntu-latest-net10.0",
+      "baseline_trx_sha256": "d4d7854e6d5e036da9d1ad92ac4f5aebe0a23b8033fe5a50f9793dcf18cbe423"
+    },
+    {
+      "id": 10404073794,
+      "name": "bugfix-check-windows-latest-net8.0",
+      "baseline_trx_sha256": "931cbd570f47bf6a376f11dde76c0ecf1399f9d742acf0f90eeb9463d781bdf0"
+    },
+    {
+      "id": 10404574219,
+      "name": "bugfix-check-windows-latest-net10.0",
+      "baseline_trx_sha256": "789212a8598feb82270173bbc4b6e152682e4b1177a51ab6f7ad67d1dcc0c08e"
+    },
+    {
+      "id": 10405111338,
+      "name": "bugfix-check-macos-latest-net8.0",
+      "baseline_trx_sha256": "c069b53a2512adcd39c9ecf0bbf1d1329ff1371fa21228dbf4de3923340ee719"
+    },
+    {
+      "id": 10405450249,
+      "name": "bugfix-check-macos-latest-net10.0",
+      "baseline_trx_sha256": "487ac255e77785b858569e7dbbd93a1e5422db470aae03c8c0d71741709b4e08"
+    }
+  ],
+  "issues": {
+    "2746": {
+      "source_blobs": {
+        "LiteDB.Tests/Issues/Issue2746_Tests.cs": "3b4d3213b45bb1fd1a2ab9157f2a3463c016da42"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue2746_",
+      "paths": [
+        "LiteDB/Engine/Services/CollectionService.cs"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0"
+      ],
+      "neighbor_controls": {},
+      "cases": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2746_Tests.Collection_name_contract_distinguishes_initial_digits_from_later_digits(name: \"2e4e2069_da7c_4dbd_8c11_a5ac31041079\", valid: False)",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2746_Tests.Collection_name_contract_distinguishes_initial_digits_from_later_digits(name: \"_2\", valid: True)",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2746_Tests.Collection_name_contract_distinguishes_initial_digits_from_later_digits(name: \"a2e4e2069_da7c_4dbd_8c11_a5ac31041079\", valid: True)",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2746_Tests.Initial_digit_error_explains_the_position_rule_and_preserves_committed_data",
+          "outcome": "Failed",
+          "first_line": "Expected failure.Message to match regex \"(?i)(?:(?:cannot|can't|must not|may not)\\s+(?:start|begin).{0,40}(?:digit|number|0-9)|(?:must|should)\\s+(?:start|begin).{0,40}(?:letter|alphabetic)|(?:first|initial)\\s+character.{0,30}(?:cannot|must not|may not).{0,30}(?:digit|number|0-9))\" because the diagnostic must explain the initial-digit restriction, not only list allowed characters, but \"Invalid collection name '2e4e2069_da7c_4dbd_8c11_a5ac31041079': Use only [a-Z$_]\" does not match."
+        }
+      ]
+    },
+    "2807": {
+      "source_blobs": {
+        "LiteDB.Tests/Issues/Issue2807_Tests.cs": "bf5e8414ada777029c93c93ee07bbd2c0908e754",
+        "LiteDB.Tests/Query/QueryApi_Tests.cs": "9cef4afa20be0ef4403567e86e4e42c235a2ae26"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue2807_|FullyQualifiedName=LiteDB.Tests.QueryTest.QueryApi_Tests.Query_And|FullyQualifiedName=LiteDB.Tests.QueryTest.QueryApi_Tests.Query_StartsWith",
+      "paths": [
+        "LiteDB/Client/Structures/Query.cs"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0"
+      ],
+      "neighbor_controls": {
+        "LiteDB.Tests.QueryTest.QueryApi_Tests.Query_And": "LiteDB.Tests/Query/QueryApi_Tests.cs",
+        "LiteDB.Tests.QueryTest.QueryApi_Tests.Query_StartsWith": "LiteDB.Tests/Query/QueryApi_Tests.cs"
+      },
+      "cases": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"Between\")",
+          "outcome": "Failed",
+          "first_line": "Expected first.Source to be \"$.value BETWEEN \"b\" AND \"bz\"\" because different values must not require recompilation, but \"$.value BETWEEN \"a\" AND \"az\"\" differs near \"a\" \" (index 17)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"Contains\")",
+          "outcome": "Failed",
+          "first_line": "Expected first.Source to be \"$.value LIKE \"%b%\"\" because different values must not require recompilation, but \"$.value LIKE \"%a%\"\" differs near \"a%\"\" (index 15)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"EQ\")",
+          "outcome": "Failed",
+          "first_line": "Expected first.Source to be \"$.value=\"b\"\" because different values must not require recompilation, but \"$.value=\"a\"\" differs near \"a\"\" (index 9)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"EndsWith\")",
+          "outcome": "Failed",
+          "first_line": "Expected first.Source to be \"$.value LIKE \"%b\"\" because different values must not require recompilation, but \"$.value LIKE \"%a\"\" differs near \"a\"\" (index 15)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"GT\")",
+          "outcome": "Failed",
+          "first_line": "Expected first.Source to be \"$.value>\"b\"\" because different values must not require recompilation, but \"$.value>\"a\"\" differs near \"a\"\" (index 9)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"GTE\")",
+          "outcome": "Failed",
+          "first_line": "Expected first.Source to be \"$.value>=\"b\"\" because different values must not require recompilation, but \"$.value>=\"a\"\" differs near \"a\"\" (index 10)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"In\")",
+          "outcome": "Failed",
+          "first_line": "Expected first.Source to be \"$.value IN [\"b\",\"ba\"]\" because different values must not require recompilation, but \"$.value IN [\"a\",\"aa\"]\" differs near \"a\",\" (index 13)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"LT\")",
+          "outcome": "Failed",
+          "first_line": "Expected first.Source to be \"$.value<\"b\"\" because different values must not require recompilation, but \"$.value<\"a\"\" differs near \"a\"\" (index 9)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"LTE\")",
+          "outcome": "Failed",
+          "first_line": "Expected first.Source to be \"$.value<=\"b\"\" because different values must not require recompilation, but \"$.value<=\"a\"\" differs near \"a\"\" (index 10)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"Not\")",
+          "outcome": "Failed",
+          "first_line": "Expected first.Source to be \"$.value!=\"b\"\" because different values must not require recompilation, but \"$.value!=\"a\"\" differs near \"a\"\" (index 10)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"StartsWith\")",
+          "outcome": "Failed",
+          "first_line": "Expected first.Source to be \"$.value LIKE \"b%\"\" because different values must not require recompilation, but \"$.value LIKE \"a%\"\" differs near \"a%\"\" (index 14)."
+        },
+        {
+          "name": "LiteDB.Tests.QueryTest.QueryApi_Tests.Query_And",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.QueryTest.QueryApi_Tests.Query_StartsWith",
+          "outcome": "Passed",
+          "first_line": ""
+        }
+      ]
+    },
+    "1829": {
+      "source_blobs": {
+        "LiteDB.Tests/Issues/Issue1829_Tests.cs": "dddd92292528613e080fa8eb777f2406267e8c2c"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue1829_",
+      "paths": [
+        "LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "neighbor_controls": {},
+      "cases": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue1829_Tests.Predicate_builder_or_keeps_matches_from_each_independent_predicate(idPredicateFirst: False)",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1829_Tests.Predicate_builder_or_keeps_matches_from_each_independent_predicate(idPredicateFirst: True)",
+          "outcome": "Failed",
+          "first_line": "Expected count to be 3, but found 1."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1829_Tests.Predicate_builder_or_matches_direct_linq_in_both_operand_orders(falseFirst: False)",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1829_Tests.Predicate_builder_or_matches_direct_linq_in_both_operand_orders(falseFirst: True)",
+          "outcome": "Failed",
+          "first_line": "Expected count to be 2, but found 0 (difference of -2)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1829_Tests.Predicate_builder_or_preserves_same_named_nested_parameter_scopes(falseFirst: False)",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1829_Tests.Predicate_builder_or_preserves_same_named_nested_parameter_scopes(falseFirst: True)",
+          "outcome": "Failed",
+          "first_line": "Expected count to be 2, but found 0 (difference of -2)."
+        }
+      ]
+    },
+    "1444": {
+      "source_blobs": {
+        "LiteDB.Tests/Issues/Issue1444_Tests.cs": "322c10d4a4c2aa51bafb0fd6a18f0bb7fe227a5f"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue1444_",
+      "paths": [
+        "LiteDB/Document/ObjectId.cs"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "neighbor_controls": {},
+      "cases": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue1444_Tests.Comparison_follows_the_unsigned_timestamp_then_the_remaining_bytes(earlierHex: \"00000000ffffffffffffffff\", laterHex: \"7fffffff0000000000000000\")",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1444_Tests.Comparison_follows_the_unsigned_timestamp_then_the_remaining_bytes(earlierHex: \"7fffffffffffffffffffffff\", laterHex: \"800000000000000000000000\")",
+          "outcome": "Failed",
+          "first_line": "Expected earlier.CompareTo(later) to be less than 0, but found 1 (difference of 1)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1444_Tests.Comparison_follows_the_unsigned_timestamp_then_the_remaining_bytes(earlierHex: \"800000000000000000000000\", laterHex: \"800000000000000000000001\")",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1444_Tests.Comparison_follows_the_unsigned_timestamp_then_the_remaining_bytes(earlierHex: \"80000000ffffffffffffffff\", laterHex: \"ffffffff0000000000000000\")",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1444_Tests.Primary_index_round_trips_and_orders_the_full_unsigned_timestamp_range",
+          "outcome": "Failed",
+          "first_line": "Expected actual to be equal to {000000001122334455667788, 7fffffff1122334455667788, 800000001122334455667788, ffffffff1122334455667788} because FindAll must follow the ObjectId primary-index order, but {800000001122334455667788, ffffffff1122334455667788, 000000001122334455667788, 7fffffff1122334455667788} differs at index 0."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1444_Tests.Timestamp_bits_round_trip_and_creation_time_uses_unsigned_seconds(expectedBytes: [0, 0, 0, 0, 17, ···], expectedHex: \"000000001122334455667788\", expectedTimestamp: 0, expectedCreationTime: 1970-01-01T00:00:00.0000000Z)",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1444_Tests.Timestamp_bits_round_trip_and_creation_time_uses_unsigned_seconds(expectedBytes: [127, 255, 255, 255, 17, ···], expectedHex: \"7fffffff1122334455667788\", expectedTimestamp: 2147483647, expectedCreationTime: 2038-01-19T03:14:07.0000000Z)",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1444_Tests.Timestamp_bits_round_trip_and_creation_time_uses_unsigned_seconds(expectedBytes: [128, 0, 0, 0, 17, ···], expectedHex: \"800000001122334455667788\", expectedTimestamp: 2147483648, expectedCreationTime: 2038-01-19T03:14:08.0000000Z)",
+          "outcome": "Failed",
+          "first_line": "Expected fromBytes.CreationTime to be <2038-01-19 03:14:08>, but found <1901-12-13 20:45:52>."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1444_Tests.Timestamp_bits_round_trip_and_creation_time_uses_unsigned_seconds(expectedBytes: [255, 255, 255, 255, 17, ···], expectedHex: \"ffffffff1122334455667788\", expectedTimestamp: 4294967295, expectedCreationTime: 2106-02-07T06:28:15.0000000Z)",
+          "outcome": "Failed",
+          "first_line": "Expected fromBytes.CreationTime to be <2106-02-07 06:28:15>, but found <1969-12-31 23:59:59>."
+        }
+      ]
+    }
+  },
+  "held": {
+    "2801": {
+      "reason": "Source guard 110 observes the defective constructor. Review any descriptive-rejection support loss and accepted #2869/#1224 interactions separately.",
+      "source_guard_ids": [
+        110
+      ],
+      "source_blobs": {
+        "LiteDB.Tests/Issues/Issue2801_Tests.cs": "d5865191b627281db209d432356001da8c2048df"
+      },
+      "reference_cases": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2801_Tests.Descriptive_collection_rejection_must_not_disable_supported_object_values",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2801_Tests.Object_constructor_array_inputs_are_complete_mutable_values_or_are_clearly_rejected(description: \"fixed BsonValue array\", source: [\"head\", null, \"tail\"])",
+          "outcome": "Failed",
+          "first_line": "Expected ((object)array) not to be <null>."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2801_Tests.Object_constructor_array_inputs_are_complete_mutable_values_or_are_clearly_rejected(description: \"mutable IList<BsonValue>\", source: [\"head\", null, \"tail\"])",
+          "outcome": "Failed",
+          "first_line": "Expected ((object)array) not to be <null>."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2801_Tests.Object_constructor_array_inputs_are_complete_mutable_values_or_are_clearly_rejected(description: \"read-only IList<BsonValue>\", source: [\"head\", null, \"tail\"])",
+          "outcome": "Failed",
+          "first_line": "Expected ((object)array) not to be <null>."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2801_Tests.Object_constructor_array_inputs_are_complete_mutable_values_or_are_clearly_rejected(description: \"string array\", source: [\"head\", null, \"tail\"])",
+          "outcome": "Failed",
+          "first_line": "Expected ((object)array) not to be <null>."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2801_Tests.Object_constructor_dictionary_inputs_use_mutable_BsonDocument_semantics_or_are_clearly_rejected(description: \"IDictionary<string, BsonValue>\", source: [[\"Name\"] = \"first\", [\"Nothing\"] = null])",
+          "outcome": "Failed",
+          "first_line": "Expected ((object)document) not to be <null>."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2801_Tests.Object_constructor_dictionary_inputs_use_mutable_BsonDocument_semantics_or_are_clearly_rejected(description: \"IDictionary<string, object>\", source: [[\"Name\"] = \"first\", [\"Nothing\"] = null])",
+          "outcome": "Failed",
+          "first_line": "Expected ((object)document) not to be <null>."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2801_Tests.Object_constructor_dictionary_inputs_use_mutable_BsonDocument_semantics_or_are_clearly_rejected(description: \"read-only IDictionary<string, BsonValue>\", source: [[\"Name\"] = \"first\", [\"Nothing\"] = null])",
+          "outcome": "Failed",
+          "first_line": "Expected ((object)document) not to be <null>."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2801_Tests.Wrapped_array_equality_and_hash_are_consistent_after_independent_value_checks",
+          "outcome": "Failed",
+          "first_line": "Expected ((object)wrapped.AsArray) not to be <null>."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2801_Tests.Wrapped_array_maps_and_survives_binary_database_reopen",
+          "outcome": "Failed",
+          "first_line": "Expected ((object)wrapped.AsArray) not to be <null>."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2801_Tests.Wrapped_document_equality_and_hash_follow_case_insensitive_document_semantics",
+          "outcome": "Failed",
+          "first_line": "Expected ((object)wrapped.AsDocument) not to be <null>."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2801_Tests.Wrapped_document_maps_and_preserves_case_insensitive_id_and_index_on_reopen",
+          "outcome": "Failed",
+          "first_line": "Expected ((object)wrapped.AsDocument) not to be <null>."
+        }
+      ],
+      "lane_differences": {}
+    },
+    "2767": {
+      "reason": "Source guard 159 observes a single short read; accumulated reads, EOF handling and a meaningful normal-stream control need separate review.",
+      "source_guard_ids": [
+        159
+      ],
+      "source_blobs": {
+        "LiteDB.Tests/Issues/Issue2767_Tests.cs": "f776fde4c540bfb4f7385e4cd393389a406e7f1f"
+      },
+      "reference_cases": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2767_Tests.Valid_short_read_stream_opens_and_returns_all_payload_bytes(chunk: 1)",
+          "outcome": "Failed",
+          "first_line": "LiteDB.LiteException : ReadFull must read PAGE_SIZE bytes [1]"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2767_Tests.Valid_short_read_stream_opens_and_returns_all_payload_bytes(chunk: 257)",
+          "outcome": "Failed",
+          "first_line": "LiteDB.LiteException : ReadFull must read PAGE_SIZE bytes [257]"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2767_Tests.Valid_short_read_stream_opens_and_returns_all_payload_bytes(chunk: 4095)",
+          "outcome": "Failed",
+          "first_line": "LiteDB.LiteException : ReadFull must read PAGE_SIZE bytes [4095]"
+        }
+      ],
+      "lane_differences": {}
+    },
+    "2819": {
+      "reason": "Source guards 38 and 149 observe extended-key reading and validation after writing. Storage format compatibility and both dispositions need separate review.",
+      "source_guard_ids": [
+        38,
+        149
+      ],
+      "source_blobs": {
+        "LiteDB.Tests/Issues/Issue2819_Tests.cs": "15b13753a83371479eb5bc568a974a9b45ead3d6"
+      },
+      "reference_cases": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2819_Tests.Clearly_oversized_unindexed_key_reports_the_sort_key_contract(binary: False)",
+          "outcome": "Failed",
+          "first_line": "Expected a <LiteDB.LiteException> to be thrown, but found <System.ArgumentOutOfRangeException>:"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2819_Tests.Clearly_oversized_unindexed_key_reports_the_sort_key_contract(binary: True)",
+          "outcome": "Failed",
+          "first_line": "Expected a <LiteDB.LiteException> to be thrown, but found <System.ArgumentOutOfRangeException>:"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2819_Tests.Extended_indexed_key_uses_the_named_index_in_an_independent_control(binary: False)",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2819_Tests.Extended_indexed_key_uses_the_named_index_in_an_independent_control(binary: True)",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2819_Tests.Extended_unindexed_sort_keys_preserve_the_entire_key(length: 1000, binary: False)",
+          "outcome": "Failed",
+          "first_line": "System.NotImplementedException : The method or operation is not implemented."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2819_Tests.Extended_unindexed_sort_keys_preserve_the_entire_key(length: 1000, binary: True)",
+          "outcome": "Failed",
+          "first_line": "System.NotImplementedException : The method or operation is not implemented."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2819_Tests.Extended_unindexed_sort_keys_preserve_the_entire_key(length: 255, binary: False)",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2819_Tests.Extended_unindexed_sort_keys_preserve_the_entire_key(length: 255, binary: True)",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2819_Tests.Extended_unindexed_sort_keys_preserve_the_entire_key(length: 256, binary: False)",
+          "outcome": "Failed",
+          "first_line": "System.NotImplementedException : The method or operation is not implemented."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2819_Tests.Extended_unindexed_sort_keys_preserve_the_entire_key(length: 256, binary: True)",
+          "outcome": "Failed",
+          "first_line": "System.NotImplementedException : The method or operation is not implemented."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2819_Tests.Extended_unindexed_sort_keys_preserve_the_entire_key(length: 300, binary: False)",
+          "outcome": "Failed",
+          "first_line": "System.NotImplementedException : The method or operation is not implemented."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2819_Tests.Extended_unindexed_sort_keys_preserve_the_entire_key(length: 300, binary: True)",
+          "outcome": "Failed",
+          "first_line": "System.NotImplementedException : The method or operation is not implemented."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2819_Tests.Maximum_legal_unindexed_key_preserves_its_last_bytes(binary: False)",
+          "outcome": "Failed",
+          "first_line": "System.NotImplementedException : The method or operation is not implemented."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2819_Tests.Maximum_legal_unindexed_key_preserves_its_last_bytes(binary: True)",
+          "outcome": "Failed",
+          "first_line": "System.NotImplementedException : The method or operation is not implemented."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2819_Tests.Unindexed_extended_keys_are_merged_from_multiple_sort_containers(binary: False)",
+          "outcome": "Failed",
+          "first_line": "System.NotImplementedException : The method or operation is not implemented."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2819_Tests.Unindexed_extended_keys_are_merged_from_multiple_sort_containers(binary: True)",
+          "outcome": "Failed",
+          "first_line": "System.NotImplementedException : The method or operation is not implemented."
+        }
+      ],
+      "lane_differences": {}
+    },
+    "2367": {
+      "reason": "net8 and net10 have different reflection exception first lines; defer to environment-aware contract design. Linq_Array_Navigation_Eval is vacuous because its assertions are commented out.",
+      "source_guard_ids": [
+        53
+      ],
+      "source_blobs": {
+        "LiteDB.Tests/Issues/Issue2367_Tests.cs": "685e88b9f143473995b39bcdcb9d769dfd613017"
+      },
+      "reference_cases": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2367_Tests.Captured_element_date_member_matches_CLR_and_tracks_changed_values(kind: \"array\")",
+          "outcome": "Failed",
+          "first_line": "System.Reflection.TargetException : Object does not match target type."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2367_Tests.Captured_element_date_member_matches_CLR_and_tracks_changed_values(kind: \"dictionary\")",
+          "outcome": "Failed",
+          "first_line": "System.Reflection.TargetException : Object does not match target type."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2367_Tests.Captured_element_date_member_matches_CLR_and_tracks_changed_values(kind: \"list\")",
+          "outcome": "Failed",
+          "first_line": "System.Reflection.TargetException : Object does not match target type."
+        }
+      ],
+      "lane_differences": {
+        "bugfix-check-ubuntu-latest-net10.0": [
+          {
+            "name": "LiteDB.Tests.Issues.Issue2367_Tests.Captured_element_date_member_matches_CLR_and_tracks_changed_values(kind: \"array\")",
+            "outcome": "Failed",
+            "first_line": "System.Reflection.TargetException : Object type LiteDB.Tests.Issues.Issue2367_Tests+Video does not match target type LiteDB.Tests.Issues.Issue2367_Tests+Video[]."
+          },
+          {
+            "name": "LiteDB.Tests.Issues.Issue2367_Tests.Captured_element_date_member_matches_CLR_and_tracks_changed_values(kind: \"dictionary\")",
+            "outcome": "Failed",
+            "first_line": "System.Reflection.TargetException : Object type LiteDB.Tests.Issues.Issue2367_Tests+Video does not match target type System.Collections.Generic.Dictionary`2[System.String,LiteDB.Tests.Issues.Issue2367_Tests+Video]."
+          },
+          {
+            "name": "LiteDB.Tests.Issues.Issue2367_Tests.Captured_element_date_member_matches_CLR_and_tracks_changed_values(kind: \"list\")",
+            "outcome": "Failed",
+            "first_line": "System.Reflection.TargetException : Object type LiteDB.Tests.Issues.Issue2367_Tests+Video does not match target type System.Collections.Generic.List`1[LiteDB.Tests.Issues.Issue2367_Tests+Video]."
+          }
+        ],
+        "bugfix-check-windows-latest-net10.0": [
+          {
+            "name": "LiteDB.Tests.Issues.Issue2367_Tests.Captured_element_date_member_matches_CLR_and_tracks_changed_values(kind: \"array\")",
+            "outcome": "Failed",
+            "first_line": "System.Reflection.TargetException : Object type LiteDB.Tests.Issues.Issue2367_Tests+Video does not match target type LiteDB.Tests.Issues.Issue2367_Tests+Video[]."
+          },
+          {
+            "name": "LiteDB.Tests.Issues.Issue2367_Tests.Captured_element_date_member_matches_CLR_and_tracks_changed_values(kind: \"dictionary\")",
+            "outcome": "Failed",
+            "first_line": "System.Reflection.TargetException : Object type LiteDB.Tests.Issues.Issue2367_Tests+Video does not match target type System.Collections.Generic.Dictionary`2[System.String,LiteDB.Tests.Issues.Issue2367_Tests+Video]."
+          },
+          {
+            "name": "LiteDB.Tests.Issues.Issue2367_Tests.Captured_element_date_member_matches_CLR_and_tracks_changed_values(kind: \"list\")",
+            "outcome": "Failed",
+            "first_line": "System.Reflection.TargetException : Object type LiteDB.Tests.Issues.Issue2367_Tests+Video does not match target type System.Collections.Generic.List`1[LiteDB.Tests.Issues.Issue2367_Tests+Video]."
+          }
+        ],
+        "bugfix-check-macos-latest-net10.0": [
+          {
+            "name": "LiteDB.Tests.Issues.Issue2367_Tests.Captured_element_date_member_matches_CLR_and_tracks_changed_values(kind: \"array\")",
+            "outcome": "Failed",
+            "first_line": "System.Reflection.TargetException : Object type LiteDB.Tests.Issues.Issue2367_Tests+Video does not match target type LiteDB.Tests.Issues.Issue2367_Tests+Video[]."
+          },
+          {
+            "name": "LiteDB.Tests.Issues.Issue2367_Tests.Captured_element_date_member_matches_CLR_and_tracks_changed_values(kind: \"dictionary\")",
+            "outcome": "Failed",
+            "first_line": "System.Reflection.TargetException : Object type LiteDB.Tests.Issues.Issue2367_Tests+Video does not match target type System.Collections.Generic.Dictionary`2[System.String,LiteDB.Tests.Issues.Issue2367_Tests+Video]."
+          },
+          {
+            "name": "LiteDB.Tests.Issues.Issue2367_Tests.Captured_element_date_member_matches_CLR_and_tracks_changed_values(kind: \"list\")",
+            "outcome": "Failed",
+            "first_line": "System.Reflection.TargetException : Object type LiteDB.Tests.Issues.Issue2367_Tests+Video does not match target type System.Collections.Generic.List`1[LiteDB.Tests.Issues.Issue2367_Tests+Video]."
+          }
+        ]
+      }
+    }
+  }
+}
