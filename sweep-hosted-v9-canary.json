@@ -24,6 +24,15 @@
         "run_id": 35023611629
       },
       "reason": "Hosted canary pause persisted successfully; resume automatic execution"
+    },
+    {
+      "action": "pause",
+      "at": 1789507409.8095036,
+      "owner": {
+        "run_attempt": 1,
+        "run_id": 35025304403
+      },
+      "reason": "Transfer the unchanged hosted-v9-1002 campaign into the approved 24-issue hosted-v9-main queue after verifying hosted dispatch, red CI, pause and automatic budget recovery; preserve this canary manifest as history"
     }
   ],
   "infrastructure_streak": 0,
@@ -46,25 +55,22 @@
   },
   "kind": "hosted-bugfix-sweep",
   "last_tick": {
-    "at": 1789507262.8093266,
-    "campaign": "hosted-v9-1002",
-    "campaign_phase": "repairing",
+    "at": 1789507409.8095067,
+    "campaign": null,
+    "campaign_phase": null,
     "counts": {
       "accepted": 0,
       "active": 1,
       "deferred": 0,
       "pending": 0
     },
-    "issue": 1002,
+    "issue": null,
     "run_attempt": 1,
-    "run_id": 35025037352,
-    "run_ids": [
-      35022768603,
-      35024027102
-    ]
+    "run_id": 35025304403,
+    "run_ids": []
   },
-  "paused": false,
-  "phase": "running",
+  "paused": true,
+  "phase": "paused",
   "schema_version": 1,
   "specification": {
     "campaign_prefix": "hosted-v9",
