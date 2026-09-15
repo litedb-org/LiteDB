@@ -82,7 +82,13 @@ and Sol with `reasoning.effort: high`; the old alias fallback no longer suppress
 the setting. Commit `67f9f77c3ffa7be39f480a5f86ab37a549efc2a1` pins this version,
 verifies both requests before inference, and records a trusted proof and readable
 GitHub summary. The [new runtime canary](https://github.com/litedb-org/LiteDB/actions/runs/34983508910)
-must finish successfully before restarting the fix campaign.
+finished successfully. Its downloaded proof confirms Codex 0.154.0 and high
+reasoning for both models on the actual GitHub runner.
+
+[Campaign v4](https://github.com/litedb-org/LiteDB/actions/runs/34984313324) uses
+immutable runtime commit `7629236e73bde318e934509244c3e61ef820d8db`. All 205
+automation tests passed before dispatch. Its new baseline still uses frozen
+source `dd937719f7eee53c512f50ac604cab639bf42a4c`.
 
 V3 is durably blocked at state commit
 `dfd372c9371f3ff99c9990c907a57bbf9ccf5bb4`; its controller and second repair worker
