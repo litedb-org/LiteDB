@@ -1,0 +1,30 @@
+{
+  "base_sha": "79e5c69cb9e6a1bcc08e919c2993aaa5401148b7",
+  "campaign": "sweep-2839-v2",
+  "candidate_sha": null,
+  "events": {},
+  "evidence": {},
+  "history": [],
+  "infrastructure_retries": {},
+  "issue": 2839,
+  "orchestration": {
+    "requests": {},
+    "worker_retries": 0,
+    "workflow_ref": "automation/bugfix-runtime-v6"
+  },
+  "passing_contract": {
+    "case_count": 7,
+    "cases_sha256": "846eeb9b3861851516702e1e3e71971c7bdbbf9a36af5ea458219fe7a3e70563",
+    "ledger_sha256": "ba0ddd4460f272085e0df611b299ecbfb90bb7799eec72f14f2e3b493cc7d6e3",
+    "schema_version": 1,
+    "state_commit": "ff3701819065d1682a3147e201a50091a0a1c206"
+  },
+  "paused": false,
+  "phase": "baseline",
+  "protocol": "compressed-v1",
+  "repair_attempts": 0,
+  "reviews": {},
+  "schema_version": 1,
+  "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+  "workflow_sha": "ebf413d240e747ead603d5076bdff6d09a35ccf3"
+}
