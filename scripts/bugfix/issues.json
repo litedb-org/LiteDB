@@ -627,6 +627,517 @@
           "Establish actual synchronization of constructor-cache reads and writes, including concurrent misses and resizing, from the candidate code. A non-Dictionary cache bypasses the deterministic monitor assertion; changing the cache type alone is not evidence of thread safety. Verify fresh object creation, safe cached factories and interface recursion, and assess concurrent execution using the separate bounded stress control. Record evidence and any limitations."
         ]
       }
+    },
+    "1159": {
+      "inventory_issue": 1159,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue1159_Tests.cs": "80fa2f0525c2d0507de042bb69af5a7677363892",
+        "LiteDB.Tests/Mapper/CustomMapping_Tests.cs": "50b42d032c84eea7ad4acf7c00da77ec2dfe745f"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue1159_|FullyQualifiedName=LiteDB.Tests.Mapper.CustomMappingCtor_Tests.Custom_Ctor_With_Custom_Id",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Mapper/EntityBuilder.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue1159_Tests.Repeated_ignore_is_idempotent_without_dropping_other_fields",
+          "failure_first_line": "System.ArgumentNullException : Value cannot be null. (Parameter 'Member 'AdjustedSum' not found in type 'Row' (use IncludeFields in BsonMapper)')"
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Mapper.CustomMappingCtor_Tests.Custom_Ctor_With_Custom_Id"
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Make repeated Ignore idempotent while preserving valid Id, Field and DbRef member selection. Do not silently accept invalid member expressions or remove unrelated fields. The independent custom-ID constructor control exercises the shared GetMember helper."
+        ]
+      }
+    },
+    "1224": {
+      "inventory_issue": 1224,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue1224_Tests.cs": "5b88c28910e569bb635d8e08af0da9a5e2478375",
+        "LiteDB.Tests/Issues/Issue2869_Tests.cs": "75f14d75945fe6912b007b9698e8d38898b02413"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue1224_|FullyQualifiedName=LiteDB.Tests.Issues.Issue2869_Tests.Native_numeric_conversions_work_and_non_numeric_values_are_not_coerced",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Document/BsonValue.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Implicit_UInt64_conversion_preserves_Int64_wire_bits(value: 18364758544493064720, signedBits: -81985529216486896, wireBytes: [16, 50, 84, 118, 152, ···])",
+          "failure_first_line": "Expected encoded.Type to be BsonType.Int64 {value: 3}, but found BsonType.Double {value: 4}."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Implicit_UInt64_conversion_preserves_Int64_wire_bits(value: 18446744073709551615, signedBits: -1, wireBytes: [255, 255, 255, 255, 255, ···])",
+          "failure_first_line": "Expected encoded.Type to be BsonType.Int64 {value: 3}, but found BsonType.Double {value: 4}."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Implicit_UInt64_conversion_preserves_Int64_wire_bits(value: 9007199254740993, signedBits: 9007199254740993, wireBytes: [1, 0, 0, 0, 0, ···])",
+          "failure_first_line": "Expected encoded.Type to be BsonType.Int64 {value: 3}, but found BsonType.Double {value: 4}."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Implicit_UInt64_conversion_preserves_Int64_wire_bits(value: 9223372036854775807, signedBits: 9223372036854775807, wireBytes: [255, 255, 255, 255, 255, ···])",
+          "failure_first_line": "Expected encoded.Type to be BsonType.Int64 {value: 3}, but found BsonType.Double {value: 4}."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Implicit_UInt64_conversion_preserves_Int64_wire_bits(value: 9223372036854775808, signedBits: -9223372036854775808, wireBytes: [0, 0, 0, 0, 0, ···])",
+          "failure_first_line": "Expected encoded.Type to be BsonType.Int64 {value: 3}, but found BsonType.Double {value: 4}."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Independently_authored_Int64_bits_convert_back_to_UInt64(expected: 18364758544493064720, signedBits: -81985529216486896, wireBytes: [16, 50, 84, 118, 152, ···])",
+          "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Int64' to type 'System.UInt64'."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Independently_authored_Int64_bits_convert_back_to_UInt64(expected: 18446744073709551615, signedBits: -1, wireBytes: [255, 255, 255, 255, 255, ···])",
+          "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Int64' to type 'System.UInt64'."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Independently_authored_Int64_bits_convert_back_to_UInt64(expected: 9007199254740993, signedBits: 9007199254740993, wireBytes: [1, 0, 0, 0, 0, ···])",
+          "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Int64' to type 'System.UInt64'."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Independently_authored_Int64_bits_convert_back_to_UInt64(expected: 9223372036854775807, signedBits: 9223372036854775807, wireBytes: [255, 255, 255, 255, 255, ···])",
+          "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Int64' to type 'System.UInt64'."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Independently_authored_Int64_bits_convert_back_to_UInt64(expected: 9223372036854775808, signedBits: -9223372036854775808, wireBytes: [0, 0, 0, 0, 0, ···])",
+          "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Int64' to type 'System.UInt64'."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Upper_half_UInt64_values_survive_typed_reopen_and_indexed_queries",
+          "failure_first_line": "Assert.NotNull() Failure: Value is null"
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2869_Tests.Native_numeric_conversions_work_and_non_numeric_values_are_not_coerced"
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Preserve every UInt64 bit through Int64 BSON, including UInt64.MaxValue and the upper half. Keep native numeric conversions and non-numeric rejection. Review indexed equality, Id lookups and the accepted #2869 implicit widening fix."
+        ],
+        "compatibility": [
+          "Compare old persisted BSON Double values from implicit ulong conversions with the new Int64 representation, including ulong values that fit Int64. Examine round-trip, index, equality and ordering effects for old and new documents. Inspect existing callers converting those BsonValues to double and interaction with #2869; satisfying IsInt64 alone is insufficient. Report legacy Double precision loss and evidence or limitations."
+        ]
+      }
+    },
+    "2858": {
+      "inventory_issue": 2858,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2858_Tests.cs": "f7ac80752a4210eaf5b64d393d3af5d3aaa3e80f",
+        "LiteDB.Tests/Engine/Index_Tests.cs": "16c522c1c4086897a294660c04082e73899a5fb0"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue2858_|FullyQualifiedName=LiteDB.Tests.Engine.Index_Tests.Index_With_Like",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net8.0",
+        "windows-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/SqlParser/SqlParser.cs",
+        "LiteDB/Client/SqlParser/Commands/Insert.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2858_Tests.Lowercase_commit_closes_and_durably_commits_the_transaction_under_Turkish_culture",
+          "failure_first_line": "LiteDB.LiteException : Unexpected token `commit` in position 1."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2858_Tests.Lowercase_insert_auto_id_type_executes_under_Turkish_culture",
+          "failure_first_line": "LiteDB.LiteException : Unexpected token `int` in position 30. Expected `DATE, GUID, INT, LONG, OBJECTID`."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2858_Tests.Lowercase_insert_keyword_executes_under_Turkish_culture",
+          "failure_first_line": "LiteDB.LiteException : Unexpected token `insert` in position 1."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2858_Tests.Lowercase_rebuild_executes_and_persists_its_options_under_Turkish_culture",
+          "failure_first_line": "LiteDB.LiteException : Unexpected token `rebuild` in position 1."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Engine.Index_Tests.Index_With_Like"
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Make SQL keyword and auto-ID dispatch culture-invariant without changing data literals or global CurrentCulture. Preserve uppercase SQL and Turkish lowercase insert, auto-ID, rebuild and commit semantics across NLS/ICU and required runtimes. The separate Index_With_Like control calls LiteDatabase.Execute through the affected SQL parser and checks mixed-case literal results."
+        ],
+        "compatibility": [
+          "Verify rebuilt files preserve requested collation, unique indexes, UserVersion and data; verify lowercase commit durably closes the transaction before reopen. Generic format compatibility does not establish SQL rebuild/commit semantics; inspect the frozen persisted-state checks."
+        ],
+        "lifecycle": [
+          "Preserve transaction ownership and culture restoration. Do not replace parser invariance with global culture mutation or bypass rebuild/commit."
+        ]
+      }
+    },
+    "2864": {
+      "inventory_issue": 2864,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2864_Tests.cs": "4e2ec45ea4d0dbd3a82634b5c980986918fb964e"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue2864_",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Engine/Pages/CollectionPage.cs",
+        "LiteDB/Engine/Pages/IndexPage.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Collection_page_mismatch_reports_the_type_stored_in_the_page(rawType: 0, typeName: \"Empty\")",
+          "failure_first_line": "Expected exception.Message to be \"page type must be collection page, but it is Empty\" with a length of 50, but \"page type must be collection page\" has a length of 33, differs near \"e\" (index 32)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Collection_page_mismatch_reports_the_type_stored_in_the_page(rawType: 1, typeName: \"Header\")",
+          "failure_first_line": "Expected exception.Message to be \"page type must be collection page, but it is Header\" with a length of 51, but \"page type must be collection page\" has a length of 33, differs near \"e\" (index 32)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Collection_page_mismatch_reports_the_type_stored_in_the_page(rawType: 127, typeName: \"127\")",
+          "failure_first_line": "Expected exception.Message to be \"page type must be collection page, but it is 127\" with a length of 48, but \"page type must be collection page\" has a length of 33, differs near \"e\" (index 32)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Collection_page_mismatch_reports_the_type_stored_in_the_page(rawType: 3, typeName: \"Index\")",
+          "failure_first_line": "Expected exception.Message to be \"page type must be collection page, but it is Index\" with a length of 50, but \"page type must be collection page\" has a length of 33, differs near \"e\" (index 32)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Collection_page_mismatch_reports_the_type_stored_in_the_page(rawType: 4, typeName: \"Data\")",
+          "failure_first_line": "Expected exception.Message to be \"page type must be collection page, but it is Data\" with a length of 49, but \"page type must be collection page\" has a length of 33, differs near \"e\" (index 32)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Collection_page_mismatch_reports_the_type_stored_in_the_page(rawType: 5, typeName: \"VectorIndex\")",
+          "failure_first_line": "Expected exception.Message to be \"page type must be collection page, but it is VectorIndex\" with a length of 56, but \"page type must be collection page\" has a length of 33, differs near \"e\" (index 32)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Index_page_mismatch_reports_the_type_stored_in_the_page(rawType: 0, typeName: \"Empty\")",
+          "failure_first_line": "Expected exception.Message to be \"page type must be index page, but it is Empty\" with a length of 45, but \"page type must be index page\" has a length of 28, differs near \"e\" (index 27)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Index_page_mismatch_reports_the_type_stored_in_the_page(rawType: 1, typeName: \"Header\")",
+          "failure_first_line": "Expected exception.Message to be \"page type must be index page, but it is Header\" with a length of 46, but \"page type must be index page\" has a length of 28, differs near \"e\" (index 27)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Index_page_mismatch_reports_the_type_stored_in_the_page(rawType: 127, typeName: \"127\")",
+          "failure_first_line": "Expected exception.Message to be \"page type must be index page, but it is 127\" with a length of 43, but \"page type must be index page\" has a length of 28, differs near \"e\" (index 27)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Index_page_mismatch_reports_the_type_stored_in_the_page(rawType: 2, typeName: \"Collection\")",
+          "failure_first_line": "Expected exception.Message to be \"page type must be index page, but it is Collection\" with a length of 50, but \"page type must be index page\" has a length of 28, differs near \"e\" (index 27)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Index_page_mismatch_reports_the_type_stored_in_the_page(rawType: 4, typeName: \"Data\")",
+          "failure_first_line": "Expected exception.Message to be \"page type must be index page, but it is Data\" with a length of 44, but \"page type must be index page\" has a length of 28, differs near \"e\" (index 27)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Index_page_mismatch_reports_the_type_stored_in_the_page(rawType: 5, typeName: \"VectorIndex\")",
+          "failure_first_line": "Expected exception.Message to be \"page type must be index page, but it is VectorIndex\" with a length of 51, but \"page type must be index page\" has a length of 28, differs near \"e\" (index 27)."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Matching_page_type_is_accepted_and_preserves_the_raw_header(rawType: 2)"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Matching_page_type_is_accepted_and_preserves_the_raw_header(rawType: 3)"
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Report the actual stored page type including unknown byte 127; preserve INVALID_DATAFILE_STATE and the existing validation boundary. Never accept a mismatched page or substitute a valid enum type."
+        ],
+        "compatibility": [
+          "Preserve valid page headers and persisted bytes. The matching-page controls must preserve the raw header; diagnostic changes must not alter storage acceptance or file-format semantics."
+        ]
+      }
+    },
+    "2769": {
+      "inventory_issue": 2769,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2769_Tests.cs": "a7b1da15a2d52d1a32195efb326d0d4919678652"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue2769_",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Mapper/BsonMapper.Serialize.cs",
+        "LiteDB/Client/Mapper/BsonMapper.Deserialize.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: DistinctHighBitValue, expected: -4611686018427387862)",
+          "failure_first_line": "System.OverflowException : Value was either too large or too small for an Int32."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: FirstHighBitValue, expected: -9223372036854775807)",
+          "failure_first_line": "System.OverflowException : Value was either too large or too small for an Int32."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: Maximum, expected: -1)",
+          "failure_first_line": "System.OverflowException : Value was either too large or too small for an Int32."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: Value, expected: -9007199254740993)",
+          "failure_first_line": "System.OverflowException : Value was either too large or too small for an Int32."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: Value, expected: 4000000000)",
+          "failure_first_line": "System.OverflowException : Value was either too large or too small for an Int32."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: Value, expected: 9007199254740993)",
+          "failure_first_line": "System.OverflowException : Value was either too large or too small for an Int32."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.UInt64_enum_high_bit_values_survive_mapping_reopen_and_indexed_queries",
+          "failure_first_line": "System.OverflowException : Value was either too large or too small for an Int32."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: Value, expected: -127)"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: Value, expected: -2000000000)"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: Value, expected: -32000)"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: Value, expected: 254)"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: Value, expected: 65000)"
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Preserve all signed and unsigned enum backing types, including UInt64 high bits and distinct values, without Double conversion or Int32 truncation. Keep independently authored BSON decoding, typed indexed equality and all five small-integer controls. Review neighboring #1224 UInt64 behavior."
+        ],
+        "compatibility": [
+          "Assess existing EnumAsInteger Int32 documents alongside new Int64 values and EnumAsInteger=false string data. Preserve enum identity, index lookup and reopen. Explain signed-bit representation of upper-half UInt64 and ordering effects; generic file-format compatibility is insufficient."
+        ]
+      }
+    },
+    "2225": {
+      "inventory_issue": 2225,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2225_Tests.cs": "a9ac8b9776b901b060e1c850b4c87cde2726acf2",
+        "LiteDB.Tests/Mapper/CustomMappingCtor_Tests.cs": "3695c48e8d999db66b4c5a1dd89a447da750baee"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue2225_|FullyQualifiedName=LiteDB.Tests.Mapper.CustomMapping_Tests.Custom_Ctor|FullyQualifiedName=LiteDB.Tests.Mapper.CustomMapping_Tests.ParameterLess_Ctor",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net8.0",
+        "windows-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Mapper/Reflection/Reflection.Expression.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2225_Tests.Inherited_private_id_setter_preserves_identity_with_parameterless_constructor",
+          "failure_first_line": "Expected loaded.Id to be {85ddfae2-67ca-4117-9f9a-7527d16972c0}, but found {00000000-0000-0000-0000-000000000000}."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Mapper.CustomMapping_Tests.Custom_Ctor"
+        },
+        {
+          "name": "LiteDB.Tests.Mapper.CustomMapping_Tests.ParameterLess_Ctor"
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Restore inherited private Id setters using the correct declaring member while preserving ordinary parameterless and constructor-only mapping. The fixed Guid must survive reopen, update and FindById without inserting another record."
+        ],
+        "compatibility": [
+          "Inspect existing inherited-ID documents, read-only properties and constructor mapping. Do not broadly bypass setters or expand non-public access. Compare expression/reflection behavior on required Windows/Linux runtimes and state evidence or limitations."
+        ]
+      }
+    },
+    "2322": {
+      "inventory_issue": 2322,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2322_Tests.cs": "96f85eb02a876deaf1d9c663948de0dfa5c3daa5",
+        "LiteDB.Tests/Mapper/Enum_Tests.cs": "4d4fbab81ad8ba9060c7da5bffc451a6ea8e54c0"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue2322_|FullyQualifiedName=LiteDB.Tests.Mapper.Enum_Tests.Enum_Convert_Into_Linq_Query",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2322_Tests.Generic_enum_Equals_matches_original_rows_in_both_storage_modes(asInteger: False)",
+          "failure_first_line": "System.NotSupportedException : Method Equals not available to convert to BsonExpression (Convert(x, IRow`1).Kind.Equals(Convert(value(LiteDB.Tests.Issues.Issue2322_Tests+<>c__DisplayClass4_0`2[LiteDB.Tests.Issues.Issue2322_Tests+Row,LiteDB.Tests.Issues.Issue2322_Tests+Kind]).kind, Object)))."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2322_Tests.Generic_enum_Equals_matches_original_rows_in_both_storage_modes(asInteger: True)",
+          "failure_first_line": "System.NotSupportedException : Method Equals not available to convert to BsonExpression (Convert(x, IRow`1).Kind.Equals(Convert(value(LiteDB.Tests.Issues.Issue2322_Tests+<>c__DisplayClass4_0`2[LiteDB.Tests.Issues.Issue2322_Tests+Row,LiteDB.Tests.Issues.Issue2322_Tests+Kind]).kind, Object)))."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Mapper.Enum_Tests.Enum_Convert_Into_Linq_Query"
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Support generic enum Equals through IRow<K> in both integer and string storage modes, including unknown enum values and nonmatching rows. Preserve ordinary enum LINQ and row-dependent/client-evaluation boundaries. Review prior #2770/#2779 changes; report an already-green issue instead of manufacturing a baseline failure."
+        ]
+      }
+    },
+    "2873": {
+      "inventory_issue": 2873,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2873_Tests.cs": "6112d1742227cb16cdb28cb55e89b3e4a316cbc8",
+        "LiteDB.Tests/Issues/Issue2873_ReportedModelTests.cs": "f354acc80bf3df2a1c2407df424719d729b3c5d5"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue2873_",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Mapper/EntityBuilder.cs",
+        "LiteDB/Client/Mapper/EntityMapper.cs",
+        "LiteDB/Client/Mapper/BsonMapper.Deserialize.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2873_ReportedModelTests.Reported_Enum_model_survives_custom_construction_and_independent_reopen",
+          "failure_first_line": "Expected failure to be <null> because the reported model must not fail with String-to-Enum InvalidCastException after its factory succeeds, but found System.InvalidCastException: Unable to cast object of type 'System.String' to type 'System.Enum'."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2873_Tests.Explicit_constructor_only_mapping_owns_state_without_running_mapped_setters",
+          "failure_first_line": "Expected configuredApi not to be <null> because issue #2873 requires an explicit CtorOnly(factory) or Ctor(factory, populateMembers: false) API."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2873_Tests.Existing_ctor_mapping_keeps_populating_mapped_members_for_compatibility"
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Provide explicit CtorOnly(factory) or Ctor(factory, populateMembers: false) opt-in. Preserve constructor-owned normalized/validated state and factory result identity without running mapped setters. Include the separately frozen reported System.Enum model and independent reopen test; exposing a method alone is insufficient."
+        ],
+        "compatibility": [
+          "The existing one-argument Ctor(factory) must keep post-construction member population. Preserve old documents, init-only members, DbRef and custom DeserializeObject behavior; assess prior #2802 virtual-mapping changes and legacy constructor callers."
+        ],
+        "lifecycle": [
+          "Preserve mapper initialization, entity configuration isolation, factory invocation count and concurrent readers. Do not globally disable member population or swallow factory failures."
+        ]
+      }
     }
   }
 }

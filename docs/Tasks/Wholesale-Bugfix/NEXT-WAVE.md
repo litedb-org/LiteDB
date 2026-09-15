@@ -388,3 +388,7 @@ Expected hitCompletedWhileHeld to be False because a hit must use the dictionary
 - #2814 remains explicitly intermittent. A pass or failure change is inconclusive until repeat controls resolve it; do not auto-accept it through an unrelated fix.
 
 The queue covers ten additional deterministic reproduced reports, not the complete open-bug inventory. Continue inventory disposition after this wave, retaining explicit reasons and required evidence for deferred reports.
+
+## Further bounded preparation
+
+[WAVE-3.md](WAVE-3.md) prepares eight additional ordinary reports with exact neighboring controls and records #2860/#2870 deferrals. It preserves the thirteen contracts prepared here and belongs to a later immutable runtime.

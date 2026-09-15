@@ -11,8 +11,10 @@ import sys
 
 
 POLICY = {
-    "version": "compressed-acceptance-v3",
+    "version": "compressed-acceptance-v4",
     "ordinary_pairs": {
+        "1159": ["LiteDB/Client/Mapper/EntityBuilder.cs"],
+        "2322": ["LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs"],
         "2874": ["LiteDB/Document/ObjectId.cs"],
         "1506": ["LiteDB/Client/Database/Collections/Find.cs"],
         "2839": ["LiteDB/Client/Database/Collections/Aggregate.cs"],
@@ -24,6 +26,53 @@ POLICY = {
         "2871": ["LiteDB/Client/Mapper/Reflection/Reflection.cs"],
     },
     "compatibility_pairs": {
+        "1224": {
+            "paths": [
+                "LiteDB/Document/BsonValue.cs"
+            ],
+            "tests": [
+                "LiteDB.Tests.Document.Bson_Tests"
+            ]
+        },
+        "2858": {
+            "paths": [
+                "LiteDB/Client/SqlParser/SqlParser.cs",
+                "LiteDB/Client/SqlParser/Commands/Insert.cs"
+            ],
+            "tests": [
+                "LiteDB.Tests.Engine.Index_Tests"
+            ]
+        },
+        "2769": {
+            "paths": [
+                "LiteDB/Client/Mapper/BsonMapper.Serialize.cs",
+                "LiteDB/Client/Mapper/BsonMapper.Deserialize.cs"
+            ],
+            "tests": [
+                "LiteDB.Tests.Mapper.Enum_Tests",
+                "LiteDB.Tests.Document.Bson_Tests"
+            ]
+        },
+        "2225": {
+            "paths": [
+                "LiteDB/Client/Mapper/Reflection/Reflection.Expression.cs"
+            ],
+            "tests": [
+                "LiteDB.Tests.Mapper.Records_Tests",
+                "LiteDB.Tests.Mapper.MapperInheritance_Tests"
+            ]
+        },
+        "2873": {
+            "paths": [
+                "LiteDB/Client/Mapper/EntityBuilder.cs",
+                "LiteDB/Client/Mapper/EntityMapper.cs",
+                "LiteDB/Client/Mapper/BsonMapper.Deserialize.cs"
+            ],
+            "tests": [
+                "LiteDB.Tests.Mapper.Records_Tests",
+                "LiteDB.Tests.Mapper.MapperInheritance_Tests"
+            ]
+        },
         "2867": {"paths": ["LiteDB/Client/Mapper/BsonMapper.GetEntityMapper.cs",
                            "LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs"],
                  "tests": ["LiteDB.Tests.Mapper.MapperInheritance_Tests",

@@ -1,0 +1,706 @@
+{
+  "schema_version": 1,
+  "source_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+  "run_id": 34988724926,
+  "artifacts": [
+    {
+      "id": 10405370121,
+      "name": "bugfix-check-ubuntu-latest-net8.0",
+      "baseline_trx_sha256": "a4d3b367c661fa8768fbb8668d4a8827713618fa3b488f15f02ca1607c8bd56b"
+    },
+    {
+      "id": 10405505060,
+      "name": "bugfix-check-ubuntu-latest-net10.0",
+      "baseline_trx_sha256": "d4d7854e6d5e036da9d1ad92ac4f5aebe0a23b8033fe5a50f9793dcf18cbe423"
+    },
+    {
+      "id": 10404073794,
+      "name": "bugfix-check-windows-latest-net8.0",
+      "baseline_trx_sha256": "931cbd570f47bf6a376f11dde76c0ecf1399f9d742acf0f90eeb9463d781bdf0"
+    },
+    {
+      "id": 10404574219,
+      "name": "bugfix-check-windows-latest-net10.0",
+      "baseline_trx_sha256": "789212a8598feb82270173bbc4b6e152682e4b1177a51ab6f7ad67d1dcc0c08e"
+    },
+    {
+      "id": 10405111338,
+      "name": "bugfix-check-macos-latest-net8.0",
+      "baseline_trx_sha256": "c069b53a2512adcd39c9ecf0bbf1d1329ff1371fa21228dbf4de3923340ee719"
+    },
+    {
+      "id": 10405450249,
+      "name": "bugfix-check-macos-latest-net10.0",
+      "baseline_trx_sha256": "487ac255e77785b858569e7dbbd93a1e5422db470aae03c8c0d71741709b4e08"
+    }
+  ],
+  "issues": {
+    "1159": {
+      "source_blobs": {
+        "LiteDB.Tests/Issues/Issue1159_Tests.cs": "80fa2f0525c2d0507de042bb69af5a7677363892",
+        "LiteDB.Tests/Mapper/CustomMapping_Tests.cs": "50b42d032c84eea7ad4acf7c00da77ec2dfe745f"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue1159_|FullyQualifiedName=LiteDB.Tests.Mapper.CustomMappingCtor_Tests.Custom_Ctor_With_Custom_Id",
+      "paths": [
+        "LiteDB/Client/Mapper/EntityBuilder.cs"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0"
+      ],
+      "neighbor_controls": {
+        "LiteDB.Tests.Mapper.CustomMappingCtor_Tests.Custom_Ctor_With_Custom_Id": "LiteDB.Tests/Mapper/CustomMapping_Tests.cs"
+      },
+      "cases": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue1159_Tests.Repeated_ignore_is_idempotent_without_dropping_other_fields",
+          "outcome": "Failed",
+          "first_line": "System.ArgumentNullException : Value cannot be null. (Parameter 'Member 'AdjustedSum' not found in type 'Row' (use IncludeFields in BsonMapper)')"
+        },
+        {
+          "name": "LiteDB.Tests.Mapper.CustomMappingCtor_Tests.Custom_Ctor_With_Custom_Id",
+          "outcome": "Passed",
+          "first_line": ""
+        }
+      ]
+    },
+    "1224": {
+      "source_blobs": {
+        "LiteDB.Tests/Issues/Issue1224_Tests.cs": "5b88c28910e569bb635d8e08af0da9a5e2478375",
+        "LiteDB.Tests/Issues/Issue2869_Tests.cs": "75f14d75945fe6912b007b9698e8d38898b02413"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue1224_|FullyQualifiedName=LiteDB.Tests.Issues.Issue2869_Tests.Native_numeric_conversions_work_and_non_numeric_values_are_not_coerced",
+      "paths": [
+        "LiteDB/Document/BsonValue.cs"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "neighbor_controls": {
+        "LiteDB.Tests.Issues.Issue2869_Tests.Native_numeric_conversions_work_and_non_numeric_values_are_not_coerced": "LiteDB.Tests/Issues/Issue2869_Tests.cs"
+      },
+      "cases": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Implicit_UInt64_conversion_preserves_Int64_wire_bits(value: 18364758544493064720, signedBits: -81985529216486896, wireBytes: [16, 50, 84, 118, 152, ···])",
+          "outcome": "Failed",
+          "first_line": "Expected encoded.Type to be BsonType.Int64 {value: 3}, but found BsonType.Double {value: 4}."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Implicit_UInt64_conversion_preserves_Int64_wire_bits(value: 18446744073709551615, signedBits: -1, wireBytes: [255, 255, 255, 255, 255, ···])",
+          "outcome": "Failed",
+          "first_line": "Expected encoded.Type to be BsonType.Int64 {value: 3}, but found BsonType.Double {value: 4}."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Implicit_UInt64_conversion_preserves_Int64_wire_bits(value: 9007199254740993, signedBits: 9007199254740993, wireBytes: [1, 0, 0, 0, 0, ···])",
+          "outcome": "Failed",
+          "first_line": "Expected encoded.Type to be BsonType.Int64 {value: 3}, but found BsonType.Double {value: 4}."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Implicit_UInt64_conversion_preserves_Int64_wire_bits(value: 9223372036854775807, signedBits: 9223372036854775807, wireBytes: [255, 255, 255, 255, 255, ···])",
+          "outcome": "Failed",
+          "first_line": "Expected encoded.Type to be BsonType.Int64 {value: 3}, but found BsonType.Double {value: 4}."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Implicit_UInt64_conversion_preserves_Int64_wire_bits(value: 9223372036854775808, signedBits: -9223372036854775808, wireBytes: [0, 0, 0, 0, 0, ···])",
+          "outcome": "Failed",
+          "first_line": "Expected encoded.Type to be BsonType.Int64 {value: 3}, but found BsonType.Double {value: 4}."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Independently_authored_Int64_bits_convert_back_to_UInt64(expected: 18364758544493064720, signedBits: -81985529216486896, wireBytes: [16, 50, 84, 118, 152, ···])",
+          "outcome": "Failed",
+          "first_line": "System.InvalidCastException : Unable to cast object of type 'System.Int64' to type 'System.UInt64'."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Independently_authored_Int64_bits_convert_back_to_UInt64(expected: 18446744073709551615, signedBits: -1, wireBytes: [255, 255, 255, 255, 255, ···])",
+          "outcome": "Failed",
+          "first_line": "System.InvalidCastException : Unable to cast object of type 'System.Int64' to type 'System.UInt64'."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Independently_authored_Int64_bits_convert_back_to_UInt64(expected: 9007199254740993, signedBits: 9007199254740993, wireBytes: [1, 0, 0, 0, 0, ···])",
+          "outcome": "Failed",
+          "first_line": "System.InvalidCastException : Unable to cast object of type 'System.Int64' to type 'System.UInt64'."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Independently_authored_Int64_bits_convert_back_to_UInt64(expected: 9223372036854775807, signedBits: 9223372036854775807, wireBytes: [255, 255, 255, 255, 255, ···])",
+          "outcome": "Failed",
+          "first_line": "System.InvalidCastException : Unable to cast object of type 'System.Int64' to type 'System.UInt64'."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Independently_authored_Int64_bits_convert_back_to_UInt64(expected: 9223372036854775808, signedBits: -9223372036854775808, wireBytes: [0, 0, 0, 0, 0, ···])",
+          "outcome": "Failed",
+          "first_line": "System.InvalidCastException : Unable to cast object of type 'System.Int64' to type 'System.UInt64'."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Upper_half_UInt64_values_survive_typed_reopen_and_indexed_queries",
+          "outcome": "Failed",
+          "first_line": "Assert.NotNull() Failure: Value is null"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2869_Tests.Native_numeric_conversions_work_and_non_numeric_values_are_not_coerced",
+          "outcome": "Passed",
+          "first_line": ""
+        }
+      ]
+    },
+    "2858": {
+      "source_blobs": {
+        "LiteDB.Tests/Issues/Issue2858_Tests.cs": "f7ac80752a4210eaf5b64d393d3af5d3aaa3e80f",
+        "LiteDB.Tests/Engine/Index_Tests.cs": "16c522c1c4086897a294660c04082e73899a5fb0"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue2858_|FullyQualifiedName=LiteDB.Tests.Engine.Index_Tests.Index_With_Like",
+      "paths": [
+        "LiteDB/Client/SqlParser/SqlParser.cs",
+        "LiteDB/Client/SqlParser/Commands/Insert.cs"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net8.0",
+        "windows-x64-net10.0"
+      ],
+      "neighbor_controls": {
+        "LiteDB.Tests.Engine.Index_Tests.Index_With_Like": "LiteDB.Tests/Engine/Index_Tests.cs"
+      },
+      "cases": [
+        {
+          "name": "LiteDB.Tests.Engine.Index_Tests.Index_With_Like",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2858_Tests.Lowercase_commit_closes_and_durably_commits_the_transaction_under_Turkish_culture",
+          "outcome": "Failed",
+          "first_line": "LiteDB.LiteException : Unexpected token `commit` in position 1."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2858_Tests.Lowercase_insert_auto_id_type_executes_under_Turkish_culture",
+          "outcome": "Failed",
+          "first_line": "LiteDB.LiteException : Unexpected token `int` in position 30. Expected `DATE, GUID, INT, LONG, OBJECTID`."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2858_Tests.Lowercase_insert_keyword_executes_under_Turkish_culture",
+          "outcome": "Failed",
+          "first_line": "LiteDB.LiteException : Unexpected token `insert` in position 1."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2858_Tests.Lowercase_rebuild_executes_and_persists_its_options_under_Turkish_culture",
+          "outcome": "Failed",
+          "first_line": "LiteDB.LiteException : Unexpected token `rebuild` in position 1."
+        }
+      ]
+    },
+    "2864": {
+      "source_blobs": {
+        "LiteDB.Tests/Issues/Issue2864_Tests.cs": "4e2ec45ea4d0dbd3a82634b5c980986918fb964e"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue2864_",
+      "paths": [
+        "LiteDB/Engine/Pages/CollectionPage.cs",
+        "LiteDB/Engine/Pages/IndexPage.cs"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0"
+      ],
+      "neighbor_controls": {},
+      "cases": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Collection_page_mismatch_reports_the_type_stored_in_the_page(rawType: 0, typeName: \"Empty\")",
+          "outcome": "Failed",
+          "first_line": "Expected exception.Message to be \"page type must be collection page, but it is Empty\" with a length of 50, but \"page type must be collection page\" has a length of 33, differs near \"e\" (index 32)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Collection_page_mismatch_reports_the_type_stored_in_the_page(rawType: 1, typeName: \"Header\")",
+          "outcome": "Failed",
+          "first_line": "Expected exception.Message to be \"page type must be collection page, but it is Header\" with a length of 51, but \"page type must be collection page\" has a length of 33, differs near \"e\" (index 32)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Collection_page_mismatch_reports_the_type_stored_in_the_page(rawType: 127, typeName: \"127\")",
+          "outcome": "Failed",
+          "first_line": "Expected exception.Message to be \"page type must be collection page, but it is 127\" with a length of 48, but \"page type must be collection page\" has a length of 33, differs near \"e\" (index 32)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Collection_page_mismatch_reports_the_type_stored_in_the_page(rawType: 3, typeName: \"Index\")",
+          "outcome": "Failed",
+          "first_line": "Expected exception.Message to be \"page type must be collection page, but it is Index\" with a length of 50, but \"page type must be collection page\" has a length of 33, differs near \"e\" (index 32)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Collection_page_mismatch_reports_the_type_stored_in_the_page(rawType: 4, typeName: \"Data\")",
+          "outcome": "Failed",
+          "first_line": "Expected exception.Message to be \"page type must be collection page, but it is Data\" with a length of 49, but \"page type must be collection page\" has a length of 33, differs near \"e\" (index 32)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Collection_page_mismatch_reports_the_type_stored_in_the_page(rawType: 5, typeName: \"VectorIndex\")",
+          "outcome": "Failed",
+          "first_line": "Expected exception.Message to be \"page type must be collection page, but it is VectorIndex\" with a length of 56, but \"page type must be collection page\" has a length of 33, differs near \"e\" (index 32)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Index_page_mismatch_reports_the_type_stored_in_the_page(rawType: 0, typeName: \"Empty\")",
+          "outcome": "Failed",
+          "first_line": "Expected exception.Message to be \"page type must be index page, but it is Empty\" with a length of 45, but \"page type must be index page\" has a length of 28, differs near \"e\" (index 27)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Index_page_mismatch_reports_the_type_stored_in_the_page(rawType: 1, typeName: \"Header\")",
+          "outcome": "Failed",
+          "first_line": "Expected exception.Message to be \"page type must be index page, but it is Header\" with a length of 46, but \"page type must be index page\" has a length of 28, differs near \"e\" (index 27)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Index_page_mismatch_reports_the_type_stored_in_the_page(rawType: 127, typeName: \"127\")",
+          "outcome": "Failed",
+          "first_line": "Expected exception.Message to be \"page type must be index page, but it is 127\" with a length of 43, but \"page type must be index page\" has a length of 28, differs near \"e\" (index 27)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Index_page_mismatch_reports_the_type_stored_in_the_page(rawType: 2, typeName: \"Collection\")",
+          "outcome": "Failed",
+          "first_line": "Expected exception.Message to be \"page type must be index page, but it is Collection\" with a length of 50, but \"page type must be index page\" has a length of 28, differs near \"e\" (index 27)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Index_page_mismatch_reports_the_type_stored_in_the_page(rawType: 4, typeName: \"Data\")",
+          "outcome": "Failed",
+          "first_line": "Expected exception.Message to be \"page type must be index page, but it is Data\" with a length of 44, but \"page type must be index page\" has a length of 28, differs near \"e\" (index 27)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Index_page_mismatch_reports_the_type_stored_in_the_page(rawType: 5, typeName: \"VectorIndex\")",
+          "outcome": "Failed",
+          "first_line": "Expected exception.Message to be \"page type must be index page, but it is VectorIndex\" with a length of 51, but \"page type must be index page\" has a length of 28, differs near \"e\" (index 27)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Matching_page_type_is_accepted_and_preserves_the_raw_header(rawType: 2)",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Matching_page_type_is_accepted_and_preserves_the_raw_header(rawType: 3)",
+          "outcome": "Passed",
+          "first_line": ""
+        }
+      ]
+    },
+    "2769": {
+      "source_blobs": {
+        "LiteDB.Tests/Issues/Issue2769_Tests.cs": "a7b1da15a2d52d1a32195efb326d0d4919678652"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue2769_",
+      "paths": [
+        "LiteDB/Client/Mapper/BsonMapper.Serialize.cs",
+        "LiteDB/Client/Mapper/BsonMapper.Deserialize.cs"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "neighbor_controls": {},
+      "cases": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: DistinctHighBitValue, expected: -4611686018427387862)",
+          "outcome": "Failed",
+          "first_line": "System.OverflowException : Value was either too large or too small for an Int32."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: FirstHighBitValue, expected: -9223372036854775807)",
+          "outcome": "Failed",
+          "first_line": "System.OverflowException : Value was either too large or too small for an Int32."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: Maximum, expected: -1)",
+          "outcome": "Failed",
+          "first_line": "System.OverflowException : Value was either too large or too small for an Int32."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: Value, expected: -127)",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: Value, expected: -2000000000)",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: Value, expected: -32000)",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: Value, expected: -9007199254740993)",
+          "outcome": "Failed",
+          "first_line": "System.OverflowException : Value was either too large or too small for an Int32."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: Value, expected: 254)",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: Value, expected: 4000000000)",
+          "outcome": "Failed",
+          "first_line": "System.OverflowException : Value was either too large or too small for an Int32."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: Value, expected: 65000)",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: Value, expected: 9007199254740993)",
+          "outcome": "Failed",
+          "first_line": "System.OverflowException : Value was either too large or too small for an Int32."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.UInt64_enum_high_bit_values_survive_mapping_reopen_and_indexed_queries",
+          "outcome": "Failed",
+          "first_line": "System.OverflowException : Value was either too large or too small for an Int32."
+        }
+      ]
+    },
+    "2225": {
+      "source_blobs": {
+        "LiteDB.Tests/Issues/Issue2225_Tests.cs": "a9ac8b9776b901b060e1c850b4c87cde2726acf2",
+        "LiteDB.Tests/Mapper/CustomMappingCtor_Tests.cs": "3695c48e8d999db66b4c5a1dd89a447da750baee"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue2225_|FullyQualifiedName=LiteDB.Tests.Mapper.CustomMapping_Tests.Custom_Ctor|FullyQualifiedName=LiteDB.Tests.Mapper.CustomMapping_Tests.ParameterLess_Ctor",
+      "paths": [
+        "LiteDB/Client/Mapper/Reflection/Reflection.Expression.cs"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net8.0",
+        "windows-x64-net10.0"
+      ],
+      "neighbor_controls": {
+        "LiteDB.Tests.Mapper.CustomMapping_Tests.Custom_Ctor": "LiteDB.Tests/Mapper/CustomMappingCtor_Tests.cs",
+        "LiteDB.Tests.Mapper.CustomMapping_Tests.ParameterLess_Ctor": "LiteDB.Tests/Mapper/CustomMappingCtor_Tests.cs"
+      },
+      "cases": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2225_Tests.Inherited_private_id_setter_preserves_identity_with_parameterless_constructor",
+          "outcome": "Failed",
+          "first_line": "Expected loaded.Id to be {85ddfae2-67ca-4117-9f9a-7527d16972c0}, but found {00000000-0000-0000-0000-000000000000}."
+        },
+        {
+          "name": "LiteDB.Tests.Mapper.CustomMapping_Tests.Custom_Ctor",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Mapper.CustomMapping_Tests.ParameterLess_Ctor",
+          "outcome": "Passed",
+          "first_line": ""
+        }
+      ]
+    },
+    "2322": {
+      "source_blobs": {
+        "LiteDB.Tests/Issues/Issue2322_Tests.cs": "96f85eb02a876deaf1d9c663948de0dfa5c3daa5",
+        "LiteDB.Tests/Mapper/Enum_Tests.cs": "4d4fbab81ad8ba9060c7da5bffc451a6ea8e54c0"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue2322_|FullyQualifiedName=LiteDB.Tests.Mapper.Enum_Tests.Enum_Convert_Into_Linq_Query",
+      "paths": [
+        "LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "neighbor_controls": {
+        "LiteDB.Tests.Mapper.Enum_Tests.Enum_Convert_Into_Linq_Query": "LiteDB.Tests/Mapper/Enum_Tests.cs"
+      },
+      "cases": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2322_Tests.Generic_enum_Equals_matches_original_rows_in_both_storage_modes(asInteger: False)",
+          "outcome": "Failed",
+          "first_line": "System.NotSupportedException : Method Equals not available to convert to BsonExpression (Convert(x, IRow`1).Kind.Equals(Convert(value(LiteDB.Tests.Issues.Issue2322_Tests+<>c__DisplayClass4_0`2[LiteDB.Tests.Issues.Issue2322_Tests+Row,LiteDB.Tests.Issues.Issue2322_Tests+Kind]).kind, Object)))."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2322_Tests.Generic_enum_Equals_matches_original_rows_in_both_storage_modes(asInteger: True)",
+          "outcome": "Failed",
+          "first_line": "System.NotSupportedException : Method Equals not available to convert to BsonExpression (Convert(x, IRow`1).Kind.Equals(Convert(value(LiteDB.Tests.Issues.Issue2322_Tests+<>c__DisplayClass4_0`2[LiteDB.Tests.Issues.Issue2322_Tests+Row,LiteDB.Tests.Issues.Issue2322_Tests+Kind]).kind, Object)))."
+        },
+        {
+          "name": "LiteDB.Tests.Mapper.Enum_Tests.Enum_Convert_Into_Linq_Query",
+          "outcome": "Passed",
+          "first_line": ""
+        }
+      ]
+    },
+    "2873": {
+      "source_blobs": {
+        "LiteDB.Tests/Issues/Issue2873_Tests.cs": "6112d1742227cb16cdb28cb55e89b3e4a316cbc8",
+        "LiteDB.Tests/Issues/Issue2873_ReportedModelTests.cs": "f354acc80bf3df2a1c2407df424719d729b3c5d5"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue2873_",
+      "paths": [
+        "LiteDB/Client/Mapper/EntityBuilder.cs",
+        "LiteDB/Client/Mapper/EntityMapper.cs",
+        "LiteDB/Client/Mapper/BsonMapper.Deserialize.cs"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "neighbor_controls": {},
+      "cases": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2873_ReportedModelTests.Reported_Enum_model_survives_custom_construction_and_independent_reopen",
+          "outcome": "Failed",
+          "first_line": "Expected failure to be <null> because the reported model must not fail with String-to-Enum InvalidCastException after its factory succeeds, but found System.InvalidCastException: Unable to cast object of type 'System.String' to type 'System.Enum'."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2873_Tests.Existing_ctor_mapping_keeps_populating_mapped_members_for_compatibility",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2873_Tests.Explicit_constructor_only_mapping_owns_state_without_running_mapped_setters",
+          "outcome": "Failed",
+          "first_line": "Expected configuredApi not to be <null> because issue #2873 requires an explicit CtorOnly(factory) or Ctor(factory, populateMembers: false) API."
+        }
+      ]
+    }
+  },
+  "deferred": {
+    "2860": {
+      "reason": "Mixed URI and max-depth defects; /a/b fails with UriFormatException on Windows but with an IsAbsoluteUri assertion on Linux/macOS. Requires environment-aware contract and case-level scope decision; do not omit diagnostic cases.",
+      "source_blobs": {
+        "LiteDB.Tests/Issues/Issue2860_Tests.cs": "227f97a4449aec740cf654397327b9205b69a0fe"
+      },
+      "reference_cases": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Max_depth_error_disambiguates_types_with_the_same_simple_name(value: DepthEnvelope`1 { Child = Node { } }, nestedType: typeof(LiteDB.Tests.Issues.Issue2860_Tests+FirstDomain+Node))",
+          "outcome": "Failed",
+          "first_line": "Expected exception.Message to be \"Document has more than 1 nested documents in 'LiteDB.Tests.Issues.Issue2860_Tests+FirstDomain+Node'. Check for circular references (use DbRef).\" with a length of 143, but \"Document has more than 1 nested documents in 'Node'. Check for circular references (use DbRef).\" has a length of 95, differs near \"Nod\" (index 46)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Database_round_trip_preserves_Uri_text_and_kind(text: \"img/a.png\", isAbsolute: False)",
+          "outcome": "Failed",
+          "first_line": "System.UriFormatException : Invalid URI: The format of the URI could not be determined."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Database_round_trip_preserves_Uri_text_and_kind(text: \"file:///a/b\", isAbsolute: True)",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Mapper_reads_independently_authored_Uri_strings_with_their_kind(text: \"urn:example:animal:ferret:nose\", isAbsolute: True)",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Database_round_trip_preserves_Uri_text_and_kind(text: \"../img/a.png?size=2#preview\", isAbsolute: False)",
+          "outcome": "Failed",
+          "first_line": "System.UriFormatException : Invalid URI: The format of the URI could not be determined."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Database_round_trip_preserves_Uri_text_and_kind(text: \"https://example.test/img/a.png?size=2#preview\", isAbsolute: True)",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Database_round_trip_preserves_Uri_text_and_kind(text: \"/a/b\", isAbsolute: False)",
+          "outcome": "Failed",
+          "first_line": "Expected actual.IsAbsoluteUri to be False, but found True."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Database_round_trip_preserves_Uri_text_and_kind(text: \"urn:example:animal:ferret:nose\", isAbsolute: True)",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Mapper_reads_independently_authored_Uri_strings_with_their_kind(text: \"https://example.test/img/a.png?size=2#preview\", isAbsolute: True)",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Mapper_reads_independently_authored_Uri_strings_with_their_kind(text: \"file:///a/b\", isAbsolute: True)",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Mapper_reads_independently_authored_Uri_strings_with_their_kind(text: \"img/a.png\", isAbsolute: False)",
+          "outcome": "Failed",
+          "first_line": "System.UriFormatException : Invalid URI: The format of the URI could not be determined."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Mapper_reads_independently_authored_Uri_strings_with_their_kind(text: \"../img/a.png?size=2#preview\", isAbsolute: False)",
+          "outcome": "Failed",
+          "first_line": "System.UriFormatException : Invalid URI: The format of the URI could not be determined."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Mapper_reads_independently_authored_Uri_strings_with_their_kind(text: \"/a/b\", isAbsolute: False)",
+          "outcome": "Failed",
+          "first_line": "Expected actual.IsAbsoluteUri to be False, but found True."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Max_depth_error_disambiguates_types_with_the_same_simple_name(value: DepthEnvelope`1 { Child = Node { } }, nestedType: typeof(LiteDB.Tests.Issues.Issue2860_Tests+SecondDomain+Node))",
+          "outcome": "Failed",
+          "first_line": "Expected exception.Message to be \"Document has more than 1 nested documents in 'LiteDB.Tests.Issues.Issue2860_Tests+SecondDomain+Node'. Check for circular references (use DbRef).\" with a length of 144, but \"Document has more than 1 nested documents in 'Node'. Check for circular references (use DbRef).\" has a length of 95, differs near \"Nod\" (index 46)."
+        }
+      ],
+      "lane_differences": {
+        "bugfix-check-ubuntu-latest-net8.0": [],
+        "bugfix-check-ubuntu-latest-net10.0": [],
+        "bugfix-check-windows-latest-net8.0": [
+          {
+            "name": "LiteDB.Tests.Issues.Issue2860_Tests.Database_round_trip_preserves_Uri_text_and_kind(text: \"/a/b\", isAbsolute: False)",
+            "outcome": "Failed",
+            "first_line": "System.UriFormatException : Invalid URI: The format of the URI could not be determined."
+          },
+          {
+            "name": "LiteDB.Tests.Issues.Issue2860_Tests.Mapper_reads_independently_authored_Uri_strings_with_their_kind(text: \"/a/b\", isAbsolute: False)",
+            "outcome": "Failed",
+            "first_line": "System.UriFormatException : Invalid URI: The format of the URI could not be determined."
+          }
+        ],
+        "bugfix-check-windows-latest-net10.0": [
+          {
+            "name": "LiteDB.Tests.Issues.Issue2860_Tests.Mapper_reads_independently_authored_Uri_strings_with_their_kind(text: \"/a/b\", isAbsolute: False)",
+            "outcome": "Failed",
+            "first_line": "System.UriFormatException : Invalid URI: The format of the URI could not be determined."
+          },
+          {
+            "name": "LiteDB.Tests.Issues.Issue2860_Tests.Database_round_trip_preserves_Uri_text_and_kind(text: \"/a/b\", isAbsolute: False)",
+            "outcome": "Failed",
+            "first_line": "System.UriFormatException : Invalid URI: The format of the URI could not be determined."
+          }
+        ],
+        "bugfix-check-macos-latest-net8.0": [],
+        "bugfix-check-macos-latest-net10.0": []
+      }
+    },
+    "2870": {
+      "reason": "Exact failure first lines contain checkout paths and frames that differ across environments. Requires separate environment-aware evidence design; no signature normalization introduced.",
+      "source_blobs": {
+        "LiteDB.Tests/Issues/Issue2870_Tests.cs": "b09cc10649079b70ee29dbbf24a72e290fcc9483"
+      },
+      "reference_cases": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2870_Tests.Healthy_FileReaderV8_reopens_persisted_documents",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2870_Tests.Query_preserves_the_original_frame_when_the_first_source_read_throws",
+          "outcome": "Failed",
+          "first_line": "Expected actual.StackTrace \"   at LiteDB.Engine.QueryExecutor.<>c__DisplayClass12_0.<<ExecuteQuery>g__RunQuery|2>d.MoveNext() in /home/runner/work/LiteDB/LiteDB/baseline/LiteDB/Engine/Query/QueryExecutor.cs:line 139"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2870_Tests.Query_preserves_the_original_frame_when_a_later_source_read_throws",
+          "outcome": "Failed",
+          "first_line": "Expected actual.StackTrace \"   at LiteDB.BsonDataReader.Read() in /home/runner/work/LiteDB/LiteDB/baseline/LiteDB/Document/DataReader/BsonDataReader.cs:line 118"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2870_Tests.Healthy_external_source_enumerates_every_document_through_query",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2870_Tests.WaitIfLocked_preserves_the_original_frame_for_non_lock_errors",
+          "outcome": "Failed",
+          "first_line": "Expected actual.StackTrace \"   at LiteDB.IOExceptionExtensions.WaitIfLocked(IOException ex, Int32 timerInMilliseconds) in /home/runner/work/LiteDB/LiteDB/baseline/LiteDB/Utils/Extensions/IOExceptionExtensions.cs:line 38"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2870_Tests.FileReaderV8_preserves_the_original_stream_failure_frame",
+          "outcome": "Failed",
+          "first_line": "Expected actual.StackTrace \"   at LiteDB.Engine.FileReaderV8.HandleError(Exception ex, PageInfo pageInfo) in /home/runner/work/LiteDB/LiteDB/baseline/LiteDB/Engine/FileReader/FileReaderV8.cs:line 576"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2870_Tests.WaitIfLocked_returns_normally_for_a_lock_error",
+          "outcome": "Passed",
+          "first_line": ""
+        }
+      ],
+      "lane_differences": {
+        "bugfix-check-ubuntu-latest-net8.0": [],
+        "bugfix-check-ubuntu-latest-net10.0": [],
+        "bugfix-check-windows-latest-net8.0": [
+          {
+            "name": "LiteDB.Tests.Issues.Issue2870_Tests.WaitIfLocked_preserves_the_original_frame_for_non_lock_errors",
+            "outcome": "Failed",
+            "first_line": "Expected actual.StackTrace \"   at LiteDB.IOExceptionExtensions.WaitIfLocked(IOException ex, Int32 timerInMilliseconds) in D:\\a\\LiteDB\\LiteDB\\baseline\\LiteDB\\Utils\\Extensions\\IOExceptionExtensions.cs:line 38"
+          },
+          {
+            "name": "LiteDB.Tests.Issues.Issue2870_Tests.FileReaderV8_preserves_the_original_stream_failure_frame",
+            "outcome": "Failed",
+            "first_line": "Expected actual.StackTrace \"   at LiteDB.Engine.FileReaderV8.HandleError(Exception ex, PageInfo pageInfo) in D:\\a\\LiteDB\\LiteDB\\baseline\\LiteDB\\Engine\\FileReader\\FileReaderV8.cs:line 576"
+          },
+          {
+            "name": "LiteDB.Tests.Issues.Issue2870_Tests.Query_preserves_the_original_frame_when_the_first_source_read_throws",
+            "outcome": "Failed",
+            "first_line": "Expected actual.StackTrace \"   at LiteDB.Engine.QueryExecutor.<>c__DisplayClass12_0.<<ExecuteQuery>g__RunQuery|2>d.MoveNext() in D:\\a\\LiteDB\\LiteDB\\baseline\\LiteDB\\Engine\\Query\\QueryExecutor.cs:line 139"
+          },
+          {
+            "name": "LiteDB.Tests.Issues.Issue2870_Tests.Query_preserves_the_original_frame_when_a_later_source_read_throws",
+            "outcome": "Failed",
+            "first_line": "Expected actual.StackTrace \"   at LiteDB.BsonDataReader.Read() in D:\\a\\LiteDB\\LiteDB\\baseline\\LiteDB\\Document\\DataReader\\BsonDataReader.cs:line 118"
+          }
+        ],
+        "bugfix-check-windows-latest-net10.0": [
+          {
+            "name": "LiteDB.Tests.Issues.Issue2870_Tests.Query_preserves_the_original_frame_when_a_later_source_read_throws",
+            "outcome": "Failed",
+            "first_line": "Expected actual.StackTrace \"   at LiteDB.BsonDataReader.Read() in D:\\a\\LiteDB\\LiteDB\\baseline\\LiteDB\\Document\\DataReader\\BsonDataReader.cs:line 118"
+          },
+          {
+            "name": "LiteDB.Tests.Issues.Issue2870_Tests.WaitIfLocked_preserves_the_original_frame_for_non_lock_errors",
+            "outcome": "Failed",
+            "first_line": "Expected actual.StackTrace \"   at LiteDB.IOExceptionExtensions.WaitIfLocked(IOException ex, Int32 timerInMilliseconds) in D:\\a\\LiteDB\\LiteDB\\baseline\\LiteDB\\Utils\\Extensions\\IOExceptionExtensions.cs:line 38"
+          },
+          {
+            "name": "LiteDB.Tests.Issues.Issue2870_Tests.Query_preserves_the_original_frame_when_the_first_source_read_throws",
+            "outcome": "Failed",
+            "first_line": "Expected actual.StackTrace \"   at LiteDB.Engine.QueryExecutor.<>c__DisplayClass12_0.<<ExecuteQuery>g__RunQuery|2>d.MoveNext() in D:\\a\\LiteDB\\LiteDB\\baseline\\LiteDB\\Engine\\Query\\QueryExecutor.cs:line 139"
+          },
+          {
+            "name": "LiteDB.Tests.Issues.Issue2870_Tests.FileReaderV8_preserves_the_original_stream_failure_frame",
+            "outcome": "Failed",
+            "first_line": "Expected actual.StackTrace \"   at LiteDB.Engine.FileReaderV8.HandleError(Exception ex, PageInfo pageInfo) in D:\\a\\LiteDB\\LiteDB\\baseline\\LiteDB\\Engine\\FileReader\\FileReaderV8.cs:line 576"
+          }
+        ],
+        "bugfix-check-macos-latest-net8.0": [
+          {
+            "name": "LiteDB.Tests.Issues.Issue2870_Tests.WaitIfLocked_preserves_the_original_frame_for_non_lock_errors",
+            "outcome": "Failed",
+            "first_line": "Expected actual.StackTrace \"   at LiteDB.IOExceptionExtensions.WaitIfLocked(IOException ex, Int32 timerInMilliseconds) in /Users/runner/work/LiteDB/LiteDB/baseline/LiteDB/Utils/Extensions/IOExceptionExtensions.cs:line 38"
+          },
+          {
+            "name": "LiteDB.Tests.Issues.Issue2870_Tests.FileReaderV8_preserves_the_original_stream_failure_frame",
+            "outcome": "Failed",
+            "first_line": "Expected actual.StackTrace \"   at LiteDB.Engine.FileReaderV8.HandleError(Exception ex, PageInfo pageInfo) in /Users/runner/work/LiteDB/LiteDB/baseline/LiteDB/Engine/FileReader/FileReaderV8.cs:line 576"
+          },
+          {
+            "name": "LiteDB.Tests.Issues.Issue2870_Tests.Query_preserves_the_original_frame_when_the_first_source_read_throws",
+            "outcome": "Failed",
+            "first_line": "Expected actual.StackTrace \"   at LiteDB.Engine.QueryExecutor.<>c__DisplayClass12_0.<<ExecuteQuery>g__RunQuery|2>d.MoveNext() in /Users/runner/work/LiteDB/LiteDB/baseline/LiteDB/Engine/Query/QueryExecutor.cs:line 139"
+          },
+          {
+            "name": "LiteDB.Tests.Issues.Issue2870_Tests.Query_preserves_the_original_frame_when_a_later_source_read_throws",
+            "outcome": "Failed",
+            "first_line": "Expected actual.StackTrace \"   at LiteDB.BsonDataReader.Read() in /Users/runner/work/LiteDB/LiteDB/baseline/LiteDB/Document/DataReader/BsonDataReader.cs:line 118"
+          }
+        ],
+        "bugfix-check-macos-latest-net10.0": [
+          {
+            "name": "LiteDB.Tests.Issues.Issue2870_Tests.WaitIfLocked_preserves_the_original_frame_for_non_lock_errors",
+            "outcome": "Failed",
+            "first_line": "Expected actual.StackTrace \"   at LiteDB.IOExceptionExtensions.WaitIfLocked(IOException ex, Int32 timerInMilliseconds) in /Users/runner/work/LiteDB/LiteDB/baseline/LiteDB/Utils/Extensions/IOExceptionExtensions.cs:line 38"
+          },
+          {
+            "name": "LiteDB.Tests.Issues.Issue2870_Tests.Query_preserves_the_original_frame_when_a_later_source_read_throws",
+            "outcome": "Failed",
+            "first_line": "Expected actual.StackTrace \"   at LiteDB.BsonDataReader.Read() in /Users/runner/work/LiteDB/LiteDB/baseline/LiteDB/Document/DataReader/BsonDataReader.cs:line 118"
+          },
+          {
+            "name": "LiteDB.Tests.Issues.Issue2870_Tests.Query_preserves_the_original_frame_when_the_first_source_read_throws",
+            "outcome": "Failed",
+            "first_line": "Expected actual.StackTrace \"   at LiteDB.Engine.QueryExecutor.<>c__DisplayClass12_0.<<ExecuteQuery>g__RunQuery|2>d.MoveNext() in /Users/runner/work/LiteDB/LiteDB/baseline/LiteDB/Engine/Query/QueryExecutor.cs:line 139"
+          },
+          {
+            "name": "LiteDB.Tests.Issues.Issue2870_Tests.FileReaderV8_preserves_the_original_stream_failure_frame",
+            "outcome": "Failed",
+            "first_line": "Expected actual.StackTrace \"   at LiteDB.Engine.FileReaderV8.HandleError(Exception ex, PageInfo pageInfo) in /Users/runner/work/LiteDB/LiteDB/baseline/LiteDB/Engine/FileReader/FileReaderV8.cs:line 576"
+          }
+        ]
+      }
+    }
+  }
+}
