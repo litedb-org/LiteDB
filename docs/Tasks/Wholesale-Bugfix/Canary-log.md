@@ -161,3 +161,30 @@ failure plus an unrecognized concurrent-write secondary stack. Its current
 variant passes. These raw artifacts remain failures; the harness correction
 requires explicit provenance and fresh paired evidence. No candidate has been
 integrated, and scale-up remains pending.
+
+
+## Compressed sweep requirement
+
+The user clarified on 2026-09-15 that the full pipeline must run only after the
+entire sweep. This supersedes the pilot plan's full-matrix requirement before
+each integration merge. The revised plan uses baseline confirmation, one
+combined focused/broad candidate CI run with diff-selected extra checks, three
+independent reviews, and direct integration of the unchanged tested commit.
+There is no separate post-review candidate rerun. The original full pipeline is
+a distinct final-promotion gate across all accepted issues.
+
+Both full pilot runs completed: baseline `34986503761` and candidate
+`34986507516`. The final comparison covers all 105 paired evidence artifacts:
+33 ordinary/cross-process test artifacts and 72 repro artifacts. All compare
+consistently except the documented historical #2825 harness error. The three
+#2849 performance pairs also match. These runs remain diagnostic evidence;
+no new full matrix is scheduled to retest the reviewed harness correction.
+
+The reviewed first-source #2870 normalization is committed at `282a999e` with
+policy digest `d4c510bf1504ec8298e0f231548fde8e67a929f7a3ccca9c6ec21a1a89571a36`.
+Replaying the original six acceptance pairs under that policy produces matching
+ledgers, while their original failed reports remain preserved. The compact
+profile planner selects Ubuntu/net8 plus a production build for candidate
+`79e5c69cb9e6a1bcc08e919c2993aaa5401148b7`. Audited targeted revalidation is still
+required before accepting this paused canary because its original broad run
+did not include the complete new profile's production-build evidence.
