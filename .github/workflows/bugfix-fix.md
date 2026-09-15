@@ -184,14 +184,15 @@ Write `/tmp/gh-aw/bugfix/result.json` as JSON with exactly the identity fields
 - `tests`: a nonempty array of strings describing actual checks and outcomes;
   every array item must be a string, never a nested object
 
-Use this exact JSON structure, copying the identity values from the task:
+Use this JSON structure. Its dispatch identity must match `task.json`; keep
+`issue` as a JSON number:
 
 ```json
 {
   "schema_version": 1,
-  "issue": 2874,
-  "base_sha": "COPY_BASE_SHA_FROM_TASK",
-  "test_source_sha": "COPY_TEST_SOURCE_SHA_FROM_TASK",
+  "issue": ${{ inputs.issue }},
+  "base_sha": "${{ inputs.base_sha }}",
+  "test_source_sha": "${{ inputs.test_source_sha }}",
   "status": "proposed",
   "summary": "Explain the actual production change and its reason.",
   "tests": ["Describe the exact command or inspection and its actual outcome."]
