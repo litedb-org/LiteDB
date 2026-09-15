@@ -36,6 +36,8 @@ WAL_PEAK = (
     "LiteDB.Tests.Issues.Issue2814_Tests."
     "Finite_concurrent_readers_do_not_allow_WAL_growth_far_beyond_checkpoint_budget")
 ISSUE_2870_PREFIX = "LiteDB.Tests.Issues.Issue2870_Tests."
+FIRST_SOURCE = (ISSUE_2870_PREFIX
+                + "Query_preserves_the_original_frame_when_the_first_source_read_throws")
 STACK_CASES = {
     ISSUE_2870_PREFIX + "Query_preserves_the_original_frame_when_a_later_source_read_throws": (
         [("LiteDB.BsonDataReader.Read()", "LiteDB/Document/DataReader/BsonDataReader.cs", 118),
@@ -48,17 +50,23 @@ STACK_CASES = {
          ("LiteDB.Engine.FileReaderV8.Open()",
           "LiteDB/Engine/FileReader/FileReaderV8.cs", 90)],
         "ThrowAtOriginalFileReadSite"),
-    ISSUE_2870_PREFIX + "Query_preserves_the_original_frame_when_the_first_source_read_throws": (
-        [("LiteDB.Engine.QueryExecutor.RunQuery()", "LiteDB/Engine/Query/QueryExecutor.cs", 139),
-         ("LiteDB.EnumerableExtensions.OnDispose()",
+    FIRST_SOURCE: (
+        [("LiteDB.Engine.QueryExecutor.<>c__DisplayClass12_0."
+          "<<ExecuteQuery>g__RunQuery|2>d.MoveNext()",
+          "LiteDB/Engine/Query/QueryExecutor.cs", 139),
+         ("LiteDB.Utils.Extensions.EnumerableExtensions.OnDispose[T]"
+          "(IEnumerable`1 source, Action onDispose)+MoveNext()",
           "LiteDB/Utils/Extensions/EnumerableExtensions.cs", 13),
-         ("LiteDB.EnumerableExtensions.OnDispose()",
+         ("LiteDB.Utils.Extensions.EnumerableExtensions.OnDispose[T]"
+          "(IEnumerable`1 source, Action onDispose)+MoveNext()",
           "LiteDB/Utils/Extensions/EnumerableExtensions.cs", 13),
-         ("LiteDB.BsonDataReader..ctor()",
+         ("LiteDB.BsonDataReader..ctor"
+          "(IEnumerable`1 values, String collection, EngineState state)",
           "LiteDB/Document/DataReader/BsonDataReader.cs", 56),
-         ("LiteDB.Engine.QueryExecutor.ExecuteQuery()",
+         ("LiteDB.Engine.QueryExecutor.ExecuteQuery(Boolean executionPlan)",
           "LiteDB/Engine/Query/QueryExecutor.cs", 87),
-         ("LiteDB.Engine.LiteEngine.Query()", "LiteDB/Engine/Engine/Query.cs", 45),
+         ("LiteDB.Engine.LiteEngine.Query(String collection, Query query)",
+          "LiteDB/Engine/Engine/Query.cs", 45),
          ("LiteDB.Tests.Issues.Issue2870_Tests.FirstRead()",
           "LiteDB.Tests/Issues/Issue2870_Tests.cs", 30)],
         "ThrowAtOriginalSourceSite"),
@@ -71,17 +79,56 @@ STACK_CASES = {
 }
 
 
-def stack_assertion(frames, expected_frame, checkout, include_action_frame):
+def stack_assertion(frames, expected_frame, checkout, include_action_frame,
+                    include_query_wrapper=False, newline="\n", path_separator="/"):
     checkout_segment = f"{checkout}/" if checkout else ""
-    lines = [f"   at {method} in /home/runner/work/LiteDB/LiteDB/{checkout_segment}{path}:line {line}"
+    lines = [f"   at {method} in /home/runner/work/LiteDB/LiteDB/{checkout_segment}"
+             f"{path.replace('/', path_separator)}:line {line}"
              for method, path, line in frames]
+    if include_query_wrapper:
+        boolean_frame = next(
+            index for index, (method, _, _) in enumerate(frames)
+            if method == "LiteDB.Engine.QueryExecutor.ExecuteQuery(Boolean executionPlan)")
+        lines.insert(
+            boolean_frame + 1,
+            "   at LiteDB.Engine.QueryExecutor.ExecuteQuery() in "
+            f"/home/runner/work/LiteDB/LiteDB/{checkout_segment}"
+            + "LiteDB/Engine/Query/QueryExecutor.cs".replace("/", path_separator)
+            + ":line 59")
     if include_action_frame:
         lines.append("   at FluentAssertions.Specialized.ActionAssertions.InvokeSubject()")
     lines.append(
         "   at FluentAssertions.Specialized.DelegateAssertions`2."
         "InvokeSubjectWithInterception()")
-    return ('Expected actual.StackTrace "' + "\n".join(lines)
+    return ('Expected actual.StackTrace "' + newline.join(lines)
             + f'" to contain "{expected_frame}".')
+
+
+def first_source_assertion(variant, checkout, include_wrapper_frames=False,
+                           newline="\n", path_separator="/"):
+    frames, expected_frame = STACK_CASES[FIRST_SOURCE]
+    failure = stack_assertion(
+        frames, expected_frame, checkout, include_wrapper_frames,
+        include_query_wrapper=include_wrapper_frames, newline=newline,
+        path_separator=path_separator)
+    lines = failure.split(newline)
+    on_dispose = [index for index, line in enumerate(lines)
+                  if "EnumerableExtensions.OnDispose[T]" in line]
+    if variant == "one-unlocated-line56":
+        lines.pop(on_dispose[1])
+        lines[on_dispose[0]] = lines[on_dispose[0]].split(" in ", 1)[0]
+    elif variant == "one-line13-line46":
+        lines.pop(on_dispose[1])
+        bson = next(index for index, line in enumerate(lines)
+                    if "BsonDataReader..ctor" in line)
+        lines[bson] = lines[bson].replace(":line 56", ":line 46")
+    elif variant == "two-first-unlocated-line56":
+        lines[on_dispose[0]] = lines[on_dispose[0]].split(" in ", 1)[0]
+    elif variant == "two-second-unlocated-line56":
+        lines[on_dispose[1]] = lines[on_dispose[1]].split(" in ", 1)[0]
+    elif variant != "two-line13-line56":
+        raise ValueError(f"Unknown first-source stack variant: {variant}")
+    return newline.join(lines)
 
 
 class FailureNormalizationTests(unittest.TestCase):
@@ -156,7 +203,7 @@ class FailureNormalizationTests(unittest.TestCase):
         self.assert_same_failure(WAL_PEAK, prefix + "7000000L (difference of 446400).",
                                  prefix + "8000000L (difference of 1446400).")
 
-    def test_reviewed_stack_assertions_ignore_only_checkout_and_jit_wrapper(self):
+    def test_reviewed_stack_assertions_normalize_only_reviewed_runtime_variance(self):
         for name, (frames, expected_frame) in STACK_CASES.items():
             baseline = stack_assertion(frames, expected_frame, "baseline", False)
             candidate = stack_assertion(frames, expected_frame, "candidate", True)
@@ -171,9 +218,128 @@ class FailureNormalizationTests(unittest.TestCase):
                 self.assertIn(f'to contain "{expected_frame}"', normalized)
                 for method, path, line in frames:
                     self.assertIn(method, normalized)
-                    self.assertIn(f"{path}:line {line}", normalized)
+                    volatile_sequence_point = (name == FIRST_SOURCE
+                                               and ("OnDispose[T]" in method
+                                                    or "BsonDataReader..ctor" in method))
+                    if not volatile_sequence_point:
+                        self.assertIn(f"{path}:line {line}", normalized)
                 self.assertNotIn("/baseline/", normalized)
                 self.assertNotIn("ActionAssertions.InvokeSubject", normalized)
+
+    def test_first_source_exact_optional_wrapper_frames_normalize_for_lf_and_crlf(self):
+        _, expected_frame = STACK_CASES[FIRST_SOURCE]
+        without_wrappers = first_source_assertion(
+            "two-line13-line56", "baseline", newline="\r\n")
+        with_wrappers = first_source_assertion(
+            "two-line13-line56", "candidate", include_wrapper_frames=True,
+            newline="\r\n")
+
+        normalized = canonical_failure(
+            FIRST_SOURCE, without_wrappers, self.policy, baseline=True)
+        self.assertEqual(
+            normalized,
+            canonical_failure(FIRST_SOURCE, with_wrappers, self.policy))
+        self.assertIn("ExecuteQuery(Boolean executionPlan)", normalized)
+        self.assertIn("LiteEngine.Query(String collection, Query query)", normalized)
+        self.assertIn('to contain "ThrowAtOriginalSourceSite"', normalized)
+        self.assertNotIn("QueryExecutor.ExecuteQuery()", normalized)
+        self.assertNotIn("ActionAssertions.InvokeSubject", normalized)
+
+        windows_baseline = first_source_assertion(
+            "two-line13-line56", "baseline", newline="\r\n",
+            path_separator="\\")
+        windows_candidate = first_source_assertion(
+            "two-line13-line56", "candidate", include_wrapper_frames=True,
+            newline="\r\n", path_separator="\\")
+        self.assertEqual(
+            canonical_failure(
+                FIRST_SOURCE, windows_baseline, self.policy, baseline=True),
+            canonical_failure(FIRST_SOURCE, windows_candidate, self.policy))
+
+    def test_first_source_exact_runtime_sequence_variants_normalize(self):
+        canonical = canonical_failure(
+            FIRST_SOURCE,
+            first_source_assertion("two-line13-line56", "baseline"),
+            self.policy,
+            baseline=True)
+        for variant in ("one-unlocated-line56", "one-line13-line46",
+                        "two-line13-line56", "two-first-unlocated-line56",
+                        "two-second-unlocated-line56"):
+            with self.subTest(variant=variant):
+                normalized = canonical_failure(
+                    FIRST_SOURCE,
+                    first_source_assertion(variant, "candidate"),
+                    self.policy)
+                self.assertEqual(canonical, normalized)
+                self.assertEqual(2, normalized.count(
+                    "EnumerableExtensions.OnDispose[T]"))
+                self.assertIn("BsonDataReader..ctor", normalized)
+                self.assertIn("RunQuery|2>d.MoveNext()", normalized)
+
+    def test_first_source_runtime_sequence_rejects_unreviewed_changes(self):
+        canonical = canonical_failure(
+            FIRST_SOURCE,
+            first_source_assertion("two-line13-line56", "baseline"),
+            self.policy,
+            baseline=True)
+        ordinary = first_source_assertion(
+            "two-line13-line56", "candidate")
+        on_dispose = next(line for line in ordinary.splitlines()
+                          if "EnumerableExtensions.OnDispose[T]" in line)
+        changed = (
+            ordinary.replace(on_dispose + "\n",
+                             on_dispose + "\n" + on_dispose + "\n", 1),
+            ordinary.replace("EnumerableExtensions.cs:line 13",
+                             "EnumerableExtensions.cs:line 14", 1),
+            ordinary.replace("BsonDataReader.cs:line 56",
+                             "BsonDataReader.cs:line 55"),
+            ordinary.replace("EnumerableExtensions.OnDispose[T]",
+                             "EnumerableExtensions.OtherIterator[T]", 1),
+        )
+        for failure in changed:
+            with self.subTest(failure=failure):
+                self.assertNotEqual(
+                    canonical,
+                    canonical_failure(FIRST_SOURCE, failure, self.policy))
+
+    def test_first_source_optional_wrapper_requires_exact_signature_source_line_and_placement(self):
+        frames, expected_frame = STACK_CASES[FIRST_SOURCE]
+        baseline = stack_assertion(frames, expected_frame, "baseline", False)
+        candidate = stack_assertion(
+            frames, expected_frame, "candidate", True,
+            include_query_wrapper=True)
+        normalized = canonical_failure(
+            FIRST_SOURCE, baseline, self.policy, baseline=True)
+
+        mutations = (
+            candidate.replace("QueryExecutor.ExecuteQuery() in",
+                              "QueryExecutor.ExecuteQuery(Int32 value) in"),
+            candidate.replace("QueryExecutor.cs:line 59",
+                              "QueryExecutor.cs:line 60", 1),
+            candidate.replace("LiteDB/Engine/Query/QueryExecutor.cs:line 59",
+                              "LiteDB/Engine/Engine/Query.cs:line 59"),
+            candidate.replace("ExecuteQuery(Boolean executionPlan)",
+                              "ExecuteQuery(Boolean changedPlan)"),
+            candidate.replace("LiteEngine.Query(String collection, Query query)",
+                              "LiteEngine.Query(String changed, Query query)"),
+        )
+        for changed in mutations:
+            with self.subTest(changed=changed):
+                self.assertNotEqual(
+                    normalized,
+                    canonical_failure(FIRST_SOURCE, changed, self.policy))
+
+        candidate_lines = candidate.splitlines()
+        wrapper_index = next(index for index, line in enumerate(candidate_lines)
+                             if "QueryExecutor.ExecuteQuery()" in line)
+        wrapper = candidate_lines.pop(wrapper_index)
+        lite_engine_index = next(index for index, line in enumerate(candidate_lines)
+                                 if "LiteEngine.Query(String collection, Query query)" in line)
+        candidate_lines.insert(lite_engine_index + 1, wrapper)
+        wrong_placement = "\n".join(candidate_lines)
+        self.assertNotEqual(
+            normalized,
+            canonical_failure(FIRST_SOURCE, wrong_placement, self.policy))
 
     def test_stack_assertion_method_and_expected_frame_changes_are_preserved(self):
         name = next(iter(STACK_CASES))

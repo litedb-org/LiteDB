@@ -117,7 +117,7 @@
         "matches": 2
       },
       {
-        "pattern": "(?:   at FluentAssertions\\.Specialized\\.ActionAssertions\\.InvokeSubject\\(\\)\\n)?   at FluentAssertions\\.Specialized\\.DelegateAssertions`2\\.InvokeSubjectWithInterception\\(\\)",
+        "pattern": "(?:   at FluentAssertions\\.Specialized\\.ActionAssertions\\.InvokeSubject\\(\\)\\r?\\n)?   at FluentAssertions\\.Specialized\\.DelegateAssertions`2\\.InvokeSubjectWithInterception\\(\\)",
         "replacement": "   at FluentAssertions.Specialized.DelegateAssertions`2.InvokeSubjectWithInterception()",
         "matches": 1
       }
@@ -129,7 +129,7 @@
         "matches": 2
       },
       {
-        "pattern": "(?:   at FluentAssertions\\.Specialized\\.ActionAssertions\\.InvokeSubject\\(\\)\\n)?   at FluentAssertions\\.Specialized\\.DelegateAssertions`2\\.InvokeSubjectWithInterception\\(\\)",
+        "pattern": "(?:   at FluentAssertions\\.Specialized\\.ActionAssertions\\.InvokeSubject\\(\\)\\r?\\n)?   at FluentAssertions\\.Specialized\\.DelegateAssertions`2\\.InvokeSubjectWithInterception\\(\\)",
         "replacement": "   at FluentAssertions.Specialized.DelegateAssertions`2.InvokeSubjectWithInterception()",
         "matches": 1
       }
@@ -146,7 +146,17 @@
         ]
       },
       {
-        "pattern": "(?:   at FluentAssertions\\.Specialized\\.ActionAssertions\\.InvokeSubject\\(\\)\\n)?   at FluentAssertions\\.Specialized\\.DelegateAssertions`2\\.InvokeSubjectWithInterception\\(\\)",
+        "pattern": "   at LiteDB\\.Engine\\.QueryExecutor\\.<>c__DisplayClass12_0\\.<<ExecuteQuery>g__RunQuery\\|2>d\\.MoveNext\\(\\) in <checkout>/LiteDB[\\\\/]Engine[\\\\/]Query[\\\\/]QueryExecutor\\.cs:line 139\\r?\\n(?:   at LiteDB\\.Utils\\.Extensions\\.EnumerableExtensions\\.OnDispose\\[T\\]\\(IEnumerable`1 source, Action onDispose\\)\\+MoveNext\\(\\)\\r?\\n   at LiteDB\\.BsonDataReader\\.\\.ctor\\(IEnumerable`1 values, String collection, EngineState state\\) in <checkout>/LiteDB[\\\\/]Document[\\\\/]DataReader[\\\\/]BsonDataReader\\.cs:line 56|   at LiteDB\\.Utils\\.Extensions\\.EnumerableExtensions\\.OnDispose\\[T\\]\\(IEnumerable`1 source, Action onDispose\\)\\+MoveNext\\(\\) in <checkout>/LiteDB[\\\\/]Utils[\\\\/]Extensions[\\\\/]EnumerableExtensions\\.cs:line 13\\r?\\n   at LiteDB\\.BsonDataReader\\.\\.ctor\\(IEnumerable`1 values, String collection, EngineState state\\) in <checkout>/LiteDB[\\\\/]Document[\\\\/]DataReader[\\\\/]BsonDataReader\\.cs:line 46|   at LiteDB\\.Utils\\.Extensions\\.EnumerableExtensions\\.OnDispose\\[T\\]\\(IEnumerable`1 source, Action onDispose\\)\\+MoveNext\\(\\) in <checkout>/LiteDB[\\\\/]Utils[\\\\/]Extensions[\\\\/]EnumerableExtensions\\.cs:line 13\\r?\\n   at LiteDB\\.Utils\\.Extensions\\.EnumerableExtensions\\.OnDispose\\[T\\]\\(IEnumerable`1 source, Action onDispose\\)\\+MoveNext\\(\\) in <checkout>/LiteDB[\\\\/]Utils[\\\\/]Extensions[\\\\/]EnumerableExtensions\\.cs:line 13\\r?\\n   at LiteDB\\.BsonDataReader\\.\\.ctor\\(IEnumerable`1 values, String collection, EngineState state\\) in <checkout>/LiteDB[\\\\/]Document[\\\\/]DataReader[\\\\/]BsonDataReader\\.cs:line 56|   at LiteDB\\.Utils\\.Extensions\\.EnumerableExtensions\\.OnDispose\\[T\\]\\(IEnumerable`1 source, Action onDispose\\)\\+MoveNext\\(\\)\\r?\\n   at LiteDB\\.Utils\\.Extensions\\.EnumerableExtensions\\.OnDispose\\[T\\]\\(IEnumerable`1 source, Action onDispose\\)\\+MoveNext\\(\\) in <checkout>/LiteDB[\\\\/]Utils[\\\\/]Extensions[\\\\/]EnumerableExtensions\\.cs:line 13\\r?\\n   at LiteDB\\.BsonDataReader\\.\\.ctor\\(IEnumerable`1 values, String collection, EngineState state\\) in <checkout>/LiteDB[\\\\/]Document[\\\\/]DataReader[\\\\/]BsonDataReader\\.cs:line 56|   at LiteDB\\.Utils\\.Extensions\\.EnumerableExtensions\\.OnDispose\\[T\\]\\(IEnumerable`1 source, Action onDispose\\)\\+MoveNext\\(\\) in <checkout>/LiteDB[\\\\/]Utils[\\\\/]Extensions[\\\\/]EnumerableExtensions\\.cs:line 13\\r?\\n   at LiteDB\\.Utils\\.Extensions\\.EnumerableExtensions\\.OnDispose\\[T\\]\\(IEnumerable`1 source, Action onDispose\\)\\+MoveNext\\(\\)\\r?\\n   at LiteDB\\.BsonDataReader\\.\\.ctor\\(IEnumerable`1 values, String collection, EngineState state\\) in <checkout>/LiteDB[\\\\/]Document[\\\\/]DataReader[\\\\/]BsonDataReader\\.cs:line 56)\\r?\\n   at LiteDB\\.Engine\\.QueryExecutor\\.ExecuteQuery\\(Boolean executionPlan\\) in <checkout>/LiteDB[\\\\/]Engine[\\\\/]Query[\\\\/]QueryExecutor\\.cs:line 87",
+        "replacement": "   at LiteDB.Engine.QueryExecutor.<>c__DisplayClass12_0.<<ExecuteQuery>g__RunQuery|2>d.MoveNext() in <checkout>/LiteDB/Engine/Query/QueryExecutor.cs:line 139\\n   at LiteDB.Utils.Extensions.EnumerableExtensions.OnDispose[T](IEnumerable`1 source, Action onDispose)+MoveNext()\\n   at LiteDB.Utils.Extensions.EnumerableExtensions.OnDispose[T](IEnumerable`1 source, Action onDispose)+MoveNext()\\n   at LiteDB.BsonDataReader..ctor(IEnumerable`1 values, String collection, EngineState state)\\n   at LiteDB.Engine.QueryExecutor.ExecuteQuery(Boolean executionPlan) in <checkout>/LiteDB/Engine/Query/QueryExecutor.cs:line 87",
+        "matches": 1
+      },
+      {
+        "pattern": "   at LiteDB\\.Engine\\.QueryExecutor\\.ExecuteQuery\\(Boolean executionPlan\\) in <checkout>/LiteDB[\\\\/]Engine[\\\\/]Query[\\\\/]QueryExecutor\\.cs:line 87\\r?\\n(?:   at LiteDB\\.Engine\\.QueryExecutor\\.ExecuteQuery\\(\\) in <checkout>/LiteDB[\\\\/]Engine[\\\\/]Query[\\\\/]QueryExecutor\\.cs:line 59\\r?\\n)?   at LiteDB\\.Engine\\.LiteEngine\\.Query\\(String collection, Query query\\) in <checkout>/LiteDB[\\\\/]Engine[\\\\/]Engine[\\\\/]Query\\.cs:line 45",
+        "replacement": "   at LiteDB.Engine.QueryExecutor.ExecuteQuery(Boolean executionPlan) in <checkout>/LiteDB/Engine/Query/QueryExecutor.cs:line 87\\n   at LiteDB.Engine.LiteEngine.Query(String collection, Query query) in <checkout>/LiteDB/Engine/Engine/Query.cs:line 45",
+        "matches": 1
+      },
+      {
+        "pattern": "(?:   at FluentAssertions\\.Specialized\\.ActionAssertions\\.InvokeSubject\\(\\)\\r?\\n)?   at FluentAssertions\\.Specialized\\.DelegateAssertions`2\\.InvokeSubjectWithInterception\\(\\)",
         "replacement": "   at FluentAssertions.Specialized.DelegateAssertions`2.InvokeSubjectWithInterception()",
         "matches": 1
       }
@@ -158,7 +168,7 @@
         "matches": 2
       },
       {
-        "pattern": "(?:   at FluentAssertions\\.Specialized\\.ActionAssertions\\.InvokeSubject\\(\\)\\n)?   at FluentAssertions\\.Specialized\\.DelegateAssertions`2\\.InvokeSubjectWithInterception\\(\\)",
+        "pattern": "(?:   at FluentAssertions\\.Specialized\\.ActionAssertions\\.InvokeSubject\\(\\)\\r?\\n)?   at FluentAssertions\\.Specialized\\.DelegateAssertions`2\\.InvokeSubjectWithInterception\\(\\)",
         "replacement": "   at FluentAssertions.Specialized.DelegateAssertions`2.InvokeSubjectWithInterception()",
         "matches": 1
       }
