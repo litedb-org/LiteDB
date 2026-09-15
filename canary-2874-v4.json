@@ -91,11 +91,11 @@
     "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
     "tests": [
       "LiteDB.Tests.Issues.Issue2874_Tests.Every_valid_twelve_byte_window_round_trips_only_its_own_bytes",
-      "LiteDB.Tests.Issues.Issue2874_Tests.Invalid_byte_windows_are_rejected_as_argument_errors(bytes: [0, 0, 0, 0, 0, \u00c2\u00b7\u00c2\u00b7\u00c2\u00b7], startIndex: -1)",
-      "LiteDB.Tests.Issues.Issue2874_Tests.Invalid_byte_windows_are_rejected_as_argument_errors(bytes: [0, 0, 0, 0, 0, \u00c2\u00b7\u00c2\u00b7\u00c2\u00b7], startIndex: 0)",
-      "LiteDB.Tests.Issues.Issue2874_Tests.Invalid_byte_windows_are_rejected_as_argument_errors(bytes: [0, 0, 0, 0, 0, \u00c2\u00b7\u00c2\u00b7\u00c2\u00b7], startIndex: 1)",
-      "LiteDB.Tests.Issues.Issue2874_Tests.Invalid_byte_windows_are_rejected_as_argument_errors(bytes: [0, 0, 0, 0, 0, \u00c2\u00b7\u00c2\u00b7\u00c2\u00b7], startIndex: 12)",
-      "LiteDB.Tests.Issues.Issue2874_Tests.Invalid_byte_windows_are_rejected_as_argument_errors(bytes: [0, 0, 0, 0, 0, \u00c2\u00b7\u00c2\u00b7\u00c2\u00b7], startIndex: 2147483647)",
+      "LiteDB.Tests.Issues.Issue2874_Tests.Invalid_byte_windows_are_rejected_as_argument_errors(bytes: [0, 0, 0, 0, 0, \u00b7\u00b7\u00b7], startIndex: -1)",
+      "LiteDB.Tests.Issues.Issue2874_Tests.Invalid_byte_windows_are_rejected_as_argument_errors(bytes: [0, 0, 0, 0, 0, \u00b7\u00b7\u00b7], startIndex: 0)",
+      "LiteDB.Tests.Issues.Issue2874_Tests.Invalid_byte_windows_are_rejected_as_argument_errors(bytes: [0, 0, 0, 0, 0, \u00b7\u00b7\u00b7], startIndex: 1)",
+      "LiteDB.Tests.Issues.Issue2874_Tests.Invalid_byte_windows_are_rejected_as_argument_errors(bytes: [0, 0, 0, 0, 0, \u00b7\u00b7\u00b7], startIndex: 12)",
+      "LiteDB.Tests.Issues.Issue2874_Tests.Invalid_byte_windows_are_rejected_as_argument_errors(bytes: [0, 0, 0, 0, 0, \u00b7\u00b7\u00b7], startIndex: 2147483647)",
       "LiteDB.Tests.Issues.Issue2874_Tests.Invalid_byte_windows_are_rejected_as_argument_errors(bytes: [], startIndex: 0)"
     ],
     "validation_provenance": {
@@ -1210,6 +1210,9 @@
   },
   "integration_sha": "79e5c69cb9e6a1bcc08e919c2993aaa5401148b7",
   "issue": 2874,
+  "metadata_corrections": [
+    "evidence/canary-2874-v4/encoding-correction-b530fc144bd2/audit.json"
+  ],
   "orchestration": {
     "requests": {
       "acceptance-1-0": {
