@@ -15,10 +15,17 @@ concurrency:
   group: wholesale-bugfix-agent-canary
   cancel-in-progress: false
 timeout-minutes: 15
+max-ai-credits: 500
+max-turns: 20
+sandbox:
+  agent:
+    version: v0.27.43
 network: defaults
 tools:
   bash: true
-engine: codex
+engine:
+  id: codex
+  model: gpt-6-astra
 post-steps:
   - name: Validate canary evidence
     run: |

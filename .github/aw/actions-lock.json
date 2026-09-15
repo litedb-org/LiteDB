@@ -5,6 +5,11 @@
       "version": "v0.82.0-jk.1",
       "sha": "21e402d7a4b5367258a7692cbb84fee60b507598"
     },
+    "actions/setup-dotnet@v4": {
+      "repo": "actions/setup-dotnet",
+      "version": "v4",
+      "sha": "67a3573c9a986a3f9c594539f4ab511d57bb3ce9"
+    },
     "actions/upload-artifact@v4": {
       "repo": "actions/upload-artifact",
       "version": "v4",

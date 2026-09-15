@@ -17,6 +17,7 @@ import redact_gh_aw_codex_artifacts as redactor
 
 class EndpointTests(unittest.TestCase):
     def run_runtime_patch(self, endpoint: str, config: dict) -> tuple:
+        config.setdefault("apiProxy", {}).setdefault("maxAiCredits", 500)
         with tempfile.TemporaryDirectory() as temp:
             config_path = Path(temp) / "gh-aw" / "awf-config.json"
             config_path.parent.mkdir()
@@ -53,7 +54,7 @@ class EndpointTests(unittest.TestCase):
             with self.subTest(endpoint=endpoint):
                 result, config = self.run_runtime_patch(endpoint, {})
                 self.assertNotEqual(0, result.returncode)
-                self.assertEqual({}, config)
+                self.assertEqual({"apiProxy": {"maxAiCredits": 500}}, config)
 
     def test_runtime_removes_stale_base_path(self):
         result, config = self.run_runtime_patch(
@@ -62,6 +63,17 @@ class EndpointTests(unittest.TestCase):
         )
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertNotIn("basePath", config["apiProxy"]["targets"]["openai"])
+
+    def test_unknown_models_keep_positive_accounting_and_budget(self):
+        result, config = self.run_runtime_patch("https://provider.example.test", {})
+        self.assertEqual(0, result.returncode, result.stderr)
+        proxy = config["apiProxy"]
+        self.assertEqual(500, proxy["maxAiCredits"])
+        self.assertEqual({"enabled": False}, proxy["modelFallback"])
+        self.assertEqual({"input": 25, "output": 150, "cachedInput": 25, "cacheWrite": 25}, proxy["defaultAiCreditsPricing"])
+        for budget in (0, -1):
+            result, _ = self.run_runtime_patch("https://provider.example.test", {"apiProxy": {"maxAiCredits": budget}})
+            self.assertNotEqual(0, result.returncode)
 
     def test_lock_patch_is_idempotent_and_fails_closed_on_layout_changes(self):
         fixture = "\n".join([
@@ -87,6 +99,8 @@ class EndpointTests(unittest.TestCase):
             self.assertEqual(first, path.read_bytes())
             text = path.read_text(encoding="utf-8")
             self.assertIn("--exclude-env CODEX_LB_BASE_URL", text)
+            self.assertIn("--legacy-security", text)
+            self.assertEqual(2, text.count("CODEX_LB_BASE_URL: ${{ secrets.CODEX_LB_BASE_URL }}"))
             self.assertIn(patcher.DETECTION_REDACTION_MARKER, text)
             path.write_text("# codex_harness.cjs\n", encoding="utf-8")
             with self.assertRaises(RuntimeError):

@@ -45,6 +45,13 @@ PATCH_SNIPPET = [
     'print(f"::add-mask::{target_host}")',
     'config_path = Path(os.environ["RUNNER_TEMP"]) / "gh-aw" / "awf-config.json"',
     "config = json.loads(config_path.read_text())",
+    '# Accounting guardrail assumptions, not a statement of actual provider prices.',
+    '# AWF v0.27.43+ forwards this fallback; one AI credit is one nominal cent.',
+    'api_proxy = config.setdefault("apiProxy", {})',
+    'if not isinstance(api_proxy.get("maxAiCredits"), (int, float)) or api_proxy["maxAiCredits"] <= 0:',
+    '    raise SystemExit("A positive AI credit budget is required")',
+    'api_proxy["defaultAiCreditsPricing"] = {"input": 25, "output": 150, "cachedInput": 25, "cacheWrite": 25}',
+    'api_proxy["modelFallback"] = {"enabled": False}',
     'allow_domains = config.setdefault("network", {}).setdefault("allowDomains", [])',
     "if host not in allow_domains:",
     "    allow_domains.append(host)",
@@ -122,8 +129,13 @@ def insert_runtime_patch(lines: list[str]) -> tuple[list[str], int]:
 def patch_awf_command(line: str) -> tuple[str, bool]:
     if AWF_COMMAND not in line:
         return line, False
+    original = line
+    # The pinned compiler uses the existing host-access/iptables topology.
+    # AWF 0.27.43 requires naming that topology explicitly to preserve it.
+    if "--legacy-security" not in line:
+        line = line.replace("--env-all ", "--legacy-security --env-all ", 1)
     if "--exclude-env CODEX_LB_BASE_URL" in line:
-        return line, False
+        return line, line != original
     if "--env-all " not in line:
         raise RuntimeError("Found awf command without --env-all")
     return line.replace(
