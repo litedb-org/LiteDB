@@ -43,6 +43,37 @@ or integrated at this point.
    a definition or rendered name. This must be handled without losing cases or
    confusing unchanged failure counts with unchanged failures.
 
+## First collected candidate
+
+- Canary v2 stopped before a model request: the shipped Codex CLI rejected
+  `agents.enabled=false`. Offline checks against the actual installed CLI verified
+  the replacement flags `features.multi_agent=false` and
+  `features.multi_agent_v2=false`.
+- [Canary v3's fix worker](https://github.com/litedb-org/LiteDB/actions/runs/34980481504)
+  completed and produced candidate `ed795329beeec37c92dc8eb11e1c4086e9fd14ee`.
+  It changes only the ObjectId constructor's argument guard. All regression
+  source remains unchanged.
+- Its [baseline](https://github.com/litedb-org/LiteDB/actions/runs/34980331557)
+  confirmed the expected red cases, and its
+  [focused check](https://github.com/litedb-org/LiteDB/actions/runs/34981481193)
+  passed. Its broad check stopped on four #2870 failure-classification changes,
+  which are under investigation. This is not an accepted fix.
+- The worker config explicitly sets `model_reasoning_effort = "high"` and request
+  usage confirms `gpt-6-astra`. However, the installed CLI does not recognize the
+  model alias and its fallback metadata disables reasoning support. Source
+  inspection found that this can omit reasoning from requests despite the
+  configured effort. The controller was stopped before acceptance. The user
+  requested Codex 0.154.0; the replacement runtime must verify the actual outgoing
+  reasoning setting before a fresh canary can be accepted.
+- The first full capture omitted build jobs because GitHub rejected a numeric
+  issue input at the reusable-workflow boundary. Matching string input types
+  restored build-job expansion in the
+  [corrected isolated probe](https://github.com/litedb-org/LiteDB/actions/runs/34981833553).
+- The initial #2794 Windows historical-package timeout passed one targeted retry.
+  Both original failure and retry evidence are retained. The incomplete capture
+  and duplicate artifact names cannot satisfy acceptance; a fresh complete
+  baseline remains required.
+
 ## Acceptance still required
 
 A successful pilot requires the verified candidate, focused and broad CI, three
