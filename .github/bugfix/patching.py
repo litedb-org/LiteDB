@@ -3,18 +3,63 @@
 from contextlib import contextmanager
 import hashlib
 import json
+import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 
 from artifacts import read_members, validate_worker_model
-from state import require
+from state import SHA, Rejected, require
 from storage import run
+
+
+CANDIDATE_COMMIT_NAME = "LiteDB bugfix controller"
+CANDIDATE_COMMIT_EMAIL = "bugfix-controller@users.noreply.github.com"
+
+
+class CandidateConflict(Rejected):
+    """A candidate ref exists but cannot authenticate the deterministic commit."""
 
 
 def git(repository, *arguments):
     return run(["git", "-C", str(repository), "-c", "credential.helper=", "-c",
                 "credential.helper=!gh auth git-credential", *map(str, arguments)])
+
+
+def commit_candidate(repository, message):
+    """Create the same commit object whenever the same parent, tree and message are replayed."""
+    tree = git(repository, "write-tree")
+    parent = git(repository, "rev-parse", "HEAD")
+    # The inherited immutable timestamp is a reproducibility stamp, not the controller's wall clock.
+    commit_date = git(repository, "show", "-s", "--format=%cI", parent)
+    environment = os.environ.copy()
+    environment.update(GIT_AUTHOR_NAME=CANDIDATE_COMMIT_NAME, GIT_AUTHOR_EMAIL=CANDIDATE_COMMIT_EMAIL,
+                       GIT_AUTHOR_DATE=commit_date, GIT_COMMITTER_NAME=CANDIDATE_COMMIT_NAME,
+                       GIT_COMMITTER_EMAIL=CANDIDATE_COMMIT_EMAIL, GIT_COMMITTER_DATE=commit_date)
+    result = subprocess.run(["git", "-C", str(repository), "-c", "commit.gpgsign=false",
+                             "-c", "i18n.commitEncoding=UTF-8", "commit-tree", tree, "-p", parent],
+                            input=(message + "\n").encode("utf-8"),
+                            capture_output=True, check=False, env=environment)
+    diagnostic = result.stderr.decode("utf-8", errors="replace").strip()
+    require(result.returncode == 0, f"Cannot create deterministic candidate commit: {diagnostic}")
+    sha = result.stdout.decode("ascii").strip()
+    require(SHA.fullmatch(sha), "Candidate commit did not produce a full SHA")
+    git(repository, "update-ref", "HEAD", sha, parent)
+    require(git(repository, "rev-parse", "HEAD^{tree}") == tree, "Candidate commit tree changed")
+    return sha
+
+
+def remote_candidate_sha(output, ref):
+    if not output:
+        return None
+    lines = output.splitlines()
+    if len(lines) != 1:
+        raise CandidateConflict("Candidate branch readback is ambiguous")
+    fields = lines[0].split()
+    if len(fields) != 2 or not SHA.fullmatch(fields[0]) or fields[1] != ref:
+        raise CandidateConflict("Candidate branch readback is malformed")
+    return fields[0]
 
 
 @contextmanager
@@ -78,14 +123,9 @@ def create_candidate(repository, control, repo, state, source_sha, run_id, data)
                 require(status == "M" and path in contract["allowed_production_paths"], "Patch changes unapproved file type or path")
                 actual.append(path)
             require(sorted(actual) == sorted(metadata["changed_paths"]), "Patch differs from worker path evidence")
-            hooks = Path(directory) / "hooks"
-            hooks.mkdir()
             message = (f"Fix issue #{state['issue']} regression\n\n{result['summary']}\n\n"
                        "Preserve the frozen regression contract while correcting the reported behavior.")
-            git(candidate, "-c", f"core.hooksPath={hooks}", "-c", "user.name=LiteDB bugfix controller",
-                "-c", "user.email=bugfix-controller@users.noreply.github.com", "-c", "commit.gpgsign=false",
-                "commit", "--quiet", "-m", message)
-            sha = git(candidate, "rev-parse", "HEAD")
+            sha = commit_candidate(candidate, message)
             run([sys.executable, str(control / "scripts/bugfix/gate.py"), "protect", "--manifest", str(manifest),
                  "--issue", str(state["issue"]), "--base-sha", state["base_sha"], "--candidate-sha", sha,
                  "--repository", str(candidate), "--output", str(Path(directory) / "scope.json")])
@@ -97,8 +137,13 @@ def publish_candidate(repository, repo, branch, sha):
     require(branch.startswith("fix/issue-"), "Candidate branch must be in the fix namespace")
     target = f"https://github.com/{repo}.git"
     ref = f"refs/heads/{branch}"
-    current = git(repository, "ls-remote", "--heads", target, ref)
-    if current:
-        require(current.split()[0] == sha, "Candidate branch already points to a different commit")
-        return
+    current = remote_candidate_sha(git(repository, "ls-remote", "--heads", target, ref), ref)
+    if current is not None:
+        if current != sha:
+            raise CandidateConflict("Candidate branch already points to a different commit")
+        return sha
     git(repository, "push", "--quiet", f"--force-with-lease={ref}:", target, f"{sha}:{ref}")
+    current = remote_candidate_sha(git(repository, "ls-remote", "--heads", target, ref), ref)
+    if current != sha:
+        raise CandidateConflict("Candidate branch publication readback failed")
+    return sha

@@ -2,9 +2,13 @@
 
 import hashlib
 import json
+from pathlib import Path
+import subprocess
+import tempfile
 import unittest
+from unittest.mock import patch
 
-from patching import worker_payload
+from patching import CandidateConflict, commit_candidate, publish_candidate, worker_payload
 from state import Rejected, new_state
 from test_artifacts import archive
 from test_worker_runtime import runtime_fixture
@@ -60,6 +64,55 @@ class PatchTests(unittest.TestCase):
                     del self.metadata[field]
                 else:
                     self.metadata[field] = original
+
+
+class CandidatePublicationTests(unittest.TestCase):
+    def test_candidate_commit_is_identical_when_recreated_later(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repository = Path(directory)
+            subprocess.run(["git", "init", "--quiet", repository], check=True)
+            source = repository / "source.txt"
+            source.write_text("base\n", encoding="utf-8")
+            subprocess.run(["git", "-C", repository, "add", "source.txt"], check=True)
+            subprocess.run(["git", "-C", repository, "-c", "user.name=base", "-c", "user.email=base@example.com",
+                            "commit", "--quiet", "-m", "base"], check=True)
+            parent = subprocess.check_output(["git", "-C", repository, "rev-parse", "HEAD"], text=True).strip()
+            parent_date = subprocess.check_output(
+                ["git", "-C", repository, "show", "-s", "--format=%ci", parent], text=True).strip()
+
+            def create():
+                source.write_text("candidate\n", encoding="utf-8")
+                subprocess.run(["git", "-C", repository, "add", "source.txt"], check=True)
+                return commit_candidate(repository, "Fix one reviewed defect")
+
+            first = create()
+            metadata = subprocess.check_output(
+                ["git", "-C", repository, "show", "-s", "--format=%an%n%ae%n%ai%n%cn%n%ce%n%ci", first],
+                text=True).splitlines()
+            subprocess.run(["git", "-C", repository, "reset", "--hard", "--quiet", parent], check=True)
+            second = create()
+            self.assertEqual(first, second)
+            self.assertEqual(["LiteDB bugfix controller", "bugfix-controller@users.noreply.github.com",
+                              parent_date] * 2, metadata)
+
+    def test_publish_requires_exact_existing_ref_or_exact_readback(self):
+        exact = "d" * 40
+        with patch("patching.git", side_effect=["", "", f"{exact}\trefs/heads/fix/issue-1-campaign-a1"]) as git:
+            published = publish_candidate(Path("repo"), "owner/repo", "fix/issue-1-campaign-a1", exact)
+        self.assertEqual(exact, published)
+        self.assertEqual(3, git.call_count)
+
+        with patch("patching.git", return_value=f"{'e' * 40}\trefs/heads/fix/issue-1-campaign-a1"):
+            with self.assertRaisesRegex(CandidateConflict, "different commit"):
+                publish_candidate(Path("repo"), "owner/repo", "fix/issue-1-campaign-a1", exact)
+
+        with patch("patching.git", side_effect=["", "", f"{'e' * 40}\trefs/heads/fix/issue-1-campaign-a1"]):
+            with self.assertRaisesRegex(CandidateConflict, "readback failed"):
+                publish_candidate(Path("repo"), "owner/repo", "fix/issue-1-campaign-a1", exact)
+
+        with patch("patching.git", return_value=f"{exact} refs/heads/wrong"):
+            with self.assertRaisesRegex(CandidateConflict, "malformed"):
+                publish_candidate(Path("repo"), "owner/repo", "fix/issue-1-campaign-a1", exact)
 
 
 if __name__ == "__main__":

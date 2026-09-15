@@ -1,13 +1,14 @@
 """Integration must serialize writers and advance only the exact tested commit."""
 
 import contextlib
+import hashlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
-from integrate import advance, execute, finish, tested_tree
+from integrate import add_controller_evidence, advance, execute, finish, tested_tree, validation_report
 from integrate_storage import IntegrationStore
 from state import Rejected, new_state
 
@@ -119,6 +120,51 @@ class IntegrationTests(unittest.TestCase):
         store.acquire.assert_not_called()
         store.commit.assert_not_called()
 
+    def test_prepared_resume_uses_durable_raw_evidence_when_actions_are_unavailable(self):
+        self.state["protocol"] = "compressed-v1"
+        self.state["evidence"] = {"baseline": {"run_id": 111}, "broad": {"run_id": 222, "matrix": []}}
+        args = SimpleNamespace(repo="owner/repo", campaign="canary", candidate_sha="d" * 40,
+                               repository=Path("repo"), apply=True, resume=True)
+        contract = {"frozen_test_revision": "b" * 40, "regressions": [], "controls": []}
+        report = validation_report(self.state, "c" * 40, self.state["evidence"]["broad"], [])
+        files = add_controller_evidence({"acceptance/run-111/raw.zip": b"raw"}, self.state,
+                                        report, contract, {})
+        lock = {"token": "lock-token", "phase": "prepared", "active": True,
+                "candidate_tree_sha": "9" * 40, "evidence_prefix": "evidence/canary/",
+                "evidence_manifest_sha256": hashlib.sha256(files["evidence-manifest.json"]).hexdigest()}
+        store = Mock()
+        store.read.return_value = (self.state, "1" * 40)
+        store.acquire.return_value = lock
+        store.require_lock.return_value = (lock, "2" * 40)
+        store.read_prefix_at.return_value = files
+        store.read_at.return_value = self.state
+        unavailable = Mock(side_effect=Rejected("Actions artifact expired"))
+        with patch("integrate.IntegrationStore", return_value=store), \
+                patch("integrate.tested_tree", return_value="9" * 40), \
+                patch("integrate.git", return_value=json.dumps({"issues": {"2874": contract}})), \
+                patch("integrate.acceptance_evidence", unavailable), \
+                patch("integrate.validate_archived_evidence") as archived, \
+                patch("integrate.integration_head", return_value="d" * 40), \
+                patch("integrate.advance"), patch("integrate.finish", return_value={**self.state, "phase": "integrated"}):
+            self.assertEqual("integrated", execute(args)["phase"])
+        unavailable.assert_not_called()
+        archived.assert_called_once()
+        store.read_prefix_at.assert_called_once_with("evidence/canary/", "2" * 40)
+
+    def test_prepared_resume_rejects_changed_archive_before_branch_update(self):
+        report = {"provenance": {"candidate_run_id": 222}, "target_jobs": [], "coverage_gaps": [],
+                  "source_context_changes": []}
+        contract = {"regressions": [], "controls": []}
+        files = add_controller_evidence({"acceptance/raw.zip": b"raw"}, self.state, report, contract, {})
+        digest = hashlib.sha256(files["evidence-manifest.json"]).hexdigest()
+        files["acceptance/raw.zip"] = b"changed"
+        store = Mock()
+        store.read_prefix_at.return_value = files
+        lock = {"evidence_prefix": "evidence/canary/", "evidence_manifest_sha256": digest}
+        with self.assertRaisesRegex(Rejected, "durable manifest"):
+            from integrate import prepared_evidence
+            prepared_evidence(store, self.state, lock, "2" * 40, report, contract, {})
+
 
 class IntegrationLockTests(unittest.TestCase):
     def setUp(self):
@@ -157,6 +203,27 @@ class IntegrationLockTests(unittest.TestCase):
         pushes = [call for call in calls if "push" in call]
         self.assertEqual(1, len(pushes))
         self.assertIn("--force-with-lease=refs/heads/automation/bugfix-state:" + "f" * 40, pushes[0])
+
+    def test_prepared_archive_reader_walks_only_the_bound_prefix(self):
+        trees = {
+            "root": {"tree": [{"path": "evidence", "type": "tree", "sha": "evidence"}]},
+            "evidence": {"tree": [{"path": "canary", "type": "tree", "sha": "canary"}]},
+            "canary": {"tree": [{"path": "report.json", "type": "blob", "mode": "100644",
+                                  "sha": "blob", "size": 3},
+                                 {"path": "nested", "type": "tree", "sha": "nested"}]},
+            "nested": {"tree": [{"path": "raw.zip", "type": "blob", "mode": "100644",
+                                  "sha": "archive", "size": 4}]},
+        }
+
+        def api(repo, path):
+            kind, sha = path.split("/")[-2:]
+            if kind == "trees":
+                return trees[sha]
+            return {"encoding": "base64", "content": "cmF3" if sha == "blob" else "emlwIQ=="}
+
+        with patch("integrate_storage.github", side_effect=api):
+            files = self.store.read_prefix_at("evidence/canary/", "root")
+        self.assertEqual({"report.json": b"raw", "nested/raw.zip": b"zip!"}, files)
 
 
 if __name__ == "__main__":

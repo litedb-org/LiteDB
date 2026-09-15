@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import patch
 
 from evidence import MATRIX, event_for
-from integrate_evidence import acceptance_evidence
+from integrate_evidence import acceptance_evidence, validate_archived_evidence
 from state import ROLES, Rejected, new_state
 from test_artifacts import archive
 from test_worker_runtime import runtime_fixture
@@ -75,11 +75,12 @@ class AcceptanceRevalidationTests(unittest.TestCase):
             if "/jobs" in path:
                 return {"total_count": 1, "jobs": [{"name": "compatibility", "conclusion": "success" if self.compatibility else "skipped"}]}
             workflow = "bugfix-validate.lock.yml" if self.events[run_id]["kind"] == "review" else "bugfix-check.yml"
-            return {"status": "completed", "conclusion": "success", "head_sha": self.events[run_id].get("check_workflow_sha", "c" * 40),
+            return {"id": run_id, "status": "completed", "conclusion": "success", "head_sha": self.events[run_id].get("check_workflow_sha", "c" * 40),
                     "event": "workflow_dispatch", "path": ".github/workflows/" + workflow}
 
         with patch("integrate_evidence.github", side_effect=api), \
-                patch("integrate_evidence.production_evidence", return_value=(self.production, b"production proof")), \
+                patch("integrate_evidence.production_evidence", return_value=(
+                    self.production, getattr(self, "production_data", b"production proof"))), \
                 patch("integrate_evidence.download", side_effect=lambda repo, item: archive(self.data[(item["run_id"], item["name"])])):
             return acceptance_evidence("owner/repo", self.state)
 
@@ -111,6 +112,32 @@ class AcceptanceRevalidationTests(unittest.TestCase):
     def test_complete_evidence_is_retained(self):
         files = self.check()
         self.assertEqual(12, len([name for name in files if name.endswith(".zip")]))
+        validate_archived_evidence(files, self.state)
+
+    def test_changed_prepared_raw_artifact_is_rejected_offline(self):
+        files = self.check()
+        files["acceptance/run-1/bugfix-check-ubuntu-latest-net8.0.zip"] = b"changed"
+        with self.assertRaises(Rejected):
+            validate_archived_evidence(files, self.state)
+
+    def test_archived_run_and_recorded_artifact_identities_are_exact(self):
+        files = self.check()
+        run = json.loads(files["acceptance/run-1/run.json"])
+        run["id"] = 999
+        files["acceptance/run-1/run.json"] = json.dumps(run).encode()
+        with self.assertRaisesRegex(Rejected, "run ID"):
+            validate_archived_evidence(files, self.state)
+
+        files = self.check()
+        self.state["evidence"]["acceptance"]["matrix"][0]["artifact_sha256"] = "0" * 64
+        with self.assertRaisesRegex(Rejected, "artifact changed"):
+            validate_archived_evidence(files, self.state)
+
+    def test_archived_review_definition_cannot_change(self):
+        files = self.check()
+        self.state["reviews"]["behavior"]["check_workflow_sha"] = "e" * 40
+        with self.assertRaisesRegex(Rejected, "original worker definition"):
+            validate_archived_evidence(files, self.state)
 
     def test_missing_compatibility_or_review_cannot_accept(self):
         self.compatibility = False
@@ -134,6 +161,21 @@ class AcceptanceRevalidationTests(unittest.TestCase):
         files = self.check()
         self.assertEqual(6, len([name for name in files if name.endswith(".zip")]))
         self.assertIn("acceptance/run-3/bugfix-production.zip", files)
+
+    def test_profiled_prepared_production_proof_revalidates_offline(self):
+        self.use_profile("broad", compressed=True)
+        report = {"schema_version": 1, "issue": self.state["issue"], "base_sha": self.state["base_sha"],
+                  "candidate_sha": self.state["candidate_sha"], "workflow_sha": self.state["workflow_sha"],
+                  "acceptance_profile": self.state["acceptance_profile"], "accepted": True,
+                  "production_build": True, "compatibility": self.state["acceptance_profile"]["compatibility"]}
+        raw = json.dumps(report).encode()
+        self.production_data = archive({"production.json": raw})
+        self.production = {"artifact": "bugfix-production", "artifact_id": 90,
+                           "artifact_sha256": hashlib.sha256(self.production_data).hexdigest(),
+                           "report_sha256": hashlib.sha256(raw).hexdigest()}
+        self.state["evidence"]["broad"]["production"] = copy.deepcopy(self.production)
+        files = self.check()
+        validate_archived_evidence(files, self.state)
 
     def test_audited_legacy_revalidation_preserves_original_reviews_and_one_new_lane(self):
         self.use_profile("acceptance")

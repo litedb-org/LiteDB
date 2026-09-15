@@ -33,6 +33,57 @@ class IntegrationStore:
         blob = github(self.repo, f"git/blobs/{item['sha']}")
         return json.loads(base64.b64decode(blob["content"]))
 
+    def read_prefix_at(self, prefix, sha):
+        """Read one controller-written evidence directory from an immutable data commit."""
+        relative = PurePosixPath(prefix)
+        require(not relative.is_absolute() and relative.parts and ".." not in relative.parts
+                and ".git" not in relative.parts and "\\" not in prefix and ":" not in prefix,
+                "Unsafe evidence prefix")
+        tree_sha = sha
+        for part in relative.parts:
+            tree = github(self.repo, f"git/trees/{tree_sha}")
+            matches = [entry for entry in tree.get("tree", []) if entry.get("path") == part]
+            require(len(matches) == 1 and matches[0].get("type") == "tree", "Prepared evidence prefix is missing")
+            tree_sha = matches[0]["sha"]
+        pending = [(PurePosixPath(), tree_sha)]
+        files = {}
+        total = 0
+        object_count = 0
+        while pending:
+            directory, current_sha = pending.pop()
+            tree = github(self.repo, f"git/trees/{current_sha}")
+            require(tree.get("truncated") is not True, "Prepared evidence tree is truncated")
+            for entry in tree.get("tree", []):
+                object_count += 1
+                require(object_count <= 1000, "Prepared evidence tree contains too many objects")
+                name = entry.get("path")
+                require(isinstance(name, str) and name and "/" not in name and "\\" not in name
+                        and name not in (".", ".."), "Unsafe prepared evidence path")
+                path = directory / name
+                require(len(path.parts) <= 32, "Prepared evidence path is too deep")
+                if entry.get("type") == "tree":
+                    pending.append((path, entry["sha"]))
+                    continue
+                require(entry.get("type") == "blob" and entry.get("mode") == "100644",
+                        "Prepared evidence contains an unsupported Git object")
+                size = entry.get("size")
+                require(type(size) is int and 0 <= size <= 95 * 1024 * 1024,
+                        "Prepared evidence file exceeds the supported bound")
+                require(len(files) < 500, "Prepared evidence contains too many files")
+                blob = github(self.repo, f"git/blobs/{entry['sha']}")
+                require(blob.get("encoding") == "base64", "Prepared evidence blob encoding changed")
+                encoded_content = blob.get("content")
+                require(isinstance(encoded_content, str), "Prepared evidence blob content is missing")
+                content = base64.b64decode("".join(encoded_content.split()), validate=True)
+                require(len(content) == size, "Prepared evidence blob size changed")
+                total += size
+                require(total <= 512 * 1024 * 1024, "Prepared evidence exceeds 512 MiB")
+                key = path.as_posix()
+                require(key not in files, "Duplicate prepared evidence path")
+                files[key] = content
+        require(files, "Prepared evidence archive is empty")
+        return files
+
     def commit(self, expected_sha, files, message):
         """One exact-lease data commit preserves evidence before branch mutation."""
         require(expected_sha is not None, "Integration requires an existing controller state branch")
