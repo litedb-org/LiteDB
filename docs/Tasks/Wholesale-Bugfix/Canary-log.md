@@ -123,3 +123,41 @@ jobs while preserving their source unchanged. The remaining original matrix
 must still complete with exact baseline/candidate evidence. This coverage gap
 must accompany integration evidence; #2854 remains unverified and is not counted
 as fixed. Restoring its jobs requires a separately reviewed harness correction.
+
+
+## V4 candidate and validation pause
+
+Candidate `79e5c69cb9e6a1bcc08e919c2993aaa5401148b7` adds two argument guards to
+`ObjectId(byte[], int)`. The original regression tests remain unchanged.
+The [baseline](https://github.com/litedb-org/LiteDB/actions/runs/34984349375)
+confirmed six failing regressions and one passing control;
+[focused CI](https://github.com/litedb-org/LiteDB/actions/runs/34985300364)
+passed all seven, and
+[broad CI](https://github.com/litedb-org/LiteDB/actions/runs/34985454867)
+accepted all 1,509 cases against the baseline failure ledger.
+
+All three independent Sol high reviews passed without findings:
+[behavior](https://github.com/litedb-org/LiteDB/actions/runs/34985735409),
+[compatibility](https://github.com/litedb-org/LiteDB/actions/runs/34985757907), and
+[lifecycle](https://github.com/litedb-org/LiteDB/actions/runs/34985781861).
+The compatibility reviewer also passed current/5.0.21 ordinary and encrypted
+file checks. This does not replace the required acceptance compatibility job.
+
+[Acceptance](https://github.com/litedb-org/LiteDB/actions/runs/34988724926)
+passed Ubuntu net8 and both Windows lanes. Ubuntu net10 and both macOS lanes
+rejected only the first-source #2870 failure classification: unchanged source
+produces different JIT iterator and wrapper frames. Its compatibility job was
+skipped, so acceptance is incomplete. The controller inspected only the Ubuntu
+net8 artifact when classifying failure and dispatched an unnecessary retry.
+Both controller and retry were cancelled; a legitimate pause event at state
+commit `7ef44174c8b9cb38b5449e0689e1c957e2b85f5f` preserves the candidate,
+reviews, and failed run. A reviewed revalidation path must bind a new immutable
+check definition separately from the original worker/reviewer runtime.
+
+The explicit [#2794 timing overlay](Harness-2794.md) passed in all six paired
+full-matrix jobs. The subsequent paired capture exposed a separate historical
+#2825 harness classification gap: an aggregate contains the expected primary
+failure plus an unrecognized concurrent-write secondary stack. Its current
+variant passes. These raw artifacts remain failures; the harness correction
+requires explicit provenance and fresh paired evidence. No candidate has been
+integrated, and scale-up remains pending.

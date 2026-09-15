@@ -2,7 +2,7 @@
 
 Prepared for a future runtime revision after issue #2874 completes acceptance and
 integration. Preparation does not authorize the controller to skip those gates.
-The active runtime-v2 reference is unchanged.
+The active canary uses immutable runtime-v4; it is paused for reviewed validation-infrastructure corrections.
 
 The [execution manifest](../../../scripts/bugfix/issues.json) now contains #2839
 and #2869. Existing #2874 execution metadata is unchanged. Both new contracts use
@@ -46,8 +46,8 @@ build in the clean, detached original-baseline worktree. These runs used
 
 Both actual TRX files satisfy the new baseline gates in
 `windows-x64-net10.0`. Both original source-blob checks also pass.
-These are local preflight checks of uncommitted future contracts; they are not
-CI acceptance evidence. The future runtime must commit its policy, rebuild the
+These are local preflight checks of the committed execution contracts; they are
+not CI acceptance evidence. The future runtime must commit its policy, rebuild the
 pinned integration base, reproduce the defect, and bind fresh evidence to its
 own revision before dispatching a fix worker.
 
