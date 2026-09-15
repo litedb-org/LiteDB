@@ -1,12 +1,14 @@
 {
   "bootstrap_blob_sha": "29e3a758e7f7332466c90e4e235b8664cde19ac7",
-  "cooldown_until": 0,
+  "cooldown_reason": "Authenticated AI budget/accounting cooldown; no repair or infrastructure attempt consumed",
+  "cooldown_until": 1789593355.0,
   "history": [
     {
       "action": "initialize",
       "at": 1789506834.2012134
     }
   ],
+  "infrastructure_streak": 0,
   "issues": {
     "1002": {
       "decision": {
@@ -19,6 +21,7 @@
         "phase": "repairing",
         "resume_integration": false
       },
+      "observed_infrastructure_retries": 0,
       "status": "active",
       "tick_errors": 0
     },
@@ -117,9 +120,9 @@
   },
   "kind": "hosted-bugfix-sweep",
   "last_tick": {
-    "at": 1789507488.1674638,
-    "campaign": null,
-    "campaign_phase": null,
+    "at": 1789507497.259588,
+    "campaign": "hosted-v9-1002",
+    "campaign_phase": "repairing",
     "counts": {
       "accepted": 0,
       "active": 1,
@@ -129,7 +132,10 @@
     "issue": 1002,
     "run_attempt": 1,
     "run_id": 35025421031,
-    "run_ids": []
+    "run_ids": [
+      35022768603,
+      35024027102
+    ]
   },
   "paused": false,
   "phase": "running",
