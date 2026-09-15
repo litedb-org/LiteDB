@@ -3,6 +3,7 @@
   "campaign": "sweep-2839-v1",
   "candidate_sha": null,
   "events": {
+    "pause-accepted-ledger-utf8": "20a1bdabb382f84baf515fe382720aa4b88e3afd1b42268bbefd855de5ed2b49",
     "run-34996458134-baseline-ci": "0941f36b8e411a4c76c3723197fa254bf902d8b2969127abda5380d3f0d90e61"
   },
   "evidence": {
@@ -55,6 +56,27 @@
       "schema_version": 1,
       "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
       "workflow_sha": "807054e37840ab31184642a86c4bbb7c15983de8"
+    },
+    {
+      "base_sha": "79e5c69cb9e6a1bcc08e919c2993aaa5401148b7",
+      "campaign": "sweep-2839-v1",
+      "candidate_sha": null,
+      "event_id": "pause-accepted-ledger-utf8",
+      "issue": 2839,
+      "kind": "pause",
+      "passing_contract": {
+        "case_count": 7,
+        "cases_sha256": "f3a1f99b25dec4a1a1971cc66a55d2c658d67609a03189ff11afd00d771506bf",
+        "ledger_sha256": "e82f54c567b9825d7d83f7c668edfd7d404a024690085440e1ba71b563401aa5",
+        "schema_version": 1,
+        "state_commit": "358037da3f244729028a53c478356baa3d058c95"
+      },
+      "protocol": "compressed-v1",
+      "reason": "Investigate Windows UTF-8 decoding of permanent accepted test identities; do not retry unchanged baseline",
+      "run_id": 0,
+      "schema_version": 1,
+      "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "workflow_sha": "807054e37840ab31184642a86c4bbb7c15983de8"
     }
   ],
   "infrastructure_retries": {
@@ -104,7 +126,7 @@
     "schema_version": 1,
     "state_commit": "358037da3f244729028a53c478356baa3d058c95"
   },
-  "paused": false,
+  "paused": true,
   "phase": "baseline",
   "protocol": "compressed-v1",
   "repair_attempts": 0,
