@@ -400,3 +400,7 @@ See [WAVE-4.md](WAVE-4.md) for four further exact contracts (#2746/#2807/#1829/#
 ## Environment-aware #2367 preparation
 
 See [ISSUE-2367.md](ISSUE-2367.md) for exact runtime-specific evidence, two executed neighboring controls and the remaining source-guard review boundary.
+
+## Required #1002 repair transition
+
+See [COREPAIR-1002-2811.md](COREPAIR-1002-2811.md) for the explicit nine-case behavioral co-repair, durable-write review obligations and fresh campaign boundary.

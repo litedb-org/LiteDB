@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import unittest
 
+from corepair_contract_assertions import expected_after_auto_id_corepair
 from policy import load_issue, verify_focused
 from trx import GateError, TestResult, TestRun
 
@@ -40,7 +41,7 @@ class WaveFourContracts(unittest.TestCase):
             "dc7c03ac7c44cbe8708d9961f5d53fab7780a10e:scripts/bugfix/issues.json"]))["issues"]["1224"]
         for number, definition in previous["issues"].items():
             expected = approved_m111 if number == "1224" else definition
-            self.assertEqual(expected, current["issues"][number], number)
+            self.assertEqual(expected_after_auto_id_corepair(number, expected), current["issues"][number], number)
         approved_wave = json.loads(subprocess.check_output([
             "git", "-C", str(ROOT), "show",
             "1aeb49ad5e1447c6268d2321a660e007be689656:scripts/bugfix/issues.json"]))

@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import unittest
 
+from corepair_contract_assertions import expected_after_auto_id_corepair
 from policy import load_issue, verify_focused
 from trx import GateError, TestResult, TestRun
 
@@ -43,7 +44,7 @@ class WaveThreeContracts(unittest.TestCase):
                     self.assertEqual(expected, updated["frozen_test_blobs"].pop(path))
                 requirement = updated["review_requirements"]["lifecycle"].pop()
                 self.assertIn("behavior_unverified=true and issue_credit=false", requirement)
-            self.assertEqual(definition, current["issues"][number], number)
+            self.assertEqual(expected_after_auto_id_corepair(number, definition), current["issues"][number], number)
 
     def test_original_blobs_include_all_neighbor_control_files(self):
         for number in COUNTS:

@@ -7,6 +7,7 @@ from pathlib import Path
 import subprocess
 import unittest
 
+from corepair_contract_assertions import expected_after_auto_id_corepair
 from policy import compare_ledger, load_issue, make_ledger
 from trx import GateError, TestResult, TestRun
 
@@ -36,7 +37,7 @@ class M111ContractTests(unittest.TestCase):
         self.assertIn("all six permanently accepted #2869", contract["review_requirements"]["behavior"].pop())
         self.assertIn("precision already lost", contract["review_requirements"]["compatibility"].pop())
         for number, definition in before["issues"].items():
-            self.assertEqual(definition, current["issues"][number], number)
+            self.assertEqual(expected_after_auto_id_corepair(number, definition), current["issues"][number], number)
         self.assertEqual({key: value for key, value in before.items() if key != "issues"},
                          {key: value for key, value in current.items() if key != "issues"})
 

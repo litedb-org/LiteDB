@@ -1,0 +1,805 @@
+{
+  "schema_version": 1,
+  "source_run_id": 34988724926,
+  "source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+  "repeat_candidate_sha": "79e5c69cb9e6a1bcc08e919c2993aaa5401148b7",
+  "workflow_sha": "7629236e73bde318e934509244c3e61ef820d8db",
+  "failure_normalization_sha256": "d4c510bf1504ec8298e0f231548fde8e67a929f7a3ccca9c6ec21a1a89571a36",
+  "artifacts": [
+    {
+      "id": 10405370121,
+      "name": "bugfix-check-ubuntu-latest-net8.0",
+      "baseline_trx_sha256": "a4d3b367c661fa8768fbb8668d4a8827713618fa3b488f15f02ca1607c8bd56b",
+      "environment": "linux-x64-net8.0",
+      "repeat_candidate_trx_sha256": "167eb02e1001d29571ed81d0cae3efae66516b079b78169b2445d765d58f4d88"
+    },
+    {
+      "id": 10405505060,
+      "name": "bugfix-check-ubuntu-latest-net10.0",
+      "baseline_trx_sha256": "d4d7854e6d5e036da9d1ad92ac4f5aebe0a23b8033fe5a50f9793dcf18cbe423",
+      "environment": "linux-x64-net10.0",
+      "repeat_candidate_trx_sha256": "06e8fd06f3069730ba19b93580856134a5514ae5b6d88862e9436499f8d8849b"
+    },
+    {
+      "id": 10404073794,
+      "name": "bugfix-check-windows-latest-net8.0",
+      "baseline_trx_sha256": "931cbd570f47bf6a376f11dde76c0ecf1399f9d742acf0f90eeb9463d781bdf0",
+      "environment": "windows-x64-net8.0",
+      "repeat_candidate_trx_sha256": "341cb8549c8b485af5375dc4e1260016406570c25b34b8005a1b51cb62af57c6"
+    },
+    {
+      "id": 10404574219,
+      "name": "bugfix-check-windows-latest-net10.0",
+      "baseline_trx_sha256": "789212a8598feb82270173bbc4b6e152682e4b1177a51ab6f7ad67d1dcc0c08e",
+      "environment": "windows-x64-net10.0",
+      "repeat_candidate_trx_sha256": "9d6ab521cbee8ca0390c9b1d54c7bb11a415ad5f1ac8b43972d09f632e09bf42"
+    },
+    {
+      "id": 10405111338,
+      "name": "bugfix-check-macos-latest-net8.0",
+      "baseline_trx_sha256": "c069b53a2512adcd39c9ecf0bbf1d1329ff1371fa21228dbf4de3923340ee719",
+      "environment": "macos-arm64-net8.0",
+      "repeat_candidate_trx_sha256": "0bba29b9d0a80d9bb804d3b9e5d3228468d0a6d900c7004201c54981391a18dd"
+    },
+    {
+      "id": 10405450249,
+      "name": "bugfix-check-macos-latest-net10.0",
+      "baseline_trx_sha256": "487ac255e77785b858569e7dbbd93a1e5422db470aae03c8c0d71741709b4e08",
+      "environment": "macos-arm64-net10.0",
+      "repeat_candidate_trx_sha256": "0e97ba85d8c32b48def91f249511913e247a5dd50fd588a1829f6b09d47451df"
+    }
+  ],
+  "cases": {
+    "LiteDB.Tests.Database.AutoId_Tests.AutoId_Strong_Typed": {
+      "test_id": "5379889c-6d6d-3d20-1030-5442fe56449e",
+      "class_name": "LiteDB.Tests.Database.AutoId_Tests",
+      "outcome": "Passed",
+      "canonical_failure": ""
+    },
+    "LiteDB.Tests.Issues.Issue1002_Tests.Nullable_integer_empty_ids_generate_unique_persisted_integer_keys(empty: 0)": {
+      "test_id": "a419db97-6ab3-62f6-d689-6129e52e1333",
+      "class_name": "LiteDB.Tests.Issues.Issue1002_Tests",
+      "outcome": "Passed",
+      "canonical_failure": ""
+    },
+    "LiteDB.Tests.Issues.Issue1002_Tests.Nullable_integer_empty_ids_generate_unique_persisted_integer_keys(empty: null)": {
+      "test_id": "6a6112a1-4157-a1d3-8b5c-a7b3b813631b",
+      "class_name": "LiteDB.Tests.Issues.Issue1002_Tests",
+      "outcome": "Failed",
+      "canonical_failure": "LiteDB.LiteException : Invalid BSON data type 'Null' on field '_id'."
+    },
+    "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_int_auto_id_is_atomic_for_every_typed_write_path(path: InsertMany)": {
+      "test_id": "a11c7fca-c6e4-e44f-29e8-b7b5edb09f22",
+      "class_name": "LiteDB.Tests.Issues.Issue2811_Tests",
+      "outcome": "Failed",
+      "canonical_failure": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.\nExpected message \"Object reference not set to an instance of an object.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion."
+    },
+    "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_int_auto_id_is_atomic_for_every_typed_write_path(path: InsertOne)": {
+      "test_id": "608569d7-80ea-7a1d-e39f-c78ea6ecb853",
+      "class_name": "LiteDB.Tests.Issues.Issue2811_Tests",
+      "outcome": "Failed",
+      "canonical_failure": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.\nExpected message \"Object reference not set to an instance of an object.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\nExpected rows to contain a single item, but found {{[_id, 91], [Name, \"control\"]}, {[_id, 92], [Name, \"target-a\"]}}.\nExpected bytesAfterAttempt to be equal to {0x00, 0x00, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0xFF, 0x00, …32736 more…} because validation must happen before writing; write-then-delete compensation is not atomic, but {0x00, 0x00, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0xFF, 0x00, …32736 more…} differs at index 16407.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion."
+    },
+    "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_int_auto_id_is_atomic_for_every_typed_write_path(path: UpsertMany)": {
+      "test_id": "96dd1933-af03-2f82-6ee4-ea0721e3c82f",
+      "class_name": "LiteDB.Tests.Issues.Issue2811_Tests",
+      "outcome": "Failed",
+      "canonical_failure": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.\nExpected message \"Object reference not set to an instance of an object.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion."
+    },
+    "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_int_auto_id_is_atomic_for_every_typed_write_path(path: UpsertOne)": {
+      "test_id": "e0969e3f-fa89-09d7-54f9-e38645cbec46",
+      "class_name": "LiteDB.Tests.Issues.Issue2811_Tests",
+      "outcome": "Failed",
+      "canonical_failure": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.\nExpected message \"Object reference not set to an instance of an object.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion."
+    },
+    "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_object_id_is_atomic_for_every_typed_write_path(path: InsertMany)": {
+      "test_id": "8be49034-0623-7625-28a1-48c6cf715fe8",
+      "class_name": "LiteDB.Tests.Issues.Issue2811_Tests",
+      "outcome": "Failed",
+      "canonical_failure": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.\nExpected message \"Object reference not set to an instance of an object.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion."
+    },
+    "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_object_id_is_atomic_for_every_typed_write_path(path: InsertOne)": {
+      "test_id": "3a8fb504-bfa3-ffb4-95ae-3baa644297ec",
+      "class_name": "LiteDB.Tests.Issues.Issue2811_Tests",
+      "outcome": "Failed",
+      "canonical_failure": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.\nExpected message \"Object reference not set to an instance of an object.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\nExpected rows to contain a single item, but found {{[_id, {\"$oid\":\"0102030405060708090a0b0c\"}], [Name, \"control\"]}, {[_id, {\"$oid\":\"<generated-object-id>\"}], [Name, \"target-a\"]}}.\nExpected bytesAfterAttempt to be equal to {0x00, 0x00, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0xFF, 0x00, …32736 more…} because validation must happen before writing; write-then-delete compensation is not atomic, but {0x00, 0x00, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0xFF, 0x00, …32736 more…} differs at index 16407.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion."
+    },
+    "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_object_id_is_atomic_for_every_typed_write_path(path: UpsertMany)": {
+      "test_id": "ae91b9c9-cec3-f8aa-c18d-3440de9c8702",
+      "class_name": "LiteDB.Tests.Issues.Issue2811_Tests",
+      "outcome": "Failed",
+      "canonical_failure": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.\nExpected message \"Object reference not set to an instance of an object.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion."
+    },
+    "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_object_id_is_atomic_for_every_typed_write_path(path: UpsertOne)": {
+      "test_id": "f0f942d7-b1cc-a333-fc83-9cce15239425",
+      "class_name": "LiteDB.Tests.Issues.Issue2811_Tests",
+      "outcome": "Failed",
+      "canonical_failure": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.\nExpected message \"Object reference not set to an instance of an object.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion."
+    }
+  },
+  "source_blobs": {
+    "LiteDB.Tests/Issues/Issue1002_Tests.cs": "300112d2fa9c10055460484549e551f7d750451e",
+    "LiteDB.Tests/Issues/Issue2811_Tests.cs": "408f4c3df519e6e446bb9e15fdfd63da0580e95d",
+    "LiteDB.Tests/Database/AutoId_Tests.cs": "0e2eed9f88e95e29623b5f99122b294cac1e9787"
+  },
+  "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue1002_|FullyQualifiedName~LiteDB.Tests.Issues.Issue2811_|FullyQualifiedName=LiteDB.Tests.Database.AutoId_Tests.AutoId_Strong_Typed",
+  "superseded_contract": {
+    "inventory_issue": 1002,
+    "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+    "frozen_test_blobs": {
+      "LiteDB.Tests/Issues/Issue1002_Tests.cs": "300112d2fa9c10055460484549e551f7d750451e"
+    },
+    "filter": "FullyQualifiedName~Issue1002_Tests",
+    "environments": [
+      "linux-x64-net8.0",
+      "windows-x64-net8.0",
+      "macos-x64-net8.0",
+      "macos-arm64-net8.0",
+      "linux-x64-net10.0",
+      "windows-x64-net10.0",
+      "macos-x64-net10.0",
+      "macos-arm64-net10.0"
+    ],
+    "allowed_production_paths": [
+      "LiteDB/Client/Database/Collections/Insert.cs"
+    ],
+    "regressions": [
+      {
+        "name": "LiteDB.Tests.Issues.Issue1002_Tests.Nullable_integer_empty_ids_generate_unique_persisted_integer_keys(empty: null)",
+        "failure_first_line": "LiteDB.LiteException : Invalid BSON data type 'Null' on field '_id'."
+      }
+    ],
+    "controls": [
+      {
+        "name": "LiteDB.Tests.Issues.Issue1002_Tests.Nullable_integer_empty_ids_generate_unique_persisted_integer_keys(empty: 0)"
+      }
+    ]
+  },
+  "contract": {
+    "inventory_issue": 1002,
+    "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+    "frozen_test_blobs": {
+      "LiteDB.Tests/Issues/Issue1002_Tests.cs": "300112d2fa9c10055460484549e551f7d750451e",
+      "LiteDB.Tests/Issues/Issue2811_Tests.cs": "408f4c3df519e6e446bb9e15fdfd63da0580e95d",
+      "LiteDB.Tests/Database/AutoId_Tests.cs": "0e2eed9f88e95e29623b5f99122b294cac1e9787"
+    },
+    "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue1002_|FullyQualifiedName~LiteDB.Tests.Issues.Issue2811_|FullyQualifiedName=LiteDB.Tests.Database.AutoId_Tests.AutoId_Strong_Typed",
+    "environments": [
+      "linux-x64-net8.0",
+      "linux-x64-net10.0",
+      "windows-x64-net8.0",
+      "windows-x64-net10.0",
+      "macos-arm64-net8.0",
+      "macos-arm64-net10.0"
+    ],
+    "required_environments": [
+      "linux-x64-net8.0",
+      "linux-x64-net10.0"
+    ],
+    "allowed_production_paths": [
+      "LiteDB/Client/Database/Collections/Insert.cs"
+    ],
+    "focused_baseline": {
+      "schema_version": 1,
+      "source_run_id": 34988724926,
+      "source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "repeat_candidate_sha": "79e5c69cb9e6a1bcc08e919c2993aaa5401148b7",
+      "workflow_sha": "7629236e73bde318e934509244c3e61ef820d8db",
+      "failure_normalization_sha256": "d4c510bf1504ec8298e0f231548fde8e67a929f7a3ccca9c6ec21a1a89571a36",
+      "artifacts": {
+        "linux-x64-net8.0": {
+          "artifact_id": 10405370121,
+          "artifact_name": "bugfix-check-ubuntu-latest-net8.0",
+          "baseline_trx_sha256": "a4d3b367c661fa8768fbb8668d4a8827713618fa3b488f15f02ca1607c8bd56b",
+          "repeat_candidate_trx_sha256": "167eb02e1001d29571ed81d0cae3efae66516b079b78169b2445d765d58f4d88"
+        },
+        "linux-x64-net10.0": {
+          "artifact_id": 10405505060,
+          "artifact_name": "bugfix-check-ubuntu-latest-net10.0",
+          "baseline_trx_sha256": "d4d7854e6d5e036da9d1ad92ac4f5aebe0a23b8033fe5a50f9793dcf18cbe423",
+          "repeat_candidate_trx_sha256": "06e8fd06f3069730ba19b93580856134a5514ae5b6d88862e9436499f8d8849b"
+        },
+        "windows-x64-net8.0": {
+          "artifact_id": 10404073794,
+          "artifact_name": "bugfix-check-windows-latest-net8.0",
+          "baseline_trx_sha256": "931cbd570f47bf6a376f11dde76c0ecf1399f9d742acf0f90eeb9463d781bdf0",
+          "repeat_candidate_trx_sha256": "341cb8549c8b485af5375dc4e1260016406570c25b34b8005a1b51cb62af57c6"
+        },
+        "windows-x64-net10.0": {
+          "artifact_id": 10404574219,
+          "artifact_name": "bugfix-check-windows-latest-net10.0",
+          "baseline_trx_sha256": "789212a8598feb82270173bbc4b6e152682e4b1177a51ab6f7ad67d1dcc0c08e",
+          "repeat_candidate_trx_sha256": "9d6ab521cbee8ca0390c9b1d54c7bb11a415ad5f1ac8b43972d09f632e09bf42"
+        },
+        "macos-arm64-net8.0": {
+          "artifact_id": 10405111338,
+          "artifact_name": "bugfix-check-macos-latest-net8.0",
+          "baseline_trx_sha256": "c069b53a2512adcd39c9ecf0bbf1d1329ff1371fa21228dbf4de3923340ee719",
+          "repeat_candidate_trx_sha256": "0bba29b9d0a80d9bb804d3b9e5d3228468d0a6d900c7004201c54981391a18dd"
+        },
+        "macos-arm64-net10.0": {
+          "artifact_id": 10405450249,
+          "artifact_name": "bugfix-check-macos-latest-net10.0",
+          "baseline_trx_sha256": "487ac255e77785b858569e7dbbd93a1e5422db470aae03c8c0d71741709b4e08",
+          "repeat_candidate_trx_sha256": "0e97ba85d8c32b48def91f249511913e247a5dd50fd588a1829f6b09d47451df"
+        }
+      },
+      "control_gaps": []
+    },
+    "regressions": [
+      {
+        "name": "LiteDB.Tests.Issues.Issue1002_Tests.Nullable_integer_empty_ids_generate_unique_persisted_integer_keys(empty: null)",
+        "test_id": "6a6112a1-4157-a1d3-8b5c-a7b3b813631b",
+        "component": "typed-auto-id-write",
+        "baseline_by_environment": {
+          "linux-x64-net8.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "linux-x64-net10.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "windows-x64-net8.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "windows-x64-net10.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "macos-arm64-net8.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "macos-arm64-net10.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          }
+        },
+        "failure_classifications": {
+          "original-defect": {
+            "failure_first_line": "LiteDB.LiteException : Invalid BSON data type 'Null' on field '_id'.",
+            "sha256": "f3d319412038c304a9098a8cf3ad28dd538eb40c2597d6157de42c0a0538f02d"
+          }
+        }
+      },
+      {
+        "name": "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_int_auto_id_is_atomic_for_every_typed_write_path(path: InsertMany)",
+        "test_id": "a11c7fca-c6e4-e44f-29e8-b7b5edb09f22",
+        "component": "typed-auto-id-write",
+        "baseline_by_environment": {
+          "linux-x64-net8.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "linux-x64-net10.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "windows-x64-net8.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "windows-x64-net10.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "macos-arm64-net8.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "macos-arm64-net10.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          }
+        },
+        "failure_classifications": {
+          "original-defect": {
+            "failure_first_line": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.",
+            "sha256": "edf61022a483c6e7f47903b8d1c6dc957d9f967e08d59d92164b1c8b8e174393"
+          }
+        }
+      },
+      {
+        "name": "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_int_auto_id_is_atomic_for_every_typed_write_path(path: InsertOne)",
+        "test_id": "608569d7-80ea-7a1d-e39f-c78ea6ecb853",
+        "component": "typed-auto-id-write",
+        "baseline_by_environment": {
+          "linux-x64-net8.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "linux-x64-net10.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "windows-x64-net8.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "windows-x64-net10.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "macos-arm64-net8.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "macos-arm64-net10.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          }
+        },
+        "failure_classifications": {
+          "original-defect": {
+            "failure_first_line": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.",
+            "sha256": "a18833b0eb1db770bb9ebab375a85e8a4db2d227e6dff857077ad0ffb1b23cad"
+          }
+        }
+      },
+      {
+        "name": "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_int_auto_id_is_atomic_for_every_typed_write_path(path: UpsertMany)",
+        "test_id": "96dd1933-af03-2f82-6ee4-ea0721e3c82f",
+        "component": "typed-auto-id-write",
+        "baseline_by_environment": {
+          "linux-x64-net8.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "linux-x64-net10.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "windows-x64-net8.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "windows-x64-net10.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "macos-arm64-net8.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "macos-arm64-net10.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          }
+        },
+        "failure_classifications": {
+          "original-defect": {
+            "failure_first_line": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.",
+            "sha256": "edf61022a483c6e7f47903b8d1c6dc957d9f967e08d59d92164b1c8b8e174393"
+          }
+        }
+      },
+      {
+        "name": "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_int_auto_id_is_atomic_for_every_typed_write_path(path: UpsertOne)",
+        "test_id": "e0969e3f-fa89-09d7-54f9-e38645cbec46",
+        "component": "typed-auto-id-write",
+        "baseline_by_environment": {
+          "linux-x64-net8.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "linux-x64-net10.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "windows-x64-net8.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "windows-x64-net10.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "macos-arm64-net8.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "macos-arm64-net10.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          }
+        },
+        "failure_classifications": {
+          "original-defect": {
+            "failure_first_line": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.",
+            "sha256": "edf61022a483c6e7f47903b8d1c6dc957d9f967e08d59d92164b1c8b8e174393"
+          }
+        }
+      },
+      {
+        "name": "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_object_id_is_atomic_for_every_typed_write_path(path: InsertMany)",
+        "test_id": "8be49034-0623-7625-28a1-48c6cf715fe8",
+        "component": "typed-auto-id-write",
+        "baseline_by_environment": {
+          "linux-x64-net8.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "linux-x64-net10.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "windows-x64-net8.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "windows-x64-net10.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "macos-arm64-net8.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "macos-arm64-net10.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          }
+        },
+        "failure_classifications": {
+          "original-defect": {
+            "failure_first_line": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.",
+            "sha256": "edf61022a483c6e7f47903b8d1c6dc957d9f967e08d59d92164b1c8b8e174393"
+          }
+        }
+      },
+      {
+        "name": "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_object_id_is_atomic_for_every_typed_write_path(path: InsertOne)",
+        "test_id": "3a8fb504-bfa3-ffb4-95ae-3baa644297ec",
+        "component": "typed-auto-id-write",
+        "baseline_by_environment": {
+          "linux-x64-net8.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "linux-x64-net10.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "windows-x64-net8.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "windows-x64-net10.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "macos-arm64-net8.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "macos-arm64-net10.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          }
+        },
+        "failure_classifications": {
+          "original-defect": {
+            "failure_first_line": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.",
+            "sha256": "5b94968784d53f07bc4179500f75f6e1816be075499e94446afe65220319d8db"
+          }
+        }
+      },
+      {
+        "name": "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_object_id_is_atomic_for_every_typed_write_path(path: UpsertMany)",
+        "test_id": "ae91b9c9-cec3-f8aa-c18d-3440de9c8702",
+        "component": "typed-auto-id-write",
+        "baseline_by_environment": {
+          "linux-x64-net8.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "linux-x64-net10.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "windows-x64-net8.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "windows-x64-net10.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "macos-arm64-net8.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "macos-arm64-net10.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          }
+        },
+        "failure_classifications": {
+          "original-defect": {
+            "failure_first_line": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.",
+            "sha256": "edf61022a483c6e7f47903b8d1c6dc957d9f967e08d59d92164b1c8b8e174393"
+          }
+        }
+      },
+      {
+        "name": "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_object_id_is_atomic_for_every_typed_write_path(path: UpsertOne)",
+        "test_id": "f0f942d7-b1cc-a333-fc83-9cce15239425",
+        "component": "typed-auto-id-write",
+        "baseline_by_environment": {
+          "linux-x64-net8.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "linux-x64-net10.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "windows-x64-net8.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "windows-x64-net10.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "macos-arm64-net8.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          },
+          "macos-arm64-net10.0": {
+            "outcome": "Failed",
+            "classification": "original-defect"
+          }
+        },
+        "failure_classifications": {
+          "original-defect": {
+            "failure_first_line": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.",
+            "sha256": "edf61022a483c6e7f47903b8d1c6dc957d9f967e08d59d92164b1c8b8e174393"
+          }
+        }
+      }
+    ],
+    "controls": [
+      {
+        "name": "LiteDB.Tests.Database.AutoId_Tests.AutoId_Strong_Typed",
+        "test_id": "5379889c-6d6d-3d20-1030-5442fe56449e",
+        "component": "typed-auto-id-write",
+        "baseline_by_environment": {
+          "linux-x64-net8.0": {
+            "outcome": "Passed"
+          },
+          "linux-x64-net10.0": {
+            "outcome": "Passed"
+          },
+          "windows-x64-net8.0": {
+            "outcome": "Passed"
+          },
+          "windows-x64-net10.0": {
+            "outcome": "Passed"
+          },
+          "macos-arm64-net8.0": {
+            "outcome": "Passed"
+          },
+          "macos-arm64-net10.0": {
+            "outcome": "Passed"
+          }
+        }
+      },
+      {
+        "name": "LiteDB.Tests.Issues.Issue1002_Tests.Nullable_integer_empty_ids_generate_unique_persisted_integer_keys(empty: 0)",
+        "test_id": "a419db97-6ab3-62f6-d689-6129e52e1333",
+        "component": "typed-auto-id-write",
+        "baseline_by_environment": {
+          "linux-x64-net8.0": {
+            "outcome": "Passed"
+          },
+          "linux-x64-net10.0": {
+            "outcome": "Passed"
+          },
+          "windows-x64-net8.0": {
+            "outcome": "Passed"
+          },
+          "windows-x64-net10.0": {
+            "outcome": "Passed"
+          },
+          "macos-arm64-net8.0": {
+            "outcome": "Passed"
+          },
+          "macos-arm64-net10.0": {
+            "outcome": "Passed"
+          }
+        }
+      }
+    ],
+    "review_requirements": {
+      "behavior": [
+        "This is an explicit behavioral co-repair of #1002 and all eight frozen #2811 cases, not permission for changed failure classifications. Settable nullable Int32 null and zero IDs must generate unique persisted integer keys and copy them back. Read-only Int32/ObjectId auto-ID InsertOne, InsertMany, UpsertOne and UpsertMany must either succeed coherently or fail before writes with a LiteException naming Id and explaining read-only/setter status. Preserve explicit-ID writes to immutable objects and ordinary writable Int32/Int64/Guid/ObjectId auto-generation; AutoId_Strong_Typed is a real independent passing control.",
+        "Keep the shared RemoveDocId/GetBsonDocs behavior consistent across Insert and Upsert. Do not broaden rejection to assigned IDs or mapped documents that do not need copy-back. No source-guard disposition, failure normalization extension or class-drift allowance is authorized."
+      ],
+      "compatibility": [
+        "Preserve stored BSON key types, numeric sequence behavior, uniqueness, entity copy-back and existing explicit-ID rows. Inspect single and enumerable Insert/Upsert, including the obsolete InsertBulk wrapper; all reach the shared Insert.cs helpers except explicit-ID overloads. The frozen #2811 successful branch permits retaining a get-only entity ID unchanged, so explain the chosen public behavior instead of claiming it necessarily gains writable-ID semantics. Preserve ordinary v8 reopen and compatibility checks; no format change is authorized."
+      ],
+      "lifecycle": [
+        "Mandatory prior finding from expansion-v8-1002 candidate a98b29089c01e21e50856abd0cc9bbea1ecc5631: a model with public int? Id { get; } and null ID threw NullReferenceException after Insert had committed; immediate and reopened counts were both one. Reproduce this exact get-only nullable-ID case on the new candidate and demonstrate either acknowledged coherent success or rejection with no durable write. Frozen #2811 uses non-nullable int and ObjectId, so passing it alone does not close this finding. Do not drop this obligation when starting a superseding campaign.",
+        "Validate writability before any engine mutation that can commit; never repair atomicity by write-then-delete compensation. Provide evidence for implicit and explicit transactions, caller Commit after catching rejection, unchanged pre-existing rows, and immediate plus independently reopened state. Check mixed/lazy batches with valid earlier items and an invalid later item: no prefix from a failed write call may remain commit-able or durable. Explain rollback effects on prior explicit-transaction work and avoid claiming per-call rollback preserves earlier work without evidence.",
+        "Attempt d600cab9aa8be419f0d3069a21bb5e03ff713307 only changed the error to InvalidOperationException and still failed all eight #2811 cases; it is not an accepted base or a completed repair. Use the current integrated base and fresh focused+broad evidence, retaining all original findings through three new reviews.",
+        "Assess every newly reachable post-engine ID copy-back failure, including a non-null custom setter that throws. A Setter != null guard alone does not prove safety for newly supported null nullable IDs. Demonstrate that no newly supported input can produce a durable failed call because assignment occurs after commit; review both single and enumerable paths and require rollback-safe placement or an equivalent justified design."
+      ]
+    }
+  },
+  "current_attempt": {
+    "run_id": 35013331767,
+    "artifact_id": 10414383642,
+    "artifact_name": "bugfix-check-ubuntu-latest-net8.0",
+    "artifact_zip_sha256": "7b0da04ddcd26e833abe41b0f1e5c51940d3e1d386c6d5c61ab93a6439db5af1",
+    "workflow_sha": "61ee4aec705024c189345de25508ea19ffc2584e",
+    "environment": "linux-x64-net8.0",
+    "baseline_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+    "candidate_sha": "d600cab9aa8be419f0d3069a21bb5e03ff713307",
+    "cases": {
+      "baseline": {
+        "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_object_id_is_atomic_for_every_typed_write_path(path: InsertOne)": {
+          "test_id": "3a8fb504-bfa3-ffb4-95ae-3baa644297ec",
+          "class_name": "LiteDB.Tests.Issues.Issue2811_Tests",
+          "outcome": "Failed",
+          "canonical_failure": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.\nExpected message \"Object reference not set to an instance of an object.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\nExpected rows to contain a single item, but found {{[_id, {\"$oid\":\"0102030405060708090a0b0c\"}], [Name, \"control\"]}, {[_id, {\"$oid\":\"<generated-object-id>\"}], [Name, \"target-a\"]}}.\nExpected bytesAfterAttempt to be equal to {0x00, 0x00, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0xFF, 0x00, …32736 more…} because validation must happen before writing; write-then-delete compensation is not atomic, but {0x00, 0x00, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0xFF, 0x00, …32736 more…} differs at index 16407.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion."
+        },
+        "LiteDB.Tests.Database.AutoId_Tests.AutoId_Strong_Typed": {
+          "test_id": "5379889c-6d6d-3d20-1030-5442fe56449e",
+          "class_name": "LiteDB.Tests.Database.AutoId_Tests",
+          "outcome": "Passed",
+          "canonical_failure": ""
+        },
+        "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_int_auto_id_is_atomic_for_every_typed_write_path(path: InsertOne)": {
+          "test_id": "608569d7-80ea-7a1d-e39f-c78ea6ecb853",
+          "class_name": "LiteDB.Tests.Issues.Issue2811_Tests",
+          "outcome": "Failed",
+          "canonical_failure": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.\nExpected message \"Object reference not set to an instance of an object.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\nExpected rows to contain a single item, but found {{[_id, 91], [Name, \"control\"]}, {[_id, 92], [Name, \"target-a\"]}}.\nExpected bytesAfterAttempt to be equal to {0x00, 0x00, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0xFF, 0x00, …32736 more…} because validation must happen before writing; write-then-delete compensation is not atomic, but {0x00, 0x00, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0xFF, 0x00, …32736 more…} differs at index 16407.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion."
+        },
+        "LiteDB.Tests.Issues.Issue1002_Tests.Nullable_integer_empty_ids_generate_unique_persisted_integer_keys(empty: null)": {
+          "test_id": "6a6112a1-4157-a1d3-8b5c-a7b3b813631b",
+          "class_name": "LiteDB.Tests.Issues.Issue1002_Tests",
+          "outcome": "Failed",
+          "canonical_failure": "LiteDB.LiteException : Invalid BSON data type 'Null' on field '_id'."
+        },
+        "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_object_id_is_atomic_for_every_typed_write_path(path: InsertMany)": {
+          "test_id": "8be49034-0623-7625-28a1-48c6cf715fe8",
+          "class_name": "LiteDB.Tests.Issues.Issue2811_Tests",
+          "outcome": "Failed",
+          "canonical_failure": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.\nExpected message \"Object reference not set to an instance of an object.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion."
+        },
+        "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_int_auto_id_is_atomic_for_every_typed_write_path(path: UpsertMany)": {
+          "test_id": "96dd1933-af03-2f82-6ee4-ea0721e3c82f",
+          "class_name": "LiteDB.Tests.Issues.Issue2811_Tests",
+          "outcome": "Failed",
+          "canonical_failure": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.\nExpected message \"Object reference not set to an instance of an object.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion."
+        },
+        "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_int_auto_id_is_atomic_for_every_typed_write_path(path: InsertMany)": {
+          "test_id": "a11c7fca-c6e4-e44f-29e8-b7b5edb09f22",
+          "class_name": "LiteDB.Tests.Issues.Issue2811_Tests",
+          "outcome": "Failed",
+          "canonical_failure": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.\nExpected message \"Object reference not set to an instance of an object.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion."
+        },
+        "LiteDB.Tests.Issues.Issue1002_Tests.Nullable_integer_empty_ids_generate_unique_persisted_integer_keys(empty: 0)": {
+          "test_id": "a419db97-6ab3-62f6-d689-6129e52e1333",
+          "class_name": "LiteDB.Tests.Issues.Issue1002_Tests",
+          "outcome": "Passed",
+          "canonical_failure": ""
+        },
+        "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_object_id_is_atomic_for_every_typed_write_path(path: UpsertMany)": {
+          "test_id": "ae91b9c9-cec3-f8aa-c18d-3440de9c8702",
+          "class_name": "LiteDB.Tests.Issues.Issue2811_Tests",
+          "outcome": "Failed",
+          "canonical_failure": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.\nExpected message \"Object reference not set to an instance of an object.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion."
+        },
+        "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_int_auto_id_is_atomic_for_every_typed_write_path(path: UpsertOne)": {
+          "test_id": "e0969e3f-fa89-09d7-54f9-e38645cbec46",
+          "class_name": "LiteDB.Tests.Issues.Issue2811_Tests",
+          "outcome": "Failed",
+          "canonical_failure": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.\nExpected message \"Object reference not set to an instance of an object.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion."
+        },
+        "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_object_id_is_atomic_for_every_typed_write_path(path: UpsertOne)": {
+          "test_id": "f0f942d7-b1cc-a333-fc83-9cce15239425",
+          "class_name": "LiteDB.Tests.Issues.Issue2811_Tests",
+          "outcome": "Failed",
+          "canonical_failure": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.\nExpected message \"Object reference not set to an instance of an object.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion."
+        }
+      },
+      "candidate": {
+        "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_object_id_is_atomic_for_every_typed_write_path(path: InsertOne)": {
+          "test_id": "3a8fb504-bfa3-ffb4-95ae-3baa644297ec",
+          "class_name": "LiteDB.Tests.Issues.Issue2811_Tests",
+          "outcome": "Failed",
+          "canonical_failure": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.InvalidOperationException.\nExpected message \"Auto-generated IDs require a writable ID member.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion."
+        },
+        "LiteDB.Tests.Database.AutoId_Tests.AutoId_Strong_Typed": {
+          "test_id": "5379889c-6d6d-3d20-1030-5442fe56449e",
+          "class_name": "LiteDB.Tests.Database.AutoId_Tests",
+          "outcome": "Passed",
+          "canonical_failure": ""
+        },
+        "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_int_auto_id_is_atomic_for_every_typed_write_path(path: InsertOne)": {
+          "test_id": "608569d7-80ea-7a1d-e39f-c78ea6ecb853",
+          "class_name": "LiteDB.Tests.Issues.Issue2811_Tests",
+          "outcome": "Failed",
+          "canonical_failure": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.InvalidOperationException.\nExpected message \"Auto-generated IDs require a writable ID member.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion."
+        },
+        "LiteDB.Tests.Issues.Issue1002_Tests.Nullable_integer_empty_ids_generate_unique_persisted_integer_keys(empty: null)": {
+          "test_id": "6a6112a1-4157-a1d3-8b5c-a7b3b813631b",
+          "class_name": "LiteDB.Tests.Issues.Issue1002_Tests",
+          "outcome": "Passed",
+          "canonical_failure": ""
+        },
+        "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_object_id_is_atomic_for_every_typed_write_path(path: InsertMany)": {
+          "test_id": "8be49034-0623-7625-28a1-48c6cf715fe8",
+          "class_name": "LiteDB.Tests.Issues.Issue2811_Tests",
+          "outcome": "Failed",
+          "canonical_failure": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.InvalidOperationException.\nExpected message \"Auto-generated IDs require a writable ID member.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion."
+        },
+        "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_int_auto_id_is_atomic_for_every_typed_write_path(path: UpsertMany)": {
+          "test_id": "96dd1933-af03-2f82-6ee4-ea0721e3c82f",
+          "class_name": "LiteDB.Tests.Issues.Issue2811_Tests",
+          "outcome": "Failed",
+          "canonical_failure": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.InvalidOperationException.\nExpected message \"Auto-generated IDs require a writable ID member.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion."
+        },
+        "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_int_auto_id_is_atomic_for_every_typed_write_path(path: InsertMany)": {
+          "test_id": "a11c7fca-c6e4-e44f-29e8-b7b5edb09f22",
+          "class_name": "LiteDB.Tests.Issues.Issue2811_Tests",
+          "outcome": "Failed",
+          "canonical_failure": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.InvalidOperationException.\nExpected message \"Auto-generated IDs require a writable ID member.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion."
+        },
+        "LiteDB.Tests.Issues.Issue1002_Tests.Nullable_integer_empty_ids_generate_unique_persisted_integer_keys(empty: 0)": {
+          "test_id": "a419db97-6ab3-62f6-d689-6129e52e1333",
+          "class_name": "LiteDB.Tests.Issues.Issue1002_Tests",
+          "outcome": "Passed",
+          "canonical_failure": ""
+        },
+        "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_object_id_is_atomic_for_every_typed_write_path(path: UpsertMany)": {
+          "test_id": "ae91b9c9-cec3-f8aa-c18d-3440de9c8702",
+          "class_name": "LiteDB.Tests.Issues.Issue2811_Tests",
+          "outcome": "Failed",
+          "canonical_failure": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.InvalidOperationException.\nExpected message \"Auto-generated IDs require a writable ID member.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion."
+        },
+        "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_int_auto_id_is_atomic_for_every_typed_write_path(path: UpsertOne)": {
+          "test_id": "e0969e3f-fa89-09d7-54f9-e38645cbec46",
+          "class_name": "LiteDB.Tests.Issues.Issue2811_Tests",
+          "outcome": "Failed",
+          "canonical_failure": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.InvalidOperationException.\nExpected message \"Auto-generated IDs require a writable ID member.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion."
+        },
+        "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_object_id_is_atomic_for_every_typed_write_path(path: UpsertOne)": {
+          "test_id": "f0f942d7-b1cc-a333-fc83-9cce15239425",
+          "class_name": "LiteDB.Tests.Issues.Issue2811_Tests",
+          "outcome": "Failed",
+          "canonical_failure": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.InvalidOperationException.\nExpected message \"Auto-generated IDs require a writable ID member.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion."
+        }
+      }
+    },
+    "baseline_trx_sha256": "e0ae57ecf1cc31504f8bb6cfce31fcde06b798ba63ccc723f0300754b19e75ad",
+    "candidate_trx_sha256": "28bcc9ce79cc4aada88b7b41d19b90ec70e900c6759757bb6a516a2703e09a0e"
+  },
+  "prior_lifecycle_review": {
+    "candidate_sha": "a98b29089c01e21e50856abd0cc9bbea1ecc5631",
+    "result_sha256": "991d8570e546610659867a7040f857311b79f19e4e624b9d4e99bbde6e5f7297",
+    "finding": {
+      "summary": "A get-only nullable integer ID throws after its insert has already committed",
+      "path": "LiteDB/Client/Database/Collections/Insert.cs",
+      "evidence": "Candidate line 96 newly removes a null Int32 _id and returns removed=true. Insert(T) then calls _engine.Insert at line 20; Engine/Engine/Transaction.cs lines 89-92 commit and release the auto-transaction before control returns. Only afterward, Insert.cs line 27 invokes _id.Setter. Client/Mapper/Reflection/Reflection.Expression.cs lines 52-53 deliberately return a null setter for a get-only property, so this invocation throws NullReferenceException after commit. An executed net8.0 candidate repro using `public int? Id { get; }` produced `exception=System.NullReferenceException`, `immediate-count=1`, and `reopened-count=1`. At the base SHA the changed predicate leaves the null _id in place, so Engine/Engine/Insert.cs rejects id.IsNull inside AutoTransaction before storage and rolls back. The candidate therefore turns a failed call into a durable, caller-unacknowledged write. Validate writability before entering the engine or otherwise ensure ID copy-back cannot fail after commit.",
+      "severity": "major"
+    }
+  },
+  "representative_raw_failures": {
+    "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_object_id_is_atomic_for_every_typed_write_path(path: InsertOne)": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.\nExpected message \"Object reference not set to an instance of an object.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\nExpected rows to contain a single item, but found {{[_id, {\"$oid\":\"0102030405060708090a0b0c\"}], [Name, \"control\"]}, {[_id, {\"$oid\":\"6aa964b1c406e210501f9ec1\"}], [Name, \"target-a\"]}}.\nExpected bytesAfterAttempt to be equal to {0x00, 0x00, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0xFF, 0x00, …32736 more…} because validation must happen before writing; write-then-delete compensation is not atomic, but {0x00, 0x00, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0xFF, 0x00, …32736 more…} differs at index 16407.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion.",
+    "LiteDB.Tests.Database.AutoId_Tests.AutoId_Strong_Typed": "",
+    "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_int_auto_id_is_atomic_for_every_typed_write_path(path: InsertOne)": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.\nExpected message \"Object reference not set to an instance of an object.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\nExpected rows to contain a single item, but found {{[_id, 91], [Name, \"control\"]}, {[_id, 92], [Name, \"target-a\"]}}.\nExpected bytesAfterAttempt to be equal to {0x00, 0x00, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0xFF, 0x00, …32736 more…} because validation must happen before writing; write-then-delete compensation is not atomic, but {0x00, 0x00, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0xFF, 0x00, …32736 more…} differs at index 16407.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion.",
+    "LiteDB.Tests.Issues.Issue1002_Tests.Nullable_integer_empty_ids_generate_unique_persisted_integer_keys(empty: null)": "LiteDB.LiteException : Invalid BSON data type 'Null' on field '_id'.",
+    "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_object_id_is_atomic_for_every_typed_write_path(path: InsertMany)": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.\nExpected message \"Object reference not set to an instance of an object.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion.",
+    "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_int_auto_id_is_atomic_for_every_typed_write_path(path: UpsertMany)": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.\nExpected message \"Object reference not set to an instance of an object.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion.",
+    "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_int_auto_id_is_atomic_for_every_typed_write_path(path: InsertMany)": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.\nExpected message \"Object reference not set to an instance of an object.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion.",
+    "LiteDB.Tests.Issues.Issue1002_Tests.Nullable_integer_empty_ids_generate_unique_persisted_integer_keys(empty: 0)": "",
+    "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_object_id_is_atomic_for_every_typed_write_path(path: UpsertMany)": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.\nExpected message \"Object reference not set to an instance of an object.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion.",
+    "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_int_auto_id_is_atomic_for_every_typed_write_path(path: UpsertOne)": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.\nExpected message \"Object reference not set to an instance of an object.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion.",
+    "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_object_id_is_atomic_for_every_typed_write_path(path: UpsertOne)": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.\nExpected message \"Object reference not set to an instance of an object.\" to contain \"Id\" because the diagnostic must identify the member that cannot be assigned.\nExpected (message.IndexOf(\"read-only\", StringComparison.OrdinalIgnoreCase) >= 0 ||message.IndexOf(\"setter\", StringComparison.OrdinalIgnoreCase) >= 0) to be True because the diagnostic must explain that the Id member cannot be written, but found False.\n\nWith configuration:\n- Use declared types and members\n- Compare enums by value\n- Compare tuples by their properties\n- Compare anonymous types by their properties\n- Compare records by their members\n- Include non-browsable members\n- Include all non-private properties\n- Include all non-private fields\n- Match member by name (or throw)\n- Be strict about the order of items in byte arrays\n- Without automatic conversion."
+  }
+}

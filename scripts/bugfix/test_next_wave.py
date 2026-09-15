@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import unittest
 
+from corepair_contract_assertions import EVIDENCE
 from policy import load_issue, verify_focused
 from trx import GateError, TestResult, TestRun
 
@@ -51,6 +52,12 @@ for api in ("Find", "FindAll", "FindById", "FindOne", "Query"):
          'has a length of 6, differs near "sto" (index 0).')
 
 
+def historical_issue(number):
+    # Retain the original two-case #1002 proof; the active co-repair is covered
+    # with all eleven cases and full failures in test_auto_id_corepair.py.
+    return EVIDENCE["superseded_contract"] if number == 1002 else load_issue(MANIFEST, number)[0]
+
+
 def observed_run(number, baseline):
     """Exact observations from run 34988724926, identical in all six baseline lanes."""
     case = CASES[number]
@@ -76,7 +83,7 @@ class NextWaveContracts(unittest.TestCase):
     def test_frozen_blobs_and_narrow_paths_match_independent_contracts(self):
         for number, case in CASES.items():
             with self.subTest(issue=number):
-                issue, _ = load_issue(MANIFEST, number)
+                issue = historical_issue(number)
                 source = f"LiteDB.Tests/Issues/Issue{number}_Tests.cs"
                 self.assertEqual(FROZEN, issue["frozen_test_revision"])
                 self.assertEqual({source: case["blob"]}, issue["frozen_test_blobs"])
@@ -89,13 +96,13 @@ class NextWaveContracts(unittest.TestCase):
     def test_all_observed_baselines_and_complete_green_candidates(self):
         for number in CASES:
             with self.subTest(issue=number):
-                issue, _ = load_issue(MANIFEST, number)
+                issue = historical_issue(number)
                 verify_focused(observed_run(number, True), issue, baseline=True)
                 verify_focused(observed_run(number, False), issue, baseline=False)
 
     def test_each_regression_requires_its_own_exact_failure(self):
         for number in CASES:
-            issue, _ = load_issue(MANIFEST, number)
+            issue = historical_issue(number)
             for case in issue["regressions"]:
                 with self.subTest(issue=number, case=case["name"]):
                     run = observed_run(number, True)
@@ -106,7 +113,7 @@ class NextWaveContracts(unittest.TestCase):
 
     def test_no_missing_extra_or_skipped_candidate_cases(self):
         for number in CASES:
-            issue, _ = load_issue(MANIFEST, number)
+            issue = historical_issue(number)
             for name in observed_run(number, False).tests:
                 for mutation in ("missing", "extra", "skip"):
                     with self.subTest(issue=number, case=name, mutation=mutation):
@@ -122,7 +129,7 @@ class NextWaveContracts(unittest.TestCase):
 
     def test_control_must_pass_before_and_after_fix(self):
         for number in CASES:
-            issue, _ = load_issue(MANIFEST, number)
+            issue = historical_issue(number)
             for baseline in (True, False):
                 with self.subTest(issue=number, baseline=baseline):
                     run = observed_run(number, baseline)

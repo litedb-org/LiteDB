@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import unittest
 
+from corepair_contract_assertions import expected_after_auto_id_corepair
 from policy import load_issue, verify_focused
 from trx import GateError, TestResult, TestRun
 
@@ -36,7 +37,7 @@ class NextSevenContracts(unittest.TestCase):
         self.assertEqual(6, len(previous["issues"]))
         for number, contract in previous["issues"].items():
             with self.subTest(issue=number):
-                self.assertEqual(contract, current["issues"][number])
+                self.assertEqual(expected_after_auto_id_corepair(number, contract), current["issues"][number])
 
     def test_frozen_sources_scopes_and_required_environments(self):
         frozen = "dd937719f7eee53c512f50ac604cab639bf42a4c"

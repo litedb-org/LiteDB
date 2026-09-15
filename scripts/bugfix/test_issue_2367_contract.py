@@ -8,6 +8,7 @@ import subprocess
 import unittest
 
 from failure_normalization import load_failure_normalization
+from corepair_contract_assertions import expected_after_auto_id_corepair
 from policy import load_issue, verify_focused, verify_focused_pair
 from trx import GateError, TestResult, TestRun
 
@@ -46,7 +47,7 @@ class Issue2367ContractTests(unittest.TestCase):
         current = json.loads(MANIFEST.read_text(encoding="utf-8"))
         self.assertEqual(27, len(old["issues"]))
         for number, contract in old["issues"].items():
-            self.assertEqual(contract, current["issues"][number], number)
+            self.assertEqual(expected_after_auto_id_corepair(number, contract), current["issues"][number], number)
 
     def test_original_blobs_and_exact_nonvacuous_controls(self):
         issue = self.issue()

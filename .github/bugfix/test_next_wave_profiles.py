@@ -23,12 +23,15 @@ class NextWaveProfiles(unittest.TestCase):
         return profile_for_changes(paths or contract["allowed_production_paths"], contract,
                                    "a" * 40, "b" * 40, diff)
 
-    def test_each_next_issue_uses_one_lane_and_required_compatibility(self):
+    def test_each_next_issue_uses_reviewed_lanes_and_required_compatibility(self):
         for number in (1506, 1002, 2802):
             with self.subTest(issue=number):
                 profile = self.profile(number)
-                self.assertEqual([{"os": "ubuntu-latest", "framework": "net8.0"}], profile["matrix"])
-                self.assertEqual(["bugfix-check-ubuntu-latest-net8.0"], profile["required_lanes"])
+                frameworks = ["net8.0", "net10.0"] if number == 1002 else ["net8.0"]
+                self.assertEqual([{"os": "ubuntu-latest", "framework": framework}
+                                  for framework in frameworks], profile["matrix"])
+                self.assertEqual(["bugfix-check-ubuntu-latest-" + framework for framework in frameworks],
+                                 profile["required_lanes"])
                 self.assertEqual(number != 1506, profile["compatibility"])
                 self.assertTrue(profile["production_build"])
                 self.assertEqual(["focused", "broad", "production-build"], profile["checks"])
