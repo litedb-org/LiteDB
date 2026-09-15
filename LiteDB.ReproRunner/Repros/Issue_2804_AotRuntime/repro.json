@@ -1,0 +1,35 @@
+{
+  "id": "Issue_2804_AotRuntime",
+  "title": "LiteDB must not JIT-compile expression delegates in AOT-only runtimes",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/issues/2804"
+  ],
+  "failingSince": "4.x",
+  "timeoutSeconds": 600,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "aot",
+    "docker",
+    "expression",
+    "mapper",
+    "regression"
+  ],
+  "supports": [
+    "linux"
+  ],
+  "state": "red",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "BUG_2804_CONFIRMED"
+    },
+    "latest": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "BUG_2804_CONFIRMED"
+    }
+  }
+}

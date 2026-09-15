@@ -1,0 +1,14 @@
+{
+  "id": "Issue_2794_SharedJobHandoff",
+  "title": "Two processes hand off nullable-date jobs on 5.0.7 and current source",
+  "issues": ["https://github.com/litedb-org/LiteDB/issues/2794"],
+  "timeoutSeconds": 300,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "state": "flaky",
+  "tags": ["regression", "historical", "unconfirmed", "cross-process"],
+  "expectedOutcomes": {
+    "package": {"kind": "noRepro", "exitCode": 10, "logContains": "VERIFIED_2794"},
+    "latest": {"kind": "noRepro", "exitCode": 10, "logContains": "VERIFIED_2794"}
+  }
+}

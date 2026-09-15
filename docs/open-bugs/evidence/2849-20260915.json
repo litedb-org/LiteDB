@@ -1,0 +1,32 @@
+{
+  "productionBuild": true,
+  "rows": 1000000,
+  "observations": [
+    {
+      "sourceCommit": "90788bace880f477c9fb52ff7c0da98c9700bdfe",
+      "output": [
+        "SAMPLE round=0, largeBudget=False, insertMs=45316.224, deleteMs=47162.546",
+        "SAMPLE round=0, largeBudget=True, insertMs=14745.849, deleteMs=14165.116",
+        "SAMPLE round=1, largeBudget=True, insertMs=15259.018, deleteMs=14410.732",
+        "SAMPLE round=1, largeBudget=False, insertMs=43380.988, deleteMs=33890.657",
+        "SAMPLE round=2, largeBudget=False, insertMs=43035.122, deleteMs=33515.225",
+        "SAMPLE round=2, largeBudget=True, insertMs=14734.620, deleteMs=14510.167",
+        "MEASUREMENT rows=1000000, configurable=True, insertRatio=2.942, deleteRatio=2.352",
+        "BUG_2849_CONFIRMED: default median write cost exceeds twice the large-budget control"
+      ]
+    },
+    {
+      "sourceCommit": "a50661a9d1a25b5713586d0096c6325d76bf5dfe",
+      "output": [
+        "SAMPLE round=0, largeBudget=False, insertMs=46217.156, deleteMs=46989.392",
+        "SAMPLE round=0, largeBudget=True, insertMs=14980.673, deleteMs=14076.677",
+        "SAMPLE round=1, largeBudget=True, insertMs=14928.939, deleteMs=14555.745",
+        "SAMPLE round=1, largeBudget=False, insertMs=44220.184, deleteMs=33778.034",
+        "SAMPLE round=2, largeBudget=False, insertMs=43498.824, deleteMs=33659.290",
+        "SAMPLE round=2, largeBudget=True, insertMs=14592.642, deleteMs=14170.455",
+        "MEASUREMENT rows=1000000, configurable=True, insertRatio=2.962, deleteRatio=2.384",
+        "BUG_2849_CONFIRMED: default median write cost exceeds twice the large-budget control"
+      ]
+    }
+  ]
+}

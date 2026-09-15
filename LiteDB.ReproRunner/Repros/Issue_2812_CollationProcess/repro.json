@@ -1,0 +1,31 @@
+{
+  "id": "Issue_2812_CollationProcess",
+  "title": "Cross-process globalization changes must not silently lose indexed keys",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/issues/2812"
+  ],
+  "failingSince": "4.x",
+  "timeoutSeconds": 90,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "globalization",
+    "index",
+    "cross-process",
+    "regression"
+  ],
+  "state": "red",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "BUG_2812_CONFIRMED"
+    },
+    "latest": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "BUG_2812_CONFIRMED"
+    }
+  }
+}

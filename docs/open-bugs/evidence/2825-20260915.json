@@ -1,0 +1,40 @@
+{
+  "observedAt": "2026-09-14T19:02:44.0366142+00:00",
+  "productionSource": "a50661a9d1a25b5713586d0096c6325d76bf5dfe",
+  "sourceReportSha256": "6d92408623789cfaac34f744af330a6248c16083e477150806dcae6eb6918660",
+  "repro": "Issue_2825_FreeListRace",
+  "variants": {
+    "package": {
+      "configuration": {
+        "useProjectReference": false,
+        "liteDBPackageVersion": "5.0.20"
+      },
+      "exitCode": 0,
+      "expectationMet": true,
+      "output": [
+        "{\"type\":\"configuration\",\"timestamp\":\"2026-09-14T19:02:47.8850327+00:00\",\"payload\":{\"useProjectReference\":false,\"liteDBPackageVersion\":\"5.0.20\"}}",
+        "ATTEMPT_1: One or more errors occurred. (empty page must be defined as empty type) (empty page must be defined as empty type) (empty page must be defined as empty type) (empty page must be defined as empty type)",
+        "ATTEMPT_2: One or more errors occurred. (empty page must be defined as empty type) (empty page must be defined as empty type) (empty page must be defined as empty type) (empty page must be defined as empty type)",
+        "ATTEMPT_3: One or more errors occurred. (empty page must be defined as empty type) (empty page must be defined as empty type) (empty page must be defined as empty type) (empty page must be defined as empty type)",
+        "REPEATS_2825: attempts=3, reportedFailures=3",
+        "BUG_2825_CONFIRMED"
+      ]
+    },
+    "latest": {
+      "configuration": {
+        "useProjectReference": true,
+        "liteDBPackageVersion": "5.0.20"
+      },
+      "exitCode": 10,
+      "expectationMet": true,
+      "output": [
+        "{\"type\":\"configuration\",\"timestamp\":\"2026-09-14T19:02:48.8269169+00:00\",\"payload\":{\"useProjectReference\":true,\"liteDBPackageVersion\":\"5.0.20\"}}",
+        "ATTEMPT_1: all regression and persistence assertions passed",
+        "ATTEMPT_2: all regression and persistence assertions passed",
+        "ATTEMPT_3: all regression and persistence assertions passed",
+        "REPEATS_2825: attempts=3, reportedFailures=0",
+        "VERIFIED_2825"
+      ]
+    }
+  }
+}

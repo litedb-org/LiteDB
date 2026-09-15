@@ -1,0 +1,32 @@
+{
+  "platform": "Linux x64 / .NET 8",
+  "observations": [
+    {
+      "case": "2328-5.0.16",
+      "tests": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2328_Tests.Custom_registered_double_max_value_survives_storage_and_SQL_without_null",
+          "outcome": "Passed",
+          "message": ""
+        }
+      ]
+    }
+  ],
+  "attachmentRecheck": {
+    "observedDate": "2026-09-15",
+    "method": "Unauthenticated public HTTP GET; urllib.request",
+    "results": [
+      {
+        "description": "Reported read result",
+        "url": "https://drive.google.com/file/d/1bpvdl7XkL35VV2PpdSodle-TMPLUfwLy/view?usp=sharing",
+        "httpStatus": 404
+      },
+      {
+        "description": "Reported stored value",
+        "url": "https://drive.google.com/file/d/1vViiB65mB9gbWiPXpohxdJKChKjF2kTt/view?usp=sharing",
+        "httpStatus": 404
+      }
+    ],
+    "limitation": "Neither screenshot is currently publicly retrievable; no missing application read path can be inferred from it."
+  }
+}

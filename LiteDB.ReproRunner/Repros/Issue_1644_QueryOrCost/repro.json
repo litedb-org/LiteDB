@@ -1,0 +1,28 @@
+{
+  "id": "Issue_1644_QueryOrCost",
+  "title": "Bound Query.Or construction cost while checking the full truth table",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/issues/1644"
+  ],
+  "timeoutSeconds": 240,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "regression",
+    "performance"
+  ],
+  "state": "flaky",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "BUG_1644_CONFIRMED"
+    },
+    "latest": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "BUG_1644_CONFIRMED"
+    }
+  }
+}

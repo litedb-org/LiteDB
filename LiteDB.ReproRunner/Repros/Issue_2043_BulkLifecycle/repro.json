@@ -1,0 +1,14 @@
+{
+  "id": "Issue_2043_BulkLifecycle",
+  "title": "Bulk Int64 auto IDs with timer cleanup, readers, and quiesced rebuilds",
+  "issues": ["https://github.com/litedb-org/LiteDB/issues/2043"],
+  "timeoutSeconds": 600,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "state": "flaky",
+  "tags": ["regression", "historical", "unconfirmed", "concurrency"],
+  "expectedOutcomes": {
+    "package": {"kind": "noRepro", "exitCode": 10, "logContains": "VERIFIED_2043"},
+    "latest": {"kind": "noRepro", "exitCode": 10, "logContains": "VERIFIED_2043"}
+  }
+}

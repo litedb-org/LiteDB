@@ -1,0 +1,362 @@
+{
+  "observedDate": "2026-09-15",
+  "productionSourceCommit": "a50661a9d1a25b5713586d0096c6325d76bf5dfe",
+  "platform": "Linux x64 / .NET 8",
+  "testedCommit": "d5ab7253737140332f5e2480173ea833609deffa",
+  "diagnosis": "The byte-array recovery MemoryStream had fixed capacity. Concurrent page layouts could require a checkpoint to grow this stream, masking the intended final diagnostic assertion with NotSupportedException. Recovery now uses an expandable stream and verifies all 809 rows plus the worker index after a second read-only reopen. The failure classifier is unchanged.",
+  "originalCiRun": "https://github.com/litedb-org/LiteDB/actions/runs/34953453709",
+  "originalJobId": 104329936151,
+  "originalReport": {
+    "GeneratedAt": "2026-09-15T09:40:10.3751124+00:00",
+    "Root": "/home/runner/work/LiteDB/LiteDB/LiteDB.ReproRunner",
+    "Repros": [
+      {
+        "Id": "Issue_2169_CheckpointError",
+        "State": 0,
+        "Failed": true,
+        "Warned": false,
+        "Package": {
+          "Expected": 0,
+          "ExpectedExitCode": 0,
+          "ExpectedLogContains": "BUG_2169_CONFIRMED",
+          "Actual": 1,
+          "Met": false,
+          "ExitCode": 20,
+          "DurationSeconds": 0.6206381,
+          "UseProjectReference": false,
+          "FailureReason": "Expected exit code 0 but observed 20.",
+          "Output": [
+            {
+              "Stream": "stdout",
+              "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T09:40:25.7231844+00:00\",\"payload\":{\"useProjectReference\":false,\"liteDBPackageVersion\":\"5.0.11\"}}"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "System.NotSupportedException: Memory stream is not expandable."
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at System.IO.MemoryStream.set_Capacity(Int32 value)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at System.IO.MemoryStream.EnsureCapacity(Int32 value)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at System.IO.MemoryStream.Write(Byte[] buffer, Int32 offset, Int32 count)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.ConcurrentStream.Write(Byte[] buffer, Int32 offset, Int32 count)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.DiskService.Write(IEnumerable`1 pages, FileOrigin origin)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.WalIndexService.CheckpointInternal()"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.WalIndexService.TryCheckpoint()"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.LiteEngine.Dispose(Boolean disposing)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Engine.LiteEngine.Dispose()"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.LiteDatabase.Dispose(Boolean disposing)"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.LiteDatabase.Dispose()"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at LiteDB.Tests.Issues.Issue2169_CheckpointFailureTests.Parallel_inserts_preserve_the_checkpoint_error_and_every_committed_payload() in /home/runner/work/LiteDB/LiteDB/LiteDB.Tests/Issues/Issue2169_CheckpointFailureTests.cs:line 61"
+            },
+            {
+              "Stream": "stderr",
+              "Text": "   at Program.Main() in /home/runner/work/LiteDB/LiteDB/LiteDB.ReproRunner/Repros/Issue_2169_CheckpointError/Program.cs:line 21"
+            }
+          ]
+        },
+        "Latest": {
+          "Expected": 0,
+          "ExpectedExitCode": 0,
+          "ExpectedLogContains": "BUG_2169_CONFIRMED",
+          "Actual": 0,
+          "Met": true,
+          "ExitCode": 0,
+          "DurationSeconds": 1.1678973,
+          "UseProjectReference": true,
+          "FailureReason": null,
+          "Output": [
+            {
+              "Stream": "stdout",
+              "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T09:40:26.3409382+00:00\",\"payload\":{\"useProjectReference\":true,\"liteDBPackageVersion\":\"5.0.11\"}}"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "ATTEMPT_1: Expected failures to refer to System.UnauthorizedAccessException: issue 2169: checkpoint access denied"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Tests.Issues.Issue2169_CheckpointFailureTests.DeniedCheckpointStream.Write(Byte[] buffer, Int32 offset, Int32 count) in /home/runner/work/LiteDB/LiteDB/LiteDB.Tests/Issues/Issue2169_CheckpointFailureTests.cs:line 84"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Engine.ConcurrentStream.Write(Byte[] buffer, Int32 offset, Int32 count) in /home/runner/work/LiteDB/LiteDB/LiteDB/Engine/Disk/Streams/ConcurrentStream.cs:line 93"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Engine.DiskService.WriteDataDisk(IEnumerable`1 pages) in /home/runner/work/LiteDB/LiteDB/LiteDB/Engine/Disk/DiskService.cs:line 356"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Engine.WalIndexService.CheckpointInternal() in /home/runner/work/LiteDB/LiteDB/LiteDB/Engine/Services/WalIndexService.cs:line 355"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Engine.WalIndexService.TryCheckpoint() in /home/runner/work/LiteDB/LiteDB/LiteDB/Engine/Services/WalIndexService.cs:line 299"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Engine.LiteEngine.CommitAndReleaseTransaction(TransactionService transaction) in /home/runner/work/LiteDB/LiteDB/LiteDB/Engine/Engine/Transaction.cs:line 118"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Engine.LiteEngine.AutoTransaction[T](Func`2 fn) in /home/runner/work/LiteDB/LiteDB/LiteDB/Engine/Engine/Transaction.cs:line 87 because rollback of the disposed transaction must not mask the original write failure, but found LiteDB.LiteException: transaction must be active to rollback (current state: Disposed)"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Constants.ENSURE(Boolean conditional, String format, Object[] args) in /home/runner/work/LiteDB/LiteDB/LiteDB/Utils/Constants.cs:line 160"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Engine.TransactionService.Rollback() in /home/runner/work/LiteDB/LiteDB/LiteDB/Engine/Services/TransactionService.cs:line 291"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Engine.LiteEngine.AutoTransaction[T](Func`2 fn) in /home/runner/work/LiteDB/LiteDB/LiteDB/Engine/Engine/Transaction.cs:line 99"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Engine.LiteEngine.Insert(String collection, IEnumerable`1 docs, BsonAutoId autoId) in /home/runner/work/LiteDB/LiteDB/LiteDB/Engine/Engine/Insert.cs:line 20"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.LiteCollection`1.Insert(T entity) in /home/runner/work/LiteDB/LiteDB/LiteDB/Client/Database/Collections/Insert.cs:line 20"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Tests.Issues.Issue2169_CheckpointFailureTests.<>c__DisplayClass0_1.<Parallel_inserts_preserve_the_checkpoint_error_and_every_committed_payload>b__2() in /home/runner/work/LiteDB/LiteDB/LiteDB.Tests/Issues/Issue2169_CheckpointFailureTests.cs:line 40"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at Xunit.Record.Exception(Func`1 testCode) in /_/src/xunit.core/Record.cs:line 47."
+            },
+            {
+              "Stream": "stdout",
+              "Text": "ATTEMPT_2: Expected failures to refer to System.UnauthorizedAccessException: issue 2169: checkpoint access denied"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Tests.Issues.Issue2169_CheckpointFailureTests.DeniedCheckpointStream.Write(Byte[] buffer, Int32 offset, Int32 count) in /home/runner/work/LiteDB/LiteDB/LiteDB.Tests/Issues/Issue2169_CheckpointFailureTests.cs:line 84"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Engine.ConcurrentStream.Write(Byte[] buffer, Int32 offset, Int32 count) in /home/runner/work/LiteDB/LiteDB/LiteDB/Engine/Disk/Streams/ConcurrentStream.cs:line 93"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Engine.DiskService.WriteDataDisk(IEnumerable`1 pages) in /home/runner/work/LiteDB/LiteDB/LiteDB/Engine/Disk/DiskService.cs:line 356"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Engine.WalIndexService.CheckpointInternal() in /home/runner/work/LiteDB/LiteDB/LiteDB/Engine/Services/WalIndexService.cs:line 355"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Engine.WalIndexService.TryCheckpoint() in /home/runner/work/LiteDB/LiteDB/LiteDB/Engine/Services/WalIndexService.cs:line 299"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Engine.LiteEngine.CommitAndReleaseTransaction(TransactionService transaction) in /home/runner/work/LiteDB/LiteDB/LiteDB/Engine/Engine/Transaction.cs:line 118"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Engine.LiteEngine.AutoTransaction[T](Func`2 fn) in /home/runner/work/LiteDB/LiteDB/LiteDB/Engine/Engine/Transaction.cs:line 87 because rollback of the disposed transaction must not mask the original write failure, but found LiteDB.LiteException: transaction must be active to rollback (current state: Disposed)"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Constants.ENSURE(Boolean conditional, String format, Object[] args) in /home/runner/work/LiteDB/LiteDB/LiteDB/Utils/Constants.cs:line 160"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Engine.TransactionService.Rollback() in /home/runner/work/LiteDB/LiteDB/LiteDB/Engine/Services/TransactionService.cs:line 291"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Engine.LiteEngine.AutoTransaction[T](Func`2 fn) in /home/runner/work/LiteDB/LiteDB/LiteDB/Engine/Engine/Transaction.cs:line 99"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Engine.LiteEngine.Insert(String collection, IEnumerable`1 docs, BsonAutoId autoId) in /home/runner/work/LiteDB/LiteDB/LiteDB/Engine/Engine/Insert.cs:line 20"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.LiteCollection`1.Insert(T entity) in /home/runner/work/LiteDB/LiteDB/LiteDB/Client/Database/Collections/Insert.cs:line 20"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Tests.Issues.Issue2169_CheckpointFailureTests.<>c__DisplayClass0_1.<Parallel_inserts_preserve_the_checkpoint_error_and_every_committed_payload>b__2() in /home/runner/work/LiteDB/LiteDB/LiteDB.Tests/Issues/Issue2169_CheckpointFailureTests.cs:line 40"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at Xunit.Record.Exception(Func`1 testCode) in /_/src/xunit.core/Record.cs:line 47."
+            },
+            {
+              "Stream": "stdout",
+              "Text": "ATTEMPT_3: Expected failures to refer to System.UnauthorizedAccessException: issue 2169: checkpoint access denied"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Tests.Issues.Issue2169_CheckpointFailureTests.DeniedCheckpointStream.Write(Byte[] buffer, Int32 offset, Int32 count) in /home/runner/work/LiteDB/LiteDB/LiteDB.Tests/Issues/Issue2169_CheckpointFailureTests.cs:line 84"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Engine.ConcurrentStream.Write(Byte[] buffer, Int32 offset, Int32 count) in /home/runner/work/LiteDB/LiteDB/LiteDB/Engine/Disk/Streams/ConcurrentStream.cs:line 93"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Engine.DiskService.WriteDataDisk(IEnumerable`1 pages) in /home/runner/work/LiteDB/LiteDB/LiteDB/Engine/Disk/DiskService.cs:line 356"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Engine.WalIndexService.CheckpointInternal() in /home/runner/work/LiteDB/LiteDB/LiteDB/Engine/Services/WalIndexService.cs:line 355"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Engine.WalIndexService.TryCheckpoint() in /home/runner/work/LiteDB/LiteDB/LiteDB/Engine/Services/WalIndexService.cs:line 299"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Engine.LiteEngine.CommitAndReleaseTransaction(TransactionService transaction) in /home/runner/work/LiteDB/LiteDB/LiteDB/Engine/Engine/Transaction.cs:line 118"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Engine.LiteEngine.AutoTransaction[T](Func`2 fn) in /home/runner/work/LiteDB/LiteDB/LiteDB/Engine/Engine/Transaction.cs:line 87 because rollback of the disposed transaction must not mask the original write failure, but found LiteDB.LiteException: transaction must be active to rollback (current state: Disposed)"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Constants.ENSURE(Boolean conditional, String format, Object[] args) in /home/runner/work/LiteDB/LiteDB/LiteDB/Utils/Constants.cs:line 160"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Engine.TransactionService.Rollback() in /home/runner/work/LiteDB/LiteDB/LiteDB/Engine/Services/TransactionService.cs:line 291"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Engine.LiteEngine.AutoTransaction[T](Func`2 fn) in /home/runner/work/LiteDB/LiteDB/LiteDB/Engine/Engine/Transaction.cs:line 99"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Engine.LiteEngine.Insert(String collection, IEnumerable`1 docs, BsonAutoId autoId) in /home/runner/work/LiteDB/LiteDB/LiteDB/Engine/Engine/Insert.cs:line 20"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.LiteCollection`1.Insert(T entity) in /home/runner/work/LiteDB/LiteDB/LiteDB/Client/Database/Collections/Insert.cs:line 20"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at LiteDB.Tests.Issues.Issue2169_CheckpointFailureTests.<>c__DisplayClass0_1.<Parallel_inserts_preserve_the_checkpoint_error_and_every_committed_payload>b__2() in /home/runner/work/LiteDB/LiteDB/LiteDB.Tests/Issues/Issue2169_CheckpointFailureTests.cs:line 40"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "   at Xunit.Record.Exception(Func`1 testCode) in /_/src/xunit.core/Record.cs:line 47."
+            },
+            {
+              "Stream": "stdout",
+              "Text": "REPEATS_2169: attempts=3, reportedFailures=3"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "BUG_2169_CONFIRMED"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "localAttemptsPerVariant": 25,
+  "localReportSummary": {
+    "GeneratedAt": "2026-09-15T09:45:09.0535669+00:00",
+    "Root": "/home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB.ReproRunner",
+    "Repros": [
+      {
+        "Id": "Issue_2169_CheckpointError",
+        "State": 1,
+        "Failed": false,
+        "Warned": false,
+        "Package": {
+          "Expected": 0,
+          "ExpectedExitCode": 0,
+          "ExpectedLogContains": "BUG_2169_CONFIRMED",
+          "Actual": 0,
+          "Met": true,
+          "ExitCode": 0,
+          "DurationSeconds": 4.1799519,
+          "UseProjectReference": false,
+          "FailureReason": null,
+          "Output": [
+            {
+              "Stream": "stdout",
+              "Text": "ATTEMPT_25: Expected failures to refer to System.UnauthorizedAccessException: issue 2169: checkpoint access denied"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "REPEATS_2169: attempts=25, reportedFailures=25"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "BUG_2169_CONFIRMED"
+            }
+          ]
+        },
+        "Latest": {
+          "Expected": 0,
+          "ExpectedExitCode": 0,
+          "ExpectedLogContains": "BUG_2169_CONFIRMED",
+          "Actual": 0,
+          "Met": true,
+          "ExitCode": 0,
+          "DurationSeconds": 4.7945782,
+          "UseProjectReference": true,
+          "FailureReason": null,
+          "Output": [
+            {
+              "Stream": "stdout",
+              "Text": "ATTEMPT_25: Expected failures to refer to System.UnauthorizedAccessException: issue 2169: checkpoint access denied"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "REPEATS_2169: attempts=25, reportedFailures=25"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "BUG_2169_CONFIRMED"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

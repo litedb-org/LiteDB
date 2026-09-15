@@ -1,0 +1,15 @@
+{
+  "platform": "Linux x64 / .NET 8",
+  "observations": [
+    {
+      "case": "2043-5.0.8",
+      "tests": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2043_Tests.Concurrent_Int64_auto_ids_match_document_ids_and_continue_after_rebuild_and_reopen",
+          "outcome": "Passed",
+          "message": ""
+        }
+      ]
+    }
+  ]
+}

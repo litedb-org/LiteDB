@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseProjectReference Condition="'$(UseProjectReference)' == ''">false</UseProjectReference>
+    <LiteDBPackageVersion Condition="'$(LiteDBPackageVersion)' == ''">5.0.10</LiteDBPackageVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="Worker/**/*.cs" />
+    <ProjectReference Include="../../LiteDB.ReproRunner.Shared/LiteDB.ReproRunner.Shared.csproj" />
+    <AssemblyMetadata Include="LiteDB.ReproRunner.UseProjectReference" Value="$(UseProjectReference)" />
+    <AssemblyMetadata Include="LiteDB.ReproRunner.LiteDBPackageVersion" Value="$(LiteDBPackageVersion)" />
+  </ItemGroup>
+  <Target Name="BuildLookupWorker" AfterTargets="Build">
+    <Exec Command="dotnet build &quot;$(MSBuildProjectDirectory)/Worker/Issue2059.Worker.csproj&quot; -c $(Configuration) --nologo -p:UseProjectReference=$(UseProjectReference) -p:LiteDBPackageVersion=$(LiteDBPackageVersion) -p:OutputPath=&quot;$(TargetDir)worker/&quot; -p:AppendTargetFrameworkToOutputPath=false -p:TestingEnabled=false" />
+  </Target>
+</Project>

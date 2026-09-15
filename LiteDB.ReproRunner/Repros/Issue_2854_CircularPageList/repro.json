@@ -1,0 +1,31 @@
+{
+  "id": "Issue_2854_CircularPageList",
+  "title": "Reachable circular page lists must fail promptly as file corruption",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/issues/2854"
+  ],
+  "failingSince": "5.x",
+  "timeoutSeconds": 45,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "corruption",
+    "page-list",
+    "hang",
+    "regression"
+  ],
+  "state": "red",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "BUG_2854_CONFIRMED"
+    },
+    "latest": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "BUG_2854_CONFIRMED"
+    }
+  }
+}

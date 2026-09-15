@@ -18,6 +18,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\LiteDB\LiteDB.csproj" />
+    <Compile Include="..\LiteDB.ReproRunner\Repros\Issue_2825_FreeListRace\FreeListFailureClassifier.cs" Link="FreeListFailureClassifier.cs" />
     <ProjectReference Include="..\LiteDB.ReproRunner\LiteDB.ReproRunner.Cli\LiteDB.ReproRunner.Cli.csproj" />
     <ProjectReference Include="..\LiteDB.ReproRunner\LiteDB.ReproRunner.Shared\LiteDB.ReproRunner.Shared.csproj" />
   </ItemGroup>

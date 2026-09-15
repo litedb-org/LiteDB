@@ -1,0 +1,492 @@
+{
+  "observedDate": "2026-09-15",
+  "ciRun": "https://github.com/litedb-org/LiteDB/actions/runs/34942335713",
+  "reports": {
+    "logs-Issue_2816_DisposeFailure-windows-2022": {
+      "GeneratedAt": "2026-09-15T07:35:44.7098596+00:00",
+      "Root": "D:\\a\\LiteDB\\LiteDB\\LiteDB.ReproRunner",
+      "Repros": [
+        {
+          "Id": "Issue_2816_DisposeFailure",
+          "State": 1,
+          "Failed": false,
+          "Warned": false,
+          "Package": {
+            "Expected": 0,
+            "ExpectedExitCode": 0,
+            "ExpectedLogContains": "BUG_2816_CONFIRMED",
+            "Actual": 0,
+            "Met": true,
+            "ExitCode": 0,
+            "DurationSeconds": 0.3733382,
+            "UseProjectReference": false,
+            "FailureReason": null,
+            "Output": [
+              {
+                "Stream": "stdout",
+                "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T07:36:01.0903044+00:00\",\"payload\":{\"useProjectReference\":false,\"liteDBPackageVersion\":\"5.0.20\"}}"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_1: Expected ownershipFailure to be <null> because Dispose must release its owned data-file handle before any finalization, but found System.IO.IOException: The process cannot access the file 'C:\\Users\\runneradmin\\AppData\\Local\\Temp\\litedb-fdbbe.db' because it is being used by another process."
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Microsoft.Win32.SafeHandles.SafeFileHandle.CreateFile(String fullPath, FileMode mode, FileAccess access, FileShare share, FileOptions options)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Microsoft.Win32.SafeHandles.SafeFileHandle.Open(String fullPath, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.IO.Strategies.OSFileStreamStrategy..ctor(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.IO.Strategies.FileStreamHelpers.ChooseStrategyCore(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.IO.File.Open(String path, FileMode mode, FileAccess access, FileShare share)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2816_DisposeFailureTests.<>c__DisplayClass1_0.<VerifyOwnedFileLifecycle>b__0() in D:\\a\\LiteDB\\LiteDB\\LiteDB.Tests\\Issues\\Issue2816_DisposeFailureTests.cs:line 60"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Xunit.Record.Exception(Action testCode) in /_/src/xunit.core/Record.cs:line 25."
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2: Expected ownershipFailure to be <null> because Dispose must release its owned data-file handle before any finalization, but found System.IO.IOException: The process cannot access the file 'C:\\Users\\runneradmin\\AppData\\Local\\Temp\\litedb-fde39.db' because it is being used by another process."
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Microsoft.Win32.SafeHandles.SafeFileHandle.CreateFile(String fullPath, FileMode mode, FileAccess access, FileShare share, FileOptions options)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Microsoft.Win32.SafeHandles.SafeFileHandle.Open(String fullPath, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.IO.Strategies.OSFileStreamStrategy..ctor(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.IO.Strategies.FileStreamHelpers.ChooseStrategyCore(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.IO.File.Open(String path, FileMode mode, FileAccess access, FileShare share)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2816_DisposeFailureTests.<>c__DisplayClass1_0.<VerifyOwnedFileLifecycle>b__0() in D:\\a\\LiteDB\\LiteDB\\LiteDB.Tests\\Issues\\Issue2816_DisposeFailureTests.cs:line 60"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Xunit.Record.Exception(Action testCode) in /_/src/xunit.core/Record.cs:line 25."
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_3: Expected ownershipFailure to be <null> because Dispose must release its owned data-file handle before any finalization, but found System.IO.IOException: The process cannot access the file 'C:\\Users\\runneradmin\\AppData\\Local\\Temp\\litedb-5fec7.db' because it is being used by another process."
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Microsoft.Win32.SafeHandles.SafeFileHandle.CreateFile(String fullPath, FileMode mode, FileAccess access, FileShare share, FileOptions options)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Microsoft.Win32.SafeHandles.SafeFileHandle.Open(String fullPath, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.IO.Strategies.OSFileStreamStrategy..ctor(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.IO.Strategies.FileStreamHelpers.ChooseStrategyCore(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.IO.File.Open(String path, FileMode mode, FileAccess access, FileShare share)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2816_DisposeFailureTests.<>c__DisplayClass1_0.<VerifyOwnedFileLifecycle>b__0() in D:\\a\\LiteDB\\LiteDB\\LiteDB.Tests\\Issues\\Issue2816_DisposeFailureTests.cs:line 60"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Xunit.Record.Exception(Action testCode) in /_/src/xunit.core/Record.cs:line 25."
+              },
+              {
+                "Stream": "stdout",
+                "Text": "REPEATS_2816: attempts=3, reportedFailures=3"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "BUG_2816_CONFIRMED"
+              }
+            ]
+          },
+          "Latest": {
+            "Expected": 1,
+            "ExpectedExitCode": 10,
+            "ExpectedLogContains": "VERIFIED_2816",
+            "Actual": 1,
+            "Met": true,
+            "ExitCode": 10,
+            "DurationSeconds": 0.3335459,
+            "UseProjectReference": true,
+            "FailureReason": null,
+            "Output": [
+              {
+                "Stream": "stdout",
+                "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T07:36:01.4705896+00:00\",\"payload\":{\"useProjectReference\":true,\"liteDBPackageVersion\":\"5.0.20\"}}"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_1: all regression and persistence assertions passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2: all regression and persistence assertions passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_3: all regression and persistence assertions passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "REPEATS_2816: attempts=3, reportedFailures=0"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "VERIFIED_2816"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "logs-Issue_2816_DisposeFailure-ubuntu-24.04": {
+      "GeneratedAt": "2026-09-15T07:35:38.110835+00:00",
+      "Root": "/home/runner/work/LiteDB/LiteDB/LiteDB.ReproRunner",
+      "Repros": [
+        {
+          "Id": "Issue_2816_DisposeFailure",
+          "State": 1,
+          "Failed": false,
+          "Warned": false,
+          "Package": {
+            "Expected": 0,
+            "ExpectedExitCode": 0,
+            "ExpectedLogContains": "BUG_2816_CONFIRMED",
+            "Actual": 0,
+            "Met": true,
+            "ExitCode": 0,
+            "DurationSeconds": 0.500344,
+            "UseProjectReference": false,
+            "FailureReason": null,
+            "Output": [
+              {
+                "Stream": "stdout",
+                "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T07:35:53.6901527+00:00\",\"payload\":{\"useProjectReference\":false,\"liteDBPackageVersion\":\"5.0.20\"}}"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_1: Expected ownershipFailure to be <null> because Dispose must release its owned data-file handle before any finalization, but found System.IO.IOException: The process cannot access the file '/tmp/litedb-665c9.db' because it is being used by another process."
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Microsoft.Win32.SafeHandles.SafeFileHandle.Init(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Int64& fileLength, UnixFileMode& filePermissions)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Microsoft.Win32.SafeHandles.SafeFileHandle.Open(String fullPath, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, UnixFileMode openPermissions, Int64& fileLength, UnixFileMode& filePermissions, Boolean failForSymlink, Boolean& wasSymlink, Func`4 createOpenException)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.IO.Strategies.OSFileStreamStrategy..ctor(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.IO.File.Open(String path, FileMode mode, FileAccess access, FileShare share)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2816_DisposeFailureTests.<>c__DisplayClass1_0.<VerifyOwnedFileLifecycle>b__0() in /home/runner/work/LiteDB/LiteDB/LiteDB.Tests/Issues/Issue2816_DisposeFailureTests.cs:line 60"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Xunit.Record.Exception(Action testCode) in /_/src/xunit.core/Record.cs:line 25."
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2: Expected ownershipFailure to be <null> because Dispose must release its owned data-file handle before any finalization, but found System.IO.IOException: The process cannot access the file '/tmp/litedb-5b4c9.db' because it is being used by another process."
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Microsoft.Win32.SafeHandles.SafeFileHandle.Init(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Int64& fileLength, UnixFileMode& filePermissions)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Microsoft.Win32.SafeHandles.SafeFileHandle.Open(String fullPath, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, UnixFileMode openPermissions, Int64& fileLength, UnixFileMode& filePermissions, Boolean failForSymlink, Boolean& wasSymlink, Func`4 createOpenException)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.IO.Strategies.OSFileStreamStrategy..ctor(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.IO.File.Open(String path, FileMode mode, FileAccess access, FileShare share)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2816_DisposeFailureTests.<>c__DisplayClass1_0.<VerifyOwnedFileLifecycle>b__0() in /home/runner/work/LiteDB/LiteDB/LiteDB.Tests/Issues/Issue2816_DisposeFailureTests.cs:line 60"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Xunit.Record.Exception(Action testCode) in /_/src/xunit.core/Record.cs:line 25."
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_3: Expected ownershipFailure to be <null> because Dispose must release its owned data-file handle before any finalization, but found System.IO.IOException: The process cannot access the file '/tmp/litedb-0094c.db' because it is being used by another process."
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Microsoft.Win32.SafeHandles.SafeFileHandle.Init(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Int64& fileLength, UnixFileMode& filePermissions)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Microsoft.Win32.SafeHandles.SafeFileHandle.Open(String fullPath, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, UnixFileMode openPermissions, Int64& fileLength, UnixFileMode& filePermissions, Boolean failForSymlink, Boolean& wasSymlink, Func`4 createOpenException)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.IO.Strategies.OSFileStreamStrategy..ctor(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.IO.File.Open(String path, FileMode mode, FileAccess access, FileShare share)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2816_DisposeFailureTests.<>c__DisplayClass1_0.<VerifyOwnedFileLifecycle>b__0() in /home/runner/work/LiteDB/LiteDB/LiteDB.Tests/Issues/Issue2816_DisposeFailureTests.cs:line 60"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Xunit.Record.Exception(Action testCode) in /_/src/xunit.core/Record.cs:line 25."
+              },
+              {
+                "Stream": "stdout",
+                "Text": "REPEATS_2816: attempts=3, reportedFailures=3"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "BUG_2816_CONFIRMED"
+              }
+            ]
+          },
+          "Latest": {
+            "Expected": 1,
+            "ExpectedExitCode": 10,
+            "ExpectedLogContains": "VERIFIED_2816",
+            "Actual": 1,
+            "Met": true,
+            "ExitCode": 10,
+            "DurationSeconds": 0.4220988,
+            "UseProjectReference": true,
+            "FailureReason": null,
+            "Output": [
+              {
+                "Stream": "stdout",
+                "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T07:35:54.1910863+00:00\",\"payload\":{\"useProjectReference\":true,\"liteDBPackageVersion\":\"5.0.20\"}}"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_1: all regression and persistence assertions passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2: all regression and persistence assertions passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_3: all regression and persistence assertions passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "REPEATS_2816: attempts=3, reportedFailures=0"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "VERIFIED_2816"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "logs-Issue_2816_DisposeFailure-ubuntu-22.04": {
+      "GeneratedAt": "2026-09-15T07:35:06.6250596+00:00",
+      "Root": "/home/runner/work/LiteDB/LiteDB/LiteDB.ReproRunner",
+      "Repros": [
+        {
+          "Id": "Issue_2816_DisposeFailure",
+          "State": 1,
+          "Failed": false,
+          "Warned": false,
+          "Package": {
+            "Expected": 0,
+            "ExpectedExitCode": 0,
+            "ExpectedLogContains": "BUG_2816_CONFIRMED",
+            "Actual": 0,
+            "Met": true,
+            "ExitCode": 0,
+            "DurationSeconds": 0.5295247,
+            "UseProjectReference": false,
+            "FailureReason": null,
+            "Output": [
+              {
+                "Stream": "stdout",
+                "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T07:35:22.7090648+00:00\",\"payload\":{\"useProjectReference\":false,\"liteDBPackageVersion\":\"5.0.20\"}}"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_1: Expected ownershipFailure to be <null> because Dispose must release its owned data-file handle before any finalization, but found System.IO.IOException: The process cannot access the file '/tmp/litedb-f8524.db' because it is being used by another process."
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Microsoft.Win32.SafeHandles.SafeFileHandle.Init(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Int64& fileLength, UnixFileMode& filePermissions)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Microsoft.Win32.SafeHandles.SafeFileHandle.Open(String fullPath, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, UnixFileMode openPermissions, Int64& fileLength, UnixFileMode& filePermissions, Boolean failForSymlink, Boolean& wasSymlink, Func`4 createOpenException)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.IO.Strategies.OSFileStreamStrategy..ctor(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.IO.File.Open(String path, FileMode mode, FileAccess access, FileShare share)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2816_DisposeFailureTests.<>c__DisplayClass1_0.<VerifyOwnedFileLifecycle>b__0() in /home/runner/work/LiteDB/LiteDB/LiteDB.Tests/Issues/Issue2816_DisposeFailureTests.cs:line 60"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Xunit.Record.Exception(Action testCode) in /_/src/xunit.core/Record.cs:line 25."
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2: Expected ownershipFailure to be <null> because Dispose must release its owned data-file handle before any finalization, but found System.IO.IOException: The process cannot access the file '/tmp/litedb-be2e0.db' because it is being used by another process."
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Microsoft.Win32.SafeHandles.SafeFileHandle.Init(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Int64& fileLength, UnixFileMode& filePermissions)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Microsoft.Win32.SafeHandles.SafeFileHandle.Open(String fullPath, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, UnixFileMode openPermissions, Int64& fileLength, UnixFileMode& filePermissions, Boolean failForSymlink, Boolean& wasSymlink, Func`4 createOpenException)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.IO.Strategies.OSFileStreamStrategy..ctor(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.IO.File.Open(String path, FileMode mode, FileAccess access, FileShare share)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2816_DisposeFailureTests.<>c__DisplayClass1_0.<VerifyOwnedFileLifecycle>b__0() in /home/runner/work/LiteDB/LiteDB/LiteDB.Tests/Issues/Issue2816_DisposeFailureTests.cs:line 60"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Xunit.Record.Exception(Action testCode) in /_/src/xunit.core/Record.cs:line 25."
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_3: Expected ownershipFailure to be <null> because Dispose must release its owned data-file handle before any finalization, but found System.IO.IOException: The process cannot access the file '/tmp/litedb-63247.db' because it is being used by another process."
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Microsoft.Win32.SafeHandles.SafeFileHandle.Init(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Int64& fileLength, UnixFileMode& filePermissions)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Microsoft.Win32.SafeHandles.SafeFileHandle.Open(String fullPath, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, UnixFileMode openPermissions, Int64& fileLength, UnixFileMode& filePermissions, Boolean failForSymlink, Boolean& wasSymlink, Func`4 createOpenException)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.IO.Strategies.OSFileStreamStrategy..ctor(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at System.IO.File.Open(String path, FileMode mode, FileAccess access, FileShare share)"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at LiteDB.Tests.Issues.Issue2816_DisposeFailureTests.<>c__DisplayClass1_0.<VerifyOwnedFileLifecycle>b__0() in /home/runner/work/LiteDB/LiteDB/LiteDB.Tests/Issues/Issue2816_DisposeFailureTests.cs:line 60"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "   at Xunit.Record.Exception(Action testCode) in /_/src/xunit.core/Record.cs:line 25."
+              },
+              {
+                "Stream": "stdout",
+                "Text": "REPEATS_2816: attempts=3, reportedFailures=3"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "BUG_2816_CONFIRMED"
+              }
+            ]
+          },
+          "Latest": {
+            "Expected": 1,
+            "ExpectedExitCode": 10,
+            "ExpectedLogContains": "VERIFIED_2816",
+            "Actual": 1,
+            "Met": true,
+            "ExitCode": 10,
+            "DurationSeconds": 0.4358173,
+            "UseProjectReference": true,
+            "FailureReason": null,
+            "Output": [
+              {
+                "Stream": "stdout",
+                "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T07:35:23.2386515+00:00\",\"payload\":{\"useProjectReference\":true,\"liteDBPackageVersion\":\"5.0.20\"}}"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_1: all regression and persistence assertions passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2: all regression and persistence assertions passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_3: all regression and persistence assertions passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "REPEATS_2816: attempts=3, reportedFailures=0"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "VERIFIED_2816"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

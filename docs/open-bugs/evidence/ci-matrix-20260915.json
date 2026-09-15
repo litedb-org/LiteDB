@@ -1,0 +1,1614 @@
+{
+  "observedDate": "2026-09-15",
+  "ciRun": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771",
+  "testedCommit": "ed866e540a680ac871e31918b6d8b3635b54f658",
+  "status": "completed",
+  "conclusion": "failure",
+  "jobCounts": {
+    "success": 78,
+    "failure": 25
+  },
+  "jobs": [
+    {
+      "name": "build-and-test / Build (Linux)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307376872",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "build-and-test / Build (Windows)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307377048",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Generate matrix",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307377062",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "build-and-test / Build (macOS)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307377194",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_1392_HistoricalIndex on ubuntu-22.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550513",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_1392_HistoricalIndex on ubuntu-24.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550557",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_1087_LinuxLockRetry on ubuntu-24.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550584",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_1644_QueryOrCost on ubuntu-22.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550593",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2169_CheckpointError on ubuntu-22.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550599",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2163_MixedAccess on ubuntu-24.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550618",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_1392_HistoricalIndex on windows-2022",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550620",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2561_TransactionMonitor on windows-2022",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550627",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2561_TransactionMonitor on ubuntu-22.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550630",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_1644_QueryOrCost on ubuntu-24.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550638",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2169_CheckpointError on ubuntu-24.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550646",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2586_RollbackTransaction on ubuntu-24.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550652",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2746_CollectionNameDiagnostic on ubuntu-24.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550653",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_1087_LinuxLockRetry on ubuntu-22.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550659",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2163_MixedAccess on ubuntu-22.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550662",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_1472_MonoCompoundQueries on ubuntu-22.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550664",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2746_CollectionNameDiagnostic on windows-2022",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550668",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2586_RollbackTransaction on windows-2022",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550680",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2169_CheckpointError on windows-2022",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550683",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2357_DstDateIds on ubuntu-22.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550690",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2775_ScanRetention on windows-2022",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550694",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2614_DiskServiceDispose on ubuntu-22.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550698",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_1644_QueryOrCost on windows-2022",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550702",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2797_LikeWildcards on windows-2022",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550710",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2586_RollbackTransaction on ubuntu-22.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550718",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2746_CollectionNameDiagnostic on ubuntu-22.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550723",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2775_ScanRetention on ubuntu-22.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550734",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2797_LikeWildcards on ubuntu-24.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550766",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2812_CollationProcess on ubuntu-22.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550805",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2775_ScanRetention on ubuntu-24.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550815",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2803_CheckpointError on ubuntu-22.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550820",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2614_DiskServiceDispose on ubuntu-24.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550826",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2814_WalGrowth on ubuntu-22.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550828",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2814_WalGrowth on ubuntu-24.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550829",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2803_CheckpointError on ubuntu-24.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550830",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2561_TransactionMonitor on ubuntu-24.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550842",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2357_DstDateIds on ubuntu-24.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550845",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2804_AotRuntime on ubuntu-24.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550855",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_1472_MonoCompoundQueries on ubuntu-24.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550859",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2804_AotRuntime on ubuntu-22.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550865",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2812_CollationProcess on windows-2022",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550872",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2814_WalGrowth on windows-2022",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550902",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2826_BrokenV7PageLinks on ubuntu-24.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550907",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2816_DisposeFailure on ubuntu-24.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550930",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2816_DisposeFailure on windows-2022",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550935",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2797_LikeWildcards on ubuntu-22.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550945",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2816_DisposeFailure on ubuntu-22.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307550978",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2825_FreeListRace on ubuntu-22.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307551019",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2842_LimitError on ubuntu-24.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307551028",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2826_BrokenV7PageLinks on ubuntu-22.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307551036",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2842_LimitError on ubuntu-22.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307551058",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2812_CollationProcess on ubuntu-24.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307551078",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2846_DropPerformance on ubuntu-22.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307551094",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2825_FreeListRace on windows-2022",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307551101",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2826_BrokenV7PageLinks on windows-2022",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307551122",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2803_CheckpointError on windows-2022",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307551131",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2825_FreeListRace on ubuntu-24.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307551138",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "repro-runner / Run Issue_2849_SafepointCost on ubuntu-24.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307551147",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2849_SafepointCost on windows-2022",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307551152",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2846_DropPerformance on ubuntu-24.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307551153",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2846_DropPerformance on windows-2022",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307551166",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2849_SafepointCost on ubuntu-22.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307551196",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2854_CircularPageList on ubuntu-22.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307551219",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "repro-runner / Run Issue_2842_LimitError on windows-2022",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307551271",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "repro-runner / Run Issue_2854_CircularPageList on windows-2022",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307554829",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "repro-runner / Run Issue_2854_CircularPageList on ubuntu-24.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307554889",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "build-and-test / Test (Linux .NET 9)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307843603",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "build-and-test / Test (Linux .NET 8)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307843612",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "build-and-test / Test (Linux .NET 10)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307843631",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "build-and-test / Test (Linux ARM64 - .NET 9)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307843639",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "build-and-test / Test (Linux ARM64 - .NET 8)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307843648",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "build-and-test / Test (Linux ARM64 - .NET 10)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307843653",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "build-and-test / Test (macOS .NET 9)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307866601",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "build-and-test / Test (macOS .NET 8)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307866603",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "build-and-test / Test (macOS .NET 10)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307866685",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "build-and-test / Test (Windows windows-latest - x64 - .NET 10)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180859",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "build-and-test / Test (Windows windows-2022 - x64 - .NET 9)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180866",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "build-and-test / Test (Windows windows-latest - x86 - .NET 8)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180871",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "build-and-test / Test (Windows windows-2022 - x86 - .NET 9)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180877",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "build-and-test / Test (Windows windows-2022 - x64 - .NET 8)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180883",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "build-and-test / Cross-Process Tests (Windows windows-latest - x64 - .NET 10)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180891",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "build-and-test / Test (Windows windows-2022 - x86 - .NET 8)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180924",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "build-and-test / Test (Windows windows-latest - x86 - .NET 9)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180934",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "build-and-test / Test (Windows windows-latest - x64 - .NET 9)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180938",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "build-and-test / Cross-Process Tests (Windows windows-latest - x86 - .NET 8)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180946",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "build-and-test / Cross-Process Tests (Windows windows-latest - x64 - .NET 8)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180948",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "build-and-test / Cross-Process Tests (Windows windows-2022 - x64 - .NET 10)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180966",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "build-and-test / Cross-Process Tests (Windows windows-latest - x86 - .NET 9)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180980",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "build-and-test / Test (Windows windows-latest - x86 - .NET 10)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180988",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "build-and-test / Cross-Process Tests (Windows windows-2022 - x64 - .NET 9)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308181000",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "build-and-test / Test (Windows windows-latest - x64 - .NET 8)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308181013",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "build-and-test / Cross-Process Tests (Windows windows-2022 - x86 - .NET 9)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308181029",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "build-and-test / Cross-Process Tests (Windows windows-2022 - x86 - .NET 10)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308181044",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "build-and-test / Cross-Process Tests (Windows windows-2022 - x64 - .NET 8)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308181085",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "build-and-test / Cross-Process Tests (Windows windows-2022 - x86 - .NET 8)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308181093",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "build-and-test / Test (Windows windows-2022 - x64 - .NET 10)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308181095",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "build-and-test / Cross-Process Tests (Windows windows-latest - x86 - .NET 10)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308181113",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "build-and-test / Test (Windows windows-2022 - x86 - .NET 10)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308181132",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "build-and-test / Cross-Process Tests (Windows windows-latest - x64 - .NET 9)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308181255",
+      "status": "completed",
+      "conclusion": "success"
+    }
+  ],
+  "fullSuites": [
+    {
+      "name": "build-and-test / Test (Linux .NET 9)",
+      "jobId": 104307843603,
+      "counts": {
+        "Total tests": 1277,
+        "Passed": 996,
+        "Failed": 273,
+        "Skipped": 8
+      },
+      "reportedFailures": 273,
+      "allFailuresInIssueTests": true,
+      "failureCountDifferenceFromLocalByIssue": {
+        "Issue2814_Tests": 1
+      },
+      "aborted": false
+    },
+    {
+      "name": "build-and-test / Test (Linux .NET 8)",
+      "jobId": 104307843612,
+      "counts": {
+        "Total tests": 1277,
+        "Passed": 996,
+        "Failed": 273,
+        "Skipped": 8
+      },
+      "reportedFailures": 273,
+      "allFailuresInIssueTests": true,
+      "failureCountDifferenceFromLocalByIssue": {
+        "Issue2814_Tests": 1
+      },
+      "aborted": false
+    },
+    {
+      "name": "build-and-test / Test (Linux .NET 10)",
+      "jobId": 104307843631,
+      "counts": {
+        "Total tests": 1277,
+        "Passed": 996,
+        "Failed": 273,
+        "Skipped": 8
+      },
+      "reportedFailures": 273,
+      "allFailuresInIssueTests": true,
+      "failureCountDifferenceFromLocalByIssue": {
+        "Issue2814_Tests": 1
+      },
+      "aborted": false
+    },
+    {
+      "name": "build-and-test / Test (Linux ARM64 - .NET 9)",
+      "jobId": 104307843639,
+      "counts": {
+        "Total tests": 1277,
+        "Passed": 996,
+        "Failed": 273,
+        "Skipped": 8
+      },
+      "reportedFailures": 273,
+      "allFailuresInIssueTests": true,
+      "failureCountDifferenceFromLocalByIssue": {
+        "Issue2814_Tests": 1
+      },
+      "aborted": false
+    },
+    {
+      "name": "build-and-test / Test (Linux ARM64 - .NET 8)",
+      "jobId": 104307843648,
+      "counts": {
+        "Total tests": 1277,
+        "Passed": 996,
+        "Failed": 273,
+        "Skipped": 8
+      },
+      "reportedFailures": 273,
+      "allFailuresInIssueTests": true,
+      "failureCountDifferenceFromLocalByIssue": {
+        "Issue2814_Tests": 1
+      },
+      "aborted": false
+    },
+    {
+      "name": "build-and-test / Test (Linux ARM64 - .NET 10)",
+      "jobId": 104307843653,
+      "counts": {
+        "Total tests": 1277,
+        "Passed": 996,
+        "Failed": 273,
+        "Skipped": 8
+      },
+      "reportedFailures": 273,
+      "allFailuresInIssueTests": true,
+      "failureCountDifferenceFromLocalByIssue": {
+        "Issue2814_Tests": 1
+      },
+      "aborted": false
+    },
+    {
+      "name": "build-and-test / Test (macOS .NET 9)",
+      "jobId": 104307866601,
+      "counts": {
+        "Total tests": 1277,
+        "Passed": 996,
+        "Failed": 273,
+        "Skipped": 8
+      },
+      "reportedFailures": 273,
+      "allFailuresInIssueTests": true,
+      "failureCountDifferenceFromLocalByIssue": {
+        "Issue2814_Tests": 1
+      },
+      "aborted": false
+    },
+    {
+      "name": "build-and-test / Test (macOS .NET 8)",
+      "jobId": 104307866603,
+      "counts": {
+        "Total tests": 1277,
+        "Passed": 996,
+        "Failed": 273,
+        "Skipped": 8
+      },
+      "reportedFailures": 273,
+      "allFailuresInIssueTests": true,
+      "failureCountDifferenceFromLocalByIssue": {
+        "Issue2814_Tests": 1
+      },
+      "aborted": false
+    },
+    {
+      "name": "build-and-test / Test (macOS .NET 10)",
+      "jobId": 104307866685,
+      "counts": {
+        "Total tests": 1277,
+        "Passed": 996,
+        "Failed": 273,
+        "Skipped": 8
+      },
+      "reportedFailures": 273,
+      "allFailuresInIssueTests": true,
+      "failureCountDifferenceFromLocalByIssue": {
+        "Issue2814_Tests": 1
+      },
+      "aborted": false
+    },
+    {
+      "name": "build-and-test / Test (Windows windows-latest - x64 - .NET 10)",
+      "jobId": 104308180859,
+      "counts": {
+        "Total tests": 1277,
+        "Passed": 995,
+        "Failed": 274,
+        "Skipped": 8
+      },
+      "reportedFailures": 274,
+      "allFailuresInIssueTests": true,
+      "failureCountDifferenceFromLocalByIssue": {
+        "Issue2820_Tests": 1,
+        "Issue2814_Tests": 1
+      },
+      "aborted": false
+    },
+    {
+      "name": "build-and-test / Test (Windows windows-2022 - x64 - .NET 9)",
+      "jobId": 104308180866,
+      "counts": {
+        "Total tests": 1277,
+        "Passed": 995,
+        "Failed": 274,
+        "Skipped": 8
+      },
+      "reportedFailures": 274,
+      "allFailuresInIssueTests": true,
+      "failureCountDifferenceFromLocalByIssue": {
+        "Issue2820_Tests": 1,
+        "Issue2814_Tests": 1
+      },
+      "aborted": false
+    },
+    {
+      "name": "build-and-test / Test (Windows windows-latest - x86 - .NET 8)",
+      "jobId": 104308180871,
+      "counts": {
+        "Total tests": 1277,
+        "Passed": 995,
+        "Failed": 274,
+        "Skipped": 8
+      },
+      "reportedFailures": 274,
+      "allFailuresInIssueTests": true,
+      "failureCountDifferenceFromLocalByIssue": {
+        "Issue2820_Tests": 1,
+        "Issue2814_Tests": 1
+      },
+      "aborted": false
+    },
+    {
+      "name": "build-and-test / Test (Windows windows-2022 - x86 - .NET 9)",
+      "jobId": 104308180877,
+      "counts": {
+        "Total tests": 1277,
+        "Passed": 995,
+        "Failed": 274,
+        "Skipped": 8
+      },
+      "reportedFailures": 274,
+      "allFailuresInIssueTests": true,
+      "failureCountDifferenceFromLocalByIssue": {
+        "Issue2820_Tests": 1,
+        "Issue2814_Tests": 1
+      },
+      "aborted": false
+    },
+    {
+      "name": "build-and-test / Test (Windows windows-2022 - x64 - .NET 8)",
+      "jobId": 104308180883,
+      "counts": {
+        "Total tests": 1277,
+        "Passed": 995,
+        "Failed": 274,
+        "Skipped": 8
+      },
+      "reportedFailures": 274,
+      "allFailuresInIssueTests": true,
+      "failureCountDifferenceFromLocalByIssue": {
+        "Issue2820_Tests": 1,
+        "Issue2814_Tests": 1
+      },
+      "aborted": false
+    },
+    {
+      "name": "build-and-test / Test (Windows windows-2022 - x86 - .NET 8)",
+      "jobId": 104308180924,
+      "counts": {
+        "Total tests": 1277,
+        "Passed": 995,
+        "Failed": 274,
+        "Skipped": 8
+      },
+      "reportedFailures": 274,
+      "allFailuresInIssueTests": true,
+      "failureCountDifferenceFromLocalByIssue": {
+        "Issue2820_Tests": 1,
+        "Issue2814_Tests": 1
+      },
+      "aborted": false
+    },
+    {
+      "name": "build-and-test / Test (Windows windows-latest - x86 - .NET 9)",
+      "jobId": 104308180934,
+      "counts": {
+        "Total tests": 1277,
+        "Passed": 995,
+        "Failed": 274,
+        "Skipped": 8
+      },
+      "reportedFailures": 274,
+      "allFailuresInIssueTests": true,
+      "failureCountDifferenceFromLocalByIssue": {
+        "Issue2820_Tests": 1,
+        "Issue2814_Tests": 1
+      },
+      "aborted": false
+    },
+    {
+      "name": "build-and-test / Test (Windows windows-latest - x64 - .NET 9)",
+      "jobId": 104308180938,
+      "counts": {
+        "Total tests": 1277,
+        "Passed": 995,
+        "Failed": 274,
+        "Skipped": 8
+      },
+      "reportedFailures": 274,
+      "allFailuresInIssueTests": true,
+      "failureCountDifferenceFromLocalByIssue": {
+        "Issue2820_Tests": 1,
+        "Issue2814_Tests": 1
+      },
+      "aborted": false
+    },
+    {
+      "name": "build-and-test / Test (Windows windows-latest - x86 - .NET 10)",
+      "jobId": 104308180988,
+      "counts": {
+        "Total tests": 1277,
+        "Passed": 995,
+        "Failed": 274,
+        "Skipped": 8
+      },
+      "reportedFailures": 274,
+      "allFailuresInIssueTests": true,
+      "failureCountDifferenceFromLocalByIssue": {
+        "Issue2820_Tests": 1,
+        "Issue2814_Tests": 1
+      },
+      "aborted": false
+    },
+    {
+      "name": "build-and-test / Test (Windows windows-latest - x64 - .NET 8)",
+      "jobId": 104308181013,
+      "counts": {
+        "Total tests": 1277,
+        "Passed": 995,
+        "Failed": 274,
+        "Skipped": 8
+      },
+      "reportedFailures": 274,
+      "allFailuresInIssueTests": true,
+      "failureCountDifferenceFromLocalByIssue": {
+        "Issue2820_Tests": 1,
+        "Issue2814_Tests": 1
+      },
+      "aborted": false
+    },
+    {
+      "name": "build-and-test / Test (Windows windows-2022 - x64 - .NET 10)",
+      "jobId": 104308181095,
+      "counts": {
+        "Total tests": 1277,
+        "Passed": 995,
+        "Failed": 274,
+        "Skipped": 8
+      },
+      "reportedFailures": 274,
+      "allFailuresInIssueTests": true,
+      "failureCountDifferenceFromLocalByIssue": {
+        "Issue2820_Tests": 1,
+        "Issue2814_Tests": 1
+      },
+      "aborted": false
+    },
+    {
+      "name": "build-and-test / Test (Windows windows-2022 - x86 - .NET 10)",
+      "jobId": 104308181132,
+      "counts": {
+        "Total tests": 1277,
+        "Passed": 995,
+        "Failed": 274,
+        "Skipped": 8
+      },
+      "reportedFailures": 274,
+      "allFailuresInIssueTests": true,
+      "failureCountDifferenceFromLocalByIssue": {
+        "Issue2820_Tests": 1,
+        "Issue2814_Tests": 1
+      },
+      "aborted": false
+    }
+  ],
+  "benchmarkComparisons": {
+    "logs-Issue_2849_SafepointCost-windows-2022": {
+      "Package": {
+        "expectationMet": true,
+        "exitCode": 10,
+        "samples": [
+          "SAMPLE round=0, largeBudget=False, insertMs=18727.753, deleteMs=16949.673",
+          "SAMPLE round=0, largeBudget=True, insertMs=15859.847, deleteMs=17096.387",
+          "SAMPLE round=1, largeBudget=True, insertMs=16364.049, deleteMs=16499.173",
+          "SAMPLE round=1, largeBudget=False, insertMs=16088.232, deleteMs=17272.041",
+          "SAMPLE round=2, largeBudget=False, insertMs=15729.140, deleteMs=16760.960",
+          "SAMPLE round=2, largeBudget=True, insertMs=16423.507, deleteMs=17134.247"
+        ],
+        "measurement": "MEASUREMENT rows=1000000, configurable=False, insertRatio=0.983, deleteRatio=0.991"
+      },
+      "Latest": {
+        "expectationMet": true,
+        "exitCode": 0,
+        "samples": [
+          "SAMPLE round=0, largeBudget=False, insertMs=52834.190, deleteMs=38504.638",
+          "SAMPLE round=0, largeBudget=True, insertMs=15864.416, deleteMs=14049.192",
+          "SAMPLE round=1, largeBudget=True, insertMs=15733.786, deleteMs=14670.526",
+          "SAMPLE round=1, largeBudget=False, insertMs=50575.425, deleteMs=37680.618",
+          "SAMPLE round=2, largeBudget=False, insertMs=50510.727, deleteMs=37678.842",
+          "SAMPLE round=2, largeBudget=True, insertMs=15449.067, deleteMs=14738.875"
+        ],
+        "measurement": "MEASUREMENT rows=1000000, configurable=True, insertRatio=3.214, deleteRatio=2.568"
+      }
+    },
+    "logs-Issue_2849_SafepointCost-ubuntu-22.04": {
+      "Package": {
+        "expectationMet": true,
+        "exitCode": 10,
+        "samples": [
+          "SAMPLE round=0, largeBudget=False, insertMs=18301.946, deleteMs=17065.607",
+          "SAMPLE round=0, largeBudget=True, insertMs=16953.394, deleteMs=17426.418",
+          "SAMPLE round=1, largeBudget=True, insertMs=17552.847, deleteMs=18018.944",
+          "SAMPLE round=1, largeBudget=False, insertMs=17417.391, deleteMs=18202.494",
+          "SAMPLE round=2, largeBudget=False, insertMs=16787.109, deleteMs=17567.786",
+          "SAMPLE round=2, largeBudget=True, insertMs=17804.902, deleteMs=25491.742"
+        ],
+        "measurement": "MEASUREMENT rows=1000000, configurable=False, insertRatio=0.992, deleteRatio=0.975"
+      },
+      "Latest": {
+        "expectationMet": true,
+        "exitCode": 0,
+        "samples": [
+          "SAMPLE round=0, largeBudget=False, insertMs=44009.019, deleteMs=32305.817",
+          "SAMPLE round=0, largeBudget=True, insertMs=14404.438, deleteMs=13739.340",
+          "SAMPLE round=1, largeBudget=True, insertMs=14855.941, deleteMs=14055.159",
+          "SAMPLE round=1, largeBudget=False, insertMs=41340.618, deleteMs=33088.719",
+          "SAMPLE round=2, largeBudget=False, insertMs=47131.014, deleteMs=33832.302",
+          "SAMPLE round=2, largeBudget=True, insertMs=16552.395, deleteMs=15147.256"
+        ],
+        "measurement": "MEASUREMENT rows=1000000, configurable=True, insertRatio=2.962, deleteRatio=2.354"
+      }
+    },
+    "logs-Issue_2849_SafepointCost-ubuntu-24.04": {
+      "Package": {
+        "expectationMet": true,
+        "exitCode": 10,
+        "samples": [
+          "SAMPLE round=0, largeBudget=False, insertMs=18102.468, deleteMs=17972.300",
+          "SAMPLE round=0, largeBudget=True, insertMs=16999.758, deleteMs=17094.868",
+          "SAMPLE round=1, largeBudget=True, insertMs=17879.430, deleteMs=17428.061",
+          "SAMPLE round=1, largeBudget=False, insertMs=16559.119, deleteMs=17563.219",
+          "SAMPLE round=2, largeBudget=False, insertMs=19017.631, deleteMs=16966.688",
+          "SAMPLE round=2, largeBudget=True, insertMs=17219.938, deleteMs=17305.332"
+        ],
+        "measurement": "MEASUREMENT rows=1000000, configurable=False, insertRatio=1.051, deleteRatio=1.015"
+      },
+      "Latest": {
+        "expectationMet": true,
+        "exitCode": 0,
+        "samples": [
+          "SAMPLE round=0, largeBudget=False, insertMs=45497.859, deleteMs=40696.264",
+          "SAMPLE round=0, largeBudget=True, insertMs=21754.779, deleteMs=19314.565",
+          "SAMPLE round=1, largeBudget=True, insertMs=21596.501, deleteMs=19423.727",
+          "SAMPLE round=1, largeBudget=False, insertMs=55808.140, deleteMs=38006.133",
+          "SAMPLE round=2, largeBudget=False, insertMs=43064.313, deleteMs=32813.894",
+          "SAMPLE round=2, largeBudget=True, insertMs=16435.161, deleteMs=16614.907"
+        ],
+        "measurement": "MEASUREMENT rows=1000000, configurable=True, insertRatio=2.107, deleteRatio=1.968"
+      }
+    }
+  },
+  "windowsAccountRun": {
+    "url": "https://github.com/litedb-org/LiteDB/actions/runs/34946601497",
+    "testedCommit": "ed866e540a680ac871e31918b6d8b3635b54f658",
+    "conclusion": "success"
+  },
+  "limitations": [
+    "Full suites intentionally fail recorded issue assertions. All 21 jobs completed with no failures outside the issue tests.",
+    "The historical #2825 Ubuntu 24.04 comparison rejected a secondary commit-shutdown path at this head. The corrected classifier is separately validated by run 34948227111.",
+    "All three #2854 comparison jobs failed; the reported issue remains unconfirmed. No successful reproduction is inferred from those harness failures."
+  ],
+  "subsequentRun": {
+    "ciRun": "https://github.com/litedb-org/LiteDB/actions/runs/34949988130",
+    "testedCommit": "2f76677d341d3de64d30c82527c8ba6d922ae396",
+    "conclusion": "failure",
+    "jobCounts": {
+      "success": 78,
+      "failure": 25
+    },
+    "allBuildsAndCrossProcessTestsPassed": true,
+    "fullSuites": [
+      {
+        "job": "build-and-test / Test (macOS .NET 9)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34949988130/job/104318935943",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 996,
+          "Failed": 273,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (macOS .NET 8)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34949988130/job/104318935959",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 996,
+          "Failed": 273,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (macOS .NET 10)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34949988130/job/104318936001",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 996,
+          "Failed": 273,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Linux .NET 8)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34949988130/job/104319041474",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 996,
+          "Failed": 273,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Linux .NET 10)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34949988130/job/104319041507",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 996,
+          "Failed": 273,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Linux ARM64 - .NET 8)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34949988130/job/104319041562",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 996,
+          "Failed": 273,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Linux .NET 9)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34949988130/job/104319041564",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 996,
+          "Failed": 273,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Linux ARM64 - .NET 10)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34949988130/job/104319041568",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 996,
+          "Failed": 273,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Linux ARM64 - .NET 9)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34949988130/job/104319041698",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 996,
+          "Failed": 273,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Windows windows-latest - x86 - .NET 9)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34949988130/job/104319314638",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 995,
+          "Failed": 274,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Windows windows-2022 - x86 - .NET 8)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34949988130/job/104319314644",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 995,
+          "Failed": 274,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Windows windows-latest - x64 - .NET 10)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34949988130/job/104319314647",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 995,
+          "Failed": 274,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Windows windows-latest - x64 - .NET 8)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34949988130/job/104319314667",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 995,
+          "Failed": 274,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Windows windows-2022 - x86 - .NET 9)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34949988130/job/104319314693",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 995,
+          "Failed": 274,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Windows windows-latest - x86 - .NET 10)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34949988130/job/104319314705",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 995,
+          "Failed": 274,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Windows windows-2022 - x86 - .NET 10)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34949988130/job/104319314727",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 995,
+          "Failed": 274,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Windows windows-latest - x86 - .NET 8)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34949988130/job/104319314761",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 995,
+          "Failed": 274,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Windows windows-latest - x64 - .NET 9)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34949988130/job/104319314768",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 995,
+          "Failed": 274,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Windows windows-2022 - x64 - .NET 9)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34949988130/job/104319314775",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 995,
+          "Failed": 274,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Windows windows-2022 - x64 - .NET 8)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34949988130/job/104319314833",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 995,
+          "Failed": 274,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Windows windows-2022 - x64 - .NET 10)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34949988130/job/104319314869",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 995,
+          "Failed": 274,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      }
+    ],
+    "harnessFailures": [
+      {
+        "job": "repro-runner / Run Issue_2825_FreeListRace on windows-2022",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34949988130/job/104318620832"
+      },
+      {
+        "job": "repro-runner / Run Issue_2854_CircularPageList on ubuntu-22.04",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34949988130/job/104318621023"
+      },
+      {
+        "job": "repro-runner / Run Issue_2854_CircularPageList on ubuntu-24.04",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34949988130/job/104318624253"
+      },
+      {
+        "job": "repro-runner / Run Issue_2854_CircularPageList on windows-2022",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34949988130/job/104318624257"
+      }
+    ],
+    "note": "The #2825 Windows classifier rejection in this run is separately diagnosed and corrected; run 34952096128 validates all three platforms. #2854 remains unconfirmed."
+  },
+  "thirdRun": {
+    "ciRun": "https://github.com/litedb-org/LiteDB/actions/runs/34953453709",
+    "testedCommit": "3c06183324ed1185ffc89c9c46b048a9e114504a",
+    "testSourceTree": "ae8f89bf949c7771df5ef7a42977fe6a37778487",
+    "status": "completed",
+    "conclusion": "failure",
+    "jobCounts": {
+      "success": 81,
+      "failure": 25
+    },
+    "allBuildsAndCrossProcessTestsPassed": true,
+    "fullSuites": [
+      {
+        "job": "build-and-test / Test (macOS .NET 10)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34953453709/job/104330262630",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 996,
+          "Failed": 273,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (macOS .NET 8)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34953453709/job/104330262694",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 996,
+          "Failed": 273,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (macOS .NET 9)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34953453709/job/104330262740",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 996,
+          "Failed": 273,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Linux .NET 9)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34953453709/job/104330354697",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 996,
+          "Failed": 273,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Linux ARM64 - .NET 9)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34953453709/job/104330354715",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 996,
+          "Failed": 273,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Linux .NET 8)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34953453709/job/104330354789",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 996,
+          "Failed": 273,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Linux .NET 10)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34953453709/job/104330354811",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 996,
+          "Failed": 273,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Linux ARM64 - .NET 10)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34953453709/job/104330354866",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 996,
+          "Failed": 273,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Linux ARM64 - .NET 8)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34953453709/job/104330354919",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 996,
+          "Failed": 273,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Windows windows-latest - x64 - .NET 10)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34953453709/job/104330651088",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 995,
+          "Failed": 274,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Windows windows-latest - x64 - .NET 9)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34953453709/job/104330651114",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 995,
+          "Failed": 274,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Windows windows-latest - x86 - .NET 9)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34953453709/job/104330651145",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 995,
+          "Failed": 274,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Windows windows-latest - x86 - .NET 8)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34953453709/job/104330651166",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 995,
+          "Failed": 274,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Windows windows-2022 - x64 - .NET 8)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34953453709/job/104330651189",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 995,
+          "Failed": 274,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Windows windows-2022 - x86 - .NET 10)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34953453709/job/104330651212",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 995,
+          "Failed": 274,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Windows windows-2022 - x64 - .NET 10)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34953453709/job/104330651217",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 995,
+          "Failed": 274,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Windows windows-2022 - x86 - .NET 9)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34953453709/job/104330651218",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 995,
+          "Failed": 274,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Windows windows-2022 - x86 - .NET 8)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34953453709/job/104330651227",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 995,
+          "Failed": 274,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Windows windows-2022 - x64 - .NET 9)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34953453709/job/104330651349",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 995,
+          "Failed": 274,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Windows windows-latest - x86 - .NET 10)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34953453709/job/104330651353",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 995,
+          "Failed": 274,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      },
+      {
+        "job": "build-and-test / Test (Windows windows-latest - x64 - .NET 8)",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34953453709/job/104330651517",
+        "counts": {
+          "Total tests": 1277,
+          "Passed": 995,
+          "Failed": 274,
+          "Skipped": 8
+        },
+        "allFailuresInIssueTests": true
+      }
+    ],
+    "nonSuiteFailures": [
+      {
+        "job": "repro-runner / Run Issue_2169_CheckpointError on ubuntu-24.04",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34953453709/job/104329936151"
+      },
+      {
+        "job": "repro-runner / Run Issue_2854_CircularPageList on windows-2022",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34953453709/job/104329939561"
+      },
+      {
+        "job": "repro-runner / Run Issue_2854_CircularPageList on ubuntu-22.04",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34953453709/job/104329939601"
+      },
+      {
+        "job": "repro-runner / Run Issue_2854_CircularPageList on ubuntu-24.04",
+        "url": "https://github.com/litedb-org/LiteDB/actions/runs/34953453709/job/104329939669"
+      }
+    ],
+    "fixedCapacityErrorInOrdinarySuites": false,
+    "corrections": [
+      "The #2169 Ubuntu 24.04 comparison rejected a fixed-capacity recovery-stream exception. The expandable-stream correction passes all three platform comparisons in run 34955486554."
+    ],
+    "limitations": [
+      "The three #2854 comparison jobs still fail without establishing the original report.",
+      "This full run predates the new #2043 fact and #2169 recovery-stream correction; those changes have separate focused and platform validation."
+    ],
+    "windowsAccountRun": {
+      "ciRun": "https://github.com/litedb-org/LiteDB/actions/runs/34953453497",
+      "conclusion": "success"
+    }
+  }
+}

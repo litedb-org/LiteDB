@@ -1,0 +1,40 @@
+{
+  "observedAt": "2026-09-15T01:37:46.4304013+00:00",
+  "productionSource": "a50661a9d1a25b5713586d0096c6325d76bf5dfe",
+  "sourceReportSha256": "26feff474658962413efef3629a5306debd9537d88b4584e6ad3371c6de95fe8",
+  "repro": "Issue_2816_DisposeFailure",
+  "variants": {
+    "package": {
+      "configuration": {
+        "useProjectReference": false,
+        "liteDBPackageVersion": "5.0.20"
+      },
+      "exitCode": 0,
+      "expectationMet": true,
+      "output": [
+        "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T01:37:49.9443685+00:00\",\"payload\":{\"useProjectReference\":false,\"liteDBPackageVersion\":\"5.0.20\"}}",
+        "ATTEMPT_1: The process cannot access the file '/tmp/litedb-f6082.db' because it is being used by another process.",
+        "ATTEMPT_2: The process cannot access the file '/tmp/litedb-ac48a.db' because it is being used by another process.",
+        "ATTEMPT_3: The process cannot access the file '/tmp/litedb-21409.db' because it is being used by another process.",
+        "3S_2816: attempts=3, reportedFailures=3",
+        "BUG_2816_CONFIRMED"
+      ]
+    },
+    "latest": {
+      "configuration": {
+        "useProjectReference": true,
+        "liteDBPackageVersion": "5.0.20"
+      },
+      "exitCode": 10,
+      "expectationMet": true,
+      "output": [
+        "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T01:37:50.1874426+00:00\",\"payload\":{\"useProjectReference\":true,\"liteDBPackageVersion\":\"5.0.20\"}}",
+        "ATTEMPT_1: all regression and persistence assertions passed",
+        "ATTEMPT_2: all regression and persistence assertions passed",
+        "ATTEMPT_3: all regression and persistence assertions passed",
+        "3S_2816: attempts=3, reportedFailures=0",
+        "VERIFIED_2816"
+      ]
+    }
+  }
+}

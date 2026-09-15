@@ -1,0 +1,156 @@
+{
+  "observedDate": "2026-09-15",
+  "ciRun": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771",
+  "testedCommit": "ed866e540a680ac871e31918b6d8b3635b54f658",
+  "test": "Issue2814_Tests.Finite_concurrent_readers_do_not_allow_WAL_growth_far_beyond_checkpoint_budget",
+  "result": "21/21 full-suite jobs reached the WAL growth assertion after reader/persisted-payload assertions passed; prior local passes retain the intermittent classification.",
+  "observations": [
+    {
+      "job": "build-and-test / Test (Linux .NET 9)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307843603",
+      "outcome": "Failed",
+      "limitBytes": 6553600,
+      "observedPeakBytes": 22831104
+    },
+    {
+      "job": "build-and-test / Test (Linux .NET 8)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307843612",
+      "outcome": "Failed",
+      "limitBytes": 6553600,
+      "observedPeakBytes": 19701760
+    },
+    {
+      "job": "build-and-test / Test (Linux .NET 10)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307843631",
+      "outcome": "Failed",
+      "limitBytes": 6553600,
+      "observedPeakBytes": 41549824
+    },
+    {
+      "job": "build-and-test / Test (Linux ARM64 - .NET 9)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307843639",
+      "outcome": "Failed",
+      "limitBytes": 6553600,
+      "observedPeakBytes": 42008576
+    },
+    {
+      "job": "build-and-test / Test (Linux ARM64 - .NET 8)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307843648",
+      "outcome": "Failed",
+      "limitBytes": 6553600,
+      "observedPeakBytes": 39190528
+    },
+    {
+      "job": "build-and-test / Test (Linux ARM64 - .NET 10)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307843653",
+      "outcome": "Failed",
+      "limitBytes": 6553600,
+      "observedPeakBytes": 30048256
+    },
+    {
+      "job": "build-and-test / Test (macOS .NET 9)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307866601",
+      "outcome": "Failed",
+      "limitBytes": 6553600,
+      "observedPeakBytes": 48087040
+    },
+    {
+      "job": "build-and-test / Test (macOS .NET 8)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307866603",
+      "outcome": "Failed",
+      "limitBytes": 6553600,
+      "observedPeakBytes": 48119808
+    },
+    {
+      "job": "build-and-test / Test (macOS .NET 10)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104307866685",
+      "outcome": "Failed",
+      "limitBytes": 6553600,
+      "observedPeakBytes": 48070656
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-latest - x64 - .NET 10)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180859",
+      "outcome": "Failed",
+      "limitBytes": 6553600,
+      "observedPeakBytes": 37322752
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-2022 - x64 - .NET 9)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180866",
+      "outcome": "Failed",
+      "limitBytes": 6553600,
+      "observedPeakBytes": 35897344
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-latest - x86 - .NET 8)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180871",
+      "outcome": "Failed",
+      "limitBytes": 6553600,
+      "observedPeakBytes": 28860416
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-2022 - x86 - .NET 9)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180877",
+      "outcome": "Failed",
+      "limitBytes": 6553600,
+      "observedPeakBytes": 28262400
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-2022 - x64 - .NET 8)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180883",
+      "outcome": "Failed",
+      "limitBytes": 6553600,
+      "observedPeakBytes": 30875648
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-2022 - x86 - .NET 8)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180924",
+      "outcome": "Failed",
+      "limitBytes": 6553600,
+      "observedPeakBytes": 15007744
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-latest - x86 - .NET 9)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180934",
+      "outcome": "Failed",
+      "limitBytes": 6553600,
+      "observedPeakBytes": 26099712
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-latest - x64 - .NET 9)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180938",
+      "outcome": "Failed",
+      "limitBytes": 6553600,
+      "observedPeakBytes": 43229184
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-latest - x86 - .NET 10)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308180988",
+      "outcome": "Failed",
+      "limitBytes": 6553600,
+      "observedPeakBytes": 31285248
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-latest - x64 - .NET 8)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308181013",
+      "outcome": "Failed",
+      "limitBytes": 6553600,
+      "observedPeakBytes": 8142848
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-2022 - x64 - .NET 10)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308181095",
+      "outcome": "Failed",
+      "limitBytes": 6553600,
+      "observedPeakBytes": 38756352
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-2022 - x86 - .NET 10)",
+      "jobUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34946601771/job/104308181132",
+      "outcome": "Failed",
+      "limitBytes": 6553600,
+      "observedPeakBytes": 33792000
+    }
+  ]
+}

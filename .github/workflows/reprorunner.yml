@@ -101,10 +101,16 @@ jobs:
       - name: Execute repro
         id: run
         shell: bash
+        env:
+          LITEDB_CI_REPRO: ${{ matrix.repro }}
+          LITEDB_CI_OS: ${{ matrix.os }}
         run: |
           set -euo pipefail
+          mkdir -p artifacts
           dotnet run --project LiteDB.ReproRunner/LiteDB.ReproRunner.Cli --configuration Release -- \
-            run ${{ matrix.repro }} --ci --target-os "${{ matrix.os }}"
+            run "${LITEDB_CI_REPRO}" --ci --target-os "${LITEDB_CI_OS}" \
+            --report artifacts/repro-report.json --report-format json \
+            2>&1 | tee artifacts/repro-console.log
 
       - name: Upload repro artifacts
         if: always()
@@ -113,8 +119,7 @@ jobs:
           name: logs-${{ matrix.repro }}-${{ matrix.os }}
           path: |
             artifacts
-            LiteDB.ReproRunner/LiteDB.ReproRunner.Cli/bin/**/runs
-          if-no-files-found: ignore
+          if-no-files-found: warn
 
       - name: Publish summary
         if: always()

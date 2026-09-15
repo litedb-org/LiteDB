@@ -1,0 +1,56 @@
+{
+  "observedDate": "2026-09-15",
+  "platform": "Linux x64 / .NET 8",
+  "sourceReport": "https://github.com/litedb-org/LiteDB/issues/1603",
+  "historicalSourceCommit": "96e4ee71c0250e1349d13e86730e5d62319f715d",
+  "historicalSourceTree": "e645c8f1b262ee6cdc4f0b6e36e048bfbd958cd7",
+  "historicalBuild": "dotnet build LiteDB/LiteDB.csproj -c Release -f netstandard2.0 -p:TargetFrameworks=netstandard2.0",
+  "historicalAssemblySha256": "8bd9aa4590cb345b79fd72e3aa118840c70dd05bf29b7a73aca48d77c3faf8e1",
+  "currentSourceCommit": "a50661a9d1a25b5713586d0096c6325d76bf5dfe",
+  "testFile": "LiteDB.Tests/Issues/Issue2794_Tests.cs",
+  "testFileSha256": "81780f3185360e073f704965849e4eefe5b9a4b7378557f398bbc508159a459b",
+  "historicalHostProject": "<Project Sdk=\"Microsoft.NET.Sdk\">\n  <PropertyGroup><TargetFramework>net8.0</TargetFramework><IsTestProject>true</IsTestProject><AssemblyName>LiteDB.Tests</AssemblyName><EnableDefaultCompileItems>false</EnableDefaultCompileItems><LangVersion>latest</LangVersion></PropertyGroup>\n  <ItemGroup>\n    <Reference Include=\"LiteDB\"><HintPath>/tmp/litedb-2885-2794-exact-source/LiteDB/bin/Release/netstandard2.0/LiteDB.dll</HintPath></Reference>\n    <PackageReference Include=\"Microsoft.NET.Test.Sdk\" Version=\"17.11.1\" />\n    <PackageReference Include=\"xunit\" Version=\"2.9.2\" />\n    <PackageReference Include=\"xunit.runner.visualstudio\" Version=\"2.8.2\" />\n    <PackageReference Include=\"FluentAssertions\" Version=\"6.12.1\" />\n    <Compile Include=\"/home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB.Tests/Issues/Issue2794_Tests.cs\" />\n    <Compile Include=\"/home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB.Tests/Utils/TempFile.cs\" />\n  </ItemGroup>\n</Project>\n",
+  "observations": [
+    {
+      "run": "attempt1",
+      "variant": "exact historical source",
+      "tests": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2794_Tests.Concurrent_size_changing_updates_preserve_document_block_chains_after_reopen",
+          "outcome": "Passed"
+        }
+      ]
+    },
+    {
+      "run": "attempt2",
+      "variant": "exact historical source",
+      "tests": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2794_Tests.Concurrent_size_changing_updates_preserve_document_block_chains_after_reopen",
+          "outcome": "Passed"
+        }
+      ]
+    },
+    {
+      "run": "attempt3",
+      "variant": "exact historical source",
+      "tests": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2794_Tests.Concurrent_size_changing_updates_preserve_document_block_chains_after_reopen",
+          "outcome": "Passed"
+        }
+      ]
+    },
+    {
+      "run": "current",
+      "variant": "current source",
+      "tests": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2794_Tests.Concurrent_size_changing_updates_preserve_document_block_chains_after_reopen",
+          "outcome": "Passed"
+        }
+      ]
+    }
+  ],
+  "limitation": "Three fresh-process historical passes and one current-source pass cover the retained concurrent 16-row size-changing payload/dictionary/date workload and exact reopened ledger. They do not reproduce the unknown originating write sequence, the original directory model, multiple writer processes, or the reporter Windows/.NET Framework runtime."
+}

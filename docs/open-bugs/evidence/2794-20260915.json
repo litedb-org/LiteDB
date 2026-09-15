@@ -1,0 +1,15 @@
+{
+  "platform": "Linux x64 / .NET 8",
+  "observations": [
+    {
+      "case": "2794-5.0.9",
+      "tests": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2794_Tests.Concurrent_size_changing_updates_preserve_document_block_chains_after_reopen",
+          "outcome": "Passed",
+          "message": ""
+        }
+      ]
+    }
+  ]
+}

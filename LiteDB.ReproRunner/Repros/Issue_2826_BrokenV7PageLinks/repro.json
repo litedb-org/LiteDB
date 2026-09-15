@@ -1,0 +1,32 @@
+{
+  "id": "Issue_2826_BrokenV7PageLinks",
+  "title": "Broken v7 extend-page links must not crash or exhaust memory during upgrade",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/issues/2826"
+  ],
+  "failingSince": "5.0.10",
+  "timeoutSeconds": 45,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "args": [],
+  "tags": [
+    "upgrade",
+    "v7",
+    "corruption",
+    "memory",
+    "regression"
+  ],
+  "state": "red",
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "BUG_2826_CONFIRMED"
+    },
+    "latest": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "BUG_2826_CONFIRMED"
+    }
+  }
+}

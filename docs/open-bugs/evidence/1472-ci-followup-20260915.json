@@ -1,0 +1,1265 @@
+{
+  "observedDate": "2026-09-15",
+  "ciRun": "https://github.com/litedb-org/LiteDB/actions/runs/34942943372",
+  "reports": {
+    "logs-Issue_1472_MonoCompoundQueries-ubuntu-22.04": {
+      "GeneratedAt": "2026-09-15T07:42:18.0677854+00:00",
+      "Root": "/home/runner/work/LiteDB/LiteDB/LiteDB.ReproRunner",
+      "Repros": [
+        {
+          "Id": "Issue_1472_MonoCompoundQueries",
+          "State": 1,
+          "Failed": false,
+          "Warned": false,
+          "Package": {
+            "Expected": 0,
+            "ExpectedExitCode": 0,
+            "ExpectedLogContains": "BUG_1472_CONFIRMED",
+            "Actual": 0,
+            "Met": true,
+            "ExitCode": 0,
+            "DurationSeconds": 11.8607389,
+            "UseProjectReference": false,
+            "FailureReason": null,
+            "Output": [
+              {
+                "Stream": "stdout",
+                "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T07:42:36.9218568+00:00\",\"payload\":{\"useProjectReference\":false,\"liteDBPackageVersion\":\"5.0.2\"}}"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "PERSISTENCE_1472: seed, 1000 bulk-inserted rows, recovery write, and two reopen ledgers passed"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "Unable to find image 'mono:6.12.0.182@sha256:34d816779b1248b5cfd095770b64ecbaf1798e2aca693a91c11a018dce9c7ad5' locally"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "docker.io/library/mono@sha256:34d816779b1248b5cfd095770b64ecbaf1798e2aca693a91c11a018dce9c7ad5: Pulling from library/mono"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "b338562f40a7: Pulling fs layer"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "0b1b752ddf75: Pulling fs layer"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "d574eb224b5d: Pulling fs layer"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "cb9d6fb145c5: Pulling fs layer"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "cb9d6fb145c5: Waiting"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "0b1b752ddf75: Verifying Checksum"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "0b1b752ddf75: Download complete"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "b338562f40a7: Verifying Checksum"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "b338562f40a7: Download complete"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "d574eb224b5d: Verifying Checksum"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "d574eb224b5d: Download complete"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "cb9d6fb145c5: Verifying Checksum"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "cb9d6fb145c5: Download complete"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "b338562f40a7: Pull complete"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "0b1b752ddf75: Pull complete"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "d574eb224b5d: Pull complete"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "cb9d6fb145c5: Pull complete"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "Digest: sha256:34d816779b1248b5cfd095770b64ecbaf1798e2aca693a91c11a018dce9c7ad5"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "Status: Downloaded newer image for mono@sha256:34d816779b1248b5cfd095770b64ecbaf1798e2aca693a91c11a018dce9c7ad5"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_1: matchingFailures=7; System.InvalidOperationException: Collection was modified; enumeration operation may not execute."
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Collections.Generic.Dictionary`2+Enumerator[TKey,TValue].MoveNext () [0x00013] in <de882a77e7c14f8ba5d298093dde82b2>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.BsonDocument.CopyTo (LiteDB.BsonDocument other) [0x00024] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.IndexCost..ctor (LiteDB.Engine.CollectionIndex index, LiteDB.BsonExpression expr, LiteDB.BsonExpression value, LiteDB.Collation collation) [0x00032] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryOptimization.ChooseIndex (System.Collections.Generic.HashSet`1[T] fields) [0x00128] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryOptimization.DefineIndex () [0x00029] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryOptimization.ProcessQuery () [0x0000c] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryExecutor+<>c__DisplayClass10_0+<<ExecuteQuery>g__RunQuery|0>d.MoveNext () [0x00151] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.BsonDataReader..ctor (System.Collections.Generic.IEnumerable`1[T] values, System.String collection) [0x00019] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryExecutor.ExecuteQuery (System.Boolean executionPlan) [0x00076] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryExecutor.ExecuteQuery () [0x00019] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.LiteEngine.Query (System.String collection, LiteDB.Query query) [0x00076] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.LiteQueryable`1[T].ExecuteReader () [0x0000c] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.LiteQueryable`1+<ToDocuments>d__26[T].MoveNext () [0x00020] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Linq.Enumerable+SelectEnumerableIterator`2[TSource,TResult].ToArray () [0x00030] in <f6c405b973804b5c804e7e759353765f>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Linq.Buffer`1[TElement]..ctor (System.Collections.Generic.IEnumerable`1[T] source) [0x0000a] in <f6c405b973804b5c804e7e759353765f>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Linq.OrderedEnumerable`1[TElement].ToArray () [0x00000] in <f6c405b973804b5c804e7e759353765f>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Linq.Enumerable.ToArray[TSource] (System.Collections.Generic.IEnumerable`1[T] source) [0x0001f] in <f6c405b973804b5c804e7e759353765f>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Tests.Issues.Issue1472_CompoundQueryScenario.VerifyQuery (LiteDB.ILiteCollection`1[T] collection) [0x00065] in <11c999b13a114bd39b04d53c7a9cecc2>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Tests.Issues.Issue1472_CompoundQueryScenario+<Run>c__AnonStorey1.<>m__2 () [0x00017] in <11c999b13a114bd39b04d53c7a9cecc2>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Threading.Tasks.Task.InnerInvoke () [0x0000f] in <de882a77e7c14f8ba5d298093dde82b2>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Threading.Tasks.Task.Execute () [0x00000] in <de882a77e7c14f8ba5d298093dde82b2>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "PERSISTENCE_1472: seed, 1000 bulk-inserted rows, recovery write, and two reopen ledgers passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2: matchingFailures=7; System.InvalidOperationException: Collection was modified; enumeration operation may not execute."
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Collections.Generic.Dictionary`2+Enumerator[TKey,TValue].MoveNext () [0x00013] in <de882a77e7c14f8ba5d298093dde82b2>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.BsonDocument.CopyTo (LiteDB.BsonDocument other) [0x00024] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.IndexCost..ctor (LiteDB.Engine.CollectionIndex index, LiteDB.BsonExpression expr, LiteDB.BsonExpression value, LiteDB.Collation collation) [0x00032] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryOptimization.ChooseIndex (System.Collections.Generic.HashSet`1[T] fields) [0x00128] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryOptimization.DefineIndex () [0x00029] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryOptimization.ProcessQuery () [0x0000c] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryExecutor+<>c__DisplayClass10_0+<<ExecuteQuery>g__RunQuery|0>d.MoveNext () [0x00151] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.BsonDataReader..ctor (System.Collections.Generic.IEnumerable`1[T] values, System.String collection) [0x00019] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryExecutor.ExecuteQuery (System.Boolean executionPlan) [0x00076] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryExecutor.ExecuteQuery () [0x00019] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.LiteEngine.Query (System.String collection, LiteDB.Query query) [0x00076] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.LiteQueryable`1[T].ExecuteReader () [0x0000c] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.LiteQueryable`1+<ToDocuments>d__26[T].MoveNext () [0x00020] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Linq.Enumerable+SelectEnumerableIterator`2[TSource,TResult].ToArray () [0x00030] in <f6c405b973804b5c804e7e759353765f>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Linq.Buffer`1[TElement]..ctor (System.Collections.Generic.IEnumerable`1[T] source) [0x0000a] in <f6c405b973804b5c804e7e759353765f>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Linq.OrderedEnumerable`1[TElement].ToArray () [0x00000] in <f6c405b973804b5c804e7e759353765f>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Linq.Enumerable.ToArray[TSource] (System.Collections.Generic.IEnumerable`1[T] source) [0x0001f] in <f6c405b973804b5c804e7e759353765f>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Tests.Issues.Issue1472_CompoundQueryScenario.VerifyQuery (LiteDB.ILiteCollection`1[T] collection) [0x00065] in <11c999b13a114bd39b04d53c7a9cecc2>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Tests.Issues.Issue1472_CompoundQueryScenario+<Run>c__AnonStorey1.<>m__2 () [0x00017] in <11c999b13a114bd39b04d53c7a9cecc2>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Threading.Tasks.Task.InnerInvoke () [0x0000f] in <de882a77e7c14f8ba5d298093dde82b2>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Threading.Tasks.Task.Execute () [0x00000] in <de882a77e7c14f8ba5d298093dde82b2>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "PERSISTENCE_1472: seed, 1000 bulk-inserted rows, recovery write, and two reopen ledgers passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_3: matchingFailures=7; System.InvalidOperationException: Collection was modified; enumeration operation may not execute."
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Collections.Generic.Dictionary`2+Enumerator[TKey,TValue].MoveNext () [0x00013] in <de882a77e7c14f8ba5d298093dde82b2>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.BsonDocument.CopyTo (LiteDB.BsonDocument other) [0x00024] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.IndexCost..ctor (LiteDB.Engine.CollectionIndex index, LiteDB.BsonExpression expr, LiteDB.BsonExpression value, LiteDB.Collation collation) [0x00032] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryOptimization.ChooseIndex (System.Collections.Generic.HashSet`1[T] fields) [0x00128] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryOptimization.DefineIndex () [0x00029] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryOptimization.ProcessQuery () [0x0000c] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryExecutor+<>c__DisplayClass10_0+<<ExecuteQuery>g__RunQuery|0>d.MoveNext () [0x00151] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.BsonDataReader..ctor (System.Collections.Generic.IEnumerable`1[T] values, System.String collection) [0x00019] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryExecutor.ExecuteQuery (System.Boolean executionPlan) [0x00076] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryExecutor.ExecuteQuery () [0x00019] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.LiteEngine.Query (System.String collection, LiteDB.Query query) [0x00076] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.LiteQueryable`1[T].ExecuteReader () [0x0000c] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.LiteQueryable`1+<ToDocuments>d__26[T].MoveNext () [0x00020] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Linq.Enumerable+SelectEnumerableIterator`2[TSource,TResult].ToArray () [0x00030] in <f6c405b973804b5c804e7e759353765f>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Linq.Buffer`1[TElement]..ctor (System.Collections.Generic.IEnumerable`1[T] source) [0x0000a] in <f6c405b973804b5c804e7e759353765f>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Linq.OrderedEnumerable`1[TElement].ToArray () [0x00000] in <f6c405b973804b5c804e7e759353765f>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Linq.Enumerable.ToArray[TSource] (System.Collections.Generic.IEnumerable`1[T] source) [0x0001f] in <f6c405b973804b5c804e7e759353765f>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Tests.Issues.Issue1472_CompoundQueryScenario.VerifyQuery (LiteDB.ILiteCollection`1[T] collection) [0x00065] in <11c999b13a114bd39b04d53c7a9cecc2>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Tests.Issues.Issue1472_CompoundQueryScenario+<Run>c__AnonStorey1.<>m__2 () [0x00017] in <11c999b13a114bd39b04d53c7a9cecc2>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Threading.Tasks.Task.InnerInvoke () [0x0000f] in <de882a77e7c14f8ba5d298093dde82b2>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Threading.Tasks.Task.Execute () [0x00000] in <de882a77e7c14f8ba5d298093dde82b2>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "REPEATS_1472: attempts=3, reportedFailures=3"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "BUG_1472_CONFIRMED"
+              }
+            ]
+          },
+          "Latest": {
+            "Expected": 1,
+            "ExpectedExitCode": 10,
+            "ExpectedLogContains": "VERIFIED_1472",
+            "Actual": 1,
+            "Met": true,
+            "ExitCode": 10,
+            "DurationSeconds": 1.7406087,
+            "UseProjectReference": true,
+            "FailureReason": null,
+            "Output": [
+              {
+                "Stream": "stdout",
+                "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T07:42:48.7568843+00:00\",\"payload\":{\"useProjectReference\":true,\"liteDBPackageVersion\":\"5.0.2\"}}"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "PERSISTENCE_1472: seed, 1000 bulk-inserted rows, recovery write, and two reopen ledgers passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_1: all query and persistence assertions passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "PERSISTENCE_1472: seed, 1000 bulk-inserted rows, recovery write, and two reopen ledgers passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2: all query and persistence assertions passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "PERSISTENCE_1472: seed, 1000 bulk-inserted rows, recovery write, and two reopen ledgers passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_3: all query and persistence assertions passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "REPEATS_1472: attempts=3, reportedFailures=0"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "VERIFIED_1472"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "logs-Issue_1472_MonoCompoundQueries-ubuntu-24.04": {
+      "GeneratedAt": "2026-09-15T07:42:12.5938276+00:00",
+      "Root": "/home/runner/work/LiteDB/LiteDB/LiteDB.ReproRunner",
+      "Repros": [
+        {
+          "Id": "Issue_1472_MonoCompoundQueries",
+          "State": 1,
+          "Failed": false,
+          "Warned": false,
+          "Package": {
+            "Expected": 0,
+            "ExpectedExitCode": 0,
+            "ExpectedLogContains": "BUG_1472_CONFIRMED",
+            "Actual": 0,
+            "Met": true,
+            "ExitCode": 0,
+            "DurationSeconds": 16.119615,
+            "UseProjectReference": false,
+            "FailureReason": null,
+            "Output": [
+              {
+                "Stream": "stdout",
+                "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T07:42:26.5686753+00:00\",\"payload\":{\"useProjectReference\":false,\"liteDBPackageVersion\":\"5.0.2\"}}"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "PERSISTENCE_1472: seed, 1000 bulk-inserted rows, recovery write, and two reopen ledgers passed"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "Unable to find image 'mono:6.12.0.182@sha256:34d816779b1248b5cfd095770b64ecbaf1798e2aca693a91c11a018dce9c7ad5' locally"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "docker.io/library/mono@sha256:34d816779b1248b5cfd095770b64ecbaf1798e2aca693a91c11a018dce9c7ad5: Pulling from library/mono"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "b338562f40a7: Pulling fs layer"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "0b1b752ddf75: Pulling fs layer"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "d574eb224b5d: Pulling fs layer"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "cb9d6fb145c5: Pulling fs layer"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "cb9d6fb145c5: Waiting"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "0b1b752ddf75: Download complete"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "b338562f40a7: Verifying Checksum"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "b338562f40a7: Download complete"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "d574eb224b5d: Verifying Checksum"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "d574eb224b5d: Download complete"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "cb9d6fb145c5: Verifying Checksum"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "cb9d6fb145c5: Download complete"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "b338562f40a7: Pull complete"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "0b1b752ddf75: Pull complete"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "d574eb224b5d: Pull complete"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "cb9d6fb145c5: Pull complete"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "Digest: sha256:34d816779b1248b5cfd095770b64ecbaf1798e2aca693a91c11a018dce9c7ad5"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "Status: Downloaded newer image for mono@sha256:34d816779b1248b5cfd095770b64ecbaf1798e2aca693a91c11a018dce9c7ad5"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_1: matchingFailures=7; System.InvalidOperationException: Collection was modified; enumeration operation may not execute."
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Collections.Generic.Dictionary`2+Enumerator[TKey,TValue].MoveNext () [0x00013] in <de882a77e7c14f8ba5d298093dde82b2>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.BsonDocument.CopyTo (LiteDB.BsonDocument other) [0x00024] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.IndexCost..ctor (LiteDB.Engine.CollectionIndex index, LiteDB.BsonExpression expr, LiteDB.BsonExpression value, LiteDB.Collation collation) [0x00032] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryOptimization.ChooseIndex (System.Collections.Generic.HashSet`1[T] fields) [0x00128] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryOptimization.DefineIndex () [0x00029] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryOptimization.ProcessQuery () [0x0000c] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryExecutor+<>c__DisplayClass10_0+<<ExecuteQuery>g__RunQuery|0>d.MoveNext () [0x00151] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.BsonDataReader..ctor (System.Collections.Generic.IEnumerable`1[T] values, System.String collection) [0x00019] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryExecutor.ExecuteQuery (System.Boolean executionPlan) [0x00076] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryExecutor.ExecuteQuery () [0x00019] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.LiteEngine.Query (System.String collection, LiteDB.Query query) [0x00076] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.LiteQueryable`1[T].ExecuteReader () [0x0000c] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.LiteQueryable`1+<ToDocuments>d__26[T].MoveNext () [0x00020] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Linq.Enumerable+SelectEnumerableIterator`2[TSource,TResult].ToArray () [0x00030] in <f6c405b973804b5c804e7e759353765f>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Linq.Buffer`1[TElement]..ctor (System.Collections.Generic.IEnumerable`1[T] source) [0x0000a] in <f6c405b973804b5c804e7e759353765f>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Linq.OrderedEnumerable`1[TElement].ToArray () [0x00000] in <f6c405b973804b5c804e7e759353765f>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Linq.Enumerable.ToArray[TSource] (System.Collections.Generic.IEnumerable`1[T] source) [0x0001f] in <f6c405b973804b5c804e7e759353765f>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Tests.Issues.Issue1472_CompoundQueryScenario.VerifyQuery (LiteDB.ILiteCollection`1[T] collection) [0x00065] in <11c999b13a114bd39b04d53c7a9cecc2>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Tests.Issues.Issue1472_CompoundQueryScenario+<Run>c__AnonStorey1.<>m__2 () [0x00017] in <11c999b13a114bd39b04d53c7a9cecc2>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Threading.Tasks.Task.InnerInvoke () [0x0000f] in <de882a77e7c14f8ba5d298093dde82b2>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Threading.Tasks.Task.Execute () [0x00000] in <de882a77e7c14f8ba5d298093dde82b2>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "PERSISTENCE_1472: seed, 1000 bulk-inserted rows, recovery write, and two reopen ledgers passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2: matchingFailures=7; System.InvalidOperationException: Collection was modified; enumeration operation may not execute."
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Collections.Generic.Dictionary`2+Enumerator[TKey,TValue].MoveNext () [0x00013] in <de882a77e7c14f8ba5d298093dde82b2>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.BsonDocument.CopyTo (LiteDB.BsonDocument other) [0x00024] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.IndexCost..ctor (LiteDB.Engine.CollectionIndex index, LiteDB.BsonExpression expr, LiteDB.BsonExpression value, LiteDB.Collation collation) [0x00032] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryOptimization.ChooseIndex (System.Collections.Generic.HashSet`1[T] fields) [0x00128] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryOptimization.DefineIndex () [0x00029] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryOptimization.ProcessQuery () [0x0000c] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryExecutor+<>c__DisplayClass10_0+<<ExecuteQuery>g__RunQuery|0>d.MoveNext () [0x00151] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.BsonDataReader..ctor (System.Collections.Generic.IEnumerable`1[T] values, System.String collection) [0x00019] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryExecutor.ExecuteQuery (System.Boolean executionPlan) [0x00076] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryExecutor.ExecuteQuery () [0x00019] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.LiteEngine.Query (System.String collection, LiteDB.Query query) [0x00076] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.LiteQueryable`1[T].ExecuteReader () [0x0000c] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.LiteQueryable`1+<ToDocuments>d__26[T].MoveNext () [0x00020] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Linq.Enumerable+SelectEnumerableIterator`2[TSource,TResult].ToArray () [0x00030] in <f6c405b973804b5c804e7e759353765f>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Linq.Buffer`1[TElement]..ctor (System.Collections.Generic.IEnumerable`1[T] source) [0x0000a] in <f6c405b973804b5c804e7e759353765f>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Linq.OrderedEnumerable`1[TElement].ToArray () [0x00000] in <f6c405b973804b5c804e7e759353765f>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Linq.Enumerable.ToArray[TSource] (System.Collections.Generic.IEnumerable`1[T] source) [0x0001f] in <f6c405b973804b5c804e7e759353765f>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Tests.Issues.Issue1472_CompoundQueryScenario.VerifyQuery (LiteDB.ILiteCollection`1[T] collection) [0x00065] in <11c999b13a114bd39b04d53c7a9cecc2>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Tests.Issues.Issue1472_CompoundQueryScenario+<Run>c__AnonStorey1.<>m__2 () [0x00017] in <11c999b13a114bd39b04d53c7a9cecc2>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Threading.Tasks.Task.InnerInvoke () [0x0000f] in <de882a77e7c14f8ba5d298093dde82b2>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Threading.Tasks.Task.Execute () [0x00000] in <de882a77e7c14f8ba5d298093dde82b2>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "PERSISTENCE_1472: seed, 1000 bulk-inserted rows, recovery write, and two reopen ledgers passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_3: matchingFailures=7; System.InvalidOperationException: Collection was modified; enumeration operation may not execute."
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Collections.Generic.Dictionary`2+Enumerator[TKey,TValue].MoveNext () [0x00013] in <de882a77e7c14f8ba5d298093dde82b2>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.BsonDocument.CopyTo (LiteDB.BsonDocument other) [0x00024] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.IndexCost..ctor (LiteDB.Engine.CollectionIndex index, LiteDB.BsonExpression expr, LiteDB.BsonExpression value, LiteDB.Collation collation) [0x00032] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryOptimization.ChooseIndex (System.Collections.Generic.HashSet`1[T] fields) [0x00128] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryOptimization.DefineIndex () [0x00029] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryOptimization.ProcessQuery () [0x0000c] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryExecutor+<>c__DisplayClass10_0+<<ExecuteQuery>g__RunQuery|0>d.MoveNext () [0x00151] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.BsonDataReader..ctor (System.Collections.Generic.IEnumerable`1[T] values, System.String collection) [0x00019] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryExecutor.ExecuteQuery (System.Boolean executionPlan) [0x00076] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.QueryExecutor.ExecuteQuery () [0x00019] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Engine.LiteEngine.Query (System.String collection, LiteDB.Query query) [0x00076] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.LiteQueryable`1[T].ExecuteReader () [0x0000c] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.LiteQueryable`1+<ToDocuments>d__26[T].MoveNext () [0x00020] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Linq.Enumerable+SelectEnumerableIterator`2[TSource,TResult].ToArray () [0x00030] in <f6c405b973804b5c804e7e759353765f>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Linq.Buffer`1[TElement]..ctor (System.Collections.Generic.IEnumerable`1[T] source) [0x0000a] in <f6c405b973804b5c804e7e759353765f>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Linq.OrderedEnumerable`1[TElement].ToArray () [0x00000] in <f6c405b973804b5c804e7e759353765f>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Linq.Enumerable.ToArray[TSource] (System.Collections.Generic.IEnumerable`1[T] source) [0x0001f] in <f6c405b973804b5c804e7e759353765f>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Tests.Issues.Issue1472_CompoundQueryScenario.VerifyQuery (LiteDB.ILiteCollection`1[T] collection) [0x00065] in <11c999b13a114bd39b04d53c7a9cecc2>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at LiteDB.Tests.Issues.Issue1472_CompoundQueryScenario+<Run>c__AnonStorey1.<>m__2 () [0x00017] in <11c999b13a114bd39b04d53c7a9cecc2>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Threading.Tasks.Task.InnerInvoke () [0x0000f] in <de882a77e7c14f8ba5d298093dde82b2>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "  at System.Threading.Tasks.Task.Execute () [0x00000] in <de882a77e7c14f8ba5d298093dde82b2>:0 "
+              },
+              {
+                "Stream": "stdout",
+                "Text": "REPEATS_1472: attempts=3, reportedFailures=3"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "BUG_1472_CONFIRMED"
+              }
+            ]
+          },
+          "Latest": {
+            "Expected": 1,
+            "ExpectedExitCode": 10,
+            "ExpectedLogContains": "VERIFIED_1472",
+            "Actual": 1,
+            "Met": true,
+            "ExitCode": 10,
+            "DurationSeconds": 1.6317972,
+            "UseProjectReference": true,
+            "FailureReason": null,
+            "Output": [
+              {
+                "Stream": "stdout",
+                "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T07:42:42.6693521+00:00\",\"payload\":{\"useProjectReference\":true,\"liteDBPackageVersion\":\"5.0.2\"}}"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "PERSISTENCE_1472: seed, 1000 bulk-inserted rows, recovery write, and two reopen ledgers passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_1: all query and persistence assertions passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "PERSISTENCE_1472: seed, 1000 bulk-inserted rows, recovery write, and two reopen ledgers passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2: all query and persistence assertions passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "PERSISTENCE_1472: seed, 1000 bulk-inserted rows, recovery write, and two reopen ledgers passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_3: all query and persistence assertions passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "REPEATS_1472: attempts=3, reportedFailures=0"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "VERIFIED_1472"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "local": {
+    "GeneratedAt": "2026-09-15T07:40:07.9895954+00:00",
+    "Root": "/home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB.ReproRunner",
+    "Repros": [
+      {
+        "Id": "Issue_1472_MonoCompoundQueries",
+        "State": 1,
+        "Failed": false,
+        "Warned": false,
+        "Package": {
+          "Expected": 0,
+          "ExpectedExitCode": 0,
+          "ExpectedLogContains": "BUG_1472_CONFIRMED",
+          "Actual": 0,
+          "Met": true,
+          "ExitCode": 0,
+          "DurationSeconds": 1.1251085,
+          "UseProjectReference": false,
+          "FailureReason": null,
+          "Output": [
+            {
+              "Stream": "stdout",
+              "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T07:40:15.5389685+00:00\",\"payload\":{\"useProjectReference\":false,\"liteDBPackageVersion\":\"5.0.2\"}}"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "PERSISTENCE_1472: seed, 1000 bulk-inserted rows, recovery write, and two reopen ledgers passed"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "ATTEMPT_1: matchingFailures=7; System.InvalidOperationException: Collection was modified; enumeration operation may not execute."
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at System.Collections.Generic.Dictionary`2+Enumerator[TKey,TValue].MoveNext () [0x00013] in <de882a77e7c14f8ba5d298093dde82b2>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.BsonDocument.CopyTo (LiteDB.BsonDocument other) [0x00024] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.Engine.IndexCost..ctor (LiteDB.Engine.CollectionIndex index, LiteDB.BsonExpression expr, LiteDB.BsonExpression value, LiteDB.Collation collation) [0x00032] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.Engine.QueryOptimization.ChooseIndex (System.Collections.Generic.HashSet`1[T] fields) [0x00128] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.Engine.QueryOptimization.DefineIndex () [0x00029] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.Engine.QueryOptimization.ProcessQuery () [0x0000c] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.Engine.QueryExecutor+<>c__DisplayClass10_0+<<ExecuteQuery>g__RunQuery|0>d.MoveNext () [0x00151] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.BsonDataReader..ctor (System.Collections.Generic.IEnumerable`1[T] values, System.String collection) [0x00019] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.Engine.QueryExecutor.ExecuteQuery (System.Boolean executionPlan) [0x00076] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.Engine.QueryExecutor.ExecuteQuery () [0x00019] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.Engine.LiteEngine.Query (System.String collection, LiteDB.Query query) [0x00076] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.LiteQueryable`1[T].ExecuteReader () [0x0000c] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.LiteQueryable`1+<ToDocuments>d__26[T].MoveNext () [0x00020] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at System.Linq.Enumerable+SelectEnumerableIterator`2[TSource,TResult].ToArray () [0x00030] in <f6c405b973804b5c804e7e759353765f>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at System.Linq.Buffer`1[TElement]..ctor (System.Collections.Generic.IEnumerable`1[T] source) [0x0000a] in <f6c405b973804b5c804e7e759353765f>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at System.Linq.OrderedEnumerable`1[TElement].ToArray () [0x00000] in <f6c405b973804b5c804e7e759353765f>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at System.Linq.Enumerable.ToArray[TSource] (System.Collections.Generic.IEnumerable`1[T] source) [0x0001f] in <f6c405b973804b5c804e7e759353765f>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.Tests.Issues.Issue1472_CompoundQueryScenario.VerifyQuery (LiteDB.ILiteCollection`1[T] collection) [0x00065] in <11c999b13a114bd39b04d53c7a9cecc2>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.Tests.Issues.Issue1472_CompoundQueryScenario+<Run>c__AnonStorey1.<>m__2 () [0x00017] in <11c999b13a114bd39b04d53c7a9cecc2>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at System.Threading.Tasks.Task.InnerInvoke () [0x0000f] in <de882a77e7c14f8ba5d298093dde82b2>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at System.Threading.Tasks.Task.Execute () [0x00000] in <de882a77e7c14f8ba5d298093dde82b2>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "PERSISTENCE_1472: seed, 1000 bulk-inserted rows, recovery write, and two reopen ledgers passed"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "ATTEMPT_2: matchingFailures=7; System.InvalidOperationException: Collection was modified; enumeration operation may not execute."
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at System.Collections.Generic.Dictionary`2+Enumerator[TKey,TValue].MoveNext () [0x00013] in <de882a77e7c14f8ba5d298093dde82b2>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.BsonDocument.CopyTo (LiteDB.BsonDocument other) [0x00024] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.Engine.IndexCost..ctor (LiteDB.Engine.CollectionIndex index, LiteDB.BsonExpression expr, LiteDB.BsonExpression value, LiteDB.Collation collation) [0x00032] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.Engine.QueryOptimization.ChooseIndex (System.Collections.Generic.HashSet`1[T] fields) [0x00128] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.Engine.QueryOptimization.DefineIndex () [0x00029] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.Engine.QueryOptimization.ProcessQuery () [0x0000c] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.Engine.QueryExecutor+<>c__DisplayClass10_0+<<ExecuteQuery>g__RunQuery|0>d.MoveNext () [0x00151] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.BsonDataReader..ctor (System.Collections.Generic.IEnumerable`1[T] values, System.String collection) [0x00019] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.Engine.QueryExecutor.ExecuteQuery (System.Boolean executionPlan) [0x00076] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.Engine.QueryExecutor.ExecuteQuery () [0x00019] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.Engine.LiteEngine.Query (System.String collection, LiteDB.Query query) [0x00076] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.LiteQueryable`1[T].ExecuteReader () [0x0000c] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.LiteQueryable`1+<ToDocuments>d__26[T].MoveNext () [0x00020] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at System.Linq.Enumerable+SelectEnumerableIterator`2[TSource,TResult].ToArray () [0x00030] in <f6c405b973804b5c804e7e759353765f>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at System.Linq.Buffer`1[TElement]..ctor (System.Collections.Generic.IEnumerable`1[T] source) [0x0000a] in <f6c405b973804b5c804e7e759353765f>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at System.Linq.OrderedEnumerable`1[TElement].ToArray () [0x00000] in <f6c405b973804b5c804e7e759353765f>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at System.Linq.Enumerable.ToArray[TSource] (System.Collections.Generic.IEnumerable`1[T] source) [0x0001f] in <f6c405b973804b5c804e7e759353765f>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.Tests.Issues.Issue1472_CompoundQueryScenario.VerifyQuery (LiteDB.ILiteCollection`1[T] collection) [0x00065] in <11c999b13a114bd39b04d53c7a9cecc2>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.Tests.Issues.Issue1472_CompoundQueryScenario+<Run>c__AnonStorey1.<>m__2 () [0x00017] in <11c999b13a114bd39b04d53c7a9cecc2>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at System.Threading.Tasks.Task.InnerInvoke () [0x0000f] in <de882a77e7c14f8ba5d298093dde82b2>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at System.Threading.Tasks.Task.Execute () [0x00000] in <de882a77e7c14f8ba5d298093dde82b2>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "PERSISTENCE_1472: seed, 1000 bulk-inserted rows, recovery write, and two reopen ledgers passed"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "ATTEMPT_3: matchingFailures=7; System.InvalidOperationException: Collection was modified; enumeration operation may not execute."
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at System.Collections.Generic.Dictionary`2+Enumerator[TKey,TValue].MoveNext () [0x00013] in <de882a77e7c14f8ba5d298093dde82b2>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.BsonDocument.CopyTo (LiteDB.BsonDocument other) [0x00024] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.Engine.IndexCost..ctor (LiteDB.Engine.CollectionIndex index, LiteDB.BsonExpression expr, LiteDB.BsonExpression value, LiteDB.Collation collation) [0x00032] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.Engine.QueryOptimization.ChooseIndex (System.Collections.Generic.HashSet`1[T] fields) [0x00128] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.Engine.QueryOptimization.DefineIndex () [0x00029] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.Engine.QueryOptimization.ProcessQuery () [0x0000c] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.Engine.QueryExecutor+<>c__DisplayClass10_0+<<ExecuteQuery>g__RunQuery|0>d.MoveNext () [0x00151] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.BsonDataReader..ctor (System.Collections.Generic.IEnumerable`1[T] values, System.String collection) [0x00019] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.Engine.QueryExecutor.ExecuteQuery (System.Boolean executionPlan) [0x00076] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.Engine.QueryExecutor.ExecuteQuery () [0x00019] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.Engine.LiteEngine.Query (System.String collection, LiteDB.Query query) [0x00076] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.LiteQueryable`1[T].ExecuteReader () [0x0000c] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.LiteQueryable`1+<ToDocuments>d__26[T].MoveNext () [0x00020] in <a50054e13a5a4aa1bbbac87a61cc2b43>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at System.Linq.Enumerable+SelectEnumerableIterator`2[TSource,TResult].ToArray () [0x00030] in <f6c405b973804b5c804e7e759353765f>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at System.Linq.Buffer`1[TElement]..ctor (System.Collections.Generic.IEnumerable`1[T] source) [0x0000a] in <f6c405b973804b5c804e7e759353765f>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at System.Linq.OrderedEnumerable`1[TElement].ToArray () [0x00000] in <f6c405b973804b5c804e7e759353765f>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at System.Linq.Enumerable.ToArray[TSource] (System.Collections.Generic.IEnumerable`1[T] source) [0x0001f] in <f6c405b973804b5c804e7e759353765f>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.Tests.Issues.Issue1472_CompoundQueryScenario.VerifyQuery (LiteDB.ILiteCollection`1[T] collection) [0x00065] in <11c999b13a114bd39b04d53c7a9cecc2>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at LiteDB.Tests.Issues.Issue1472_CompoundQueryScenario+<Run>c__AnonStorey1.<>m__2 () [0x00017] in <11c999b13a114bd39b04d53c7a9cecc2>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at System.Threading.Tasks.Task.InnerInvoke () [0x0000f] in <de882a77e7c14f8ba5d298093dde82b2>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "  at System.Threading.Tasks.Task.Execute () [0x00000] in <de882a77e7c14f8ba5d298093dde82b2>:0 "
+            },
+            {
+              "Stream": "stdout",
+              "Text": "REPEATS_1472: attempts=3, reportedFailures=3"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "BUG_1472_CONFIRMED"
+            }
+          ]
+        },
+        "Latest": {
+          "Expected": 1,
+          "ExpectedExitCode": 10,
+          "ExpectedLogContains": "VERIFIED_1472",
+          "Actual": 1,
+          "Met": true,
+          "ExitCode": 10,
+          "DurationSeconds": 1.2473338,
+          "UseProjectReference": true,
+          "FailureReason": null,
+          "Output": [
+            {
+              "Stream": "stdout",
+              "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T07:40:16.658213+00:00\",\"payload\":{\"useProjectReference\":true,\"liteDBPackageVersion\":\"5.0.2\"}}"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "PERSISTENCE_1472: seed, 1000 bulk-inserted rows, recovery write, and two reopen ledgers passed"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "ATTEMPT_1: all query and persistence assertions passed"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "PERSISTENCE_1472: seed, 1000 bulk-inserted rows, recovery write, and two reopen ledgers passed"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "ATTEMPT_2: all query and persistence assertions passed"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "PERSISTENCE_1472: seed, 1000 bulk-inserted rows, recovery write, and two reopen ledgers passed"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "ATTEMPT_3: all query and persistence assertions passed"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "REPEATS_1472: attempts=3, reportedFailures=0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_1472"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "mono505Control": {
+    "exitCode": 10,
+    "output": "/home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB.ReproRunner/Repros/Issue_1472_MonoCompoundQueries/Issue_1472_MonoCompoundQueries.csproj : warning NU1904: Package 'LiteDB' 5.0.5 has a known critical severity vulnerability, https://github.com/advisories/GHSA-3x49-g6rc-c284\n/home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB.ReproRunner/Repros/Issue_1472_MonoCompoundQueries/Issue_1472_MonoCompoundQueries.csproj : warning NU1904: Package 'LiteDB' 5.0.5 has a known critical severity vulnerability, https://github.com/advisories/GHSA-3x49-g6rc-c284\n{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T07:40:38.1103672+00:00\",\"payload\":{\"useProjectReference\":false,\"liteDBPackageVersion\":\"5.0.5\"}}\nPERSISTENCE_1472: seed, 1000 bulk-inserted rows, recovery write, and two reopen ledgers passed\nATTEMPT_1: all query and persistence assertions passed\nPERSISTENCE_1472: seed, 1000 bulk-inserted rows, recovery write, and two reopen ledgers passed\nATTEMPT_2: all query and persistence assertions passed\nPERSISTENCE_1472: seed, 1000 bulk-inserted rows, recovery write, and two reopen ledgers passed\nATTEMPT_3: all query and persistence assertions passed\nREPEATS_1472: attempts=3, reportedFailures=0\nVERIFIED_1472\n"
+  },
+  "coreClr502Observation": {
+    "exitCode": 20,
+    "output": "/tmp/litedb-2885-1472-coreclr/Control.csproj : warning NU1904: Package 'LiteDB' 5.0.2 has a known critical severity vulnerability, https://github.com/advisories/GHSA-3x49-g6rc-c284\n/tmp/litedb-2885-1472-coreclr/Control.csproj : warning NU1904: Package 'LiteDB' 5.0.2 has a known critical severity vulnerability, https://github.com/advisories/GHSA-3x49-g6rc-c284\nSystem.InvalidOperationException: Issue1472 integrity check failed: compound-query IDs\n   at LiteDB.Tests.Issues.Issue1472_CompoundQueryScenario.Check(Boolean condition, String description) in /home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB.Tests/Issues/Issue1472_CompoundQueryScenario.cs:line 116\n   at LiteDB.Tests.Issues.Issue1472_CompoundQueryScenario.VerifyQuery(ILiteCollection`1 collection) in /home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB.Tests/Issues/Issue1472_CompoundQueryScenario.cs:line 79\n   at LiteDB.Tests.Issues.Issue1472_CompoundQueryScenario.Run(String filename, Action`1 report) in /home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB.Tests/Issues/Issue1472_CompoundQueryScenario.cs:line 22\n   at MonoProgram.Main() in /home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB.ReproRunner/Repros/Issue_1472_MonoCompoundQueries/MonoProgram.cs:line 16\n",
+    "acceptedAsIssueProof": false
+  }
+}

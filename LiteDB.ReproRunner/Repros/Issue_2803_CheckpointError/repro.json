@@ -1,0 +1,27 @@
+{
+  "id": "Issue_2803_CheckpointError",
+  "title": "Issue 2803: repeat historical and current-source regression",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/issues/2803"
+  ],
+  "timeoutSeconds": 180,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "state": "red",
+  "tags": [
+    "regression",
+    "historical"
+  ],
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "BUG_2803_CONFIRMED"
+    },
+    "latest": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "BUG_2803_CONFIRMED"
+    }
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "productionSource": "a50661a9d1a25b5713586d0096c6325d76bf5dfe",
+  "ciCommit": "aee3548876b5d47aa4e31ca9c861e23b98ed7082",
+  "ciUrl": "https://github.com/litedb-org/LiteDB/actions/runs/34921553080",
+  "reports": {
+    "dev-2": {
+      "owner": "S-1-5-18",
+      "peer": "S-1-5-21-3699639565-2515463329-295617607-1003",
+      "ownerLogons": [],
+      "peerLogons": [],
+      "outcome": "passed",
+      "stage": "shared write complete",
+      "finishedWhileHeld": false
+    },
+    "5.0.19-2": {
+      "owner": "S-1-5-18",
+      "peer": "S-1-5-21-3699639565-2515463329-295617607-1003",
+      "ownerLogons": [],
+      "peerLogons": [],
+      "outcome": "reported-failure",
+      "stage": "SharedEngine constructor",
+      "error": "System.UnauthorizedAccessException: Access to the path 'Global\\D2DD550B4AFEF6816A3321FE880DA7D3A2017A31.Mutex' is denied.\r\n   at System.Threading.Mutex.CreateMutexCore(Boolean initiallyOwned, String name, Boolean& createdNew)\r\n   at System.Threading.Mutex..ctor(Boolean initiallyOwned, String name)\r\n   at LiteDB.SharedEngine..ctor(EngineSettings settings)\r\n   at LiteDB.ConnectionString.CreateEngine()\r\n   at LiteDB.LiteDatabase..ctor(ConnectionString connectionString, BsonMapper mapper)\r\n   at Program.Open(String path, Boolean shared) in D:\\a\\LiteDB\\LiteDB\\tools\\Issue2793Windows\\Program.cs:line 32\r\n   at Program.Peer(String directory, String path) in D:\\a\\LiteDB\\LiteDB\\tools\\Issue2793Windows\\Program.cs:line 93",
+      "finishedWhileHeld": true
+    },
+    "dev-3": {
+      "owner": "S-1-5-18",
+      "peer": "S-1-5-21-3699639565-2515463329-295617607-1003",
+      "ownerLogons": [],
+      "peerLogons": [],
+      "outcome": "passed",
+      "stage": "shared write complete",
+      "finishedWhileHeld": false
+    },
+    "5.0.19-3": {
+      "owner": "S-1-5-18",
+      "peer": "S-1-5-21-3699639565-2515463329-295617607-1003",
+      "ownerLogons": [],
+      "peerLogons": [],
+      "outcome": "reported-failure",
+      "stage": "SharedEngine constructor",
+      "error": "System.UnauthorizedAccessException: Access to the path 'Global\\E9F7DE4C53537B96975C8007A65A952AC8A0A45E.Mutex' is denied.\r\n   at System.Threading.Mutex.CreateMutexCore(Boolean initiallyOwned, String name, Boolean& createdNew)\r\n   at System.Threading.Mutex..ctor(Boolean initiallyOwned, String name)\r\n   at LiteDB.SharedEngine..ctor(EngineSettings settings)\r\n   at LiteDB.ConnectionString.CreateEngine()\r\n   at LiteDB.LiteDatabase..ctor(ConnectionString connectionString, BsonMapper mapper)\r\n   at Program.Open(String path, Boolean shared) in D:\\a\\LiteDB\\LiteDB\\tools\\Issue2793Windows\\Program.cs:line 32\r\n   at Program.Peer(String directory, String path) in D:\\a\\LiteDB\\LiteDB\\tools\\Issue2793Windows\\Program.cs:line 93",
+      "finishedWhileHeld": true
+    },
+    "dev-1": {
+      "owner": "S-1-5-18",
+      "peer": "S-1-5-21-3699639565-2515463329-295617607-1003",
+      "ownerLogons": [],
+      "peerLogons": [],
+      "outcome": "passed",
+      "stage": "shared write complete",
+      "finishedWhileHeld": false
+    },
+    "5.0.19-1": {
+      "owner": "S-1-5-18",
+      "peer": "S-1-5-21-3699639565-2515463329-295617607-1003",
+      "ownerLogons": [],
+      "peerLogons": [],
+      "outcome": "reported-failure",
+      "stage": "SharedEngine constructor",
+      "error": "System.UnauthorizedAccessException: Access to the path 'Global\\315A3D62DAB36D8AD079A5F347D4D6444D636155.Mutex' is denied.\r\n   at System.Threading.Mutex.CreateMutexCore(Boolean initiallyOwned, String name, Boolean& createdNew)\r\n   at System.Threading.Mutex..ctor(Boolean initiallyOwned, String name)\r\n   at LiteDB.SharedEngine..ctor(EngineSettings settings)\r\n   at LiteDB.ConnectionString.CreateEngine()\r\n   at LiteDB.LiteDatabase..ctor(ConnectionString connectionString, BsonMapper mapper)\r\n   at Program.Open(String path, Boolean shared) in D:\\a\\LiteDB\\LiteDB\\tools\\Issue2793Windows\\Program.cs:line 32\r\n   at Program.Peer(String directory, String path) in D:\\a\\LiteDB\\LiteDB\\tools\\Issue2793Windows\\Program.cs:line 93",
+      "finishedWhileHeld": true
+    }
+  }
+}

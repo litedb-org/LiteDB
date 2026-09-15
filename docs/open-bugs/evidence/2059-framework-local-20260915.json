@@ -1,0 +1,226 @@
+{
+  "observedDate": "2026-09-15",
+  "productionSourceCommit": "a50661a9d1a25b5713586d0096c6325d76bf5dfe",
+  "platform": "Linux x64 / .NET 8",
+  "attemptsPerVariant": 3,
+  "seedRows": 4108,
+  "minimumDataFileBytes": 15728640,
+  "finalRows": 4213,
+  "recoveryId": 4253,
+  "reportedFailureReproduced": false,
+  "allDataControlsPassed": true,
+  "windowsCompilePreflight": {
+    "framework": "net48",
+    "platformTarget": "x86",
+    "packageErrors": 0,
+    "sourceErrors": 0,
+    "executableFormat": "PE32 Intel 80386 .NET console assembly",
+    "executionVerified": false
+  },
+  "limitations": [
+    "Windows 7/.NET 4.6 runtime is unavailable.",
+    "The original damaged file, full customer model/settings and preceding storage history are unavailable.",
+    "The real backup handle tests normal file-sharing behavior; it does not establish the origin of the reported damaged segment."
+  ],
+  "report": {
+    "GeneratedAt": "2026-09-15T10:25:45.2551662+00:00",
+    "Root": "/home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB.ReproRunner",
+    "Repros": [
+      {
+        "Id": "Issue_2059_FrameworkLookup",
+        "State": 1,
+        "Failed": false,
+        "Warned": false,
+        "Package": {
+          "Expected": 1,
+          "ExpectedExitCode": 10,
+          "ExpectedLogContains": "VERIFIED_2059",
+          "Actual": 1,
+          "Met": true,
+          "ExitCode": 10,
+          "DurationSeconds": 10.3944707,
+          "UseProjectReference": false,
+          "FailureReason": null,
+          "Output": [
+            {
+              "Stream": "stdout",
+              "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T10:25:52.2542903+00:00\",\"payload\":{\"useProjectReference\":false,\"liteDBPackageVersion\":\"5.0.10\"}}"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "RUNTIME_2059: target=.NETCoreApp,Version=v8.0, bits=64, clr=8.0.30, libraryTarget=.NETStandard,Version=v2.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "SEED_2059: records=4108, databaseBytes=23904256"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "BACKUP_LOCK_2059: childHeldHandle=true, exception=IOException, nativeCode=11"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "LEDGER_2059: records=4213, recoveryId=4253, rounds=4, indexedQueries=3, recoveryWrite=true, readOnlyBytesUnchanged=true"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2059: complete ledger, indexed queries, backup lock, recovery write, read-only reopen"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "ATTEMPT_2059_1: fresh-process ledger and backup-lock controls passed"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "RUNTIME_2059: target=.NETCoreApp,Version=v8.0, bits=64, clr=8.0.30, libraryTarget=.NETStandard,Version=v2.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "SEED_2059: records=4108, databaseBytes=23896064"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "BACKUP_LOCK_2059: childHeldHandle=true, exception=IOException, nativeCode=11"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "LEDGER_2059: records=4213, recoveryId=4253, rounds=4, indexedQueries=3, recoveryWrite=true, readOnlyBytesUnchanged=true"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2059: complete ledger, indexed queries, backup lock, recovery write, read-only reopen"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "ATTEMPT_2059_2: fresh-process ledger and backup-lock controls passed"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "RUNTIME_2059: target=.NETCoreApp,Version=v8.0, bits=64, clr=8.0.30, libraryTarget=.NETStandard,Version=v2.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "SEED_2059: records=4108, databaseBytes=23896064"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "BACKUP_LOCK_2059: childHeldHandle=true, exception=IOException, nativeCode=11"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "LEDGER_2059: records=4213, recoveryId=4253, rounds=4, indexedQueries=3, recoveryWrite=true, readOnlyBytesUnchanged=true"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2059: complete ledger, indexed queries, backup lock, recovery write, read-only reopen"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "ATTEMPT_2059_3: fresh-process ledger and backup-lock controls passed"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_2059: attempts=3; originating invalid-segment failure not reproduced"
+            }
+          ]
+        },
+        "Latest": {
+          "Expected": 1,
+          "ExpectedExitCode": 10,
+          "ExpectedLogContains": "VERIFIED_2059",
+          "Actual": 1,
+          "Met": true,
+          "ExitCode": 10,
+          "DurationSeconds": 10.4006324,
+          "UseProjectReference": true,
+          "FailureReason": null,
+          "Output": [
+            {
+              "Stream": "stdout",
+              "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T10:26:02.6369682+00:00\",\"payload\":{\"useProjectReference\":true,\"liteDBPackageVersion\":\"5.0.10\"}}"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "RUNTIME_2059: target=.NETCoreApp,Version=v8.0, bits=64, clr=8.0.30, libraryTarget=.NETCoreApp,Version=v8.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "SEED_2059: records=4108, databaseBytes=23896064"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "BACKUP_LOCK_2059: childHeldHandle=true, exception=IOException, nativeCode=11"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "LEDGER_2059: records=4213, recoveryId=4253, rounds=4, indexedQueries=3, recoveryWrite=true, readOnlyBytesUnchanged=true"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2059: complete ledger, indexed queries, backup lock, recovery write, read-only reopen"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "ATTEMPT_2059_1: fresh-process ledger and backup-lock controls passed"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "RUNTIME_2059: target=.NETCoreApp,Version=v8.0, bits=64, clr=8.0.30, libraryTarget=.NETCoreApp,Version=v8.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "SEED_2059: records=4108, databaseBytes=23896064"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "BACKUP_LOCK_2059: childHeldHandle=true, exception=IOException, nativeCode=11"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "LEDGER_2059: records=4213, recoveryId=4253, rounds=4, indexedQueries=3, recoveryWrite=true, readOnlyBytesUnchanged=true"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2059: complete ledger, indexed queries, backup lock, recovery write, read-only reopen"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "ATTEMPT_2059_2: fresh-process ledger and backup-lock controls passed"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "RUNTIME_2059: target=.NETCoreApp,Version=v8.0, bits=64, clr=8.0.30, libraryTarget=.NETCoreApp,Version=v8.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "SEED_2059: records=4108, databaseBytes=23896064"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "BACKUP_LOCK_2059: childHeldHandle=true, exception=IOException, nativeCode=11"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "LEDGER_2059: records=4213, recoveryId=4253, rounds=4, indexedQueries=3, recoveryWrite=true, readOnlyBytesUnchanged=true"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2059: complete ledger, indexed queries, backup lock, recovery write, read-only reopen"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "ATTEMPT_2059_3: fresh-process ledger and backup-lock controls passed"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_2059: attempts=3; originating invalid-segment failure not reproduced"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "variantIdentityCheck": "The worker rejects any loaded LiteDB target that differs from the expected package/source asset for its platform.",
+  "testedCommit": "a502c6e6db2f46d687e0d0170c366e47427eb171",
+  "testSourceTree": "841d257addb2dc1c14a3cd3ef5d3cb42d6e83d88"
+}

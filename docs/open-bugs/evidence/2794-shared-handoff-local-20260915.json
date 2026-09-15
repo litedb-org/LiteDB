@@ -1,0 +1,768 @@
+{
+  "observedDate": "2026-09-15",
+  "platform": "Linux x64 / .NET 8",
+  "testCommit": "9e2aab512bf1f2779bad386094c8fa9bf7741663",
+  "result": "Both variants pass all three two-process autocommit attempts, including complete ledgers and fresh-process read-only hash checks. Windows .NET Framework 4.8 compilation succeeds for both variants; execution is recorded separately in CI evidence. The final fixture also checks the exact five reported BSON date-field names, raw types, and UTC values; its raw-BSON guard passes all three attempts per variant.",
+  "initialExplicitTransactionProbe": {
+    "result": "5.0.7 passed all three explicit-transaction attempts. Current source timed out during the first handoff, consistent with the SharedEngine transaction mutex retention already covered by #2787. This is not the BSON corruption reported by #2794.",
+    "workerSource": "using System;\nusing System.Diagnostics;\nusing System.IO;\nusing System.Linq;\nusing System.Threading;\nusing LiteDB;\n\nnamespace Issue2794\n{\n    internal static class Program\n    {\n        private static readonly Stopwatch Deadline = Stopwatch.StartNew();\n\n        private static int Main(string[] args)\n        {\n            try\n            {\n                var mode = args[0];\n                var filename = args[1];\n                Console.WriteLine(\"WORKER mode=\" + mode + \", pid=\" + Process.GetCurrentProcess().Id +\n                    \", framework=\" + AppDomain.CurrentDomain.SetupInformation.TargetFrameworkName +\n                    \", litedb=\" + typeof(LiteDatabase).Assembly.GetName().Version);\n                using (var db = new LiteDatabase(new ConnectionString\n                {\n                    Filename = filename,\n                    Connection = ConnectionType.Shared,\n                    ReadOnly = mode == \"verify\"\n                }))\n                {\n                    var jobs = db.GetCollection<Job>(\"jobs\");\n                    if (mode == \"seed\")\n                    {\n                        jobs.Insert(Enumerable.Range(1, JobLedger.Rows).Select(id => JobLedger.Expected(id, 0, false)));\n                        JobLedger.VerifyAll(jobs, 0);\n                        db.Checkpoint();\n                    }\n                    else if (mode == \"verify\") JobLedger.VerifyAll(jobs, JobLedger.Rounds);\n                    else if (mode == \"client\" || mode == \"service\")\n                    {\n                        File.WriteAllText(filename + \".\" + mode + \".ready\", \"ready\");\n                        WaitUntil(() => File.Exists(filename + \".go\"));\n                        if (mode == \"client\") RunClient(db, jobs);\n                        else RunService(db, jobs);\n                    }\n                    else throw new ArgumentException(\"Unknown worker mode.\");\n                }\n                Console.WriteLine(\"VERIFIED_WORKER_2794 mode=\" + mode + \", rows=\" + JobLedger.Rows +\n                    \", rounds=\" + JobLedger.Rounds);\n                return 0;\n            }\n            catch (Exception error)\n            {\n                Console.Error.WriteLine(error);\n                return 20;\n            }\n        }\n\n        private static void RunClient(LiteDatabase db, ILiteCollection<Job> jobs)\n        {\n            for (var round = 1; round <= JobLedger.Rounds; round++)\n            {\n                for (var id = 1; id <= JobLedger.Rows; id++)\n                {\n                    var key = JobLedger.Key(id);\n                    JobLedger.Require(db.BeginTrans(), \"Client transaction did not begin.\");\n                    JobLedger.Verify(jobs.FindById(key), JobLedger.Expected(id, round - 1, round > 1));\n                    JobLedger.Require(jobs.Update(JobLedger.Expected(id, round, false)), \"Client update was not acknowledged.\");\n                    JobLedger.Require(db.Commit(), \"Client transaction did not commit.\");\n                }\n                WaitUntil(() =>\n                {\n                    var complete = true;\n                    for (var id = 1; id <= JobLedger.Rows; id++)\n                    {\n                        var job = jobs.FindById(JobLedger.Key(id));\n                        JobLedger.Require(job != null && job.Round == round, \"Client observed a missing or stale round.\");\n                        var processed = job.Status == \"deleted\";\n                        JobLedger.Verify(job, JobLedger.Expected(id, round, processed));\n                        complete &= processed;\n                    }\n                    return complete;\n                });\n                // The service cannot advance without the client's next handoff.\n                JobLedger.VerifyAll(jobs, round);\n                if (round % 4 == 0) db.Checkpoint();\n            }\n        }\n\n        private static void RunService(LiteDatabase db, ILiteCollection<Job> jobs)\n        {\n            for (var round = 1; round <= JobLedger.Rounds; round++)\n            {\n                for (var id = 1; id <= JobLedger.Rows; id++)\n                {\n                    var key = JobLedger.Key(id);\n                    WaitUntil(() =>\n                    {\n                        var job = jobs.FindById(key);\n                        JobLedger.Require(job != null, \"Service observed a missing job.\");\n                        if (job.Round == round - 1)\n                        {\n                            JobLedger.Verify(job, JobLedger.Expected(id, round - 1, round > 1));\n                            return false;\n                        }\n                        JobLedger.Verify(job, JobLedger.Expected(id, round, false));\n                        return true;\n                    });\n                    JobLedger.Require(db.BeginTrans(), \"Service transaction did not begin.\");\n                    JobLedger.Verify(jobs.FindById(key), JobLedger.Expected(id, round, false));\n                    JobLedger.Require(jobs.Update(JobLedger.Expected(id, round, true)), \"Service update was not acknowledged.\");\n                    JobLedger.Require(db.Commit(), \"Service transaction did not commit.\");\n                }\n            }\n        }\n\n        private static void WaitUntil(Func<bool> condition)\n        {\n            while (!condition())\n            {\n                if (Deadline.Elapsed > TimeSpan.FromSeconds(60)) throw new TimeoutException(\"Job handoff did not finish.\");\n                Thread.Sleep(1);\n            }\n        }\n    }\n}\n",
+    "report": {
+      "GeneratedAt": "2026-09-15T09:10:58.1066183+00:00",
+      "Root": "/home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB.ReproRunner",
+      "Repros": [
+        {
+          "Id": "Issue_2794_SharedJobHandoff",
+          "State": 2,
+          "Failed": false,
+          "Warned": true,
+          "Package": {
+            "Expected": 1,
+            "ExpectedExitCode": 10,
+            "ExpectedLogContains": "VERIFIED_2794",
+            "Actual": 1,
+            "Met": true,
+            "ExitCode": 10,
+            "DurationSeconds": 41.4161759,
+            "UseProjectReference": false,
+            "FailureReason": null,
+            "Output": [
+              {
+                "Stream": "stdout",
+                "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T09:11:09.7413351+00:00\",\"payload\":{\"useProjectReference\":false,\"liteDBPackageVersion\":\"5.0.7\"}}"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "WORKER mode=seed, pid=3074924, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "VERIFIED_WORKER_2794 mode=seed, rows=24, rounds=24"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "WORKER mode=service, pid=3074961, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "VERIFIED_WORKER_2794 mode=service, rows=24, rounds=24"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "WORKER mode=client, pid=3074962, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "VERIFIED_WORKER_2794 mode=client, rows=24, rounds=24"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "WORKER mode=verify, pid=3076165, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "VERIFIED_WORKER_2794 mode=verify, rows=24, rounds=24"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_1: two processes, 24 rows, 24 rounds, 1152 acknowledged updates; fresh-process ledger and read-only bytes passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "WORKER mode=seed, pid=3076183, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "VERIFIED_WORKER_2794 mode=seed, rows=24, rounds=24"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "WORKER mode=service, pid=3076196, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "VERIFIED_WORKER_2794 mode=service, rows=24, rounds=24"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "WORKER mode=client, pid=3076197, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "VERIFIED_WORKER_2794 mode=client, rows=24, rounds=24"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "WORKER mode=verify, pid=3077520, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "VERIFIED_WORKER_2794 mode=verify, rows=24, rounds=24"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_2: two processes, 24 rows, 24 rounds, 1152 acknowledged updates; fresh-process ledger and read-only bytes passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "WORKER mode=seed, pid=3077529, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "VERIFIED_WORKER_2794 mode=seed, rows=24, rounds=24"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "WORKER mode=service, pid=3077540, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "VERIFIED_WORKER_2794 mode=service, rows=24, rounds=24"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "WORKER mode=client, pid=3077541, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "VERIFIED_WORKER_2794 mode=client, rows=24, rounds=24"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "WORKER mode=verify, pid=3079005, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "VERIFIED_WORKER_2794 mode=verify, rows=24, rounds=24"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "ATTEMPT_3: two processes, 24 rows, 24 rounds, 1152 acknowledged updates; fresh-process ledger and read-only bytes passed"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "VERIFIED_2794: attempts=3, reportedFailures=0; this bounded workload does not establish the unknown corruption origin"
+              }
+            ]
+          },
+          "Latest": {
+            "Expected": 1,
+            "ExpectedExitCode": 10,
+            "ExpectedLogContains": "VERIFIED_2794",
+            "Actual": 1,
+            "Met": false,
+            "ExitCode": 20,
+            "DurationSeconds": 60.6352925,
+            "UseProjectReference": true,
+            "FailureReason": "Expected exit code 10 but observed 20.",
+            "Output": [
+              {
+                "Stream": "stdout",
+                "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T09:11:51.129913+00:00\",\"payload\":{\"useProjectReference\":true,\"liteDBPackageVersion\":\"5.0.7\"}}"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "WORKER mode=seed, pid=3079024, framework=.NETCoreApp,Version=v8.0, litedb=0.0.0.0"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "VERIFIED_WORKER_2794 mode=seed, rows=24, rounds=24"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "WORKER mode=client, pid=3079040, framework=.NETCoreApp,Version=v8.0, litedb=0.0.0.0"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "System.TimeoutException: Job handoff did not finish."
+              },
+              {
+                "Stream": "stderr",
+                "Text": "   at Issue2794.Program.WaitUntil(Func`1 condition) in /home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB.ReproRunner/Repros/Issue_2794_SharedJobHandoff/Worker/Program.cs:line 120"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "   at Issue2794.Program.RunClient(LiteDatabase db, ILiteCollection`1 jobs) in /home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB.ReproRunner/Repros/Issue_2794_SharedJobHandoff/Worker/Program.cs:line 70"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "   at Issue2794.Program.Main(String[] args) in /home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB.ReproRunner/Repros/Issue_2794_SharedJobHandoff/Worker/Program.cs:line 42"
+              },
+              {
+                "Stream": "stdout",
+                "Text": "WORKER mode=service, pid=3079039, framework=.NETCoreApp,Version=v8.0, litedb=0.0.0.0"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "System.TimeoutException: Job handoff did not finish."
+              },
+              {
+                "Stream": "stderr",
+                "Text": "   at Issue2794.Program.WaitUntil(Func`1 condition) in /home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB.ReproRunner/Repros/Issue_2794_SharedJobHandoff/Worker/Program.cs:line 120"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "   at Issue2794.Program.RunService(LiteDatabase db, ILiteCollection`1 jobs) in /home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB.ReproRunner/Repros/Issue_2794_SharedJobHandoff/Worker/Program.cs:line 96"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "   at Issue2794.Program.Main(String[] args) in /home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB.ReproRunner/Repros/Issue_2794_SharedJobHandoff/Worker/Program.cs:line 43"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "System.InvalidOperationException: client worker failed: exit 20."
+              },
+              {
+                "Stream": "stderr",
+                "Text": "   at Program.Worker.Complete() in /home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB.ReproRunner/Repros/Issue_2794_SharedJobHandoff/Program.cs:line 106"
+              },
+              {
+                "Stream": "stderr",
+                "Text": "   at Program.Main() in /home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB.ReproRunner/Repros/Issue_2794_SharedJobHandoff/Program.cs:line 33"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "initialAutocommitReport": {
+    "GeneratedAt": "2026-09-15T09:17:06.7419002+00:00",
+    "Root": "/home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB.ReproRunner",
+    "Repros": [
+      {
+        "Id": "Issue_2794_SharedJobHandoff",
+        "State": 1,
+        "Failed": false,
+        "Warned": false,
+        "Package": {
+          "Expected": 1,
+          "ExpectedExitCode": 10,
+          "ExpectedLogContains": "VERIFIED_2794",
+          "Actual": 1,
+          "Met": true,
+          "ExitCode": 10,
+          "DurationSeconds": 41.8857651,
+          "UseProjectReference": false,
+          "FailureReason": null,
+          "Output": [
+            {
+              "Stream": "stdout",
+              "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T09:17:14.8171921+00:00\",\"payload\":{\"useProjectReference\":false,\"liteDBPackageVersion\":\"5.0.7\"}}"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=seed, pid=3109962, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=seed, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=service, pid=3110012, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=service, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=client, pid=3110013, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=client, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=verify, pid=3111268, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=verify, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "ATTEMPT_1: two processes, 24 rows, 24 rounds, 1152 acknowledged updates; fresh-process ledger and read-only bytes passed"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=seed, pid=3111278, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=seed, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=service, pid=3111303, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=service, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=client, pid=3111305, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=client, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=verify, pid=3112753, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=verify, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "ATTEMPT_2: two processes, 24 rows, 24 rounds, 1152 acknowledged updates; fresh-process ledger and read-only bytes passed"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=seed, pid=3112763, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=seed, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=service, pid=3112813, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=service, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=client, pid=3112814, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=client, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=verify, pid=3114119, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=verify, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "ATTEMPT_3: two processes, 24 rows, 24 rounds, 1152 acknowledged updates; fresh-process ledger and read-only bytes passed"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_2794: attempts=3, reportedFailures=0; this bounded workload does not establish the unknown corruption origin"
+            }
+          ]
+        },
+        "Latest": {
+          "Expected": 1,
+          "ExpectedExitCode": 10,
+          "ExpectedLogContains": "VERIFIED_2794",
+          "Actual": 1,
+          "Met": true,
+          "ExitCode": 10,
+          "DurationSeconds": 25.9638283,
+          "UseProjectReference": true,
+          "FailureReason": null,
+          "Output": [
+            {
+              "Stream": "stdout",
+              "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T09:17:56.6884159+00:00\",\"payload\":{\"useProjectReference\":true,\"liteDBPackageVersion\":\"5.0.7\"}}"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=seed, pid=3114215, framework=.NETCoreApp,Version=v8.0, litedb=0.0.0.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=seed, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=service, pid=3114232, framework=.NETCoreApp,Version=v8.0, litedb=0.0.0.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=service, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=client, pid=3114233, framework=.NETCoreApp,Version=v8.0, litedb=0.0.0.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=client, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=verify, pid=3114923, framework=.NETCoreApp,Version=v8.0, litedb=0.0.0.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=verify, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "ATTEMPT_1: two processes, 24 rows, 24 rounds, 1152 acknowledged updates; fresh-process ledger and read-only bytes passed"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=seed, pid=3114953, framework=.NETCoreApp,Version=v8.0, litedb=0.0.0.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=seed, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=service, pid=3114972, framework=.NETCoreApp,Version=v8.0, litedb=0.0.0.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=service, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=client, pid=3114973, framework=.NETCoreApp,Version=v8.0, litedb=0.0.0.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=client, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=verify, pid=3115777, framework=.NETCoreApp,Version=v8.0, litedb=0.0.0.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=verify, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "ATTEMPT_2: two processes, 24 rows, 24 rounds, 1152 acknowledged updates; fresh-process ledger and read-only bytes passed"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=seed, pid=3115804, framework=.NETCoreApp,Version=v8.0, litedb=0.0.0.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=seed, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=service, pid=3115812, framework=.NETCoreApp,Version=v8.0, litedb=0.0.0.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=service, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=client, pid=3115813, framework=.NETCoreApp,Version=v8.0, litedb=0.0.0.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=client, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=verify, pid=3116615, framework=.NETCoreApp,Version=v8.0, litedb=0.0.0.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=verify, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "ATTEMPT_3: two processes, 24 rows, 24 rounds, 1152 acknowledged updates; fresh-process ledger and read-only bytes passed"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_2794: attempts=3, reportedFailures=0; this bounded workload does not establish the unknown corruption origin"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "report": {
+    "GeneratedAt": "2026-09-15T09:23:44.6893718+00:00",
+    "Root": "/home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB.ReproRunner",
+    "Repros": [
+      {
+        "Id": "Issue_2794_SharedJobHandoff",
+        "State": 1,
+        "Failed": false,
+        "Warned": false,
+        "Package": {
+          "Expected": 1,
+          "ExpectedExitCode": 10,
+          "ExpectedLogContains": "VERIFIED_2794",
+          "Actual": 1,
+          "Met": true,
+          "ExitCode": 10,
+          "DurationSeconds": 41.8622105,
+          "UseProjectReference": false,
+          "FailureReason": null,
+          "Output": [
+            {
+              "Stream": "stdout",
+              "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T09:23:51.7254866+00:00\",\"payload\":{\"useProjectReference\":false,\"liteDBPackageVersion\":\"5.0.7\"}}"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=seed, pid=3149530, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=seed, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=service, pid=3149567, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=service, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=client, pid=3149568, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=client, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=verify, pid=3150772, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=verify, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "ATTEMPT_1: two processes, 24 rows, 24 rounds, 1152 acknowledged updates; fresh-process ledger and read-only bytes passed"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=seed, pid=3150781, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=seed, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=service, pid=3150792, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=service, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=client, pid=3150793, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=client, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=verify, pid=3152248, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=verify, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "ATTEMPT_2: two processes, 24 rows, 24 rounds, 1152 acknowledged updates; fresh-process ledger and read-only bytes passed"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=seed, pid=3152257, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=seed, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=service, pid=3152286, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=service, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=client, pid=3152287, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=client, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=verify, pid=3153460, framework=.NETCoreApp,Version=v8.0, litedb=5.0.7.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=verify, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "ATTEMPT_3: two processes, 24 rows, 24 rounds, 1152 acknowledged updates; fresh-process ledger and read-only bytes passed"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_2794: attempts=3, reportedFailures=0; this bounded workload does not establish the unknown corruption origin"
+            }
+          ]
+        },
+        "Latest": {
+          "Expected": 1,
+          "ExpectedExitCode": 10,
+          "ExpectedLogContains": "VERIFIED_2794",
+          "Actual": 1,
+          "Met": true,
+          "ExitCode": 10,
+          "DurationSeconds": 26.178155,
+          "UseProjectReference": true,
+          "FailureReason": null,
+          "Output": [
+            {
+              "Stream": "stdout",
+              "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T09:24:33.566656+00:00\",\"payload\":{\"useProjectReference\":true,\"liteDBPackageVersion\":\"5.0.7\"}}"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=seed, pid=3153478, framework=.NETCoreApp,Version=v8.0, litedb=0.0.0.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=seed, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=service, pid=3153513, framework=.NETCoreApp,Version=v8.0, litedb=0.0.0.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=service, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=client, pid=3153514, framework=.NETCoreApp,Version=v8.0, litedb=0.0.0.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=client, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=verify, pid=3154588, framework=.NETCoreApp,Version=v8.0, litedb=0.0.0.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=verify, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "ATTEMPT_1: two processes, 24 rows, 24 rounds, 1152 acknowledged updates; fresh-process ledger and read-only bytes passed"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=seed, pid=3154596, framework=.NETCoreApp,Version=v8.0, litedb=0.0.0.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=seed, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=service, pid=3154604, framework=.NETCoreApp,Version=v8.0, litedb=0.0.0.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=service, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=client, pid=3154605, framework=.NETCoreApp,Version=v8.0, litedb=0.0.0.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=client, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=verify, pid=3155434, framework=.NETCoreApp,Version=v8.0, litedb=0.0.0.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=verify, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "ATTEMPT_2: two processes, 24 rows, 24 rounds, 1152 acknowledged updates; fresh-process ledger and read-only bytes passed"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=seed, pid=3155460, framework=.NETCoreApp,Version=v8.0, litedb=0.0.0.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=seed, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=service, pid=3155469, framework=.NETCoreApp,Version=v8.0, litedb=0.0.0.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=service, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=client, pid=3155470, framework=.NETCoreApp,Version=v8.0, litedb=0.0.0.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=client, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "WORKER mode=verify, pid=3156181, framework=.NETCoreApp,Version=v8.0, litedb=0.0.0.0"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_WORKER_2794 mode=verify, rows=24, rounds=24"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "ATTEMPT_3: two processes, 24 rows, 24 rounds, 1152 acknowledged updates; fresh-process ledger and read-only bytes passed"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_2794: attempts=3, reportedFailures=0; this bounded workload does not establish the unknown corruption origin"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

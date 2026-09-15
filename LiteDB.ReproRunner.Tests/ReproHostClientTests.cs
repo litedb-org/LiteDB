@@ -6,6 +6,8 @@ using LiteDB.ReproRunner.Shared.Messaging;
 
 namespace LiteDB.ReproRunner.Tests;
 
+using JsonSerializer = System.Text.Json.JsonSerializer;
+
 public sealed class ReproHostClientTests
 {
     [Fact]

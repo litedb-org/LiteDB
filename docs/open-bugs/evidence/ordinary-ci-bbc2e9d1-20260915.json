@@ -1,0 +1,318 @@
+{
+  "observedAt": "2026-09-15T10:34:49.162194+00:00",
+  "ciRun": "https://github.com/litedb-org/LiteDB/actions/runs/34956522087",
+  "testedCommit": "bbc2e9d14a8766c4bc08ff7a9d493b55e99a09be",
+  "testSourceTree": "53a7578bbc696c4caa78e68cfefcfe6163d47938",
+  "runStatusAtObservation": "in_progress",
+  "runConclusionAtObservation": null,
+  "jobCountsAtObservation": {
+    "success": 84,
+    "in_progress": 1,
+    "failure": 24
+  },
+  "pendingJobs": [
+    {
+      "name": "repro-runner / Run Issue_2849_SafepointCost on windows-2022",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34956522087/job/104340001904"
+    }
+  ],
+  "ordinarySuites": [
+    {
+      "job": "build-and-test / Test (macOS .NET 9)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34956522087/job/104340202049",
+      "counts": {
+        "Total tests": 1278,
+        "Passed": 997,
+        "Failed": 273,
+        "Skipped": 8
+      },
+      "allFailuresInIssueTests": true,
+      "issue2043Passed": true,
+      "noFixedCapacityStreamException": true
+    },
+    {
+      "job": "build-and-test / Test (macOS .NET 10)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34956522087/job/104340202059",
+      "counts": {
+        "Total tests": 1278,
+        "Passed": 997,
+        "Failed": 273,
+        "Skipped": 8
+      },
+      "allFailuresInIssueTests": true,
+      "issue2043Passed": true,
+      "noFixedCapacityStreamException": true
+    },
+    {
+      "job": "build-and-test / Test (macOS .NET 8)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34956522087/job/104340202159",
+      "counts": {
+        "Total tests": 1278,
+        "Passed": 997,
+        "Failed": 273,
+        "Skipped": 8
+      },
+      "allFailuresInIssueTests": true,
+      "issue2043Passed": true,
+      "noFixedCapacityStreamException": true
+    },
+    {
+      "job": "build-and-test / Test (Linux ARM64 - .NET 8)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34956522087/job/104340421792",
+      "counts": {
+        "Total tests": 1278,
+        "Passed": 997,
+        "Failed": 273,
+        "Skipped": 8
+      },
+      "allFailuresInIssueTests": true,
+      "issue2043Passed": true,
+      "noFixedCapacityStreamException": true
+    },
+    {
+      "job": "build-and-test / Test (Linux ARM64 - .NET 10)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34956522087/job/104340421816",
+      "counts": {
+        "Total tests": 1278,
+        "Passed": 997,
+        "Failed": 273,
+        "Skipped": 8
+      },
+      "allFailuresInIssueTests": true,
+      "issue2043Passed": true,
+      "noFixedCapacityStreamException": true
+    },
+    {
+      "job": "build-and-test / Test (Linux .NET 10)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34956522087/job/104340421892",
+      "counts": {
+        "Total tests": 1278,
+        "Passed": 997,
+        "Failed": 273,
+        "Skipped": 8
+      },
+      "allFailuresInIssueTests": true,
+      "issue2043Passed": true,
+      "noFixedCapacityStreamException": true
+    },
+    {
+      "job": "build-and-test / Test (Linux .NET 8)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34956522087/job/104340421913",
+      "counts": {
+        "Total tests": 1278,
+        "Passed": 997,
+        "Failed": 273,
+        "Skipped": 8
+      },
+      "allFailuresInIssueTests": true,
+      "issue2043Passed": true,
+      "noFixedCapacityStreamException": true
+    },
+    {
+      "job": "build-and-test / Test (Linux ARM64 - .NET 9)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34956522087/job/104340421936",
+      "counts": {
+        "Total tests": 1278,
+        "Passed": 997,
+        "Failed": 273,
+        "Skipped": 8
+      },
+      "allFailuresInIssueTests": true,
+      "issue2043Passed": true,
+      "noFixedCapacityStreamException": true
+    },
+    {
+      "job": "build-and-test / Test (Linux .NET 9)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34956522087/job/104340421961",
+      "counts": {
+        "Total tests": 1278,
+        "Passed": 997,
+        "Failed": 273,
+        "Skipped": 8
+      },
+      "allFailuresInIssueTests": true,
+      "issue2043Passed": true,
+      "noFixedCapacityStreamException": true
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-latest - x64 - .NET 9)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34956522087/job/104340775518",
+      "counts": {
+        "Total tests": 1278,
+        "Passed": 996,
+        "Failed": 274,
+        "Skipped": 8
+      },
+      "allFailuresInIssueTests": true,
+      "issue2043Passed": true,
+      "noFixedCapacityStreamException": true
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-latest - x86 - .NET 9)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34956522087/job/104340775519",
+      "counts": {
+        "Total tests": 1278,
+        "Passed": 996,
+        "Failed": 274,
+        "Skipped": 8
+      },
+      "allFailuresInIssueTests": true,
+      "issue2043Passed": true,
+      "noFixedCapacityStreamException": true
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-2022 - x64 - .NET 10)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34956522087/job/104340775525",
+      "counts": {
+        "Total tests": 1278,
+        "Passed": 996,
+        "Failed": 274,
+        "Skipped": 8
+      },
+      "allFailuresInIssueTests": true,
+      "issue2043Passed": true,
+      "noFixedCapacityStreamException": true
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-2022 - x86 - .NET 8)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34956522087/job/104340775531",
+      "counts": {
+        "Total tests": 1278,
+        "Passed": 996,
+        "Failed": 274,
+        "Skipped": 8
+      },
+      "allFailuresInIssueTests": true,
+      "issue2043Passed": true,
+      "noFixedCapacityStreamException": true
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-latest - x64 - .NET 10)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34956522087/job/104340775535",
+      "counts": {
+        "Total tests": 1278,
+        "Passed": 996,
+        "Failed": 274,
+        "Skipped": 8
+      },
+      "allFailuresInIssueTests": true,
+      "issue2043Passed": true,
+      "noFixedCapacityStreamException": true
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-2022 - x64 - .NET 9)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34956522087/job/104340775579",
+      "counts": {
+        "Total tests": 1278,
+        "Passed": 996,
+        "Failed": 274,
+        "Skipped": 8
+      },
+      "allFailuresInIssueTests": true,
+      "issue2043Passed": true,
+      "noFixedCapacityStreamException": true
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-latest - x86 - .NET 10)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34956522087/job/104340775599",
+      "counts": {
+        "Total tests": 1278,
+        "Passed": 996,
+        "Failed": 274,
+        "Skipped": 8
+      },
+      "allFailuresInIssueTests": true,
+      "issue2043Passed": true,
+      "noFixedCapacityStreamException": true
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-2022 - x64 - .NET 8)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34956522087/job/104340775637",
+      "counts": {
+        "Total tests": 1278,
+        "Passed": 996,
+        "Failed": 274,
+        "Skipped": 8
+      },
+      "allFailuresInIssueTests": true,
+      "issue2043Passed": true,
+      "noFixedCapacityStreamException": true
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-latest - x64 - .NET 8)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34956522087/job/104340775659",
+      "counts": {
+        "Total tests": 1278,
+        "Passed": 996,
+        "Failed": 274,
+        "Skipped": 8
+      },
+      "allFailuresInIssueTests": true,
+      "issue2043Passed": true,
+      "noFixedCapacityStreamException": true
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-2022 - x86 - .NET 10)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34956522087/job/104340775679",
+      "counts": {
+        "Total tests": 1278,
+        "Passed": 996,
+        "Failed": 274,
+        "Skipped": 8
+      },
+      "allFailuresInIssueTests": true,
+      "issue2043Passed": true,
+      "noFixedCapacityStreamException": true
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-latest - x86 - .NET 8)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34956522087/job/104340775698",
+      "counts": {
+        "Total tests": 1278,
+        "Passed": 996,
+        "Failed": 274,
+        "Skipped": 8
+      },
+      "allFailuresInIssueTests": true,
+      "issue2043Passed": true,
+      "noFixedCapacityStreamException": true
+    },
+    {
+      "job": "build-and-test / Test (Windows windows-2022 - x86 - .NET 9)",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34956522087/job/104340775754",
+      "counts": {
+        "Total tests": 1278,
+        "Passed": 996,
+        "Failed": 274,
+        "Skipped": 8
+      },
+      "allFailuresInIssueTests": true,
+      "issue2043Passed": true,
+      "noFixedCapacityStreamException": true
+    }
+  ],
+  "allBuildsAndCrossProcessTestsPassed": true,
+  "nonSuiteFailures": [
+    {
+      "name": "repro-runner / Run Issue_2854_CircularPageList on ubuntu-24.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34956522087/job/104340001906"
+    },
+    {
+      "name": "repro-runner / Run Issue_2854_CircularPageList on ubuntu-22.04",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34956522087/job/104340001980"
+    },
+    {
+      "name": "repro-runner / Run Issue_2854_CircularPageList on windows-2022",
+      "url": "https://github.com/litedb-org/LiteDB/actions/runs/34956522087/job/104340001986"
+    }
+  ],
+  "windowsAccountRun": {
+    "url": "https://github.com/litedb-org/LiteDB/actions/runs/34956521717",
+    "conclusion": "success"
+  },
+  "limits": [
+    "All 21 ordinary suites are complete. Overall run status and pending jobs are a timestamped snapshot.",
+    "The tested tree includes #2043 bulk lifecycle and #2169 expandable recovery. It predates #2059 recovery additions, which have separate focused and platform checks.",
+    "The three #2854 comparison failures do not establish its originating report."
+  ]
+}

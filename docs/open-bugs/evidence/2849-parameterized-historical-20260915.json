@@ -1,0 +1,64 @@
+{
+  "observedDate": "2026-09-15",
+  "sourceCommit": "90788bace880f477c9fb52ff7c0da98c9700bdfe",
+  "sourceTree": "1bfc74ff49c09dbeecfc112fe3573a161428b2ba",
+  "fixtureBlob": "55f11c008b52f6a49ce8fadf744a40ea976d0915",
+  "platform": "Linux x64",
+  "targetFramework": "net8.0",
+  "configuration": "Release",
+  "testingEnabled": false,
+  "rows": 1000000,
+  "exitCode": 0,
+  "insertRatio": 2.924,
+  "deleteRatio": 2.455,
+  "samples": [
+    {
+      "round": 0,
+      "largeBudget": false,
+      "insertMs": 45813.367,
+      "deleteMs": 34533.215
+    },
+    {
+      "round": 0,
+      "largeBudget": true,
+      "insertMs": 15117.485,
+      "deleteMs": 13592.637
+    },
+    {
+      "round": 1,
+      "largeBudget": true,
+      "insertMs": 15510.176,
+      "deleteMs": 13849.146
+    },
+    {
+      "round": 1,
+      "largeBudget": false,
+      "insertMs": 44208.965,
+      "deleteMs": 34005.944
+    },
+    {
+      "round": 2,
+      "largeBudget": false,
+      "insertMs": 43281.52,
+      "deleteMs": 33030.717
+    },
+    {
+      "round": 2,
+      "largeBudget": true,
+      "insertMs": 14845.939,
+      "deleteMs": 14073.777
+    }
+  ],
+  "output": [
+    "{\"type\":\"configuration\",\"timestamp\":\"2026-09-15T08:11:06.6493756+00:00\",\"payload\":{\"useProjectReference\":true,\"liteDBPackageVersion\":\"5.0.21\"}}",
+    "SAMPLE round=0, largeBudget=False, insertMs=45813.367, deleteMs=34533.215",
+    "SAMPLE round=0, largeBudget=True, insertMs=15117.485, deleteMs=13592.637",
+    "SAMPLE round=1, largeBudget=True, insertMs=15510.176, deleteMs=13849.146",
+    "SAMPLE round=1, largeBudget=False, insertMs=44208.965, deleteMs=34005.944",
+    "SAMPLE round=2, largeBudget=False, insertMs=43281.520, deleteMs=33030.717",
+    "SAMPLE round=2, largeBudget=True, insertMs=14845.939, deleteMs=14073.777",
+    "MEASUREMENT rows=1000000, configurable=True, insertRatio=2.924, deleteRatio=2.455",
+    "BUG_2849_CONFIRMED: default median write cost exceeds twice the large-budget control"
+  ],
+  "buildProject": "<Project Sdk=\"Microsoft.NET.Sdk\">\n<PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>\n<ItemGroup>\n<ProjectReference Include=\"/tmp/litedb-2885-2849-historical-source/LiteDB/LiteDB.csproj\" />\n<ProjectReference Include=\"/home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB.ReproRunner/LiteDB.ReproRunner.Shared/LiteDB.ReproRunner.Shared.csproj\" />\n<Compile Include=\"/home/jonas/.codex/worktrees/88e7/LiteDB/LiteDB.ReproRunner/Repros/Issue_2849_SafepointCost/Program.cs\" />\n<AssemblyMetadata Include=\"LiteDB.ReproRunner.UseProjectReference\" Value=\"true\" />\n<AssemblyMetadata Include=\"LiteDB.ReproRunner.LiteDBPackageVersion\" Value=\"5.0.21\" />\n<AssemblyMetadata Include=\"HistoricalSourceCommit\" Value=\"90788bace880f477c9fb52ff7c0da98c9700bdfe\" />\n</ItemGroup></Project>"
+}

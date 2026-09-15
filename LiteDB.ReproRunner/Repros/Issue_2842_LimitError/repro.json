@@ -1,0 +1,27 @@
+{
+  "id": "Issue_2842_LimitError",
+  "title": "Issue 2842: compare the retained regression on historical LiteDB and dev",
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/issues/2842"
+  ],
+  "timeoutSeconds": 120,
+  "requiresParallel": false,
+  "defaultInstances": 1,
+  "state": "green",
+  "tags": [
+    "regression",
+    "historical"
+  ],
+  "expectedOutcomes": {
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "BUG_2842_CONFIRMED"
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 10,
+      "logContains": "VERIFIED_2842"
+    }
+  }
+}
