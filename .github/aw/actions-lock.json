@@ -1,0 +1,14 @@
+{
+  "entries": {
+    "JKamsker/gh-aw/actions/setup@v0.82.0-jk.1": {
+      "repo": "JKamsker/gh-aw/actions/setup",
+      "version": "v0.82.0-jk.1",
+      "sha": "21e402d7a4b5367258a7692cbb84fee60b507598"
+    },
+    "actions/upload-artifact@v4": {
+      "repo": "actions/upload-artifact",
+      "version": "v4",
+      "sha": "ea165f8d65b6e75b540449e92b4886f43607fa02"
+    }
+  }
+}
