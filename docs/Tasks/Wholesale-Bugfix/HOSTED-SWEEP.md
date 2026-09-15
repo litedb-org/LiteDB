@@ -141,5 +141,14 @@ The scheduler must authenticate the completed run, exact attempt, workflow,
 artifact and skipped agent before applying a conservative 24-hour cooldown. Keep
 the report digest in durable state. Missing or malformed reports are not budget
 deferrals. A budget pause must not consume a failed-fix/infrastructure attempt;
-the existing total dispatch cap still bounds repeated work. This preserves the
-daily cap and every per-agent cap; no unlimited budget is enabled.
+the existing total dispatch cap still bounds repeated work. No cap is disabled.
+
+Observed accounting limitation: v8's framework daily-usage cache recorded zero
+credits for workers whose proxy logs and collector metadata reported positive
+`accounted_ai_credits`. The framework's default 5000-credit daily threshold is
+therefore not established as an effective cumulative limit for this transport.
+The separate AWF per-run limits remain configured (2000 fixer, 1000 reviewer);
+collector metadata records usage but is not itself a daily-budget enforcer.
+All credit prices are conservative accounting assumptions, not actual provider
+charges. The budget artifact reports the framework's decision faithfully; it
+does not repair missing upstream usage accounting or establish a spending SLA.
