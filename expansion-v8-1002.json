@@ -612,6 +612,8 @@
         "workflow": "bugfix-fix.lock.yml"
       },
       "fix-2-0": {
+        "branch": "fix/issue-1002-expansion-v8-1002-a2",
+        "candidate_sha": "d600cab9aa8be419f0d3069a21bb5e03ff713307",
         "inputs": {
           "base_sha": "a98b29089c01e21e50856abd0cc9bbea1ecc5631",
           "feedback": "{\"candidate_sha\": \"a98b29089c01e21e50856abd0cc9bbea1ecc5631\", \"checks\": [], \"reviews\": [{\"role\": \"lifecycle\", \"run_id\": 35010564817, \"findings\": [{\"evidence\": \"Candidate line 96 newly removes a null Int32 _id and returns removed=true. Insert(T) then calls _engine.Insert at line 20; Engine/Engine/Transaction.cs lines 89-92 commit and release the auto-transaction before control returns. Only afterward, Insert.cs line 27 invokes _id.Setter. Client/Mapper/Reflection/Reflection.Expression.cs lines 52-53 deliberately return a null setter for a get-only property, so this invocation throws NullReferenceException after commit. An executed net8.0 candidate repro using `public int? Id { get; }` produced `exception=System.NullReferenceException`, `immediate-count=1`, and `reopened-count=1`. At the base SHA the changed predicate leaves the null _id in place, so Engine/Engine/Insert.cs rejects id.IsNull inside AutoTransaction before storage and rolls back. The candidate therefore turns a failed call into a durable, caller-unacknowledged write. Validate writability before entering the engine or otherwise ensure ID copy-back cannot fail after commit.\", \"path\": \"LiteDB/Client/Database/Collections/Insert.cs\", \"severity\": \"major\", \"summary\": \"A get-only nullable integer ID throws after its insert has already committed\"}]}], \"review_instruction\": \"When any review finding exceeds nit severity, address every finding, including all nits.\"}",
@@ -622,6 +624,34 @@
         "request_id": "bf-439b6f7534a7418f88c0059455ba3f5e",
         "run_id": 35012206609,
         "started_at": 1789499529.5114942,
+        "worker_metadata": {
+          "accounted_ai_credits": 1209.1325,
+          "base_sha": "a98b29089c01e21e50856abd0cc9bbea1ecc5631",
+          "changed_paths": [
+            "LiteDB/Client/Database/Collections/Insert.cs"
+          ],
+          "codex_version": "0.154.0",
+          "configured_model": "gpt-6-astra",
+          "configured_reasoning_effort": "high",
+          "issue": 1002,
+          "kind": "fix",
+          "observed_request_count": 14,
+          "observed_request_models": [
+            "gpt-6-astra"
+          ],
+          "patch_sha256": "8bf5157e829b1fb693030c28a3881bfa84442f22da34fdf4e30aa44102cebb98",
+          "reasoning_verification": "local-request-capture",
+          "reported_model": "gpt-6-astra",
+          "reported_reasoning_effort": null,
+          "result_sha256": "816a5231de230d3d8986d9657979d01fc70b863e5b0e002d63d8d7f634964cbd",
+          "run_attempt": "1",
+          "run_id": "35012206609",
+          "runtime_proof_sha256": "cef9ca61239a45dfb2681d9f3078330c9584fc9635b226bb40e01954672193df",
+          "schema_version": 1,
+          "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+          "verified_reasoning_effort": "high",
+          "workflow_sha": "61ee4aec705024c189345de25508ea19ffc2584e"
+        },
         "workflow": "bugfix-fix.lock.yml"
       },
       "review-1-behavior-0": {
