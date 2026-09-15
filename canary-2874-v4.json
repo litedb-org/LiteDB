@@ -1,9 +1,55 @@
 {
+  "acceptance_profile": {
+    "base_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+    "candidate_sha": "79e5c69cb9e6a1bcc08e919c2993aaa5401148b7",
+    "checks": [
+      "focused",
+      "broad",
+      "production-build"
+    ],
+    "compatibility": false,
+    "contract_sha256": "b55577010a63aff1fa457855cbf012f952c659eab1221e8a4726fc976317b445",
+    "diff_sha256": "9ecec37c645d064db3adb20044ce7cef48782d6260e995546cc5d479cfbce993",
+    "issue": 2874,
+    "matched_rules": [
+      {
+        "path": "LiteDB/Document/ObjectId.cs",
+        "rule": "reviewed-ordinary-issue-path"
+      }
+    ],
+    "matrix": [
+      {
+        "framework": "net8.0",
+        "os": "ubuntu-latest"
+      }
+    ],
+    "paths": [
+      "LiteDB/Document/ObjectId.cs"
+    ],
+    "policy_sha256": "2335410494a367069e4218c5e26ca23c03555af0208724633bf75f8ed4641a8c",
+    "policy_version": "compressed-acceptance-v1",
+    "production_build": true,
+    "profile_sha256": "53e3b0681d4d419e663cc6703fbdee33203b6dbf9f84301e04d581caae7891e9",
+    "required_environments": [],
+    "required_lanes": [
+      "bugfix-check-ubuntu-latest-net8.0"
+    ],
+    "schema_version": 1,
+    "targeted_test_filters": [],
+    "targeted_tests_covered_by_broad": true
+  },
   "base_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
   "campaign": "canary-2874-v4",
   "candidate_sha": "79e5c69cb9e6a1bcc08e919c2993aaa5401148b7",
+  "check_definition": {
+    "authorization_event_id": "revalidate-807054e37840-34988724926",
+    "normalization_sha256": "d4c510bf1504ec8298e0f231548fde8e67a929f7a3ccca9c6ec21a1a89571a36",
+    "workflow_ref": "automation/bugfix-runtime-v5",
+    "workflow_sha": "807054e37840ab31184642a86c4bbb7c15983de8"
+  },
   "events": {
     "pause-reviewed-grading-20260915": "3643a2e031d2e9e996c074ad9ccb6bf6059410a13c9b2660dd642bb6614c7857",
+    "revalidate-807054e37840-34988724926": "e5e9ad265004b2dedfe2a3fd29f9df4de1ee27f0effcf432e4b68f67d5f16b0d",
     "run-34984349375-baseline-ci": "33b730eed170e0d2f7df7ca7d970c1368dd6aa1abc28289950d1ac331daf0b8a",
     "run-34984458234-candidate-ci": "56e28a6ce525e6c6e73fb33d16134a9473dd176be2583c1fecea322c13876f89",
     "run-34985300364-focused-ci": "4f96658c8693a725a59685e2d222a1416ae0c6d579103651e443902263e3fd9c",
@@ -435,6 +481,498 @@
       "schema_version": 1,
       "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
       "workflow_sha": "7629236e73bde318e934509244c3e61ef820d8db"
+    },
+    {
+      "acceptance_profile": {
+        "base_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+        "candidate_sha": "79e5c69cb9e6a1bcc08e919c2993aaa5401148b7",
+        "checks": [
+          "focused",
+          "broad",
+          "production-build"
+        ],
+        "compatibility": false,
+        "contract_sha256": "b55577010a63aff1fa457855cbf012f952c659eab1221e8a4726fc976317b445",
+        "diff_sha256": "9ecec37c645d064db3adb20044ce7cef48782d6260e995546cc5d479cfbce993",
+        "issue": 2874,
+        "matched_rules": [
+          {
+            "path": "LiteDB/Document/ObjectId.cs",
+            "rule": "reviewed-ordinary-issue-path"
+          }
+        ],
+        "matrix": [
+          {
+            "framework": "net8.0",
+            "os": "ubuntu-latest"
+          }
+        ],
+        "paths": [
+          "LiteDB/Document/ObjectId.cs"
+        ],
+        "policy_sha256": "2335410494a367069e4218c5e26ca23c03555af0208724633bf75f8ed4641a8c",
+        "policy_version": "compressed-acceptance-v1",
+        "production_build": true,
+        "profile_sha256": "53e3b0681d4d419e663cc6703fbdee33203b6dbf9f84301e04d581caae7891e9",
+        "required_environments": [],
+        "required_lanes": [
+          "bugfix-check-ubuntu-latest-net8.0"
+        ],
+        "schema_version": 1,
+        "targeted_test_filters": [],
+        "targeted_tests_covered_by_broad": true
+      },
+      "base_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "campaign": "canary-2874-v4",
+      "candidate_sha": "79e5c69cb9e6a1bcc08e919c2993aaa5401148b7",
+      "check_definition": {
+        "normalization_sha256": "d4c510bf1504ec8298e0f231548fde8e67a929f7a3ccca9c6ec21a1a89571a36",
+        "workflow_ref": "automation/bugfix-runtime-v5",
+        "workflow_sha": "807054e37840ab31184642a86c4bbb7c15983de8"
+      },
+      "classification_evidence": [
+        {
+          "artifact": "bugfix-check-ubuntu-latest-net8.0",
+          "artifact_id": 10405370121,
+          "artifact_sha256": "69a348873f82e088cae63dbdbb3a8037380c76e7ff3b313f4eaef50b654f9c89",
+          "broad_report_sha256": "445ba77f50bbb14b05fb6a2cf05088225b6374fdbb28029ab52168e11599047d",
+          "classification_changes": [],
+          "environment": "linux-x64-net8.0"
+        },
+        {
+          "artifact": "bugfix-check-ubuntu-latest-net10.0",
+          "artifact_id": 10405505060,
+          "artifact_sha256": "71dd00fa18c6b2ea22d3ea964d522f96921b6ae09fd909c6669377c46a2b58cb",
+          "broad_report_sha256": "93fd25b7346daea1e2a2249dab570d2ecf3f8af52173db985b3251d241ed7668",
+          "classification_changes": [
+            {
+              "baseline_failure_sha256": "f8ded2a04f0241a80968c195a1e066b1ca104872221ecfa0b4c70d45502e4e0e",
+              "candidate_failure_sha256": "c5938f686e7069f62eebc665d36c6e30b6fc87ba8e1c3ca8c4243b702cdf504c",
+              "class_name": "LiteDB.Tests.Issues.Issue2870_Tests",
+              "name": "LiteDB.Tests.Issues.Issue2870_Tests.Query_preserves_the_original_frame_when_the_first_source_read_throws"
+            }
+          ],
+          "environment": "linux-x64-net10.0"
+        },
+        {
+          "artifact": "bugfix-check-windows-latest-net8.0",
+          "artifact_id": 10404073794,
+          "artifact_sha256": "8c8605df350456e121d7669618000b5510ea118bbd1ffc9749ef5fc45db87aa4",
+          "broad_report_sha256": "39f6a648a3b176de974e06ddf591aeaaf7a71db0b291184de0be4a9bc6a38366",
+          "classification_changes": [],
+          "environment": "windows-x64-net8.0"
+        },
+        {
+          "artifact": "bugfix-check-windows-latest-net10.0",
+          "artifact_id": 10404574219,
+          "artifact_sha256": "2eedc64bd717b57a97cd3ff1feef9582bd06d1830da95b6e8ddc0d2ecbc275f5",
+          "broad_report_sha256": "74eb10a5c207efa993cf8f18b5fdc7c2ea752673f7be6f0e4cd571e338e82a7f",
+          "classification_changes": [],
+          "environment": "windows-x64-net10.0"
+        },
+        {
+          "artifact": "bugfix-check-macos-latest-net8.0",
+          "artifact_id": 10405111338,
+          "artifact_sha256": "1d4e91cc47a182cfb38dd7d99d38b7cdf75e90688f63bbd67345ee75cc16571b",
+          "broad_report_sha256": "d8950a7ce59e96b82c097b3dc210e4bbb317207ffc25cfd807a124a77a4712e2",
+          "classification_changes": [
+            {
+              "baseline_failure_sha256": "f8ded2a04f0241a80968c195a1e066b1ca104872221ecfa0b4c70d45502e4e0e",
+              "candidate_failure_sha256": "843f5425437a134bb6798a3013d4c413f7d48cc54f23734e8fea1260e9899bbb",
+              "class_name": "LiteDB.Tests.Issues.Issue2870_Tests",
+              "name": "LiteDB.Tests.Issues.Issue2870_Tests.Query_preserves_the_original_frame_when_the_first_source_read_throws"
+            }
+          ],
+          "environment": "macos-arm64-net8.0"
+        },
+        {
+          "artifact": "bugfix-check-macos-latest-net10.0",
+          "artifact_id": 10405450249,
+          "artifact_sha256": "2d3a6c300761ed060def951a4b89883159f6ae08dc44bcd68133b9181af23eae",
+          "broad_report_sha256": "54e7b6607b077bdc0f8b3c8fc09d2d12155c36d36fcd910d8004d90f22feeb11",
+          "classification_changes": [
+            {
+              "baseline_failure_sha256": "c5938f686e7069f62eebc665d36c6e30b6fc87ba8e1c3ca8c4243b702cdf504c",
+              "candidate_failure_sha256": "0b35fffc5ccd2e15a2bfdaaab6d84e686f5f2853def058fd88e1083356cd1c85",
+              "class_name": "LiteDB.Tests.Issues.Issue2870_Tests",
+              "name": "LiteDB.Tests.Issues.Issue2870_Tests.Query_preserves_the_original_frame_when_the_first_source_read_throws"
+            }
+          ],
+          "environment": "macos-arm64-net10.0"
+        }
+      ],
+      "definition_diff": [
+        {
+          "new_blob": "0ecb6762ae326a7114fffc511ee851aac5f7d23a",
+          "old_blob": "858e4e2a876244117465fb0c4f9b5480e3f06a33",
+          "path": ".gitattributes",
+          "status": "M"
+        },
+        {
+          "new_blob": "2a983209edcb08cb03ded2fb7ddabce2c755a2cf",
+          "old_blob": null,
+          "path": ".github/bugfix/Issue2825HarnessOverlay.Tests.csproj",
+          "status": "A"
+        },
+        {
+          "new_blob": "355a8d0fa5b5ff02003abfb77c27f0141a2f022a",
+          "old_blob": "c17f4ef4890541588bdcfe3a0fa2ef52b7f86913",
+          "path": ".github/bugfix/README.md",
+          "status": "M"
+        },
+        {
+          "new_blob": "c7a17a447ac6e4d62a35cb16eae64650d29f90c5",
+          "old_blob": null,
+          "path": ".github/bugfix/acceptance_profile.py",
+          "status": "A"
+        },
+        {
+          "new_blob": "344fa785c42695a52528892794858270e13a70e7",
+          "old_blob": "4e79efb3b0b7496559a4ee06101ff48339cc521a",
+          "path": ".github/bugfix/artifacts.py",
+          "status": "M"
+        },
+        {
+          "new_blob": "2340c17584c847058d736db94e5104c8c4c4a9bd",
+          "old_blob": "efc3e3c7fabf72f4b8da0ecd6ce7d8fc8f68139c",
+          "path": ".github/bugfix/campaign.py",
+          "status": "M"
+        },
+        {
+          "new_blob": "caddf3714b29aed444f5026c72d829dddfc4fd83",
+          "old_blob": "8fabc10c1515454af77a9dc1d3894c1ae97b2aff",
+          "path": ".github/bugfix/controller.py",
+          "status": "M"
+        },
+        {
+          "new_blob": "50dbcc93ac2e7bd1ab2dcb339270f34da6b3e517",
+          "old_blob": "fb5cdcd4b1fde7ecc539f58d7c334d1e2acd7220",
+          "path": ".github/bugfix/evidence.py",
+          "status": "M"
+        },
+        {
+          "new_blob": "1f9d4fd3437387fddf115e99b4c359b2e7d1ca40",
+          "old_blob": "ed6baac19480d3d3a3b31644dff60329e8b28789",
+          "path": ".github/bugfix/integrate.py",
+          "status": "M"
+        },
+        {
+          "new_blob": "8ad47291134440526700459352749a620be8b6f4",
+          "old_blob": "058943fc347612e5b377d6204df68357e45512c3",
+          "path": ".github/bugfix/integrate_evidence.py",
+          "status": "M"
+        },
+        {
+          "new_blob": "6415a264d60c8a0b9c4abd9095de34ef321f61ef",
+          "old_blob": null,
+          "path": ".github/bugfix/issue-2794-harness-overlay.json",
+          "status": "A"
+        },
+        {
+          "new_blob": "d54a2c45c52c29c16d1dbd454141345f03ae5f58",
+          "old_blob": null,
+          "path": ".github/bugfix/issue-2794-worker-overlay.cs",
+          "status": "A"
+        },
+        {
+          "new_blob": "27572fab3ba2989977b41339e23af6ffbd3b882a",
+          "old_blob": null,
+          "path": ".github/bugfix/issue-2825-classifier-overlay-tests.cs",
+          "status": "A"
+        },
+        {
+          "new_blob": "90a1a37d29cfa0ca57a229d8214f44d30fdafbbd",
+          "old_blob": null,
+          "path": ".github/bugfix/issue-2825-classifier-overlay.cs",
+          "status": "A"
+        },
+        {
+          "new_blob": "eb14ccb981c6f27105f2d38195c94b38b39a8fba",
+          "old_blob": null,
+          "path": ".github/bugfix/issue-2825-harness-overlay.json",
+          "status": "A"
+        },
+        {
+          "new_blob": "fd0485719860eb0b4f7657e948bed59b9a59358a",
+          "old_blob": "b684d5b8bfac4d5efeef794b9d4d7402d923661d",
+          "path": ".github/bugfix/orchestrate.py",
+          "status": "M"
+        },
+        {
+          "new_blob": "a05a5dab3cca2b2fb4eb15b13177a8d871594518",
+          "old_blob": null,
+          "path": ".github/bugfix/production.py",
+          "status": "A"
+        },
+        {
+          "new_blob": "8fdf89fcda8cdbe5a31bddf5439283dcbae1447c",
+          "old_blob": null,
+          "path": ".github/bugfix/profiles.py",
+          "status": "A"
+        },
+        {
+          "new_blob": "3bea380895541d5a037b376bd28157c66f82d667",
+          "old_blob": null,
+          "path": ".github/bugfix/revalidate.py",
+          "status": "A"
+        },
+        {
+          "new_blob": "3e9874ba6d7cdbd2227c2198b0ccf0cc5563b9e3",
+          "old_blob": null,
+          "path": ".github/bugfix/revalidation_proof.py",
+          "status": "A"
+        },
+        {
+          "new_blob": "6af80e728f75d1316bd747a8e926452f29273efc",
+          "old_blob": "634bcb3440568cbcccdb0b97267b74b2022a4255",
+          "path": ".github/bugfix/state.py",
+          "status": "M"
+        },
+        {
+          "new_blob": "e9228917beb015bdcaf48eaf0e92650fe062f5e1",
+          "old_blob": "86b61f8aa3beca3404417876612d0302bfb824c7",
+          "path": ".github/bugfix/storage.py",
+          "status": "M"
+        },
+        {
+          "new_blob": "971f0e237d5f242189fafe08bd3bb4478ef25e86",
+          "old_blob": null,
+          "path": ".github/bugfix/test_acceptance_profile.py",
+          "status": "A"
+        },
+        {
+          "new_blob": "3c0e438c0cc2e1b6b3378d62276eaf7e63592875",
+          "old_blob": "d7293d62453bd9ffdb2e21faae974474b41cc97d",
+          "path": ".github/bugfix/test_campaign.py",
+          "status": "M"
+        },
+        {
+          "new_blob": "a9a231afa1f326a5e7e0f88bedf0018b6cf0dfd6",
+          "old_blob": "6394259b7557f68c591b3814b593dfcc2e58c24c",
+          "path": ".github/bugfix/test_evidence.py",
+          "status": "M"
+        },
+        {
+          "new_blob": "85715b735f000585b062edc0b7a5a87302143371",
+          "old_blob": "e4cc47b5d120df35981c983271b05b7b90998f49",
+          "path": ".github/bugfix/test_integrate.py",
+          "status": "M"
+        },
+        {
+          "new_blob": "1e8ba9683b949f9325a75be372a2acf071fa361b",
+          "old_blob": "1f6567d8025952ff8fb5b8158f599ddecf50a14d",
+          "path": ".github/bugfix/test_integrate_evidence.py",
+          "status": "M"
+        },
+        {
+          "new_blob": "1656d313adf590e6f8f2f411f6c559b908df402a",
+          "old_blob": "274bffeba2bbf1bb858b6dda982da5f083756ee4",
+          "path": ".github/bugfix/test_passing_grader.py",
+          "status": "M"
+        },
+        {
+          "new_blob": "e29f25205021422ff19434e33cf7bc888c338ced",
+          "old_blob": null,
+          "path": ".github/bugfix/test_production.py",
+          "status": "A"
+        },
+        {
+          "new_blob": "343bd401bbe3f2c03aefe481b7bce9e8e1157c0d",
+          "old_blob": null,
+          "path": ".github/bugfix/test_profiles.py",
+          "status": "A"
+        },
+        {
+          "new_blob": "1b77a60cadf3b7846f9c31909b2f630c18c80e2f",
+          "old_blob": null,
+          "path": ".github/bugfix/test_revalidation.py",
+          "status": "A"
+        },
+        {
+          "new_blob": "cc4560370b7fa5f246657e1a35b1483761c35bb6",
+          "old_blob": null,
+          "path": ".github/scripts/apply_issue_2794_harness_overlay.py",
+          "status": "A"
+        },
+        {
+          "new_blob": "448a8ce8c1255b1cd80b51851fd6c3b3a758728b",
+          "old_blob": null,
+          "path": ".github/scripts/apply_issue_2825_harness_overlay.py",
+          "status": "A"
+        },
+        {
+          "new_blob": "88a2dd958ed925a586d0579f4931ab1146aa49d7",
+          "old_blob": "647e811736d52a9237a435e79f35e7581c0489f6",
+          "path": ".github/scripts/collect_bugfix_full_ci.py",
+          "status": "M"
+        },
+        {
+          "new_blob": "b0ae7fcd460c8fef7fe796edc665f2f116d50e56",
+          "old_blob": "2b1d92237b7d2b372df65bace207acc2a25dd221",
+          "path": ".github/scripts/compare_bugfix_full_ci.py",
+          "status": "M"
+        },
+        {
+          "new_blob": "d7a0814648adf08365a068460dfd1d36ba2c2faa",
+          "old_blob": "f588decae2c116bd1e9da2b3f48041135abb8651",
+          "path": ".github/scripts/grade_bugfix_checks.py",
+          "status": "M"
+        },
+        {
+          "new_blob": "f17abfec8e35bf91337c7bf9416e06a1fe75ea36",
+          "old_blob": null,
+          "path": ".github/scripts/select_bugfix_checks.py",
+          "status": "A"
+        },
+        {
+          "new_blob": "2c2475b827a58d53b22306f9fb74d170b6a3eb4b",
+          "old_blob": null,
+          "path": ".github/scripts/test_apply_issue_2794_harness_overlay.py",
+          "status": "A"
+        },
+        {
+          "new_blob": "d8b9e1b9d6dc0ea3303970c33dbd4cb8ffd64ce5",
+          "old_blob": null,
+          "path": ".github/scripts/test_apply_issue_2825_harness_overlay.py",
+          "status": "A"
+        },
+        {
+          "new_blob": "a203294a18dce4b87a737fdbebd24a25f74fd424",
+          "old_blob": "125c58f4996b6ac85d161d7664845d87d4bb4ae1",
+          "path": ".github/scripts/test_collect_bugfix_full_ci.py",
+          "status": "M"
+        },
+        {
+          "new_blob": "1e5437f6d30e613cdfe9ffbd081ede25d5738ee9",
+          "old_blob": "4fc258f1dc6c1fedc13295edbd42459a48acbea3",
+          "path": ".github/scripts/test_compare_bugfix_full_ci.py",
+          "status": "M"
+        },
+        {
+          "new_blob": "a74dd96c09fdc950f94c32e4632ac84158e4ad90",
+          "old_blob": null,
+          "path": ".github/scripts/test_select_bugfix_checks.py",
+          "status": "A"
+        },
+        {
+          "new_blob": "6cf87d4085c74ad09d9e7f9e8735a169ffdec347",
+          "old_blob": "be9f68514c859ad751c6e90525c4d93ce6a1e78e",
+          "path": ".github/workflows/_bugfix-full-ci-matrix.yml",
+          "status": "M"
+        },
+        {
+          "new_blob": "f0628de854c0a2162144547d4347ce2a145f76ad",
+          "old_blob": "8cc7c25153c3f8d34d47f84790023a2ccaffb412",
+          "path": ".github/workflows/bugfix-check.yml",
+          "status": "M"
+        },
+        {
+          "new_blob": "7233b238592904ff0a89e8d99fea2f4ef5cf8dc4",
+          "old_blob": "100c25ba38ce136e1f02474af60cc87dd35e30a2",
+          "path": ".github/workflows/bugfix-fix.lock.yml",
+          "status": "M"
+        },
+        {
+          "new_blob": "d1f734d6bf5d1aa7f5611aefbcf179ffd61798e6",
+          "old_blob": "96923ef29989b0ae5a70fccc8ecc9e4db00812f0",
+          "path": ".github/workflows/bugfix-fix.md",
+          "status": "M"
+        },
+        {
+          "new_blob": "812f22199c75962304d535ac6f60a9ccf27f0442",
+          "old_blob": "b4bc1ccb5c72d61e5659327dcae18f53f25c79f1",
+          "path": ".github/workflows/bugfix-full-ci-build-probe.yml",
+          "status": "M"
+        },
+        {
+          "new_blob": "b18621d9771c69468df89d7d5ab393d55e0d1e85",
+          "old_blob": "ad97e9e5df7fdff3dc4772b52767f669b2761b56",
+          "path": ".github/workflows/bugfix-full-ci.yml",
+          "status": "M"
+        },
+        {
+          "new_blob": "757a4d619bfa4f7c366c54fb90aaeb685a7eb9cf",
+          "old_blob": "fe39e7a391c0ec50d76175565c67fdcb2997f4b4",
+          "path": ".github/workflows/reprorunner.yml",
+          "status": "M"
+        },
+        {
+          "new_blob": "aa7c1eaf728e7f03195655c17ccf110ba8248eef",
+          "old_blob": "baeaf35267ce4caedadd9cd9b7c486c10b281d40",
+          "path": "docs/Tasks/Wholesale-Bugfix/Canary-log.md",
+          "status": "M"
+        },
+        {
+          "new_blob": "8b9454c1de861943aeabe6497f0fe2992daf089d",
+          "old_blob": null,
+          "path": "docs/Tasks/Wholesale-Bugfix/Failure-normalization.md",
+          "status": "A"
+        },
+        {
+          "new_blob": "32780c1dfba14ae5cebf53dba81c51df3f835aa4",
+          "old_blob": null,
+          "path": "docs/Tasks/Wholesale-Bugfix/Harness-2794.md",
+          "status": "A"
+        },
+        {
+          "new_blob": "0962ce824db43f6ba04878ad8ba8108b032b8407",
+          "old_blob": null,
+          "path": "docs/Tasks/Wholesale-Bugfix/Harness-2825.md",
+          "status": "A"
+        },
+        {
+          "new_blob": "96ce6bb24ec35aea0d5117d5826727352454fdcb",
+          "old_blob": "3dc354d394884637667e8ae1de5f6e85fd3cfeee",
+          "path": "docs/Tasks/Wholesale-Bugfix/NEXT-ISSUES.md",
+          "status": "M"
+        },
+        {
+          "new_blob": "71c625c32fc6dbd71d18f8f4feba490e6e7bb650",
+          "old_blob": null,
+          "path": "docs/Tasks/Wholesale-Bugfix/NEXT-WAVE.md",
+          "status": "A"
+        },
+        {
+          "new_blob": "693f0bbcacbfdf44e74e407618f05ea3c84a7254",
+          "old_blob": "c185a4816ce9fa495eee49e7ac654e95e8f3dd9f",
+          "path": "docs/Tasks/Wholesale-Bugfix/README.md",
+          "status": "M"
+        },
+        {
+          "new_blob": "b3bee5066c31896d813daa11277ca5ed431a3ab7",
+          "old_blob": "6c4690505ed907a6f53547fcb7df13ce8172041d",
+          "path": "scripts/bugfix/failure-normalization.json",
+          "status": "M"
+        },
+        {
+          "new_blob": "ea638f48298123e5003e1c56c8ef9ebe2aba72cc",
+          "old_blob": "3eb6004dec77a26dd42ef70a014eef7c7dcec93e",
+          "path": "scripts/bugfix/test_failure_normalization.py",
+          "status": "M"
+        }
+      ],
+      "event_id": "revalidate-807054e37840-34988724926",
+      "issue": 2874,
+      "kind": "revalidate",
+      "passing_contract": {
+        "case_count": 0,
+        "cases_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "ledger_sha256": "c9f58a9c7ddd359d61b38aebee80f31fbe0f7d5135a5830dbfa58f514891b7f3",
+        "schema_version": 1,
+        "state_commit": "dfd372c9371f3ff99c9990c907a57bbf9ccf5bb4"
+      },
+      "prior_acceptance_run_id": 34988724926,
+      "prior_check_workflow_sha": "7629236e73bde318e934509244c3e61ef820d8db",
+      "reason": "Reviewed Issue2870 presentation normalization; revalidate unchanged candidate with the immutable compressed acceptance profile",
+      "review_run_ids": {
+        "behavior": 34985735409,
+        "compatibility": 34985757907,
+        "lifecycle": 34985781861
+      },
+      "run_id": 34988724926,
+      "schema_version": 1,
+      "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "workflow_sha": "7629236e73bde318e934509244c3e61ef820d8db"
     }
   ],
   "infrastructure_retries": {
@@ -691,7 +1229,7 @@
     "schema_version": 1,
     "state_commit": "dfd372c9371f3ff99c9990c907a57bbf9ccf5bb4"
   },
-  "paused": true,
+  "paused": false,
   "phase": "acceptance",
   "repair_attempts": 1,
   "reviews": {
