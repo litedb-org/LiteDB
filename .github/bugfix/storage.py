@@ -23,7 +23,8 @@ def run(command, cwd=None, input_text=None, infrastructure=False):
 
 
 def github(repo, path):
-    raw = run(["gh", "api", f"repos/{repo}/{path}"], infrastructure=True)
+    endpoint = f"repos/{repo}" + (f"/{path}" if path else "")
+    raw = run(["gh", "api", endpoint], infrastructure=True)
     try:
         value = json.loads(raw)
         if not isinstance(value, (dict, list)):
