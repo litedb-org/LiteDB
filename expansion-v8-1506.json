@@ -43,7 +43,8 @@
   "candidate_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
   "events": {
     "run-35005445832-baseline-ci": "c093306b81c1224ab506002d1e68cda1c922c7a23e7a1642ed4ac311a97f181c",
-    "run-35005597395-candidate-ci": "298536c82e766db53354f84533f64288e0aab3bdefe4d4f27fa4222a07700f5c"
+    "run-35005597395-candidate-ci": "298536c82e766db53354f84533f64288e0aab3bdefe4d4f27fa4222a07700f5c",
+    "run-35006858578-broad-ci": "cc3cdfd985eff82889cf1ca6995b1a7363efc55e529470e7b0abd5ac1f32bd47"
   },
   "evidence": {
     "baseline": {
@@ -67,6 +68,85 @@
       "protocol": "compressed-v1",
       "report_sha256": "fb0e6689f48d476854f47717ba9df3adb6a51575c9b54c9f3c9286aa6ce687ff",
       "run_id": 35005445832,
+      "schema_version": 1,
+      "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "workflow_sha": "61ee4aec705024c189345de25508ea19ffc2584e"
+    },
+    "broad": {
+      "acceptance_profile": {
+        "base_sha": "781b3291ee0d6aa7a08e05955545fdf4d03763dc",
+        "candidate_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+        "checks": [
+          "focused",
+          "broad",
+          "production-build"
+        ],
+        "compatibility": false,
+        "contract_sha256": "f0f75c3e2e713edfa79451fc3a2a60e45c9e8a178a584d051e6e5d52d80141d2",
+        "diff_sha256": "daf844d8f13ff12e7fc93dab6562a7a4231de6f8b4daf7735ec5cfd456b0a611",
+        "issue": 1506,
+        "matched_rules": [
+          {
+            "path": "LiteDB/Client/Database/Collections/Find.cs",
+            "rule": "reviewed-ordinary-issue-path"
+          }
+        ],
+        "matrix": [
+          {
+            "framework": "net8.0",
+            "os": "ubuntu-latest"
+          }
+        ],
+        "paths": [
+          "LiteDB/Client/Database/Collections/Find.cs"
+        ],
+        "policy_sha256": "49a2dd0ef3f9a13888429eace71441c3b10f08a9ec0917651d49350f43614490",
+        "policy_version": "compressed-acceptance-v4",
+        "production_build": true,
+        "profile_sha256": "3fd866b1cc8256f24d02883a6ec1f697a32fad38cc749764ba01a189a92c1873",
+        "required_environments": [],
+        "required_lanes": [
+          "bugfix-check-ubuntu-latest-net8.0"
+        ],
+        "schema_version": 1,
+        "targeted_test_filters": [],
+        "targeted_tests_covered_by_broad": true
+      },
+      "artifact": "bugfix-check-ubuntu-latest-net8.0",
+      "artifact_sha256": "441fa1765c44de102f0602039339e9f1828acda4a05cdbbce8730b07c00dcba2",
+      "base_sha": "781b3291ee0d6aa7a08e05955545fdf4d03763dc",
+      "campaign": "expansion-v8-1506",
+      "candidate_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+      "environment": "linux-x64-net8.0",
+      "event_id": "run-35006858578-broad-ci",
+      "issue": 1506,
+      "kind": "broad",
+      "matrix": [
+        {
+          "artifact": "bugfix-check-ubuntu-latest-net8.0",
+          "artifact_sha256": "441fa1765c44de102f0602039339e9f1828acda4a05cdbbce8730b07c00dcba2",
+          "environment": "linux-x64-net8.0",
+          "report_sha256": "0545a64bc01a18858896e009d566b5f1df04a7616dee2abb092680efba8a5582"
+        }
+      ],
+      "outcome": "pass",
+      "passing_contract": {
+        "case_count": 16,
+        "cases_sha256": "69a3248e3b41ebd736f023d8a0aafb3e98694dea3f4ffb54b029ec8de5569d2f",
+        "ledger_sha256": "7b908c436bf4d39b04d9a19658c906579fcdeced958ee4e00198d72521cfa95d",
+        "schema_version": 1,
+        "state_commit": "e9720270423bba07ccee63b539335b9162ffdfd2"
+      },
+      "production": {
+        "artifact": "bugfix-production",
+        "artifact_id": 10412131919,
+        "artifact_sha256": "b21543b9a9043ab63d129506eb495ee9e803c667114e4e7c2c43d853bfc0618c",
+        "report_sha256": "b7436c1f1980003f99555ee43e80f179bff080ff06aeb37c7a8a1087fdcc0567"
+      },
+      "profile_complete": true,
+      "protocol": "compressed-v1",
+      "report_sha256": "0545a64bc01a18858896e009d566b5f1df04a7616dee2abb092680efba8a5582",
+      "run_id": 35006858578,
       "schema_version": 1,
       "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
       "workflow_sha": "61ee4aec705024c189345de25508ea19ffc2584e"
@@ -185,6 +265,85 @@
         "workflow_sha": "61ee4aec705024c189345de25508ea19ffc2584e"
       },
       "workflow_sha": "61ee4aec705024c189345de25508ea19ffc2584e"
+    },
+    {
+      "acceptance_profile": {
+        "base_sha": "781b3291ee0d6aa7a08e05955545fdf4d03763dc",
+        "candidate_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+        "checks": [
+          "focused",
+          "broad",
+          "production-build"
+        ],
+        "compatibility": false,
+        "contract_sha256": "f0f75c3e2e713edfa79451fc3a2a60e45c9e8a178a584d051e6e5d52d80141d2",
+        "diff_sha256": "daf844d8f13ff12e7fc93dab6562a7a4231de6f8b4daf7735ec5cfd456b0a611",
+        "issue": 1506,
+        "matched_rules": [
+          {
+            "path": "LiteDB/Client/Database/Collections/Find.cs",
+            "rule": "reviewed-ordinary-issue-path"
+          }
+        ],
+        "matrix": [
+          {
+            "framework": "net8.0",
+            "os": "ubuntu-latest"
+          }
+        ],
+        "paths": [
+          "LiteDB/Client/Database/Collections/Find.cs"
+        ],
+        "policy_sha256": "49a2dd0ef3f9a13888429eace71441c3b10f08a9ec0917651d49350f43614490",
+        "policy_version": "compressed-acceptance-v4",
+        "production_build": true,
+        "profile_sha256": "3fd866b1cc8256f24d02883a6ec1f697a32fad38cc749764ba01a189a92c1873",
+        "required_environments": [],
+        "required_lanes": [
+          "bugfix-check-ubuntu-latest-net8.0"
+        ],
+        "schema_version": 1,
+        "targeted_test_filters": [],
+        "targeted_tests_covered_by_broad": true
+      },
+      "artifact": "bugfix-check-ubuntu-latest-net8.0",
+      "artifact_sha256": "441fa1765c44de102f0602039339e9f1828acda4a05cdbbce8730b07c00dcba2",
+      "base_sha": "781b3291ee0d6aa7a08e05955545fdf4d03763dc",
+      "campaign": "expansion-v8-1506",
+      "candidate_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+      "environment": "linux-x64-net8.0",
+      "event_id": "run-35006858578-broad-ci",
+      "issue": 1506,
+      "kind": "broad",
+      "matrix": [
+        {
+          "artifact": "bugfix-check-ubuntu-latest-net8.0",
+          "artifact_sha256": "441fa1765c44de102f0602039339e9f1828acda4a05cdbbce8730b07c00dcba2",
+          "environment": "linux-x64-net8.0",
+          "report_sha256": "0545a64bc01a18858896e009d566b5f1df04a7616dee2abb092680efba8a5582"
+        }
+      ],
+      "outcome": "pass",
+      "passing_contract": {
+        "case_count": 16,
+        "cases_sha256": "69a3248e3b41ebd736f023d8a0aafb3e98694dea3f4ffb54b029ec8de5569d2f",
+        "ledger_sha256": "7b908c436bf4d39b04d9a19658c906579fcdeced958ee4e00198d72521cfa95d",
+        "schema_version": 1,
+        "state_commit": "e9720270423bba07ccee63b539335b9162ffdfd2"
+      },
+      "production": {
+        "artifact": "bugfix-production",
+        "artifact_id": 10412131919,
+        "artifact_sha256": "b21543b9a9043ab63d129506eb495ee9e803c667114e4e7c2c43d853bfc0618c",
+        "report_sha256": "b7436c1f1980003f99555ee43e80f179bff080ff06aeb37c7a8a1087fdcc0567"
+      },
+      "profile_complete": true,
+      "protocol": "compressed-v1",
+      "report_sha256": "0545a64bc01a18858896e009d566b5f1df04a7616dee2abb092680efba8a5582",
+      "run_id": 35006858578,
+      "schema_version": 1,
+      "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "workflow_sha": "61ee4aec705024c189345de25508ea19ffc2584e"
     }
   ],
   "infrastructure_retries": {},
@@ -277,7 +436,7 @@
     "state_commit": "e9720270423bba07ccee63b539335b9162ffdfd2"
   },
   "paused": false,
-  "phase": "broad",
+  "phase": "reviewing",
   "protocol": "compressed-v1",
   "repair_attempts": 1,
   "reviews": {},
