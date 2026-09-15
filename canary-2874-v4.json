@@ -320,6 +320,19 @@
         "run_id": 34985757907,
         "started_at": 1789484562.8319843,
         "workflow": "bugfix-validate.lock.yml"
+      },
+      "review-1-lifecycle-0": {
+        "inputs": {
+          "base_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+          "candidate_sha": "79e5c69cb9e6a1bcc08e919c2993aaa5401148b7",
+          "issue": "2874",
+          "role": "lifecycle",
+          "source_run": "34985454867",
+          "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c"
+        },
+        "request_id": "bf-dfeb19b46a7543c8b9cec4cbf4f5d839",
+        "started_at": 1789484574.933159,
+        "workflow": "bugfix-validate.lock.yml"
       }
     },
     "worker_retries": 0,
