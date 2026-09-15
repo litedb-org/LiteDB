@@ -40,6 +40,8 @@ The remaining seven add **20 exact regressions and nine positive controls**. The
 
 All profiles require focused and broad checks plus a production build. The #2845 serialization rule already requires BSON coverage and compatibility. The new exact #2867 issue/path compatibility rule also identifies existing MapperInheritance_Tests and AutoId_Tests coverage; broad executes these tests, so no separate duplicate run is needed. Its persisted mapping change requires review of legacy documents authored with the previous ID convention as well as ordinary file-format compatibility.
 
+The #2847 behavior/compatibility, #2867 compatibility, #2871 lifecycle and #2205 behavior obligations are also stored in each immutable contract under `review_requirements`. GitHub workers and reviewers receive the complete contract in `task.json`, so these instructions do not depend on automation documentation being present in the integration checkout.
+
 The frozen tests resolve the three previously identified contract decisions without requiring a weaker gate:
 
 - #2847 explicitly accepts either results matching CLR semantics or a deliberate NotSupportedException for an unsupported mode. Other exceptions and silently ignored modes fail. Both OrdinalIgnoreCase controls must remain passing, including their ordinary equality/data-preservation assertions. A passing gate does not establish that the comparison overload remains supported: the candidate and reviews must state exactly which modes are supported or rejected, and assess any loss of previously working behavior.

@@ -372,7 +372,12 @@
         {
           "name": "LiteDB.Tests.Issues.Issue2867_Tests.Existing_id_precedence_and_suffix_boundaries_are_preserved"
         }
-      ]
+      ],
+      "review_requirements": {
+        "compatibility": [
+          "Assess old databases written with the former inherited-ID convention: an automatically generated BSON _id alongside the inherited mapped-type-name ID property stored as a normal field. Trace reads, inherited-property queries, duplicate checks and reopen behavior for those legacy documents under the candidate. Use existing files or independently authored legacy documents where feasible, identify migration needs and report evidence or limitations. The generic vector/file-format compatibility check does not exercise this mapping change."
+        ]
+      }
     },
     "2845": {
       "inventory_issue": 2845,
@@ -475,7 +480,15 @@
         {
           "name": "LiteDB.Tests.Issues.Issue2847_Tests.Explicit_string_comparison_agrees_with_CLR_even_with_an_index(comparison: OrdinalIgnoreCase, indexed: True)"
         }
-      ]
+      ],
+      "review_requirements": {
+        "behavior": [
+          "State which StringComparison modes remain supported and which deliberately throw NotSupportedException. Compare candidate behavior with the pinned base for previously working OrdinalIgnoreCase calls, with and without an index. Passing the frozen test does not prove retained overload support; report any support loss and assess affected callers."
+        ],
+        "compatibility": [
+          "Assess API compatibility for callers using explicit StringComparison modes. Disclose any deliberate unsupported mode and compare it with the pinned base behavior, including formerly working OrdinalIgnoreCase paths. Explain whether existing queries retain their results or now throw; do not infer compatibility solely from the frozen test accepting NotSupportedException."
+        ]
+      }
     },
     "2779": {
       "inventory_issue": 2779,
@@ -565,7 +578,12 @@
         {
           "name": "LiteDB.Tests.Issues.Issue2205_Tests.Huge_numeric_looking_strings_are_preserved_when_quoted_or_parameterized"
         }
-      ]
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Require the complete out-of-range unquoted numeric token to be treated as the exact string value and match only the intended row. Replacing OverflowException with another exception, truncating the token or clamping a numeric value is not an accepted fix. Preserve prefix/suffix distractors, quoted and parameterized string behavior, and review neighboring numeric boundaries and the query-language semantics."
+        ]
+      }
     },
     "2871": {
       "inventory_issue": 2871,
@@ -603,7 +621,12 @@
         {
           "name": "LiteDB.Tests.Issues.Issue2871_Tests.Cache_hits_remain_correct_while_unique_constructor_types_force_resizes"
         }
-      ]
+      ],
+      "review_requirements": {
+        "lifecycle": [
+          "Establish actual synchronization of constructor-cache reads and writes, including concurrent misses and resizing, from the candidate code. A non-Dictionary cache bypasses the deterministic monitor assertion; changing the cache type alone is not evidence of thread safety. Verify fresh object creation, safe cached factories and interface recursion, and assess concurrent execution using the separate bounded stress control. Record evidence and any limitations."
+        ]
+      }
     }
   }
 }
