@@ -467,6 +467,91 @@
         "workflow": "bugfix-validate.lock.yml"
       }
     },
+    "review_reports": {
+      "824dfce9d27a6c0c7ea3890c1ecc9aff31833c83": [
+        {
+          "artifact": "bugfix-review-2839-behavior",
+          "artifact_sha256": "07091d964f45328164e653ffcd435dbccce6510ab861576ca30dbfc4c7826bb6",
+          "base_sha": "79e5c69cb9e6a1bcc08e919c2993aaa5401148b7",
+          "campaign": "sweep-2839-v2",
+          "candidate_sha": "824dfce9d27a6c0c7ea3890c1ecc9aff31833c83",
+          "environment": "independent-agent",
+          "event_id": "run-34998827373-review-behavior",
+          "findings": [],
+          "issue": 2839,
+          "kind": "review",
+          "outcome": "pass",
+          "passing_contract": {
+            "case_count": 7,
+            "cases_sha256": "846eeb9b3861851516702e1e3e71971c7bdbbf9a36af5ea458219fe7a3e70563",
+            "ledger_sha256": "ba0ddd4460f272085e0df611b299ecbfb90bb7799eec72f14f2e3b493cc7d6e3",
+            "schema_version": 1,
+            "state_commit": "ff3701819065d1682a3147e201a50091a0a1c206"
+          },
+          "protocol": "compressed-v1",
+          "report_sha256": "fe815fd5b4be2d48404b7c5afcc14c474a8899a43049d48e00ef727c7f39de06",
+          "role": "behavior",
+          "run_id": 34998827373,
+          "schema_version": 1,
+          "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+          "workflow_sha": "ebf413d240e747ead603d5076bdff6d09a35ccf3"
+        },
+        {
+          "artifact": "bugfix-review-2839-compatibility",
+          "artifact_sha256": "f34788f46db98791b12584103aa0d6df11a7d25116ca458babd53bca4fce750c",
+          "base_sha": "79e5c69cb9e6a1bcc08e919c2993aaa5401148b7",
+          "campaign": "sweep-2839-v2",
+          "candidate_sha": "824dfce9d27a6c0c7ea3890c1ecc9aff31833c83",
+          "environment": "independent-agent",
+          "event_id": "run-34998853675-review-compatibility",
+          "findings": [],
+          "issue": 2839,
+          "kind": "review",
+          "outcome": "pass",
+          "passing_contract": {
+            "case_count": 7,
+            "cases_sha256": "846eeb9b3861851516702e1e3e71971c7bdbbf9a36af5ea458219fe7a3e70563",
+            "ledger_sha256": "ba0ddd4460f272085e0df611b299ecbfb90bb7799eec72f14f2e3b493cc7d6e3",
+            "schema_version": 1,
+            "state_commit": "ff3701819065d1682a3147e201a50091a0a1c206"
+          },
+          "protocol": "compressed-v1",
+          "report_sha256": "834388c080a86a7f0cf647ae423c35b996a301504efd921de79daa1dbeeedb1f",
+          "role": "compatibility",
+          "run_id": 34998853675,
+          "schema_version": 1,
+          "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+          "workflow_sha": "ebf413d240e747ead603d5076bdff6d09a35ccf3"
+        },
+        {
+          "artifact": "bugfix-review-2839-lifecycle",
+          "artifact_sha256": "86916f64afbad51ba8ea1e6b4ca2a84fa262c3fd19c62faeea0226333c4b43d9",
+          "base_sha": "79e5c69cb9e6a1bcc08e919c2993aaa5401148b7",
+          "campaign": "sweep-2839-v2",
+          "candidate_sha": "824dfce9d27a6c0c7ea3890c1ecc9aff31833c83",
+          "environment": "independent-agent",
+          "event_id": "run-34998880800-review-lifecycle",
+          "findings": [],
+          "issue": 2839,
+          "kind": "review",
+          "outcome": "pass",
+          "passing_contract": {
+            "case_count": 7,
+            "cases_sha256": "846eeb9b3861851516702e1e3e71971c7bdbbf9a36af5ea458219fe7a3e70563",
+            "ledger_sha256": "ba0ddd4460f272085e0df611b299ecbfb90bb7799eec72f14f2e3b493cc7d6e3",
+            "schema_version": 1,
+            "state_commit": "ff3701819065d1682a3147e201a50091a0a1c206"
+          },
+          "protocol": "compressed-v1",
+          "report_sha256": "ffeacccb84d9fae6224533f3a3f9fe142367d7561d9e08986c5ca18ae207d748",
+          "role": "lifecycle",
+          "run_id": 34998880800,
+          "schema_version": 1,
+          "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+          "workflow_sha": "ebf413d240e747ead603d5076bdff6d09a35ccf3"
+        }
+      ]
+    },
     "worker_retries": 0,
     "workflow_ref": "automation/bugfix-runtime-v6"
   },
