@@ -41,6 +41,13 @@ The candidate must descend from the recorded integration base, and its local tre
 must equal the remote immutable commit's tree. The branch advances directly to
 that exact tested commit; the tool does not create a new merge commit.
 
+Hosted candidate creation uses the immutable parent's timestamp as a reproducible
+commit stamp, not as wall-clock execution time. The same validated patch, parent
+and message recreate the same commit after a runner loss. The candidate is pushed
+and its exact remote ref read back before its SHA is journaled. A conflicting
+remote candidate is never adopted or overwritten. Actions and journal timestamps
+provide the actual execution chronology.
+
 The controller-owned `automation/bugfix-state` branch stores:
 
 - A persistent global `integration-lock.json` that serializes integration work.
@@ -66,10 +73,15 @@ expiration or takeover by another campaign.
 
 If the branch update completed but the final state commit did not, an explicit
 resume can finish recording the same prepared candidate without pushing it again.
-The command revalidates evidence on resume. Expired artifacts or a changed campaign
-state require an operator to inspect the durably preserved evidence; they never
-cause the tool to silently bypass validation. A conflicting state-branch write
-also stops the current attempt rather than overwriting it.
+The command revalidates evidence on resume. While the transaction is only
+`acquired`, it may still need Actions artifacts. Once `prepared`, its lock binds
+the exact candidate tree, archive prefix and evidence-manifest digest. Resume
+reads the bounded raw archives from the immutable state-branch snapshot and
+revalidates their run, report, artifact, profile and reviewer identities before
+advancing or finishing. It does not depend on Actions retention after preparation.
+A changed campaign, conflicting candidate or evidence mismatch still blocks;
+neither retry nor archive recovery bypasses validation. A conflicting state-branch
+write stops the current attempt rather than overwriting another writer.
 
 Run the integration tests with the rest of the controller suite:
 
