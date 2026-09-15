@@ -4,6 +4,7 @@ import copy
 import hashlib
 import json
 import re
+from review_policy import only_nits
 
 ROLES = ("behavior", "compatibility", "lifecycle")
 IDENTITY = ("campaign", "issue", "base_sha", "test_source_sha", "workflow_sha")
@@ -128,7 +129,7 @@ def _record_result(state, event):
         require(outcome in ("pass", "fail"), "Review must pass or fail")
         require(isinstance(event.get("findings"), list), "Review findings must be explicit")
         if outcome == "pass":
-            require(not event["findings"], "Passing review cannot contain unresolved findings")
+            require(only_nits(event["findings"]), "Passing review cannot contain unresolved blocking findings")
             previous_runs = {review["run_id"] for review in state["reviews"].values()}
             require(event["run_id"] not in previous_runs, "Independent reviews require separate runs")
             state["reviews"][role] = copy.deepcopy(event)

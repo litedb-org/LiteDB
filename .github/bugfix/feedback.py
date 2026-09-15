@@ -12,11 +12,12 @@ def repair_feedback(state):
               for event in state["history"] if event.get("candidate_sha") == candidate
               and event["kind"] in ("focused", "broad", "acceptance") and event.get("outcome") != "pass"]
     reviews = state["orchestration"].get("review_reports", {}).get(candidate, [])
-    findings = [{"role": review["role"], "run_id": review["run_id"], "findings": review.get("findings", [])}
-                for review in reviews if review.get("findings")]
-    payload = {"candidate_sha": candidate, "checks": checks[-3:], "reviews": findings[-3:]}
+    latest = {review["role"]: review for review in reviews if review.get("findings")}
+    findings = [{"role": review["role"], "run_id": review["run_id"], "findings": review["findings"]}
+                for review in latest.values()]
+    payload = {"candidate_sha": candidate, "checks": checks[-3:], "reviews": findings,
+               "review_instruction": "When any review finding exceeds nit severity, address every finding, including all nits."}
     encoded = json.dumps(payload, ensure_ascii=False)
     if len(encoded) > 23500:
-        payload = {"candidate_sha": candidate, "truncated": True, "diagnostic_excerpt": encoded[:10000]}
-        encoded = json.dumps(payload, ensure_ascii=False)
+        raise ValueError("Complete repair feedback exceeds dispatch limit; findings must not be truncated")
     return encoded

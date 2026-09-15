@@ -57,6 +57,17 @@ class ArtifactTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256(archive(self.files)).hexdigest(), hashes["artifact_sha256"])
         self.assertEqual(hashlib.sha256(json.dumps(self.verdict).encode()).hexdigest(), hashes["report_sha256"])
 
+    def test_nits_remain_authenticated_in_approved_artifact(self):
+        result, metadata = self.review()
+        nit = {"severity": "nit", "summary": "Optional wording", "path": "source.cs", "evidence": "Comment diff"}
+        result["findings"] = [nit]
+        self.event["findings"] = [nit]
+        metadata["result_sha256"] = hashlib.sha256(json.dumps(result).encode()).hexdigest()
+        self.check()
+        self.event["findings"] = []
+        with self.assertRaisesRegex(Rejected, "findings differ"):
+            self.check()
+
     def test_missing_rejected_or_forged_verdict_cannot_approve(self):
         for field, value in (("accepted", False), ("accepted", 1), ("outcome", "harness_error"),
                              ("candidate_sha", "e" * 40), ("test_source_sha", "e" * 40),

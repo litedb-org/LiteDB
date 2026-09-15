@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -14,6 +15,16 @@ from pathlib import Path
 
 ROLES = {"behavior", "compatibility", "lifecycle"}
 CODEX_VERSION = "0.154.0"
+
+
+def review_policy():
+    path = Path(__file__).with_name("review_policy.py")
+    if not path.is_file():
+        path = Path(__file__).parents[1] / "bugfix" / "review_policy.py"
+    spec = importlib.util.spec_from_file_location("bugfix_review_policy", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def runtime_evidence(env: dict, required_model: str) -> tuple[dict, bytes]:
@@ -122,13 +133,7 @@ def validate_result(result: dict, expected: dict) -> None:
         return
 
     require(set(result) == set(expected) | {"verdict", "findings", "coverage"}, "Unexpected review result fields")
-    require(result["verdict"] in {"pass", "changes_requested", "inconclusive"}, "Invalid review verdict")
-    findings = result["findings"]
-    require(isinstance(findings, list), "Findings must be a list")
-    require((result["verdict"] == "pass") == (len(findings) == 0), "Verdict and findings disagree")
-    for finding in findings:
-        require(isinstance(finding, dict) and set(finding) == {"summary", "path", "evidence"}, "Each finding needs summary, path, and evidence")
-        require(all(isinstance(value, str) and value.strip() for value in finding.values()), "Finding evidence cannot be empty")
+    review_policy().validate_review(result["verdict"], result["findings"])
     text_list(result["coverage"], "coverage")
 
 

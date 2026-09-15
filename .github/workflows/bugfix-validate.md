@@ -106,6 +106,7 @@ steps:
       control.mkdir(parents=True, exist_ok=True)
       for source, target in (
           (".github/scripts/collect_bugfix_worker.py", "collect.py"),
+          (".github/bugfix/review_policy.py", "review_policy.py"),
           (".github/scripts/redact_gh_aw_codex_artifacts.py", "redact.py"),
           (".github/scripts/probe_gh_aw_reasoning.py", "probe.py"),
           ("scripts/bugfix/issues.json", "issues.json"),
@@ -194,8 +195,14 @@ task (`schema_version`, `issue`, `base_sha`, `candidate_sha`, `test_source_sha`,
 
 - `verdict`: `pass`, `changes_requested`, or `inconclusive`
 - `findings`: an array of objects, each containing nonempty `summary`, `path`,
-  and `evidence` strings. Pass requires an empty array; other verdicts require at
-  least one actionable finding or concrete reason validation is inconclusive.
+  and `evidence` strings, plus `severity`: `nit`, `minor`, `major`, or `critical`.
+  A nit is cosmetic or optional polish with no correctness, compatibility,
+  reliability, performance, or required-evidence impact. Even a small behavioral
+  defect is at least `minor`. Use `pass` when there are no findings or only nits;
+  retain every nit in the findings array. Use `changes_requested` if any finding
+  is more severe than a nit, and include all findings, including nits.
+  `inconclusive` requires a concrete explanation of missing required evidence;
+  missing evidence cannot be downgraded to a nit or approved.
 - `coverage`: a nonempty array of concrete descriptions of inspected code paths,
   executed checks and outcomes, and material limitations
 

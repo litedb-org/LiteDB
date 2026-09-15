@@ -25,6 +25,7 @@ FINAL_POLICY_PATHS = (
     ".github/bugfix/passing.py",
     ".github/bugfix/patching.py",
     ".github/bugfix/state.py",
+    ".github/bugfix/review_policy.py",
     ".github/bugfix/storage.py",
     ".github/bugfix/artifacts.py",
     ".github/bugfix/full-ci-quarantine.json",

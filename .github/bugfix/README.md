@@ -138,7 +138,7 @@ Every result additionally includes `candidate_sha` (`null` for baseline), numeri
 | `candidate` | repairing | New full `candidate_sha` and trusted profile | broad for compressed; focused for legacy |
 | `focused` | focused | `behavior_correct` | broad |
 | `broad` | broad | `pass` | reviewing |
-| `review` | reviewing | `pass` plus empty `findings` | ready for compressed; acceptance for legacy after all roles |
+| `review` | reviewing | `pass` with no findings or only explicit `nit` findings | ready for compressed; acceptance for legacy after all roles |
 | `acceptance` | legacy acceptance | `pass` and complete required profile | ready |
 | `integrated` | ready | Matching `expected_base_sha` and `integration_sha` | integrated |
 
@@ -155,7 +155,7 @@ allowlisted workflow path, dispatch trigger, completion, and artifact existence.
 Positive evidence requires a successful run and a downloaded, validated payload:
 CI `verdict.json` must match every pinned identity, environment, level, and expected
 outcome. Candidate CI also requires accepted `scope.json` with matching provenance.
-Review `result.json` must match the candidate and role, approve without findings,
+Review `result.json` must match the candidate and role, approve with no findings or only explicit cosmetic nits,
 and describe concrete coverage; collector metadata must match the run and report
 digest. Bounded ZIP inspection reads reports without extracting archive paths.
 Supply multiple `--allow-workflow` arguments as needed.
@@ -177,3 +177,20 @@ execution contract. Cross-issue queue concurrency, monetary cost limits, artifac
 retention, branch permissions, and actual integration remain responsibilities of
 the owning workflows. The CLI enforces its per-issue workflow-run budget and
 does not dispatch arbitrary issue reports.
+
+## Review stopping rule
+
+A candidate is done after required CI passes and all three reviewers approve with
+no findings or only nits. Keep nits in the authenticated review artifacts; they
+do not trigger another candidate or CI run. A nit is optional cosmetic polish
+with no correctness, compatibility, reliability, performance, or required-evidence
+impact. Even a small behavioral defect is more severe than a nit.
+
+If any reviewer finds a minor, major, or critical issue, the next fix must address
+all findings from all three reviewers, including nits from otherwise approving
+reviewers. The changed candidate receives its compressed CI and three independent
+reviews again. Missing required evidence remains inconclusive. Unclassified
+legacy findings are never automatically treated as nits. Complete feedback that
+exceeds the dispatch size limit blocks explicitly instead of dropping findings.
+
+The full matrix remains reserved for the end of the entire sweep.

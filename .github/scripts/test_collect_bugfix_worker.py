@@ -195,9 +195,14 @@ class CollectorTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "changed tracked"):
             self.collect()
 
+    def test_review_collects_nit_only_approval(self):
+        self.review()
+        self.result["findings"] = [{"severity": "nit", "summary": "Optional wording", "path": "source.cs", "evidence": "Comment diff"}]
+        self.assertEqual("behavior", self.collect()["role"])
+
     def test_review_rejects_pass_with_unresolved_finding(self):
         self.review()
-        self.result["findings"] = [{"summary": "A defect", "path": "source.cs", "evidence": "Invalid value still read"}]
+        self.result["findings"] = [{"summary": "A defect", "path": "source.cs", "evidence": "Invalid value still read", "severity": "minor"}]
         with self.assertRaisesRegex(ValueError, "disagree"):
             self.collect()
 

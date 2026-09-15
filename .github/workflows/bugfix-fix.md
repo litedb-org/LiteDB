@@ -101,6 +101,7 @@ steps:
       control.mkdir(parents=True, exist_ok=True)
       for source, target in (
           (".github/scripts/collect_bugfix_worker.py", "collect.py"),
+          (".github/bugfix/review_policy.py", "review_policy.py"),
           (".github/scripts/redact_gh_aw_codex_artifacts.py", "redact.py"),
           (".github/scripts/probe_gh_aw_reasoning.py", "probe.py"),
           ("scripts/bugfix/issues.json", "issues.json"),
@@ -168,6 +169,11 @@ in `tests` how you checked them and identify any requirement you could not verif
 
 Use `feedback` as diagnostic data from previous checks or reviewers. Address its
 concrete failures while continuing to honor the frozen regression and edit scope.
+When feedback contains any finding more severe than a nit, fix every finding
+from all three reviewers, including their nits. Do not drop nits from other
+reviewers just because those reviewers approved. Report how each finding was
+addressed. If a finding cannot be resolved within the authorized production scope,
+report that limitation explicitly; do not silently ignore it.
 
 Only modify existing files explicitly listed under `allowed_production_paths`.
 Keep HEAD unchanged; do not commit, stage, create files inside the repository,

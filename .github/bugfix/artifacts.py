@@ -9,6 +9,7 @@ import subprocess
 import zipfile
 
 from state import Rejected, require
+from review_policy import only_nits
 
 MAX_ARCHIVE = 64 * 1024 * 1024
 MAX_EXPANDED = 128 * 1024 * 1024
@@ -119,7 +120,7 @@ def validate(data, event):
         expected = {**event, "schema_version": 1}
         fields = ("schema_version", "issue", "base_sha", "candidate_sha", "test_source_sha", "role")
         _matching(report, expected, fields)
-        require(report.get("verdict") == "pass" and report.get("findings") == [],
+        require(report.get("verdict") == "pass" and only_nits(report.get("findings")),
                 "Review payload does not approve the candidate")
         require(event.get("findings") == report["findings"], "Event findings differ from review payload")
         coverage = report.get("coverage")

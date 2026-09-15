@@ -383,3 +383,20 @@ acceptance requirements.
 Trustworthy test gate first, lightweight CI second, agent orchestration third.
 This gives every worker a precise target and prevents workflow success from
 being mistaken for proof of a validated fix.
+
+## Review stopping rule
+
+A candidate is done after required CI passes and all three reviewers approve with
+no findings or only nits. Keep nits in the authenticated review artifacts; they
+do not trigger another candidate or CI run. A nit is optional cosmetic polish
+with no correctness, compatibility, reliability, performance, or required-evidence
+impact. Even a small behavioral defect is more severe than a nit.
+
+If any reviewer finds a minor, major, or critical issue, the next fix must address
+all findings from all three reviewers, including nits from otherwise approving
+reviewers. The changed candidate receives its compressed CI and three independent
+reviews again. Missing required evidence remains inconclusive. Unclassified
+legacy findings are never automatically treated as nits. Complete feedback that
+exceeds the dispatch size limit blocks explicitly instead of dropping findings.
+
+The full matrix remains reserved for the end of the entire sweep.
