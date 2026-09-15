@@ -423,6 +423,19 @@
           "workflow_sha": "d020aceb92799d9325a2f47669d1d39e5d700248"
         },
         "workflow": "bugfix-fix.lock.yml"
+      },
+      "review-1-behavior-0": {
+        "inputs": {
+          "base_sha": "824dfce9d27a6c0c7ea3890c1ecc9aff31833c83",
+          "candidate_sha": "781b3291ee0d6aa7a08e05955545fdf4d03763dc",
+          "issue": "2869",
+          "role": "behavior",
+          "source_run": "35002677408",
+          "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c"
+        },
+        "request_id": "bf-35149b8b632f4319b839b78801e6bb03",
+        "started_at": 1789494202.8507164,
+        "workflow": "bugfix-validate.lock.yml"
       }
     },
     "worker_retries": 0,
