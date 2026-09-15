@@ -9,7 +9,17 @@
   ],
   "issues": {
     "1002": {
-      "status": "pending",
+      "decision": {
+        "action": "resume",
+        "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+        "campaign": "hosted-v9-1002",
+        "candidate_sha": null,
+        "data_sha": "907d62ea4c9b9066e9c94fec9eeb6c995522fa23",
+        "issue": 1002,
+        "phase": "repairing",
+        "resume_integration": false
+      },
+      "status": "active",
       "tick_errors": 0
     },
     "1159": {
@@ -107,18 +117,18 @@
   },
   "kind": "hosted-bugfix-sweep",
   "last_tick": {
-    "at": 1789506841.02119,
+    "at": 1789507488.1674638,
     "campaign": null,
     "campaign_phase": null,
     "counts": {
       "accepted": 0,
-      "active": 0,
+      "active": 1,
       "deferred": 0,
-      "pending": 24
+      "pending": 23
     },
-    "issue": null,
+    "issue": 1002,
     "run_attempt": 1,
-    "run_id": 35024376535,
+    "run_id": 35025421031,
     "run_ids": []
   },
   "paused": false,
