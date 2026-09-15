@@ -3,6 +3,22 @@
 Tracking issue: [litedb-org/LiteDB#2890](https://github.com/litedb-org/LiteDB/issues/2890).
 Repository copy: [HANDOFF.md](https://github.com/litedb-org/LiteDB/blob/automation/wholesale-bugfix/docs/Tasks/Wholesale-Bugfix/HANDOFF.md).
 
+## Instructions to the continuing agent
+
+This issue is the complete entry point. No previous chat or longer prompt is
+required. Continue executing the wholesale bugfix sweep: repair the current
+blocker and any workflow defects, safely resume the queue, monitor actual Actions
+runs, and integrate only verified candidates. Do not stop at a plan or status
+summary. Read this issue and its linked handoff/runbooks, refresh the authoritative
+state, then act within the already authorized scope described below.
+
+Keep this issue's current-state section and links up to date at blocker,
+acceptance and runtime transitions. Preserve historical evidence. Completion
+means the eligible inventory has been addressed with explicit dispositions for
+excluded or blocked reports, the accepted fixes have passed final full-matrix
+validation, and the integration branch is ready for final promotion. A green
+worker workflow alone is not acceptance; inspect its collected review verdict.
+
 Snapshot: **2026-09-15, approximately 20:00 UTC / 22:00 Europe/Vienna**.
 Re-read GitHub state before acting: this document is a snapshot, not the controller's state store.
 
@@ -43,6 +59,23 @@ that are **not deployed to v8**; never run a live campaign under those definitio
 without an explicit reviewed transition. Fixes accumulate only on the integration
 branch. Final promotion to a release/development branch has not happened.
 
+## Pull requests and related tracking
+
+- **[PR #2885: open bug regressions](https://github.com/litedb-org/LiteDB/pull/2885)**
+  is open from `codex/implement-regression-tests-for-all` into `dev`. Its verified
+  head is the frozen test SHA `dd937719f7eee53c512f50ac604cab639bf42a4c`.
+  It supplies the regression source; it is not the accepted-fixes integration PR.
+- **No PR exists at this snapshot** for `integration/bugfixes`,
+  `automation/wholesale-bugfix`, or either #1002 candidate branch. This was checked
+  across all PR states by exact head branch. Accepted fixes were advanced directly
+  by the verified integrator; do not search for nonexistent per-fix merge PRs.
+- Historical test preparation: [closed PR #2884](https://github.com/litedb-org/LiteDB/pull/2884)
+  and [closed PR #2877](https://github.com/litedb-org/LiteDB/pull/2877).
+- [Issue #2889](https://github.com/litedb-org/LiteDB/issues/2889) is an older
+  automatically generated worker failure report from initial pipeline setup.
+  It is not the current #1002 blocker or the sweep's tracking issue. Use **#2890**
+  as the operational handoff.
+
 ## Accepted fixes
 
 | Issue | Accepted candidate | Required permanent cases added |
@@ -57,6 +90,22 @@ There are **18 permanent passing cases**. The accepted ledger at data commit
 commits also contain the active campaign history. Final matrix status is pending.
 Detailed run IDs and limitations are in the
 [canary log](https://github.com/litedb-org/LiteDB/blob/automation/wholesale-bugfix/docs/Tasks/Wholesale-Bugfix/Canary-log.md).
+
+### Accepted-candidate Actions evidence
+
+| Issue | Accepted CI | Three reviewer runs: behavior / compatibility / lifecycle |
+| --- | --- | --- |
+| #2874 | [compressed revalidation 34995923000](https://github.com/litedb-org/LiteDB/actions/runs/34995923000) | [34985735409](https://github.com/litedb-org/LiteDB/actions/runs/34985735409) / [34985757907](https://github.com/litedb-org/LiteDB/actions/runs/34985757907) / [34985781861](https://github.com/litedb-org/LiteDB/actions/runs/34985781861) |
+| #2839 | [34998488756](https://github.com/litedb-org/LiteDB/actions/runs/34998488756) | [34998827373](https://github.com/litedb-org/LiteDB/actions/runs/34998827373) / [34998853675](https://github.com/litedb-org/LiteDB/actions/runs/34998853675) / [34998880800](https://github.com/litedb-org/LiteDB/actions/runs/34998880800) |
+| #2869 | [35002677408](https://github.com/litedb-org/LiteDB/actions/runs/35002677408) | [35003040743](https://github.com/litedb-org/LiteDB/actions/runs/35003040743) / [35003069395](https://github.com/litedb-org/LiteDB/actions/runs/35003069395) / [35003094832](https://github.com/litedb-org/LiteDB/actions/runs/35003094832) |
+| #1506 | [35006858578](https://github.com/litedb-org/LiteDB/actions/runs/35006858578) | [35007227933](https://github.com/litedb-org/LiteDB/actions/runs/35007227933) / [35007255374](https://github.com/litedb-org/LiteDB/actions/runs/35007255374) / [35007282149](https://github.com/litedb-org/LiteDB/actions/runs/35007282149) |
+
+Full-matrix **pilot diagnostics only**: [baseline 34986503761](https://github.com/litedb-org/LiteDB/actions/runs/34986503761)
+and [candidate 34986507516](https://github.com/litedb-org/LiteDB/actions/runs/34986507516).
+Both used capture definition `cd6046b622b9dfa444bcc1286c69b523eecf9854` on
+[automation/bugfix-matrix-v3](https://github.com/litedb-org/LiteDB/tree/automation/bugfix-matrix-v3).
+These historical captures do not validate the current integration head and must
+not be mistaken for final promotion evidence or rerun for every individual fix.
 
 ## Immediate blocker: #1002 repair overlaps #2811
 
@@ -207,4 +256,4 @@ agent reasoning, additional review tests and hosted-runner setup dominate elapse
 
 ## Short continuation prompt
 
-> Continue the LiteDB wholesale bugfix sweep. Read docs/Tasks/Wholesale-Bugfix/HANDOFF.md on automation/wholesale-bugfix and refresh GitHub state first. The queue stopped at expansion-v8-1002 attempt 2 after CI 35013331767 found eight changed #2811 failures; resolve that overlap without weakening the gate or losing the lifecycle finding. Preserve frozen tests, Astra-high fixes, three Sol-high reviews and nit-only completion. Use compressed CI per attempt and the full matrix only after the sweep. Transition to a reviewed new runtime before #1224. Resume safely, monitor the runs, integrate only verified candidates into integration/bugfixes, and keep the tracking issue current.
+> Continue working on https://github.com/litedb-org/LiteDB/issues/2890
