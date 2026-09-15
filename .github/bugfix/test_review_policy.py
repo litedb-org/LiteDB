@@ -57,3 +57,6 @@ class NitCampaignTests(CampaignLoopTests):
         feedback = json.loads(fixes[-1][3]["feedback"])
         self.assertEqual({"behavior", "compatibility", "lifecycle"}, {review["role"] for review in feedback["reviews"]})
         self.assertEqual(4, sum(len(review["findings"]) for review in feedback["reviews"]))
+        rereviews = [entry for entry in SimulatedRuns.log if entry[0] == "dispatch"
+                     and entry[1] == "bugfix-validate.lock.yml"][-3:]
+        self.assertTrue(all(json.loads(entry[3]["repair_requirements"]) == feedback for entry in rereviews))

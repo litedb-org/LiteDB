@@ -130,6 +130,10 @@ class Campaign:
 
     def reviews(self):
         candidate = self.state["candidate_sha"]
+        fixes = [request for request in self.state["orchestration"]["requests"].values()
+                 if request.get("candidate_sha") == candidate]
+        require(len(fixes) == 1, "Review requires one authenticated candidate-producing request")
+        repair_requirements = fixes[0]["inputs"].get("feedback", "")
         pending = []
         for role in ROLES:
             if role in self.state["reviews"]:
@@ -138,7 +142,8 @@ class Campaign:
             key = f"review-{self.state['repair_attempts']}-{role}-{retries}"
             inputs = {"issue": str(self.state["issue"]), "base_sha": self.state["base_sha"],
                       "candidate_sha": candidate, "test_source_sha": self.state["test_source_sha"],
-                      "role": role, "source_run": str(self.state["evidence"]["broad"]["run_id"])}
+                      "role": role, "source_run": str(self.state["evidence"]["broad"]["run_id"]),
+                      "repair_requirements": repair_requirements}
             pending.append((role, self.runs.dispatch(key, "bugfix-validate.lock.yml", inputs)))
         # Dispatch all roles first so their independent agent runs overlap.
         completed = [(role, self.runs.wait(run_id)) for role, run_id in pending]
