@@ -94,11 +94,16 @@ class FullCiCollectorTests(unittest.TestCase):
                 test_job, repro_job]
         overlay_manifest = Path(".github/bugfix/issue-2794-harness-overlay.json")
         overlay_manifest_sha = hashlib.sha256(overlay_manifest.read_bytes()).hexdigest()
-        provenance = {"schema_version": 2, "issue": 2874, "source_sha": SOURCE,
+        issue_2825_overlay_manifest = Path(".github/bugfix/issue-2825-harness-overlay.json")
+        issue_2825_overlay_manifest_sha = hashlib.sha256(
+            issue_2825_overlay_manifest.read_bytes()).hexdigest()
+        provenance = {"schema_version": 3, "issue": 2874, "source_sha": SOURCE,
                       "checkout_sha": SOURCE, "evidence_definition_sha": DEFINITION,
                       "run_id": run_id,
                       "quarantine_sha256": hashlib.sha256(quarantine_raw).hexdigest(),
-                      "harness_overlay_manifest_sha256": overlay_manifest_sha}
+                      "harness_overlay_manifest_sha256": overlay_manifest_sha,
+                      "issue_2825_harness_overlay_manifest_sha256":
+                          issue_2825_overlay_manifest_sha}
         payloads = {
             "bugfix-full-ci-provenance": zipped(
                 {"full-ci-provenance.json": json.dumps(provenance)}),
@@ -139,7 +144,9 @@ class FullCiCollectorTests(unittest.TestCase):
                                       control_root=".", archive_dir=directory,
                                       quarantine=str(quarantine_path), role="baseline",
                                       failure_normalization=str(failure_policy),
-                                      harness_overlay_manifest=str(overlay_manifest))
+                                      harness_overlay_manifest=str(overlay_manifest),
+                                      issue_2825_harness_overlay_manifest=
+                                          str(issue_2825_overlay_manifest))
             with patch.object(collector, "CHECK_JOBS", {jobs[0]["name"]}), \
                     patch.object(collector, "EXPECTED_TEST_JOBS", 1), \
                     patch.object(collector, "api_json", side_effect=fake_api), \
@@ -155,6 +162,8 @@ class FullCiCollectorTests(unittest.TestCase):
                              evidence["harness_overlay_manifest_sha256"])
             self.assertEqual("issue-2794-per-wait-deadline",
                              evidence["harness_overlay"]["id"])
+            self.assertEqual("issue-2825-data-insert-secondary-failure",
+                             evidence["issue_2825_harness_overlay"]["id"])
             self.assertEqual("harness_error", evidence["jobs"][2]["verdict"])
             self.assertIn("CS0117", "\n".join(evidence["jobs"][2]["diagnostics"]))
             self.assertIn("package: Expected output containing BUG_2854_CONFIRMED",
@@ -192,13 +201,50 @@ class FullCiCollectorTests(unittest.TestCase):
                 "artifacts/harness-overlay-provenance.json": json.dumps(record),
             })
 
+        overlays = {"Issue_2794_SharedJobHandoff": (
+            manifest, manifest_sha, collector.harness_overlay_contract)}
         result = collector.repro_job(
-            job, payload(provenance), artifact, manifest, manifest_sha, SOURCE, DEFINITION)
+            job, payload(provenance), artifact, overlays, SOURCE, DEFINITION)
         self.assertEqual(provenance, result["harness_overlay"])
         changed = dict(provenance, effective_git_blob_sha1="d" * 40)
         with self.assertRaisesRegex(collector.CollectionError, "trusted definition"):
             collector.repro_job(
-                job, payload(changed), artifact, manifest, manifest_sha, SOURCE, DEFINITION)
+                job, payload(changed), artifact, overlays, SOURCE, DEFINITION)
+
+    def test_requires_exact_issue_2825_overlay_provenance(self):
+        manifest, manifest_sha = collector.load_issue_2825_harness_overlay(
+            ".github/bugfix/issue-2825-harness-overlay.json")
+        target_os = "ubuntu-22.04"
+        provenance = collector.issue_2825_harness_overlay_contract(
+            manifest, manifest_sha, SOURCE, DEFINITION, target_os)
+        variant = {"Expected": 1, "ExpectedExitCode": 10,
+                   "ExpectedLogContains": "VERIFIED_2825", "Actual": 1,
+                   "Met": True, "ExitCode": 10, "UseProjectReference": True,
+                   "FailureReason": None}
+        report = {"Repros": [{"Id": "Issue_2825_FreeListRace", "State": 1,
+                               "Failed": False, "Warned": False,
+                               "Package": variant, "Latest": variant}]}
+        job = {"id": 1,
+               "name": f"repro-runner / Run Issue_2825_FreeListRace on {target_os}",
+               "status": "completed", "conclusion": "success", "html_url": "job"}
+        artifact = {"id": 2, "name": "logs-Issue_2825-ubuntu-22.04"}
+
+        def payload(record):
+            return zipped({
+                "artifacts/repro-report.json": json.dumps(report),
+                "artifacts/repro-console.log": "VERIFIED_2825\n",
+                "artifacts/harness-overlay-provenance.json": json.dumps(record),
+            })
+
+        overlays = {"Issue_2825_FreeListRace": (
+            manifest, manifest_sha, collector.issue_2825_harness_overlay_contract)}
+        result = collector.repro_job(
+            job, payload(provenance), artifact, overlays, SOURCE, DEFINITION)
+        self.assertEqual(provenance, result["harness_overlay"])
+        with self.assertRaisesRegex(collector.CollectionError, "trusted definition"):
+            collector.repro_job(
+                job, payload(dict(provenance, effective_blob_sha256="d" * 64)), artifact,
+                overlays, SOURCE, DEFINITION)
 
     def test_preserves_duplicate_rendered_discovery_names(self):
         raw = ("The following Tests are available:\n"

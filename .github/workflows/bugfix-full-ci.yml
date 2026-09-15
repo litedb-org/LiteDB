@@ -12,6 +12,9 @@ on:
       - .github/bugfix/issue-2794-harness-overlay.json
       - .github/bugfix/issue-2794-worker-overlay.cs
       - .github/scripts/apply_issue_2794_harness_overlay.py
+      - .github/bugfix/issue-2825-harness-overlay.json
+      - .github/bugfix/issue-2825-classifier-overlay.cs
+      - .github/scripts/apply_issue_2825_harness_overlay.py
   workflow_dispatch:
     inputs:
       issue:
@@ -34,6 +37,10 @@ on:
         description: SHA-256 of the trusted #2794 CI harness overlay manifest
         required: true
         type: string
+      issue_2825_harness_overlay_manifest_sha256:
+        description: SHA-256 of the trusted #2825 CI harness overlay manifest
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -48,6 +55,7 @@ jobs:
       evidence-definition-sha: ${{ inputs.evidence_definition_sha }}
       quarantine-sha256: ${{ inputs.quarantine_sha256 }}
       harness-overlay-manifest-sha256: ${{ inputs.harness_overlay_manifest_sha256 }}
+      issue-2825-harness-overlay-manifest-sha256: ${{ inputs.issue_2825_harness_overlay_manifest_sha256 }}
 
   repro-runner:
     if: github.event_name == 'workflow_dispatch'
@@ -58,3 +66,4 @@ jobs:
       ref: ${{ inputs.source_sha }}
       evidence_definition_sha: ${{ inputs.evidence_definition_sha }}
       issue_2794_harness_overlay: true
+      issue_2825_harness_overlay: true

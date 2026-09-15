@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "id": "issue-2825-data-insert-secondary-failure",
+  "issue": 2825,
+  "source_path": "LiteDB.ReproRunner/Repros/Issue_2825_FreeListRace/FreeListFailureClassifier.cs",
+  "overlay_path": ".github/bugfix/issue-2825-classifier-overlay.cs",
+  "original_git_blob_sha1": "b5f54baf13ae55272d7550c8983aaa61da2e416e",
+  "original_blob_sha256": "83b51c5c65c091b43094b6feedb1bf6cfc0cf14e6cd6dc43d3c4e9d00b1d3ec6",
+  "effective_git_blob_sha1": "90a1a37d29cfa0ca57a229d8214f44d30fdafbbd",
+  "effective_blob_sha256": "2776a4f3be0ecb8175fd5904a0eeb2b1d9637814d43c4e0f3da5e4ae0dbac124",
+  "dependency_blobs": {
+    "LiteDB.ReproRunner/Repros/Issue_2825_FreeListRace/Program.cs": {
+      "git_blob_sha1": "2f96c18abde832c59ba814a895e70653a70c670b",
+      "blob_sha256": "3996d793f3deac0c0693481a89a4a35aa8cc38f51da9d256930a7983edf873db"
+    },
+    "LiteDB.ReproRunner/Repros/Issue_2825_FreeListRace/repro.json": {
+      "git_blob_sha1": "e3d9f80ed9745ea242122a2ba820bb74584af567",
+      "blob_sha256": "01a4634dd3d6d8b5f89afc0783838e29c3f963fc4827e47517f11e350823f704"
+    },
+    "LiteDB.Tests/Issues/Issue2825_Tests.cs": {
+      "git_blob_sha1": "ea66b14209e7f22eff76928324e028aabdd18366",
+      "blob_sha256": "14bdc3e2c6a3469fcbf1dfe67b20c5bda121dac3178df0b04b4deee2da841f0a"
+    }
+  },
+  "primary_failure": {
+    "error_code": "INVALID_DATAFILE_STATE",
+    "message": "empty page must be defined as empty type",
+    "any_frame": [
+      "LiteDB.Engine.Snapshot.NewPage",
+      "LiteDB.Engine.EngineState.Validate",
+      "LiteDB.Engine.LiteEngine.Insert"
+    ]
+  },
+  "secondary_failure": {
+    "error_code": "INVALID_DATAFILE_STATE",
+    "message": "page must be writable to support changes",
+    "adjacent_frames": [
+      "at LiteDB.Engine.BasePage.InternalInsert(",
+      "at LiteDB.Engine.BasePage.Insert(",
+      "at LiteDB.Engine.DataPage.InsertBlock(",
+      "at LiteDB.Engine.DataService.<>c__DisplayClass4_0.<<Insert>g__source|0>d.MoveNext(",
+      "at LiteDB.Engine.BufferWriter.MoveForward(",
+      "at LiteDB.Engine.BufferWriter.Write(",
+      "at LiteDB.Engine.BufferWriter.WriteString(",
+      "at LiteDB.Engine.BufferWriter.WriteElement(",
+      "at LiteDB.Engine.BufferWriter.WriteDocument(",
+      "at LiteDB.Engine.DataService.Insert(",
+      "at LiteDB.Engine.LiteEngine.InsertDocument("
+    ]
+  },
+  "workload": {
+    "attempts": 3,
+    "workers": 4,
+    "rounds": 30,
+    "rows": 12
+  }
+}

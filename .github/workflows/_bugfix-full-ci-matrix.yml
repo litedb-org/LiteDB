@@ -18,6 +18,9 @@ on:
       harness-overlay-manifest-sha256:
         required: true
         type: string
+      issue-2825-harness-overlay-manifest-sha256:
+        required: true
+        type: string
       sdk-matrix:
         required: false
         type: string
@@ -115,6 +118,7 @@ jobs:
           ISSUE: ${{ inputs.issue }}
           QUARANTINE_SHA256: ${{ inputs.quarantine-sha256 }}
           HARNESS_OVERLAY_MANIFEST_SHA256: ${{ inputs.harness-overlay-manifest-sha256 }}
+          ISSUE_2825_HARNESS_OVERLAY_MANIFEST_SHA256: ${{ inputs.issue-2825-harness-overlay-manifest-sha256 }}
         run: |
           test "${GITHUB_WORKFLOW_SHA}" = "${EVIDENCE_DEFINITION_SHA}"
           python3 - <<'PY'
@@ -122,7 +126,7 @@ jobs:
           import os
           import subprocess
           evidence = {
-              "schema_version": 2,
+              "schema_version": 3,
               "issue": int(os.environ["ISSUE"]),
               "source_sha": os.environ["SOURCE_SHA"],
               "checkout_sha": subprocess.check_output(
@@ -132,6 +136,8 @@ jobs:
               "quarantine_sha256": os.environ["QUARANTINE_SHA256"],
               "harness_overlay_manifest_sha256": os.environ[
                   "HARNESS_OVERLAY_MANIFEST_SHA256"],
+              "issue_2825_harness_overlay_manifest_sha256": os.environ[
+                  "ISSUE_2825_HARNESS_OVERLAY_MANIFEST_SHA256"],
           }
           with open("full-ci-provenance.json", "w", encoding="utf-8") as output:
               json.dump(evidence, output, indent=2)

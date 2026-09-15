@@ -8,6 +8,7 @@ import tempfile
 import unittest
 
 from apply_issue_2794_harness_overlay import provenance_contract
+from apply_issue_2825_harness_overlay import provenance_contract as issue_2825_provenance_contract
 from compare_bugfix_full_ci import main, overlay_summary
 
 
@@ -21,7 +22,7 @@ PASSING = "Tests.Ordinary.Passes"
 INTERMITTENT = "Tests.Intermittent.Case"
 INTERMITTENT_CLASS = "Tests.Intermittent"
 QUARANTINE = {
-    "schema_version": 1, "expected_original_jobs": 9, "expected_remaining_jobs": 6,
+    "schema_version": 1, "expected_original_jobs": 12, "expected_remaining_jobs": 9,
     "quarantines": [{"kind": "repro", "issue": 2854,
                      "repro": "Issue_2854_CircularPageList", "status": "unverified",
                      "authorized_on": "2026-09-15", "authorization": "test",
@@ -37,6 +38,10 @@ OVERLAY_PATH = Path(".github/bugfix/issue-2794-harness-overlay.json")
 OVERLAY_RAW = OVERLAY_PATH.read_bytes()
 OVERLAY = json.loads(OVERLAY_RAW)
 OVERLAY_SHA = hashlib.sha256(OVERLAY_RAW).hexdigest()
+ISSUE_2825_OVERLAY_PATH = Path(".github/bugfix/issue-2825-harness-overlay.json")
+ISSUE_2825_OVERLAY_RAW = ISSUE_2825_OVERLAY_PATH.read_bytes()
+ISSUE_2825_OVERLAY = json.loads(ISSUE_2825_OVERLAY_RAW)
+ISSUE_2825_OVERLAY_SHA = hashlib.sha256(ISSUE_2825_OVERLAY_RAW).hexdigest()
 
 
 def test(name, outcome="passed", classification=None, failure=None):
@@ -71,6 +76,14 @@ def bundle(run_id, sha, target_passes=False, repro_verdict="bug_present", role=N
             "harness_overlay": provenance_contract(
                 OVERLAY, OVERLAY_SHA, sha, DEFINITION_SHA, target_os),
         })
+    for target_os in ("ubuntu-22.04", "ubuntu-24.04", "windows-2022"):
+        jobs.append({
+            "name": f"repro-runner / Run Issue_2825_FreeListRace on {target_os}",
+            "kind": "repro", "status": "completed", "conclusion": "success",
+            "verdict": "behavior_correct", "classification": "bounded-control-passed",
+            "harness_overlay": issue_2825_provenance_contract(
+                ISSUE_2825_OVERLAY, ISSUE_2825_OVERLAY_SHA, sha, DEFINITION_SHA, target_os),
+        })
     return {
         "schema_version": 1,
         "accepted": True,
@@ -82,6 +95,9 @@ def bundle(run_id, sha, target_passes=False, repro_verdict="bug_present", role=N
         "quarantine_sha256": QUARANTINE_SHA,
         "harness_overlay_manifest_sha256": OVERLAY_SHA,
         "harness_overlay": overlay_summary(OVERLAY, OVERLAY_SHA, DEFINITION_SHA),
+        "issue_2825_harness_overlay_manifest_sha256": ISSUE_2825_OVERLAY_SHA,
+        "issue_2825_harness_overlay": overlay_summary(
+            ISSUE_2825_OVERLAY, ISSUE_2825_OVERLAY_SHA, DEFINITION_SHA),
         "coverage_gaps": QUARANTINE["quarantines"],
         "run": {"id": run_id, "head_sha": DEFINITION_SHA,
                 "workflow_path": ".github/workflows/bugfix-full-ci.yml",
@@ -104,6 +120,8 @@ class FullCiComparisonTests(unittest.TestCase):
         self.failure_policy.write_bytes(FAILURE_POLICY_RAW)
         self.overlay_manifest = self.root / "issue-2794-harness-overlay.json"
         self.overlay_manifest.write_bytes(OVERLAY_RAW)
+        self.issue_2825_overlay_manifest = self.root / "issue-2825-harness-overlay.json"
+        self.issue_2825_overlay_manifest.write_bytes(ISSUE_2825_OVERLAY_RAW)
         self.baseline_policy = self.root / "known-failure-classes.json"
         self.baseline_policy.write_text(json.dumps({
             "schema_version": 1,
@@ -136,6 +154,8 @@ class FullCiComparisonTests(unittest.TestCase):
                      "--failure-normalization", str(self.failure_policy),
                      "--baseline-policy", str(self.baseline_policy),
                      "--harness-overlay-manifest", str(self.overlay_manifest),
+                     "--issue-2825-harness-overlay-manifest",
+                     str(self.issue_2825_overlay_manifest),
                      "--output", str(self.output)]
         with redirect_stdout(io.StringIO()):
             exit_code = main(arguments)
@@ -232,6 +252,13 @@ class FullCiComparisonTests(unittest.TestCase):
         self.candidate = bundle(11, CANDIDATE_SHA, target_passes=True)
         self.candidate["harness_overlay"]["effective_git_blob_sha1"] = "d" * 40
         self.assert_rejected("overlay identity")
+
+        self.candidate = bundle(11, CANDIDATE_SHA, target_passes=True)
+        self.candidate["jobs"][6].pop("harness_overlay")
+        self.assert_rejected("#2825 job has untrusted harness overlay provenance")
+        self.candidate = bundle(11, CANDIDATE_SHA, target_passes=True)
+        self.candidate["issue_2825_harness_overlay"]["primary_failure"]["message"] = "changed"
+        self.assert_rejected("#2825 harness overlay identity")
 
     def test_reports_reviewed_intermittent_flip_as_structured_inconclusive(self):
         self.baseline["jobs"][0]["tests"].append(test(INTERMITTENT))
