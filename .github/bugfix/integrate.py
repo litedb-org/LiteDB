@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import sys
 
+from errors import InfrastructureError
 from evidence import event_for
 from integrate_evidence import acceptance_evidence, evidence_manifest, validate_archived_evidence
 from integrate_storage import IntegrationStore, LEDGER_NAME, LOCK_NAME, encoded
@@ -201,6 +202,9 @@ def main(argv=None):
 if __name__ == "__main__":
     try:
         main()
+    except InfrastructureError as error:
+        print(f"bugfix-integration infrastructure: {error}", file=sys.stderr)
+        sys.exit(75)
     except (Rejected, ValueError, OSError, KeyError, TypeError) as error:
         print(f"bugfix-integration: {error}", file=sys.stderr)
         sys.exit(1)

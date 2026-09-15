@@ -1,12 +1,13 @@
 """One-issue repair loop; state and dispatch journals survive process restarts."""
 
 from artifacts import download
+from errors import InfrastructureError
 from evidence import check_event, event_for, review_event
 from feedback import repair_feedback
-from patching import create_candidate, publish_candidate
+from patching import CandidateConflict, create_candidate, publish_candidate
 from passing import load_snapshot
 from profiles import build_profile, production_evidence, profile_complete_check
-from runs import Runs, select_artifact
+from runs import Pending, Runs, select_artifact
 from state import IDENTITY, ROLES, Rejected, apply_event, new_state, require
 from storage import Store
 
@@ -103,18 +104,19 @@ class Campaign:
         self.refresh()
         require(self.state["phase"] == "repairing", "Campaign advanced concurrently while worker ran")
         journal = self.state["orchestration"]
-        request = journal["requests"][key]
+        request = next(item for item in journal["requests"].values() if item.get("run_id") == run_id)
         try:
-            require(workflow_run["conclusion"] == "success", f"Fix worker concluded {workflow_run['conclusion']}")
+            if workflow_run["conclusion"] != "success":
+                raise ValueError(f"Fix worker concluded {workflow_run['conclusion']}")
             if "candidate_sha" not in request:
                 artifact = select_artifact(self.runs.artifacts(run_id), f"bugfix-fix-{self.state['issue']}")
                 data = download(self.args.repo, artifact)
                 candidate, metadata = create_candidate(self.args.repository, self.control, self.args.repo,
                                                         self.state, source_sha, run_id, data)
-                request.update(candidate_sha=candidate, worker_metadata=metadata,
-                               branch=f"fix/issue-{self.state['issue']}-{self.state['campaign']}-a{attempt}")
-                self.save()
-            publish_candidate(self.args.repository, self.args.repo, request["branch"], request["candidate_sha"])
+            else:
+                candidate, metadata = request["candidate_sha"], request["worker_metadata"]
+        except InfrastructureError:
+            raise
         except (Rejected, ValueError, KeyError, OSError) as error:
             journal["worker_retries"] += 1
             request["failure"] = str(error)
@@ -122,6 +124,21 @@ class Campaign:
             if journal["worker_retries"] > 2:
                 self.block(f"Fix worker infrastructure/evidence retries exhausted: {error}")
             return
+        branch = f"fix/issue-{self.state['issue']}-{self.state['campaign']}-a{attempt}"
+        try:
+            publish_candidate(self.args.repository, self.args.repo, branch, candidate)
+        except CandidateConflict:
+            raise
+        except Rejected as error:
+            # Keep the SAME authenticated worker request. A transport failure may
+            # follow a successful push; deterministic recreation reconciles it.
+            request["publication_errors"] = request.get("publication_errors", 0) + 1
+            request["publication_error"] = str(error)[:2000]
+            self.save()
+            raise Pending("Candidate publication requires readback on a later tick") from error
+        if "candidate_sha" not in request:
+            request.update(candidate_sha=candidate, worker_metadata=metadata, branch=branch)
+            self.save()
         event = event_for(self.state, "candidate", run_id, candidate_sha=request["candidate_sha"],
                           branch=request["branch"], worker_metadata=request["worker_metadata"])
         if self.state.get("protocol") == "compressed-v1":
@@ -151,12 +168,48 @@ class Campaign:
         require(self.state["candidate_sha"] == candidate, "Candidate changed during review")
         events = [review_event(self.args.repo, self.state, result, self.runs.artifacts(result["id"]), role)
                   for role, result in completed]
-        self.state["orchestration"].setdefault("review_reports", {}).setdefault(candidate, []).extend(events)
+        reports = self.state["orchestration"].setdefault("review_reports", {}).setdefault(candidate, [])
+        existing_ids = {event["event_id"] for event in reports}
+        reports.extend(event for event in events if event["event_id"] not in existing_ids)
         self.save()
         for event in events:
             if self.state["phase"] != "reviewing":
                 break
             self.record(event)
+
+    def advance_once(self):
+        """Poll/consume one phase or dispatch its work; never wait for a workflow."""
+        self.runs.nonblocking = True
+        self.refresh()
+        if self.state["phase"] in ("ready", "integrated", "blocked"):
+            return self.state
+        try:
+            self.advance_phase()
+        except Pending:
+            pass
+        except (Rejected, ValueError, KeyError, OSError) as error:
+            self.record_failure(error)
+            raise
+        return self.state
+
+    def advance_phase(self):
+        phase = self.state["phase"]
+        if phase in ("baseline", "focused", "broad", "acceptance"):
+            self.checks()
+        elif phase == "repairing":
+            self.repair()
+        elif phase == "reviewing":
+            self.reviews()
+        else:
+            raise Rejected(f"Unknown campaign phase: {phase}")
+
+    def record_failure(self, error):
+        if isinstance(error, InfrastructureError):
+            return
+        # State-write conflicts and changed remote state must not be overwritten.
+        latest, sha = self.store.read(self.args.campaign)
+        if sha == self.state_sha and latest and not latest["paused"]:
+            self.block(str(error))
 
     def execute(self):
         while True:
@@ -166,17 +219,7 @@ class Campaign:
             if phase in ("ready", "integrated", "blocked"):
                 return self.state
             try:
-                if phase in ("baseline", "focused", "broad", "acceptance"):
-                    self.checks()
-                elif phase == "repairing":
-                    self.repair()
-                elif phase == "reviewing":
-                    self.reviews()
-                else:
-                    raise Rejected(f"Unknown campaign phase: {phase}")
+                self.advance_phase()
             except (Rejected, ValueError, KeyError, OSError) as error:
-                # State-write conflicts and changed remote state must not be overwritten.
-                latest, sha = self.store.read(self.args.campaign)
-                if sha == self.state_sha and not latest["paused"]:
-                    self.block(str(error))
+                self.record_failure(error)
                 raise

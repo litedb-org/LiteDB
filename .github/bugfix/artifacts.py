@@ -8,6 +8,7 @@ import stat
 import subprocess
 import zipfile
 
+from errors import InfrastructureError
 from state import Rejected, require
 from review_policy import only_nits
 
@@ -64,7 +65,8 @@ def download(repo, artifact):
             0 < artifact["size_in_bytes"] <= MAX_ARCHIVE, "Artifact exceeds download bound")
     result = subprocess.run(["gh", "api", f"repos/{repo}/actions/artifacts/{artifact['id']}/zip"],
                             capture_output=True, check=False)
-    require(result.returncode == 0, "Cannot download evidence archive")
+    if result.returncode != 0:
+        raise InfrastructureError("Cannot download evidence archive")
     require(len(result.stdout) <= MAX_ARCHIVE, "Downloaded archive exceeds size bound")
     return result.stdout
 

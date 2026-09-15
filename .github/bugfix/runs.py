@@ -5,7 +5,8 @@ import time
 from urllib.parse import quote
 import uuid
 
-from state import require
+from budget_cooldown import notice
+from state import Rejected, require
 from storage import github, run
 
 
@@ -18,6 +19,10 @@ def match_run(runs, request_id, workflow_sha, workflow_ref):
     return matches[0] if matches else None
 
 
+class Pending(Exception):
+    """The durable request is still running or awaiting GitHub visibility."""
+
+
 class Runs:
     def __init__(self, repo, workflow_ref, workflow_sha, journal, save, max_runs=40, timeout_minutes=180):
         self.repo = repo
@@ -27,6 +32,7 @@ class Runs:
         self.save = save
         self.max_runs = max_runs
         self.timeout_seconds = timeout_minutes * 60
+        self.nonblocking = False
 
     def _find(self, workflow, request_id):
         path = f"actions/workflows/{quote(workflow, safe='')}/runs?event=workflow_dispatch&per_page=100"
@@ -35,12 +41,21 @@ class Runs:
 
     def dispatch(self, key, workflow, inputs):
         requests = self.journal.setdefault("requests", {})
+        while key in requests and requests[key].get("budget"):
+            require(self.nonblocking, "Daily budget recovery requires hosted ticks")
+            if time.time() < requests[key]["budget"]["resume_after"]:
+                raise Pending("Daily credit cap is in durable cooldown")
+            key += "-budget"
         if key in requests:
             request = requests[key]
             require(request["workflow"] == workflow and request["inputs"] == inputs, "Pending dispatch inputs changed")
             if "run_id" in request:
                 return request["run_id"]
             found = self._find(workflow, request["request_id"])
+            if found is None and self.nonblocking:
+                require(time.time() - request["started_at"] < 600,
+                        "Dispatch remains uncertain after ten minutes; manual investigation required")
+                return None
             require(found is not None, "Previous dispatch is uncertain; inspect GitHub before resuming")
         else:
             require(len(requests) < self.max_runs, "Campaign workflow-run budget exhausted")
@@ -54,9 +69,20 @@ class Runs:
             for name, value in {**inputs, "request_id": request["request_id"]}.items():
                 arguments.extend(["--raw-field", f"{name}={value}"])
             print(f"Dispatch {workflow}: {request['request_id']}", flush=True)
-            run(arguments)
-            found = None
-            for _ in range(24):
+            if self.nonblocking:
+                try:
+                    run(arguments)
+                except Rejected as error:
+                    # A failed client can still have dispatched the request. Never repeat it.
+                    request["dispatch_error"] = str(error)[:2000]
+                    self.save()
+                found = self._find(workflow, request["request_id"])
+                if found is None:
+                    return None
+            else:
+                run(arguments)
+                found = None
+            for _ in range(0 if self.nonblocking else 24):
                 found = self._find(workflow, request["request_id"])
                 if found:
                     break
@@ -68,6 +94,8 @@ class Runs:
         return found["id"]
 
     def wait(self, run_id):
+        if run_id is None:
+            raise Pending("Dispatch is awaiting visibility")
         request = next(item for item in self.journal["requests"].values() if item.get("run_id") == run_id)
         previous = None
         while True:
@@ -81,8 +109,17 @@ class Runs:
                 print(f"Run {run_id}: {status} {evidence.get('conclusion') or ''}".rstrip(), flush=True)
                 previous = status
             if status == "completed":
+                if self.nonblocking and request["workflow"] in ("bugfix-fix.lock.yml", "bugfix-validate.lock.yml"):
+                    budget = notice(self.repo, evidence, self.artifacts(run_id), self.jobs(run_id))
+                    if budget:
+                        request["budget"] = budget
+                        self.journal["cooldown_until"] = max(self.journal.get("cooldown_until", 0), budget["resume_after"])
+                        self.save()
+                        raise Pending("Daily credit cap is in durable cooldown")
                 return evidence
             require(time.time() - request["started_at"] < self.timeout_seconds, "Workflow exceeded campaign timeout")
+            if self.nonblocking:
+                raise Pending(f"Run {run_id} is {status}")
             time.sleep(20)
 
     def artifacts(self, run_id):

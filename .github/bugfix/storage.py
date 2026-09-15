@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 
 from artifacts import download, validate
+from errors import InfrastructureError
 from state import Rejected, require
 
 STATE_BRANCH = "automation/bugfix-state"
@@ -16,12 +17,19 @@ def run(command, cwd=None, input_text=None):
     result = subprocess.run(command, cwd=cwd, input=input_text, text=True, encoding="utf-8",
                             capture_output=True, check=False)
     if result.returncode:
-        raise Rejected(f"Command failed ({result.returncode}): {result.stderr.strip()}")
+        raise InfrastructureError(f"Command failed ({result.returncode}): {result.stderr.strip()}")
     return result.stdout.strip()
 
 
 def github(repo, path):
-    return json.loads(run(["gh", "api", f"repos/{repo}/{path}"]))
+    raw = run(["gh", "api", f"repos/{repo}/{path}"])
+    try:
+        value = json.loads(raw)
+        if not isinstance(value, (dict, list)):
+            raise ValueError("Expected GitHub object or array")
+        return value
+    except (ValueError, TypeError) as error:
+        raise InfrastructureError("GitHub returned incomplete or malformed JSON") from error
 
 
 def verify_run(repo, event, allowed_workflows):
@@ -69,8 +77,13 @@ class Store:
         if result.returncode:
             if "(HTTP 404)" in result.stderr:
                 return None
-            raise Rejected(f"Cannot read state branch: {result.stderr.strip()}")
-        return json.loads(result.stdout)["object"]["sha"]
+            raise InfrastructureError(f"Cannot read state branch: {result.stderr.strip()}")
+        try:
+            value = json.loads(result.stdout)["object"]["sha"]
+            require(isinstance(value, str) and re.fullmatch(r"[0-9a-f]{40}", value), "Malformed state ref")
+            return value
+        except (ValueError, KeyError, TypeError, Rejected) as error:
+            raise InfrastructureError("GitHub returned an incomplete state ref") from error
 
     def read(self, campaign):
         sha = self.current_sha()

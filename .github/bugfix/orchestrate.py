@@ -7,6 +7,7 @@ import re
 import sys
 
 from campaign import Campaign
+from errors import InfrastructureError
 from patching import git, worktree
 from state import Rejected, new_state, require
 
@@ -25,6 +26,7 @@ def arguments(argv=None):
     parser.add_argument("--repository", type=Path, default=Path.cwd())
     parser.add_argument("--max-runs", type=int, default=40)
     parser.add_argument("--timeout-minutes", type=int, default=180)
+    parser.add_argument("--tick", action="store_true", help="Advance one durable phase without waiting for workflows")
     parser.add_argument("--dry-run", action="store_true", help="Print the bounded operation plan without any remote actions")
     args = parser.parse_args(argv)
     require(re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", args.repo), "Invalid GitHub repository")
@@ -56,16 +58,20 @@ def main(argv=None):
         contract = manifest["issues"].get(str(args.issue))
         require(contract is not None and contract["frozen_test_revision"] == args.test_source_sha,
                 "Issue has no approved contract at the pinned workflow revision")
-        result = Campaign(args, control).execute()
+        campaign = Campaign(args, control)
+        result = campaign.advance_once() if args.tick else campaign.execute()
         print(json.dumps({"campaign": result["campaign"], "phase": result["phase"],
                           "candidate_sha": result["candidate_sha"], "repair_attempts": result["repair_attempts"],
                           "blocked_reason": result.get("blocked_reason")}, indent=2))
-        return 0 if result["phase"] in ("ready", "integrated") else 1
+        return 0 if (args.tick and result["phase"] != "blocked") or result["phase"] in ("ready", "integrated") else 1
 
 
 if __name__ == "__main__":
     try:
         sys.exit(main())
+    except InfrastructureError as error:
+        print(f"bugfix-orchestrator infrastructure: {error}", file=sys.stderr)
+        sys.exit(75)
     except (Rejected, ValueError, OSError, KeyError) as error:
         print(f"bugfix-orchestrator: {error}", file=sys.stderr)
         sys.exit(1)

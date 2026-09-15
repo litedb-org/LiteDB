@@ -24,7 +24,7 @@ def ancestor(repo, candidate, base):
     return comparison.get("status") in ("identical", "ahead") and comparison.get("merge_base_commit", {}).get("sha") == candidate
 
 
-def inspect_queue_issue(args, issue, contracts):
+def inspect_queue_issue(args, issue, contracts, allow_terminal=False):
     """Take one immutable data snapshot; no write, dispatch, checkout or fetch."""
     store = IntegrationStore(args.repo)
     ledger, data_sha = store.read(LEDGER_NAME)
@@ -39,6 +39,13 @@ def inspect_queue_issue(args, issue, contracts):
     if entry:
         expected_tests = sorted(case["name"] for case in contracts[str(issue)]["regressions"] + contracts[str(issue)]["controls"])
         require(sorted(entry["tests"]) == expected_tests, "Accepted test identities differ from the pinned issue contract")
+        archived = github(args.repo, f"contents/evidence/{entry['campaign']}/test-contract.json?ref={data_sha}")
+        require(archived.get("type") == "file" and archived.get("encoding") == "base64"
+                and 0 < archived.get("size", 0) <= 1024 * 1024, "Accepted contract archive is missing or invalid")
+        raw_contract = base64.b64decode("".join(archived["content"].splitlines()), validate=True)
+        require(len(raw_contract) == archived["size"], "Accepted contract archive size mismatch")
+        archived_contract = json.loads(raw_contract)
+        require(archived_contract == contracts[str(issue)], "Accepted contract differs from the pinned issue contract")
         accepted = store.read_at(entry["campaign"], data_sha)
         require(accepted is not None and accepted.get("phase") == "integrated" and not accepted.get("paused"),
                 "Accepted ledger lacks a completed integrated campaign")
@@ -52,6 +59,11 @@ def inspect_queue_issue(args, issue, contracts):
                              ("test_source_sha", args.test_source_sha)):
             require(state.get(field) == value, f"Existing queue campaign identity changed: {field}")
         require(state.get("orchestration", {}).get("workflow_ref") == args.workflow_ref, "Existing campaign workflow ref changed")
+        if allow_terminal and (state.get("paused") or state.get("phase") == "blocked"):
+            return {"issue": issue, "campaign": campaign,
+                    "action": "paused" if state.get("paused") else "defer_blocked",
+                    "base_sha": state["base_sha"], "candidate_sha": state.get("candidate_sha"),
+                    "data_sha": data_sha, "phase": state["phase"], "resume_integration": False}
         require(not state.get("paused") and state.get("phase") not in ("blocked", "integrated"),
                 f"Queue stops at {campaign}: phase={state.get('phase')}, paused={state.get('paused')}")
         require(state.get("phase") in ("baseline", "repairing", "broad", "reviewing", "ready")
