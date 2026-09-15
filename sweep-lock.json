@@ -1,16 +1,15 @@
 {
-  "acquired_at": 1789511413.4012187,
-  "active": false,
+  "acquired_at": 1789512017.8859878,
+  "active": true,
   "bootstrap_blob_sha": "29e3a758e7f7332466c90e4e235b8664cde19ac7",
   "host_sha": "9b2f122fb85ee16ed1fd1457df19fa9811769945",
   "owner": {
     "run_attempt": 1,
-    "run_id": 35031262874
+    "run_id": 35032097589
   },
-  "previous_token": "d57ae361835943188808f006de255028",
-  "released_at": 1789511425.333718,
+  "previous_token": "ec859eefa3bf4524a5d22bb3e5fe4353",
   "scheduler_sha": "5a823c25057fa4eaffb8cdfbd546ae3f5c360f37",
   "schema_version": 1,
   "sweep": "hosted-v9-main",
-  "token": "ec859eefa3bf4524a5d22bb3e5fe4353"
+  "token": "04f63807e09c4496ba35e95679bf3277"
 }
