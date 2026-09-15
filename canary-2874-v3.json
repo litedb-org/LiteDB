@@ -1,8 +1,10 @@
 {
   "base_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+  "blocked_reason": "The Codex CLI unknown-model fallback omits the requested high reasoning effort despite configured high. This candidate remains unaccepted pending verified runtime behavior and a fresh compliant worker. The broad Issue2870 presentation-classification differences require a separate grading-policy investigation; existing evidence is preserved.",
   "campaign": "canary-2874-v3",
   "candidate_sha": "ed795329beeec37c92dc8eb11e1c4086e9fd14ee",
   "events": {
+    "operator-block-v3-reasoning-20260915": "79daeb85005a341883176510358ff160bc3078929eaa32f5939d4a133fbfe695",
     "run-34980331557-baseline-ci": "e5248bd026e30bb7144b2395a3069fb7f20601a0e78ec21ca1cc58cf5f880c16",
     "run-34980481504-candidate-ci": "1517c6cd1eb885ceab9bc215a8f6981d81f8c7a6768c7fb021511d9a1ecc9126",
     "run-34981481193-focused-ci": "161381461078738bb14a810f1fee598a279defd32c11097c706e10cc4a734478",
@@ -205,6 +207,25 @@
       "schema_version": 1,
       "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
       "workflow_sha": "13685bb6d1680c7041f9f03b460e45c37a3acba3"
+    },
+    {
+      "base_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "campaign": "canary-2874-v3",
+      "candidate_sha": "ed795329beeec37c92dc8eb11e1c4086e9fd14ee",
+      "event_id": "operator-block-v3-reasoning-20260915",
+      "issue": 2874,
+      "kind": "block",
+      "passing_contract": {
+        "case_count": 0,
+        "cases_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "ledger_sha256": "c9f58a9c7ddd359d61b38aebee80f31fbe0f7d5135a5830dbfa58f514891b7f3",
+        "schema_version": 1,
+        "state_commit": "92901cbe1253f5ba1e6c9b9b9167732f2320c1c4"
+      },
+      "reason": "The Codex CLI unknown-model fallback omits the requested high reasoning effort despite configured high. This candidate remains unaccepted pending verified runtime behavior and a fresh compliant worker. The broad Issue2870 presentation-classification differences require a separate grading-policy investigation; existing evidence is preserved.",
+      "schema_version": 1,
+      "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "workflow_sha": "13685bb6d1680c7041f9f03b460e45c37a3acba3"
     }
   ],
   "infrastructure_retries": {},
@@ -312,7 +333,7 @@
     "state_commit": "92901cbe1253f5ba1e6c9b9b9167732f2320c1c4"
   },
   "paused": false,
-  "phase": "repairing",
+  "phase": "blocked",
   "repair_attempts": 1,
   "reviews": {},
   "schema_version": 1,
