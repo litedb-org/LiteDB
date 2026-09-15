@@ -60,6 +60,7 @@
         "workflow": "bugfix-check.yml"
       },
       "fix-1-0": {
+        "failure": "Required artifact missing, expired, or ambiguous: bugfix-fix-2874",
         "inputs": {
           "base_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
           "feedback": "",
@@ -73,7 +74,7 @@
         "workflow": "bugfix-fix.lock.yml"
       }
     },
-    "worker_retries": 0,
+    "worker_retries": 1,
     "workflow_ref": "automation/bugfix-runtime-v1"
   },
   "paused": false,
