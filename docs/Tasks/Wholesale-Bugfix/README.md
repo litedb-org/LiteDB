@@ -232,19 +232,28 @@ independent so one review does not steer the others.
 | Storage and compatibility | Check older database files, v7 upgrade, ordinary v8 preservation, v9 vector promotion, encryption, read-only access, WAL replay, checkpoint, rollback, and reopen integrity |
 | Regression and lifecycle | Check transactions, concurrency, disposal, cancellation, error paths, resource ownership, and relevant performance effects |
 
-Each validator returns structured findings, inspected areas, evidence, and
-proposed validation. Validators may contribute separate test patches for CI to
-execute. Unexercised boundaries and inconclusive results must be explicit.
+Each validator returns structured findings with severity, inspected areas and
+concrete evidence. They can run additional scratch checks outside the repository;
+the original frozen tests remain unchanged. Unexercised required boundaries and
+inconclusive results must be explicit.
 
-All three reviews must complete. This is not a majority vote: actionable findings
-must be resolved, and missing reviews cannot count as approval. Preserve a
-disposition and evidence for each finding, including findings determined not to
-apply. Unresolved disagreement stops automatic acceptance.
+All three reviews must complete. A candidate is done when required CI passes and
+all reviewers approve with no findings or only cosmetic nits. Keep nits in the
+authenticated review artifacts, without another candidate or CI run. Even a small
+correctness, compatibility, reliability or performance defect is above nit severity.
+Missing required evidence remains inconclusive and blocks acceptance.
 
-Code changes invalidate prior approvals. Collected test additions become part of
-the final candidate and test-definition revision; run the required checks against
-that exact candidate. Renew review evidence after changes rather than carrying
-approvals across unrelated commits.
+If any reviewer finds something more severe than a nit, fix all findings from all
+three reviewers, including nits from otherwise approving reviewers. The next
+reviewers receive the exact prior feedback and must verify each required fix.
+Prior obligations survive an intervening compile or CI failure; they are not
+silently dropped. Unclassified legacy findings never receive a nit disposition.
+Oversized complete feedback blocks explicitly instead of truncating findings.
+
+Code changes require the changed candidate's compressed CI and three fresh
+independent reviews. A prior required fix still left unresolved cannot pass as a
+new optional nit. Preserve dispositions and evidence; unresolved disagreement
+or a missing review blocks automatic acceptance.
 
 Use the existing [vector compatibility script](../../../scripts/test-vector-compatibility.py)
 as one component of validation. It does not establish every upgrade and recovery
@@ -384,20 +393,3 @@ acceptance requirements.
 Trustworthy test gate first, lightweight CI second, agent orchestration third.
 This gives every worker a precise target and prevents workflow success from
 being mistaken for proof of a validated fix.
-
-## Review stopping rule
-
-A candidate is done after required CI passes and all three reviewers approve with
-no findings or only nits. Keep nits in the authenticated review artifacts; they
-do not trigger another candidate or CI run. A nit is optional cosmetic polish
-with no correctness, compatibility, reliability, performance, or required-evidence
-impact. Even a small behavioral defect is more severe than a nit.
-
-If any reviewer finds a minor, major, or critical issue, the next fix must address
-all findings from all three reviewers, including nits from otherwise approving
-reviewers. The changed candidate receives its compressed CI and three independent
-reviews again. Missing required evidence remains inconclusive. Unclassified
-legacy findings are never automatically treated as nits. Complete feedback that
-exceeds the dispatch size limit blocks explicitly instead of dropping findings.
-
-The full matrix remains reserved for the end of the entire sweep.
