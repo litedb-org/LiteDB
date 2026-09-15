@@ -399,3 +399,21 @@ Independent review rechecked all twelve original/repeat reports. Combined
 preparation checks passed 210 controller, 122 gate, and 87 workflow/helper tests.
 These additions remain separate from the live v8 runtime and do not expand its
 queue automatically.
+
+## Handoff: #1002 second candidate blocked
+
+The second worker produced `d600cab9aa8be419f0d3069a21bb5e03ff713307`.
+Candidate CI `35013331767` passed the focused #1002 cases and production job,
+but broad validation found eight changed #2811 failure classifications. The
+new general setter guard prevents the previously observed write in the inspected
+case, but throws InvalidOperationException with a diagnostic that does not satisfy
+the frozen #2811 LiteException/member/writability assertions. This is partial
+behavioral improvement requiring an explicit overlap decision, not harmless
+failure-text drift. No second-candidate reviews or integration occurred.
+
+The controller recorded `blocked`, attempt 2, then the serial queue exited 1.
+No controller process was running at handoff. The integration head and eighteen
+accepted cases are unchanged. [HANDOFF.md](HANDOFF.md) records the exact state,
+run/artifact links, remaining queue, pending runtime changes and short continuation
+prompt. It also distinguishes measured 32–34 minute complete first-attempt cycles
+from the approximately three-minute CI test lanes.

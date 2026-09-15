@@ -1,9 +1,10 @@
 # Wholesale bug-fix plan
 
 Status: #2874, #2839, #2869, and #1506 are integrated. The nit-aware v8 queue
-is repairing #1002 after its lifecycle reviewer reproduced a durable write followed
-by an exception for a get-only nullable ID. Its first candidate passed compressed
-CI but was not integrated. The queue enforces eighteen permanently passing cases. Accepted
+has stopped at #1002 attempt 2: the lifecycle repair changed eight related #2811
+failure classifications, so broad CI is inconclusive. Neither #1002 candidate
+is integrated. See the [agent handoff](HANDOFF.md) for the blocker, exact branches,
+evidence and continuation instructions. The queue enforces eighteen permanently passing cases. Accepted
 candidate test lanes have taken 2m35s–2m48s, with production builds in parallel. Use one compressed
 candidate CI run per repair attempt and run the expensive original matrix only
 after the sweep. The acceptance profile, controller, and integration gate enforce
