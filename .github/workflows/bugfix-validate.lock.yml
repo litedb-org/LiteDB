@@ -1221,6 +1221,50 @@ jobs:
             setupGlobals(core, github, context, exec, io, getOctokit);
             const { main } = require('${{ runner.temp }}/gh-aw/actions/handle_noop_message.cjs');
             await main();
+      - name: Record trusted bugfix budget deferral
+        id: bugfix-budget
+        if: always() && needs.activation.outputs.daily_ai_credits_exceeded == 'true'
+        env:
+          BUDGET_EXCEEDED: ${{ needs.activation.outputs.daily_ai_credits_exceeded }}
+          BUDGET_THRESHOLD: ${{ needs.activation.outputs.daily_ai_credits_threshold }}
+          BUDGET_TOTAL: ${{ needs.activation.outputs.daily_ai_credits_total_effective_tokens }}
+          BUDGET_WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import math
+          import os
+          import re
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          env = os.environ
+          if env['BUDGET_EXCEEDED'] != 'true':
+              raise SystemExit('Budget deferral requires an explicit exceeded decision')
+          threshold = float(env['BUDGET_THRESHOLD'])
+          total = float(env['BUDGET_TOTAL'])
+          if not math.isfinite(threshold) or threshold <= 0 or not math.isfinite(total) or total < threshold:
+              raise SystemExit('Invalid daily budget accounting evidence')
+          if not re.fullmatch(r'[0-9a-f]{40}', env['BUDGET_WORKFLOW_SHA']):
+              raise SystemExit('Budget evidence requires the immutable workflow SHA')
+          if not all(re.fullmatch(r'[1-9][0-9]*', env[key]) for key in ('GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT')):
+              raise SystemExit('Budget evidence requires a positive run ID and attempt')
+          report = {'schema_version': 1, 'run_id': int(env['GITHUB_RUN_ID']),
+                    'run_attempt': int(env['GITHUB_RUN_ATTEMPT']), 'workflow_sha': env['BUDGET_WORKFLOW_SHA'],
+                    'exceeded': True, 'threshold': threshold, 'total': total,
+                    'observed_at': datetime.now(timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z')}
+          root = Path(env['RUNNER_TEMP']) / 'bugfix-budget'
+          root.mkdir(parents=True, exist_ok=False)
+          (root / 'budget-status.json').write_text(json.dumps(report, sort_keys=True) + '\n', encoding='utf-8')
+          PY
+      - name: Upload trusted bugfix budget deferral
+        if: always() && steps.bugfix-budget.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: bugfix-budget
+          path: ${{ runner.temp }}/bugfix-budget/budget-status.json
+          if-no-files-found: error
+          retention-days: 90
       - name: Handle agent failure
         id: handle_agent_failure
         if: always()

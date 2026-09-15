@@ -13,6 +13,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from patch_gh_aw_budget_evidence import insert_budget_evidence
+
 
 CONFIG_WRITE = '> "${RUNNER_TEMP}/gh-aw/awf-config.json"'
 AWF_SCHEMA = "awf-config.schema.json"
@@ -280,6 +282,7 @@ def patch_lockfile(path: Path) -> bool:
     lines, reasoning_effort_count = insert_codex_reasoning_effort(lines)
     lines, detection_redaction_count = insert_detection_redaction(lines)
     lines = insert_runtime_probe(lines)
+    lines = insert_budget_evidence(path, lines)
     lines = [line.rstrip() for line in lines]
     while lines and lines[-1] == "":
         lines.pop()

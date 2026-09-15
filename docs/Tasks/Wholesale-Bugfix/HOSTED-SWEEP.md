@@ -126,3 +126,20 @@ guaranteed five-minute SLA. See [GitHub event limits](https://docs.github.com/en
 Run bootstrap tests with `python .github/scripts/test_hosted_sweep_workflow.py`
 (test dependency: PyYAML). These validate event gates, the immutable checkout,
 literal argument passing, token scope, time limits, and status publication guard.
+
+## Daily credit deferrals
+
+The maintained gh-aw compiler patch emits artifact `bugfix-budget` containing
+`budget-status.json` only when activation explicitly reports its daily limit
+exceeded. A fresh conclusion runner writes the file from trusted job outputs;
+agent text and an arbitrary skipped job cannot produce this disposition.
+The report contains schema version, run ID/attempt, immutable workflow SHA,
+positive finite threshold, observed total, `exceeded: true`, and observation time.
+It contains no credentials, endpoint, prompt or agent output.
+
+The scheduler must authenticate the completed run, exact attempt, workflow,
+artifact and skipped agent before applying a conservative 24-hour cooldown. Keep
+the report digest in durable state. Missing or malformed reports are not budget
+deferrals. A budget pause must not consume a failed-fix/infrastructure attempt;
+the existing total dispatch cap still bounds repeated work. This preserves the
+daily cap and every per-agent cap; no unlimited budget is enabled.
