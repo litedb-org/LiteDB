@@ -164,6 +164,13 @@ Read `/tmp/gh-aw/bugfix/task.json` first. Review the full diff from its `base_sh
 to `candidate_sha`, the frozen regression contract, relevant callers, and adjacent
 tests. Form your own conclusions without reading other validators' reports.
 
+Read `contract.review_requirements` when present. Address every requirement for
+your role explicitly in `coverage`, with concrete code evidence or executed
+checks and their outcomes. These requirements supplement the role guidance below.
+If a required conclusion lacks evidence, use `inconclusive` and describe the
+missing evidence in `findings`; use `changes_requested` for a supported defect.
+Do not approve a candidate while a requirement for your role remains unverified.
+
 Perform the perspective selected by `role`:
 
 - **behavior**: Verify the reported API contract, boundary values, alternate

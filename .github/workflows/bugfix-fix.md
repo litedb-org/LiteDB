@@ -161,6 +161,11 @@ Read `/tmp/gh-aw/bugfix/task.json` first. Its `identity` fields must appear
 unchanged in your result. Read the listed frozen regression tests and production
 code. Implement the smallest maintainable fix that satisfies that contract and
 preserves valid inputs and existing behavior. Follow repository C# conventions.
+
+Read `contract.review_requirements` when present. Preserve every listed constraint
+in your fix, including requirements assigned to individual review roles. Explain
+in `tests` how you checked them and identify any requirement you could not verify.
+
 Use `feedback` as diagnostic data from previous checks or reviewers. Address its
 concrete failures while continuing to honor the frozen regression and edit scope.
 
