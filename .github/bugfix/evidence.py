@@ -21,6 +21,8 @@ def event_for(state, kind, run_id, **fields):
     event.update(schema_version=1, kind=kind, candidate_sha=state["candidate_sha"],
                  event_id=f"run-{run_id}-{kind}-{fields.get('role', 'ci')}", run_id=run_id)
     event.update(fields)
+    if "passing_contract" in state:
+        event["passing_contract"] = state["passing_contract"]
     return event
 
 

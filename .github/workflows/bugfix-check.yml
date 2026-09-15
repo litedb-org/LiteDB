@@ -23,6 +23,14 @@ on:
       candidate_sha:
         type: string
         default: ''
+      accepted_state_sha:
+        description: Immutable controller data commit containing permanent passing contracts
+        type: string
+        required: true
+      accepted_ledger_sha256:
+        description: Canonical digest of the campaign's accepted-test ledger snapshot
+        type: string
+        required: true
       level:
         type: choice
         options: [baseline, focused, broad, acceptance]
@@ -91,6 +99,8 @@ jobs:
           BASE_SHA: ${{ inputs.base_sha || github.sha }}
           CANDIDATE_SHA: ${{ inputs.candidate_sha }}
           FRAMEWORK: ${{ matrix.framework }}
+          ACCEPTED_STATE_SHA: ${{ inputs.accepted_state_sha }}
+          ACCEPTED_LEDGER_SHA256: ${{ inputs.accepted_ledger_sha256 }}
         run: python control/.github/scripts/grade_bugfix_checks.py
       - name: Upload complete check evidence
         if: always()

@@ -59,21 +59,25 @@ def load_contract(path, issue_number):
     return regressions, controls
 
 
-def load_intermittent_classes(path):
+def load_baseline_policy(path):
     raw = Path(path).read_bytes()
     policy = json.loads(raw)
     classes = policy.get("classes")
+    skipped = policy.get("skipped_tests")
     intermittent = policy.get("intermittent_classes")
     require(policy.get("schema_version") == 1 and isinstance(classes, list)
-            and isinstance(intermittent, list), "Invalid baseline failure-class policy")
-    require(all(isinstance(name, str) and name for name in classes + intermittent),
-            "Baseline failure classes must be nonempty strings")
+            and isinstance(skipped, list) and isinstance(intermittent, list),
+            "Invalid baseline failure-class policy")
+    require(all(isinstance(name, str) and name
+                for name in classes + skipped + intermittent),
+            "Baseline policy identities must be nonempty strings")
     require(len(classes) == len(set(classes))
+            and len(skipped) == len(set(skipped))
             and len(intermittent) == len(set(intermittent)),
-            "Baseline failure classes must be unique")
+            "Baseline policy identities must be unique")
     require(set(intermittent) <= set(classes),
             "Intermittent classes must be classified baseline failures")
-    return set(intermittent), hashlib.sha256(raw).hexdigest()
+    return set(classes), set(skipped), set(intermittent), hashlib.sha256(raw).hexdigest()
 
 
 def validate_test(test, job_name):
@@ -241,7 +245,7 @@ def compare_test_job(before, after, target_names, intermittent_classes, errors,
 
 
 def compare(baseline, candidate, regressions, controls, expected_target_jobs,
-            intermittent_classes):
+            allowed_classes, allowed_skips, intermittent_classes):
     before_evidence, before_jobs = baseline
     after_evidence, after_jobs = candidate
     errors, blockers, unexpected_passes, new_tests, inconclusive_changes = [], [], [], [], []
@@ -262,6 +266,11 @@ def compare(baseline, candidate, regressions, controls, expected_target_jobs,
             errors.append(f"Job kind changed: {name}")
             continue
         if before["kind"] == "tests":
+            for test in before["tests"]:
+                if test["outcome"] == "failed" and test["class_name"] not in allowed_classes:
+                    errors.append(f"Unclassified baseline failure in {name}: {test['name']}")
+                if test["outcome"] == "skipped" and test["name"] not in allowed_skips:
+                    errors.append(f"Unclassified baseline skip in {name}: {test['name']}")
             if before.get("runtime_architecture") != after.get("runtime_architecture"):
                 errors.append(f"Runtime architecture changed between runs: {name}")
             for label, job in (("baseline", before), ("candidate", after)):
@@ -350,14 +359,15 @@ def main(argv=None):
         failure_normalization_sha = hashlib.sha256(
             Path(args.failure_normalization).read_bytes()).hexdigest()
         regressions, controls = load_contract(args.manifest, args.issue)
-        intermittent_classes, baseline_policy_sha = load_intermittent_classes(
-            args.baseline_policy)
+        allowed_classes, allowed_skips, intermittent_classes, baseline_policy_sha = \
+            load_baseline_policy(args.baseline_policy)
         baseline = load_evidence(args.baseline, "baseline", args.issue, base_sha,
                                  quarantine, args.workflow_path, failure_normalization_sha)
         candidate = load_evidence(args.candidate, "candidate", args.issue, candidate_sha,
                                   quarantine, args.workflow_path, failure_normalization_sha)
         report = compare(baseline, candidate, regressions, controls,
-                         args.expected_target_job_count, intermittent_classes)
+                         args.expected_target_job_count, allowed_classes, allowed_skips,
+                         intermittent_classes)
         report["provenance"] = {
             "issue": args.issue,
             "baseline_run_id": baseline[0]["run"]["id"],

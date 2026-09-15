@@ -20,6 +20,30 @@ artifact verdicts plus the production-build and file-compatibility job. It stops
 at `ready`; final full-matrix validation and integration remain separate actions.
 There is no automatic merge or `--integrate` option in this version.
 
+### Preserve fixes already integrated
+
+New campaigns snapshot `accepted-tests.json` at the exact controller data-branch
+commit observed during initialization. The snapshot records canonical ledger and
+test-case hashes and requires every previously accepted candidate to be an ancestor
+of the selected integration base. Campaign initialization fails if that ancestry
+or the frozen regression source does not match.
+
+Check dispatches carry `accepted_state_sha` and `accepted_ledger_sha256` from this
+immutable snapshot. Trusted grading code reads the ledger from that Git commit;
+workers do not supply or edit the required passing cases. Baseline/focused checks
+run a separate `required-pass.trx` selection after the same build, preserving the
+current issue's exact focused-test selection. Broad/acceptance checks enforce those
+identities in both full baseline and candidate reports before constructing the
+known-failure ledger. Missing, skipped, or failed accepted cases stop validation
+even if their classes are on the unresolved-failure allowlist.
+
+Every positive CI verdict binds the snapshot and confirms that permanent passing
+contracts were enforced. An empty ledger is explicit and still pinned to a data
+commit. The controller data branch must already exist before initializing this
+runtime. Existing campaigns without `passing_contract` must resume with their
+original pinned runtime; the new runtime never silently adds a snapshot or changes
+the acceptance rules of a live campaign.
+
 Workers use `gpt-6-astra` for fixes and `gpt-5.6-sol` for reviews, both with high
 reasoning effort. Collector configuration must match; differing reported runtime
 models or reasoning levels are rejected when that runtime evidence is available.

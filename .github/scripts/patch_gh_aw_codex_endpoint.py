@@ -22,7 +22,6 @@ CODEX_CONFIG_HEREDOC = 'cat > "/tmp/gh-aw/mcp-config/config.toml" << GH_AW_CODEX
 REASONING_EFFORT_LINE = 'model_reasoning_effort = "high"'
 CODEX_EXEC_COMMAND = "codex_harness.cjs codex exec"
 SINGLE_AGENT_OVERRIDES = (
-    "-c agents.enabled=false",
     "-c features.multi_agent=false",
     "-c features.multi_agent_v2=false",
 )
@@ -183,9 +182,13 @@ def patch_codex_delegation(line: str) -> tuple[str, bool]:
     """Keep each worker on its explicitly selected model without child agents."""
     if CODEX_EXEC_COMMAND not in line:
         return line, False
+    original = line
+    # npm Codex 0.142.4 treats agents.enabled as an agent role, not a boolean.
+    # Remove the unsupported override from previously patched lockfiles too.
+    line = line.replace("-c agents.enabled=false ", "")
     missing = [override for override in SINGLE_AGENT_OVERRIDES if override not in line]
     if not missing:
-        return line, False
+        return line, line != original
     return line.replace(CODEX_EXEC_COMMAND, CODEX_EXEC_COMMAND + " " + " ".join(missing), 1), True
 
 

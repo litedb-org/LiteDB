@@ -127,6 +127,13 @@ class EndpointTests(unittest.TestCase):
         for override in patcher.SINGLE_AGENT_OVERRIDES:
             self.assertEqual(1, patched.count(override))
 
+    def test_removes_unsupported_agent_role_override_from_previous_patch(self):
+        previous = "node codex_harness.cjs codex exec -c agents.enabled=false " + " ".join(patcher.SINGLE_AGENT_OVERRIDES) + " --model gpt-6-astra"
+        patched, changed = patcher.patch_codex_delegation(previous)
+        self.assertTrue(changed)
+        self.assertNotIn("agents.enabled", patched)
+        self.assertEqual((patched, False), patcher.patch_codex_delegation(patched))
+
 
 if __name__ == "__main__":
     unittest.main()

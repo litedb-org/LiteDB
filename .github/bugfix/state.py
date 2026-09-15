@@ -116,6 +116,8 @@ def apply_event(original, event):
         return copy.deepcopy(original)
     for field in IDENTITY:
         require(event.get(field) == original[field], f"Stale or missing {field}")
+    if "passing_contract" in original:
+        require(event.get("passing_contract") == original["passing_contract"], "Stale or missing passing-contract snapshot")
     kind = event.get("kind")
     require(kind in ("candidate", "baseline", "focused", "broad", "review", "acceptance", "integrated", "pause", "resume", "block"),
             "Unknown event kind")

@@ -4,6 +4,7 @@ from artifacts import download
 from evidence import check_event, event_for, review_event
 from feedback import repair_feedback
 from patching import create_candidate, publish_candidate
+from passing import load_snapshot
 from runs import Runs, select_artifact
 from state import IDENTITY, ROLES, Rejected, apply_event, new_state, require
 from storage import Store
@@ -19,6 +20,10 @@ class Campaign:
         expected = new_state(args.campaign, args.issue, args.integration_base, args.test_source_sha, args.workflow_sha)
         if self.state is None:
             self.state = expected
+            self.state["passing_contract"], _ = load_snapshot(args.repository, args.repo, self.state_sha,
+                                                              args.integration_base, args.test_source_sha)
+        require(isinstance(self.state.get("passing_contract"), dict),
+                "Legacy campaign has no passing-contract snapshot; resume it with its pinned runtime")
         for field in IDENTITY:
             require(self.state[field] == expected[field], f"Resume identity changed: {field}")
         journal = self.state.setdefault("orchestration", {"requests": {}, "worker_retries": 0,
@@ -37,6 +42,7 @@ class Campaign:
         require(state is not None, "Campaign state disappeared")
         for field in IDENTITY:
             require(state[field] == self.state[field], "Campaign identities changed concurrently")
+        require(state.get("passing_contract") == self.state["passing_contract"], "Passing-contract snapshot changed concurrently")
         self.state, self.state_sha = state, sha
         self.runs.journal = self.state["orchestration"]
         require(not self.state["paused"], "Campaign paused; resume explicitly before restarting")
@@ -60,7 +66,9 @@ class Campaign:
         retries = self.state["infrastructure_retries"].get(phase, 0)
         key = f"{phase}-{self.state['repair_attempts']}-{retries}"
         inputs = {"issue": str(self.state["issue"]), "base_sha": self.state["base_sha"],
-                  "candidate_sha": self.state["candidate_sha"] or "", "level": phase}
+                  "candidate_sha": self.state["candidate_sha"] or "", "level": phase,
+                  "accepted_state_sha": self.state["passing_contract"]["state_commit"],
+                  "accepted_ledger_sha256": self.state["passing_contract"]["ledger_sha256"]}
         run_id = self.runs.dispatch(key, "bugfix-check.yml", inputs)
         workflow_run = self.runs.wait(run_id)
         self.refresh()

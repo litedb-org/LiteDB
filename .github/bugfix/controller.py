@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 
 from artifacts import HASH_FIELDS
+from passing import load_snapshot
 from state import NAME, Rejected, apply_event, new_state, require
 from storage import Store, verify_run
 
@@ -20,6 +21,7 @@ def main():
     initialize.add_argument("--base-sha", required=True)
     initialize.add_argument("--test-source-sha", required=True)
     initialize.add_argument("--workflow-sha", required=True)
+    initialize.add_argument("--repository", type=Path, default=Path.cwd())
     commands.add_parser("get")
     record = commands.add_parser("record")
     record.add_argument("--event-json", type=Path, required=True)
@@ -32,6 +34,8 @@ def main():
     if args.command == "init":
         require(state is None, "Campaign already exists")
         state = new_state(args.campaign, args.issue, args.base_sha, args.test_source_sha, args.workflow_sha)
+        state["passing_contract"], _ = load_snapshot(args.repository, args.repo, expected_sha,
+                                                     args.base_sha, args.test_source_sha)
         expected_sha = store.write(state, expected_sha)
     else:
         require(state is not None, "Campaign does not exist")

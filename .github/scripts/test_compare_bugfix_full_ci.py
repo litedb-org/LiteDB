@@ -90,7 +90,7 @@ class FullCiComparisonTests(unittest.TestCase):
         self.baseline_policy = self.root / "known-failure-classes.json"
         self.baseline_policy.write_text(json.dumps({
             "schema_version": 1,
-            "classes": [INTERMITTENT_CLASS],
+            "classes": ["Tests.Issue2874", "Tests.Issue999", INTERMITTENT_CLASS],
             "skipped_tests": [],
             "intermittent_classes": [INTERMITTENT_CLASS],
         }), encoding="utf-8")
@@ -222,6 +222,18 @@ class FullCiComparisonTests(unittest.TestCase):
             "class_name": INTERMITTENT_CLASS,
             "baseline_outcome": "passed", "candidate_outcome": "failed",
         }], report["inconclusive_changes"])
+
+    def test_rejects_unclassified_baseline_failures_and_skips(self):
+        self.baseline["jobs"][0]["tests"].append(
+            test("Tests.Unknown.Failure", "failed", "assertion: unknown"))
+        self.candidate["jobs"][0]["tests"].append(
+            test("Tests.Unknown.Failure", "failed", "assertion: unknown"))
+        self.assert_rejected("Unclassified baseline failure")
+        self.baseline = bundle(10, BASE_SHA)
+        self.candidate = bundle(11, CANDIDATE_SHA, target_passes=True)
+        self.baseline["jobs"][0]["tests"].append(test("Tests.Unknown.Skip", "skipped"))
+        self.candidate["jobs"][0]["tests"].append(test("Tests.Unknown.Skip", "skipped"))
+        self.assert_rejected("Unclassified baseline skip")
 
 
 if __name__ == "__main__":

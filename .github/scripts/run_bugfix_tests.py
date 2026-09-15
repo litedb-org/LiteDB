@@ -31,6 +31,7 @@ def main():
     parser.add_argument("--issue", required=True)
     parser.add_argument("--framework", default="net8.0")
     parser.add_argument("--level", choices=("focused", "broad"), default="focused")
+    parser.add_argument("--required-pass-filter", default="", help="Trusted controller-selected previously accepted methods")
     args = parser.parse_args()
     repository = Path(args.repository).resolve()
     output = Path(args.output).resolve()
@@ -68,10 +69,15 @@ def main():
               "test_source_sha": frozen, "framework": args.framework,
               "runner_os": platform.system(), "runner_arch": platform.machine(),
               "workflow_sha": os.environ.get("GITHUB_SHA"), "runs": {}}
-    for name in (["focused", "broad"] if args.level == "broad" else ["focused"]):
+    lanes = ["focused", "broad"] if args.level == "broad" else ["focused"]
+    if args.required_pass_filter:
+        lanes.append("required-pass")
+    for name in lanes:
         command = common + ["--logger", f"trx;LogFileName={name}.trx"]
         if name == "focused":
             command += ["--filter", contract["filter"]]
+        elif name == "required-pass":
+            command += ["--filter", args.required_pass_filter]
         result["runs"][name] = execute(command, repository, output / f"{name}.log", 360)
         if not (output / f"{name}.trx").is_file():
             raise RuntimeError(f"Missing {name} TRX report")

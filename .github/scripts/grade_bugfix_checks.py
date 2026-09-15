@@ -31,6 +31,16 @@ def main():
     arch = {"AMD64": "x64", "x86_64": "x64", "arm64": "arm64", "aarch64": "arm64"}[platform.machine()]
     environment = f"{os_name}-{arch}-{framework}"
     ARTIFACTS.mkdir(exist_ok=False)
+    sys.path.insert(0, str(CONTROL / ".github/bugfix"))
+    from passing import assert_passing, load_snapshot, selection_filter
+    sys.path.insert(0, str(CONTROL / "scripts/bugfix"))
+    from trx import read_trx
+    passing_contract, required_tests = load_snapshot(ROOT / "baseline", os.environ["GITHUB_REPOSITORY"],
+                                                    os.environ["ACCEPTED_STATE_SHA"], base, test_source)
+    if passing_contract["ledger_sha256"] != os.environ["ACCEPTED_LEDGER_SHA256"]:
+        raise ValueError("Accepted ledger differs from the campaign's immutable snapshot")
+    (ARTIFACTS / "passing-contract.json").write_text(
+        json.dumps({"snapshot": passing_contract, "tests": required_tests}, indent=2) + "\n", encoding="utf-8")
     shared = ["--manifest", MANIFEST, "--issue", issue, "--base-sha", base]
     provenance = ["--environment", environment, "--test-definition-sha", test_source]
     call([GATE, "verify-tests", *shared, "--repository", ROOT / "baseline",
@@ -43,10 +53,15 @@ def main():
     run_level = "broad" if level in ("broad", "acceptance") else "focused"
     executions = {}
     for variant in (["baseline", "candidate"] if candidate else ["baseline"]):
+        required_lane = ["--required-pass-filter", selection_filter(required_tests)] if required_tests and run_level == "focused" else []
         call([CONTROL / ".github/scripts/run_bugfix_tests.py", "--repository", ROOT / variant,
               "--output", ARTIFACTS / variant, "--manifest", MANIFEST,
-              "--issue", issue, "--framework", framework, "--level", run_level])
+              "--issue", issue, "--framework", framework, "--level", run_level, *required_lane])
         executions[variant] = json.loads((ARTIFACTS / variant / "execution.json").read_text())
+        if required_tests:
+            lane = "broad" if run_level == "broad" else "required-pass"
+            completed = read_trx(ARTIFACTS / variant / f"{lane}.trx", executions[variant]["runs"][lane])
+            assert_passing(completed, required_tests, variant)
     baseline_args = ["--baseline-trx", ARTIFACTS / "baseline/focused.trx",
                      "--baseline-exit-code", executions["baseline"]["runs"]["focused"]]
     call([GATE, "baseline", *shared, *provenance, *baseline_args,
@@ -76,6 +91,7 @@ def main():
                "base_sha": base, "candidate_sha": candidate or None,
                "test_source_sha": test_source, "workflow_sha": os.environ["GITHUB_SHA"],
                "environment": environment, "level": level,
+               "passing_contract": passing_contract, "previously_accepted_tests_passed": True,
                "outcome": "bug_present" if level == "baseline" else "behavior_correct"}
     (ARTIFACTS / "verdict.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(json.dumps(summary))

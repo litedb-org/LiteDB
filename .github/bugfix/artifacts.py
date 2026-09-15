@@ -104,6 +104,9 @@ def validate(data, event):
         expected = {**event, "schema_version": 1, "level": event["kind"]}
         _matching(report, expected, ("schema_version", "issue", "base_sha", "candidate_sha",
                                      "test_source_sha", "workflow_sha", "environment", "level"))
+        if "passing_contract" in event:
+            require(report.get("passing_contract") == event["passing_contract"], "CI used a different passing-contract snapshot")
+            require(report.get("previously_accepted_tests_passed") is True, "CI did not enforce permanently passing tests")
         require(report.get("accepted") is True, "CI payload did not accept the candidate")
         expected_outcome = "bug_present" if event["kind"] == "baseline" else "behavior_correct"
         require(report.get("outcome") == expected_outcome, "CI payload outcome mismatch")

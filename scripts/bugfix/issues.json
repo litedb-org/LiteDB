@@ -77,6 +77,89 @@
           "name": "LiteDB.Tests.Issues.Issue2874_Tests.Every_valid_twelve_byte_window_round_trips_only_its_own_bytes"
         }
       ]
+    },
+    "2839": {
+      "inventory_issue": 2839,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2839_Tests.cs": "a98df12a912e780edf12d7cc87f1dbf65cdf7db9"
+      },
+      "filter": "FullyQualifiedName~Issue2839_Tests",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Database/Collections/Aggregate.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2839_Tests.LongCount_Query_routes_the_exact_query_and_preserves_Int64_width",
+          "failure_first_line": "System.OverflowException : Value was either too large or too small for an Int32."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2839_Tests.Count_Query_routes_the_exact_query_and_reads_an_Int32_result"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2839_Tests.LongCount_without_Query_preserves_an_engine_result_above_Int32"
+        }
+      ]
+    },
+    "2869": {
+      "inventory_issue": 2869,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2869_Tests.cs": "75f14d75945fe6912b007b9698e8d38898b02413"
+      },
+      "filter": "FullyQualifiedName~Issue2869_Tests",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Document/BsonValue.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2869_Tests.Int32_values_implicitly_widen_to_Int64_and_Double(expected: -2147483648)",
+          "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Int32' to type 'System.Int64'."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2869_Tests.Int32_values_implicitly_widen_to_Int64_and_Double(expected: -1)",
+          "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Int32' to type 'System.Int64'."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2869_Tests.Int32_values_implicitly_widen_to_Int64_and_Double(expected: 0)",
+          "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Int32' to type 'System.Int64'."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2869_Tests.Int32_values_implicitly_widen_to_Int64_and_Double(expected: 1)",
+          "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Int32' to type 'System.Int64'."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2869_Tests.Int32_values_implicitly_widen_to_Int64_and_Double(expected: 2147483647)",
+          "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Int32' to type 'System.Int64'."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2869_Tests.Native_numeric_conversions_work_and_non_numeric_values_are_not_coerced"
+        }
+      ]
     }
   }
 }

@@ -226,7 +226,8 @@ def repro_job(job, data, artifact):
     diagnostics = []
     for line in console.splitlines():
         detail = line.strip()
-        if detail and ("error " in detail.lower() or "variant did not execute" in detail.lower()
+        if detail and (detail.startswith("FAIL:") or "error " in detail.lower()
+                       or "variant did not execute" in detail.lower()
                        or detail.lower().startswith("build failed")):
             if detail not in diagnostics:
                 diagnostics.append(detail)
@@ -243,6 +244,12 @@ def repro_job(job, data, artifact):
         require(isinstance(failed, bool) and isinstance(warned, bool)
                 and isinstance(latest, dict) and isinstance(package, dict),
                 "Incomplete repro report")
+        for label, variant in (("package", package), ("latest", latest)):
+            reason = variant.get("FailureReason")
+            if isinstance(reason, str) and reason.strip():
+                detail = f"{label}: {reason.strip()}"
+                if detail not in diagnostics:
+                    diagnostics.append(detail)
         if failed:
             verdict = "harness_error"
         elif warned:

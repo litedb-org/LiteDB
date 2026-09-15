@@ -148,7 +148,9 @@ class FullCiCollectorTests(unittest.TestCase):
             self.assertEqual(hashlib.sha256(failure_policy.read_bytes()).hexdigest(),
                              evidence["failure_normalization_sha256"])
             self.assertEqual("harness_error", evidence["jobs"][2]["verdict"])
-            self.assertIn("CS0117", evidence["jobs"][2]["diagnostics"][1])
+            self.assertIn("CS0117", "\n".join(evidence["jobs"][2]["diagnostics"]))
+            self.assertIn("package: Expected output containing BUG_2854_CONFIRMED",
+                          evidence["jobs"][2]["diagnostics"])
             archive = Path(directory) / str(run_id)
             self.assertTrue((archive / "run.json").is_file())
             self.assertEqual(3, len(list(archive.glob("*.zip"))))

@@ -11,10 +11,17 @@ silently change these choices. API-proxy model fallback is disabled; unavailable
 models must fail the run rather than select a weaker model.
 
 Each workflow runs one agent. The generated Codex command explicitly disables
-`agents.enabled`, `features.multi_agent`, and `features.multi_agent_v2` so child
+`features.multi_agent` and `features.multi_agent_v2` so child
 agents cannot inherit a different default model. Worker prompts also prohibit
 delegation or launching additional model processes. The controller continues to
 dispatch three independent review workflows with their explicit model settings.
+
+These switches were checked with the actual npm `@openai/codex@0.142.4` binary:
+`codex -c features.multi_agent=false -c features.multi_agent_v2=false features list`
+exits successfully and lists both features as disabled. This command does not
+invoke a model. The similarly named `agents.enabled=false` setting is not
+supported by that binary: it is parsed as an agent-role configuration and aborts
+startup. Do not infer settings support from a newer source checkout's schema.
 
 ## Artifact-only worker outputs
 

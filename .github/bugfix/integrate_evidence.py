@@ -75,6 +75,8 @@ def original_matrix_evidence(args, state, control, output):
             and quarantine.get("expected_remaining_jobs") == 109, "Unexpected full-matrix quarantine contract")
     normalization_path = control / "scripts/bugfix/failure-normalization.json"
     normalization_bytes = normalization_path.read_bytes()
+    baseline_policy_path = control / "scripts/bugfix/known-failure-classes.json"
+    baseline_policy_bytes = baseline_policy_path.read_bytes()
     paths = {}
     for variant, run_id in (("baseline", args.baseline_run), ("candidate", args.candidate_run)):
         path = output / f"{variant}-evidence.json"
@@ -94,11 +96,12 @@ def original_matrix_evidence(args, state, control, output):
          "--manifest", str(control / "scripts/bugfix/issues.json"), "--issue", str(state["issue"]),
          "--base-sha", state["base_sha"], "--candidate-sha", state["candidate_sha"],
          "--quarantine", str(quarantine_path), "--failure-normalization", str(normalization_path),
+         "--baseline-policy", str(baseline_policy_path),
          "--expected-target-job-count", "21", "--output", str(verdict)], verdict)
     report = json.loads(verdict.read_text(encoding="utf-8"))
     require(report.get("schema_version") == 1 and report.get("accepted") is True
             and report.get("outcome") == "behavior_correct", "Original-matrix comparator rejected integration")
-    for field in ("errors", "blockers", "unexpected_passes"):
+    for field in ("errors", "blockers", "unexpected_passes", "inconclusive_changes"):
         require(report.get(field) == [], f"Original-matrix evidence contains {field}")
     require(report.get("coverage_gaps") == quarantine["quarantines"], "Full-matrix exclusions differ from the authorized quarantine")
     expected = {"issue": state["issue"], "baseline_run_id": args.baseline_run, "candidate_run_id": args.candidate_run,
@@ -106,12 +109,14 @@ def original_matrix_evidence(args, state, control, output):
                 "evidence_definition_sha": args.evidence_definition_sha, "workflow_path": ".github/workflows/bugfix-full-ci.yml"}
     expected["quarantine_sha256"] = hashlib.sha256(quarantine_bytes).hexdigest()
     expected["failure_normalization_sha256"] = hashlib.sha256(normalization_bytes).hexdigest()
+    expected["baseline_policy_sha256"] = hashlib.sha256(baseline_policy_bytes).hexdigest()
     provenance = report.get("provenance", {})
     for field, value in expected.items():
         require(type(provenance.get(field)) is type(value) and provenance[field] == value,
                 f"Original-matrix provenance mismatch: {field}")
     files = {"original-matrix/quarantine.json": quarantine_bytes,
-             "original-matrix/failure-normalization.json": normalization_bytes}
+             "original-matrix/failure-normalization.json": normalization_bytes,
+             "original-matrix/baseline-policy.json": baseline_policy_bytes}
     policy = {"grading_policy_sha": args.grading_policy_sha, "capture_definition_sha": args.evidence_definition_sha,
               "comparator_report_sha256": hashlib.sha256(verdict.read_bytes()).hexdigest(), "scripts": {}}
     for name in (".github/scripts/collect_bugfix_full_ci.py", ".github/scripts/compare_bugfix_full_ci.py",

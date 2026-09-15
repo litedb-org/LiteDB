@@ -90,6 +90,8 @@ class CampaignLoopTests(unittest.TestCase):
             return ("d" if state["repair_attempts"] == 0 else "e") * 40, {"patch_sha256": "hash"}
 
         with patch("campaign.Store", return_value=self.store), patch("campaign.Runs", SimulatedRuns), \
+                patch("campaign.load_snapshot", return_value=({"schema_version": 1, "state_commit": "1" * 40,
+                      "ledger_sha256": "f" * 64, "cases_sha256": "e" * 64, "case_count": 0}, [])), \
                 patch("campaign.check_event", side_effect=self.check), patch("campaign.review_event", side_effect=self.review), \
                 patch("campaign.select_artifact", return_value={}), patch("campaign.download", return_value=b"patch"), \
                 patch("campaign.create_candidate", side_effect=candidate), patch("campaign.publish_candidate"), \

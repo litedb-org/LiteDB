@@ -48,6 +48,7 @@ jobs:
                 self.assertIn('model_reasoning_effort = "high"', text)
                 commands = [line for line in text.splitlines() if CODEX_EXEC_COMMAND in line]
                 self.assertEqual(1, len(commands), "Each worker must have exactly one model process")
+                self.assertNotIn("agents.enabled", commands[0])
                 for override in SINGLE_AGENT_OVERRIDES:
                     self.assertEqual(1, commands[0].count(override))
 

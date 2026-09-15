@@ -24,7 +24,8 @@ class MatrixPolicyTests(unittest.TestCase):
         self.quarantine = {"schema_version": 1, "expected_original_jobs": 112, "expected_remaining_jobs": 109,
                            "quarantines": [{"issue": 2854, "status": "unverified"}]}
         self.report = {"schema_version": 1, "accepted": True, "outcome": "behavior_correct",
-                       "errors": [], "blockers": [], "unexpected_passes": [], "coverage_gaps": self.quarantine["quarantines"],
+                       "errors": [], "blockers": [], "unexpected_passes": [], "inconclusive_changes": [],
+                       "coverage_gaps": self.quarantine["quarantines"],
                        "provenance": {"issue": 2874, "baseline_run_id": 111, "candidate_run_id": 222,
                                       "base_sha": "a" * 40, "candidate_sha": "d" * 40,
                                       "evidence_definition_sha": "e" * 40,
@@ -43,6 +44,9 @@ class MatrixPolicyTests(unittest.TestCase):
             normalization.parent.mkdir(parents=True)
             normalization.write_bytes(b'{"schema_version":1,"tests":{}}')
             self.report["provenance"]["failure_normalization_sha256"] = hashlib.sha256(normalization.read_bytes()).hexdigest()
+            baseline_policy = normalization.parent / "known-failure-classes.json"
+            baseline_policy.write_bytes(b'{"classes":[],"skipped_tests":[]}')
+            self.report["provenance"]["baseline_policy_sha256"] = hashlib.sha256(baseline_policy.read_bytes()).hexdigest()
             for name in ("failure_normalization.py", "trx.py"):
                 (normalization.parent / name).write_text("# trusted normalization module", encoding="utf-8")
             scripts = control / ".github/scripts"
@@ -81,7 +85,7 @@ class MatrixPolicyTests(unittest.TestCase):
         self.assertEqual("f" * 40, provenance["grading_policy_sha"])
 
     def test_any_additional_harness_failure_or_missing_job_blocks(self):
-        for field in ("errors", "blockers", "unexpected_passes"):
+        for field in ("errors", "blockers", "unexpected_passes", "inconclusive_changes"):
             with self.subTest(field=field):
                 self.report[field] = ["unreviewed missing or failed job"]
                 with self.assertRaises(Rejected):
