@@ -1,0 +1,62 @@
+{
+  "acceptance-profile.json": {
+    "bytes": 1155,
+    "sha256": "8a16069b70895a0ba379a390465db44799d11178fa9f2180031ed69419ea219e"
+  },
+  "acceptance/run-35005445832/bugfix-check-ubuntu-latest-net8.0.zip": {
+    "bytes": 12531,
+    "sha256": "a6584d0bfaa6eb888c75270d76473a332d2ddf9228f75270f82164dbb70f760e"
+  },
+  "acceptance/run-35005445832/run.json": {
+    "bytes": 13753,
+    "sha256": "a8b79ee7a2acbf485c101b17f568fc3defcc3d486a830b9ca9b5242a7cde585e"
+  },
+  "acceptance/run-35006858578/bugfix-check-ubuntu-latest-net8.0.zip": {
+    "bytes": 1730807,
+    "sha256": "441fa1765c44de102f0602039339e9f1828acda4a05cdbbce8730b07c00dcba2"
+  },
+  "acceptance/run-35006858578/bugfix-production.zip": {
+    "bytes": 2437,
+    "sha256": "b21543b9a9043ab63d129506eb495ee9e803c667114e4e7c2c43d853bfc0618c"
+  },
+  "acceptance/run-35006858578/run.json": {
+    "bytes": 13747,
+    "sha256": "a742832f244493f782e1571f5534a06058895e21c2dad4412790994bc8a93990"
+  },
+  "acceptance/run-35007227933/bugfix-review-1506-behavior.zip": {
+    "bytes": 3078,
+    "sha256": "111cd9e9e5eb20a8b98befbb709ae9859fa0f069b6b01a40fc43a55e73a89c64"
+  },
+  "acceptance/run-35007227933/run.json": {
+    "bytes": 13747,
+    "sha256": "6b0912bdbc70ea17067b60b0052d6ff5d1e906ae28f37e8e5fc1d4dcf8083e3b"
+  },
+  "acceptance/run-35007255374/bugfix-review-1506-compatibility.zip": {
+    "bytes": 3340,
+    "sha256": "5065f9ff853dcb60e342e216fd61a92efbda8f978febbdf93c5e9941fe3fa6f2"
+  },
+  "acceptance/run-35007255374/run.json": {
+    "bytes": 13747,
+    "sha256": "bd4c715d9e5eed1e6fabf0ff456fa2483ee0b9a14dc00b5bb8c3a670b5b84a37"
+  },
+  "acceptance/run-35007282149/bugfix-review-1506-lifecycle.zip": {
+    "bytes": 3009,
+    "sha256": "edbf7c8f798c87186c6cb8fd0d86ae97a8717f563e9376f0509dddb125fa4b52"
+  },
+  "acceptance/run-35007282149/run.json": {
+    "bytes": 13747,
+    "sha256": "ddef9d275a17b42d35f01b6bd599e6389e11f80e0f0b86b42e9bfacae5fdfd6d"
+  },
+  "acceptance_profile.py": {
+    "bytes": 13637,
+    "sha256": "c5285487e19c51ad68f51a5cc7cb178530b4aeb40fe8d2f4d54c031d79a88420"
+  },
+  "per-fix-verdict.json": {
+    "bytes": 693,
+    "sha256": "53b9ccd3052fe787a9db30e4d27651ac13deb883a50f67c77a2a7f27596d5c9d"
+  },
+  "test-contract.json": {
+    "bytes": 985,
+    "sha256": "5ebe170393f2f515f4b89fdde67593e7010d0f44d5c93f5f53f27a536459ce54"
+  }
+}

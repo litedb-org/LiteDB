@@ -1,0 +1,39 @@
+{
+  "base_sha": "781b3291ee0d6aa7a08e05955545fdf4d03763dc",
+  "candidate_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+  "checks": [
+    "focused",
+    "broad",
+    "production-build"
+  ],
+  "compatibility": false,
+  "contract_sha256": "f0f75c3e2e713edfa79451fc3a2a60e45c9e8a178a584d051e6e5d52d80141d2",
+  "diff_sha256": "daf844d8f13ff12e7fc93dab6562a7a4231de6f8b4daf7735ec5cfd456b0a611",
+  "issue": 1506,
+  "matched_rules": [
+    {
+      "path": "LiteDB/Client/Database/Collections/Find.cs",
+      "rule": "reviewed-ordinary-issue-path"
+    }
+  ],
+  "matrix": [
+    {
+      "framework": "net8.0",
+      "os": "ubuntu-latest"
+    }
+  ],
+  "paths": [
+    "LiteDB/Client/Database/Collections/Find.cs"
+  ],
+  "policy_sha256": "49a2dd0ef3f9a13888429eace71441c3b10f08a9ec0917651d49350f43614490",
+  "policy_version": "compressed-acceptance-v4",
+  "production_build": true,
+  "profile_sha256": "3fd866b1cc8256f24d02883a6ec1f697a32fad38cc749764ba01a189a92c1873",
+  "required_environments": [],
+  "required_lanes": [
+    "bugfix-check-ubuntu-latest-net8.0"
+  ],
+  "schema_version": 1,
+  "targeted_test_filters": [],
+  "targeted_tests_covered_by_broad": true
+}

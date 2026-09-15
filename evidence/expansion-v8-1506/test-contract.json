@@ -1,0 +1,32 @@
+{
+  "allowed_production_paths": [
+    "LiteDB/Client/Database/Collections/Find.cs"
+  ],
+  "controls": [
+    {
+      "name": "LiteDB.Tests.Issues.Issue1506_Tests.Find_honors_query_limit_when_optional_paging_is_omitted"
+    }
+  ],
+  "environments": [
+    "linux-x64-net8.0",
+    "windows-x64-net8.0",
+    "macos-x64-net8.0",
+    "macos-arm64-net8.0",
+    "linux-x64-net10.0",
+    "windows-x64-net10.0",
+    "macos-x64-net10.0",
+    "macos-arm64-net10.0"
+  ],
+  "filter": "FullyQualifiedName~Issue1506_Tests",
+  "frozen_test_blobs": {
+    "LiteDB.Tests/Issues/Issue1506_Tests.cs": "42722f965457a84ac385399b59707e1a7d9a9084"
+  },
+  "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+  "inventory_issue": 1506,
+  "regressions": [
+    {
+      "failure_first_line": "Expected query.Offset to be 1 because immediately after Find returns, but found 2.",
+      "name": "LiteDB.Tests.Issues.Issue1506_Tests.Find_paging_override_preserves_the_complete_reusable_query"
+    }
+  ]
+}
