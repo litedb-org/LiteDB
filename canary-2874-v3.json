@@ -1,9 +1,10 @@
 {
   "base_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
   "campaign": "canary-2874-v3",
-  "candidate_sha": null,
+  "candidate_sha": "ed795329beeec37c92dc8eb11e1c4086e9fd14ee",
   "events": {
-    "run-34980331557-baseline-ci": "e5248bd026e30bb7144b2395a3069fb7f20601a0e78ec21ca1cc58cf5f880c16"
+    "run-34980331557-baseline-ci": "e5248bd026e30bb7144b2395a3069fb7f20601a0e78ec21ca1cc58cf5f880c16",
+    "run-34980481504-candidate-ci": "1517c6cd1eb885ceab9bc215a8f6981d81f8c7a6768c7fb021511d9a1ecc9126"
   },
   "evidence": {
     "baseline": {
@@ -54,6 +55,45 @@
       "run_id": 34980331557,
       "schema_version": 1,
       "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "workflow_sha": "13685bb6d1680c7041f9f03b460e45c37a3acba3"
+    },
+    {
+      "base_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "branch": "fix/issue-2874-canary-2874-v3-a1",
+      "campaign": "canary-2874-v3",
+      "candidate_sha": "ed795329beeec37c92dc8eb11e1c4086e9fd14ee",
+      "event_id": "run-34980481504-candidate-ci",
+      "issue": 2874,
+      "kind": "candidate",
+      "passing_contract": {
+        "case_count": 0,
+        "cases_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "ledger_sha256": "c9f58a9c7ddd359d61b38aebee80f31fbe0f7d5135a5830dbfa58f514891b7f3",
+        "schema_version": 1,
+        "state_commit": "92901cbe1253f5ba1e6c9b9b9167732f2320c1c4"
+      },
+      "run_id": 34980481504,
+      "schema_version": 1,
+      "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "worker_metadata": {
+        "base_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+        "changed_paths": [
+          "LiteDB/Document/ObjectId.cs"
+        ],
+        "configured_model": "gpt-6-astra",
+        "configured_reasoning_effort": "high",
+        "issue": 2874,
+        "kind": "fix",
+        "patch_sha256": "1a276a19f5ca6b07c9c525ee34370fe38b6d9de6db21f19ea66efe391193c76e",
+        "reported_model": null,
+        "reported_reasoning_effort": null,
+        "result_sha256": "32d0c0080eecd4f7e10ed25c96e179491330f27ff237a2d10a990a70baafdf94",
+        "run_attempt": "1",
+        "run_id": "34980481504",
+        "schema_version": 1,
+        "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+        "workflow_sha": "13685bb6d1680c7041f9f03b460e45c37a3acba3"
+      },
       "workflow_sha": "13685bb6d1680c7041f9f03b460e45c37a3acba3"
     }
   ],
@@ -121,8 +161,8 @@
     "state_commit": "92901cbe1253f5ba1e6c9b9b9167732f2320c1c4"
   },
   "paused": false,
-  "phase": "repairing",
-  "repair_attempts": 0,
+  "phase": "focused",
+  "repair_attempts": 1,
   "reviews": {},
   "schema_version": 1,
   "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
