@@ -98,6 +98,12 @@ namespace LiteDB
                     (_autoId == BsonAutoId.Guid && id.IsGuid && id.AsGuid == Guid.Empty) ||
                     (_autoId == BsonAutoId.Int64 && id.IsInt64 && id.AsInt64 == 0))
                 {
+                    // Validate copy-back before an insert can commit a generated ID.
+                    if (_id.Setter == null)
+                    {
+                        throw new InvalidOperationException("Auto-generated IDs require a writable ID member.");
+                    }
+
                     // in this cases, remove _id and set new value after
                     doc.Remove("_id");
                     return true;
