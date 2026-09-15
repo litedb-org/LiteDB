@@ -187,6 +187,15 @@ weaken tests or treat a build failure, missing test, or timeout as passing evide
 Keep production and test-hook build outputs separate. If you cannot verify a
 check in this environment, state that explicitly in the result's `tests` list.
 
+If `dotnet` is not found, do not conclude that the SDK is absent. Resolve it with
+`command -v dotnet`, then try `"$DOTNET_ROOT/dotnet"` when `DOTNET_ROOT` is set and
+`/usr/share/dotnet/dotnet`. Run each available executable with `--list-sdks` in the
+same shell and directory used for tests, including any scratch checkout. Use a
+working absolute executable path for subsequent commands; a new shell may have
+a different `PATH`. SDK discovery does not count as executing tests. If no path
+works or the required toolchain is unavailable, report the attempted paths and
+actual errors in `tests`, and state explicitly that those tests did not execute.
+
 Write `/tmp/gh-aw/bugfix/result.json` as JSON with exactly the identity fields
 (`schema_version`, `issue`, `base_sha`, `test_source_sha`) plus:
 

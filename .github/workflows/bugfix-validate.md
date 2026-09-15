@@ -209,6 +209,16 @@ use `/tmp` for scratch work. Do not commit, edit files, create pull requests, se
 messages, or print credentials or endpoint settings. Do not label unexecuted
 checks as passing. Scope conclusions to evidence you actually inspected.
 
+If `dotnet` is not found, do not conclude that the SDK is absent. Resolve it with
+`command -v dotnet`, then try `"$DOTNET_ROOT/dotnet"` when `DOTNET_ROOT` is set and
+`/usr/share/dotnet/dotnet`. Run each available executable with `--list-sdks` in the
+same shell and directory used for tests, including any scratch checkout. Use a
+working absolute executable path for subsequent commands; a new shell may have
+a different `PATH`. SDK discovery does not count as executing tests. If no path
+works or the required toolchain is unavailable, report the attempted paths and
+actual errors in `coverage`, and state explicitly that those tests did not
+execute. Use `inconclusive` if this leaves a required conclusion without evidence.
+
 Write `/tmp/gh-aw/bugfix/result.json` with exactly the `identity` fields from the
 task (`schema_version`, `issue`, `base_sha`, `candidate_sha`, `test_source_sha`,
 `role`) plus:
