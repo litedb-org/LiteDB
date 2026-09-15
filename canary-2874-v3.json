@@ -164,6 +164,19 @@
         "started_at": 1789481687.3446379,
         "workflow": "bugfix-check.yml"
       },
+      "broad-1-0": {
+        "inputs": {
+          "accepted_ledger_sha256": "c9f58a9c7ddd359d61b38aebee80f31fbe0f7d5135a5830dbfa58f514891b7f3",
+          "accepted_state_sha": "92901cbe1253f5ba1e6c9b9b9167732f2320c1c4",
+          "base_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+          "candidate_sha": "ed795329beeec37c92dc8eb11e1c4086e9fd14ee",
+          "issue": "2874",
+          "level": "broad"
+        },
+        "request_id": "bf-f89b1fb5fe554ea1baf2a997a46244ca",
+        "started_at": 1789482378.6627371,
+        "workflow": "bugfix-check.yml"
+      },
       "fix-1-0": {
         "branch": "fix/issue-2874-canary-2874-v3-a1",
         "candidate_sha": "ed795329beeec37c92dc8eb11e1c4086e9fd14ee",
