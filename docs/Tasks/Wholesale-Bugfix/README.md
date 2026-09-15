@@ -1,10 +1,11 @@
 # Wholesale bug-fix plan
 
-Status: #2874, #2839, #2869, and #1506 are integrated. The nit-aware v8 queue
-has stopped at #1002 attempt 2: the lifecycle repair changed eight related #2811
-failure classifications, so broad CI is inconclusive. Neither #1002 candidate
-is integrated. See the [agent handoff](HANDOFF.md) for the blocker, exact branches,
-evidence and continuation instructions. The queue enforces eighteen permanently passing cases. Accepted
+Status: #2874, #2839, #2869, and #1506 are integrated. The GitHub-hosted scheduler
+bootstrap is deployed, with execution disabled pending final runtime review and
+a hosted canary. This replaces the local v8 queue that stopped at #1002.
+An explicit #1002/#2811 co-repair contract is prepared; neither old #1002 candidate
+is integrated. See the [agent handoff](HANDOFF.md) for the current deployment,
+exact branches, evidence and continuation instructions. The queue enforces eighteen permanently passing cases. Accepted
 candidate test lanes have taken 2m35s–2m48s, with production builds in parallel. Use one compressed
 candidate CI run per repair attempt and run the expensive original matrix only
 after the sweep. The acceptance profile, controller, and integration gate enforce
@@ -36,6 +37,28 @@ and reserve the original platform/process/performance matrix for final promotion
 Use gh-aw for fix and validation agents. Ordinary GitHub Actions and a small,
 deterministic controller own scheduling, evidence checks, retries, and merges.
 Agent conclusions alone do not establish that an issue is fixed.
+
+## Unattended operation
+
+The sweep must run on GitHub without an open chat, local process or online user.
+The [hosted runbook](HOSTED-SWEEP.md) defines deployment and recovery. Short
+scheduled ticks and worker-completion wakeups resume a durable journal; they do
+not wait inside one long-running CI job. Each tick uses an immutable reviewed
+controller/runtime and a lease tied to the owning Actions run.
+
+- Keep one active issue and three parallel review roles during this rollout.
+- Preserve the exact pending request after interruptions; never blindly dispatch
+  another copy or lose an unpublished candidate on a fresh runner.
+- Retain blocked candidates and their review obligations. Continue independent
+  approved issues; hold issues that share unresolved production scope.
+- Apply automatic cooldown and retry for recoverable infrastructure and trusted
+  usage-limit deferrals. An explicit operator pause remains an explicit pause.
+- Publish durable progress on [tracking issue #2890](https://github.com/litedb-org/LiteDB/issues/2890).
+- A queue containing deferred issues is not "all fixed." Final full-matrix
+  validation remains a separate gate after the eligible sweep and dispositions.
+
+First verify a complete one-issue hosted cycle across separate Actions runners,
+including automatic wakeups, before expanding the approved issue list.
 
 ## Existing foundations and constraints
 
@@ -84,8 +107,8 @@ The diagram shows the successful path and repair loop. Infrastructure errors,
 inconclusive results, exhausted budgets, and missing evidence have explicit
 non-success states. They never advance a candidate to acceptance.
 
-Start with one active fix. After the pilot works, allow a few independent fixes
-in parallel while serializing integration merges.
+Start with one active fix and keep integration serialized. Parallel candidate
+work is a later optimization; the hosted rollout does not enable it implicitly.
 
 ## 1. Define the test contract
 

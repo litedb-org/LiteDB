@@ -1,5 +1,10 @@
 # Serial approved-issue queue
 
+This is the historical local, blocking runner. The unattended campaign uses the
+[hosted scheduler](../../docs/Tasks/Wholesale-Bugfix/HOSTED-SWEEP.md).
+Do not launch this runner alongside a hosted sweep; it is not a 24/7 service and
+does not provide the hosted queue's independent-issue deferral and recovery.
+
 The queue accepts an explicit ordered list of issue IDs already present in the
 immutable runtime's approved manifest. It delegates each campaign to that
 runtime's existing orchestrator and integrator. It never discovers additional
