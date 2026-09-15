@@ -3,6 +3,7 @@
 # Keep evidence and policy byte hashes stable across Windows and Unix checkouts.
 .github/bugfix/* text eol=lf
 .github/scripts/*bugfix*.py text eol=lf
+.github/scripts/*harness_overlay*.py text eol=lf
 scripts/bugfix/* text eol=lf
 
 .github/workflows/*.lock.yml linguist-generated=true merge=ours
