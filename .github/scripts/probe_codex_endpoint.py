@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.parse
@@ -41,9 +42,12 @@ def main():
     text_parts = []
     completed = False
     size = 0
+    event_types = set()
     try:
         with urllib.request.build_opener(NoRedirect).open(request, timeout=90) as response:
             print(f"Responses endpoint HTTP status: {response.status}")
+            content_type = response.headers.get_content_type()
+            print("Streaming content type: " + str(content_type == "text/event-stream"))
             for line in response:
                 size += len(line)
                 if size > 1024 * 1024:
@@ -51,6 +55,14 @@ def main():
                 if not line.startswith(b"data: ") or line.strip() == b"data: [DONE]":
                     continue
                 event = json.loads(line[6:])
+                event_type = event.get("type", "")
+                if re.fullmatch(r"[a-z_.]{1,80}", event_type):
+                    event_types.add(event_type)
+                if event_type in {"error", "response.failed"}:
+                    detail = event.get("error") or event.get("response", {}).get("error") or {}
+                    code = str(detail.get("code", "unknown"))
+                    if re.fullmatch(r"[a-zA-Z0-9_.-]{1,80}", code):
+                        print("Endpoint error code: " + code)
                 if event.get("type") == "response.output_text.delta":
                     text_parts.append(event.get("delta", ""))
                 if event.get("type") == "response.completed":
@@ -67,6 +79,8 @@ def main():
         print(f"Endpoint probe failed ({type(error).__name__}); connection details suppressed.")
         return 1
     if not completed or "".join(text_parts).strip() != "CANARY_OK":
+        print("Completed response: " + str(completed))
+        print("Observed event types: " + ", ".join(sorted(event_types)))
         print("Endpoint did not return the required completed canary response.")
         return 1
     print("Endpoint canary passed: authenticated streaming Responses request completed.")
