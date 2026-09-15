@@ -1,8 +1,10 @@
 {
   "base_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+  "blocked_reason": "Stopped canary v2: shipped Codex CLI rejects agents.enabled boolean configuration before model execution. Require binary-verified runtime correction.",
   "campaign": "canary-2874-v2",
   "candidate_sha": null,
   "events": {
+    "operator-stop-unsupported-cli-setting": "d5f4d42ba65ed902452aa69042ddd74c37acebe56cca5e20ce5eae6c9ce56baa",
     "run-34978718032-baseline-ci": "cac758cbfa834775e958c27efb0ca053ce0cc4b82838a5c0a1662bd8bdf2578b"
   },
   "evidence": {
@@ -38,6 +40,17 @@
       "outcome": "bug_present",
       "report_sha256": "413fe6c1abb3bd4c571704ef4c0cbf8e1d89ad819e4dea7921f92a6ea9b35d55",
       "run_id": 34978718032,
+      "schema_version": 1,
+      "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "workflow_sha": "83ff67a3d81c43bcae7aca6f2439ee0454811fde"
+    },
+    {
+      "base_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "campaign": "canary-2874-v2",
+      "event_id": "operator-stop-unsupported-cli-setting",
+      "issue": 2874,
+      "kind": "block",
+      "reason": "Stopped canary v2: shipped Codex CLI rejects agents.enabled boolean configuration before model execution. Require binary-verified runtime correction.",
       "schema_version": 1,
       "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
       "workflow_sha": "83ff67a3d81c43bcae7aca6f2439ee0454811fde"
@@ -77,7 +90,7 @@
     "workflow_ref": "automation/bugfix-runtime-v2"
   },
   "paused": false,
-  "phase": "repairing",
+  "phase": "blocked",
   "repair_attempts": 0,
   "reviews": {},
   "schema_version": 1,
