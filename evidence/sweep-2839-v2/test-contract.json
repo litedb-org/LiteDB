@@ -1,0 +1,35 @@
+{
+  "allowed_production_paths": [
+    "LiteDB/Client/Database/Collections/Aggregate.cs"
+  ],
+  "controls": [
+    {
+      "name": "LiteDB.Tests.Issues.Issue2839_Tests.Count_Query_routes_the_exact_query_and_reads_an_Int32_result"
+    },
+    {
+      "name": "LiteDB.Tests.Issues.Issue2839_Tests.LongCount_without_Query_preserves_an_engine_result_above_Int32"
+    }
+  ],
+  "environments": [
+    "linux-x64-net8.0",
+    "windows-x64-net8.0",
+    "macos-x64-net8.0",
+    "macos-arm64-net8.0",
+    "linux-x64-net10.0",
+    "windows-x64-net10.0",
+    "macos-x64-net10.0",
+    "macos-arm64-net10.0"
+  ],
+  "filter": "FullyQualifiedName~Issue2839_Tests",
+  "frozen_test_blobs": {
+    "LiteDB.Tests/Issues/Issue2839_Tests.cs": "a98df12a912e780edf12d7cc87f1dbf65cdf7db9"
+  },
+  "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+  "inventory_issue": 2839,
+  "regressions": [
+    {
+      "failure_first_line": "System.OverflowException : Value was either too large or too small for an Int32.",
+      "name": "LiteDB.Tests.Issues.Issue2839_Tests.LongCount_Query_routes_the_exact_query_and_preserves_Int64_width"
+    }
+  ]
+}
