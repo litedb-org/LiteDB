@@ -14,6 +14,15 @@
         "run_id": 35023525897
       },
       "reason": "Verify durable pause during the hosted canary; resume immediately after readback"
+    },
+    {
+      "action": "resume",
+      "at": 1789506386.9899757,
+      "owner": {
+        "run_attempt": 1,
+        "run_id": 35023611629
+      },
+      "reason": "Hosted canary pause persisted successfully; resume automatic execution"
     }
   ],
   "infrastructure_streak": 0,
@@ -36,7 +45,7 @@
   },
   "kind": "hosted-bugfix-sweep",
   "last_tick": {
-    "at": 1789506355.9299102,
+    "at": 1789506386.9899783,
     "campaign": null,
     "campaign_phase": null,
     "counts": {
@@ -47,11 +56,11 @@
     },
     "issue": null,
     "run_attempt": 1,
-    "run_id": 35023555724,
+    "run_id": 35023611629,
     "run_ids": []
   },
-  "paused": true,
-  "phase": "paused",
+  "paused": false,
+  "phase": "running",
   "schema_version": 1,
   "specification": {
     "campaign_prefix": "hosted-v9",
