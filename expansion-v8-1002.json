@@ -210,6 +210,21 @@
         "started_at": 1789497670.733579,
         "workflow": "bugfix-check.yml"
       },
+      "broad-1-0": {
+        "inputs": {
+          "acceptance_profile_sha256": "5ca1530b7b795ce60fdd56e5aa010f63535d44b4c5693b04674161a4b862e8d2",
+          "accepted_ledger_sha256": "25d36bd781896cea84a1d0b163b0de2290e7fb14b9e1fecbce5299cf84f90ee8",
+          "accepted_state_sha": "f6d5a4caae1fdba1737bb38161c34693d7b68db6",
+          "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+          "candidate_sha": "a98b29089c01e21e50856abd0cc9bbea1ecc5631",
+          "issue": "1002",
+          "level": "broad",
+          "protocol": "compressed-v1"
+        },
+        "request_id": "bf-00868cea101449dba4a07142bc58735c",
+        "started_at": 1789498326.2257626,
+        "workflow": "bugfix-check.yml"
+      },
       "fix-1-0": {
         "branch": "fix/issue-1002-expansion-v8-1002-a1",
         "candidate_sha": "a98b29089c01e21e50856abd0cc9bbea1ecc5631",
