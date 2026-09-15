@@ -9,8 +9,10 @@ import subprocess
 import sys
 import time
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bugfix"))
 from compiler_feedback import write_build_report
+from bugfix_vstest_identity import read_diagnostic
 
 
 def execute(command, repository, log, timeout):
@@ -79,12 +81,15 @@ def main():
     result = {"schema_version": 1, "source_sha": revision,
               "test_source_sha": frozen, "framework": args.framework,
               "runner_os": platform.system(), "runner_arch": platform.machine(),
-              "workflow_sha": os.environ.get("GITHUB_SHA"), "runs": {}}
+              "workflow_sha": os.environ.get("GITHUB_SHA"), "runs": {},
+              "vstest_diagnostics": {}}
     lanes = ["focused", "broad"] if args.level == "broad" else ["focused"]
     if args.required_pass_filter:
         lanes.append("required-pass")
     for name in lanes:
-        command = common + ["--logger", f"trx;LogFileName={name}.trx"]
+        diagnostic = output / f"{name}-vstest-diag.txt"
+        command = common + ["--diag", str(diagnostic),
+                            "--logger", f"trx;LogFileName={name}.trx"]
         if name == "focused":
             command += ["--filter", contract["filter"]]
         elif name == "required-pass":
@@ -92,6 +97,12 @@ def main():
         result["runs"][name] = execute(command, repository, output / f"{name}.log", 360)
         if not (output / f"{name}.trx").is_file():
             raise RuntimeError(f"Missing {name} TRX report")
+        result["vstest_diagnostics"][name] = read_diagnostic(diagnostic)
+    architectures = {value["testhost_architecture"]
+                     for value in result["vstest_diagnostics"].values()}
+    if len(architectures) != 1:
+        raise RuntimeError("Test lanes used different testhost architectures")
+    result["testhost_arch"] = architectures.pop()
     (output / "execution.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(result), flush=True)
 

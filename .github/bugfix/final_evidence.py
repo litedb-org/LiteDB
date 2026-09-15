@@ -15,6 +15,7 @@ FINAL_POLICY_PATHS = (
     ".github/workflows/_bugfix-full-ci-matrix.yml",
     ".github/workflows/reprorunner.yml",
     ".github/scripts/collect_bugfix_full_ci.py",
+    ".github/scripts/bugfix_vstest_identity.py",
     ".github/scripts/compare_bugfix_full_ci.py",
     ".github/scripts/compare_bugfix_final_promotion.py",
     ".github/scripts/bugfix_full_ci_quarantine.py",
@@ -37,6 +38,9 @@ FINAL_POLICY_PATHS = (
     "scripts/bugfix/known-failure-classes.json",
     "scripts/bugfix/failure-normalization.json",
     "scripts/bugfix/failure_normalization.py",
+    "scripts/bugfix/focused_baseline.py",
+    "scripts/bugfix/fixtures/wave-three-baseline.json",
+    "scripts/bugfix/fixtures/wave-three-focused-failures.json",
     "scripts/bugfix/trx.py",
     "scripts/bugfix/source_context.py",
 )

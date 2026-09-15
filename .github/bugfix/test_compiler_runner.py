@@ -1,6 +1,7 @@
 """The test build runner retains failure evidence before it exits without TRX."""
 
 import importlib.util
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -10,11 +11,30 @@ from unittest.mock import patch
 
 
 class RunnerBuildEvidenceTests(unittest.TestCase):
-    def test_compiler_failure_and_timeout_are_retained_before_test_execution(self):
+    @classmethod
+    def setUpClass(cls):
         source = Path(__file__).resolve().parents[1] / "scripts/run_bugfix_tests.py"
         spec = importlib.util.spec_from_file_location("compiler_test_runner", source)
-        runner = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(runner)
+        cls.runner = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.runner)
+
+    def test_vstest_diagnostic_binds_the_actual_testhost_architecture(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "vstest-diag.txt"
+            line = (b"TpTrace: DotnetTestHostmanager.GetTestHostProcessStartInfo: "
+                    b"Platform environment 'X86' target architecture 'X86' "
+                    b"framework '.NETCoreApp,Version=v8.0' OS 'Windows'\n")
+            path.write_bytes(line)
+            self.assertEqual({
+                "testhost_architecture": "x86",
+                "sha256": hashlib.sha256(line).hexdigest(),
+            }, self.runner.read_diagnostic(path))
+            path.write_bytes(line + line.replace(b"X86", b"ARM64"))
+            with self.assertRaisesRegex(ValueError, "one exact testhost"):
+                self.runner.read_diagnostic(path)
+
+    def test_compiler_failure_and_timeout_are_retained_before_test_execution(self):
+        runner = self.runner
         for timeout in (False, True):
             with self.subTest(timeout=timeout), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)

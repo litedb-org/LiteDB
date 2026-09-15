@@ -1420,6 +1420,871 @@
           "Examine old ObjectId indexes written with signed timestamp ordering, especially mixed pre/post-2038 keys: lookup, range traversal and insert behavior under a new comparer may require rebuild or migration. The frozen primary-index test creates a fresh database and does not prove old indexes are compatible; generic vector compatibility does not exercise this ordering. Supply evidence and explicitly report unresolved compatibility limitations. Preserve the public Timestamp API type/ABI and raw timestamp bits unless an independently reviewed API change is authorized."
         ]
       }
+    },
+    "2860": {
+      "inventory_issue": 2860,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2860_Tests.cs": "227f97a4449aec740cf654397327b9205b69a0fe"
+      },
+      "filter": "FullyQualifiedName~Issue2860_Tests",
+      "environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net8.0",
+        "windows-x64-net10.0",
+        "macos-arm64-net8.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net8.0",
+        "windows-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Mapper/BsonMapper.cs",
+        "LiteDB/Utils/LiteException.cs"
+      ],
+      "focused_baseline": {
+        "schema_version": 1,
+        "source_run_id": 34988724926,
+        "source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+        "repeat_candidate_sha": "79e5c69cb9e6a1bcc08e919c2993aaa5401148b7",
+        "workflow_sha": "7629236e73bde318e934509244c3e61ef820d8db",
+        "failure_normalization_sha256": "d4c510bf1504ec8298e0f231548fde8e67a929f7a3ccca9c6ec21a1a89571a36",
+        "artifacts": {
+          "linux-x64-net8.0": {
+            "artifact_id": 10405370121,
+            "artifact_name": "bugfix-check-ubuntu-latest-net8.0",
+            "baseline_trx_sha256": "a4d3b367c661fa8768fbb8668d4a8827713618fa3b488f15f02ca1607c8bd56b",
+            "repeat_candidate_trx_sha256": "167eb02e1001d29571ed81d0cae3efae66516b079b78169b2445d765d58f4d88"
+          },
+          "linux-x64-net10.0": {
+            "artifact_id": 10405505060,
+            "artifact_name": "bugfix-check-ubuntu-latest-net10.0",
+            "baseline_trx_sha256": "d4d7854e6d5e036da9d1ad92ac4f5aebe0a23b8033fe5a50f9793dcf18cbe423",
+            "repeat_candidate_trx_sha256": "06e8fd06f3069730ba19b93580856134a5514ae5b6d88862e9436499f8d8849b"
+          },
+          "windows-x64-net8.0": {
+            "artifact_id": 10404073794,
+            "artifact_name": "bugfix-check-windows-latest-net8.0",
+            "baseline_trx_sha256": "931cbd570f47bf6a376f11dde76c0ecf1399f9d742acf0f90eeb9463d781bdf0",
+            "repeat_candidate_trx_sha256": "341cb8549c8b485af5375dc4e1260016406570c25b34b8005a1b51cb62af57c6"
+          },
+          "windows-x64-net10.0": {
+            "artifact_id": 10404574219,
+            "artifact_name": "bugfix-check-windows-latest-net10.0",
+            "baseline_trx_sha256": "789212a8598feb82270173bbc4b6e152682e4b1177a51ab6f7ad67d1dcc0c08e",
+            "repeat_candidate_trx_sha256": "9d6ab521cbee8ca0390c9b1d54c7bb11a415ad5f1ac8b43972d09f632e09bf42"
+          },
+          "macos-arm64-net8.0": {
+            "artifact_id": 10405111338,
+            "artifact_name": "bugfix-check-macos-latest-net8.0",
+            "baseline_trx_sha256": "c069b53a2512adcd39c9ecf0bbf1d1329ff1371fa21228dbf4de3923340ee719",
+            "repeat_candidate_trx_sha256": "0bba29b9d0a80d9bb804d3b9e5d3228468d0a6d900c7004201c54981391a18dd"
+          },
+          "macos-arm64-net10.0": {
+            "artifact_id": 10405450249,
+            "artifact_name": "bugfix-check-macos-latest-net10.0",
+            "baseline_trx_sha256": "487ac255e77785b858569e7dbbd93a1e5422db470aae03c8c0d71741709b4e08",
+            "repeat_candidate_trx_sha256": "0e97ba85d8c32b48def91f249511913e247a5dd50fd588a1829f6b09d47451df"
+          }
+        },
+        "control_gaps": [
+          {
+            "component": "max-depth-diagnostic",
+            "status": "control_gap",
+            "reason": "The frozen source has two exact red namespace-disambiguation cases but no independently green max-depth control; URI controls do not count as diagnostic controls."
+          }
+        ]
+      },
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Database_round_trip_preserves_Uri_text_and_kind(text: \"../img/a.png?size=2#preview\", isAbsolute: False)",
+          "test_id": "5a4b95f1-ed5a-bdd6-d285-a4c63c05e2fb",
+          "component": "uri-read",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            }
+          },
+          "failure_classifications": {
+            "expected": {
+              "failure_first_line": "System.UriFormatException : Invalid URI: The format of the URI could not be determined.",
+              "sha256": "ad7144e5e7904c9181c299d0a98d48de3edc7443a0508849547cc9d2c0509281"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Database_round_trip_preserves_Uri_text_and_kind(text: \"/a/b\", isAbsolute: False)",
+          "test_id": "3f4b1bca-3bf4-f028-0226-01d45c01f615",
+          "component": "uri-read",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "windows"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "windows"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            }
+          },
+          "failure_classifications": {
+            "unix": {
+              "failure_first_line": "Expected actual.IsAbsoluteUri to be False, but found True.",
+              "sha256": "61ecb81438af2dd2ba1a6ae9ccfb3d820c5d5ac0bc595a95d27d158db99e93d0"
+            },
+            "windows": {
+              "failure_first_line": "System.UriFormatException : Invalid URI: The format of the URI could not be determined.",
+              "sha256": "ad7144e5e7904c9181c299d0a98d48de3edc7443a0508849547cc9d2c0509281"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Database_round_trip_preserves_Uri_text_and_kind(text: \"img/a.png\", isAbsolute: False)",
+          "test_id": "f73a709c-a0b6-25e2-8f74-414c3378908d",
+          "component": "uri-read",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            }
+          },
+          "failure_classifications": {
+            "expected": {
+              "failure_first_line": "System.UriFormatException : Invalid URI: The format of the URI could not be determined.",
+              "sha256": "ad7144e5e7904c9181c299d0a98d48de3edc7443a0508849547cc9d2c0509281"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Mapper_reads_independently_authored_Uri_strings_with_their_kind(text: \"../img/a.png?size=2#preview\", isAbsolute: False)",
+          "test_id": "a6e12cd4-cd98-993a-bb7d-ddb3587f1d14",
+          "component": "uri-read",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            }
+          },
+          "failure_classifications": {
+            "expected": {
+              "failure_first_line": "System.UriFormatException : Invalid URI: The format of the URI could not be determined.",
+              "sha256": "ad7144e5e7904c9181c299d0a98d48de3edc7443a0508849547cc9d2c0509281"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Mapper_reads_independently_authored_Uri_strings_with_their_kind(text: \"/a/b\", isAbsolute: False)",
+          "test_id": "183009ba-ebfe-5344-1e20-acac164ea6a0",
+          "component": "uri-read",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "windows"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "windows"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            }
+          },
+          "failure_classifications": {
+            "unix": {
+              "failure_first_line": "Expected actual.IsAbsoluteUri to be False, but found True.",
+              "sha256": "61ecb81438af2dd2ba1a6ae9ccfb3d820c5d5ac0bc595a95d27d158db99e93d0"
+            },
+            "windows": {
+              "failure_first_line": "System.UriFormatException : Invalid URI: The format of the URI could not be determined.",
+              "sha256": "ad7144e5e7904c9181c299d0a98d48de3edc7443a0508849547cc9d2c0509281"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Mapper_reads_independently_authored_Uri_strings_with_their_kind(text: \"img/a.png\", isAbsolute: False)",
+          "test_id": "70462219-3d49-0a29-d7f0-46ec0a62be50",
+          "component": "uri-read",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            }
+          },
+          "failure_classifications": {
+            "expected": {
+              "failure_first_line": "System.UriFormatException : Invalid URI: The format of the URI could not be determined.",
+              "sha256": "ad7144e5e7904c9181c299d0a98d48de3edc7443a0508849547cc9d2c0509281"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Max_depth_error_disambiguates_types_with_the_same_simple_name(value: DepthEnvelope`1 { Child = Node { } }, nestedType: typeof(LiteDB.Tests.Issues.Issue2860_Tests+FirstDomain+Node))",
+          "test_id": "baba02e8-4d3a-3425-ec29-2bca0db4437d",
+          "component": "max-depth-diagnostic",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            }
+          },
+          "failure_classifications": {
+            "expected": {
+              "failure_first_line": "Expected exception.Message to be \"Document has more than 1 nested documents in 'LiteDB.Tests.Issues.Issue2860_Tests+FirstDomain+Node'. Check for circular references (use DbRef).\" with a length of 143, but \"Document has more than 1 nested documents in 'Node'. Check for circular references (use DbRef).\" has a length of 95, differs near \"Nod\" (index 46).",
+              "sha256": "48ede9085b492d0542229dadfa3ea08f7eae5d8978d9a96825d2331ceb350afd"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Max_depth_error_disambiguates_types_with_the_same_simple_name(value: DepthEnvelope`1 { Child = Node { } }, nestedType: typeof(LiteDB.Tests.Issues.Issue2860_Tests+SecondDomain+Node))",
+          "test_id": "baba02e8-4d3a-3425-ec29-2bca0db4437d",
+          "component": "max-depth-diagnostic",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            }
+          },
+          "failure_classifications": {
+            "expected": {
+              "failure_first_line": "Expected exception.Message to be \"Document has more than 1 nested documents in 'LiteDB.Tests.Issues.Issue2860_Tests+SecondDomain+Node'. Check for circular references (use DbRef).\" with a length of 144, but \"Document has more than 1 nested documents in 'Node'. Check for circular references (use DbRef).\" has a length of 95, differs near \"Nod\" (index 46).",
+              "sha256": "ce0aade983dc108808aa2354d4d394d1844194798063e3df228c6d3396bcacf4"
+            }
+          }
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Database_round_trip_preserves_Uri_text_and_kind(text: \"file:///a/b\", isAbsolute: True)",
+          "test_id": "07404c36-780c-b498-270b-7a9d2d3ac1dc",
+          "component": "uri-read",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Passed"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Database_round_trip_preserves_Uri_text_and_kind(text: \"https://example.test/img/a.png?size=2#preview\", isAbsolute: True)",
+          "test_id": "614cc074-4b74-88c2-bd9e-d7fe38d7dcf6",
+          "component": "uri-read",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Passed"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Database_round_trip_preserves_Uri_text_and_kind(text: \"urn:example:animal:ferret:nose\", isAbsolute: True)",
+          "test_id": "489ff75b-74ab-1a0e-192e-6c35c9aa4f53",
+          "component": "uri-read",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Passed"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Mapper_reads_independently_authored_Uri_strings_with_their_kind(text: \"file:///a/b\", isAbsolute: True)",
+          "test_id": "bac8e973-3414-2586-1ff0-8f8278d64406",
+          "component": "uri-read",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Passed"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Mapper_reads_independently_authored_Uri_strings_with_their_kind(text: \"https://example.test/img/a.png?size=2#preview\", isAbsolute: True)",
+          "test_id": "95497139-4e91-5673-d1c4-4fbe09b971cb",
+          "component": "uri-read",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Passed"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Mapper_reads_independently_authored_Uri_strings_with_their_kind(text: \"urn:example:animal:ferret:nose\", isAbsolute: True)",
+          "test_id": "3789aa9c-a295-9169-1256-060f60c852a3",
+          "component": "uri-read",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Passed"
+            }
+          }
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Preserve relative and absolute URI text and kind on every required platform, including the OS-dependent /a/b baseline, and report exact max-depth type full names while retaining DOCUMENT_MAX_DEPTH. Treat URI and diagnostic components as one atomic acceptance contract."
+        ]
+      }
+    },
+    "2870": {
+      "inventory_issue": 2870,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2870_Tests.cs": "b09cc10649079b70ee29dbbf24a72e290fcc9483"
+      },
+      "filter": "FullyQualifiedName~Issue2870_Tests",
+      "environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net8.0",
+        "windows-x64-net10.0",
+        "macos-arm64-net8.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net8.0",
+        "windows-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Engine/Query/QueryExecutor.cs",
+        "LiteDB/Document/DataReader/BsonDataReader.cs",
+        "LiteDB/Utils/Extensions/IOExceptionExtensions.cs",
+        "LiteDB/Engine/FileReader/FileReaderV8.cs"
+      ],
+      "focused_baseline": {
+        "schema_version": 1,
+        "source_run_id": 34988724926,
+        "source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+        "repeat_candidate_sha": "79e5c69cb9e6a1bcc08e919c2993aaa5401148b7",
+        "workflow_sha": "7629236e73bde318e934509244c3e61ef820d8db",
+        "failure_normalization_sha256": "d4c510bf1504ec8298e0f231548fde8e67a929f7a3ccca9c6ec21a1a89571a36",
+        "artifacts": {
+          "linux-x64-net8.0": {
+            "artifact_id": 10405370121,
+            "artifact_name": "bugfix-check-ubuntu-latest-net8.0",
+            "baseline_trx_sha256": "a4d3b367c661fa8768fbb8668d4a8827713618fa3b488f15f02ca1607c8bd56b",
+            "repeat_candidate_trx_sha256": "167eb02e1001d29571ed81d0cae3efae66516b079b78169b2445d765d58f4d88"
+          },
+          "linux-x64-net10.0": {
+            "artifact_id": 10405505060,
+            "artifact_name": "bugfix-check-ubuntu-latest-net10.0",
+            "baseline_trx_sha256": "d4d7854e6d5e036da9d1ad92ac4f5aebe0a23b8033fe5a50f9793dcf18cbe423",
+            "repeat_candidate_trx_sha256": "06e8fd06f3069730ba19b93580856134a5514ae5b6d88862e9436499f8d8849b"
+          },
+          "windows-x64-net8.0": {
+            "artifact_id": 10404073794,
+            "artifact_name": "bugfix-check-windows-latest-net8.0",
+            "baseline_trx_sha256": "931cbd570f47bf6a376f11dde76c0ecf1399f9d742acf0f90eeb9463d781bdf0",
+            "repeat_candidate_trx_sha256": "341cb8549c8b485af5375dc4e1260016406570c25b34b8005a1b51cb62af57c6"
+          },
+          "windows-x64-net10.0": {
+            "artifact_id": 10404574219,
+            "artifact_name": "bugfix-check-windows-latest-net10.0",
+            "baseline_trx_sha256": "789212a8598feb82270173bbc4b6e152682e4b1177a51ab6f7ad67d1dcc0c08e",
+            "repeat_candidate_trx_sha256": "9d6ab521cbee8ca0390c9b1d54c7bb11a415ad5f1ac8b43972d09f632e09bf42"
+          },
+          "macos-arm64-net8.0": {
+            "artifact_id": 10405111338,
+            "artifact_name": "bugfix-check-macos-latest-net8.0",
+            "baseline_trx_sha256": "c069b53a2512adcd39c9ecf0bbf1d1329ff1371fa21228dbf4de3923340ee719",
+            "repeat_candidate_trx_sha256": "0bba29b9d0a80d9bb804d3b9e5d3228468d0a6d900c7004201c54981391a18dd"
+          },
+          "macos-arm64-net10.0": {
+            "artifact_id": 10405450249,
+            "artifact_name": "bugfix-check-macos-latest-net10.0",
+            "baseline_trx_sha256": "487ac255e77785b858569e7dbbd93a1e5422db470aae03c8c0d71741709b4e08",
+            "repeat_candidate_trx_sha256": "0e97ba85d8c32b48def91f249511913e247a5dd50fd588a1829f6b09d47451df"
+          }
+        },
+        "control_gaps": []
+      },
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2870_Tests.FileReaderV8_preserves_the_original_stream_failure_frame",
+          "test_id": "7a765f9f-7bdf-047e-1d44-4201ab5a9237",
+          "component": "file-reader-rethrow",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "windows"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "windows"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            }
+          },
+          "failure_classifications": {
+            "unix": {
+              "failure_first_line": "Expected actual.StackTrace \"   at LiteDB.Engine.FileReaderV8.HandleError(Exception ex, PageInfo pageInfo) in <checkout>/LiteDB/Engine/FileReader/FileReaderV8.cs:line 576",
+              "sha256": "681896b05a1a028aec691e672aacd311559d7cd883fb1802de913bd31f029ce3"
+            },
+            "windows": {
+              "failure_first_line": "Expected actual.StackTrace \"   at LiteDB.Engine.FileReaderV8.HandleError(Exception ex, PageInfo pageInfo) in <checkout>/LiteDB\\Engine\\FileReader\\FileReaderV8.cs:line 576",
+              "sha256": "5871ca48b8dc4bd5b4be9febe2a084b6c94561ea58acf7768fe01d6b3654396c"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2870_Tests.Query_preserves_the_original_frame_when_a_later_source_read_throws",
+          "test_id": "419bfae8-e017-7b19-e5c0-9a23b58c1a51",
+          "component": "query-rethrow",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "windows"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "windows"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            }
+          },
+          "failure_classifications": {
+            "unix": {
+              "failure_first_line": "Expected actual.StackTrace \"   at LiteDB.BsonDataReader.Read() in <checkout>/LiteDB/Document/DataReader/BsonDataReader.cs:line 118",
+              "sha256": "1ffad189244df7cf9c078222330fc64240f1e5c0ffffcb69eb901d784375d3d7"
+            },
+            "windows": {
+              "failure_first_line": "Expected actual.StackTrace \"   at LiteDB.BsonDataReader.Read() in <checkout>/LiteDB\\Document\\DataReader\\BsonDataReader.cs:line 118",
+              "sha256": "b023d93dcb8cb36a0689d7777ea4e8ea219ef14eb635e4afedec05c4d33c03f7"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2870_Tests.Query_preserves_the_original_frame_when_the_first_source_read_throws",
+          "test_id": "7d0d6fcd-0d48-7a6b-d09f-7c6134821dde",
+          "component": "query-rethrow",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "windows"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "windows"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            }
+          },
+          "failure_classifications": {
+            "unix": {
+              "failure_first_line": "Expected actual.StackTrace \"   at LiteDB.Engine.QueryExecutor.<>c__DisplayClass12_0.<<ExecuteQuery>g__RunQuery|2>d.MoveNext() in <checkout>/LiteDB/Engine/Query/QueryExecutor.cs:line 139",
+              "sha256": "48df41402f7b97c61d27145efab164d4674b4fcfaffa2498b385a9b3c7473ef0"
+            },
+            "windows": {
+              "failure_first_line": "Expected actual.StackTrace \"   at LiteDB.Engine.QueryExecutor.<>c__DisplayClass12_0.<<ExecuteQuery>g__RunQuery|2>d.MoveNext() in <checkout>/LiteDB/Engine/Query/QueryExecutor.cs:line 139",
+              "sha256": "4252291c8de1644ba85322b3d9f83b80bf94b5c6d908dd472294bbc4e79597f4"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2870_Tests.WaitIfLocked_preserves_the_original_frame_for_non_lock_errors",
+          "test_id": "fd7f9f90-ed5c-01be-3404-33c610eb09d3",
+          "component": "wait-if-locked",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "windows"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "windows"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            }
+          },
+          "failure_classifications": {
+            "unix": {
+              "failure_first_line": "Expected actual.StackTrace \"   at LiteDB.IOExceptionExtensions.WaitIfLocked(IOException ex, Int32 timerInMilliseconds) in <checkout>/LiteDB/Utils/Extensions/IOExceptionExtensions.cs:line 38",
+              "sha256": "0696aa4fb82c9e89bacb0e199cac9acbcff0e03a329fba8562641a7e459680f7"
+            },
+            "windows": {
+              "failure_first_line": "Expected actual.StackTrace \"   at LiteDB.IOExceptionExtensions.WaitIfLocked(IOException ex, Int32 timerInMilliseconds) in <checkout>/LiteDB\\Utils\\Extensions\\IOExceptionExtensions.cs:line 38",
+              "sha256": "0ea14f2213e41c456bb29eb045a55ca731539e347893f31a560bacc63f3d99d3"
+            }
+          }
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2870_Tests.Healthy_FileReaderV8_reopens_persisted_documents",
+          "test_id": "2dd52d2f-4b18-b4b8-08ea-3d9881c0ceaa",
+          "component": "file-reader-rethrow",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Passed"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2870_Tests.Healthy_external_source_enumerates_every_document_through_query",
+          "test_id": "a6342816-4560-94bb-f1c7-42e324bedfd7",
+          "component": "query-rethrow",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Passed"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2870_Tests.WaitIfLocked_returns_normally_for_a_lock_error",
+          "test_id": "c64e63ff-56c0-3e52-30f0-49c530baa626",
+          "component": "wait-if-locked",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Passed"
+            }
+          }
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Preserve the exact thrown exception object, message, and original no-inline source frame at every query, wait, and file-reader rethrow site. Retain read counts, error-ledger behavior, healthy query enumeration, lock handling, and persisted file-reader controls."
+        ]
+      }
     }
   }
 }

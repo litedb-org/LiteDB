@@ -109,14 +109,16 @@ class WaveThreeContracts(unittest.TestCase):
         self.assertTrue(any("Issue2873_ReportedModelTests." in case["name"] for case in issue["regressions"]))
         self.assertIn("Existing_ctor_mapping", issue["controls"][0]["name"])
 
-    def test_environment_dependent_issues_remain_deferred(self):
+    def test_environment_dependent_issues_keep_the_original_observation(self):
         current = json.loads(MANIFEST.read_text(encoding="utf-8"))
         for number in (2860, 2870):
-            self.assertNotIn(str(number), current["issues"])
+            self.assertIn(str(number), current["issues"])
             evidence = OBSERVED["deferred"][str(number)]
             self.assertTrue(evidence["reference_cases"])
             self.assertTrue(any(evidence["lane_differences"].values()))
             self.assertTrue(evidence["reason"])
+            self.assertEqual(current["issues"][str(number)]["regressions"],
+                             evidence["resolved_focused_baseline"]["regressions"])
 
 
 if __name__ == "__main__":

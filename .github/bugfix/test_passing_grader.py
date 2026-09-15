@@ -1,6 +1,7 @@
 """The CI entry point enforces accepted cases before constructing a failure ledger."""
 
 import contextlib
+import hashlib
 import importlib.util
 import io
 import json
@@ -17,7 +18,7 @@ from test_profiles import profile_fixture
 
 
 class PassingGraderTests(unittest.TestCase):
-    def run_grader(self, level, failing_variant=None):
+    def run_grader(self, level, failing_variant=None, mismatched_architecture=False):
         source = Path(__file__).resolve().parents[1] / "scripts/grade_bugfix_checks.py"
         spec = importlib.util.spec_from_file_location("_passing_grader_test", source)
         module = importlib.util.module_from_spec(spec)
@@ -38,7 +39,18 @@ class PassingGraderTests(unittest.TestCase):
                 if "run_bugfix_tests.py" in str(arguments[0]):
                     output = Path(arguments[arguments.index("--output") + 1])
                     output.mkdir(parents=True)
-                    (output / "execution.json").write_text(json.dumps({"runs": {"focused": 1, "broad": 0, "required-pass": 0}}))
+                    diagnostic = (b"TpTrace: DotnetTestHostmanager.GetTestHostProcessStartInfo: "
+                                  b"Platform environment 'X64' target architecture 'X64'\n")
+                    identity = {"testhost_architecture": "x64",
+                                "sha256": hashlib.sha256(diagnostic).hexdigest()}
+                    runs = {"focused": 1, "broad": 0, "required-pass": 0}
+                    for lane in runs:
+                        (output / f"{lane}-vstest-diag.txt").write_bytes(diagnostic)
+                    (output / "execution.json").write_text(json.dumps({
+                        "runs": runs,
+                        "vstest_diagnostics": {lane: identity for lane in runs},
+                        "testhost_arch": "arm64" if mismatched_architecture else "x64",
+                    }))
                 if "compare" in arguments:
                     Path(arguments[arguments.index("--output") + 1]).write_text('{"source_context_changes": []}')
 
@@ -57,6 +69,10 @@ class PassingGraderTests(unittest.TestCase):
                     patch("profiles.build_profile", return_value=profile), \
                     patch.dict(sys.modules, {"trx": SimpleNamespace(read_trx=read)}), patch.object(sys, "path", sys.path.copy()), \
                     patch.dict(os.environ, environment), contextlib.redirect_stdout(io.StringIO()):
+                if mismatched_architecture:
+                    with self.assertRaisesRegex(ValueError, "does not match its diagnostics"):
+                        module.main()
+                    return
                 if failing_variant:
                     with self.assertRaisesRegex(Rejected, "Previously accepted tests regressed"):
                         module.main()
@@ -85,6 +101,9 @@ class PassingGraderTests(unittest.TestCase):
         for variant in ("baseline", "candidate"):
             with self.subTest(variant=variant):
                 self.run_grader("broad", failing_variant=variant)
+
+    def test_reported_environment_must_match_retained_vstest_diagnostics(self):
+        self.run_grader("broad", mismatched_architecture=True)
 
 
 if __name__ == "__main__":

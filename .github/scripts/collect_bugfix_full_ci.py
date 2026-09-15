@@ -17,6 +17,9 @@ import sys
 import tempfile
 import zipfile
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from bugfix_vstest_identity import diagnostic_identity, normalized_architecture
+
 from bugfix_full_ci_quarantine import load_quarantine
 from apply_issue_2794_harness_overlay import (
     load_manifest_path as load_issue_2794_harness_overlay,
@@ -169,6 +172,66 @@ def claimed_architecture(job_name):
     return match.group(1) if match else None
 
 
+def runtime_identity(job, members, artifact, source_sha, definition_sha):
+    raw = one_member(members, "runtime.json", artifact["name"])
+    require(len(raw) <= 16 * 1024, "Runtime identity exceeds size bound")
+    value = json.loads(raw)
+    fields = {
+        "schema_version", "source_sha", "evidence_definition_sha", "platform_key",
+        "framework", "runner_os", "runner_architecture", "dotnet_host_architecture",
+        "vstest_target_architecture", "vstest_diagnostic_sha256",
+    }
+    require(isinstance(value, dict) and set(value) == fields
+            and value.get("schema_version") == 1
+            and value.get("source_sha") == source_sha
+            and value.get("evidence_definition_sha") == definition_sha,
+            f"Invalid runtime identity in {artifact['name']}")
+    name = job["name"]
+    expected_os = ("Linux" if "Test (Linux" in name else
+                   "Darwin" if "Test (macOS" in name else
+                   "Windows" if "Test (Windows" in name else None)
+    framework = "net10.0" if ".NET 10" in name else (
+        "net8.0" if ".NET 8" in name or ".NET 9" in name else None)
+    if "Test (Linux ARM64" in name:
+        platform_key = "linux-arm64"
+    elif "Test (Linux" in name:
+        platform_key = "linux"
+    elif "Test (macOS" in name:
+        platform_key = "macos"
+    else:
+        match = re.search(
+            r"Test \(Windows (windows-(?:latest|2022)) - (x64|x86) -", name)
+        platform_key = f"{match.group(1)}-{match.group(2)}" if match else None
+    diagnostic = one_member(members, "vstest-diag.txt", artifact["name"])
+    require(hashlib.sha256(diagnostic).hexdigest()
+            == value.get("vstest_diagnostic_sha256"),
+            f"VSTest diagnostic hash differs in {artifact['name']}")
+    try:
+        diagnostic_record = diagnostic_identity(diagnostic)
+    except ValueError as error:
+        raise CollectionError(
+            f"Invalid VSTest diagnostic in {artifact['name']}: {error}") from error
+    testhost = normalized_architecture(value.get("vstest_target_architecture"))
+    runner = normalized_architecture(value.get("runner_architecture"))
+    dotnet = normalized_architecture(value.get("dotnet_host_architecture"))
+    require(value.get("runner_os") == expected_os
+            and value.get("framework") == framework
+            and value.get("platform_key") == platform_key
+            and runner is not None and dotnet is not None
+            and diagnostic_record["testhost_architecture"] == testhost,
+            f"Runtime identity differs from its job matrix in {artifact['name']}")
+    claimed = claimed_architecture(name)
+    return {
+        "runtime_architecture": testhost,
+        "runner_architecture": runner,
+        "dotnet_host_architecture": dotnet,
+        "dotnet_host_matches_testhost": dotnet == testhost,
+        "claimed_architecture": claimed,
+        "architecture_verified": True,
+        "claimed_architecture_matches": claimed is None or claimed == testhost,
+    }
+
+
 def load_trx_module(control_root):
     path = Path(control_root) / "scripts/bugfix/trx.py"
     spec = importlib.util.spec_from_file_location("_full_ci_trx", path)
@@ -191,10 +254,11 @@ def load_failure_policy(control_root, path):
     return module, policy, digest
 
 
-def test_job(job, data, artifact, trx_module, normalizer, failure_policy, baseline):
+def test_job(job, data, artifact, trx_module, normalizer, failure_policy, baseline,
+             source_sha, definition_sha):
     members = zip_members(data)
     inventory = discovery_names(one_member(members, "discovery.txt", artifact["name"]))
-    claimed = claimed_architecture(job["name"])
+    runtime = runtime_identity(job, members, artifact, source_sha, definition_sha)
     trx = one_member(members, ".trx", artifact["name"])
     with tempfile.TemporaryDirectory(prefix="litedb-full-ci-trx-") as directory:
         temporary = Path(directory) / "results.trx"
@@ -209,7 +273,8 @@ def test_job(job, data, artifact, trx_module, normalizer, failure_policy, baseli
     tests = []
     outcomes = {"Passed": "passed", "Failed": "failed", "NotExecuted": "skipped"}
     for identity, result in sorted(run.tests.items()):
-        item = {"identity": identity, "name": result.name, "class_name": result.class_name,
+        item = {"identity": identity, "test_id": result.test_id,
+                "name": result.name, "class_name": result.class_name,
                 "outcome": outcomes[result.outcome]}
         if result.outcome == "Failed":
             classification = normalizer.canonical_failure(
@@ -219,9 +284,7 @@ def test_job(job, data, artifact, trx_module, normalizer, failure_policy, baseli
     return {"name": job["name"], "kind": "tests", "status": job["status"],
             "conclusion": job["conclusion"], "job_id": job["id"], "url": job["html_url"],
             "artifact_id": artifact["id"], "artifact_sha256": hashlib.sha256(data).hexdigest(),
-            "runtime_architecture": "unmeasured", "claimed_architecture": claimed,
-            "architecture_verified": None if claimed is None else False,
-            "tests": tests}
+            **runtime, "tests": tests}
 
 
 def enum_name(value):
@@ -435,7 +498,8 @@ def collect(args):
             test_artifacts.add(artifact_name)
             data, artifact = download(artifact_name)
             normalized.append(test_job(job, data, artifact, trx_module, normalizer,
-                                       failure_policy, args.role == "baseline"))
+                                       failure_policy, args.role == "baseline",
+                                       args.source_sha, args.evidence_definition_sha))
         elif repro:
             data, artifact = download(f"logs-{repro.group(1)}-{repro.group(2)}")
             normalized.append(repro_job(

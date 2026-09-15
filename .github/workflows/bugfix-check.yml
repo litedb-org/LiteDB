@@ -8,6 +8,7 @@ on:
       - .github/workflows/bugfix-check.yml
       - .github/scripts/run_bugfix_tests.py
       - .github/scripts/grade_bugfix_checks.py
+      - .github/scripts/bugfix_vstest_identity.py
       - .github/scripts/select_bugfix_checks.py
       - scripts/bugfix/**
   workflow_dispatch:

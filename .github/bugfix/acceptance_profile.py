@@ -26,6 +26,15 @@ POLICY = {
         "2847": ["LiteDB/Client/Mapper/Linq/TypeResolver/StringResolver.cs"],
         "2205": ["LiteDB/Document/Expression/Parser/BsonExpressionParser.cs"],
         "2871": ["LiteDB/Client/Mapper/Reflection/Reflection.cs"],
+        "2860": [
+            "LiteDB/Client/Mapper/BsonMapper.cs",
+            "LiteDB/Utils/LiteException.cs",
+        ],
+        "2870": [
+            "LiteDB/Engine/Query/QueryExecutor.cs",
+            "LiteDB/Document/DataReader/BsonDataReader.cs",
+            "LiteDB/Utils/Extensions/IOExceptionExtensions.cs",
+        ],
     },
     "compatibility_pairs": {
         "1444": {"paths": ["LiteDB/Document/ObjectId.cs"],

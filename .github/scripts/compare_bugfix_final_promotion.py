@@ -27,6 +27,9 @@ from compare_bugfix_full_ci import (
     validate_job,
 )
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts/bugfix"))
+from focused_baseline import (contract_digest as focused_baseline_digest,
+                              expectation as focused_expectation,
+                              validate as validate_focused_baseline)
 from source_context import consume as consume_source_context, final_observations
 
 
@@ -156,6 +159,12 @@ def load_accepted_contracts(repository, ledger_path, manifest_path, base_sha,
                 f"Accepted issue {issue} candidate tree identity changed")
         regressions = contract.get("regressions")
         controls = contract.get("controls")
+        focused_baseline = validate_focused_baseline(contract)
+        if focused_baseline is not None:
+            profile = entry.get("acceptance_profile")
+            require(isinstance(profile, dict)
+                    and profile.get("contract_sha256") == canonical_digest(contract),
+                    f"Accepted issue {issue} changed its focused baseline contract")
         require(isinstance(regressions, list) and regressions
                 and isinstance(controls, list) and controls,
                 f"Accepted issue {issue} has an incomplete test contract")
@@ -195,6 +204,7 @@ def load_accepted_contracts(repository, ledger_path, manifest_path, base_sha,
                 f"Accepted issue {issue} repeats a full-matrix repro role")
         accepted[issue] = {"entry": entry, "regressions": regressions,
                            "controls": controls, "contract": contract,
+                           "focused_baseline_sha256": focused_baseline_digest(contract),
                            "repro_roles": {item["repro"]: item["role"]
                                            for item in repros}}
     by_base = defaultdict(list)
@@ -296,26 +306,70 @@ def load_evidence(path, label, expected_sha, validation, quarantine,
 
 
 def baseline_target_contract(job, accepted, errors):
-    regressions = [case for value in accepted.values() for case in value["regressions"]]
-    controls = [case for value in accepted.values() for case in value["controls"]]
-    names = {case["name"] for case in regressions + controls}
+    names = {case["name"] for value in accepted.values()
+             for case in value["regressions"] + value["controls"]}
     tests = target_tests(job, names)
     require(set(tests) == names, f"Partial accepted-test coverage in {job['name']}")
-    for case in regressions:
-        result = tests[case["name"]]
-        if result["outcome"] != "failed":
-            errors.append(f"Accepted regression was not red in baseline {job['name']}: {case['name']}")
-            continue
-        failure = result["failure"]
-        lines = failure.replace("\r\n", "\n").splitlines()
-        if not lines or lines[0] != case.get("failure_first_line"):
-            errors.append(f"Accepted regression had wrong baseline defect in {job['name']}: {case['name']}")
-        for detail in case.get("failure_contains", []):
-            if detail not in failure:
-                errors.append(f"Accepted regression lacked baseline detail in {job['name']}: {case['name']}")
-    for case in controls:
-        if tests[case["name"]]["outcome"] != "passed":
-            errors.append(f"Accepted control was not green in baseline {job['name']}: {case['name']}")
+    environment = proven_environment(job)
+    for issue, value in accepted.items():
+        contract = value["contract"]
+        focused = validate_focused_baseline(contract)
+        for role, cases in (("regression", value["regressions"]),
+                            ("control", value["controls"])):
+            for case in cases:
+                result = tests[case["name"]]
+                if focused is not None:
+                    if result.get("test_id") != case["test_id"]:
+                        errors.append(
+                            f"Accepted test identity changed in {job['name']}: "
+                            f"{case['name']}")
+                        continue
+                    if environment not in case["baseline_by_environment"]:
+                        errors.append(
+                            f"Accepted issue {issue} has no baseline contract for "
+                            f"{environment or 'unmeasured environment'} in {job['name']}")
+                        continue
+                    expected = focused_expectation(contract, case, environment)
+                    outcome = expected["outcome"].lower()
+                    if result["outcome"] != outcome:
+                        errors.append(
+                            f"Accepted {role} had wrong baseline outcome in "
+                            f"{job['name']}: {case['name']}")
+                        continue
+                    if outcome == "failed":
+                        classification = case["failure_classifications"][
+                            expected["classification"]]
+                        failure = result["failure_classification"]
+                        digest = hashlib.sha256(failure.encode("utf-8")).hexdigest()
+                        lines = failure.splitlines()
+                        if (digest != classification["sha256"] or not lines
+                                or lines[0] != classification["failure_first_line"]):
+                            errors.append(
+                                f"Accepted regression had wrong canonical baseline "
+                                f"defect in {job['name']}: {case['name']}")
+                    continue
+                if role == "control":
+                    if result["outcome"] != "passed":
+                        errors.append(
+                            f"Accepted control was not green in baseline "
+                            f"{job['name']}: {case['name']}")
+                    continue
+                if result["outcome"] != "failed":
+                    errors.append(
+                        f"Accepted regression was not red in baseline "
+                        f"{job['name']}: {case['name']}")
+                    continue
+                failure = result["failure"]
+                lines = failure.replace("\r\n", "\n").splitlines()
+                if not lines or lines[0] != case.get("failure_first_line"):
+                    errors.append(
+                        f"Accepted regression had wrong baseline defect in "
+                        f"{job['name']}: {case['name']}")
+                for detail in case.get("failure_contains", []):
+                    if detail not in failure:
+                        errors.append(
+                            f"Accepted regression lacked baseline detail in "
+                            f"{job['name']}: {case['name']}")
 
 
 def compare_test_job(before, after, target_names, intermittent_classes, errors,
@@ -329,7 +383,9 @@ def compare_test_job(before, after, target_names, intermittent_classes, errors,
     for identity in sorted(old.keys() & current.keys()):
         previous, candidate = old[identity], current[identity]
         name = previous["name"]
-        if candidate["name"] != name or candidate["class_name"] != previous["class_name"]:
+        if (candidate["name"] != name
+                or candidate["class_name"] != previous["class_name"]
+                or candidate.get("test_id") != previous.get("test_id")):
             errors.append(f"Frozen test rendering changed in {before['name']}: {identity}")
             continue
         if name in target_names:
@@ -383,7 +439,7 @@ def proven_environment(job):
     framework = "net10.0" if ".NET 10" in name else (
         "net8.0" if ".NET 8" in name or ".NET 9" in name else None)
     runtime = job.get("runtime_architecture")
-    architecture = "x64" if runtime in ("AMD64", "x86_64") else (
+    architecture = "x64" if runtime in ("AMD64", "x86_64", "x64") else (
         "arm64" if runtime in ("arm64", "aarch64") else (
             "x86" if runtime == "x86" else None))
     return f"{os_name}-{architecture}-{framework}" \
@@ -423,13 +479,16 @@ def compare(baseline, candidate, accepted, allowed_classes, allowed_skips,
                 errors.append(f"Runtime architecture changed between runs: {name}")
             for label, job in (("baseline", before), ("candidate", after)):
                 claimed, runtime = job.get("claimed_architecture"), job.get("runtime_architecture")
-                if job.get("architecture_verified") is False:
+                if job.get("architecture_verified") is not True:
                     architecture_limitations.append(
-                        f"{label} {name} claims {claimed} but ran {runtime}")
-                elif job.get("architecture_verified") is True:
+                        f"{label} {name} has no measured runtime architecture")
+                else:
                     environment = proven_environment(job)
                     if environment:
                         proven_environments.add(environment)
+                    if job.get("claimed_architecture_matches") is False:
+                        architecture_limitations.append(
+                            f"{label} {name} claims {claimed} but ran {runtime}")
             present = set(target_tests(before, target_names))
             current = set(target_tests(after, target_names))
             if present or current:
@@ -500,6 +559,11 @@ def compare(baseline, candidate, accepted, allowed_classes, allowed_skips,
         "unexpected_passes": unexpected_passes,
         "inconclusive_changes": inconclusive,
         "accepted_issues": sorted(accepted),
+        "focused_baseline_contracts": {
+            str(issue): value.get("focused_baseline_sha256")
+            for issue, value in sorted(accepted.items())
+            if value.get("focused_baseline_sha256") is not None
+        },
         "accepted_tests": sorted(target_names),
         "accepted_test_case_count": len(target_names),
         "accepted_test_execution_count": len(target_names) * len(target_jobs),
@@ -508,6 +572,11 @@ def compare(baseline, candidate, accepted, allowed_classes, allowed_skips,
         "source_context_changes": source_changes,
         "remaining_known_failures": known_failures,
         "coverage_gaps": before_evidence["coverage_gaps"],
+        "focused_baseline_control_gaps": {
+            str(issue): value["contract"]["focused_baseline"]["control_gaps"]
+            for issue, value in sorted(accepted.items())
+            if value["contract"].get("focused_baseline") is not None
+        },
         "architecture_limitations": sorted(set(architecture_limitations)),
         "artifact_counts": {"baseline": EXPECTED_ARTIFACTS,
                             "candidate": EXPECTED_ARTIFACTS},
@@ -555,6 +624,11 @@ def main(argv=None):
         quarantine = load_quarantine(args.quarantine)
         normalization_raw = Path(args.failure_normalization).read_bytes()
         normalization_sha = hashlib.sha256(normalization_raw).hexdigest()
+        for issue, value in accepted.items():
+            focused = value["contract"].get("focused_baseline")
+            if focused is not None:
+                require(focused["failure_normalization_sha256"] == normalization_sha,
+                        f"Accepted issue {issue} used a different focused normalization policy")
         classes, skips, intermittent, baseline_policy_sha = load_baseline_policy(
             args.baseline_policy)
         baseline_policy = read_object(args.baseline_policy, 8 * 1024 * 1024)

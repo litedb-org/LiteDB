@@ -7,6 +7,9 @@ import platform
 import subprocess
 import sys
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from bugfix_vstest_identity import read_diagnostic
+
 
 ROOT = Path.cwd()
 CONTROL = ROOT / "control"
@@ -28,8 +31,6 @@ def main():
     framework = os.environ["FRAMEWORK"]
     test_source = json.loads(MANIFEST.read_text(encoding="utf-8"))["issues"][issue]["frozen_test_revision"]
     os_name = {"Linux": "linux", "Windows": "windows", "Darwin": "macos"}[platform.system()]
-    arch = {"AMD64": "x64", "x86_64": "x64", "arm64": "arm64", "aarch64": "arm64"}[platform.machine()]
-    environment = f"{os_name}-{arch}-{framework}"
     ARTIFACTS.mkdir(exist_ok=False)
     sys.path.insert(0, str(CONTROL / ".github/bugfix"))
     from passing import assert_passing, load_snapshot, selection_filter
@@ -49,7 +50,6 @@ def main():
     (ARTIFACTS / "passing-contract.json").write_text(
         json.dumps({"snapshot": passing_contract, "tests": required_tests}, indent=2) + "\n", encoding="utf-8")
     shared = ["--manifest", MANIFEST, "--issue", issue, "--base-sha", base]
-    provenance = ["--environment", environment, "--test-definition-sha", test_source]
     call([GATE, "verify-tests", *shared, "--repository", ROOT / "baseline",
           "--output", ARTIFACTS / "frozen-tests.json"])
     if level != "baseline" and not candidate:
@@ -66,6 +66,19 @@ def main():
               "--output", ARTIFACTS / variant, "--manifest", MANIFEST,
               "--issue", issue, "--framework", framework, "--level", run_level, *required_lane])
         executions[variant] = json.loads((ARTIFACTS / variant / "execution.json").read_text())
+        execution = executions[variant]
+        diagnostics = execution.get("vstest_diagnostics")
+        if (not isinstance(diagnostics, dict)
+                or set(diagnostics) != set(execution.get("runs", {}))):
+            raise ValueError("Execution does not bind every VSTest diagnostic")
+        measured = set()
+        for lane, recorded in diagnostics.items():
+            actual = read_diagnostic(ARTIFACTS / variant / f"{lane}-vstest-diag.txt")
+            if actual != recorded:
+                raise ValueError("Retained VSTest diagnostic differs from execution identity")
+            measured.add(actual["testhost_architecture"])
+        if measured != {execution.get("testhost_arch")}:
+            raise ValueError("Execution testhost architecture does not match its diagnostics")
         targeted = profile["targeted_test_filters"] if profile and run_level == "broad" else []
         if required_tests or targeted:
             lane = "broad" if run_level == "broad" else "required-pass"
@@ -73,12 +86,21 @@ def main():
             assert_passing(completed, required_tests, variant)
             if targeted:
                 coverage[variant] = targeted_coverage(completed, targeted)
+    testhost_architectures = {execution.get("testhost_arch")
+                              for execution in executions.values()}
+    if (len(testhost_architectures) != 1
+            or None in testhost_architectures):
+        raise ValueError("Baseline and candidate need one measured testhost architecture")
+    environment = f"{os_name}-{testhost_architectures.pop()}-{framework}"
+    provenance = ["--environment", environment, "--test-definition-sha", test_source]
     baseline_args = ["--baseline-trx", ARTIFACTS / "baseline/focused.trx",
                      "--baseline-exit-code", executions["baseline"]["runs"]["focused"]]
     call([GATE, "baseline", *shared, *provenance, *baseline_args,
+          "--failure-normalization", FAILURE_NORMALIZATION,
           "--output", ARTIFACTS / "baseline-verdict.json"])
     if candidate:
         call([GATE, "focused", *shared, *provenance, *baseline_args,
+              "--failure-normalization", FAILURE_NORMALIZATION,
               "--candidate-sha", candidate,
               "--candidate-trx", ARTIFACTS / "candidate/focused.trx",
               "--candidate-exit-code", executions["candidate"]["runs"]["focused"],
@@ -103,6 +125,7 @@ def main():
                "base_sha": base, "candidate_sha": candidate or None,
                "test_source_sha": test_source, "workflow_sha": os.environ["GITHUB_SHA"],
                "environment": environment, "level": level,
+               "testhost_architecture": environment.split("-")[1],
                "passing_contract": passing_contract, "previously_accepted_tests_passed": True,
                "outcome": "bug_present" if level == "baseline" else "behavior_correct"}
     if profile is not None:

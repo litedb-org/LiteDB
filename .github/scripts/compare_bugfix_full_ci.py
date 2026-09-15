@@ -15,6 +15,9 @@ import re
 import sys
 
 from bugfix_full_ci_quarantine import load_quarantine
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts/bugfix"))
+from focused_baseline import (expectation as focused_expectation,
+                              validate as validate_focused_baseline)
 from apply_issue_2794_harness_overlay import (
     load_manifest_path as load_issue_2794_harness_overlay,
     provenance_contract as issue_2794_harness_overlay_contract,
@@ -68,7 +71,8 @@ def load_contract(path, issue_number):
     require(all(isinstance(name, str) and name for name in names),
             "Contract contains an unnamed test case")
     require(len(names) == len(set(names)), "Contract test identities are not unique")
-    return regressions, controls
+    validate_focused_baseline(issue)
+    return issue, regressions, controls
 
 
 def load_baseline_policy(path):
@@ -243,22 +247,68 @@ def target_tests(job, target_names):
     return matches
 
 
-def verify_baseline_target(job, regressions, controls, errors):
+def proven_environment(job):
+    if job.get("architecture_verified") is not True:
+        return None
+    name = job["name"]
+    os_name = "linux" if "Linux" in name else (
+        "windows" if "Windows" in name else ("macos" if "macOS" in name else None))
+    framework = "net10.0" if ".NET 10" in name else (
+        "net8.0" if ".NET 8" in name or ".NET 9" in name else None)
+    runtime = job.get("runtime_architecture")
+    architecture = "x64" if runtime in ("AMD64", "x86_64", "x64") else (
+        "arm64" if runtime in ("arm64", "aarch64") else (
+            "x86" if runtime == "x86" else None))
+    return f"{os_name}-{architecture}-{framework}" \
+        if os_name and architecture and framework else None
+
+
+def verify_baseline_target(job, issue, regressions, controls, errors):
     tests = target_tests(job, {case["name"] for case in regressions + controls})
-    for case in regressions:
-        test = tests[case["name"]]
-        if test["outcome"] != "failed":
-            errors.append(f"Baseline target is not failed in {job['name']}: {case['name']}")
-            continue
-        lines = test["failure"].replace("\r\n", "\n").splitlines()
-        if lines[0] != case.get("failure_first_line"):
-            errors.append(f"Baseline target has the wrong defect in {job['name']}: {case['name']}")
-        for detail in case.get("failure_contains", []):
-            if detail not in test["failure"]:
-                errors.append(f"Baseline target lacks expected detail in {job['name']}: {case['name']}")
-    for case in controls:
-        if tests[case["name"]]["outcome"] != "passed":
-            errors.append(f"Baseline control did not pass in {job['name']}: {case['name']}")
+    focused = validate_focused_baseline(issue)
+    environment = proven_environment(job)
+    for role, cases in (("regression", regressions), ("control", controls)):
+        for case in cases:
+            test = tests[case["name"]]
+            if focused is not None:
+                if test.get("test_id") != case["test_id"]:
+                    errors.append(
+                        f"Baseline target identity changed in {job['name']}: {case['name']}")
+                    continue
+                if environment not in case["baseline_by_environment"]:
+                    errors.append(
+                        f"No environment-aware baseline for {environment or 'unmeasured environment'} "
+                        f"in {job['name']}: {case['name']}")
+                    continue
+                expected = focused_expectation(issue, case, environment)
+                if test["outcome"] != expected["outcome"].lower():
+                    errors.append(
+                        f"Baseline {role} has the wrong outcome in {job['name']}: {case['name']}")
+                    continue
+                if expected["outcome"] == "Failed":
+                    classification = case["failure_classifications"][expected["classification"]]
+                    failure = test["failure_classification"]
+                    lines = failure.splitlines()
+                    if (hashlib.sha256(failure.encode("utf-8")).hexdigest()
+                            != classification["sha256"] or not lines
+                            or lines[0] != classification["failure_first_line"]):
+                        errors.append(
+                            f"Baseline target has the wrong canonical defect in "
+                            f"{job['name']}: {case['name']}")
+                continue
+            if role == "control":
+                if test["outcome"] != "passed":
+                    errors.append(f"Baseline control did not pass in {job['name']}: {case['name']}")
+                continue
+            if test["outcome"] != "failed":
+                errors.append(f"Baseline target is not failed in {job['name']}: {case['name']}")
+                continue
+            lines = test["failure"].replace("\r\n", "\n").splitlines()
+            if not lines or lines[0] != case.get("failure_first_line"):
+                errors.append(f"Baseline target has the wrong defect in {job['name']}: {case['name']}")
+            for detail in case.get("failure_contains", []):
+                if detail not in test["failure"]:
+                    errors.append(f"Baseline target lacks expected detail in {job['name']}: {case['name']}")
 
 
 def compare_test_job(before, after, target_names, intermittent_classes, errors,
@@ -277,6 +327,8 @@ def compare_test_job(before, after, target_names, intermittent_classes, errors,
             errors.append(f"Rendered test name changed in {before['name']}: {identity}")
         if candidate["class_name"] != previous["class_name"]:
             errors.append(f"Test class changed in {before['name']}: {name}")
+        if candidate.get("test_id") != previous.get("test_id"):
+            errors.append(f"Test definition identity changed in {before['name']}: {name}")
         if (candidate["outcome"] != previous["outcome"]
                 and candidate["class_name"] in intermittent_classes
                 and {previous["outcome"], candidate["outcome"]} == {"passed", "failed"}):
@@ -305,7 +357,7 @@ def compare_test_job(before, after, target_names, intermittent_classes, errors,
             new_tests.append(f"{before['name']} :: {name}")
 
 
-def compare(baseline, candidate, regressions, controls, expected_target_jobs,
+def compare(baseline, candidate, issue, regressions, controls, expected_target_jobs,
             allowed_classes, allowed_skips, intermittent_classes):
     before_evidence, before_jobs = baseline
     after_evidence, after_jobs = candidate
@@ -335,16 +387,13 @@ def compare(baseline, candidate, regressions, controls, expected_target_jobs,
             if before.get("runtime_architecture") != after.get("runtime_architecture"):
                 errors.append(f"Runtime architecture changed between runs: {name}")
             for label, job in (("baseline", before), ("candidate", after)):
-                if job.get("architecture_verified") is False:
-                    runtime = job.get("runtime_architecture")
-                    if runtime == "unmeasured":
-                        architecture_limitations.append(
-                            f"{label} {name} claims {job.get('claimed_architecture')} but "
-                            "runtime architecture was not measured")
-                    else:
-                        architecture_limitations.append(
-                            f"{label} {name} claims {job.get('claimed_architecture')} but ran "
-                            f"{runtime}")
+                if job.get("architecture_verified") is not True:
+                    architecture_limitations.append(
+                        f"{label} {name} has no measured runtime architecture")
+                elif job.get("claimed_architecture_matches") is False:
+                    architecture_limitations.append(
+                        f"{label} {name} claims {job.get('claimed_architecture')} but ran "
+                        f"{job.get('runtime_architecture')}")
             present = set(target_tests(before, target_names))
             candidate_present = set(target_tests(after, target_names))
             if present and present != target_names:
@@ -353,7 +402,7 @@ def compare(baseline, candidate, regressions, controls, expected_target_jobs,
                 errors.append(f"Target coverage changed in {name}")
             if present == target_names:
                 target_jobs.append(name)
-                verify_baseline_target(before, regressions, controls, errors)
+                verify_baseline_target(before, issue, regressions, controls, errors)
             compare_test_job(before, after, target_names, intermittent_classes, errors,
                              unexpected_passes, new_tests, inconclusive_changes)
             known_failures.extend(
@@ -386,6 +435,9 @@ def compare(baseline, candidate, regressions, controls, expected_target_jobs,
         "target_jobs": target_jobs,
         "known_failures": known_failures,
         "coverage_gaps": before_evidence["coverage_gaps"],
+        "focused_baseline_control_gaps": (
+            issue["focused_baseline"]["control_gaps"]
+            if issue.get("focused_baseline") is not None else []),
         "architecture_limitations": architecture_limitations,
     }
 
@@ -427,7 +479,11 @@ def main(argv=None):
             args.harness_overlay_manifest)
         issue_2825_overlay_manifest, issue_2825_overlay_manifest_sha = \
             load_issue_2825_harness_overlay(args.issue_2825_harness_overlay_manifest)
-        regressions, controls = load_contract(args.manifest, args.issue)
+        issue, regressions, controls = load_contract(args.manifest, args.issue)
+        focused = validate_focused_baseline(issue)
+        if focused is not None:
+            require(focused["failure_normalization_sha256"] == failure_normalization_sha,
+                    "Focused baseline used a different failure-normalization policy")
         allowed_classes, allowed_skips, intermittent_classes, baseline_policy_sha = \
             load_baseline_policy(args.baseline_policy)
         baseline = load_evidence(args.baseline, "baseline", args.issue, base_sha,
@@ -438,7 +494,7 @@ def main(argv=None):
                                   quarantine, args.workflow_path, failure_normalization_sha,
                                   overlay_manifest, overlay_manifest_sha,
                                   issue_2825_overlay_manifest, issue_2825_overlay_manifest_sha)
-        report = compare(baseline, candidate, regressions, controls,
+        report = compare(baseline, candidate, issue, regressions, controls,
                          args.expected_target_job_count, allowed_classes, allowed_skips,
                          intermittent_classes)
         report["provenance"] = {

@@ -285,9 +285,60 @@ jobs:
           --framework ${{ matrix.item.framework }}
           --verbosity normal
           --settings tests.runsettings
+          --diag full-ci-evidence/vstest-diag.txt
           --logger "trx;LogFileName=${{ matrix.platform.result }}"
           --logger "console;verbosity=detailed"
           ${{ matrix.item.msbuildProps }}
+
+      - name: Record actual test runtime architecture
+        if: always()
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source-sha }}
+          EVIDENCE_DEFINITION_SHA: ${{ inputs.evidence-definition-sha }}
+          PLATFORM_KEY: ${{ matrix.platform.key }}
+          FRAMEWORK: ${{ matrix.item.framework }}
+        run: |
+          mkdir -p full-ci-evidence
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import platform
+          import re
+          import subprocess
+
+          diagnostic_path = "full-ci-evidence/vstest-diag.txt"
+          with open(diagnostic_path, "rb") as source:
+              diagnostic = source.read()
+          target_architectures = set(re.findall(
+              rb"DotnetTestHostmanager\.GetTestHostProcessStartInfo: .*?"
+              rb"target architecture '([A-Za-z0-9_]+)'", diagnostic))
+          if len(target_architectures) != 1:
+              raise SystemExit("VSTest did not report one testhost target architecture")
+          info = subprocess.check_output(
+              ["dotnet", "--info"], text=True, errors="strict")
+          architectures = re.findall(r"^\s*Architecture:\s*(\S+)\s*$",
+                                     info, flags=re.MULTILINE)
+          if not architectures:
+              raise SystemExit("dotnet --info did not report its host architecture")
+          evidence = {
+              "schema_version": 1,
+              "source_sha": os.environ["SOURCE_SHA"],
+              "evidence_definition_sha": os.environ["EVIDENCE_DEFINITION_SHA"],
+              "platform_key": os.environ["PLATFORM_KEY"],
+              "framework": os.environ["FRAMEWORK"],
+              "runner_os": platform.system(),
+              "runner_architecture": platform.machine(),
+              "dotnet_host_architecture": architectures[0],
+              "vstest_target_architecture": target_architectures.pop().decode("ascii"),
+              "vstest_diagnostic_sha256": hashlib.sha256(diagnostic).hexdigest(),
+          }
+          with open("full-ci-evidence/runtime.json", "w",
+                    encoding="utf-8", newline="\n") as output:
+              json.dump(evidence, output, indent=2)
+              output.write("\n")
+          PY
 
       - name: Upload exact test evidence
         if: always()
@@ -296,6 +347,8 @@ jobs:
           name: bugfix-full-ci-tests-${{ matrix.platform.key }}-${{ matrix.item.key }}
           path: |
             full-ci-evidence/discovery.txt
+            full-ci-evidence/runtime.json
+            full-ci-evidence/vstest-diag.txt
             LiteDB.Tests/TestResults/${{ matrix.platform.result }}
           if-no-files-found: warn
 

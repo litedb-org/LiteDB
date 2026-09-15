@@ -14,7 +14,8 @@ sys.path.insert(0, str(MANIFEST.parents[2] / ".github/scripts"))
 import collect_bugfix_worker as collector
 
 COUNTS = {1159: (1, False), 1224: (2, True), 2858: (4, True), 2864: (1, True),
-          2769: (2, True), 2225: (4, True), 2322: (2, False), 2873: (2, True)}
+          2769: (2, True), 2225: (4, True), 2322: (2, False), 2873: (2, True),
+          2860: (4, False), 2870: (4, True)}
 NOTES = {1159: {"behavior": "GetMember"},
          1224: {"behavior": "#2869", "compatibility": "BSON Double"},
          2858: {"behavior": "LiteDatabase.Execute", "compatibility": "UserVersion", "lifecycle": "global culture"},
@@ -22,7 +23,9 @@ NOTES = {1159: {"behavior": "GetMember"},
          2769: {"behavior": "UInt64", "compatibility": "Int32 documents"},
          2225: {"behavior": "fixed Guid", "compatibility": "non-public access"},
          2322: {"behavior": "#2770/#2779"},
-         2873: {"behavior": "reported System.Enum", "compatibility": "one-argument Ctor", "lifecycle": "configuration isolation"}}
+         2873: {"behavior": "reported System.Enum", "compatibility": "one-argument Ctor", "lifecycle": "configuration isolation"},
+         2860: {"behavior": "OS-dependent /a/b baseline"},
+         2870: {"behavior": "original no-inline source frame"}}
 
 
 class WaveThreeProfiles(unittest.TestCase):
@@ -60,6 +63,17 @@ class WaveThreeProfiles(unittest.TestCase):
             definition["environments"].remove(definition["required_environments"][-1])
             with self.subTest(issue=number), self.assertRaisesRegex(ProfileError, "explicitly approved"):
                 self.profile(number, definition)
+
+    def test_environment_aware_issues_use_the_four_reviewed_linux_windows_lanes(self):
+        expected = [
+            {"os": "ubuntu-latest", "framework": "net8.0"},
+            {"os": "ubuntu-latest", "framework": "net10.0"},
+            {"os": "windows-latest", "framework": "net8.0"},
+            {"os": "windows-latest", "framework": "net10.0"},
+        ]
+        for number in (2860, 2870):
+            with self.subTest(issue=number):
+                self.assertEqual(expected, self.profile(number)["matrix"])
 
     def test_role_notes_are_in_task_contract_and_bound_by_hashes(self):
         for number, roles in NOTES.items():

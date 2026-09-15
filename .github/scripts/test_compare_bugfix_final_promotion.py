@@ -21,6 +21,7 @@ CONTROL = "LiteDB.Tests.Issues.Issue100_Tests.Control"
 KNOWN = "LiteDB.Tests.Issues.Issue200_Tests.Known"
 CLASS = "LiteDB.Tests.Issues.Issue100_Tests"
 KNOWN_CLASS = "LiteDB.Tests.Issues.Issue200_Tests"
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def result(identity, name, outcome, failure=""):
@@ -55,6 +56,44 @@ def accepted(required_environments=None, repros=None):
 def evidence(jobs, run_id):
     return ({"evidence_definition_sha": "c" * 40, "run": {"id": run_id},
              "coverage_gaps": [{"issue": 2854}]}, {job["name"]: job for job in jobs})
+
+
+def focused_accepted(issue_number):
+    contract = json.loads((ROOT / "scripts/bugfix/issues.json").read_text(
+        encoding="utf-8"))["issues"][str(issue_number)]
+    return {issue_number: {
+        "entry": {}, "regressions": contract["regressions"],
+        "controls": contract["controls"], "contract": contract,
+        "focused_baseline_sha256": promotion.focused_baseline_digest(contract),
+        "repro_roles": {},
+    }}
+
+
+def focused_baseline_job(issue_number, environment, name):
+    accepted_contract = focused_accepted(issue_number)
+    contract = accepted_contract[issue_number]["contract"]
+    support = json.loads((ROOT /
+        "scripts/bugfix/fixtures/wave-three-focused-failures.json").read_text(
+            encoding="utf-8"))["issues"][str(issue_number)]["regressions"]
+    tests = []
+    for case in contract["regressions"]:
+        expected = case["baseline_by_environment"][environment]
+        failure = support[case["name"]]["classifications"][
+            expected["classification"]]
+        item = result(case["test_id"], case["name"], "failed", failure)
+        item["test_id"] = case["test_id"]
+        tests.append(item)
+    for case in contract["controls"]:
+        item = result(case["test_id"], case["name"], "passed")
+        item["test_id"] = case["test_id"]
+        tests.append(item)
+    return accepted_contract, {
+        "name": name, "kind": "tests", "status": "completed",
+        "conclusion": "failure", "tests": tests,
+        "runtime_architecture": environment.split("-")[1],
+        "claimed_architecture": environment.split("-")[1],
+        "architecture_verified": True, "claimed_architecture_matches": True,
+    }
 
 
 class MultiIssueComparisonTests(unittest.TestCase):
@@ -124,6 +163,51 @@ class MultiIssueComparisonTests(unittest.TestCase):
         self.assertFalse(report["accepted"])
         self.assertIn("Accepted issue 100 requires unproven windows-x64-net8.0 execution",
                       report["blockers"])
+        for job in (self.before, self.after):
+            job.update(name="build-and-test / Test (Windows windows-2022 - x64 - .NET 8)",
+                       architecture_verified=True, runtime_architecture="x64",
+                       claimed_architecture="x64", claimed_architecture_matches=True)
+        self.assertTrue(self.compare(contracts=accepted(
+            ["windows-x64-net8.0"]))["accepted"])
+        for job in (self.before, self.after):
+            job.update(claimed_architecture="x86", claimed_architecture_matches=False)
+        mismatched_label = self.compare(contracts=accepted(["windows-x64-net8.0"]))
+        self.assertTrue(mismatched_label["accepted"])
+        self.assertTrue(mismatched_label["architecture_limitations"])
+
+    def test_environment_aware_baselines_use_exact_measured_lane_classifications(self):
+        linux, linux_job = focused_baseline_job(
+            2860, "linux-x64-net8.0", "build-and-test / Test (Linux .NET 8)")
+        errors = []
+        promotion.baseline_target_contract(linux_job, linux, errors)
+        self.assertEqual([], errors)
+
+        windows, windows_job = focused_baseline_job(
+            2860, "windows-x64-net8.0",
+            "build-and-test / Test (Windows windows-2022 - x64 - .NET 8)")
+        errors = []
+        promotion.baseline_target_contract(windows_job, windows, errors)
+        self.assertEqual([], errors)
+        rooted = next(test for test in windows_job["tests"] if 'text: "/a/b"' in test["name"])
+        rooted["failure_classification"] = next(
+            test["failure_classification"] for test in linux_job["tests"]
+            if test["name"] == rooted["name"])
+        errors = []
+        promotion.baseline_target_contract(windows_job, windows, errors)
+        self.assertTrue(any("wrong canonical baseline defect" in error for error in errors))
+        _, identity_job = focused_baseline_job(
+            2860, "linux-x64-net8.0", "build-and-test / Test (Linux .NET 8)")
+        identity_job["tests"][0]["test_id"] = "00000000-0000-0000-0000-000000000000"
+        errors = []
+        promotion.baseline_target_contract(identity_job, linux, errors)
+        self.assertTrue(any("test identity changed" in error for error in errors))
+
+    def test_2870_reuses_the_retained_reviewed_canonical_classifications(self):
+        accepted_contract, job = focused_baseline_job(
+            2870, "linux-x64-net10.0", "build-and-test / Test (Linux .NET 10)")
+        errors = []
+        promotion.baseline_target_contract(job, accepted_contract, errors)
+        self.assertEqual([], errors)
 
     def test_accepted_repro_may_only_move_bug_present_to_behavior_correct(self):
         old_repro = {"name": "repro-runner / Run Issue_100_Case on ubuntu-22.04",

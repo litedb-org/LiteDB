@@ -15,6 +15,10 @@ import collect_bugfix_full_ci as collector
 SOURCE = "a" * 40
 DEFINITION = "b" * 40
 TEST_NAME = "LiteDB.Tests.Issues.Issue2874_Tests.Invalid(value: 1)"
+VSTEST_DIAGNOSTIC = (
+    b"TpTrace: DotnetTestHostmanager.GetTestHostProcessStartInfo: "
+    b"Platform environment 'X64' target architecture 'X64' "
+    b"framework '.NETCoreApp,Version=v8.0' OS 'Linux'\n")
 
 
 def zipped(files):
@@ -53,6 +57,23 @@ def repro_report(failed=True):
     return json.dumps({"Repros": [{"Id": "Issue_2854_CircularPageList", "State": 0,
                                    "Failed": failed, "Warned": False,
                                    "Package": variant, "Latest": variant}]})
+
+
+def runtime_identity(**changes):
+    value = {
+        "schema_version": 1,
+        "source_sha": SOURCE,
+        "evidence_definition_sha": DEFINITION,
+        "platform_key": "linux",
+        "framework": "net8.0",
+        "runner_os": "Linux",
+        "runner_architecture": "x86_64",
+        "dotnet_host_architecture": "x64",
+        "vstest_target_architecture": "X64",
+        "vstest_diagnostic_sha256": hashlib.sha256(VSTEST_DIAGNOSTIC).hexdigest(),
+    }
+    value.update(changes)
+    return json.dumps(value)
 
 
 class FullCiCollectorTests(unittest.TestCase):
@@ -139,6 +160,8 @@ class FullCiCollectorTests(unittest.TestCase):
             "bugfix-full-ci-tests-linux-net8": zipped({
                 "discovery.txt": "The following Tests are available:\n    " + TEST_NAME + "\n",
                 "TestResults.trx": trx(),
+                "runtime.json": runtime_identity(),
+                "vstest-diag.txt": VSTEST_DIAGNOSTIC,
             }),
             "logs-Issue_2854_CircularPageList-ubuntu-22.04": zipped(
                 {"artifacts/repro-report.json": repro_report(),
@@ -184,7 +207,10 @@ class FullCiCollectorTests(unittest.TestCase):
                 evidence = collector.collect(args)
             self.assertTrue(evidence["accepted"])
             self.assertEqual("failed", evidence["jobs"][1]["tests"][0]["outcome"])
-            self.assertEqual("unmeasured", evidence["jobs"][1]["runtime_architecture"])
+            self.assertEqual("1", evidence["jobs"][1]["tests"][0]["test_id"])
+            self.assertEqual("x64", evidence["jobs"][1]["runtime_architecture"])
+            self.assertTrue(evidence["jobs"][1]["architecture_verified"])
+            self.assertTrue(evidence["jobs"][1]["claimed_architecture_matches"])
             self.assertEqual(hashlib.sha256(failure_policy.read_bytes()).hexdigest(),
                              evidence["failure_normalization_sha256"])
             self.assertEqual(overlay_manifest_sha,
@@ -204,6 +230,85 @@ class FullCiCollectorTests(unittest.TestCase):
     def test_rejects_incomplete_discovery(self):
         with self.assertRaisesRegex(collector.CollectionError, "complete test discovery"):
             collector.discovery_names(b"no inventory here")
+
+    def test_runtime_identity_is_exact_and_measured(self):
+        job = {"name": "build-and-test / Test (Linux .NET 8)"}
+        artifact = {"name": "bugfix-full-ci-tests-linux-net8"}
+        members = collector.zip_members(zipped({
+            "runtime.json": runtime_identity(),
+            "vstest-diag.txt": VSTEST_DIAGNOSTIC,
+        }))
+        self.assertEqual({
+            "runtime_architecture": "x64",
+            "runner_architecture": "x64",
+            "dotnet_host_architecture": "x64",
+            "dotnet_host_matches_testhost": True,
+            "claimed_architecture": None,
+            "architecture_verified": True,
+            "claimed_architecture_matches": True,
+        }, collector.runtime_identity(job, members, artifact, SOURCE, DEFINITION))
+        changed = collector.zip_members(zipped({
+            "runtime.json": runtime_identity(source_sha="c" * 40),
+            "vstest-diag.txt": VSTEST_DIAGNOSTIC,
+        }))
+        with self.assertRaisesRegex(collector.CollectionError, "Invalid runtime identity"):
+            collector.runtime_identity(job, changed, artifact, SOURCE, DEFINITION)
+        changed = collector.zip_members(zipped({
+            "runtime.json": runtime_identity(vstest_target_architecture="arm64"),
+            "vstest-diag.txt": VSTEST_DIAGNOSTIC,
+        }))
+        with self.assertRaisesRegex(collector.CollectionError, "job matrix"):
+            collector.runtime_identity(job, changed, artifact, SOURCE, DEFINITION)
+        changed = collector.zip_members(zipped({
+            "runtime.json": runtime_identity(),
+            "vstest-diag.txt": VSTEST_DIAGNOSTIC + b"tampered\n",
+        }))
+        with self.assertRaisesRegex(collector.CollectionError, "diagnostic hash"):
+            collector.runtime_identity(job, changed, artifact, SOURCE, DEFINITION)
+
+    def test_testhost_architecture_is_distinct_from_sdk_host_architecture(self):
+        job = {"name": "build-and-test / Test (Linux ARM64 - .NET 8)"}
+        artifact = {"name": "bugfix-full-ci-tests-linux-arm64-net8"}
+        members = collector.zip_members(zipped({
+            "runtime.json": runtime_identity(
+                platform_key="linux-arm64", dotnet_host_architecture="arm64"),
+            "vstest-diag.txt": VSTEST_DIAGNOSTIC,
+        }))
+        result = collector.runtime_identity(job, members, artifact, SOURCE, DEFINITION)
+        self.assertEqual("x64", result["runtime_architecture"])
+        self.assertEqual("arm64", result["dotnet_host_architecture"])
+        self.assertFalse(result["dotnet_host_matches_testhost"])
+        self.assertFalse(result["claimed_architecture_matches"])
+
+    def test_runtime_identity_records_a_claim_mismatch(self):
+        job = {"name": "build-and-test / Test (Windows windows-2022 - x86 - .NET 8)"}
+        artifact = {"name": "bugfix-full-ci-tests-windows-2022-x86-net8"}
+        members = collector.zip_members(zipped({
+            "runtime.json": runtime_identity(
+                platform_key="windows-2022-x86", runner_os="Windows",
+                runner_architecture="AMD64", dotnet_host_architecture="x64"),
+            "vstest-diag.txt": VSTEST_DIAGNOSTIC,
+        }))
+        result = collector.runtime_identity(job, members, artifact, SOURCE, DEFINITION)
+        self.assertEqual("x64", result["runtime_architecture"])
+        self.assertEqual("x86", result["claimed_architecture"])
+        self.assertFalse(result["claimed_architecture_matches"])
+
+    def test_runtime_identity_accepts_an_exact_x86_testhost(self):
+        diagnostic = VSTEST_DIAGNOSTIC.replace(b"X64", b"X86")
+        job = {"name": "build-and-test / Test (Windows windows-2022 - x86 - .NET 8)"}
+        artifact = {"name": "bugfix-full-ci-tests-windows-2022-x86-net8"}
+        members = collector.zip_members(zipped({
+            "runtime.json": runtime_identity(
+                platform_key="windows-2022-x86", runner_os="Windows",
+                runner_architecture="AMD64", dotnet_host_architecture="x86",
+                vstest_target_architecture="X86",
+                vstest_diagnostic_sha256=hashlib.sha256(diagnostic).hexdigest()),
+            "vstest-diag.txt": diagnostic,
+        }))
+        result = collector.runtime_identity(job, members, artifact, SOURCE, DEFINITION)
+        self.assertEqual("x86", result["runtime_architecture"])
+        self.assertTrue(result["claimed_architecture_matches"])
 
     def test_requires_exact_issue_2794_overlay_provenance(self):
         manifest, manifest_sha = collector.load_harness_overlay(

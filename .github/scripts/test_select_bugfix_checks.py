@@ -48,6 +48,8 @@ class SelectionTests(unittest.TestCase):
     def test_workflow_binds_inputs_and_keeps_production_parallel_and_isolated(self):
         path = Path(__file__).resolve().parents[1] / "workflows/bugfix-check.yml"
         workflow = yaml.load(path.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+        self.assertIn(".github/scripts/bugfix_vstest_identity.py",
+                      workflow["on"]["push"]["paths"])
         jobs = workflow["jobs"]
         self.assertEqual("github.event_name == 'workflow_dispatch'", jobs["select"]["if"])
         self.assertEqual("select", jobs["checks"]["needs"])

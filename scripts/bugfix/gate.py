@@ -10,7 +10,7 @@ import sys
 from failure_normalization import load_failure_normalization
 from policy import (compare_ledger, load_baseline_policy, load_issue,
                     load_test_inventory, make_ledger, require_sha, verify_focused,
-                    verify_target)
+                    verify_focused_pair, verify_target)
 from protect import verify_changes, verify_frozen_tests
 from trx import GateError, read_trx
 from source_context import observe
@@ -35,6 +35,10 @@ def parser():
         if name in ("baseline", "focused", "snapshot"):
             command.add_argument("--baseline-trx", required=True)
             command.add_argument("--baseline-exit-code", required=True, type=int)
+        if name in ("baseline", "focused"):
+            command.add_argument(
+                "--failure-normalization",
+                default=str(Path(__file__).with_name("failure-normalization.json")))
         if name in ("focused", "compare"):
             command.add_argument("--candidate-sha", required=True)
             command.add_argument("--candidate-trx", required=True)
@@ -68,23 +72,32 @@ def evaluate(args):
                       environment=args.environment)
     if args.environment not in issue["environments"]:
         raise GateError("Environment is not approved by the issue contract")
+    normalization, normalization_hash = load_failure_normalization(
+        args.failure_normalization)
+    provenance["failure_normalization_sha256"] = normalization_hash
     baseline = None
     if hasattr(args, "baseline_trx"):
         baseline = read_trx(args.baseline_trx, args.baseline_exit_code)
     if args.command in ("baseline", "focused"):
-        verify_focused(baseline, issue, baseline=True)
+        verify_focused(baseline, issue, baseline=True, environment=args.environment,
+                       failure_normalization=normalization,
+                       normalization_sha=normalization_hash)
         result = {"accepted": True, "outcome": "bug_present",
                   "baseline_trx_sha256": baseline.sha256, "test_count": len(baseline.tests)}
         if args.command == "focused":
             candidate = read_trx(args.candidate_trx, args.candidate_exit_code)
-            verify_focused(candidate, issue, baseline=False)
+            verify_focused(candidate, issue, baseline=False,
+                           environment=args.environment,
+                           failure_normalization=normalization,
+                           normalization_sha=normalization_hash)
+            verify_focused_pair(baseline, candidate, issue)
             result.update(outcome="behavior_correct", candidate_trx_sha256=candidate.sha256)
     elif args.command == "snapshot":
-        verify_target(baseline, issue, baseline=True)
+        verify_target(baseline, issue, baseline=True, environment=args.environment,
+                      failure_normalization=normalization,
+                      normalization_sha=normalization_hash)
         allowed_classes, allowed_skips, intermittent_classes = load_baseline_policy(
             args.allowed_failure_classes)
-        normalization, normalization_hash = load_failure_normalization(args.failure_normalization)
-        provenance["failure_normalization_sha256"] = normalization_hash
         result = make_ledger(baseline, provenance, allowed_classes,
                              load_test_inventory(args.test_inventory), allowed_skips,
                              normalization, intermittent_classes)
@@ -92,12 +105,13 @@ def evaluate(args):
     else:
         candidate = read_trx(args.candidate_trx, args.candidate_exit_code)
         ledger = json.loads(Path(args.ledger).read_text(encoding="utf-8"))
-        normalization, normalization_hash = load_failure_normalization(args.failure_normalization)
-        provenance["failure_normalization_sha256"] = normalization_hash
         result = compare_ledger(ledger, candidate, issue, provenance,
                                 load_test_inventory(args.test_inventory), normalization,
                                 observe(args.repository, issue, args.base_sha, args.candidate_sha))
         result["outcome"] = "behavior_correct" if result["accepted"] else "inconclusive"
+    focused = issue.get("focused_baseline")
+    if focused is not None:
+        result["focused_baseline_control_gaps"] = focused["control_gaps"]
     result["provenance"] = provenance
     return result
 

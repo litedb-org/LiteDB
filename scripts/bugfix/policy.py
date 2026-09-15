@@ -7,6 +7,7 @@ from collections import Counter
 from pathlib import Path
 
 from failure_normalization import canonical_failure
+from focused_baseline import expectation, validate as validate_focused_baseline
 from trx import GateError
 from source_context import bind_observations, consume
 
@@ -29,33 +30,69 @@ def load_issue(path, issue_number):
     names = [case["name"] for case in cases]
     if not issue["regressions"] or not issue["controls"] or len(names) != len(set(names)):
         raise GateError("Contract needs unique regression and control test cases")
+    validate_focused_baseline(issue)
     return issue, hashlib.sha256(raw).hexdigest()
 
 
-def verify_focused(run, issue, baseline):
+def verify_focused(run, issue, baseline, environment=None,
+                   failure_normalization=None, normalization_sha=None):
     expected = Counter(case["name"] for case in issue["regressions"] + issue["controls"])
     actual = Counter(test.name for test in run.tests.values())
     if expected != actual:
         raise GateError(f"Test selection changed: missing={sorted((expected - actual).elements())}; "
                         f"extra={sorted((actual - expected).elements())}")
-    verify_target(run, issue, baseline)
+    verify_target(run, issue, baseline, environment, failure_normalization,
+                  normalization_sha)
 
 
-def verify_target(run, issue, baseline):
+def verify_target(run, issue, baseline, environment=None,
+                  failure_normalization=None, normalization_sha=None):
+    focused = validate_focused_baseline(issue)
+    if focused is not None:
+        if (environment not in issue["environments"]
+                or not isinstance(failure_normalization, dict)
+                or normalization_sha != focused["failure_normalization_sha256"]):
+            raise GateError("Focused baseline policy or environment does not match the contract")
     for case in issue["regressions"] + issue["controls"]:
         matches = [test for test in run.tests.values() if test.name == case["name"]]
         if len(matches) != 1:
             raise GateError(f"Missing target case: {case['name']}")
         test = matches[0]
-        expected = "Failed" if baseline and "failure_first_line" in case else "Passed"
+        if focused is not None and test.test_id != case["test_id"]:
+            raise GateError(f"Focused test identity changed: {test.name}")
+        contract_expectation = expectation(issue, case, environment) if focused else None
+        expected = (contract_expectation["outcome"] if baseline and focused is not None
+                    else "Failed" if baseline and "failure_first_line" in case
+                    else "Passed")
         if test.outcome != expected:
             raise GateError(f"Expected {expected}, found {test.outcome}: {test.name}")
         if expected == "Failed":
-            if test.failure.splitlines()[0] != case["failure_first_line"]:
-                raise GateError(f"Baseline failure is not the expected defect: {test.name}")
-            for detail in case.get("failure_contains", []):
-                if detail not in test.message:
-                    raise GateError(f"Baseline lacks expected defect detail: {test.name}")
+            if focused is not None:
+                classified = canonical_failure(test.name, test.failure,
+                                               failure_normalization, baseline=True)
+                classification = case["failure_classifications"][
+                    contract_expectation["classification"]]
+                first_line = classified.splitlines()[0] if classified else ""
+                if (first_line != classification["failure_first_line"]
+                        or hashlib.sha256(classified.encode("utf-8")).hexdigest()
+                        != classification["sha256"]):
+                    raise GateError(f"Baseline failure is not the expected defect: {test.name}")
+            else:
+                if test.failure.splitlines()[0] != case["failure_first_line"]:
+                    raise GateError(f"Baseline failure is not the expected defect: {test.name}")
+                for detail in case.get("failure_contains", []):
+                    if detail not in test.message:
+                        raise GateError(f"Baseline lacks expected defect detail: {test.name}")
+
+
+def verify_focused_pair(baseline_run, candidate_run, issue):
+    """Bind a focused candidate to exactly the discovered baseline test identities."""
+    if validate_focused_baseline(issue) is None:
+        return
+    if baseline_run.definitions != candidate_run.definitions:
+        raise GateError("Focused candidate test definition identities changed")
+    if set(baseline_run.tests) != set(candidate_run.tests):
+        raise GateError("Focused candidate result instances changed")
 
 
 def verify_inventory(run, expected_tests):
@@ -115,7 +152,9 @@ def compare_ledger(ledger, run, issue, provenance, expected_tests,
     if missing or extra:
         raise GateError(f"Candidate result instances changed: missing={sorted(missing)}; "
                         f"extra={sorted(extra)}")
-    verify_target(run, issue, baseline=False)
+    verify_target(run, issue, baseline=False, environment=provenance["environment"],
+                  failure_normalization=failure_normalization,
+                  normalization_sha=provenance["failure_normalization_sha256"])
     bind_observations(issue, provenance, source_observations)
     target_names = {case["name"] for case in issue["regressions"]}
     errors, unexpected_passes, known_failures = [], [], []

@@ -1,0 +1,140 @@
+{
+  "schema_version": 1,
+  "source_run_id": 34988724926,
+  "source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+  "repeat_candidate_sha": "79e5c69cb9e6a1bcc08e919c2993aaa5401148b7",
+  "workflow_sha": "7629236e73bde318e934509244c3e61ef820d8db",
+  "failure_normalization_sha256": "d4c510bf1504ec8298e0f231548fde8e67a929f7a3ccca9c6ec21a1a89571a36",
+  "artifacts": [
+    {
+      "id": 10405370121,
+      "name": "bugfix-check-ubuntu-latest-net8.0",
+      "baseline_trx_sha256": "a4d3b367c661fa8768fbb8668d4a8827713618fa3b488f15f02ca1607c8bd56b",
+      "environment": "linux-x64-net8.0",
+      "repeat_candidate_trx_sha256": "167eb02e1001d29571ed81d0cae3efae66516b079b78169b2445d765d58f4d88"
+    },
+    {
+      "id": 10405505060,
+      "name": "bugfix-check-ubuntu-latest-net10.0",
+      "baseline_trx_sha256": "d4d7854e6d5e036da9d1ad92ac4f5aebe0a23b8033fe5a50f9793dcf18cbe423",
+      "environment": "linux-x64-net10.0",
+      "repeat_candidate_trx_sha256": "06e8fd06f3069730ba19b93580856134a5514ae5b6d88862e9436499f8d8849b"
+    },
+    {
+      "id": 10404073794,
+      "name": "bugfix-check-windows-latest-net8.0",
+      "baseline_trx_sha256": "931cbd570f47bf6a376f11dde76c0ecf1399f9d742acf0f90eeb9463d781bdf0",
+      "environment": "windows-x64-net8.0",
+      "repeat_candidate_trx_sha256": "341cb8549c8b485af5375dc4e1260016406570c25b34b8005a1b51cb62af57c6"
+    },
+    {
+      "id": 10404574219,
+      "name": "bugfix-check-windows-latest-net10.0",
+      "baseline_trx_sha256": "789212a8598feb82270173bbc4b6e152682e4b1177a51ab6f7ad67d1dcc0c08e",
+      "environment": "windows-x64-net10.0",
+      "repeat_candidate_trx_sha256": "9d6ab521cbee8ca0390c9b1d54c7bb11a415ad5f1ac8b43972d09f632e09bf42"
+    },
+    {
+      "id": 10405111338,
+      "name": "bugfix-check-macos-latest-net8.0",
+      "baseline_trx_sha256": "c069b53a2512adcd39c9ecf0bbf1d1329ff1371fa21228dbf4de3923340ee719",
+      "environment": "macos-arm64-net8.0",
+      "repeat_candidate_trx_sha256": "0bba29b9d0a80d9bb804d3b9e5d3228468d0a6d900c7004201c54981391a18dd"
+    },
+    {
+      "id": 10405450249,
+      "name": "bugfix-check-macos-latest-net10.0",
+      "baseline_trx_sha256": "487ac255e77785b858569e7dbbd93a1e5422db470aae03c8c0d71741709b4e08",
+      "environment": "macos-arm64-net10.0",
+      "repeat_candidate_trx_sha256": "0e97ba85d8c32b48def91f249511913e247a5dd50fd588a1829f6b09d47451df"
+    }
+  ],
+  "issues": {
+    "2860": {
+      "regressions": {
+        "LiteDB.Tests.Issues.Issue2860_Tests.Database_round_trip_preserves_Uri_text_and_kind(text: \"../img/a.png?size=2#preview\", isAbsolute: False)": {
+          "test_id": "5a4b95f1-ed5a-bdd6-d285-a4c63c05e2fb",
+          "classifications": {
+            "expected": "System.UriFormatException : Invalid URI: The format of the URI could not be determined."
+          }
+        },
+        "LiteDB.Tests.Issues.Issue2860_Tests.Database_round_trip_preserves_Uri_text_and_kind(text: \"/a/b\", isAbsolute: False)": {
+          "test_id": "3f4b1bca-3bf4-f028-0226-01d45c01f615",
+          "classifications": {
+            "unix": "Expected actual.IsAbsoluteUri to be False, but found True.",
+            "windows": "System.UriFormatException : Invalid URI: The format of the URI could not be determined."
+          }
+        },
+        "LiteDB.Tests.Issues.Issue2860_Tests.Database_round_trip_preserves_Uri_text_and_kind(text: \"img/a.png\", isAbsolute: False)": {
+          "test_id": "f73a709c-a0b6-25e2-8f74-414c3378908d",
+          "classifications": {
+            "expected": "System.UriFormatException : Invalid URI: The format of the URI could not be determined."
+          }
+        },
+        "LiteDB.Tests.Issues.Issue2860_Tests.Mapper_reads_independently_authored_Uri_strings_with_their_kind(text: \"../img/a.png?size=2#preview\", isAbsolute: False)": {
+          "test_id": "a6e12cd4-cd98-993a-bb7d-ddb3587f1d14",
+          "classifications": {
+            "expected": "System.UriFormatException : Invalid URI: The format of the URI could not be determined."
+          }
+        },
+        "LiteDB.Tests.Issues.Issue2860_Tests.Mapper_reads_independently_authored_Uri_strings_with_their_kind(text: \"/a/b\", isAbsolute: False)": {
+          "test_id": "183009ba-ebfe-5344-1e20-acac164ea6a0",
+          "classifications": {
+            "unix": "Expected actual.IsAbsoluteUri to be False, but found True.",
+            "windows": "System.UriFormatException : Invalid URI: The format of the URI could not be determined."
+          }
+        },
+        "LiteDB.Tests.Issues.Issue2860_Tests.Mapper_reads_independently_authored_Uri_strings_with_their_kind(text: \"img/a.png\", isAbsolute: False)": {
+          "test_id": "70462219-3d49-0a29-d7f0-46ec0a62be50",
+          "classifications": {
+            "expected": "System.UriFormatException : Invalid URI: The format of the URI could not be determined."
+          }
+        },
+        "LiteDB.Tests.Issues.Issue2860_Tests.Max_depth_error_disambiguates_types_with_the_same_simple_name(value: DepthEnvelope`1 { Child = Node { } }, nestedType: typeof(LiteDB.Tests.Issues.Issue2860_Tests+FirstDomain+Node))": {
+          "test_id": "baba02e8-4d3a-3425-ec29-2bca0db4437d",
+          "classifications": {
+            "expected": "Expected exception.Message to be \"Document has more than 1 nested documents in 'LiteDB.Tests.Issues.Issue2860_Tests+FirstDomain+Node'. Check for circular references (use DbRef).\" with a length of 143, but \"Document has more than 1 nested documents in 'Node'. Check for circular references (use DbRef).\" has a length of 95, differs near \"Nod\" (index 46)."
+          }
+        },
+        "LiteDB.Tests.Issues.Issue2860_Tests.Max_depth_error_disambiguates_types_with_the_same_simple_name(value: DepthEnvelope`1 { Child = Node { } }, nestedType: typeof(LiteDB.Tests.Issues.Issue2860_Tests+SecondDomain+Node))": {
+          "test_id": "baba02e8-4d3a-3425-ec29-2bca0db4437d",
+          "classifications": {
+            "expected": "Expected exception.Message to be \"Document has more than 1 nested documents in 'LiteDB.Tests.Issues.Issue2860_Tests+SecondDomain+Node'. Check for circular references (use DbRef).\" with a length of 144, but \"Document has more than 1 nested documents in 'Node'. Check for circular references (use DbRef).\" has a length of 95, differs near \"Nod\" (index 46)."
+          }
+        }
+      }
+    },
+    "2870": {
+      "regressions": {
+        "LiteDB.Tests.Issues.Issue2870_Tests.FileReaderV8_preserves_the_original_stream_failure_frame": {
+          "test_id": "7a765f9f-7bdf-047e-1d44-4201ab5a9237",
+          "classifications": {
+            "unix": "Expected actual.StackTrace \"   at LiteDB.Engine.FileReaderV8.HandleError(Exception ex, PageInfo pageInfo) in <checkout>/LiteDB/Engine/FileReader/FileReaderV8.cs:line 576\n   at LiteDB.Engine.FileReaderV8.Open() in <checkout>/LiteDB/Engine/FileReader/FileReaderV8.cs:line 90\n   at FluentAssertions.Specialized.DelegateAssertions`2.InvokeSubjectWithInterception()\" to contain \"ThrowAtOriginalFileReadSite\".",
+            "windows": "Expected actual.StackTrace \"   at LiteDB.Engine.FileReaderV8.HandleError(Exception ex, PageInfo pageInfo) in <checkout>/LiteDB\\Engine\\FileReader\\FileReaderV8.cs:line 576\n   at LiteDB.Engine.FileReaderV8.Open() in <checkout>/LiteDB\\Engine\\FileReader\\FileReaderV8.cs:line 90\n   at FluentAssertions.Specialized.DelegateAssertions`2.InvokeSubjectWithInterception()\" to contain \"ThrowAtOriginalFileReadSite\"."
+          }
+        },
+        "LiteDB.Tests.Issues.Issue2870_Tests.Query_preserves_the_original_frame_when_a_later_source_read_throws": {
+          "test_id": "419bfae8-e017-7b19-e5c0-9a23b58c1a51",
+          "classifications": {
+            "unix": "Expected actual.StackTrace \"   at LiteDB.BsonDataReader.Read() in <checkout>/LiteDB/Document/DataReader/BsonDataReader.cs:line 118\n   at LiteDB.Tests.Issues.Issue2870_Tests.<>c__DisplayClass1_0.<Query_preserves_the_original_frame_when_a_later_source_read_throws>b__1() in <checkout>/LiteDB.Tests/Issues/Issue2870_Tests.cs:line 60\n   at FluentAssertions.Specialized.DelegateAssertions`2.InvokeSubjectWithInterception()\" to contain \"ThrowAtOriginalSourceSite\".",
+            "windows": "Expected actual.StackTrace \"   at LiteDB.BsonDataReader.Read() in <checkout>/LiteDB\\Document\\DataReader\\BsonDataReader.cs:line 118\n   at LiteDB.Tests.Issues.Issue2870_Tests.<>c__DisplayClass1_0.<Query_preserves_the_original_frame_when_a_later_source_read_throws>b__1() in <checkout>/LiteDB.Tests\\Issues\\Issue2870_Tests.cs:line 60\n   at FluentAssertions.Specialized.DelegateAssertions`2.InvokeSubjectWithInterception()\" to contain \"ThrowAtOriginalSourceSite\"."
+          }
+        },
+        "LiteDB.Tests.Issues.Issue2870_Tests.Query_preserves_the_original_frame_when_the_first_source_read_throws": {
+          "test_id": "7d0d6fcd-0d48-7a6b-d09f-7c6134821dde",
+          "classifications": {
+            "unix": "Expected actual.StackTrace \"   at LiteDB.Engine.QueryExecutor.<>c__DisplayClass12_0.<<ExecuteQuery>g__RunQuery|2>d.MoveNext() in <checkout>/LiteDB/Engine/Query/QueryExecutor.cs:line 139\n   at LiteDB.Utils.Extensions.EnumerableExtensions.OnDispose[T](IEnumerable`1 source, Action onDispose)+MoveNext()\n   at LiteDB.Utils.Extensions.EnumerableExtensions.OnDispose[T](IEnumerable`1 source, Action onDispose)+MoveNext()\n   at LiteDB.BsonDataReader..ctor(IEnumerable`1 values, String collection, EngineState state)\n   at LiteDB.Engine.QueryExecutor.ExecuteQuery(Boolean executionPlan) in <checkout>/LiteDB/Engine/Query/QueryExecutor.cs:line 87\n   at LiteDB.Engine.LiteEngine.Query(String collection, Query query) in <checkout>/LiteDB/Engine/Engine/Query.cs:line 45\n   at LiteDB.Tests.Issues.Issue2870_Tests.<>c__DisplayClass0_0.<Query_preserves_the_original_frame_when_the_first_source_read_throws>b__1() in <checkout>/LiteDB.Tests/Issues/Issue2870_Tests.cs:line 30\n   at FluentAssertions.Specialized.DelegateAssertions`2.InvokeSubjectWithInterception()\" to contain \"ThrowAtOriginalSourceSite\".",
+            "windows": "Expected actual.StackTrace \"   at LiteDB.Engine.QueryExecutor.<>c__DisplayClass12_0.<<ExecuteQuery>g__RunQuery|2>d.MoveNext() in <checkout>/LiteDB/Engine/Query/QueryExecutor.cs:line 139\n   at LiteDB.Utils.Extensions.EnumerableExtensions.OnDispose[T](IEnumerable`1 source, Action onDispose)+MoveNext()\n   at LiteDB.Utils.Extensions.EnumerableExtensions.OnDispose[T](IEnumerable`1 source, Action onDispose)+MoveNext()\n   at LiteDB.BsonDataReader..ctor(IEnumerable`1 values, String collection, EngineState state)\n   at LiteDB.Engine.QueryExecutor.ExecuteQuery(Boolean executionPlan) in <checkout>/LiteDB/Engine/Query/QueryExecutor.cs:line 87\n   at LiteDB.Engine.LiteEngine.Query(String collection, Query query) in <checkout>/LiteDB/Engine/Engine/Query.cs:line 45\n   at LiteDB.Tests.Issues.Issue2870_Tests.<>c__DisplayClass0_0.<Query_preserves_the_original_frame_when_the_first_source_read_throws>b__1() in <checkout>/LiteDB.Tests\\Issues\\Issue2870_Tests.cs:line 30\n   at FluentAssertions.Specialized.DelegateAssertions`2.InvokeSubjectWithInterception()\" to contain \"ThrowAtOriginalSourceSite\"."
+          }
+        },
+        "LiteDB.Tests.Issues.Issue2870_Tests.WaitIfLocked_preserves_the_original_frame_for_non_lock_errors": {
+          "test_id": "fd7f9f90-ed5c-01be-3404-33c610eb09d3",
+          "classifications": {
+            "unix": "Expected actual.StackTrace \"   at LiteDB.IOExceptionExtensions.WaitIfLocked(IOException ex, Int32 timerInMilliseconds) in <checkout>/LiteDB/Utils/Extensions/IOExceptionExtensions.cs:line 38\n   at LiteDB.Tests.Issues.Issue2870_Tests.<>c__DisplayClass3_0.<WaitIfLocked_preserves_the_original_frame_for_non_lock_errors>b__0() in <checkout>/LiteDB.Tests/Issues/Issue2870_Tests.cs:line 96\n   at FluentAssertions.Specialized.DelegateAssertions`2.InvokeSubjectWithInterception()\" to contain \"ThrowAtOriginalWaitSite\".",
+            "windows": "Expected actual.StackTrace \"   at LiteDB.IOExceptionExtensions.WaitIfLocked(IOException ex, Int32 timerInMilliseconds) in <checkout>/LiteDB\\Utils\\Extensions\\IOExceptionExtensions.cs:line 38\n   at LiteDB.Tests.Issues.Issue2870_Tests.<>c__DisplayClass3_0.<WaitIfLocked_preserves_the_original_frame_for_non_lock_errors>b__0() in <checkout>/LiteDB.Tests\\Issues\\Issue2870_Tests.cs:line 96\n   at FluentAssertions.Specialized.DelegateAssertions`2.InvokeSubjectWithInterception()\" to contain \"ThrowAtOriginalWaitSite\"."
+          }
+        }
+      }
+    }
+  }
+}
