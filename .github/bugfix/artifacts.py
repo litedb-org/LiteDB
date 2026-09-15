@@ -16,6 +16,14 @@ MAX_REPORT = 256 * 1024
 HASH_FIELDS = ("artifact_sha256", "report_sha256")
 
 
+def validate_worker_model(metadata, role):
+    expected = "gpt-6-astra" if role == "fix" else "gpt-5.6-sol"
+    require(metadata.get("configured_model") == expected, "Worker configured model mismatch")
+    require(metadata.get("configured_reasoning_effort") == "high", "Worker must use high reasoning effort")
+    require(metadata.get("reported_model") in (None, "", expected), "Worker reported a different model")
+    require(metadata.get("reported_reasoning_effort") in (None, "", "high"), "Worker reported different reasoning effort")
+
+
 def download(repo, artifact):
     require(type(artifact.get("id")) is int, "Artifact ID missing")
     require(type(artifact.get("size_in_bytes")) is int and
@@ -62,6 +70,14 @@ def _matching(report, expected, fields):
                 report[field] == expected[field], f"Artifact identity mismatch: {field}")
 
 
+def read_members(data, names):
+    """Read a fixed caller-selected subset after the same bounded archive checks."""
+    _reports(data)
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        available = {member.orig_filename: member for member in archive.infolist()}
+        return {name: archive.read(available[name]) for name in names if name in available}
+
+
 def validate(data, event):
     reports = _reports(data)
     if event["kind"] == "review":
@@ -77,6 +93,7 @@ def validate(data, event):
         require(isinstance(coverage, list) and coverage and
                 all(isinstance(item, str) and item.strip() for item in coverage), "Missing concrete review coverage")
         metadata = reports["metadata.json"][0]
+        validate_worker_model(metadata, event["role"])
         _matching(metadata, expected, fields + ("workflow_sha",))
         require(metadata.get("kind") == "review", "Unexpected worker artifact kind")
         require(metadata.get("run_id") == str(event["run_id"]), "Review metadata run mismatch")

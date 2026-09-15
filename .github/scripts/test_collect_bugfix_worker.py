@@ -39,6 +39,7 @@ class CollectorTests(unittest.TestCase):
             "BUGFIX_TEST_SOURCE_SHA": base, "GITHUB_WORKFLOW_SHA": base,
             "GITHUB_RUN_ID": "123", "GITHUB_RUN_ATTEMPT": "1",
             "BUGFIX_MODEL": "gpt-6-astra",
+            "BUGFIX_REASONING_EFFORT": "high",
         }
         self.manifest_path.write_text(json.dumps({
             "schema_version": 1,
@@ -84,6 +85,12 @@ class CollectorTests(unittest.TestCase):
 
     def test_rejects_empty_patch(self):
         with self.assertRaisesRegex(ValueError, "empty patch"):
+            self.collect()
+
+    def test_rejects_model_or_reasoning_downgrade(self):
+        self.modify_source()
+        self.env["BUGFIX_REASONING_EFFORT"] = "medium"
+        with self.assertRaisesRegex(ValueError, "reasoning must be high"):
             self.collect()
 
     def test_rejects_changed_frozen_test(self):

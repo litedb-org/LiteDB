@@ -61,6 +61,20 @@ network:
   allowed: [defaults, dotnet]
 tools:
   bash: true
+safe-outputs:
+  report-failure-as-issue: false
+  missing-tool: false
+  missing-data: false
+  report-incomplete: false
+  noop:
+    report-as-issue: false
+  threat-detection: false
+  # A non-builtin output prevents this compiler from auto-enabling create-issue.
+  scripts:
+    record-completion:
+      description: Record completion in the run without changing GitHub resources.
+      script: |
+        return { success: true };
 engine:
   id: codex
   model: gpt-5.6-sol
@@ -118,6 +132,7 @@ post-steps:
       BUGFIX_ROLE: ${{ inputs.role }}
       BUGFIX_SOURCE_RUN: ${{ inputs.source_run }}
       BUGFIX_MODEL: gpt-5.6-sol
+      BUGFIX_REASONING_EFFORT: high
       GITHUB_WORKFLOW_SHA: ${{ github.workflow_sha }}
     run: python3 "$RUNNER_TEMP/gh-aw/bugfix-control/collect.py" --manifest "$RUNNER_TEMP/gh-aw/bugfix-control/issues.json"
   - name: Redact Codex endpoint artifacts

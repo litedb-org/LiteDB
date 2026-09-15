@@ -125,11 +125,20 @@ def collect(repo: Path, manifest_path: Path, output: Path, env: dict) -> dict:
     metadata["run_id"] = env.get("GITHUB_RUN_ID", "")
     metadata["run_attempt"] = env.get("GITHUB_RUN_ATTEMPT", "")
     metadata["configured_model"] = env.get("BUGFIX_MODEL", "")
+    metadata["configured_reasoning_effort"] = env.get("BUGFIX_REASONING_EFFORT", "")
+    required_model = "gpt-5.6-sol" if "role" in expected else "gpt-6-astra"
+    require(metadata["configured_model"] == required_model, "Unexpected worker model")
+    require(metadata["configured_reasoning_effort"] == "high", "Worker reasoning must be high")
     usage_path = Path("/tmp/gh-aw/agent_usage.json")
     if usage_path.is_file():
         usage = json.loads(usage_path.read_text(encoding="utf-8"))
         if isinstance(usage, dict):
             metadata["reported_model"] = usage.get("model")
+            metadata["reported_reasoning_effort"] = usage.get("reasoning_effort")
+            require(not metadata["reported_model"] or metadata["reported_model"] == required_model,
+                    "Runtime model differs from required worker model")
+            require(not metadata["reported_reasoning_effort"] or metadata["reported_reasoning_effort"] == "high",
+                    "Runtime reasoning differs from required high effort")
     (output / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
     return metadata
 

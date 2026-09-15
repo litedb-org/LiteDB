@@ -1,8 +1,17 @@
 # Wholesale bug-fix plan
 
-Status: proposed; automation is not implemented yet.
+Status: canary rollout in progress. Frozen-test gates, gh-aw workers, and a
+resumable controller are implemented. Integration and scale-up remain gated on
+the canary's complete validation evidence.
 
 Prepared: 2026-09-15.
+
+The regression source is pinned to
+`dd937719f7eee53c512f50ac604cab639bf42a4c` from
+`codex/implement-regression-tests-for-all`. Fix workers use `gpt-6-astra` with
+high reasoning; all three reviewers use `gpt-5.6-sol` with high reasoning.
+Model fallback is disabled. See [worker runtime](Worker-runtime.md) and the
+[controller runbook](../../../.github/bugfix/README.md) for implementation details.
 
 ## Objective
 

@@ -10,6 +10,22 @@ generated model settings are literals, so repository model variables cannot
 silently change these choices. API-proxy model fallback is disabled; unavailable
 models must fail the run rather than select a weaker model.
 
+## Artifact-only worker outputs
+
+The pinned compiler automatically enables issue creation when no non-builtin
+safe output is configured, including with an empty or noop-only configuration.
+Each worker therefore declares an inert `record-completion` script returning
+`{ success: true }`. This prevents the compiler from inserting issue creation.
+Failure-issue reporting, missing-tool/data issue creation, incomplete-task issue
+creation, and noop issue reporting are explicitly disabled. Worker evidence is
+uploaded by deterministic post-steps rather than published as issues or comments.
+
+The compile wrapper checks the generated workflows and rejects GitHub write
+permissions, publication handlers, or safe-output tools other than `noop` and
+`record_completion`. Run `.github/scripts/test_gh_aw_readonly.py` to verify all
+three compiled workers and the rejection cases. Controller permissions remain
+separate from these artifact-only workers.
+
 ## Endpoint and accounting compatibility
 
 The initial direct HTTP canary reached the configured Responses endpoint, but

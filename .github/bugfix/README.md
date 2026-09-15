@@ -1,5 +1,49 @@
 # Bugfix controller primitives
 
+## Run or resume a canary
+
+```powershell
+python .github/bugfix/orchestrate.py --repo litedb-org/LiteDB --campaign canary-2874 --issue 2874 --integration-base BASE_FULL_SHA --workflow-sha WORKFLOW_FULL_SHA --workflow-ref automation/wholesale-bugfix --dry-run
+```
+
+Replace the SHA placeholders with full immutable commits. Remove `--dry-run` to
+dispatch workflows, persist campaign state, and publish restricted candidate
+branches. Run the same command again to resume. The workflow branch must still
+point to the pinned workflow SHA before every new dispatch. The regression source
+is fixed at `dd937719f7eee53c512f50ac604cab639bf42a4c`.
+
+The orchestrator confirms baseline failure, requests a restricted fix, applies it
+in an isolated worktree, verifies its scope and C# sizes, publishes a unique
+`fix/issue-N-CAMPAIGN-aK` branch, and runs focused/broad checks. Three independent
+reviewers run concurrently. Acceptance requires all six platform/framework
+artifact verdicts plus the production-build and file-compatibility job. It stops
+at `ready`; final full-matrix validation and integration remain separate actions.
+There is no automatic merge or `--integrate` option in this version.
+
+Workers use `gpt-6-astra` for fixes and `gpt-5.6-sol` for reviews, both with high
+reasoning effort. Collector configuration must match; differing reported runtime
+models or reasoning levels are rejected when that runtime evidence is available.
+Repair workers receive bounded structured diagnostics from failed checks and
+review findings. A later attempt starts from the preceding candidate while the
+original integration base and regression source remain pinned.
+
+The data branch also stores the dispatch journal. A controller-generated UUID in
+`request_id` links each operation to its exact workflow run. The journal is saved
+before dispatch. If a process dies during dispatch and no matching run can be
+found, the controller records a blocker rather than risking a duplicate worker.
+Inspect GitHub and the recorded request before resolving that condition manually.
+One issue permits three candidate attempts, two infrastructure retries per stage,
+and at most 40 workflow runs. Individual workflow waits are bounded at 180 minutes;
+the process prints run URLs and status changes while monitoring.
+
+Malformed or stale acceptance evidence blocks the campaign. Missing/incomplete
+test execution counts as infrastructure failure; completed selected assertions
+that still fail return to repair. Ready campaigns resume without dispatching more
+work. A changed integration base or workflow revision requires a new campaign and
+renewed evidence. The controller does not change pinned identities to resume.
+
+## State CLI
+
 These modules implement one issue's deterministic state machine and persist its
 state on `automation/bugfix-state`. Run them from trusted controller code with
 `gh` authenticated for the selected repository. No agent should write this branch.
@@ -63,7 +107,8 @@ against `expected_base_sha`, and atomically advance it to the already tested
 candidate commit before recording this event. A new base requires a new campaign
 and renewed evidence; these primitives never rewrite pinned identities.
 
-Queue concurrency, campaign-wide run/cost limits, issue eligibility, environment
-selection, artifact retention, branch permissions, and actual integration are
-responsibilities of the owning workflows. These primitives do not schedule agents
-or dispatch arbitrary issue reports.
+`orchestrate.py` schedules only an explicitly selected issue with a reviewed
+execution contract. Cross-issue queue concurrency, monetary cost limits, artifact
+retention, branch permissions, and actual integration remain responsibilities of
+the owning workflows. The CLI enforces its per-issue workflow-run budget and
+does not dispatch arbitrary issue reports.

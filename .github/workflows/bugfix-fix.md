@@ -33,6 +33,11 @@ on:
         required: false
         default: ""
         type: string
+      feedback:
+        description: Structured controller feedback from failed checks or reviews
+        required: false
+        default: ""
+        type: string
 if: github.event_name == 'workflow_dispatch'
 permissions:
   contents: read
@@ -52,6 +57,20 @@ network:
   allowed: [defaults, dotnet]
 tools:
   bash: true
+safe-outputs:
+  report-failure-as-issue: false
+  missing-tool: false
+  missing-data: false
+  report-incomplete: false
+  noop:
+    report-as-issue: false
+  threat-detection: false
+  # A non-builtin output prevents this compiler from auto-enabling create-issue.
+  scripts:
+    record-completion:
+      description: Record completion in the run without changing GitHub resources.
+      script: |
+        return { success: true };
 engine:
   id: codex
   model: gpt-6-astra
@@ -62,6 +81,7 @@ steps:
       BUGFIX_BASE_SHA: ${{ inputs.base_sha }}
       BUGFIX_TEST_SOURCE_SHA: ${{ inputs.test_source_sha }}
       BUGFIX_SOURCE_RUN: ${{ inputs.source_run }}
+      BUGFIX_FEEDBACK: ${{ inputs.feedback }}
       GITHUB_WORKFLOW_SHA: ${{ github.workflow_sha }}
     run: |
       python3 - <<'PY'
@@ -91,7 +111,10 @@ steps:
       contract = collector.validate_contract(Path.cwd(), json.loads((control / "issues.json").read_text()), expected)
       output = Path("/tmp/gh-aw/bugfix")
       output.mkdir(parents=True, exist_ok=True)
-      (output / "task.json").write_text(json.dumps({"identity": expected, "contract": contract, "source_run": os.environ.get("BUGFIX_SOURCE_RUN", "")}, indent=2))
+      feedback = os.environ.get("BUGFIX_FEEDBACK", "")
+      if len(feedback) > 24000:
+          raise SystemExit("Controller feedback is too large")
+      (output / "task.json").write_text(json.dumps({"identity": expected, "contract": contract, "source_run": os.environ.get("BUGFIX_SOURCE_RUN", ""), "feedback": feedback}, indent=2))
       PY
   - name: Setup .NET 8
     uses: actions/setup-dotnet@v4
@@ -105,6 +128,7 @@ post-steps:
       BUGFIX_TEST_SOURCE_SHA: ${{ inputs.test_source_sha }}
       BUGFIX_SOURCE_RUN: ${{ inputs.source_run }}
       BUGFIX_MODEL: gpt-6-astra
+      BUGFIX_REASONING_EFFORT: high
       GITHUB_WORKFLOW_SHA: ${{ github.workflow_sha }}
     run: python3 "$RUNNER_TEMP/gh-aw/bugfix-control/collect.py" --manifest "$RUNNER_TEMP/gh-aw/bugfix-control/issues.json"
   - name: Redact Codex endpoint artifacts
@@ -130,6 +154,8 @@ Read `/tmp/gh-aw/bugfix/task.json` first. Its `identity` fields must appear
 unchanged in your result. Read the listed frozen regression tests and production
 code. Implement the smallest maintainable fix that satisfies that contract and
 preserves valid inputs and existing behavior. Follow repository C# conventions.
+Use `feedback` as diagnostic data from previous checks or reviewers. Address its
+concrete failures while continuing to honor the frozen regression and edit scope.
 
 Only modify existing files explicitly listed under `allowed_production_paths`.
 Keep HEAD unchanged; do not commit, stage, create files inside the repository,
@@ -148,7 +174,22 @@ Write `/tmp/gh-aw/bugfix/result.json` as JSON with exactly the identity fields
 
 - `status`: `proposed`
 - `summary`: a concrete explanation of the change and why it fixes the defect
-- `tests`: a nonempty array describing actual checks and their outcomes
+- `tests`: a nonempty array of strings describing actual checks and outcomes;
+  every array item must be a string, never a nested object
+
+Use this exact JSON structure, copying the identity values from the task:
+
+```json
+{
+  "schema_version": 1,
+  "issue": 2874,
+  "base_sha": "COPY_BASE_SHA_FROM_TASK",
+  "test_source_sha": "COPY_TEST_SOURCE_SHA_FROM_TASK",
+  "status": "proposed",
+  "summary": "Explain the actual production change and its reason.",
+  "tests": ["Describe the exact command or inspection and its actual outcome."]
+}
+```
 
 Leave your production changes in the working tree for collection. Do not print
 credentials, environment dumps, or endpoint settings. If no compliant fix can be

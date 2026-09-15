@@ -1,0 +1,67 @@
+name: Wholesale bugfix controller
+run-name: Bugfix campaign ${{ inputs.campaign || 'registration' }}
+
+on:
+  push:
+    branches: [automation/wholesale-bugfix]
+    paths:
+      - .github/workflows/bugfix-controller.yml
+      - .github/bugfix/**
+  workflow_dispatch:
+    inputs:
+      campaign:
+        description: Unique campaign ID; reuse it to resume
+        type: string
+        required: true
+        default: canary-2874
+      issue:
+        description: Issue with an approved frozen regression contract
+        type: string
+        required: true
+        default: '2874'
+      integration_base:
+        description: Exact integration base commit
+        type: string
+        required: true
+        default: dd937719f7eee53c512f50ac604cab639bf42a4c
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: wholesale-bugfix-controller-${{ inputs.issue || 'registration' }}
+  cancel-in-progress: false
+
+jobs:
+  campaign:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Run or resume bounded campaign
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CAMPAIGN: ${{ inputs.campaign }}
+          ISSUE: ${{ inputs.issue }}
+          INTEGRATION_BASE: ${{ inputs.integration_base }}
+          WORKFLOW_SHA: ${{ github.sha }}
+          WORKFLOW_REF: ${{ github.ref_name }}
+        run: >-
+          python3 .github/bugfix/orchestrate.py
+          --repo "$GITHUB_REPOSITORY" --campaign "$CAMPAIGN" --issue "$ISSUE"
+          --integration-base "$INTEGRATION_BASE"
+          --workflow-sha "$WORKFLOW_SHA" --workflow-ref "$WORKFLOW_REF"
+          --max-runs 30 --timeout-minutes 170
+      - name: Summarize persisted campaign
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CAMPAIGN: ${{ inputs.campaign }}
+        run: >-
+          python3 .github/bugfix/controller.py --repo "$GITHUB_REPOSITORY"
+          --campaign "$CAMPAIGN" get >> "$GITHUB_STEP_SUMMARY"

@@ -117,10 +117,15 @@ def apply_event(original, event):
     for field in IDENTITY:
         require(event.get(field) == original[field], f"Stale or missing {field}")
     kind = event.get("kind")
-    require(kind in ("candidate", "baseline", "focused", "broad", "review", "acceptance", "integrated", "pause", "resume"),
+    require(kind in ("candidate", "baseline", "focused", "broad", "review", "acceptance", "integrated", "pause", "resume", "block"),
             "Unknown event kind")
     state = copy.deepcopy(original)
-    if kind in ("pause", "resume"):
+    if kind == "block":
+        require(state["phase"] != "integrated", "Integrated campaigns cannot be blocked retroactively")
+        require(isinstance(event.get("reason"), str) and event["reason"].strip(), "Blocking requires a reason")
+        state["phase"] = "blocked"
+        state["blocked_reason"] = event["reason"]
+    elif kind in ("pause", "resume"):
         state["paused"] = kind == "pause"
     else:
         require(not state["paused"], "Campaign is paused")

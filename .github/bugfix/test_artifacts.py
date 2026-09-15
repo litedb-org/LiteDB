@@ -45,6 +45,7 @@ class ArtifactTests(unittest.TestCase):
         result.update(verdict="pass", findings=[], coverage=["Checked null handling and valid inputs"])
         metadata = {key: self.event[key] for key in fields}
         metadata.update(workflow_sha=self.event["workflow_sha"], kind="review", run_id="123")
+        metadata.update(configured_model="gpt-5.6-sol", configured_reasoning_effort="high")
         metadata["result_sha256"] = hashlib.sha256(json.dumps(result).encode()).hexdigest()
         self.files = {"result.json": result, "metadata.json": metadata}
         return result, metadata

@@ -100,3 +100,27 @@ jobs:
           path: artifacts
           if-no-files-found: error
           retention-days: 90
+  compatibility:
+    if: inputs.level == 'acceptance'
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.x
+            8.0.x
+      - name: Check changed C# sizes
+        env:
+          BASE_SHA: ${{ inputs.base_sha }}
+        run: python3 scripts/check-csharp-size.py --base "$BASE_SHA"
+      - name: Build all production library targets
+        run: dotnet build LiteDB/LiteDB.csproj -c Release -p:TestingEnabled=false -p:GitVersionEnabled=false
+      - name: Verify old-reader and encrypted-file compatibility
+        run: python3 scripts/test-vector-compatibility.py

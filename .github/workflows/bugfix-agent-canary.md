@@ -23,6 +23,20 @@ sandbox:
 network: defaults
 tools:
   bash: true
+safe-outputs:
+  report-failure-as-issue: false
+  missing-tool: false
+  missing-data: false
+  report-incomplete: false
+  noop:
+    report-as-issue: false
+  threat-detection: false
+  # A non-builtin output prevents this compiler from auto-enabling create-issue.
+  scripts:
+    record-completion:
+      description: Record completion in the run without changing GitHub resources.
+      script: |
+        return { success: true };
 engine:
   id: codex
   model: gpt-6-astra

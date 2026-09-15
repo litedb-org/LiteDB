@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from check_gh_aw_readonly import check_lockfile
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
@@ -75,6 +77,8 @@ def main() -> int:
         cwd=REPO_ROOT,
         check=True,
     )
+    for path in lockfiles:
+        check_lockfile(path)
     return 0
 
 
