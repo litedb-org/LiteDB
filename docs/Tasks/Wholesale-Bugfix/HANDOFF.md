@@ -63,6 +63,13 @@ Next, verify automatic wakeups through candidate publication, compressed CI,
 three reviews and integration. Expand only after that hosted cycle works. Follow the
 [hosted runbook](https://github.com/litedb-org/LiteDB/blob/automation/wholesale-bugfix/docs/Tasks/Wholesale-Bugfix/HOSTED-SWEEP.md).
 
+The hosted baseline completed successfully with **nine expected failures, two
+passing controls and all 18 permanent passing cases**, in a 49-second test job.
+Its completion did not create a `workflow_run` scheduler event despite matching
+filters; the token-trigger chain is consistent with GitHub's recursion suppression.
+Cron is the recurring wakeup path and can be delayed. Automatic consumption of
+this baseline is the next verification step at this snapshot.
+
 Budget accounting is now enforced for dispatched workers. The unchanged default
 is 5000 AI credits per worker workflow over the prior 24 hours, not a global
 strict spending ceiling. Six known fixer runs already total 6203.4025 credits,

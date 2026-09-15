@@ -110,6 +110,14 @@ the independent fallback. Public-repository schedules can be disabled after
 60 days without repository activity. This is unattended hosted execution, not a
 guaranteed five-minute SLA. See [GitHub event limits](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows).
 
+The first hosted check, run `35022768603`, was dispatched by `github-actions[bot]`
+and completed successfully, but produced no scheduler `workflow_run`. Its workflow
+name and branch filters matched. This is consistent with GitHub's token-recursion
+suppression: only explicit `workflow_dispatch` and `repository_dispatch` are
+exempt. Treat cron as the recurring execution mechanism for this deployment;
+completion wakeups are not yet verified for this token chain. See
+[GitHub trigger rules](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
+
 ## Hosted canary before expansion
 
 1. Review controller/worker commits and deploy only the bootstrap to `dev`.
