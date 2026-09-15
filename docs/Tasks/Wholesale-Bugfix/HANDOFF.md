@@ -1,5 +1,8 @@
 # Wholesale bugfix sweep: agent handoff
 
+Tracking issue: [litedb-org/LiteDB#2890](https://github.com/litedb-org/LiteDB/issues/2890).
+Repository copy: [HANDOFF.md](https://github.com/litedb-org/LiteDB/blob/automation/wholesale-bugfix/docs/Tasks/Wholesale-Bugfix/HANDOFF.md).
+
 Snapshot: **2026-09-15, approximately 20:00 UTC / 22:00 Europe/Vienna**.
 Re-read GitHub state before acting: this document is a snapshot, not the controller's state store.
 
