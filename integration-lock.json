@@ -1,6 +1,8 @@
 {
   "active": true,
   "campaign": "expansion-v7-2869",
+  "candidate_tree_sha": "c855e4d020184c70322574c529b6e91d20468f94",
+  "evidence_prefix": "evidence/expansion-v7-2869/",
   "identity": {
     "acceptance_profile_sha256": "3c0e9d4a61c8fac040aec8f76de879b527c29afcc582d07ddd3c97a249864807",
     "acceptance_run": 35002677408,
@@ -9,7 +11,7 @@
     "candidate_sha": "781b3291ee0d6aa7a08e05955545fdf4d03763dc",
     "check_workflow_sha": "d020aceb92799d9325a2f47669d1d39e5d700248"
   },
-  "phase": "acquired",
+  "phase": "prepared",
   "schema_version": 1,
   "token": "910cfa0622274132b4d3183b3a6b7971"
 }

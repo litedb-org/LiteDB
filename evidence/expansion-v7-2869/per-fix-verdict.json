@@ -1,0 +1,17 @@
+{
+  "coverage_gaps": [],
+  "provenance": {
+    "acceptance_profile_sha256": "3c0e9d4a61c8fac040aec8f76de879b527c29afcc582d07ddd3c97a249864807",
+    "base_sha": "824dfce9d27a6c0c7ea3890c1ecc9aff31833c83",
+    "baseline_run_id": 35001231852,
+    "candidate_run_id": 35002677408,
+    "candidate_sha": "781b3291ee0d6aa7a08e05955545fdf4d03763dc",
+    "check_workflow_sha": "d020aceb92799d9325a2f47669d1d39e5d700248",
+    "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+    "validation_scope": "per-fix",
+    "worker_review_workflow_sha": "d020aceb92799d9325a2f47669d1d39e5d700248"
+  },
+  "target_jobs": [
+    "bugfix-check-ubuntu-latest-net8.0"
+  ]
+}

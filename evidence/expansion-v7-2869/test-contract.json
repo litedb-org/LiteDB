@@ -1,0 +1,48 @@
+{
+  "allowed_production_paths": [
+    "LiteDB/Document/BsonValue.cs"
+  ],
+  "controls": [
+    {
+      "name": "LiteDB.Tests.Issues.Issue2869_Tests.Native_numeric_conversions_work_and_non_numeric_values_are_not_coerced"
+    }
+  ],
+  "environments": [
+    "linux-x64-net8.0",
+    "windows-x64-net8.0",
+    "macos-x64-net8.0",
+    "macos-arm64-net8.0",
+    "linux-x64-net10.0",
+    "windows-x64-net10.0",
+    "macos-x64-net10.0",
+    "macos-arm64-net10.0"
+  ],
+  "filter": "FullyQualifiedName~Issue2869_Tests",
+  "frozen_test_blobs": {
+    "LiteDB.Tests/Issues/Issue2869_Tests.cs": "75f14d75945fe6912b007b9698e8d38898b02413"
+  },
+  "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+  "inventory_issue": 2869,
+  "regressions": [
+    {
+      "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Int32' to type 'System.Int64'.",
+      "name": "LiteDB.Tests.Issues.Issue2869_Tests.Int32_values_implicitly_widen_to_Int64_and_Double(expected: -2147483648)"
+    },
+    {
+      "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Int32' to type 'System.Int64'.",
+      "name": "LiteDB.Tests.Issues.Issue2869_Tests.Int32_values_implicitly_widen_to_Int64_and_Double(expected: -1)"
+    },
+    {
+      "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Int32' to type 'System.Int64'.",
+      "name": "LiteDB.Tests.Issues.Issue2869_Tests.Int32_values_implicitly_widen_to_Int64_and_Double(expected: 0)"
+    },
+    {
+      "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Int32' to type 'System.Int64'.",
+      "name": "LiteDB.Tests.Issues.Issue2869_Tests.Int32_values_implicitly_widen_to_Int64_and_Double(expected: 1)"
+    },
+    {
+      "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Int32' to type 'System.Int64'.",
+      "name": "LiteDB.Tests.Issues.Issue2869_Tests.Int32_values_implicitly_widen_to_Int64_and_Double(expected: 2147483647)"
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "base_sha": "824dfce9d27a6c0c7ea3890c1ecc9aff31833c83",
+  "candidate_sha": "781b3291ee0d6aa7a08e05955545fdf4d03763dc",
+  "checks": [
+    "focused",
+    "broad",
+    "production-build"
+  ],
+  "compatibility": false,
+  "contract_sha256": "9aa034e56300d5fba3752391244a854e45169f73558e5bc83f36c3a788fd3658",
+  "diff_sha256": "6e1a7413bc7c3c9d99e63cc40afd5d13b13d82b10322b17d4dfc7ab32828760f",
+  "issue": 2869,
+  "matched_rules": [
+    {
+      "path": "LiteDB/Document/BsonValue.cs",
+      "rule": "reviewed-ordinary-issue-path"
+    }
+  ],
+  "matrix": [
+    {
+      "framework": "net8.0",
+      "os": "ubuntu-latest"
+    }
+  ],
+  "paths": [
+    "LiteDB/Document/BsonValue.cs"
+  ],
+  "policy_sha256": "c0c8fe37e8d43a980bb991489119ed60a7eae7239354ca4e17f21f33e68aa99d",
+  "policy_version": "compressed-acceptance-v3",
+  "production_build": true,
+  "profile_sha256": "3c0e9d4a61c8fac040aec8f76de879b527c29afcc582d07ddd3c97a249864807",
+  "required_environments": [],
+  "required_lanes": [
+    "bugfix-check-ubuntu-latest-net8.0"
+  ],
+  "schema_version": 1,
+  "targeted_test_filters": [],
+  "targeted_tests_covered_by_broad": true
+}
