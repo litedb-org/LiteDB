@@ -3,6 +3,7 @@
 import hashlib
 import importlib.util
 import json
+import re
 from collections import Counter
 from pathlib import Path
 import sys
@@ -24,6 +25,31 @@ def event_for(state, kind, run_id, **fields):
     if "passing_contract" in state:
         event["passing_contract"] = state["passing_contract"]
     return event
+
+
+def broad_failure_outcome(report):
+    """Unreviewed existing-failure drift needs diagnosis before another repair."""
+    changes = report.get("classification_changes", [])
+    if changes:
+        valid = isinstance(changes, list) and all(
+            isinstance(item, dict)
+            and all(isinstance(item.get(field), str) and item[field].strip()
+                    for field in ("name", "class_name"))
+            and all(isinstance(item.get(field), str)
+                    and re.fullmatch(r"[0-9a-f]{64}", item[field])
+                    for field in ("baseline_failure_sha256", "candidate_failure_sha256"))
+            and item["baseline_failure_sha256"] != item["candidate_failure_sha256"]
+            for item in changes)
+        if not valid:
+            return "harness_error", ["Invalid existing-failure classification evidence"]
+        return "inconclusive", changes[:8]
+    if report.get("inconclusive_changes"):
+        return "inconclusive", report["inconclusive_changes"][:8]
+    if report.get("unexpected_passes"):
+        return "inconclusive", report["unexpected_passes"][:8]
+    if report.get("errors") and report.get("outcome") != "harness_error":
+        return "fail", report["errors"][:8]
+    return "harness_error", ["Broader execution failed or was incomplete"]
 
 
 def _failure_outcome(data, control, state):
@@ -59,12 +85,7 @@ def _failure_outcome(data, control, state):
         broader = read_members(data, ("broad-verdict.json",))
         if "broad-verdict.json" in broader:
             report = json.loads(broader["broad-verdict.json"])
-            if report.get("inconclusive_changes"):
-                return "inconclusive", report["inconclusive_changes"][:8]
-            if report.get("unexpected_passes"):
-                return "inconclusive", report["unexpected_passes"][:8]
-            if report.get("errors") and report.get("outcome") != "harness_error":
-                return "fail", report["errors"][:8]
+            return broad_failure_outcome(report)
     return "harness_error", ["Focused assertions passed; broader/compatibility execution failed or was incomplete"]
 
 

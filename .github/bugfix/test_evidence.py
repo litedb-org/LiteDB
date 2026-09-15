@@ -3,8 +3,8 @@
 import unittest
 from unittest.mock import patch
 
-from evidence import MATRIX, check_event
-from state import Rejected, new_state
+from evidence import MATRIX, broad_failure_outcome, check_event, event_for
+from state import Rejected, apply_event, new_state
 from test_artifacts import archive
 
 
@@ -46,6 +46,41 @@ class AcceptanceTests(unittest.TestCase):
         self.reports[MATRIX[-1]]["verdict.json"]["candidate_sha"] = "e" * 40
         with self.assertRaisesRegex(Rejected, "candidate_sha"):
             self.check()
+
+
+class FailureRoutingTests(unittest.TestCase):
+    def setUp(self):
+        self.change = {"name": "Issues.ExistingStackTest", "class_name": "Issues",
+                       "baseline_failure_sha256": "a" * 64,
+                       "candidate_failure_sha256": "b" * 64}
+        self.report = {"accepted": False, "outcome": "inconclusive",
+                       "errors": ["Known failure classification changed: Issues.ExistingStackTest"],
+                       "classification_changes": [self.change]}
+
+    def test_existing_failure_drift_blocks_instead_of_dispatching_repair(self):
+        outcome, diagnostics = broad_failure_outcome(self.report)
+        state = new_state("canary", 2874, "a" * 40, "b" * 40, "c" * 40)
+        state.update(phase="broad", candidate_sha="d" * 40, repair_attempts=1)
+        event = event_for(state, "broad", 123, outcome=outcome, diagnostics=diagnostics,
+                          artifact="broad", environment="linux-x64-net8.0")
+        result = apply_event(state, event)
+        self.assertEqual("blocked", result["phase"])
+        self.assertEqual(1, result["repair_attempts"])
+        self.assertEqual([self.change], result["evidence"]["broad"]["diagnostics"])
+
+    def test_malformed_drift_cannot_be_treated_as_code_failure(self):
+        for field, value in (("name", ""), ("class_name", None),
+                             ("baseline_failure_sha256", "A" * 64),
+                             ("candidate_failure_sha256", "a" * 64)):
+            with self.subTest(field=field):
+                changed = {**self.change, field: value}
+                self.assertEqual("harness_error", broad_failure_outcome(
+                    {**self.report, "classification_changes": [changed]})[0])
+
+    def test_actual_regression_remains_a_repair_failure(self):
+        report = {"errors": ["Previously passing test failed: Issues.Control"],
+                  "classification_changes": [], "outcome": "inconclusive"}
+        self.assertEqual("fail", broad_failure_outcome(report)[0])
 
 
 if __name__ == "__main__":

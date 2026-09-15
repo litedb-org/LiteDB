@@ -5,7 +5,7 @@ import unittest
 import xml.etree.ElementTree as ET
 
 from test_support import add_test, target_run, xml_report
-from trx import GateError, TestRun, read_trx
+from trx import GateError, TestResult, TestRun, read_trx
 
 
 class TrxTests(unittest.TestCase):
@@ -121,6 +121,16 @@ class TrxTests(unittest.TestCase):
         parsed = self.parse(root, 0)
         self.assertEqual("NotExecuted",
                          next(test for test in parsed.tests.values() if test.name == name).outcome)
+
+    def test_quoted_stack_assertion_is_not_mistaken_for_runner_stack(self):
+        message = (
+            'Expected actual.StackTrace "   at LiteDB.Engine.Query() in /checkout/Query.cs:line 4\n'
+            '   at FluentAssertions.Specialized.DelegateAssertions`2.'
+            'InvokeSubjectWithInterception()" to contain "ThrowAtOriginalSourceSite".\n'
+            '   at LiteDB.Tests.OuterTest() in /checkout/Test.cs:line 8')
+        result = TestResult("Exact.Test", "Failed", message, "Exact")
+        self.assertIn('to contain "ThrowAtOriginalSourceSite"', result.failure)
+        self.assertNotIn("OuterTest", result.failure)
 
 
 if __name__ == "__main__":

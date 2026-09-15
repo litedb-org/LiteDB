@@ -22,11 +22,18 @@ def load_failure_normalization(path):
             raise FailureNormalizationError(
                 "Failure normalization requires exact test names and nonempty rules")
         for rule in rules:
+            matches = rule.get("matches") if isinstance(rule, dict) else None
+            valid_matches = (type(matches) is int and matches >= 1)
+            if isinstance(matches, list):
+                valid_matches = (bool(matches)
+                                 and all(type(value) is int and value >= 1
+                                         for value in matches)
+                                 and len(matches) == len(set(matches)))
             if (not isinstance(rule, dict)
                     or set(rule) != {"pattern", "replacement", "matches"}
                     or not isinstance(rule["pattern"], str) or not rule["pattern"]
                     or not isinstance(rule["replacement"], str)
-                    or type(rule["matches"]) is not int or rule["matches"] < 1):
+                    or not valid_matches):
                 raise FailureNormalizationError(f"Invalid failure normalization rule: {name}")
             try:
                 expression = re.compile(rule["pattern"])
@@ -48,7 +55,10 @@ def canonical_failure(name, failure, policy, baseline=False):
     normalized = failure
     for rule in rules:
         normalized, count = re.subn(rule["pattern"], rule["replacement"], normalized)
-        if count != rule["matches"]:
+        expected_counts = (set(rule["matches"])
+                           if isinstance(rule["matches"], list)
+                           else {rule["matches"]})
+        if count not in expected_counts:
             if baseline:
                 raise FailureNormalizationError(
                     f"Baseline failure does not match reviewed normalization: {name}")

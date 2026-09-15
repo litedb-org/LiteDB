@@ -116,7 +116,8 @@ def compare_ledger(ledger, run, issue, provenance, expected_tests,
                         f"extra={sorted(extra)}")
     verify_target(run, issue, baseline=False)
     target_names = {case["name"] for case in issue["regressions"]}
-    errors, unexpected_passes, known_failures, inconclusive_changes = [], [], [], []
+    errors, unexpected_passes, known_failures = [], [], []
+    inconclusive_changes, classification_changes = [], []
     for key, current in sorted(run.tests.items()):
         previous = before.get(key)
         name = current.name
@@ -141,12 +142,24 @@ def compare_ledger(ledger, run, issue, provenance, expected_tests,
         elif current.outcome == "Failed":
             failure = canonical_failure(current.name, current.failure,
                                         failure_normalization)
-            if failure != previous.get("failure"):
+            baseline_failure = previous.get("failure")
+            if not isinstance(baseline_failure, str):
+                raise GateError(f"Invalid baseline failure classification: {name}")
+            if failure != baseline_failure:
                 errors.append(f"Known failure classification changed: {name}")
+                classification_changes.append({
+                    "name": name,
+                    "class_name": current.class_name,
+                    "baseline_failure_sha256": hashlib.sha256(
+                        baseline_failure.encode("utf-8")).hexdigest(),
+                    "candidate_failure_sha256": hashlib.sha256(
+                        failure.encode("utf-8")).hexdigest(),
+                })
             else:
                 known_failures.append(name)
     return {"accepted": not errors and not unexpected_passes and not inconclusive_changes,
             "errors": errors, "inconclusive_changes": inconclusive_changes,
+            "classification_changes": classification_changes,
             "unexpected_passes": unexpected_passes, "known_failures": known_failures,
             "test_count": len(run.tests), "candidate_trx_sha256": run.sha256}
 

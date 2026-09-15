@@ -35,6 +35,53 @@ FOREIGN_FILE = (
 WAL_PEAK = (
     "LiteDB.Tests.Issues.Issue2814_Tests."
     "Finite_concurrent_readers_do_not_allow_WAL_growth_far_beyond_checkpoint_budget")
+ISSUE_2870_PREFIX = "LiteDB.Tests.Issues.Issue2870_Tests."
+STACK_CASES = {
+    ISSUE_2870_PREFIX + "Query_preserves_the_original_frame_when_a_later_source_read_throws": (
+        [("LiteDB.BsonDataReader.Read()", "LiteDB/Document/DataReader/BsonDataReader.cs", 118),
+         ("LiteDB.Tests.Issues.Issue2870_Tests.LaterRead()",
+          "LiteDB.Tests/Issues/Issue2870_Tests.cs", 60)],
+        "ThrowAtOriginalSourceSite"),
+    ISSUE_2870_PREFIX + "FileReaderV8_preserves_the_original_stream_failure_frame": (
+        [("LiteDB.Engine.FileReaderV8.HandleError()",
+          "LiteDB/Engine/FileReader/FileReaderV8.cs", 576),
+         ("LiteDB.Engine.FileReaderV8.Open()",
+          "LiteDB/Engine/FileReader/FileReaderV8.cs", 90)],
+        "ThrowAtOriginalFileReadSite"),
+    ISSUE_2870_PREFIX + "Query_preserves_the_original_frame_when_the_first_source_read_throws": (
+        [("LiteDB.Engine.QueryExecutor.RunQuery()", "LiteDB/Engine/Query/QueryExecutor.cs", 139),
+         ("LiteDB.EnumerableExtensions.OnDispose()",
+          "LiteDB/Utils/Extensions/EnumerableExtensions.cs", 13),
+         ("LiteDB.EnumerableExtensions.OnDispose()",
+          "LiteDB/Utils/Extensions/EnumerableExtensions.cs", 13),
+         ("LiteDB.BsonDataReader..ctor()",
+          "LiteDB/Document/DataReader/BsonDataReader.cs", 56),
+         ("LiteDB.Engine.QueryExecutor.ExecuteQuery()",
+          "LiteDB/Engine/Query/QueryExecutor.cs", 87),
+         ("LiteDB.Engine.LiteEngine.Query()", "LiteDB/Engine/Engine/Query.cs", 45),
+         ("LiteDB.Tests.Issues.Issue2870_Tests.FirstRead()",
+          "LiteDB.Tests/Issues/Issue2870_Tests.cs", 30)],
+        "ThrowAtOriginalSourceSite"),
+    ISSUE_2870_PREFIX + "WaitIfLocked_preserves_the_original_frame_for_non_lock_errors": (
+        [("LiteDB.IOExceptionExtensions.WaitIfLocked()",
+          "LiteDB/Utils/Extensions/IOExceptionExtensions.cs", 38),
+         ("LiteDB.Tests.Issues.Issue2870_Tests.WaitIfLocked()",
+          "LiteDB.Tests/Issues/Issue2870_Tests.cs", 96)],
+        "ThrowAtOriginalWaitSite"),
+}
+
+
+def stack_assertion(frames, expected_frame, checkout, include_action_frame):
+    checkout_segment = f"{checkout}/" if checkout else ""
+    lines = [f"   at {method} in /home/runner/work/LiteDB/LiteDB/{checkout_segment}{path}:line {line}"
+             for method, path, line in frames]
+    if include_action_frame:
+        lines.append("   at FluentAssertions.Specialized.ActionAssertions.InvokeSubject()")
+    lines.append(
+        "   at FluentAssertions.Specialized.DelegateAssertions`2."
+        "InvokeSubjectWithInterception()")
+    return ('Expected actual.StackTrace "' + "\n".join(lines)
+            + f'" to contain "{expected_frame}".')
 
 
 class FailureNormalizationTests(unittest.TestCase):
@@ -48,7 +95,7 @@ class FailureNormalizationTests(unittest.TestCase):
         self.assertEqual(left, right)
 
     def test_policy_has_only_reviewed_exact_cases_and_a_content_digest(self):
-        self.assertEqual(12, len(self.policy))
+        self.assertEqual(16, len(self.policy))
         self.assertEqual(64, len(self.digest))
         self.assertEqual(self.digest,
                          load_failure_normalization(POLICY_PATH)[1])
@@ -89,17 +136,82 @@ class FailureNormalizationTests(unittest.TestCase):
     def test_foreign_file_hash_and_prefix_normalize_together(self):
         first = ('Expected Sha256(after) to be "' + "1" * 64
                  + '" because data must remain, but "' + "2" * 64
-                 + '" differs near "222" (index 0).')
+                 + '" differs near "222" (index 1).')
         second = ('Expected Sha256(after) to be "' + "1" * 64
                   + '" because data must remain, but "' + "a" * 64
-                  + '" differs near "aaa" (index 0).')
+                  + '" differs near "aaa" (index 1).')
         self.assert_same_failure(FOREIGN_FILE, first, second)
+
+        different_index = second.replace("(index 1)", "(index 0)")
+        self.assert_same_failure(FOREIGN_FILE, first, different_index)
+        changed_expected_hash = second.replace('"' + "1" * 64 + '"',
+                                               '"' + "3" * 64 + '"')
+        self.assertNotEqual(canonical_failure(FOREIGN_FILE, first, self.policy),
+                            canonical_failure(FOREIGN_FILE, changed_expected_hash,
+                                              self.policy))
 
     def test_wal_peak_normalizes_only_the_observed_peak_diagnostics(self):
         prefix = ("Expected peak to be less than or equal to 6553600L because bounded growth, "
                   "but found ")
         self.assert_same_failure(WAL_PEAK, prefix + "7000000L (difference of 446400).",
                                  prefix + "8000000L (difference of 1446400).")
+
+    def test_reviewed_stack_assertions_ignore_only_checkout_and_jit_wrapper(self):
+        for name, (frames, expected_frame) in STACK_CASES.items():
+            baseline = stack_assertion(frames, expected_frame, "baseline", False)
+            candidate = stack_assertion(frames, expected_frame, "candidate", True)
+            controller = stack_assertion(frames, expected_frame, None, False)
+            with self.subTest(name=name):
+                normalized = canonical_failure(name, baseline, self.policy, baseline=True)
+                self.assertEqual(normalized,
+                                 canonical_failure(name, candidate, self.policy))
+                self.assertEqual(normalized,
+                                 canonical_failure(name, controller, self.policy,
+                                                   baseline=True))
+                self.assertIn(f'to contain "{expected_frame}"', normalized)
+                for method, path, line in frames:
+                    self.assertIn(method, normalized)
+                    self.assertIn(f"{path}:line {line}", normalized)
+                self.assertNotIn("/baseline/", normalized)
+                self.assertNotIn("ActionAssertions.InvokeSubject", normalized)
+
+    def test_stack_assertion_method_and_expected_frame_changes_are_preserved(self):
+        name = next(iter(STACK_CASES))
+        frames, expected_frame = STACK_CASES[name]
+        baseline = stack_assertion(frames, expected_frame, "baseline", False)
+        changed_method = stack_assertion(
+            [("LiteDB.BsonDataReader.Write()", *frames[0][1:]), *frames[1:]],
+            expected_frame, "candidate", True)
+        changed_expected = stack_assertion(
+            frames, "DifferentOriginalSourceSite", "candidate", True)
+        normalized = canonical_failure(name, baseline, self.policy, baseline=True)
+        self.assertNotEqual(normalized,
+                            canonical_failure(name, changed_method, self.policy))
+        self.assertNotEqual(normalized,
+                            canonical_failure(name, changed_expected, self.policy))
+
+    def test_stack_assertion_missing_frame_fails_closed_for_baseline(self):
+        name = (ISSUE_2870_PREFIX
+                + "Query_preserves_the_original_frame_when_a_later_source_read_throws")
+        frames, expected_frame = STACK_CASES[name]
+        incomplete = stack_assertion(frames[:-1], expected_frame, "baseline", False)
+        with self.assertRaisesRegex(FailureNormalizationError,
+                                    "does not match reviewed normalization"):
+            canonical_failure(name, incomplete, self.policy, baseline=True)
+
+    def test_reviewed_alternate_path_count_does_not_hide_an_extra_frame(self):
+        name = (ISSUE_2870_PREFIX
+                + "Query_preserves_the_original_frame_when_the_first_source_read_throws")
+        frames, expected_frame = STACK_CASES[name]
+        ordinary = stack_assertion(frames, expected_frame, None, False)
+        with_extra_frame = stack_assertion(
+            [*frames, ("LiteDB.Tests.Issues.Issue2870_Tests.AdditionalFrame()",
+                       "LiteDB.Tests/Issues/Issue2870_Tests.cs", 31)],
+            expected_frame, None, False)
+        first = canonical_failure(name, ordinary, self.policy, baseline=True)
+        second = canonical_failure(name, with_extra_frame, self.policy, baseline=True)
+        self.assertNotEqual(first, second)
+        self.assertIn("AdditionalFrame", second)
 
     def test_assertion_or_exception_changes_are_preserved(self):
         first = "IOException: file 'C:\\Temp\\litedb-123ab.db' is locked."
@@ -123,13 +235,16 @@ class FailureNormalizationTests(unittest.TestCase):
         self.assertEqual(failure, canonical_failure(GENERATED_ID, failure, self.policy))
 
     def test_invalid_policy_is_rejected(self):
-        invalid = {"schema_version": 1, "tests": {"Exact.Test": [
-            {"pattern": ".*", "replacement": "", "matches": 1}]}}
+        invalid_counts = ([], [1, 1], [0, 1], [True], "1")
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "policy.json"
-            path.write_text(json.dumps(invalid), encoding="utf-8")
-            with self.assertRaises(FailureNormalizationError):
-                load_failure_normalization(path)
+            for matches in invalid_counts:
+                invalid = {"schema_version": 1, "tests": {"Exact.Test": [
+                    {"pattern": "value", "replacement": "", "matches": matches}]}}
+                path.write_text(json.dumps(invalid), encoding="utf-8")
+                with self.subTest(matches=matches), \
+                        self.assertRaises(FailureNormalizationError):
+                    load_failure_normalization(path)
 
 
 if __name__ == "__main__":

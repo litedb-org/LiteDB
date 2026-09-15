@@ -27,10 +27,14 @@ class TestResult:
         # Preserve all assertion text and exception details before stack frames.
         lines = self.message.replace("\r\n", "\n").strip().splitlines()
         content = []
+        embedded_stack_assertion = bool(
+            lines and lines[0].startswith('Expected actual.StackTrace "'))
         for line in lines:
-            if line.lstrip().startswith("at "):
+            if not embedded_stack_assertion and line.lstrip().startswith("at "):
                 break
             content.append(line.rstrip())
+            if embedded_stack_assertion and '" to contain "' in line:
+                embedded_stack_assertion = False
         return "\n".join(content).strip()
 
 

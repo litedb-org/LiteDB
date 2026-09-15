@@ -88,8 +88,13 @@
         "matches": 1
       },
       {
-        "pattern": "(?<=<actual-sha256>\" differs near \")[0-9a-f]{3}(?=\" \\(index 0\\)\\.)",
+        "pattern": "(?<=<actual-sha256>\" differs near \")[0-9a-f]{3}(?=\" \\(index [0-9]+\\)\\.)",
         "replacement": "<actual-prefix>",
+        "matches": 1
+      },
+      {
+        "pattern": "(?<=<actual-prefix>\" \\(index )[0-9]+(?=\\)\\.)",
+        "replacement": "<first-difference>",
         "matches": 1
       }
     ],
@@ -102,6 +107,59 @@
       {
         "pattern": "(?<= \\(difference of )[0-9]+(?=\\)\\.)",
         "replacement": "<peak-difference>",
+        "matches": 1
+      }
+    ],
+    "LiteDB.Tests.Issues.Issue2870_Tests.Query_preserves_the_original_frame_when_a_later_source_read_throws": [
+      {
+        "pattern": "(?<= in )(?:[A-Za-z]:\\\\|/)[^\"\\r\\n]*[\\\\/](?=LiteDB(?:[\\\\/]|\\.Tests[\\\\/]))",
+        "replacement": "<checkout>/",
+        "matches": 2
+      },
+      {
+        "pattern": "(?:   at FluentAssertions\\.Specialized\\.ActionAssertions\\.InvokeSubject\\(\\)\\n)?   at FluentAssertions\\.Specialized\\.DelegateAssertions`2\\.InvokeSubjectWithInterception\\(\\)",
+        "replacement": "   at FluentAssertions.Specialized.DelegateAssertions`2.InvokeSubjectWithInterception()",
+        "matches": 1
+      }
+    ],
+    "LiteDB.Tests.Issues.Issue2870_Tests.FileReaderV8_preserves_the_original_stream_failure_frame": [
+      {
+        "pattern": "(?<= in )(?:[A-Za-z]:\\\\|/)[^\"\\r\\n]*[\\\\/](?=LiteDB(?:[\\\\/]|\\.Tests[\\\\/]))",
+        "replacement": "<checkout>/",
+        "matches": 2
+      },
+      {
+        "pattern": "(?:   at FluentAssertions\\.Specialized\\.ActionAssertions\\.InvokeSubject\\(\\)\\n)?   at FluentAssertions\\.Specialized\\.DelegateAssertions`2\\.InvokeSubjectWithInterception\\(\\)",
+        "replacement": "   at FluentAssertions.Specialized.DelegateAssertions`2.InvokeSubjectWithInterception()",
+        "matches": 1
+      }
+    ],
+    "LiteDB.Tests.Issues.Issue2870_Tests.Query_preserves_the_original_frame_when_the_first_source_read_throws": [
+      {
+        "pattern": "(?<= in )(?:[A-Za-z]:\\\\|/)[^\"\\r\\n]*[\\\\/](?=LiteDB(?:[\\\\/]|\\.Tests[\\\\/]))",
+        "replacement": "<checkout>/",
+        "matches": [
+          5,
+          6,
+          7,
+          8
+        ]
+      },
+      {
+        "pattern": "(?:   at FluentAssertions\\.Specialized\\.ActionAssertions\\.InvokeSubject\\(\\)\\n)?   at FluentAssertions\\.Specialized\\.DelegateAssertions`2\\.InvokeSubjectWithInterception\\(\\)",
+        "replacement": "   at FluentAssertions.Specialized.DelegateAssertions`2.InvokeSubjectWithInterception()",
+        "matches": 1
+      }
+    ],
+    "LiteDB.Tests.Issues.Issue2870_Tests.WaitIfLocked_preserves_the_original_frame_for_non_lock_errors": [
+      {
+        "pattern": "(?<= in )(?:[A-Za-z]:\\\\|/)[^\"\\r\\n]*[\\\\/](?=LiteDB(?:[\\\\/]|\\.Tests[\\\\/]))",
+        "replacement": "<checkout>/",
+        "matches": 2
+      },
+      {
+        "pattern": "(?:   at FluentAssertions\\.Specialized\\.ActionAssertions\\.InvokeSubject\\(\\)\\n)?   at FluentAssertions\\.Specialized\\.DelegateAssertions`2\\.InvokeSubjectWithInterception\\(\\)",
+        "replacement": "   at FluentAssertions.Specialized.DelegateAssertions`2.InvokeSubjectWithInterception()",
         "matches": 1
       }
     ]

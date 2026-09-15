@@ -85,7 +85,13 @@ class LedgerTests(unittest.TestCase):
 
     def test_changed_known_failure_rejected(self):
         self.candidate.tests[self.failed] = replace(self.candidate.tests[self.failed], message="Expected 4, found 0")
-        self.assertFalse(self.compare()["accepted"])
+        result = self.compare()
+        self.assertFalse(result["accepted"])
+        self.assertEqual(1, len(result["classification_changes"]))
+        change = result["classification_changes"][0]
+        self.assertEqual(self.failed, change["name"])
+        self.assertEqual(64, len(change["baseline_failure_sha256"]))
+        self.assertEqual(64, len(change["candidate_failure_sha256"]))
 
     def test_reviewed_volatile_value_matches_but_assertion_change_rejects(self):
         normalization = {self.failed: [{"pattern": "(?<=found )[0-9]+",
@@ -105,6 +111,7 @@ class LedgerTests(unittest.TestCase):
         result = compare_ledger(ledger, self.candidate, ISSUE, PROVENANCE,
                                 Counter(self.baseline.definitions.values()), normalization)
         self.assertFalse(result["accepted"])
+        self.assertEqual(1, len(result["classification_changes"]))
 
     def test_pass_to_failed_remains_an_outcome_change(self):
         self.candidate.tests[self.passed] = replace(
@@ -175,6 +182,13 @@ class LedgerTests(unittest.TestCase):
             with self.subTest(key=key), self.assertRaisesRegex(GateError, "provenance"):
                 compare_ledger(ledger, self.candidate, ISSUE, PROVENANCE,
                                Counter(self.baseline.definitions.values()), {})
+
+    def test_malformed_baseline_failure_classification_is_rejected(self):
+        ledger = copy.deepcopy(self.ledger)
+        ledger["tests"][self.failed]["failure"] = 42
+        with self.assertRaisesRegex(GateError, "Invalid baseline failure classification"):
+            compare_ledger(ledger, self.candidate, ISSUE, PROVENANCE,
+                           Counter(self.baseline.definitions.values()), {})
 
     def test_unclassified_baseline_failure_rejected(self):
         with self.assertRaisesRegex(GateError, "Unclassified"):
