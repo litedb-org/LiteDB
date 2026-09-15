@@ -44,7 +44,11 @@ class M111ContractTests(unittest.TestCase):
         wave = json.loads((ROOT / "scripts/bugfix/fixtures/wave-three-baseline.json").read_text(encoding="utf-8"))
         self.assertEqual(34988724926, EVIDENCE["run_id"])
         self.assertEqual(wave["source_revision"], EVIDENCE["source_revision"])
-        self.assertEqual(wave["artifacts"], [{k: lane[k] for k in ("id", "name", "baseline_trx_sha256")} for lane in EVIDENCE["lanes"]])
+        artifact_fields = ("id", "name", "baseline_trx_sha256", "environment")
+        self.assertEqual([{k: artifact[k] for k in artifact_fields} for artifact in wave["artifacts"]],
+                         [{k: lane[k] for k in artifact_fields} for lane in EVIDENCE["lanes"]])
+        self.assertEqual({artifact["environment"] for artifact in wave["artifacts"]},
+                         {lane["environment"] for lane in EVIDENCE["lanes"]})
         self.assertEqual({os + "-" + framework for os in ("linux-x64", "windows-x64", "macos-arm64")
                           for framework in ("net8.0", "net10.0")}, {lane["environment"] for lane in EVIDENCE["lanes"]})
         for lane in EVIDENCE["lanes"]:
