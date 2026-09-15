@@ -4,7 +4,8 @@
   "candidate_sha": "ed795329beeec37c92dc8eb11e1c4086e9fd14ee",
   "events": {
     "run-34980331557-baseline-ci": "e5248bd026e30bb7144b2395a3069fb7f20601a0e78ec21ca1cc58cf5f880c16",
-    "run-34980481504-candidate-ci": "1517c6cd1eb885ceab9bc215a8f6981d81f8c7a6768c7fb021511d9a1ecc9126"
+    "run-34980481504-candidate-ci": "1517c6cd1eb885ceab9bc215a8f6981d81f8c7a6768c7fb021511d9a1ecc9126",
+    "run-34981481193-focused-ci": "161381461078738bb14a810f1fee598a279defd32c11097c706e10cc4a734478"
   },
   "evidence": {
     "baseline": {
@@ -27,6 +28,30 @@
       },
       "report_sha256": "7725464630e9cd1b29ea6cc36b96b72dd995ecb54a0d9c16c96a9357efedb871",
       "run_id": 34980331557,
+      "schema_version": 1,
+      "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "workflow_sha": "13685bb6d1680c7041f9f03b460e45c37a3acba3"
+    },
+    "focused": {
+      "artifact": "bugfix-check-ubuntu-latest-net8.0",
+      "artifact_sha256": "9cbcca5a8fde1bd1893d21c715c5c43626f6f56dfa67a1d10ef2e89f917efcf7",
+      "base_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "campaign": "canary-2874-v3",
+      "candidate_sha": "ed795329beeec37c92dc8eb11e1c4086e9fd14ee",
+      "environment": "linux-x64-net8.0",
+      "event_id": "run-34981481193-focused-ci",
+      "issue": 2874,
+      "kind": "focused",
+      "outcome": "behavior_correct",
+      "passing_contract": {
+        "case_count": 0,
+        "cases_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "ledger_sha256": "c9f58a9c7ddd359d61b38aebee80f31fbe0f7d5135a5830dbfa58f514891b7f3",
+        "schema_version": 1,
+        "state_commit": "92901cbe1253f5ba1e6c9b9b9167732f2320c1c4"
+      },
+      "report_sha256": "bfdbe4bde841cf9f0a5f1513ec2c9af9c0381849beb978b7d439cd9659d2f093",
+      "run_id": 34981481193,
       "schema_version": 1,
       "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
       "workflow_sha": "13685bb6d1680c7041f9f03b460e45c37a3acba3"
@@ -94,6 +119,30 @@
         "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
         "workflow_sha": "13685bb6d1680c7041f9f03b460e45c37a3acba3"
       },
+      "workflow_sha": "13685bb6d1680c7041f9f03b460e45c37a3acba3"
+    },
+    {
+      "artifact": "bugfix-check-ubuntu-latest-net8.0",
+      "artifact_sha256": "9cbcca5a8fde1bd1893d21c715c5c43626f6f56dfa67a1d10ef2e89f917efcf7",
+      "base_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "campaign": "canary-2874-v3",
+      "candidate_sha": "ed795329beeec37c92dc8eb11e1c4086e9fd14ee",
+      "environment": "linux-x64-net8.0",
+      "event_id": "run-34981481193-focused-ci",
+      "issue": 2874,
+      "kind": "focused",
+      "outcome": "behavior_correct",
+      "passing_contract": {
+        "case_count": 0,
+        "cases_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "ledger_sha256": "c9f58a9c7ddd359d61b38aebee80f31fbe0f7d5135a5830dbfa58f514891b7f3",
+        "schema_version": 1,
+        "state_commit": "92901cbe1253f5ba1e6c9b9b9167732f2320c1c4"
+      },
+      "report_sha256": "bfdbe4bde841cf9f0a5f1513ec2c9af9c0381849beb978b7d439cd9659d2f093",
+      "run_id": 34981481193,
+      "schema_version": 1,
+      "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
       "workflow_sha": "13685bb6d1680c7041f9f03b460e45c37a3acba3"
     }
   ],
@@ -175,7 +224,7 @@
     "state_commit": "92901cbe1253f5ba1e6c9b9b9167732f2320c1c4"
   },
   "paused": false,
-  "phase": "focused",
+  "phase": "broad",
   "repair_attempts": 1,
   "reviews": {},
   "schema_version": 1,
