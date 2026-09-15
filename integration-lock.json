@@ -1,5 +1,5 @@
 {
-  "active": true,
+  "active": false,
   "campaign": "expansion-v7-2869",
   "candidate_tree_sha": "c855e4d020184c70322574c529b6e91d20468f94",
   "evidence_prefix": "evidence/expansion-v7-2869/",
@@ -11,7 +11,8 @@
     "candidate_sha": "781b3291ee0d6aa7a08e05955545fdf4d03763dc",
     "check_workflow_sha": "d020aceb92799d9325a2f47669d1d39e5d700248"
   },
-  "phase": "prepared",
+  "integration_sha": "781b3291ee0d6aa7a08e05955545fdf4d03763dc",
+  "phase": "complete",
   "schema_version": 1,
   "token": "910cfa0622274132b4d3183b3a6b7971"
 }
