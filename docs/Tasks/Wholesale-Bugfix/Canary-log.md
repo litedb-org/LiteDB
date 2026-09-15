@@ -300,3 +300,42 @@ order above. Its first campaign, `expansion-v7-2869`, uses integration base
 `824dfce9d27a6c0c7ea3890c1ecc9aff31833c83` and the ten-case accepted ledger.
 The queue remains locally monitored and uses GitHub only for the bounded worker
 and check runs; no long-running GitHub controller job waits between them.
+
+## Third accepted fix and nit-only stopping rule
+
+Issue #2869 integrated as exact candidate
+`781b3291ee0d6aa7a08e05955545fdf4d03763dc` on base
+`824dfce9d27a6c0c7ea3890c1ecc9aff31833c83`. Its two numeric operator changes
+widen stored Int32 to Int64/Double while preserving the original BSON type and
+all other direct-cast behavior. Baseline `35001231852` confirmed five red cases
+and one passing control; worker `35001452147` produced the patch.
+
+The single compressed candidate run `35002677408` passed: Ubuntu/net8 test lane
+2m48s, production build 36s in parallel. Behavior `35003040743`, compatibility
+`35003069395`, and lifecycle `35003094832` all approved with empty findings.
+Compatibility executed 173 upgrade/vector tests, plain/encrypted old/current
+engine round trips, and explicit v7 read-only upgrade coverage. The six newly
+accepted cases join the previous ten; final matrix remains pending.
+
+The v7 queue was durably paused while these original reviews completed, then
+drained without starting #1506. The same v7 campaign resumed using the exact
+existing run IDs, reached ready without CI reruns, and integrated after evidence
+verification. Accepted state is `e9720270423bba07ccee63b539335b9162ffdfd2`.
+
+Runtime v8 is immutable `61ee4aec705024c189345de25508ea19ffc2584e` at
+`automation/bugfix-runtime-v8`. It implements the requested stopping condition:
+no findings or only cosmetic nits finish; any more severe finding sends all
+reviewers' findings, including nits, to repair. Subsequent reviews receive those
+obligations and must verify resolution. Obligations survive intervening compile
+or CI failures. Missing evidence remains inconclusive, and oversized complete
+feedback blocks rather than truncating findings. Legacy findings are never
+silently reclassified. Independent validation passed 190 controller, 94 gate,
+and 81 workflow/helper tests. The combined trusted reviewer helpers and compiled
+model/runtime/permission settings were reviewed.
+
+The next queue uses prefix `expansion-v8` and ordered issues #1506, #1002, #2802,
+#2770, #2867, #2845, #2847, #2779, #2205, #2871, #1159, #1224, #2858, #2864,
+#2769, #2225, #2322, and #2873. All contracts are sourced from the original frozen
+test branch. The exact #2871 source-guard observation is retained separately
+as behavior-unverified evidence with no issue credit. No full matrix is dispatched
+by this queue.

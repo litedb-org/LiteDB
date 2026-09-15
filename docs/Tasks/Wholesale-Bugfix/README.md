@@ -1,8 +1,9 @@
 # Wholesale bug-fix plan
 
-Status: #2874 and #2839 are integrated; the eleven-issue serial expansion is
-running. Their selected candidate test lanes took 2 minutes 40 seconds and
-2 minutes 35 seconds, with production builds in parallel. Use one compressed
+Status: #2874, #2839, and #2869 are integrated. Runtime v8 adds the nit-only
+stopping rule and eighteen approved upcoming issues. The three accepted fixes
+used candidate test lanes of 2m40s, 2m35s, and 2m48s, with production builds
+in parallel. Use one compressed
 candidate CI run per repair attempt and run the expensive original matrix only
 after the sweep. The acceptance profile, controller, and integration gate enforce
 this split. See the [canary log](Canary-log.md) and [queue runbook](../../../.github/bugfix/QUEUE.md).
