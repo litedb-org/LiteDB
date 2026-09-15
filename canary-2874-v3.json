@@ -273,6 +273,18 @@
         },
         "workflow": "bugfix-fix.lock.yml"
       },
+      "fix-2-0": {
+        "inputs": {
+          "base_sha": "ed795329beeec37c92dc8eb11e1c4086e9fd14ee",
+          "feedback": "{\"candidate_sha\": \"ed795329beeec37c92dc8eb11e1c4086e9fd14ee\", \"checks\": [{\"kind\": \"focused\", \"run_id\": 34981481193, \"outcome\": \"behavior_correct\", \"diagnostics\": [], \"reason\": \"\"}, {\"kind\": \"broad\", \"run_id\": 34981635307, \"outcome\": \"fail\", \"diagnostics\": [\"Known failure classification changed: LiteDB.Tests.Issues.Issue2870_Tests.Query_preserves_the_original_frame_when_a_later_source_read_throws\", \"Known failure classification changed: LiteDB.Tests.Issues.Issue2870_Tests.FileReaderV8_preserves_the_original_stream_failure_frame\", \"Known failure classification changed: LiteDB.Tests.Issues.Issue2870_Tests.Query_preserves_the_original_frame_when_the_first_source_read_throws\", \"Known failure classification changed: LiteDB.Tests.Issues.Issue2870_Tests.WaitIfLocked_preserves_the_original_frame_for_non_lock_errors\"], \"reason\": \"Check workflow concluded failure\"}], \"reviews\": []}",
+          "issue": "2874",
+          "source_run": "34981635307",
+          "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c"
+        },
+        "request_id": "bf-423897bde6e14d799146c2fda6d8f3e7",
+        "started_at": 1789482539.7534778,
+        "workflow": "bugfix-fix.lock.yml"
+      },
       "focused-1-0": {
         "inputs": {
           "accepted_ledger_sha256": "c9f58a9c7ddd359d61b38aebee80f31fbe0f7d5135a5830dbfa58f514891b7f3",
