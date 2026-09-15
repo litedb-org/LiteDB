@@ -1,10 +1,11 @@
 # Wholesale bug-fix plan
 
-Status: compressed canary CI passed on 2026-09-15. The selected test lane took
-2 minutes 40 seconds; the production build ran in parallel and took 39 seconds.
-Use one compressed candidate CI run per repair attempt and run the expensive
-original matrix only after the sweep. The acceptance profile, controller, and
-integration gate enforce this split. See the [canary log](Canary-log.md).
+Status: #2874 and #2839 are integrated; the eleven-issue serial expansion is
+running. Their selected candidate test lanes took 2 minutes 40 seconds and
+2 minutes 35 seconds, with production builds in parallel. Use one compressed
+candidate CI run per repair attempt and run the expensive original matrix only
+after the sweep. The acceptance profile, controller, and integration gate enforce
+this split. See the [canary log](Canary-log.md) and [queue runbook](../../../.github/bugfix/QUEUE.md).
 
 Prepared: 2026-09-15.
 
