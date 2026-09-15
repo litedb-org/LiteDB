@@ -1,9 +1,8 @@
 # Wholesale bug-fix plan
 
-Status: #2874, #2839, and #2869 are integrated. Runtime v8 adds the nit-only
-stopping rule and eighteen approved upcoming issues. The three accepted fixes
-used candidate test lanes of 2m40s, 2m35s, and 2m48s, with production builds
-in parallel. Use one compressed
+Status: #2874, #2839, #2869, and #1506 are integrated. The nit-aware v8 queue
+has advanced to #1002 and enforces eighteen permanently passing cases. Accepted
+candidate test lanes have taken 2m35s–2m48s, with production builds in parallel. Use one compressed
 candidate CI run per repair attempt and run the expensive original matrix only
 after the sweep. The acceptance profile, controller, and integration gate enforce
 this split. See the [canary log](Canary-log.md) and [queue runbook](../../../.github/bugfix/QUEUE.md).

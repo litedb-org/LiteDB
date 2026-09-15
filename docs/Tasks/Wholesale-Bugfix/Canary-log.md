@@ -339,3 +339,39 @@ The next queue uses prefix `expansion-v8` and ordered issues #1506, #1002, #2802
 test branch. The exact #2871 source-guard observation is retained separately
 as behavior-unverified evidence with no issue credit. No full matrix is dispatched
 by this queue.
+
+## First v8 fix accepted
+
+Issue #1506 integrated at exact candidate
+`bbb0253bc06324f0bb14a21a727a37e8c7f2b213` (tree
+`5fd787d338feb7e3dc2e6758ac9a864473f033d0`) on base
+`781b3291ee0d6aa7a08e05955545fdf4d03763dc`. Find's paging overrides now use
+an execution-local copy of every Query field and independent option lists,
+preserving lazy execution and the caller's reusable query.
+
+- Baseline `35005445832` confirmed one red regression, one control and all sixteen
+  previously accepted cases.
+- Fix worker `35005597395` used verified Codex0.154.0/Astra/high; frozen tests
+  passed on net8 and net10, with 243 adjacent checks passing and one disclosed skip.
+- Candidate CI `35006858578` passed in 2m40s for its test lane; production built
+  in parallel in 40s. No acceptance CI rerun followed reviews.
+- Behavior `35007227933`, compatibility `35007255374`, and lifecycle
+  `35007282149` all approved with empty findings using the v8 nit policy.
+  Behavior ran additional paging/null boundary checks; compatibility executed
+  old/current plain/encrypted compatibility, upgrade/durability checks and
+  file-backed paging/reopen probes. Lifecycle traced disposal/concurrency and
+  disclosed that its attempted local tests did not execute after a PATH lookup
+  failure; the other reviewers and independent candidate CI did execute tests.
+
+Integration verification retained sixteen evidence files with no coverage gaps.
+Accepted state `f6d5a4caae1fdba1737bb38161c34693d7b68db6` now contains four
+accepted fixes and eighteen permanently required passing cases. The v8 queue
+advanced to #1002 on the new base. The complete first v8 worker/check/three-review/
+integration cycle succeeded without moving its immutable runtime or invoking
+the original full matrix.
+
+A reviewed future prompt correction makes workers verify SDK discovery through
+absolute executable fallbacks before declaring tests unavailable. Future contract
+preparation also adds four reviewed issues and the original M111 behavioral
+co-repair to #1224. Those changes are on the mutable automation branch only; the
+running v8 queue remains pinned to `61ee4aec705024c189345de25508ea19ffc2584e`.
