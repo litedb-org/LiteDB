@@ -438,6 +438,20 @@
         "run_id": 35007227933,
         "started_at": 1789496634.9882917,
         "workflow": "bugfix-validate.lock.yml"
+      },
+      "review-1-compatibility-0": {
+        "inputs": {
+          "base_sha": "781b3291ee0d6aa7a08e05955545fdf4d03763dc",
+          "candidate_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+          "issue": "1506",
+          "repair_requirements": "",
+          "role": "compatibility",
+          "source_run": "35006858578",
+          "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c"
+        },
+        "request_id": "bf-d09033a8534b4acc9966d9b45318241c",
+        "started_at": 1789496650.434443,
+        "workflow": "bugfix-validate.lock.yml"
       }
     },
     "worker_retries": 0,
