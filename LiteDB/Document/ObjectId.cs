@@ -98,6 +98,10 @@ namespace LiteDB
         public ObjectId(byte[] bytes, int startIndex = 0)
         {
             if (bytes == null) throw new ArgumentNullException(nameof(bytes));
+            if (startIndex < 0 || startIndex > bytes.Length - 12)
+            {
+                throw new ArgumentException("ObjectId requires 12 bytes from the specified start index.", nameof(startIndex));
+            }
 
             this.Timestamp = 
                 (bytes[startIndex + 0] << 24) + 
