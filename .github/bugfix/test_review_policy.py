@@ -32,6 +32,17 @@ class ReviewPolicyTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "must not be truncated"):
             repair_feedback(state)
 
+    def test_ci_failure_before_rereview_keeps_prior_nit_obligations(self):
+        import json
+        prior = {"reviews": [{"role": "behavior", "run_id": 12,
+                              "findings": [finding("nit"), finding("minor")]}]}
+        state = {"candidate_sha": "b", "history": [], "orchestration": {"review_reports": {},
+            "requests": {"fix-2": {"candidate_sha": "b", "inputs": {"feedback": json.dumps(prior)}}}}}
+        self.assertEqual(prior["reviews"], json.loads(repair_feedback(state))["reviews"])
+        state["orchestration"]["review_reports"]["b"] = [
+            {"role": "behavior", "run_id": 13, "outcome": "pass", "findings": []}]
+        self.assertEqual([], json.loads(repair_feedback(state))["reviews"])
+
 
 class NitCampaignTests(CampaignLoopTests):
     def review(self, repo, state, workflow_run, artifacts, role):
