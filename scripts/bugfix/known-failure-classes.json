@@ -3,7 +3,7 @@
   "source_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
   "inventory_path": "docs/open-bugs/inventory.json",
   "inventory_blob": "f862415d354d64c034b1b7a3153ff391910c39ab",
-  "environment_scope": "net8.0, at least two logical processors; standard Linux or Windows runner outside Windows AppContainer",
+  "environment_scope": "net8.0 or net10.0, at least two logical processors; standard Linux or Windows runner outside Windows AppContainer",
   "policy_note": "These explicit source-derived classes authorize fresh baseline classification only. Every individual failed case and its exact normalized failure must be recorded from the completed pinned-baseline run. This file is not evidence that every listed class fails.",
   "eligible_inventory_statuses": [
     "intermittent",
@@ -14,7 +14,6 @@
     "reproduced-script"
   ],
   "classes": [
-    "LiteDB.Tests.Audit2026.AuditCoverageLedger_Tests",
     "LiteDB.Tests.Audit2026.AuditFindingSourceGuard_Tests",
     "LiteDB.Tests.Audit2026.EngineAuditRegression_Tests",
     "LiteDB.Tests.Audit2026.ExpressionAuditRegression_Tests",
@@ -59,7 +58,6 @@
     "LiteDB.Tests.Issues.Issue2303_Tests",
     "LiteDB.Tests.Issues.Issue2322_Tests",
     "LiteDB.Tests.Issues.Issue2324_Tests",
-    "LiteDB.Tests.Issues.Issue2357_Tests",
     "LiteDB.Tests.Issues.Issue2367_Tests",
     "LiteDB.Tests.Issues.Issue2450_Tests",
     "LiteDB.Tests.Issues.Issue2545_Tests",
@@ -83,7 +81,6 @@
     "LiteDB.Tests.Issues.Issue2792_Tests",
     "LiteDB.Tests.Issues.Issue2795_PipelineGuards_Tests",
     "LiteDB.Tests.Issues.Issue2795_Tests",
-    "LiteDB.Tests.Issues.Issue2796_Tests",
     "LiteDB.Tests.Issues.Issue2798_Tests",
     "LiteDB.Tests.Issues.Issue2799_Tests",
     "LiteDB.Tests.Issues.Issue2800_Tests",
@@ -495,5 +492,14 @@
     "Issue2298 We_Dont_Need_Ctor only skips on non-NETCOREAPP frameworks and is deliberately absent from this net8 policy.",
     "Six CpuBoundFact transaction tests must execute with at least two logical processors; CPU-starved runners are not accepted through new skips."
   ],
-  "discovery_note": "Exact class and skipped method names were checked against local net8 --list-tests; CI independently discovers and executes the pinned original sources."
+  "discovery_note": "Exact class and skipped method names were checked against local net8 --list-tests; CI independently discovers and executes the pinned original sources.",
+  "required_passing_classes": [
+    "LiteDB.Tests.Audit2026.AuditCoverageLedger_Tests",
+    "LiteDB.Tests.Issues.Issue2796_Tests",
+    "LiteDB.Tests.Issues.Issue2357_Tests"
+  ],
+  "intermittent_classes": [
+    "LiteDB.Tests.Issues.Issue2814_Tests"
+  ],
+  "intermittent_policy": "Issue2814 is historically intermittent; changes between passing and failing are inconclusive pending a separately reviewed repeat/control protocol. A single run cannot establish repair or erase the historical defect."
 }
