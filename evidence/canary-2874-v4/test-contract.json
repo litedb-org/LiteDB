@@ -1,0 +1,76 @@
+{
+  "allowed_production_paths": [
+    "LiteDB/Document/ObjectId.cs"
+  ],
+  "controls": [
+    {
+      "name": "LiteDB.Tests.Issues.Issue2874_Tests.Every_valid_twelve_byte_window_round_trips_only_its_own_bytes"
+    }
+  ],
+  "environments": [
+    "linux-x64-net8.0",
+    "windows-x64-net8.0",
+    "macos-x64-net8.0",
+    "macos-arm64-net8.0",
+    "linux-x64-net10.0",
+    "windows-x64-net10.0",
+    "macos-x64-net10.0",
+    "macos-arm64-net10.0"
+  ],
+  "filter": "FullyQualifiedName~Issue2874_Tests",
+  "frozen_test_blobs": {
+    "LiteDB.Tests/Issues/Issue2874_Tests.cs": "3a69734465d57b0ac4f0c6a7a7cdceeb180873c4"
+  },
+  "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+  "inventory_issue": 2874,
+  "regressions": [
+    {
+      "failure_contains": [
+        "System.IndexOutOfRangeException:",
+        "at LiteDB.ObjectId..ctor(Byte[] bytes, Int32 startIndex)"
+      ],
+      "failure_first_line": "Expected a <System.ArgumentException> to be thrown, but found <System.IndexOutOfRangeException>:",
+      "name": "LiteDB.Tests.Issues.Issue2874_Tests.Invalid_byte_windows_are_rejected_as_argument_errors(bytes: [], startIndex: 0)"
+    },
+    {
+      "failure_contains": [
+        "System.IndexOutOfRangeException:",
+        "at LiteDB.ObjectId..ctor(Byte[] bytes, Int32 startIndex)"
+      ],
+      "failure_first_line": "Expected a <System.ArgumentException> to be thrown, but found <System.IndexOutOfRangeException>:",
+      "name": "LiteDB.Tests.Issues.Issue2874_Tests.Invalid_byte_windows_are_rejected_as_argument_errors(bytes: [0, 0, 0, 0, 0, \u00c2\u00b7\u00c2\u00b7\u00c2\u00b7], startIndex: 0)"
+    },
+    {
+      "failure_contains": [
+        "System.IndexOutOfRangeException:",
+        "at LiteDB.ObjectId..ctor(Byte[] bytes, Int32 startIndex)"
+      ],
+      "failure_first_line": "Expected a <System.ArgumentException> to be thrown, but found <System.IndexOutOfRangeException>:",
+      "name": "LiteDB.Tests.Issues.Issue2874_Tests.Invalid_byte_windows_are_rejected_as_argument_errors(bytes: [0, 0, 0, 0, 0, \u00c2\u00b7\u00c2\u00b7\u00c2\u00b7], startIndex: 1)"
+    },
+    {
+      "failure_contains": [
+        "System.IndexOutOfRangeException:",
+        "at LiteDB.ObjectId..ctor(Byte[] bytes, Int32 startIndex)"
+      ],
+      "failure_first_line": "Expected a <System.ArgumentException> to be thrown, but found <System.IndexOutOfRangeException>:",
+      "name": "LiteDB.Tests.Issues.Issue2874_Tests.Invalid_byte_windows_are_rejected_as_argument_errors(bytes: [0, 0, 0, 0, 0, \u00c2\u00b7\u00c2\u00b7\u00c2\u00b7], startIndex: 12)"
+    },
+    {
+      "failure_contains": [
+        "System.IndexOutOfRangeException:",
+        "at LiteDB.ObjectId..ctor(Byte[] bytes, Int32 startIndex)"
+      ],
+      "failure_first_line": "Expected a <System.ArgumentException> to be thrown, but found <System.IndexOutOfRangeException>:",
+      "name": "LiteDB.Tests.Issues.Issue2874_Tests.Invalid_byte_windows_are_rejected_as_argument_errors(bytes: [0, 0, 0, 0, 0, \u00c2\u00b7\u00c2\u00b7\u00c2\u00b7], startIndex: -1)"
+    },
+    {
+      "failure_contains": [
+        "System.IndexOutOfRangeException:",
+        "at LiteDB.ObjectId..ctor(Byte[] bytes, Int32 startIndex)"
+      ],
+      "failure_first_line": "Expected a <System.ArgumentException> to be thrown, but found <System.IndexOutOfRangeException>:",
+      "name": "LiteDB.Tests.Issues.Issue2874_Tests.Invalid_byte_windows_are_rejected_as_argument_errors(bytes: [0, 0, 0, 0, 0, \u00c2\u00b7\u00c2\u00b7\u00c2\u00b7], startIndex: 2147483647)"
+    }
+  ]
+}

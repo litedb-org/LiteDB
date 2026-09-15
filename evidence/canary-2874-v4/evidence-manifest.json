@@ -1,0 +1,78 @@
+{
+  "acceptance-profile.json": {
+    "bytes": 1125,
+    "sha256": "c3267be8c0245e93b389f99f7a40ef1e69cba8e0c449bdf3e38e522f8db0005e"
+  },
+  "acceptance/run-34984349375/bugfix-check-ubuntu-latest-net8.0.zip": {
+    "bytes": 8275,
+    "sha256": "12d35ca3ed0ce71e36483d90d5ebcbf37bab4baf0361a4962860f4431f1c0971"
+  },
+  "acceptance/run-34984349375/run.json": {
+    "bytes": 14214,
+    "sha256": "02d151985378f63d823ff0f7fa1411c40119d5c77831c4ab1bd1e7c487592744"
+  },
+  "acceptance/run-34985300364/bugfix-check-ubuntu-latest-net8.0.zip": {
+    "bytes": 13688,
+    "sha256": "0c28c8868e1fbae48f7c4d0428dea048b7ac29c7fb4df039191c36b1a5aeae06"
+  },
+  "acceptance/run-34985300364/run.json": {
+    "bytes": 14212,
+    "sha256": "f09ef2b3dbfa0d07006db313538ff07a898c144a93e035051ea407e9fb7e9999"
+  },
+  "acceptance/run-34985454867/bugfix-check-ubuntu-latest-net8.0.zip": {
+    "bytes": 1736142,
+    "sha256": "db453d442b452a08fff9c6dd1b10a9aa04fae135a02b91e2bee3897c45653905"
+  },
+  "acceptance/run-34985454867/run.json": {
+    "bytes": 14208,
+    "sha256": "66bd03b83dfd79f8f53c4feeda3108f5b53cbfa348d297f9e28d68a210a85c6c"
+  },
+  "acceptance/run-34985735409/bugfix-review-2874-behavior.zip": {
+    "bytes": 2237,
+    "sha256": "fbcebafff11e15eed92a006bcf5251420e92d5e479b9e01f7f169098fa3e94df"
+  },
+  "acceptance/run-34985735409/run.json": {
+    "bytes": 14207,
+    "sha256": "f387f340e2cb2aff17665d46955125a27fe9bbea14bf9512575b80a41a2023cc"
+  },
+  "acceptance/run-34985757907/bugfix-review-2874-compatibility.zip": {
+    "bytes": 2722,
+    "sha256": "08107c6539386fa730a67c591e0e89300af84f08798e4258c87155ebe89ab5f6"
+  },
+  "acceptance/run-34985757907/run.json": {
+    "bytes": 14207,
+    "sha256": "c201b5cc84090a8c32e69d85d8b26a3d4a36139972b6020c793066afa7a574e0"
+  },
+  "acceptance/run-34985781861/bugfix-review-2874-lifecycle.zip": {
+    "bytes": 2441,
+    "sha256": "663fc92e779254ab27ab046eb7081752ddcdfe1eb7926700f4cfe94d475cd812"
+  },
+  "acceptance/run-34985781861/run.json": {
+    "bytes": 14207,
+    "sha256": "4336bed4adcd7560a1998e53b3fdc43d79b390ef165a45696374443ecc529643"
+  },
+  "acceptance/run-34995923000/bugfix-check-ubuntu-latest-net8.0.zip": {
+    "bytes": 1739120,
+    "sha256": "911556c0655e25728248781bea837990eac8c897de18f636f99437238d7b9601"
+  },
+  "acceptance/run-34995923000/bugfix-production.zip": {
+    "bytes": 2509,
+    "sha256": "999901984bb6962ff46b65cb854e3c48539a0197d8a73af5828677f1cd1ed19d"
+  },
+  "acceptance/run-34995923000/run.json": {
+    "bytes": 13922,
+    "sha256": "b803fb0f70e4de2a15467f915ba94a209bb62bd83d648fdd20d658d6e48fa53f"
+  },
+  "acceptance_profile.py": {
+    "bytes": 10569,
+    "sha256": "38dbdfaffa1269aad3de514a3a562e52cb04df2ed2ce72cd93a03f02637cf2ad"
+  },
+  "per-fix-verdict.json": {
+    "bytes": 661,
+    "sha256": "4dfa86fbba448ecd07976dddcb72e2d190bd4310bcfcc57f8ddaeec115150d04"
+  },
+  "test-contract.json": {
+    "bytes": 3524,
+    "sha256": "04420fec98276a8a5153758dd967451874d30031dfd6a2a71cd3b96c444f8195"
+  }
+}

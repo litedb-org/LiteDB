@@ -1,6 +1,8 @@
 {
   "active": true,
   "campaign": "canary-2874-v4",
+  "candidate_tree_sha": "8bbe4ac67ee8db71627e4fbcab377d26f11f0c95",
+  "evidence_prefix": "evidence/canary-2874-v4/",
   "identity": {
     "acceptance_profile_sha256": "53e3b0681d4d419e663cc6703fbdee33203b6dbf9f84301e04d581caae7891e9",
     "acceptance_run": 34995923000,
@@ -9,7 +11,7 @@
     "candidate_sha": "79e5c69cb9e6a1bcc08e919c2993aaa5401148b7",
     "check_workflow_sha": "807054e37840ab31184642a86c4bbb7c15983de8"
   },
-  "phase": "acquired",
+  "phase": "prepared",
   "schema_version": 1,
   "token": "eba12323c81c4138935d293a800fc4d6"
 }

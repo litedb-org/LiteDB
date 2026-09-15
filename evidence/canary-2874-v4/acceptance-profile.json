@@ -1,0 +1,39 @@
+{
+  "base_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+  "candidate_sha": "79e5c69cb9e6a1bcc08e919c2993aaa5401148b7",
+  "checks": [
+    "focused",
+    "broad",
+    "production-build"
+  ],
+  "compatibility": false,
+  "contract_sha256": "b55577010a63aff1fa457855cbf012f952c659eab1221e8a4726fc976317b445",
+  "diff_sha256": "9ecec37c645d064db3adb20044ce7cef48782d6260e995546cc5d479cfbce993",
+  "issue": 2874,
+  "matched_rules": [
+    {
+      "path": "LiteDB/Document/ObjectId.cs",
+      "rule": "reviewed-ordinary-issue-path"
+    }
+  ],
+  "matrix": [
+    {
+      "framework": "net8.0",
+      "os": "ubuntu-latest"
+    }
+  ],
+  "paths": [
+    "LiteDB/Document/ObjectId.cs"
+  ],
+  "policy_sha256": "2335410494a367069e4218c5e26ca23c03555af0208724633bf75f8ed4641a8c",
+  "policy_version": "compressed-acceptance-v1",
+  "production_build": true,
+  "profile_sha256": "53e3b0681d4d419e663cc6703fbdee33203b6dbf9f84301e04d581caae7891e9",
+  "required_environments": [],
+  "required_lanes": [
+    "bugfix-check-ubuntu-latest-net8.0"
+  ],
+  "schema_version": 1,
+  "targeted_test_filters": [],
+  "targeted_tests_covered_by_broad": true
+}
