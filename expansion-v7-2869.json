@@ -47,7 +47,8 @@
     "run-35001231852-baseline-ci": "62e809709d36c2ec2fcff6510070861efe6987f6f618b0eeb42ce25fa92b9225",
     "run-35001452147-candidate-ci": "4e02cbeaf463519b3fed2adfa1551641b99cedb309fbf4bf1a8c9b9c12eb7ad4",
     "run-35002677408-broad-ci": "fd671f2472796db8d02b5c062f58111adc210213c6e3304e9331892da5d7db46",
-    "run-35003040743-review-behavior": "7d34e9bd74ba74ede17f3a23308bf8e775580b4e4dd74e5cd00fbea7b88b1107"
+    "run-35003040743-review-behavior": "7d34e9bd74ba74ede17f3a23308bf8e775580b4e4dd74e5cd00fbea7b88b1107",
+    "run-35003069395-review-compatibility": "b140b7f38281b6b1c00bc900d5317a744124e1ed0358cd2f96fe7fb8547ef15e"
   },
   "evidence": {
     "baseline": {
@@ -177,6 +178,33 @@
       "report_sha256": "ebffd7e10fe4ae71dcff1ccb9077e3d8ec8f1b0ab697cbef900a4265dc79cfc2",
       "role": "behavior",
       "run_id": 35003040743,
+      "schema_version": 1,
+      "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "workflow_sha": "d020aceb92799d9325a2f47669d1d39e5d700248"
+    },
+    "review:compatibility": {
+      "artifact": "bugfix-review-2869-compatibility",
+      "artifact_sha256": "b211920fed9c01a52d811b1bec165a203d230d8db021639b19c0392cb573c69f",
+      "base_sha": "824dfce9d27a6c0c7ea3890c1ecc9aff31833c83",
+      "campaign": "expansion-v7-2869",
+      "candidate_sha": "781b3291ee0d6aa7a08e05955545fdf4d03763dc",
+      "environment": "independent-agent",
+      "event_id": "run-35003069395-review-compatibility",
+      "findings": [],
+      "issue": 2869,
+      "kind": "review",
+      "outcome": "pass",
+      "passing_contract": {
+        "case_count": 10,
+        "cases_sha256": "18f83c1f07735b36f72aca323011a65aa9ad36ed5f7d52d93b2fafa831622d2a",
+        "ledger_sha256": "c5e4cd5ced4e868d452e2e57ec41cec7fbce39e87c2a7f4dd4cda952c35e05ee",
+        "schema_version": 1,
+        "state_commit": "9a3ab0f489d3450c33d723f609d638920113b16e"
+      },
+      "protocol": "compressed-v1",
+      "report_sha256": "af0c1d5e9db2b308b595cc5c66cd0a1bcc6e8139bcc2204115de74caef414e24",
+      "role": "compatibility",
+      "run_id": 35003069395,
       "schema_version": 1,
       "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
       "workflow_sha": "d020aceb92799d9325a2f47669d1d39e5d700248"
@@ -443,6 +471,33 @@
       "schema_version": 1,
       "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
       "workflow_sha": "d020aceb92799d9325a2f47669d1d39e5d700248"
+    },
+    {
+      "artifact": "bugfix-review-2869-compatibility",
+      "artifact_sha256": "b211920fed9c01a52d811b1bec165a203d230d8db021639b19c0392cb573c69f",
+      "base_sha": "824dfce9d27a6c0c7ea3890c1ecc9aff31833c83",
+      "campaign": "expansion-v7-2869",
+      "candidate_sha": "781b3291ee0d6aa7a08e05955545fdf4d03763dc",
+      "environment": "independent-agent",
+      "event_id": "run-35003069395-review-compatibility",
+      "findings": [],
+      "issue": 2869,
+      "kind": "review",
+      "outcome": "pass",
+      "passing_contract": {
+        "case_count": 10,
+        "cases_sha256": "18f83c1f07735b36f72aca323011a65aa9ad36ed5f7d52d93b2fafa831622d2a",
+        "ledger_sha256": "c5e4cd5ced4e868d452e2e57ec41cec7fbce39e87c2a7f4dd4cda952c35e05ee",
+        "schema_version": 1,
+        "state_commit": "9a3ab0f489d3450c33d723f609d638920113b16e"
+      },
+      "protocol": "compressed-v1",
+      "report_sha256": "af0c1d5e9db2b308b595cc5c66cd0a1bcc6e8139bcc2204115de74caef414e24",
+      "role": "compatibility",
+      "run_id": 35003069395,
+      "schema_version": 1,
+      "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "workflow_sha": "d020aceb92799d9325a2f47669d1d39e5d700248"
     }
   ],
   "infrastructure_retries": {},
@@ -689,6 +744,33 @@
       "report_sha256": "ebffd7e10fe4ae71dcff1ccb9077e3d8ec8f1b0ab697cbef900a4265dc79cfc2",
       "role": "behavior",
       "run_id": 35003040743,
+      "schema_version": 1,
+      "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "workflow_sha": "d020aceb92799d9325a2f47669d1d39e5d700248"
+    },
+    "compatibility": {
+      "artifact": "bugfix-review-2869-compatibility",
+      "artifact_sha256": "b211920fed9c01a52d811b1bec165a203d230d8db021639b19c0392cb573c69f",
+      "base_sha": "824dfce9d27a6c0c7ea3890c1ecc9aff31833c83",
+      "campaign": "expansion-v7-2869",
+      "candidate_sha": "781b3291ee0d6aa7a08e05955545fdf4d03763dc",
+      "environment": "independent-agent",
+      "event_id": "run-35003069395-review-compatibility",
+      "findings": [],
+      "issue": 2869,
+      "kind": "review",
+      "outcome": "pass",
+      "passing_contract": {
+        "case_count": 10,
+        "cases_sha256": "18f83c1f07735b36f72aca323011a65aa9ad36ed5f7d52d93b2fafa831622d2a",
+        "ledger_sha256": "c5e4cd5ced4e868d452e2e57ec41cec7fbce39e87c2a7f4dd4cda952c35e05ee",
+        "schema_version": 1,
+        "state_commit": "9a3ab0f489d3450c33d723f609d638920113b16e"
+      },
+      "protocol": "compressed-v1",
+      "report_sha256": "af0c1d5e9db2b308b595cc5c66cd0a1bcc6e8139bcc2204115de74caef414e24",
+      "role": "compatibility",
+      "run_id": 35003069395,
       "schema_version": 1,
       "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
       "workflow_sha": "d020aceb92799d9325a2f47669d1d39e5d700248"
