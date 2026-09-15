@@ -42,6 +42,7 @@
   "campaign": "expansion-v7-2869",
   "candidate_sha": "781b3291ee0d6aa7a08e05955545fdf4d03763dc",
   "events": {
+    "handoff-v8-drain-resume-2869": "b1cf842ec987f78091b6a8e4e0d43d330cba1aa598def6536961b3a2c523520d",
     "handoff-v8-pause-2869": "f0d669c86f1c20ce2b953a32840c0fd8241886b28f4eb698c3bdda9dc1d2a348",
     "run-35001231852-baseline-ci": "62e809709d36c2ec2fcff6510070861efe6987f6f618b0eeb42ce25fa92b9225",
     "run-35001452147-candidate-ci": "4e02cbeaf463519b3fed2adfa1551641b99cedb309fbf4bf1a8c9b9c12eb7ad4",
@@ -366,6 +367,27 @@
       "schema_version": 1,
       "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
       "workflow_sha": "d020aceb92799d9325a2f47669d1d39e5d700248"
+    },
+    {
+      "base_sha": "824dfce9d27a6c0c7ea3890c1ecc9aff31833c83",
+      "campaign": "expansion-v7-2869",
+      "candidate_sha": "781b3291ee0d6aa7a08e05955545fdf4d03763dc",
+      "event_id": "handoff-v8-drain-resume-2869",
+      "issue": 2869,
+      "kind": "resume",
+      "passing_contract": {
+        "case_count": 10,
+        "cases_sha256": "18f83c1f07735b36f72aca323011a65aa9ad36ed5f7d52d93b2fafa831622d2a",
+        "ledger_sha256": "c5e4cd5ced4e868d452e2e57ec41cec7fbce39e87c2a7f4dd4cda952c35e05ee",
+        "schema_version": 1,
+        "state_commit": "9a3ab0f489d3450c33d723f609d638920113b16e"
+      },
+      "protocol": "compressed-v1",
+      "reason": "Original three reviewer workflows completed successfully with empty findings; finish only this existing pinned campaign before v8 queue",
+      "run_id": 0,
+      "schema_version": 1,
+      "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "workflow_sha": "d020aceb92799d9325a2f47669d1d39e5d700248"
     }
   ],
   "infrastructure_retries": {},
@@ -499,7 +521,7 @@
     "schema_version": 1,
     "state_commit": "9a3ab0f489d3450c33d723f609d638920113b16e"
   },
-  "paused": true,
+  "paused": false,
   "phase": "reviewing",
   "protocol": "compressed-v1",
   "repair_attempts": 1,
