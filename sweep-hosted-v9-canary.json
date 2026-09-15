@@ -1,0 +1,51 @@
+{
+  "bootstrap_blob_sha": "29e3a758e7f7332466c90e4e235b8664cde19ac7",
+  "cooldown_until": 0,
+  "history": [
+    {
+      "action": "initialize",
+      "at": 1789505792.9181852
+    }
+  ],
+  "issues": {
+    "1002": {
+      "status": "pending",
+      "tick_errors": 0
+    }
+  },
+  "kind": "hosted-bugfix-sweep",
+  "last_tick": {
+    "at": 1789505798.2665508,
+    "campaign": null,
+    "campaign_phase": null,
+    "counts": {
+      "accepted": 0,
+      "active": 0,
+      "deferred": 0,
+      "pending": 1
+    },
+    "issue": null,
+    "run_attempt": 1,
+    "run_id": 35022649813,
+    "run_ids": []
+  },
+  "paused": false,
+  "phase": "running",
+  "schema_version": 1,
+  "specification": {
+    "campaign_prefix": "hosted-v9",
+    "contract_sha256": {
+      "1002": "58ab3eab73e61f69a223668158261864cdab2cc6d60dbc0df27ac03b6651fd82"
+    },
+    "issues": [
+      1002
+    ],
+    "max_runs": 40,
+    "scheduler_sha": "5a823c25057fa4eaffb8cdfbd546ae3f5c360f37",
+    "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+    "timeout_minutes": 180,
+    "workflow_ref": "automation/bugfix-runtime-v9",
+    "workflow_sha": "167f2677ca07b2e67ccd701fb730b4ea055dc950"
+  },
+  "sweep": "hosted-v9-canary"
+}
