@@ -221,3 +221,28 @@ Integration completed successfully: `integration/bugfixes` now points to
 requires all seven #2874 cases. Its `final_matrix_status` is explicitly `pending`.
 Campaign `sweep-2839-v1` then started on this integration base, using the same
 immutable runtime v5 and the new `compressed-v1` protocol.
+
+## Windows metadata encoding correction
+
+The first #2839 baseline, [34996458134](https://github.com/litedb-org/LiteDB/actions/runs/34996458134),
+exposed a controller bug after integration. All seven required-pass cases passed,
+but five stored theory identities contained `Â·` instead of the original `·`.
+The local Windows controller decoded `git show` through CP1252 when constructing
+the accepted contract. Campaign v1 was paused and retry `34996606840` cancelled.
+This was metadata corruption, not a regression in the ObjectId candidate.
+
+Runtime v6 (`ebf413d240e747ead603d5076bdff6d09a35ccf3`) explicitly decodes Git and
+GitHub command text as UTF-8. Tests simulate a legacy host code page. The reviewed
+`repair_ledger_encoding.py` authenticated the immutable original contract, required
+the exact derived corruption, rechecked all CI and reviewer evidence, and repaired
+only the two accepted-name lists. Original artifacts and the original stored
+contract remain intact. The correction adds a separate contract and audit under
+`evidence/canary-2874-v4/encoding-correction-b530fc144bd2/` at controller state
+`ff3701819065d1682a3147e201a50091a0a1c206`. The audit SHA-256 is
+`853b014befe29c0f8d67e3f5a54dbde340bbcc3a236c1ac27d0c0cad69502e5f`.
+
+Campaign `sweep-2839-v2` starts from the unchanged integration commit and a fresh
+corrected ledger snapshot under immutable `automation/bugfix-runtime-v6`.
+The runtime also routes verified candidate C# compiler failures back to repair
+and includes the reviewed next-three issue contracts. Combined local checks
+passed: 149 controller tests, 74 gate tests, and 76 workflow/helper tests.
