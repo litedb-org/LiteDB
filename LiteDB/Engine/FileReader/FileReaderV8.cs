@@ -371,67 +371,44 @@ namespace LiteDB.Engine
                     continue;
                 }
 
-                var page = result.Value;
-                var buffer = page.Buffer;
-
-                var count = buffer.ReadByte(CollectionPage.P_INDEXES); // 1 byte
-                var position = CollectionPage.P_INDEXES + 1;
-
-                // handle error per collection
                 try
                 {
-                    for (var i = 0; i < count; i++)
+                    var page = result.Value;
+                    var collectionPage = new CollectionPage(page.Buffer);
+
+                    foreach (var index in collectionPage.GetCollectionIndexes())
                     {
-                        position += 2; // skip: slot (1 byte) + indexType (1 byte)
+                        if (index.Name == "_id") continue;
 
-                        var name = buffer.ReadCString(position, out var nameLength);
-
-                        position += nameLength;
-
-                        var expr = buffer.ReadCString(position, out var exprLength);
-
-                        position += exprLength;
-
-                        var unique = buffer.ReadBool(position);
-
-                        position++;
-
-                        position += 15; // head 5 bytes, tail 5 bytes, reserved 1 byte, freeIndexPageList 4 bytes
-
-                        ENSURE(!string.IsNullOrEmpty(name), "Index name can't be empty (collection {0} - index: {1})", collection.Key, i);
-                        ENSURE(!string.IsNullOrEmpty(expr), "Index expression can't be empty (collection {0} - index: {1})", collection.Key, i);
-
-                        var indexInfo = new IndexInfo
+                        var info = new IndexInfo
                         {
                             Collection = collection.Key,
-                            Name = name,
-                            Expression = expr,
-                            Unique = unique
+                            Name = index.Name,
+                            Expression = index.Expression,
+                            Unique = index.Unique,
+                            IndexType = index.IndexType,
+                            VectorMetadata = index.IndexType == 1 ? collectionPage.GetVectorIndexMetadata(index.Name) : null
                         };
-
-                        // ignore _id index
-                        if (name == "_id") continue;
 
                         if (_indexes.TryGetValue(collection.Key, out var indexInfos))
                         {
-                            indexInfos.Add(indexInfo);
+                            indexInfos.Add(info);
                         }
                         else
                         {
-                            _indexes[collection.Key] = new List<IndexInfo> { indexInfo };
+                            _indexes[collection.Key] = new List<IndexInfo> { info };
                         }
                     }
                 }
                 catch (Exception ex)
                 {
                     this.HandleError(ex, pageInfo);
-                    continue;
                 }
             }
         }
 
         /// <summary>
-        /// Check header slots to test if data file is a LiteDB FILE_VERSION = v8
+        /// Check for the shared v8/v9 page layout (v9 adds vector types and metadata)
         /// </summary>
         public static bool IsVersion(byte[] buffer)
         {
@@ -441,7 +418,7 @@ namespace LiteDB.Engine
             // buffer[0] = 1 when datafile is encrypted (this feature was added in v8 only)
             // all other version has this buffer[0] = 0
 
-            return (header == HeaderPage.HEADER_INFO && version == HeaderPage.FILE_VERSION) ||
+            return (header == HeaderPage.HEADER_INFO && (version == HeaderPage.FILE_VERSION || version == HeaderPage.VECTOR_FILE_VERSION)) ||
                 buffer[0] == 1;
         }
 
