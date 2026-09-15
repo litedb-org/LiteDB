@@ -4,7 +4,7 @@ Prepared from automation commit `d020aceb92799d9325a2f47669d1d39e5d700248`. This
 
 ## Decision
 
-Eight reports are prepared with **40 exact failing cases and 14 positive controls**. #2860 and #2870 are deferred for environment-aware contract design. Every selected case and first-line signature, including neighboring controls, matches all six preserved original baseline reports from run [34988724926](https://github.com/litedb-org/LiteDB/actions/runs/34988724926).
+The original eight reports were prepared with **40 exact failing cases and 14 positive controls**. Subsequent reviewed preparations add the M111 co-repair to #1224 and environment-aware contracts for #2860 and #2870. Those additions require a new immutable runtime; the active v8 queue retains its original definitions. Every original selected case and first-line signature, including neighboring controls, matches all six preserved original baseline reports from run [34988724926](https://github.com/litedb-org/LiteDB/actions/runs/34988724926).
 
 [wave-three-baseline.json](../../../scripts/bugfix/fixtures/wave-three-baseline.json) retains exact identities, outcome/first-line values, every test source blob, selected filters, required environments, numeric artifact IDs and SHA-256 pins. It also retains the deferred issues' original reference cases and actual per-lane differences. Each local raw TRX was checked against its previously independently verified artifact hash. Original tests and source are pinned to `dd937719f7eee53c512f50ac604cab639bf42a4c`.
 
@@ -233,15 +233,17 @@ Role-specific task instructions:
 - **compatibility**: The existing one-argument Ctor(factory) must keep post-construction member population. Preserve old documents, init-only members, DbRef and custom DeserializeObject behavior; assess prior #2802 virtual-mapping changes and legacy constructor callers.
 - **lifecycle**: Preserve mapper initialization, entity configuration isolation, factory invocation count and concurrent readers. Do not globally disable member population or swallow factory failures.
 
-## Deferred reports
+## Environment-aware reports prepared for the next runtime
+
+Commit `877f406a695bf2c686ccf368c2a3e195f7e28810` adds exact case identities and full canonical failures per environment for these two reports. The compact fixture preserves the reviewed failure text alongside the original and repeat artifact hashes. Neither report has been dispatched. Both require Linux and Windows x64 on net8 and net10; actual VSTest process architecture is checked against retained diagnostic evidence.
 
 ### #2860
 
-The frozen selection mixes six relative-URI failures, six absolute-URI controls and two maximum-depth diagnostic failures on Linux/macOS. The rooted `/a/b` URI cases fail on every lane: Windows throws UriFormatException, while Linux/macOS reaches the IsAbsoluteUri assertion with an absolute URI. Registering one common exact signature or dropping those cases would lose evidence. The frozen source blob and all differences remain in the fixture. Required next step: explicit environment-aware case contract and decision whether URI and diagnostic failures are one approved scope. No new normalization or partial issue filter is introduced.
+The frozen selection contains six relative-URI failures, six absolute-URI controls and two maximum-depth diagnostic failures. The rooted `/a/b` URI cases fail on every lane: Windows throws UriFormatException, while Linux/macOS reaches the IsAbsoluteUri assertion with an absolute URI. The reviewed contract retains all eight regressions as one issue and binds each environment's complete failure without normalization. The six positive controls cover URI behavior; the maximum-depth component has no independent positive control, which remains an explicit evidence limitation.
 
 ### #2870
 
-Four stack-preservation assertions embed checkout paths and source frames; exact first lines differ across runner environments and can change with the integration source. Three healthy controls pass. The frozen source blob and all observed lane differences remain in the fixture. Required next step: reviewed environment-aware evidence design that still proves original stack origin; this preparation does not normalize or weaken any stack assertion.
+Four stack-preservation assertions embed checkout paths and source frames; exact first lines differ across runner environments and can change with the integration source. Three healthy controls pass. The reviewed contract uses the existing narrowly approved [failure normalization](Failure-normalization.md), then binds complete canonical failures per environment. It retains the original stack-origin assertion and platform path differences; it introduces no additional normalization or weakened assertion.
 
 ## Dispatch and overlap boundaries
 

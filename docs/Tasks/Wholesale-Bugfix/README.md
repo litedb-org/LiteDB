@@ -1,7 +1,9 @@
 # Wholesale bug-fix plan
 
 Status: #2874, #2839, #2869, and #1506 are integrated. The nit-aware v8 queue
-has advanced to #1002 and enforces eighteen permanently passing cases. Accepted
+is repairing #1002 after its lifecycle reviewer reproduced a durable write followed
+by an exception for a get-only nullable ID. Its first candidate passed compressed
+CI but was not integrated. The queue enforces eighteen permanently passing cases. Accepted
 candidate test lanes have taken 2m35s–2m48s, with production builds in parallel. Use one compressed
 candidate CI run per repair attempt and run the expensive original matrix only
 after the sweep. The acceptance profile, controller, and integration gate enforce

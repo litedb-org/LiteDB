@@ -375,3 +375,27 @@ absolute executable fallbacks before declaring tests unavailable. Future contrac
 preparation also adds four reviewed issues and the original M111 behavioral
 co-repair to #1224. Those changes are on the mutable automation branch only; the
 running v8 queue remains pinned to `61ee4aec705024c189345de25508ea19ffc2584e`.
+
+## First substantive v8 review repair
+
+Issue #1002's first candidate `a98b29089c01e21e50856abd0cc9bbea1ecc5631`
+passed candidate CI `35010144390` (test lane 2m57s; production and selected
+compatibility checks 1m14s in parallel). Behavior `35010513878` and compatibility
+`35010539971` approved. Compatibility executed 173 in-repository compatibility
+checks; its released 5.0.21 binary check could not complete because the package
+was unavailable in its runner, and was explicitly not counted as passing.
+
+Lifecycle `35010564817` requested changes with one major finding: a get-only
+nullable integer ID reaches an insert that commits before generated-ID copy-back
+throws. Its executed candidate probe confirmed both the exception and a row
+surviving reopen. The candidate was not integrated. After collecting all three
+reviews, the unchanged v8 controller automatically entered `repairing` and
+dispatched second fix worker `35012206609` with the review findings. Fresh
+candidate CI and three reviews are required before this issue can be accepted.
+
+Future preparation now contains 28 approved issue contracts, including #2367
+with three captured-member regressions and two executed neighboring controls.
+Independent review rechecked all twelve original/repeat reports. Combined
+preparation checks passed 210 controller, 122 gate, and 87 workflow/helper tests.
+These additions remain separate from the live v8 runtime and do not expand its
+queue automatically.
