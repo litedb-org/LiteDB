@@ -1,5 +1,5 @@
 name: Bugfix Full CI
-run-name: 'Bugfix full CI for #${{ inputs.issue }} at ${{ inputs.source_sha }}'
+run-name: 'Bugfix full CI (${{ inputs.validation_scope }}) at ${{ inputs.source_sha }}'
 
 on:
   push:
@@ -17,9 +17,17 @@ on:
       - .github/scripts/apply_issue_2825_harness_overlay.py
   workflow_dispatch:
     inputs:
-      issue:
-        description: Issue execution contract to validate
+      validation_scope:
+        description: Evidence identity carried by this complete matrix
         required: true
+        type: choice
+        default: final-promotion
+        options:
+          - final-promotion
+          - single-issue
+      issue:
+        description: Single issue number; empty for final promotion
+        required: false
         type: string
       source_sha:
         description: Exact candidate or integration-base commit to test
@@ -41,6 +49,22 @@ on:
         description: SHA-256 of the trusted #2825 CI harness overlay manifest
         required: true
         type: string
+      final_integration_sha:
+        description: Exact completed integration commit for final promotion
+        required: false
+        type: string
+      accepted_state_sha:
+        description: Controller state commit containing the accepted all-issue ledger
+        required: false
+        type: string
+      accepted_ledger_sha256:
+        description: Canonical SHA-256 of the accepted all-issue ledger
+        required: false
+        type: string
+      test_source_sha:
+        description: Frozen regression-test source revision shared by accepted issues
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -51,11 +75,16 @@ jobs:
     uses: ./.github/workflows/_bugfix-full-ci-matrix.yml
     with:
       issue: ${{ inputs.issue }}
+      validation-scope: ${{ inputs.validation_scope }}
       source-sha: ${{ inputs.source_sha }}
       evidence-definition-sha: ${{ inputs.evidence_definition_sha }}
       quarantine-sha256: ${{ inputs.quarantine_sha256 }}
       harness-overlay-manifest-sha256: ${{ inputs.harness_overlay_manifest_sha256 }}
       issue-2825-harness-overlay-manifest-sha256: ${{ inputs.issue_2825_harness_overlay_manifest_sha256 }}
+      final-integration-sha: ${{ inputs.final_integration_sha }}
+      accepted-state-sha: ${{ inputs.accepted_state_sha }}
+      accepted-ledger-sha256: ${{ inputs.accepted_ledger_sha256 }}
+      test-source-sha: ${{ inputs.test_source_sha }}
 
   repro-runner:
     if: github.event_name == 'workflow_dispatch'

@@ -56,6 +56,35 @@ def repro_report(failed=True):
 
 
 class FullCiCollectorTests(unittest.TestCase):
+    def test_final_promotion_identity_binds_all_accepted_ledger_inputs(self):
+        args = argparse.Namespace(
+            validation_scope="final-promotion", issue=None,
+            final_integration_sha="a" * 40, accepted_state_sha="b" * 40,
+            accepted_ledger_sha256="c" * 64, test_source_sha="d" * 40)
+        self.assertEqual({
+            "kind": "final-promotion",
+            "final_integration_sha": "a" * 40,
+            "accepted_state_sha": "b" * 40,
+            "accepted_ledger_sha256": "c" * 64,
+            "test_source_sha": "d" * 40,
+        }, collector.validation_identity(args))
+        args.issue = 2874
+        with self.assertRaisesRegex(collector.CollectionError,
+                                    "cannot name one issue"):
+            collector.validation_identity(args)
+
+    def test_single_issue_identity_rejects_final_promotion_fields(self):
+        args = argparse.Namespace(
+            validation_scope="single-issue", issue=2874,
+            final_integration_sha="", accepted_state_sha="",
+            accepted_ledger_sha256="", test_source_sha="")
+        self.assertEqual({"kind": "single-issue", "issue": 2874},
+                         collector.validation_identity(args))
+        args.accepted_state_sha = "a" * 40
+        with self.assertRaisesRegex(collector.CollectionError,
+                                    "cannot carry final-promotion"):
+            collector.validation_identity(args)
+
     def test_maps_every_original_test_job_shape_to_an_artifact(self):
         expected = {
             "build-and-test / Test (Linux .NET 8)": "bugfix-full-ci-tests-linux-net8",

@@ -10,8 +10,13 @@ on:
         required: true
         type: string
       issue:
-        required: true
+        required: false
         type: string
+        default: ''
+      validation-scope:
+        required: false
+        type: string
+        default: single-issue
       quarantine-sha256:
         required: true
         type: string
@@ -19,8 +24,25 @@ on:
         required: true
         type: string
       issue-2825-harness-overlay-manifest-sha256:
-        required: true
+        required: false
         type: string
+        default: ''
+      final-integration-sha:
+        required: false
+        type: string
+        default: ''
+      accepted-state-sha:
+        required: false
+        type: string
+        default: ''
+      accepted-ledger-sha256:
+        required: false
+        type: string
+        default: ''
+      test-source-sha:
+        required: false
+        type: string
+        default: ''
       sdk-matrix:
         required: false
         type: string
@@ -119,15 +141,47 @@ jobs:
           QUARANTINE_SHA256: ${{ inputs.quarantine-sha256 }}
           HARNESS_OVERLAY_MANIFEST_SHA256: ${{ inputs.harness-overlay-manifest-sha256 }}
           ISSUE_2825_HARNESS_OVERLAY_MANIFEST_SHA256: ${{ inputs.issue-2825-harness-overlay-manifest-sha256 }}
+          VALIDATION_SCOPE: ${{ inputs.validation-scope }}
+          FINAL_INTEGRATION_SHA: ${{ inputs.final-integration-sha }}
+          ACCEPTED_STATE_SHA: ${{ inputs.accepted-state-sha }}
+          ACCEPTED_LEDGER_SHA256: ${{ inputs.accepted-ledger-sha256 }}
+          TEST_SOURCE_SHA: ${{ inputs.test-source-sha }}
         run: |
           test "${GITHUB_WORKFLOW_SHA}" = "${EVIDENCE_DEFINITION_SHA}"
           python3 - <<'PY'
           import json
           import os
+          import re
           import subprocess
+          scope = os.environ["VALIDATION_SCOPE"]
+          if scope == "single-issue":
+              if not re.fullmatch(r"[1-9][0-9]*", os.environ["ISSUE"]):
+                  raise SystemExit("Single-issue capture requires a positive issue")
+              if any(os.environ[name] for name in (
+                      "FINAL_INTEGRATION_SHA", "ACCEPTED_STATE_SHA",
+                      "ACCEPTED_LEDGER_SHA256", "TEST_SOURCE_SHA")):
+                  raise SystemExit("Single-issue capture has final-promotion inputs")
+              identity = {"kind": scope, "issue": int(os.environ["ISSUE"])}
+          elif scope == "final-promotion":
+              if os.environ["ISSUE"]:
+                  raise SystemExit("Final-promotion capture cannot name one issue")
+              for name in ("FINAL_INTEGRATION_SHA", "ACCEPTED_STATE_SHA", "TEST_SOURCE_SHA"):
+                  if not re.fullmatch(r"[0-9a-f]{40}", os.environ[name]):
+                      raise SystemExit(f"Invalid final-promotion SHA: {name}")
+              if not re.fullmatch(r"[0-9a-f]{64}", os.environ["ACCEPTED_LEDGER_SHA256"]):
+                  raise SystemExit("Invalid accepted ledger digest")
+              identity = {
+                  "kind": scope,
+                  "final_integration_sha": os.environ["FINAL_INTEGRATION_SHA"],
+                  "accepted_state_sha": os.environ["ACCEPTED_STATE_SHA"],
+                  "accepted_ledger_sha256": os.environ["ACCEPTED_LEDGER_SHA256"],
+                  "test_source_sha": os.environ["TEST_SOURCE_SHA"],
+              }
+          else:
+              raise SystemExit("Unsupported validation scope")
           evidence = {
-              "schema_version": 3,
-              "issue": int(os.environ["ISSUE"]),
+              "schema_version": 4,
+              "validation": identity,
               "source_sha": os.environ["SOURCE_SHA"],
               "checkout_sha": subprocess.check_output(
                   ["git", "rev-parse", "HEAD"], text=True).strip(),

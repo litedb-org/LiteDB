@@ -33,6 +33,7 @@ harness_overlay_contract = issue_2794_harness_overlay_contract
 
 
 SHA = re.compile(r"[0-9a-f]{40}")
+SHA256 = re.compile(r"[0-9a-f]{64}")
 SDK_KEYS = {".NET 8": "net8", ".NET 9": "net9", ".NET 10": "net10"}
 WORKFLOW_PATH = ".github/workflows/bugfix-full-ci.yml"
 CHECK_JOBS = {
@@ -316,10 +317,39 @@ def overlay_summary(manifest, definition_sha):
             "evidence_definition_sha": definition_sha}
 
 
+def validation_identity(args):
+    scope = getattr(args, "validation_scope", "single-issue")
+    if scope == "single-issue":
+        require(type(args.issue) is int and args.issue > 0,
+                "Single-issue collection requires one positive issue number")
+        require(not any(getattr(args, field, None) for field in (
+                    "final_integration_sha", "accepted_state_sha",
+                    "accepted_ledger_sha256", "test_source_sha")),
+                "Single-issue collection cannot carry final-promotion identity")
+        return {"kind": "single-issue", "issue": args.issue}
+    require(scope == "final-promotion",
+            "Unsupported full-CI validation scope")
+    require(args.issue is None,
+            "Final-promotion collection cannot name one issue")
+    for field in ("final_integration_sha", "accepted_state_sha", "test_source_sha"):
+        require(SHA.fullmatch(getattr(args, field, None) or ""),
+                f"{field} must be a full lowercase SHA")
+    require(SHA256.fullmatch(getattr(args, "accepted_ledger_sha256", None) or ""),
+            "accepted_ledger_sha256 must be a lowercase SHA-256")
+    return {
+        "kind": "final-promotion",
+        "final_integration_sha": args.final_integration_sha,
+        "accepted_state_sha": args.accepted_state_sha,
+        "accepted_ledger_sha256": args.accepted_ledger_sha256,
+        "test_source_sha": args.test_source_sha,
+    }
+
+
 def collect(args):
     require(SHA.fullmatch(args.source_sha or ""), "source_sha must be a full lowercase SHA")
     require(SHA.fullmatch(args.evidence_definition_sha or ""),
             "evidence_definition_sha must be a full lowercase SHA")
+    identity = validation_identity(args)
     quarantine = load_quarantine(args.quarantine)
     overlay_path = Path(args.harness_overlay_manifest)
     issue_2825_overlay_path = Path(args.issue_2825_harness_overlay_manifest)
@@ -380,9 +410,13 @@ def collect(args):
     provenance_data, _ = download("bugfix-full-ci-provenance")
     provenance = json.loads(one_member(zip_members(provenance_data),
                                        "full-ci-provenance.json", "provenance"))
-    expected = {"schema_version": 3, "issue": args.issue, "source_sha": args.source_sha,
-                "checkout_sha": args.source_sha,
-                "evidence_definition_sha": args.evidence_definition_sha, "run_id": args.run_id}
+    common = {"source_sha": args.source_sha, "checkout_sha": args.source_sha,
+              "evidence_definition_sha": args.evidence_definition_sha,
+              "run_id": args.run_id}
+    if provenance.get("schema_version") == 3 and identity["kind"] == "single-issue":
+        expected = {"schema_version": 3, "issue": identity["issue"], **common}
+    else:
+        expected = {"schema_version": 4, "validation": identity, **common}
     expected["quarantine_sha256"] = quarantine["sha256"]
     expected["harness_overlay_manifest_sha256"] = overlay_manifest_sha
     expected["issue_2825_harness_overlay_manifest_sha256"] = \
@@ -418,7 +452,7 @@ def collect(args):
             f"Expected all {EXPECTED_TEST_JOBS} original test-matrix artifacts")
     if temporary:
         temporary.cleanup()
-    return {"schema_version": 1, "accepted": True, "issue": args.issue,
+    result = {"schema_version": 1, "accepted": True, "validation": identity,
             "role": args.role,
             "source_sha": args.source_sha,
             "evidence_definition_sha": args.evidence_definition_sha,
@@ -437,13 +471,22 @@ def collect(args):
                     "status": run["status"], "conclusion": run["conclusion"],
                     "url": run["html_url"]},
             "jobs": normalized}
+    if identity["kind"] == "single-issue":
+        result["issue"] = identity["issue"]
+    return result
 
 
 def parser():
     result = argparse.ArgumentParser(description=__doc__)
     result.add_argument("--repository", required=True)
     result.add_argument("--run-id", required=True, type=int)
-    result.add_argument("--issue", required=True, type=int)
+    result.add_argument("--validation-scope", choices=("single-issue", "final-promotion"),
+                        default="single-issue")
+    result.add_argument("--issue", type=int)
+    result.add_argument("--final-integration-sha")
+    result.add_argument("--accepted-state-sha")
+    result.add_argument("--accepted-ledger-sha256")
+    result.add_argument("--test-source-sha")
     result.add_argument("--source-sha", required=True)
     result.add_argument("--role", required=True, choices=("baseline", "candidate"))
     result.add_argument("--evidence-definition-sha", required=True)
