@@ -38,6 +38,17 @@ class AcceptanceTests(unittest.TestCase):
         with self.assertRaisesRegex(Rejected, "artifact missing"):
             self.check()
 
+    def test_failure_on_nonrepresentative_lane_blocks_instead_of_repairing(self):
+        name = MATRIX[-1]
+        self.reports[name] = {"broad-verdict.json": {"accepted": False, "provenance": {"environment": "macos-arm64-net10.0"}}}
+        with patch("evidence.download", side_effect=lambda repo, item: archive(self.reports[item["name"]])), \
+                patch("evidence._failure_outcome", return_value=("inconclusive", [{"name": "ExistingFailure"}])):
+            event = check_event("owner/repo", self.state, {"id": 123, "conclusion": "failure"}, self.artifacts, None)
+        self.assertEqual("inconclusive", event["outcome"])
+        self.assertEqual(6, len(event["failed_matrix"]))
+        self.assertEqual(name, event["diagnostics"][0]["artifact"])
+        self.assertTrue(all(item["report_sha256"] for item in event["failed_matrix"]))
+
     def test_wrong_platform_and_stale_lane_rejected(self):
         self.reports[MATRIX[-1]]["verdict.json"]["environment"] = "linux-x64-net10.0"
         with self.assertRaisesRegex(Rejected, "matrix lane"):

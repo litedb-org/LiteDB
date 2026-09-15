@@ -4,12 +4,12 @@ import argparse
 import json
 from pathlib import Path
 import sys
-import tempfile
 
 from evidence import event_for
-from integrate_evidence import acceptance_evidence, evidence_manifest, original_matrix_evidence
+from integrate_evidence import acceptance_evidence, evidence_manifest
 from integrate_storage import IntegrationStore, LEDGER_NAME, LOCK_NAME, encoded
 from patching import git, worktree
+from profiles import build_profile
 from state import NAME, SHA, Rejected, apply_event, require
 from storage import github
 
@@ -57,8 +57,13 @@ def finish(store, state, lock, report, contract, tree):
     tests = sorted(case["name"] for case in contract["regressions"] + contract["controls"])
     entry = {"campaign": state["campaign"], "base_sha": state["base_sha"], "candidate_sha": state["candidate_sha"],
              "candidate_tree_sha": tree, "test_source_sha": state["test_source_sha"], "tests": tests,
-             "matrix_provenance": report["provenance"], "target_jobs": report["target_jobs"],
+             "validation_provenance": report["provenance"], "target_jobs": report["target_jobs"],
              "coverage_gaps": report["coverage_gaps"], "architecture_limitations": report.get("architecture_limitations", [])}
+    entry["final_matrix_status"] = "pending"
+    if "acceptance_profile" in state:
+        entry["acceptance_profile"] = state["acceptance_profile"]
+    if report["provenance"].get("validation_scope") != "per-fix":
+        entry["matrix_provenance"] = report["provenance"]
     ledger["issues"][str(state["issue"])] = entry
     event = event_for(state, "integrated", report["provenance"]["candidate_run_id"],
                       expected_base_sha=state["base_sha"], integration_sha=state["candidate_sha"],
@@ -82,13 +87,26 @@ def execute(args):
         require(integration_head(args.repository, args.repo) == args.candidate_sha, "Integrated campaign branch has since moved")
         return {"phase": "integrated", "candidate_sha": args.candidate_sha, "already_complete": True}
     require(state["phase"] == "ready" and not state["paused"], "Only a ready, unpaused campaign may integrate")
+    definition = state.get("check_definition", {}).get("workflow_sha", state["workflow_sha"])
     git(args.repository, "fetch", "--quiet", f"https://github.com/{args.repo}.git", state["base_sha"],
-        state["candidate_sha"], state["workflow_sha"], args.evidence_definition_sha, args.grading_policy_sha)
+        state["candidate_sha"], state["workflow_sha"], definition)
     tree = tested_tree(args.repository, args.repo, state)
     files = acceptance_evidence(args.repo, state)
-    with worktree(args.repository, args.grading_policy_sha) as control, tempfile.TemporaryDirectory(prefix="litedb-full-ci-") as directory:
-        report, full_files = original_matrix_evidence(args, state, control, Path(directory))
-        files.update(full_files)
+    if "acceptance_profile" in state:
+        with worktree(args.repository, definition) as control:
+            require(build_profile(control, args.repository, state) == state["acceptance_profile"],
+                    "Acceptance profile cannot be reproduced from trusted definition and exact candidate diff")
+            files["acceptance-profile.json"] = encoded(state["acceptance_profile"])
+            files["acceptance_profile.py"] = (control / ".github/bugfix/acceptance_profile.py").read_bytes()
+    stage = "broad" if state.get("protocol") == "compressed-v1" else "acceptance"
+    accepted = state["evidence"][stage]
+    report = {"provenance": {"validation_scope": "per-fix", "candidate_run_id": accepted["run_id"],
+              "baseline_run_id": state["evidence"]["baseline"]["run_id"], "base_sha": state["base_sha"],
+              "candidate_sha": state["candidate_sha"], "test_source_sha": state["test_source_sha"],
+              "worker_review_workflow_sha": state["workflow_sha"], "check_workflow_sha": definition,
+              "acceptance_profile_sha256": state.get("acceptance_profile", {}).get("profile_sha256")},
+              "target_jobs": [lane["artifact"] for lane in accepted.get("matrix", [])], "coverage_gaps": []}
+    files["per-fix-verdict.json"] = encoded(report)
     raw_manifest = git(args.repository, "show", f"{state['workflow_sha']}:scripts/bugfix/issues.json")
     contract = json.loads(raw_manifest)["issues"][str(state["issue"])]
     require(contract["frozen_test_revision"] == state["test_source_sha"], "Accepted contract changed regression source")
@@ -98,9 +116,8 @@ def execute(args):
         return {"phase": "verified", "candidate_sha": args.candidate_sha, "candidate_tree_sha": tree,
                 "evidence_files": len(files), "coverage_gaps": report["coverage_gaps"], "applies": False}
     identity = {"campaign": state["campaign"], "base_sha": state["base_sha"], "candidate_sha": state["candidate_sha"],
-                "evidence_definition_sha": args.evidence_definition_sha,
-                "grading_policy_sha": args.grading_policy_sha,
-                "baseline_run": args.baseline_run, "candidate_run": args.candidate_run}
+                "check_workflow_sha": definition, "acceptance_run": accepted["run_id"],
+                "acceptance_profile_sha256": state.get("acceptance_profile", {}).get("profile_sha256")}
     lock = store.acquire(identity, resume=args.resume)
     current_head = integration_head(args.repository, args.repo)
     require(current_head == state["base_sha"] or (args.resume and lock["phase"] == "prepared"
@@ -124,18 +141,12 @@ def main(argv=None):
     parser.add_argument("--repo", required=True)
     parser.add_argument("--campaign", required=True)
     parser.add_argument("--candidate-sha", required=True)
-    parser.add_argument("--baseline-run", type=int, required=True)
-    parser.add_argument("--candidate-run", type=int, required=True)
-    parser.add_argument("--evidence-definition-sha", required=True)
-    parser.add_argument("--grading-policy-sha", required=True, help="Immutable collector/comparator policy commit; distinct from capture workflow SHA")
     parser.add_argument("--repository", type=Path, default=Path.cwd())
     parser.add_argument("--apply", action="store_true", help="Advance integration after all evidence passes; otherwise verify only")
     parser.add_argument("--resume", action="store_true", help="Resume this exact transaction's existing persistent lock")
     args = parser.parse_args(argv)
     require(NAME.fullmatch(args.campaign), "Invalid campaign name")
-    require(all(SHA.fullmatch(value) for value in (args.candidate_sha, args.evidence_definition_sha, args.grading_policy_sha)),
-            "Full immutable SHAs are required")
-    require(args.baseline_run > 0 and args.candidate_run > 0 and args.baseline_run != args.candidate_run, "Distinct matrix run IDs are required")
+    require(SHA.fullmatch(args.candidate_sha), "Full immutable candidate SHA is required")
     require(not args.resume or args.apply, "--resume requires --apply")
     args.repository = args.repository.resolve()
     print(json.dumps(execute(args), indent=2))

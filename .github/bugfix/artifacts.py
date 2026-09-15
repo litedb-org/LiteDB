@@ -135,12 +135,25 @@ def validate(data, event):
     else:
         require("verdict.json" in reports, "Missing CI verdict payload")
         report, report_hash = reports["verdict.json"]
-        expected = {**event, "schema_version": 1, "level": event["kind"]}
+        expected = {**event, "schema_version": 1, "level": event["kind"],
+                    "workflow_sha": event.get("check_workflow_sha", event["workflow_sha"])}
         _matching(report, expected, ("schema_version", "issue", "base_sha", "candidate_sha",
                                      "test_source_sha", "workflow_sha", "environment", "level"))
         if "passing_contract" in event:
             require(report.get("passing_contract") == event["passing_contract"], "CI used a different passing-contract snapshot")
             require(report.get("previously_accepted_tests_passed") is True, "CI did not enforce permanently passing tests")
+        if "acceptance_profile" in event:
+            require(report.get("acceptance_profile") == event["acceptance_profile"], "CI acceptance profile changed")
+            filters = event["acceptance_profile"].get("targeted_test_filters", [])
+            if filters and event["kind"] in ("broad", "acceptance"):
+                coverage = report.get("targeted_test_coverage", {})
+                for variant in ("baseline", "candidate"):
+                    require(set(coverage.get(variant, {})) == set(filters), "Required targeted coverage is missing")
+                    for counts in coverage[variant].values():
+                        require(type(counts.get("executed")) is int and type(counts.get("total")) is int
+                                and 0 < counts["executed"] <= counts["total"], "Required targeted tests did not execute")
+        if "protocol" in event:
+            require(report.get("protocol") == event["protocol"], "CI protocol changed")
         require(report.get("accepted") is True, "CI payload did not accept the candidate")
         expected_outcome = "bug_present" if event["kind"] == "baseline" else "behavior_correct"
         require(report.get("outcome") == expected_outcome, "CI payload outcome mismatch")

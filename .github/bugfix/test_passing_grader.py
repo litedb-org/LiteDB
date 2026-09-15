@@ -13,6 +13,7 @@ import unittest
 from unittest.mock import patch
 
 from state import Rejected
+from test_profiles import profile_fixture
 
 
 class PassingGraderTests(unittest.TestCase):
@@ -47,8 +48,11 @@ class PassingGraderTests(unittest.TestCase):
             environment = {"ISSUE": "2000", "BASE_SHA": "a" * 40, "CANDIDATE_SHA": "c" * 40 if level != "baseline" else "",
                            "LEVEL": level, "FRAMEWORK": "net8.0", "GITHUB_SHA": "9" * 40, "GITHUB_REPOSITORY": "owner/repo",
                            "ACCEPTED_STATE_SHA": "d" * 40, "ACCEPTED_LEDGER_SHA256": "e" * 64}
+            profile = profile_fixture("c" * 40, issue=2000)
+            environment["ACCEPTANCE_PROFILE_SHA256"] = profile["profile_sha256"]
             with patch.multiple(module, ROOT=root, CONTROL=control, ARTIFACTS=root / "artifacts", MANIFEST=manifest), \
                     patch.object(module, "call", side_effect=call), patch("passing.load_snapshot", return_value=(snapshot, [name])), \
+                    patch("profiles.build_profile", return_value=profile), \
                     patch.dict(sys.modules, {"trx": SimpleNamespace(read_trx=read)}), patch.object(sys, "path", sys.path.copy()), \
                     patch.dict(os.environ, environment), contextlib.redirect_stdout(io.StringIO()):
                 if failing_variant:

@@ -12,13 +12,54 @@ branches. Run the same command again to resume. The workflow branch must still
 point to the pinned workflow SHA before every new dispatch. The regression source
 is fixed at `dd937719f7eee53c512f50ac604cab639bf42a4c`.
 
-The orchestrator confirms baseline failure, requests a restricted fix, applies it
-in an isolated worktree, verifies its scope and C# sizes, publishes a unique
-`fix/issue-N-CAMPAIGN-aK` branch, and runs focused/broad checks. Three independent
-reviewers run concurrently. Acceptance requires all six platform/framework
-artifact verdicts plus the production-build and file-compatibility job. It stops
-at `ready`; final full-matrix validation and integration remain separate actions.
-There is no automatic merge or `--integrate` option in this version.
+New campaigns use protocol `compressed-v1`. The orchestrator confirms baseline
+failure, requests a restricted fix, applies it in an isolated worktree, verifies
+its scope and C# sizes, and publishes a unique `fix/issue-N-CAMPAIGN-aK` branch.
+It derives an immutable acceptance profile from the actual production diff.
+
+One candidate workflow runs focused tests first, then the ordinary regression
+suite and selected extras. A separate job in the same workflow builds production
+targets in parallel; compatibility runs only when the profile requires it. Three
+independent reviewers run after CI passes. Their approval of an unchanged
+candidate advances directly to `ready`, with no post-review CI rerun.
+
+The original full matrix is reserved for final promotion after the sweep. It is
+not required for per-fix integration. The controller stops at `ready`; the
+integration CLI performs the separate, verified branch update.
+
+### Integrate the exact tested candidate
+
+```powershell
+python .github/bugfix/integrate.py --repo litedb-org/LiteDB --campaign CAMPAIGN --candidate-sha CANDIDATE_FULL_SHA
+```
+
+The default verifies evidence only. Add `--apply` to durably archive the required
+CI/profile/reviewer evidence, acquire the integration lock, advance the branch
+with an exact expected-base lease, and record permanent passing tests. Add
+`--resume` only to resume that same prepared transaction. Full-matrix run IDs
+are not inputs to per-fix integration.
+
+Use `final_promotion.py` only after the sweep. It verifies the completed
+integration SHA and the entire accepted-test ledger against the final full
+matrix; it cannot write or promote a branch. Its arguments are listed by
+`python .github/bugfix/final_promotion.py --help`.
+
+### Revalidate an unchanged legacy canary
+
+`revalidate.py` is the audited path for a paused legacy campaign whose original
+acceptance failed solely on existing failure-classification drift. It preserves
+the original candidate and three reviews, replays the original failed artifacts,
+and records the exact new check definition and profile separately from the
+worker/reviewer definition. It cannot silently resume under changed policy.
+
+```powershell
+python .github/bugfix/revalidate.py --repo litedb-org/LiteDB --campaign CAMPAIGN --candidate-sha CANDIDATE_FULL_SHA --prior-run FAILED_ACCEPTANCE_RUN --check-workflow-sha NEW_DEFINITION_FULL_SHA --check-workflow-ref IMMUTABLE_BRANCH --reason "Reviewed grading correction and compact acceptance profile"
+```
+
+The default authenticates and previews the transition. `--apply` records it and
+runs one selected acceptance workflow; `--resume --apply` resumes its uniquely
+journaled dispatch. Old failed and cancelled runs remain in history. New sweep
+campaigns use the compressed protocol directly and do not need this transition.
 
 ### Preserve fixes already integrated
 
@@ -44,8 +85,8 @@ runtime. Existing campaigns without `passing_contract` must resume with their
 original pinned runtime; the new runtime never silently adds a snapshot or changes
 the acceptance rules of a live campaign.
 
-Workers use `gpt-6-astra` for fixes and `gpt-5.6-sol` for reviews, both with high
-reasoning effort. Collector configuration must match; differing reported runtime
+Workers pin Codex 0.154.0 and use `gpt-6-astra` for fixes and `gpt-5.6-sol` for
+reviews, both with high reasoning effort verified by an outgoing-request probe. Collector configuration must match; differing reported runtime
 models or reasoning levels are rejected when that runtime evidence is available.
 Repair workers receive bounded structured diagnostics from failed checks and
 review findings. A later attempt starts from the preceding candidate while the
@@ -94,11 +135,11 @@ Every result additionally includes `candidate_sha` (`null` for baseline), numeri
 | Kind | Allowed phase | Success outcome | Resulting phase |
 | --- | --- | --- | --- |
 | `baseline` | baseline | `bug_present` | repairing |
-| `candidate` | repairing | New full `candidate_sha`; no outcome | focused |
+| `candidate` | repairing | New full `candidate_sha` and trusted profile | broad for compressed; focused for legacy |
 | `focused` | focused | `behavior_correct` | broad |
 | `broad` | broad | `pass` | reviewing |
-| `review` | reviewing | `pass` plus empty `findings` | acceptance after all roles |
-| `acceptance` | acceptance | `pass` | ready |
+| `review` | reviewing | `pass` plus empty `findings` | ready for compressed; acceptance for legacy after all roles |
+| `acceptance` | legacy acceptance | `pass` and complete required profile | ready |
 | `integrated` | ready | Matching `expected_base_sha` and `integration_sha` | integrated |
 
 Review roles are `behavior`, `compatibility`, and `lifecycle`, each from a separate
@@ -126,7 +167,7 @@ of selected tests, assertions, controls, and regression ledgers; a caller's clai
 positive outcome cannot substitute for its downloaded verdict.
 
 `integrated` records a completed integration update; it does not perform that
-update. The integration workflow must serialize merges, check the current branch
+update. The integration CLI must serialize merges, check the current branch
 against `expected_base_sha`, and atomically advance it to the already tested
 candidate commit before recording this event. A new base requires a new campaign
 and renewed evidence; these primitives never rewrite pinned identities.

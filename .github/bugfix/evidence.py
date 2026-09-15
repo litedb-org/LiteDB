@@ -11,6 +11,7 @@ import tempfile
 
 from artifacts import download, read_members, validate, validate_worker_model
 from runs import select_artifact
+from profiles import profile_complete_check
 from state import IDENTITY, require
 
 MATRIX = tuple(f"bugfix-check-{os_name}-{framework}" for os_name in
@@ -24,6 +25,12 @@ def event_for(state, kind, run_id, **fields):
     event.update(fields)
     if "passing_contract" in state:
         event["passing_contract"] = state["passing_contract"]
+    if kind in ("baseline", "focused", "broad", "acceptance") and "check_definition" in state:
+        event["check_workflow_sha"] = state["check_definition"]["workflow_sha"]
+    if "protocol" in state:
+        event["protocol"] = state["protocol"]
+    if kind in ("candidate", "baseline", "focused", "broad", "acceptance") and "acceptance_profile" in state and "acceptance_profile" not in event:
+        event["acceptance_profile"] = state["acceptance_profile"]
     return event
 
 
@@ -89,12 +96,36 @@ def _failure_outcome(data, control, state):
     return "harness_error", ["Focused assertions passed; broader/compatibility execution failed or was incomplete"]
 
 
+def primary_artifact(state, control):
+    if state["phase"] != "baseline" and "acceptance_profile" in state:
+        return state["acceptance_profile"]["required_lanes"][0]
+    if state["phase"] == "baseline" and control is not None:
+        contract = json.loads((control / "scripts/bugfix/issues.json").read_bytes())["issues"][str(state["issue"])]
+        for framework in ("net8.0", "net10.0"):
+            for os_name, prefixes in (("ubuntu-latest", ("linux-x64",)), ("windows-latest", ("windows-x64",)),
+                                       ("macos-latest", ("macos-x64", "macos-arm64"))):
+                if any(f"{prefix}-{framework}" in contract["environments"] for prefix in prefixes):
+                    return f"bugfix-check-{os_name}-{framework}"
+        raise ValueError("Baseline has no supported approved environment")
+    return "bugfix-check-ubuntu-latest-net8.0"
+
+
+def require_lane_environment(name, environment):
+    framework = name.rsplit("-", 1)[1]
+    prefixes = ("linux-x64",) if "ubuntu-latest" in name else (
+        ("windows-x64",) if "windows-latest" in name else ("macos-x64", "macos-arm64"))
+    require(environment in {f"{prefix}-{framework}" for prefix in prefixes},
+            "Artifact environment does not match its required matrix lane")
+
+
 def check_event(repo, state, workflow_run, artifacts, control):
     kind = state["phase"]
-    artifact_name = "bugfix-check-ubuntu-latest-net8.0"
+    artifact_name = primary_artifact(state, control)
     event = event_for(state, kind, workflow_run["id"], artifact=artifact_name,
                       environment="linux-x64-net8.0")
     if workflow_run["conclusion"] != "success":
+        if kind == "acceptance" or profile_complete_check(state, kind):
+            return failed_acceptance(repo, state, workflow_run, artifacts, control, event)
         matching = [item for item in artifacts if item.get("name") == artifact_name and not item.get("expired")]
         event["outcome"] = "harness_error"
         if matching and kind != "baseline":
@@ -104,24 +135,57 @@ def check_event(repo, state, workflow_run, artifacts, control):
         event["reason"] = f"Check workflow concluded {workflow_run['conclusion']}"
         return event
     event["outcome"] = "bug_present" if kind == "baseline" else ("behavior_correct" if kind == "focused" else "pass")
-    names = MATRIX if kind == "acceptance" else (artifact_name,)
+    names = state["acceptance_profile"]["required_lanes"] if profile_complete_check(state, kind) else (
+        MATRIX if kind == "acceptance" else (artifact_name,))
     matrix = []
     for name in names:
         data = download(repo, select_artifact(artifacts, name))
         verdict = json.loads(read_members(data, ("verdict.json",))["verdict.json"])
-        framework = name.rsplit("-", 1)[1]
-        prefixes = ("linux-x64",) if "ubuntu-latest" in name else (
-            ("windows-x64",) if "windows-latest" in name else ("macos-x64", "macos-arm64"))
-        require(verdict["environment"] in {f"{prefix}-{framework}" for prefix in prefixes},
-                "Artifact environment does not match its required matrix lane")
+        require_lane_environment(name, verdict["environment"])
         member = {**event, "artifact": name, "environment": verdict["environment"]}
         hashes = validate(data, member)
         if name == artifact_name:
             event.update(hashes)
+            event["environment"] = verdict["environment"]
         matrix.append({"artifact": name, "environment": verdict["environment"], **hashes})
-    if kind == "acceptance":
-        require(len({item["environment"] for item in matrix}) == 6, "Acceptance environments are not distinct")
+    if kind == "acceptance" or profile_complete_check(state, kind):
+        require(len({item["environment"] for item in matrix}) == len(names), "Acceptance environments are not distinct")
+        if "acceptance_profile" in state:
+            require(set(state["acceptance_profile"]["required_environments"]) <= {item["environment"] for item in matrix},
+                    "Explicit required acceptance environment was not tested")
         event["matrix"] = matrix
+    return event
+
+
+def failed_acceptance(repo, state, workflow_run, artifacts, control, event):
+    """Inspect every lane; a green representative lane cannot hide grading drift."""
+    failures, matrix = [], []
+    names = state["acceptance_profile"]["required_lanes"] if profile_complete_check(state, event["kind"]) else MATRIX
+    for name in names:
+        try:
+            data = download(repo, select_artifact(artifacts, name))
+            files = read_members(data, ("verdict.json", "broad-verdict.json"))
+            verdict = json.loads(files["verdict.json"]) if "verdict.json" in files else {}
+            if verdict.get("accepted") is True:
+                require_lane_environment(name, verdict["environment"])
+                validate(data, {**event, "artifact": name, "environment": verdict["environment"]})
+                outcome, diagnostics = "pass", []
+            else:
+                outcome, diagnostics = _failure_outcome(data, control, state)
+            report_name = "verdict.json" if verdict.get("accepted") is True else "broad-verdict.json"
+            raw = files.get(report_name)
+            environment = verdict.get("environment") or (json.loads(raw).get("provenance", {}).get("environment") if raw else None)
+            matrix.append({"artifact": name, "outcome": outcome, "environment": environment,
+                           "artifact_sha256": hashlib.sha256(data).hexdigest(),
+                           "report_sha256": hashlib.sha256(raw).hexdigest() if raw else None})
+            if outcome != "pass":
+                failures.append({"artifact": name, "outcome": outcome, "diagnostics": diagnostics})
+        except (ValueError, KeyError, OSError) as error:
+            failures.append({"artifact": name, "outcome": "harness_error", "diagnostics": [str(error)]})
+    outcomes = {item["outcome"] for item in failures}
+    outcome = next((kind for kind in ("inconclusive", "harness_error", "fail") if kind in outcomes), "harness_error")
+    event.update(outcome=outcome, diagnostics=failures or ["All lanes passed; workflow or compatibility failed"],
+                 failed_matrix=matrix, reason=f"Check workflow concluded {workflow_run['conclusion']}")
     return event
 
 

@@ -29,7 +29,8 @@ def verify_run(repo, event, allowed_workflows):
     positive = event["outcome"] in ("behavior_correct", "pass") or (
         event["kind"] == "baseline" and event["outcome"] == "bug_present")
     workflow_run = github(repo, f"actions/runs/{event['run_id']}")
-    require(workflow_run.get("head_sha") == event["workflow_sha"], "Run workflow SHA mismatch")
+    definition = event.get("check_workflow_sha", event["workflow_sha"]) if event["kind"] != "review" else event["workflow_sha"]
+    require(workflow_run.get("head_sha") == definition, "Run workflow SHA mismatch")
     require(workflow_run.get("path") in allowed_workflows, "Unexpected evidence workflow")
     require(workflow_run.get("event") == "workflow_dispatch", "Evidence requires explicit dispatch")
     require(workflow_run.get("status") == "completed", "Evidence run is incomplete")
@@ -41,7 +42,19 @@ def verify_run(repo, event, allowed_workflows):
                 if artifact.get("name") == event["artifact"] and not artifact.get("expired", True)]
     require(len(matching) == 1, "Evidence artifact missing, expired, or ambiguous")
     if positive:
-        return validate(download(repo, matching[0]), event)
+        hashes = validate(download(repo, matching[0]), event)
+        from profiles import production_evidence, profile_complete_check
+        if profile_complete_check(event, event["kind"]):
+            from runs import select_artifact
+            recorded = {lane["artifact"]: lane for lane in event.get("matrix", [])}
+            require(set(recorded) == set(event["acceptance_profile"]["required_lanes"]), "Profile-complete evidence lacks required lanes")
+            for name, lane in recorded.items():
+                data = download(repo, select_artifact(artifacts["artifacts"], name))
+                actual = validate(data, {**event, "artifact": name, "environment": lane["environment"]})
+                require(actual["report_sha256"] == lane.get("report_sha256"), "Recorded profile lane changed")
+            production, _ = production_evidence(repo, event, event["run_id"], definition)
+            require(production == event.get("production"), "Profile production evidence changed")
+        return hashes
     return {}
 
 

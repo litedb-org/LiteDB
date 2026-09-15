@@ -43,8 +43,10 @@ def main(argv=None):
         print(json.dumps({"campaign": args.campaign, "issue": args.issue, "base_sha": args.integration_base,
                           "workflow_sha": args.workflow_sha, "workflow_ref": args.workflow_ref,
                           "test_source_sha": args.test_source_sha, "max_runs": args.max_runs,
-                          "steps": ["confirm baseline", "fix worker", "restricted candidate branch", "focused checks",
-                                    "broad checks", "three independent reviewers", "six acceptance environments"],
+                          "protocol": "compressed-v1",
+                          "steps": ["confirm baseline", "fix worker", "restricted candidate branch",
+                                    "one profile-complete CI run: focused, broad, production and selected compatibility",
+                                    "three independent reviewers"],
                           "repairs": 3, "infrastructure_retries": 2, "stop_at": "ready", "integrates": False}, indent=2))
         return 0
     args.repository = args.repository.resolve()

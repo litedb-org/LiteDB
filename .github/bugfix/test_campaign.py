@@ -11,6 +11,7 @@ from unittest.mock import patch
 from campaign import Campaign
 from evidence import event_for
 from state import Rejected
+from test_profiles import profile_fixture
 
 
 class MemoryStore:
@@ -76,10 +77,11 @@ class CampaignLoopTests(unittest.TestCase):
     def check(self, repo, state, workflow_run, artifacts, control):
         kind = state["phase"]
         outcome = "bug_present" if kind == "baseline" else ("behavior_correct" if kind == "focused" else "pass")
-        if self.fail_first and kind == "focused" and state["repair_attempts"] == 1:
+        if self.fail_first and kind == "broad" and state["repair_attempts"] == 1:
             outcome = "fail"
         return event_for(state, kind, workflow_run["id"], outcome=outcome,
-                         environment="linux-x64-net8.0", artifact="check", diagnostics=["Assertion still fails"])
+                         environment="linux-x64-net8.0", artifact="check", diagnostics=["Assertion still fails"],
+                         matrix=[{"artifact": "bugfix-check-ubuntu-latest-net8.0"}])
 
     def review(self, repo, state, workflow_run, artifacts, role):
         return event_for(state, "review", workflow_run["id"], role=role, findings=[], outcome="pass",
@@ -88,6 +90,10 @@ class CampaignLoopTests(unittest.TestCase):
     def execute(self):
         def candidate(repository, control, repo, state, source, run_id, data):
             return ("d" if state["repair_attempts"] == 0 else "e") * 40, {"patch_sha256": "hash"}
+        def production(*args):
+            if not SimulatedRuns.compatibility:
+                raise Rejected("Required production/compatibility job did not pass")
+            return {"report_sha256": "f" * 64}, b"archive"
 
         with patch("campaign.Store", return_value=self.store), patch("campaign.Runs", SimulatedRuns), \
                 patch("campaign.load_snapshot", return_value=({"schema_version": 1, "state_commit": "1" * 40,
@@ -95,6 +101,8 @@ class CampaignLoopTests(unittest.TestCase):
                 patch("campaign.check_event", side_effect=self.check), patch("campaign.review_event", side_effect=self.review), \
                 patch("campaign.select_artifact", return_value={}), patch("campaign.download", return_value=b"patch"), \
                 patch("campaign.create_candidate", side_effect=candidate), patch("campaign.publish_candidate"), \
+                patch("campaign.build_profile", side_effect=lambda control, repo, state, candidate: profile_fixture(candidate)), \
+                patch("campaign.production_evidence", side_effect=production), \
                 contextlib.redirect_stdout(io.StringIO()):
             return Campaign(self.args, Path("control")).execute()
 
@@ -106,6 +114,9 @@ class CampaignLoopTests(unittest.TestCase):
         self.assertEqual(["dispatch"] * 3 + ["wait"] * 3, [entry[0] for entry in reviews])
         self.assertEqual({"behavior", "compatibility", "lifecycle"}, set(state["reviews"]))
         self.assertNotIn("integration_sha", state)
+        checks = [entry[3]["level"] for entry in SimulatedRuns.log if entry[0] == "dispatch" and entry[1] == "bugfix-check.yml"]
+        self.assertEqual(["baseline", "broad"], checks)
+        self.assertEqual("compressed-v1", state["protocol"])
 
     def test_failed_candidate_returns_to_worker_with_structured_feedback(self):
         self.fail_first = True

@@ -33,8 +33,15 @@ def main():
     ARTIFACTS.mkdir(exist_ok=False)
     sys.path.insert(0, str(CONTROL / ".github/bugfix"))
     from passing import assert_passing, load_snapshot, selection_filter
+    from profiles import build_profile, targeted_coverage
     sys.path.insert(0, str(CONTROL / "scripts/bugfix"))
     from trx import read_trx
+    profile = None
+    if candidate:
+        profile = build_profile(CONTROL, ROOT / "candidate", {"issue": int(issue), "base_sha": base, "candidate_sha": candidate})
+        if profile["profile_sha256"] != os.environ.get("ACCEPTANCE_PROFILE_SHA256"):
+            raise ValueError("Candidate acceptance profile differs from immutable dispatch")
+        (ARTIFACTS / "acceptance-profile.json").write_text(json.dumps(profile, indent=2) + "\n", encoding="utf-8")
     passing_contract, required_tests = load_snapshot(ROOT / "baseline", os.environ["GITHUB_REPOSITORY"],
                                                     os.environ["ACCEPTED_STATE_SHA"], base, test_source)
     if passing_contract["ledger_sha256"] != os.environ["ACCEPTED_LEDGER_SHA256"]:
@@ -52,16 +59,20 @@ def main():
               "--repository", ROOT / "candidate", "--output", ARTIFACTS / "scope.json"])
     run_level = "broad" if level in ("broad", "acceptance") else "focused"
     executions = {}
+    coverage = {}
     for variant in (["baseline", "candidate"] if candidate else ["baseline"]):
         required_lane = ["--required-pass-filter", selection_filter(required_tests)] if required_tests and run_level == "focused" else []
         call([CONTROL / ".github/scripts/run_bugfix_tests.py", "--repository", ROOT / variant,
               "--output", ARTIFACTS / variant, "--manifest", MANIFEST,
               "--issue", issue, "--framework", framework, "--level", run_level, *required_lane])
         executions[variant] = json.loads((ARTIFACTS / variant / "execution.json").read_text())
-        if required_tests:
+        targeted = profile["targeted_test_filters"] if profile and run_level == "broad" else []
+        if required_tests or targeted:
             lane = "broad" if run_level == "broad" else "required-pass"
             completed = read_trx(ARTIFACTS / variant / f"{lane}.trx", executions[variant]["runs"][lane])
             assert_passing(completed, required_tests, variant)
+            if targeted:
+                coverage[variant] = targeted_coverage(completed, targeted)
     baseline_args = ["--baseline-trx", ARTIFACTS / "baseline/focused.trx",
                      "--baseline-exit-code", executions["baseline"]["runs"]["focused"]]
     call([GATE, "baseline", *shared, *provenance, *baseline_args,
@@ -93,6 +104,10 @@ def main():
                "environment": environment, "level": level,
                "passing_contract": passing_contract, "previously_accepted_tests_passed": True,
                "outcome": "bug_present" if level == "baseline" else "behavior_correct"}
+    if profile is not None:
+        summary["acceptance_profile"] = profile
+        summary["targeted_test_coverage"] = coverage
+    summary["protocol"] = os.environ.get("PROTOCOL", "legacy-six-lane-v1")
     (ARTIFACTS / "verdict.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(json.dumps(summary))
 

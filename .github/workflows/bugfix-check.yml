@@ -1,5 +1,5 @@
 name: Wholesale bugfix checks
-run-name: Bugfix ${{ inputs.request_id || 'registration' }} ${{ inputs.issue || '2874' }} ${{ inputs.level || 'baseline' }}
+run-name: Bugfix ${{ inputs.request_id || 'registration' }} ${{ inputs.issue }} ${{ inputs.level }}
 
 on:
   push:
@@ -8,6 +8,7 @@ on:
       - .github/workflows/bugfix-check.yml
       - .github/scripts/run_bugfix_tests.py
       - .github/scripts/grade_bugfix_checks.py
+      - .github/scripts/select_bugfix_checks.py
       - scripts/bugfix/**
   workflow_dispatch:
     inputs:
@@ -31,36 +32,58 @@ on:
         description: Canonical digest of the campaign's accepted-test ledger snapshot
         type: string
         required: true
+      acceptance_profile_sha256:
+        description: Trusted candidate profile digest; empty for baseline
+        type: string
+        default: ''
+      protocol:
+        type: choice
+        options: [compressed-v1, legacy-six-lane-v1]
+        default: compressed-v1
       level:
         type: choice
         options: [baseline, focused, broad, acceptance]
-        default: focused
+        default: broad
 
 permissions:
   contents: read
 
 jobs:
   select:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       matrix: ${{ steps.select.outputs.matrix }}
+      production: ${{ steps.select.outputs.production }}
     steps:
+      - name: Checkout trusted gate
+        uses: actions/checkout@v4
+        with:
+          path: control
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Checkout candidate for immutable profile selection
+        if: inputs.candidate_sha != ''
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          path: candidate
+          fetch-depth: 0
+          persist-credentials: false
       - id: select
         env:
-          LEVEL: ${{ inputs.level || 'baseline' }}
-        run: |
-          python3 - <<'PY'
-          import json, os
-          platforms = ['ubuntu-latest', 'windows-latest', 'macos-latest'] if os.environ['LEVEL'] == 'acceptance' else ['ubuntu-latest']
-          frameworks = ['net8.0', 'net10.0'] if os.environ['LEVEL'] == 'acceptance' else ['net8.0']
-          matrix = {'include': [{'os': os_name, 'framework': framework} for os_name in platforms for framework in frameworks]}
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
-              output.write('matrix=' + json.dumps(matrix) + '\n')
-          PY
+          ISSUE: ${{ inputs.issue }}
+          LEVEL: ${{ inputs.level }}
+          PROTOCOL: ${{ inputs.protocol }}
+          BASE_SHA: ${{ inputs.base_sha }}
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+          ACCEPTANCE_PROFILE_SHA256: ${{ inputs.acceptance_profile_sha256 }}
+        run: python3 control/.github/scripts/select_bugfix_checks.py
   checks:
     needs: select
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 25
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.select.outputs.matrix) }}
@@ -74,7 +97,7 @@ jobs:
       - name: Checkout baseline
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.base_sha || github.sha }}
+          ref: ${{ inputs.base_sha }}
           path: baseline
           fetch-depth: 0
           persist-credentials: false
@@ -91,14 +114,22 @@ jobs:
           dotnet-version: |
             10.0.x
             8.0.x
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-bugfix-nuget-${{ hashFiles('control/**/*.csproj', 'control/Directory.Build.props', 'control/NuGet.Config') }}
+          restore-keys: ${{ runner.os }}-bugfix-nuget-
       - name: Test baseline and candidate with immutable regressions
         shell: bash
         env:
-          ISSUE: ${{ inputs.issue || '2874' }}
-          LEVEL: ${{ inputs.level || 'baseline' }}
-          BASE_SHA: ${{ inputs.base_sha || github.sha }}
+          ISSUE: ${{ inputs.issue }}
+          LEVEL: ${{ inputs.level }}
+          BASE_SHA: ${{ inputs.base_sha }}
           CANDIDATE_SHA: ${{ inputs.candidate_sha }}
           FRAMEWORK: ${{ matrix.framework }}
+          PROTOCOL: ${{ inputs.protocol }}
+          ACCEPTANCE_PROFILE_SHA256: ${{ inputs.acceptance_profile_sha256 }}
           ACCEPTED_STATE_SHA: ${{ inputs.accepted_state_sha }}
           ACCEPTED_LEDGER_SHA256: ${{ inputs.accepted_ledger_sha256 }}
         run: python control/.github/scripts/grade_bugfix_checks.py
@@ -110,15 +141,23 @@ jobs:
           path: artifacts
           if-no-files-found: error
           retention-days: 90
-  compatibility:
-    if: inputs.level == 'acceptance'
-    needs: checks
+  production:
+    if: needs.select.outputs.production == 'true'
+    needs: select
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout trusted production verifier
+        uses: actions/checkout@v4
+        with:
+          path: control
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Checkout production candidate separately from test-hook builds
+        uses: actions/checkout@v4
         with:
           ref: ${{ inputs.candidate_sha }}
+          path: candidate
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-dotnet@v4
@@ -126,11 +165,29 @@ jobs:
           dotnet-version: |
             10.0.x
             8.0.x
-      - name: Check changed C# sizes
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-bugfix-nuget-${{ hashFiles('control/**/*.csproj', 'control/Directory.Build.props', 'control/NuGet.Config') }}
+          restore-keys: ${{ runner.os }}-bugfix-nuget-
+      - name: Build production targets and run selected compatibility checks
         env:
+          ISSUE: ${{ inputs.issue }}
           BASE_SHA: ${{ inputs.base_sha }}
-        run: python3 scripts/check-csharp-size.py --base "$BASE_SHA"
-      - name: Build all production library targets
-        run: dotnet build LiteDB/LiteDB.csproj -c Release -p:TestingEnabled=false -p:GitVersionEnabled=false
-      - name: Verify old-reader and encrypted-file compatibility
-        run: python3 scripts/test-vector-compatibility.py
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+          PROFILE_SHA: ${{ inputs.acceptance_profile_sha256 }}
+        run: >-
+          python3 control/.github/bugfix/production.py
+          --repository "$GITHUB_WORKSPACE/candidate"
+          --control "$GITHUB_WORKSPACE/control"
+          --issue "$ISSUE" --base-sha "$BASE_SHA" --candidate-sha "$CANDIDATE_SHA"
+          --profile-sha256 "$PROFILE_SHA" --output "$GITHUB_WORKSPACE/artifacts/production.json"
+      - name: Upload production evidence and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bugfix-production
+          path: artifacts
+          if-no-files-found: error
+          retention-days: 90

@@ -34,6 +34,7 @@ def main():
     if args.command == "init":
         require(state is None, "Campaign already exists")
         state = new_state(args.campaign, args.issue, args.base_sha, args.test_source_sha, args.workflow_sha)
+        state["protocol"] = "compressed-v1"
         state["passing_contract"], _ = load_snapshot(args.repository, args.repo, expected_sha,
                                                      args.base_sha, args.test_source_sha)
         expected_sha = store.write(state, expected_sha)
@@ -41,6 +42,7 @@ def main():
         require(state is not None, "Campaign does not exist")
         if args.command == "record":
             event = json.loads(args.event_json.read_text(encoding="utf-8-sig"))
+            require(event.get("kind") != "revalidate", "Use revalidate.py to authenticate grading revalidation")
             require(not any(field in event for field in HASH_FIELDS), "Report hashes are controller-owned")
             previous = next((item for item in state["history"] if item["event_id"] == event.get("event_id")), None)
             if previous:

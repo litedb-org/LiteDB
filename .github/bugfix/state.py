@@ -49,6 +49,40 @@ def _repair(state):
     state["reviews"] = {}
 
 
+def _revalidate(state, event):
+    require(state["paused"] and state["phase"] in ("acceptance", "blocked"), "Revalidation requires paused acceptance")
+    require(state["candidate_sha"] and event.get("candidate_sha") == state["candidate_sha"], "Revalidation candidate changed")
+    require(isinstance(event.get("reason"), str) and event["reason"].strip(), "Revalidation requires an operator reason")
+    reviews = state["reviews"]
+    require(set(reviews) == set(ROLES), "Revalidation requires all original reviews")
+    for role in ROLES:
+        require(reviews[role].get("outcome") == "pass"
+                and reviews[role].get("candidate_sha") == state["candidate_sha"]
+                and reviews[role].get("workflow_sha") == state["workflow_sha"], "Original review identity changed")
+    expected_reviews = {role: reviews[role]["run_id"] for role in ROLES}
+    require(event.get("review_run_ids") == expected_reviews, "Revalidation review run IDs changed")
+    definition = event.get("check_definition", {})
+    require(isinstance(definition, dict) and isinstance(definition.get("workflow_sha"), str)
+            and SHA.fullmatch(definition["workflow_sha"]), "Invalid check definition SHA")
+    require(definition["workflow_sha"] != state.get("check_definition", {}).get("workflow_sha", state["workflow_sha"]),
+            "Revalidation requires a new check definition")
+    require(isinstance(definition.get("workflow_ref"), str) and definition["workflow_ref"], "Missing check definition ref")
+    require(isinstance(definition.get("normalization_sha256"), str)
+            and re.fullmatch(r"[0-9a-f]{64}", definition["normalization_sha256"]), "Missing reviewed normalization digest")
+    require(type(event.get("prior_acceptance_run_id")) is int and event["prior_acceptance_run_id"] > 0,
+            "Missing prior failed acceptance run")
+    evidence = event.get("classification_evidence")
+    require(isinstance(evidence, list) and len(evidence) == 6
+            and any(item.get("classification_changes") for item in evidence), "Missing authenticated classification drift")
+    require(isinstance(event.get("definition_diff"), list) and event["definition_diff"], "Missing reviewed definition diff")
+    state["check_definition"] = copy.deepcopy(definition)
+    state["check_definition"]["authorization_event_id"] = event["event_id"]
+    from profiles import validate_profile
+    state["acceptance_profile"] = copy.deepcopy(validate_profile(event.get("acceptance_profile"), state))
+    state["phase"], state["paused"] = "acceptance", False
+    state.pop("blocked_reason", None)
+
+
 def _record_result(state, event):
     kind = event["kind"]
     phase = state["phase"]
@@ -66,6 +100,13 @@ def _record_result(state, event):
     outcome = event.get("outcome")
     require(outcome in ("bug_present", "behavior_correct", "pass", "fail", "harness_error", "inconclusive"),
             "Unknown outcome")
+    from profiles import profile_complete_check
+    if profile_complete_check(state, kind) and outcome == "pass":
+        require(event.get("profile_complete") is True, "Profile-complete CI evidence is required")
+        require({item["artifact"] for item in event.get("matrix", [])} == set(state["acceptance_profile"]["required_lanes"]),
+                "Profile CI lanes are missing")
+        require(isinstance(event.get("production"), dict) and event["production"].get("report_sha256"),
+                "Profile production evidence is missing")
     role = event.get("role") if kind == "review" else None
     if kind == "review":
         require(role in ROLES, "Unknown reviewer role")
@@ -92,7 +133,7 @@ def _record_result(state, event):
             require(event["run_id"] not in previous_runs, "Independent reviews require separate runs")
             state["reviews"][role] = copy.deepcopy(event)
             if set(state["reviews"]) == set(ROLES):
-                state["phase"] = "acceptance"
+                state["phase"] = "ready" if state.get("protocol") == "compressed-v1" else "acceptance"
         else:
             require(event["findings"], "Failed review must explain actionable findings")
             _repair(state)
@@ -118,11 +159,19 @@ def apply_event(original, event):
         require(event.get(field) == original[field], f"Stale or missing {field}")
     if "passing_contract" in original:
         require(event.get("passing_contract") == original["passing_contract"], "Stale or missing passing-contract snapshot")
+    if "protocol" in original:
+        require(event.get("protocol") == original["protocol"], "Campaign protocol changed")
     kind = event.get("kind")
-    require(kind in ("candidate", "baseline", "focused", "broad", "review", "acceptance", "integrated", "pause", "resume", "block"),
+    require(kind in ("candidate", "baseline", "focused", "broad", "review", "acceptance", "integrated", "pause", "resume", "block", "revalidate"),
             "Unknown event kind")
     state = copy.deepcopy(original)
-    if kind == "block":
+    if kind in ("focused", "broad", "acceptance") and "acceptance_profile" in state:
+        require(event.get("acceptance_profile") == state["acceptance_profile"], "Acceptance profile changed")
+    if kind in ("baseline", "focused", "broad", "acceptance") and "check_definition" in state:
+        require(event.get("check_workflow_sha") == state["check_definition"]["workflow_sha"], "Stale check definition")
+    if kind == "revalidate":
+        _revalidate(state, event)
+    elif kind == "block":
         require(state["phase"] != "integrated", "Integrated campaigns cannot be blocked retroactively")
         require(isinstance(event.get("reason"), str) and event["reason"].strip(), "Blocking requires a reason")
         state["phase"] = "blocked"
@@ -138,10 +187,13 @@ def apply_event(original, event):
             require(isinstance(candidate, str) and SHA.fullmatch(candidate), "Invalid candidate SHA")
             require(candidate != state["base_sha"] and candidate != state["candidate_sha"], "Candidate must change")
             state["candidate_sha"] = candidate
+            if state.get("protocol") == "compressed-v1":
+                from profiles import validate_profile
+                state["acceptance_profile"] = copy.deepcopy(validate_profile(event.get("acceptance_profile"), state))
             state["repair_attempts"] += 1
             state["reviews"] = {}
             state["evidence"] = {"baseline": state["evidence"]["baseline"]}
-            state["phase"] = "focused"
+            state["phase"] = "broad" if state.get("protocol") == "compressed-v1" else "focused"
         else:
             require("candidate_sha" in event and event["candidate_sha"] == state["candidate_sha"],
                     "Stale or missing candidate SHA")

@@ -16,6 +16,7 @@ class IntegrationTests(unittest.TestCase):
     def setUp(self):
         self.state = new_state("canary", 2874, "a" * 40, "b" * 40, "c" * 40)
         self.state.update(phase="ready", candidate_sha="d" * 40)
+        self.state["evidence"] = {"baseline": {"run_id": 111}, "acceptance": {"run_id": 222, "matrix": []}}
         self.lock = {"token": "lock-token", "phase": "prepared", "active": True}
 
     def test_branch_update_uses_exact_expected_base_lease(self):
@@ -84,14 +85,13 @@ class IntegrationTests(unittest.TestCase):
         store.commit.side_effect = lambda *args: order.append("durable-evidence")
         contract = {"frozen_test_revision": "b" * 40, "regressions": [], "controls": []}
         report = {"provenance": {}, "coverage_gaps": [{"issue": 2854, "status": "unverified"}]}
-        matrix = Mock(return_value=(report, {"matrix.json": b"{}"}))
+        evidence = Mock(return_value={"acceptance.zip": b"evidence"})
         if matrix_failure:
-            matrix.side_effect = Rejected("Original matrix contains harness_error")
+            evidence.side_effect = Rejected("Acceptance contains harness_error")
         with patch("integrate.IntegrationStore", return_value=store), patch("integrate.tested_tree", return_value="9" * 40), \
                 patch("integrate.git", return_value=json.dumps({"issues": {"2874": contract}})), \
                 patch("integrate.worktree", return_value=contextlib.nullcontext(Path("policy"))) as checkout, \
-                patch("integrate.acceptance_evidence", return_value={"acceptance.zip": b"evidence"}), \
-                patch("integrate.original_matrix_evidence", matrix), patch("integrate.integration_head", return_value="a" * 40), \
+                patch("integrate.acceptance_evidence", evidence), patch("integrate.integration_head", return_value="a" * 40), \
                 patch("integrate.advance", side_effect=lambda *args: order.append("branch-update")), \
                 patch("integrate.finish", side_effect=lambda *args: order.append("accepted-ledger") or
                       {**self.state, "phase": "integrated"}):
@@ -100,7 +100,7 @@ class IntegrationTests(unittest.TestCase):
                     execute(args)
             else:
                 self.assertEqual("integrated", execute(args)["phase"])
-            checkout.assert_called_once_with(args.repository, args.grading_policy_sha)
+            checkout.assert_not_called()
         return store, order
 
     def test_evidence_is_durable_before_exact_branch_update(self):
@@ -110,7 +110,7 @@ class IntegrationTests(unittest.TestCase):
         self.assertIn("evidence/canary/acceptance.zip", files)
         self.assertIn("evidence/canary/evidence-manifest.json", files)
 
-    def test_bad_full_matrix_prevents_lock_and_any_branch_update(self):
+    def test_bad_required_acceptance_prevents_lock_and_any_branch_update(self):
         store, order = self.invoke_pipeline(matrix_failure=True)
         self.assertEqual([], order)
         store.acquire.assert_not_called()

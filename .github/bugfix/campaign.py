@@ -5,6 +5,7 @@ from evidence import check_event, event_for, review_event
 from feedback import repair_feedback
 from patching import create_candidate, publish_candidate
 from passing import load_snapshot
+from profiles import build_profile, production_evidence, profile_complete_check
 from runs import Runs, select_artifact
 from state import IDENTITY, ROLES, Rejected, apply_event, new_state, require
 from storage import Store
@@ -20,10 +21,12 @@ class Campaign:
         expected = new_state(args.campaign, args.issue, args.integration_base, args.test_source_sha, args.workflow_sha)
         if self.state is None:
             self.state = expected
+            self.state["protocol"] = "compressed-v1"
             self.state["passing_contract"], _ = load_snapshot(args.repository, args.repo, self.state_sha,
                                                               args.integration_base, args.test_source_sha)
         require(isinstance(self.state.get("passing_contract"), dict),
                 "Legacy campaign has no passing-contract snapshot; resume it with its pinned runtime")
+        require("check_definition" not in self.state, "Use revalidate.py to resume an independently authorized check definition")
         for field in IDENTITY:
             require(self.state[field] == expected[field], f"Resume identity changed: {field}")
         journal = self.state.setdefault("orchestration", {"requests": {}, "worker_retries": 0,
@@ -69,15 +72,22 @@ class Campaign:
                   "candidate_sha": self.state["candidate_sha"] or "", "level": phase,
                   "accepted_state_sha": self.state["passing_contract"]["state_commit"],
                   "accepted_ledger_sha256": self.state["passing_contract"]["ledger_sha256"]}
+        if "protocol" in self.state:
+            inputs["protocol"] = self.state["protocol"]
+        if "acceptance_profile" in self.state:
+            inputs["acceptance_profile_sha256"] = self.state["acceptance_profile"]["profile_sha256"]
         run_id = self.runs.dispatch(key, "bugfix-check.yml", inputs)
         workflow_run = self.runs.wait(run_id)
         self.refresh()
         require(self.state["phase"] == phase, "Campaign advanced concurrently while CI ran")
-        if phase == "acceptance" and workflow_run["conclusion"] == "success":
+        if phase == "acceptance" and not profile_complete_check(self.state, phase) and workflow_run["conclusion"] == "success":
             compatibility = [job for job in self.runs.jobs(run_id) if job["name"] == "compatibility"]
             require(len(compatibility) == 1 and compatibility[0]["conclusion"] == "success",
                     "Acceptance requires the production-build and file-compatibility job")
         event = check_event(self.args.repo, self.state, workflow_run, self.runs.artifacts(run_id), self.control)
+        if profile_complete_check(self.state, phase) and workflow_run["conclusion"] == "success":
+            event["production"], _ = production_evidence(self.args.repo, self.state, run_id, self.state["workflow_sha"])
+            event["profile_complete"] = True
         self.record(event)
 
     def repair(self):
@@ -114,6 +124,8 @@ class Campaign:
             return
         event = event_for(self.state, "candidate", run_id, candidate_sha=request["candidate_sha"],
                           branch=request["branch"], worker_metadata=request["worker_metadata"])
+        if self.state.get("protocol") == "compressed-v1":
+            event["acceptance_profile"] = build_profile(self.control, self.args.repository, self.state, request["candidate_sha"])
         self.record(event)
 
     def reviews(self):
