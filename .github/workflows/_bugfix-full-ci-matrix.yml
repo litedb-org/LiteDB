@@ -1,0 +1,313 @@
+name: Bugfix Full CI Matrix
+
+on:
+  workflow_call:
+    inputs:
+      source-sha:
+        required: true
+        type: string
+      evidence-definition-sha:
+        required: true
+        type: string
+      issue:
+        required: true
+        type: number
+      quarantine-sha256:
+        required: true
+        type: string
+      sdk-matrix:
+        required: false
+        type: string
+        default: |
+          [
+            { "key": "net8",  "display": ".NET 8",  "sdk": "8.0.x",        "framework": "net8.0",  "includePrerelease": false, "msbuildProps": "" },
+            { "key": "net9",  "display": ".NET 9",  "sdk": "9.0.x\n8.0.x", "framework": "net8.0",  "includePrerelease": true,  "msbuildProps": "" },
+            { "key": "net10", "display": ".NET 10", "sdk": "10.0.x",       "framework": "net10.0", "includePrerelease": false, "msbuildProps": "" }
+          ]
+
+jobs:
+  build:
+    name: Build (${{ matrix.platform.display }})
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - { key: linux, display: Linux, runner: ubuntu-latest }
+          - { key: macos, display: macOS, runner: macos-latest }
+          - { key: windows, display: Windows, runner: windows-latest }
+    steps:
+      - name: Check out pinned source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.source-sha }}
+
+      - name: Verify pinned source
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source-sha }}
+        run: test "$(git rev-parse HEAD)" = "${SOURCE_SHA}"
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.x
+            8.0.x
+
+      - name: Check changed C# file sizes
+        if: matrix.platform.key == 'linux'
+        env:
+          BASE_SHA: ${{ inputs.source-sha }}^
+        run: python scripts/check-csharp-size.py --base "${BASE_SHA}"
+
+      - name: Restore
+        run: dotnet restore LiteDB.sln
+
+      - name: Build
+        run: dotnet build LiteDB.sln --configuration Release --no-restore /p:TestingEnabled=true
+
+      - name: Verify vector file compatibility with LiteDB 5.0.21
+        if: matrix.platform.key == 'linux'
+        run: python3 scripts/test-vector-compatibility.py
+
+      - name: Build memory validation runner
+        if: matrix.platform.key == 'linux'
+        run: dotnet build tools/MemoryValidation/MemoryValidation.csproj --configuration Release
+
+      - name: Build memory profile measurements
+        if: matrix.platform.key == 'linux'
+        run: dotnet build tools/MemoryProfiles/MemoryProfiles.csproj --configuration Release
+
+      - name: Package Unix build outputs
+        if: matrix.platform.key != 'windows'
+        shell: bash
+        run: tar -czf tests-build-${{ matrix.platform.key }}.tar.gz LiteDB/bin/Release LiteDB/obj/Release LiteDB.Tests/bin/Release LiteDB.Tests/obj/Release
+
+      - name: Upload Unix test build
+        if: matrix.platform.key != 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tests-build-${{ matrix.platform.key }}
+          path: tests-build-${{ matrix.platform.key }}.tar.gz
+
+      - name: Upload Windows test build
+        if: matrix.platform.key == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tests-build-windows
+          path: |
+            LiteDB/bin/Release
+            LiteDB/obj/Release
+            LiteDB.Tests/bin/Release
+            LiteDB.Tests/obj/Release
+
+      - name: Write provenance
+        if: matrix.platform.key == 'linux'
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source-sha }}
+          EVIDENCE_DEFINITION_SHA: ${{ inputs.evidence-definition-sha }}
+          ISSUE: ${{ inputs.issue }}
+          QUARANTINE_SHA256: ${{ inputs.quarantine-sha256 }}
+        run: |
+          test "${GITHUB_WORKFLOW_SHA}" = "${EVIDENCE_DEFINITION_SHA}"
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+          evidence = {
+              "schema_version": 1,
+              "issue": int(os.environ["ISSUE"]),
+              "source_sha": os.environ["SOURCE_SHA"],
+              "checkout_sha": subprocess.check_output(
+                  ["git", "rev-parse", "HEAD"], text=True).strip(),
+              "evidence_definition_sha": os.environ["EVIDENCE_DEFINITION_SHA"],
+              "run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "quarantine_sha256": os.environ["QUARANTINE_SHA256"],
+          }
+          with open("full-ci-provenance.json", "w", encoding="utf-8") as output:
+              json.dump(evidence, output, indent=2)
+              output.write("\n")
+          PY
+
+      - name: Upload provenance
+        if: matrix.platform.key == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bugfix-full-ci-provenance
+          path: full-ci-provenance.json
+          if-no-files-found: error
+
+  test:
+    name: ${{ format(matrix.platform.job_name, matrix.item.display) }}
+    runs-on: ${{ matrix.platform.runner }}
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - { key: linux, runner: ubuntu-latest, build: linux, archive: true, job_name: 'Test (Linux {0})', result: TestResults.trx }
+          - { key: linux-arm64, runner: ubuntu-latest, build: linux, archive: true, arm64: true, job_name: 'Test (Linux ARM64 - {0})', result: TestResults-arm64.trx }
+          - { key: macos, runner: macos-latest, build: macos, archive: true, job_name: 'Test (macOS {0})', result: TestResults.trx }
+          - { key: windows-latest-x64, runner: windows-latest, build: windows, arch: x64, job_name: 'Test (Windows windows-latest - x64 - {0})', result: TestResults-x64.trx }
+          - { key: windows-latest-x86, runner: windows-latest, build: windows, arch: x86, job_name: 'Test (Windows windows-latest - x86 - {0})', result: TestResults-x86.trx }
+          - { key: windows-2022-x64, runner: windows-2022, build: windows, arch: x64, job_name: 'Test (Windows windows-2022 - x64 - {0})', result: TestResults-x64.trx }
+          - { key: windows-2022-x86, runner: windows-2022, build: windows, arch: x86, job_name: 'Test (Windows windows-2022 - x86 - {0})', result: TestResults-x86.trx }
+        item: ${{ fromJson(inputs.sdk-matrix) }}
+    steps:
+      - name: Check out pinned source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.source-sha }}
+
+      - name: Verify pinned source
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source-sha }}
+        run: test "$(git rev-parse HEAD)" = "${SOURCE_SHA}"
+
+      - name: Set up QEMU for ARM64 emulation
+        if: matrix.platform.arm64
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Set up .NET SDK ${{ matrix.item.display }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ matrix.item.sdk }}
+          include-prerelease: ${{ matrix.item.includePrerelease }}
+
+      - name: Download test build
+        uses: actions/download-artifact@v4
+        with:
+          name: tests-build-${{ matrix.platform.build }}
+          path: .
+
+      - name: Extract Unix build artifacts
+        if: matrix.platform.archive
+        shell: bash
+        run: tar -xzf tests-build-${{ matrix.platform.build }}.tar.gz
+
+      - name: Build test project for target framework
+        run: >-
+          dotnet build LiteDB.Tests/LiteDB.Tests.csproj
+          --configuration Release
+          --framework ${{ matrix.item.framework }}
+          --no-dependencies
+          ${{ matrix.item.msbuildProps }}
+
+      - name: Discover exact test inventory
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p full-ci-evidence
+          dotnet test LiteDB.Tests/LiteDB.Tests.csproj \
+            --configuration Release --no-build --framework ${{ matrix.item.framework }} \
+            --settings tests.runsettings --list-tests ${{ matrix.item.msbuildProps }} \
+            | tee full-ci-evidence/discovery.txt
+
+      - name: Run tests
+        timeout-minutes: 5
+        run: >-
+          dotnet test LiteDB.Tests/LiteDB.Tests.csproj
+          --configuration Release
+          --no-build
+          --framework ${{ matrix.item.framework }}
+          --verbosity normal
+          --settings tests.runsettings
+          --logger "trx;LogFileName=${{ matrix.platform.result }}"
+          --logger "console;verbosity=detailed"
+          ${{ matrix.item.msbuildProps }}
+
+      - name: Upload exact test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bugfix-full-ci-tests-${{ matrix.platform.key }}-${{ matrix.item.key }}
+          path: |
+            full-ci-evidence/discovery.txt
+            LiteDB.Tests/TestResults/${{ matrix.platform.result }}
+          if-no-files-found: warn
+
+  test-windows-crossprocess:
+    name: Cross-Process Tests (Windows ${{ matrix.platform.runner }} - ${{ matrix.platform.arch }} - ${{ matrix.item.display }})
+    runs-on: ${{ matrix.platform.runner }}
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - { key: windows-latest-x64, runner: windows-latest, arch: x64 }
+          - { key: windows-latest-x86, runner: windows-latest, arch: x86 }
+          - { key: windows-2022-x64, runner: windows-2022, arch: x64 }
+          - { key: windows-2022-x86, runner: windows-2022, arch: x86 }
+        item: ${{ fromJson(inputs.sdk-matrix) }}
+    steps:
+      - name: Check out pinned source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.source-sha }}
+
+      - name: Verify pinned source
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source-sha }}
+        run: test "$(git rev-parse HEAD)" = "${SOURCE_SHA}"
+
+      - name: Set up .NET SDK ${{ matrix.item.display }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ matrix.item.sdk }}
+          include-prerelease: ${{ matrix.item.includePrerelease }}
+
+      - name: Download test build
+        uses: actions/download-artifact@v4
+        with:
+          name: tests-build-windows
+          path: .
+
+      - name: Build test project for target framework (${{ matrix.platform.arch }})
+        run: >-
+          dotnet build LiteDB.Tests/LiteDB.Tests.csproj
+          --configuration Release
+          --framework ${{ matrix.item.framework }}
+          --no-dependencies
+          ${{ matrix.item.msbuildProps }}
+
+      - name: Discover exact cross-process inventory
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p full-ci-evidence
+          dotnet test LiteDB.Tests/LiteDB.Tests.csproj \
+            --configuration Release --no-build --framework ${{ matrix.item.framework }} \
+            --settings tests.runsettings --filter "FullyQualifiedName~CrossProcess_Shared_Tests" \
+            --list-tests ${{ matrix.item.msbuildProps }} | tee full-ci-evidence/discovery.txt
+
+      - name: Run cross-process shared mode tests (${{ matrix.platform.arch }})
+        timeout-minutes: 10
+        run: >-
+          dotnet test LiteDB.Tests/LiteDB.Tests.csproj
+          --configuration Release
+          --no-build
+          --framework ${{ matrix.item.framework }}
+          --filter "FullyQualifiedName~CrossProcess_Shared_Tests"
+          --verbosity normal
+          --logger "trx;LogFileName=CrossProcessTestResults-${{ matrix.platform.arch }}.trx"
+          --logger "console;verbosity=detailed"
+          ${{ matrix.item.msbuildProps }}
+
+      - name: Upload exact cross-process evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bugfix-full-ci-crossprocess-${{ matrix.platform.key }}-${{ matrix.item.key }}
+          path: |
+            full-ci-evidence/discovery.txt
+            LiteDB.Tests/TestResults/CrossProcessTestResults-${{ matrix.platform.arch }}.trx
+          if-no-files-found: warn

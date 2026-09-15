@@ -1,0 +1,48 @@
+name: Bugfix Full CI
+run-name: Bugfix full CI for #${{ inputs.issue }} at ${{ inputs.source_sha }}
+
+on:
+  push:
+    branches:
+      - automation/wholesale-bugfix
+    paths:
+      - .github/workflows/bugfix-full-ci.yml
+      - .github/workflows/_bugfix-full-ci-matrix.yml
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: Issue execution contract to validate
+        required: true
+        type: number
+      source_sha:
+        description: Exact candidate or integration-base commit to test
+        required: true
+        type: string
+      evidence_definition_sha:
+        description: Trusted commit containing this workflow and evidence policy
+        required: true
+        type: string
+      quarantine_sha256:
+        description: SHA-256 of the trusted explicit coverage-gap manifest
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    if: github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/_bugfix-full-ci-matrix.yml
+    with:
+      issue: ${{ inputs.issue }}
+      source-sha: ${{ inputs.source_sha }}
+      evidence-definition-sha: ${{ inputs.evidence_definition_sha }}
+      quarantine-sha256: ${{ inputs.quarantine_sha256 }}
+
+  repro-runner:
+    if: github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/reprorunner.yml
+    with:
+      filter: '^(?!Issue_2854_CircularPageList$).*'
+      ref: ${{ inputs.source_sha }}

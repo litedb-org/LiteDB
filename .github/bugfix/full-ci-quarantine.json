@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "expected_original_jobs": 112,
+  "expected_remaining_jobs": 109,
+  "quarantines": [
+    {
+      "kind": "repro",
+      "issue": 2854,
+      "repro": "Issue_2854_CircularPageList",
+      "status": "unverified",
+      "authorized_on": "2026-09-15",
+      "authorization": "User requested temporary compilation-blocker quarantine",
+      "reason": "The frozen repro does not compile: Issue2854Scenario.cs calls the missing RawPageListFixture.InspectHealthyEmptyList member, so neither comparison variant executes.",
+      "jobs": [
+        "repro-runner / Run Issue_2854_CircularPageList on ubuntu-22.04",
+        "repro-runner / Run Issue_2854_CircularPageList on ubuntu-24.04",
+        "repro-runner / Run Issue_2854_CircularPageList on windows-2022"
+      ]
+    }
+  ]
+}
