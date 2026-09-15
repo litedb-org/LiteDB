@@ -246,3 +246,42 @@ corrected ledger snapshot under immutable `automation/bugfix-runtime-v6`.
 The runtime also routes verified candidate C# compiler failures back to repair
 and includes the reviewed next-three issue contracts. Combined local checks
 passed: 149 controller tests, 74 gate tests, and 76 workflow/helper tests.
+
+## #2839 compressed candidate
+
+The corrected [baseline run](https://github.com/litedb-org/LiteDB/actions/runs/34997535368)
+passed in a 46-second test job, confirming the regression, two controls, and all
+seven permanently accepted #2874 cases. Its ledger snapshot is
+`ff3701819065d1682a3147e201a50091a0a1c206` with digest
+`ba0ddd4460f272085e0df611b299ecbfb90bb7799eec72f14f2e3b493cc7d6e3`.
+
+The [fix worker](https://github.com/litedb-org/LiteDB/actions/runs/34997678016)
+proposed a one-line change: `LongCount(Query)` calls `LiteQueryable.LongCount()`.
+Its authenticated runtime was Codex 0.154.0, gpt-6-astra, high reasoning.
+Candidate `824dfce9d27a6c0c7ea3890c1ecc9aff31833c83` preserves every frozen test.
+
+[Candidate CI](https://github.com/litedb-org/LiteDB/actions/runs/34998488756)
+passed with one Ubuntu/net8 lane in 2 minutes 35 seconds and a parallel production
+build in 37 seconds. The 1,509-case comparison reported no errors, classification
+changes, or unexpected passes; all previously accepted cases remained green.
+Three independent reviews were dispatched from this single successful CI run:
+[behavior](https://github.com/litedb-org/LiteDB/actions/runs/34998827373),
+[compatibility](https://github.com/litedb-org/LiteDB/actions/runs/34998853675), and
+[lifecycle](https://github.com/litedb-org/LiteDB/actions/runs/34998880800).
+
+The behavior review distinguishes this overload/delegation fix from the existing
+engine `COUNT` implementation's Int32 ceiling. This candidate preserves an Int64
+value supplied by `ILiteEngine`; it does not claim validation on a physical
+multi-billion-document database.
+
+## Prepared serial expansion
+
+Runtime v7, `d020aceb92799d9325a2f47669d1d39e5d700248` on immutable
+`automation/bugfix-runtime-v7`, includes the reviewed [serial queue](../../../.github/bugfix/QUEUE.md)
+and all eleven upcoming contracts: #2869, #1506, #1002, #2802, #2770, #2867,
+#2845, #2847, #2779, #2205, and #2871. The read-only queue preview passed.
+Each issue starts from the then-current integration commit and permanent ledger;
+the queue never dispatches the full matrix. Special review requirements travel
+in the immutable task contract, with explicit worker/reviewer instructions.
+Combined checks passed: 167 controller tests, 81 gate tests, and 76 workflow/helper
+tests. The live #2839 campaign retains its original v6 pin.
