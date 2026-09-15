@@ -13,6 +13,8 @@ high reasoning; all three reviewers use `gpt-5.6-sol` with high reasoning.
 Model fallback is disabled. See [worker runtime](Worker-runtime.md), the
 [controller runbook](../../../.github/bugfix/README.md), and the
 [canary log](Canary-log.md) for implementation details and rollout evidence.
+The full matrix also uses a [versioned #2794 harness timing correction](Harness-2794.md)
+with original/effective source provenance; it does not change the frozen bug tests.
 
 ## Objective
 

@@ -14,6 +14,10 @@ import re
 import sys
 
 from bugfix_full_ci_quarantine import load_quarantine
+from apply_issue_2794_harness_overlay import (
+    load_manifest_path as load_harness_overlay,
+    provenance_contract as harness_overlay_contract,
+)
 
 
 SHA = re.compile(r"[0-9a-f]{40}")
@@ -128,8 +132,27 @@ def validate_job(job):
     return name
 
 
+def overlay_summary(manifest, manifest_sha, definition_sha):
+    return {
+        "id": manifest["id"],
+        "issue": manifest["issue"],
+        "source_path": manifest["source_path"],
+        "overlay_path": manifest["overlay_path"],
+        "original_git_blob_sha1": manifest["original_git_blob_sha1"],
+        "original_blob_sha256": manifest["original_blob_sha256"],
+        "effective_git_blob_sha1": manifest["effective_git_blob_sha1"],
+        "effective_blob_sha256": manifest["effective_blob_sha256"],
+        "dependency_blobs": manifest["dependency_blobs"],
+        "wait_timeout_seconds": manifest["wait_timeout_seconds"],
+        "ready_timeout_seconds": manifest["ready_timeout_seconds"],
+        "completion_timeout_seconds": manifest["completion_timeout_seconds"],
+        "workload": manifest["workload"],
+        "evidence_definition_sha": definition_sha,
+    }
+
+
 def load_evidence(path, label, issue_number, expected_sha, quarantine, workflow_path,
-                  failure_normalization_sha):
+                  failure_normalization_sha, overlay_manifest, overlay_manifest_sha):
     evidence = load_json(path)
     require(evidence.get("schema_version") == 1, f"Unsupported {label} evidence schema")
     require(evidence.get("accepted") is True, f"{label} collection was not accepted")
@@ -140,10 +163,15 @@ def load_evidence(path, label, issue_number, expected_sha, quarantine, workflow_
             f"{label} used a different failure-normalization policy")
     require(evidence.get("quarantine_sha256") == quarantine["sha256"],
             f"{label} used a different quarantine policy")
+    require(evidence.get("harness_overlay_manifest_sha256") == overlay_manifest_sha,
+            f"{label} used a different #2794 harness overlay manifest")
     require(evidence.get("coverage_gaps") == quarantine["coverage_gaps"],
             f"{label} coverage gaps do not match trusted policy")
     require_sha(evidence.get("evidence_definition_sha"),
                 f"{label}.evidence_definition_sha")
+    require(evidence.get("harness_overlay") == overlay_summary(
+        overlay_manifest, overlay_manifest_sha, evidence["evidence_definition_sha"]),
+        f"{label} #2794 harness overlay identity is incomplete or untrusted")
     run = evidence.get("run")
     require(isinstance(run, dict), f"{label} evidence has no run provenance")
     require(isinstance(run.get("id"), int) and run["id"] > 0, f"{label} run ID is invalid")
@@ -162,6 +190,23 @@ def load_evidence(path, label, issue_number, expected_sha, quarantine, workflow_
     require(len(names) == len(set(names)), f"{label} contains duplicate job names")
     require(not (quarantine["jobs"] & set(names)),
             f"{label} executed an explicitly quarantined job")
+    observed_overlay_os = set()
+    for job in jobs:
+        match = re.fullmatch(
+            r"repro-runner / Run Issue_2794_SharedJobHandoff on "
+            r"(ubuntu-22\.04|ubuntu-24\.04|windows-2022)", job["name"])
+        if match:
+            expected_overlay = harness_overlay_contract(
+                overlay_manifest, overlay_manifest_sha, expected_sha,
+                evidence["evidence_definition_sha"], match.group(1))
+            require(job.get("harness_overlay") == expected_overlay,
+                    f"{label} #2794 job has untrusted harness overlay provenance")
+            observed_overlay_os.add(match.group(1))
+        else:
+            require("harness_overlay" not in job,
+                    f"{label} applied the #2794 harness overlay to another job")
+    require(observed_overlay_os == {"ubuntu-22.04", "ubuntu-24.04", "windows-2022"},
+            f"{label} does not contain all three overlaid #2794 jobs")
     expected_conclusion = "failure" if any(job["conclusion"] == "failure" for job in jobs) else "success"
     require(run["conclusion"] == expected_conclusion,
             f"{label} run conclusion disagrees with its jobs")
@@ -343,6 +388,8 @@ def parser():
                            default="scripts/bugfix/failure-normalization.json")
     arguments.add_argument("--baseline-policy",
                            default="scripts/bugfix/known-failure-classes.json")
+    arguments.add_argument("--harness-overlay-manifest",
+                           default=".github/bugfix/issue-2794-harness-overlay.json")
     arguments.add_argument("--expected-target-job-count", type=int, default=21)
     arguments.add_argument("--output", required=True)
     return arguments
@@ -358,13 +405,17 @@ def main(argv=None):
         quarantine = load_quarantine(args.quarantine)
         failure_normalization_sha = hashlib.sha256(
             Path(args.failure_normalization).read_bytes()).hexdigest()
+        overlay_manifest, overlay_manifest_sha = load_harness_overlay(
+            args.harness_overlay_manifest)
         regressions, controls = load_contract(args.manifest, args.issue)
         allowed_classes, allowed_skips, intermittent_classes, baseline_policy_sha = \
             load_baseline_policy(args.baseline_policy)
         baseline = load_evidence(args.baseline, "baseline", args.issue, base_sha,
-                                 quarantine, args.workflow_path, failure_normalization_sha)
+                                 quarantine, args.workflow_path, failure_normalization_sha,
+                                 overlay_manifest, overlay_manifest_sha)
         candidate = load_evidence(args.candidate, "candidate", args.issue, candidate_sha,
-                                  quarantine, args.workflow_path, failure_normalization_sha)
+                                  quarantine, args.workflow_path, failure_normalization_sha,
+                                  overlay_manifest, overlay_manifest_sha)
         report = compare(baseline, candidate, regressions, controls,
                          args.expected_target_job_count, allowed_classes, allowed_skips,
                          intermittent_classes)
@@ -379,6 +430,10 @@ def main(argv=None):
             "quarantine_sha256": quarantine["sha256"],
             "failure_normalization_sha256": failure_normalization_sha,
             "baseline_policy_sha256": baseline_policy_sha,
+            "harness_overlay_manifest_sha256": overlay_manifest_sha,
+            "harness_overlay": overlay_summary(
+                overlay_manifest, overlay_manifest_sha,
+                baseline[0]["evidence_definition_sha"]),
         }
     except (EvidenceError, OSError, ValueError, KeyError, TypeError) as error:
         report = {"accepted": False, "outcome": "harness_error", "errors": [str(error)]}

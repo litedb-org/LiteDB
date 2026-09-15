@@ -7,9 +7,10 @@ from pathlib import Path
 import tempfile
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from evidence import MATRIX, event_for
+from integrate import finish
 from integrate_evidence import acceptance_evidence, original_matrix_evidence
 from state import ROLES, Rejected, new_state
 from test_artifacts import archive
@@ -32,6 +33,8 @@ class MatrixPolicyTests(unittest.TestCase):
                                       "evidence_definition_sha": "e" * 40,
                                       "workflow_path": ".github/workflows/bugfix-full-ci.yml"}}
         self.commands = []
+        self.overlay_mutation = {}
+        self.corrupt_worker = False
 
     def check(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -40,6 +43,23 @@ class MatrixPolicyTests(unittest.TestCase):
             policy.parent.mkdir(parents=True)
             data = json.dumps(self.quarantine).encode()
             policy.write_bytes(data)
+            worker = b"// reviewed per-wait harness deadline\n"
+            self.overlay = {"schema_version": 1, "id": "issue-2794-per-wait-deadline", "issue": 2794,
+                            "source_path": "LiteDB.ReproRunner/Repros/Issue_2794_SharedJobHandoff/Worker/Program.cs",
+                            "overlay_path": ".github/bugfix/issue-2794-worker-overlay.cs",
+                            "original_git_blob_sha1": "1" * 40, "original_blob_sha256": "2" * 64,
+                            "effective_git_blob_sha1": hashlib.sha1(b"blob " + str(len(worker)).encode() + b"\0" + worker).hexdigest(),
+                            "effective_blob_sha256": hashlib.sha256(worker).hexdigest(), "dependency_blobs": {},
+                            "wait_timeout_seconds": 60, "ready_timeout_seconds": 15,
+                            "completion_timeout_seconds": 90, "workload": {"attempts": 3, "rows": 24, "rounds": 24}}
+            overlay_bytes = json.dumps(self.overlay).encode()
+            (policy.parent / "issue-2794-harness-overlay.json").write_bytes(overlay_bytes)
+            (policy.parent / "issue-2794-worker-overlay.cs").write_bytes(worker + (b"changed" if self.corrupt_worker else b""))
+            self.report["provenance"]["harness_overlay_manifest_sha256"] = hashlib.sha256(overlay_bytes).hexdigest()
+            self.report["provenance"]["harness_overlay"] = {
+                **{key: value for key, value in self.overlay.items() if key != "schema_version"},
+                "evidence_definition_sha": self.args.evidence_definition_sha}
+            self.report["provenance"].update(self.overlay_mutation)
             self.report["provenance"]["quarantine_sha256"] = hashlib.sha256(data).hexdigest()
             normalization = control / "scripts/bugfix/failure-normalization.json"
             normalization.parent.mkdir(parents=True)
@@ -52,7 +72,7 @@ class MatrixPolicyTests(unittest.TestCase):
                 (normalization.parent / name).write_text("# trusted normalization module", encoding="utf-8")
             scripts = control / ".github/scripts"
             scripts.mkdir()
-            for name in ("collect_bugfix_full_ci.py", "compare_bugfix_full_ci.py"):
+            for name in ("collect_bugfix_full_ci.py", "compare_bugfix_full_ci.py", "apply_issue_2794_harness_overlay.py"):
                 (scripts / name).write_text("# trusted grading script", encoding="utf-8")
 
             def command(arguments):
@@ -84,6 +104,41 @@ class MatrixPolicyTests(unittest.TestCase):
         provenance = json.loads(files["original-matrix/grading-provenance.json"])
         self.assertEqual("e" * 40, provenance["capture_definition_sha"])
         self.assertEqual("f" * 40, provenance["grading_policy_sha"])
+        for command in self.commands:
+            manifest = Path(command[command.index("--harness-overlay-manifest") + 1])
+            self.assertTrue(manifest.is_absolute())
+        self.assertEqual(self.report["provenance"]["harness_overlay"], provenance["harness_overlay"])
+        self.assertEqual(self.overlay, json.loads(files["original-matrix/harness-overlay-manifest.json"]))
+        self.assertEqual(self.overlay["effective_blob_sha256"],
+                         hashlib.sha256(files["original-matrix/issue-2794-worker-overlay.cs"]).hexdigest())
+        apply_script = ".github/scripts/apply_issue_2794_harness_overlay.py"
+        self.assertEqual(provenance["scripts"][apply_script],
+                         hashlib.sha256(files["original-matrix/apply_issue_2794_harness_overlay.py"]).hexdigest())
+
+    def test_stale_overlay_hash_or_summary_rejected(self):
+        for key, value in (("harness_overlay_manifest_sha256", "0" * 64),
+                           ("harness_overlay", {"issue": 2794, "wait_timeout_seconds": 999})):
+            with self.subTest(key=key):
+                self.overlay_mutation = {key: value}
+                with self.assertRaisesRegex(Rejected, "provenance mismatch: harness_overlay"):
+                    self.check()
+
+    def test_modified_effective_worker_rejected_before_remote_collection(self):
+        self.corrupt_worker = True
+        with self.assertRaisesRegex(Rejected, "overlay bytes changed"):
+            self.check()
+        self.assertEqual([], self.commands)
+
+    def test_overlay_identity_survives_in_permanent_pass_ledger(self):
+        report, _ = self.check()
+        report["target_jobs"] = ["required matrix lane"]
+        lock = {"token": "lock-token", "phase": "prepared", "active": True}
+        store = Mock()
+        store.require_lock.return_value = (lock, "1" * 40)
+        store.read_at.side_effect = [self.state, None]
+        finish(store, self.state, lock, report, {"regressions": [], "controls": []}, "9" * 40)
+        ledger = json.loads(store.commit.call_args.args[1]["accepted-tests.json"])
+        self.assertEqual(report["provenance"], ledger["issues"]["2874"]["matrix_provenance"])
 
     def test_any_additional_harness_failure_or_missing_job_blocks(self):
         for field in ("errors", "blockers", "unexpected_passes", "inconclusive_changes"):

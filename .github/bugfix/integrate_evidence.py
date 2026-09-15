@@ -66,6 +66,7 @@ def acceptance_evidence(repo, state):
 
 def original_matrix_evidence(args, state, control, output):
     """Collect real GitHub evidence and recompute the verdict with trusted code."""
+    control, output = control.resolve(), output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     archive = output / "archive"
     quarantine_path = control / ".github/bugfix/full-ci-quarantine.json"
@@ -77,6 +78,24 @@ def original_matrix_evidence(args, state, control, output):
     normalization_bytes = normalization_path.read_bytes()
     baseline_policy_path = control / "scripts/bugfix/known-failure-classes.json"
     baseline_policy_bytes = baseline_policy_path.read_bytes()
+    overlay_path = control / ".github/bugfix/issue-2794-harness-overlay.json"
+    overlay_bytes = overlay_path.read_bytes()
+    overlay = json.loads(overlay_bytes)
+    overlay_source = control / ".github/bugfix/issue-2794-worker-overlay.cs"
+    require(overlay.get("schema_version") == 1 and overlay.get("issue") == 2794
+            and overlay.get("overlay_path") == overlay_source.relative_to(control).as_posix(),
+            "Unexpected harness overlay contract")
+    worker_bytes = overlay_source.read_bytes()
+    require(hashlib.sha256(worker_bytes).hexdigest() == overlay["effective_blob_sha256"],
+            "Effective harness overlay bytes changed")
+    git_blob = b"blob " + str(len(worker_bytes)).encode() + b"\0" + worker_bytes
+    require(hashlib.sha1(git_blob).hexdigest() == overlay["effective_git_blob_sha1"],
+            "Effective harness overlay Git identity changed")
+    overlay_summary = {key: overlay[key] for key in (
+        "id", "issue", "source_path", "overlay_path", "original_git_blob_sha1", "original_blob_sha256",
+        "effective_git_blob_sha1", "effective_blob_sha256", "dependency_blobs", "wait_timeout_seconds",
+        "ready_timeout_seconds", "completion_timeout_seconds", "workload")}
+    overlay_summary["evidence_definition_sha"] = args.evidence_definition_sha
     paths = {}
     for variant, run_id in (("baseline", args.baseline_run), ("candidate", args.candidate_run)):
         path = output / f"{variant}-evidence.json"
@@ -87,6 +106,7 @@ def original_matrix_evidence(args, state, control, output):
              "--source-sha", source, "--control-root", str(control),
              "--quarantine", str(quarantine_path),
              "--failure-normalization", str(normalization_path),
+             "--harness-overlay-manifest", str(overlay_path),
              "--evidence-definition-sha", args.evidence_definition_sha, "--archive-dir", str(archive),
              "--output", str(path)], path)
         paths[variant] = path
@@ -97,6 +117,7 @@ def original_matrix_evidence(args, state, control, output):
          "--base-sha", state["base_sha"], "--candidate-sha", state["candidate_sha"],
          "--quarantine", str(quarantine_path), "--failure-normalization", str(normalization_path),
          "--baseline-policy", str(baseline_policy_path),
+         "--harness-overlay-manifest", str(overlay_path),
          "--expected-target-job-count", "21", "--output", str(verdict)], verdict)
     report = json.loads(verdict.read_text(encoding="utf-8"))
     require(report.get("schema_version") == 1 and report.get("accepted") is True
@@ -110,18 +131,27 @@ def original_matrix_evidence(args, state, control, output):
     expected["quarantine_sha256"] = hashlib.sha256(quarantine_bytes).hexdigest()
     expected["failure_normalization_sha256"] = hashlib.sha256(normalization_bytes).hexdigest()
     expected["baseline_policy_sha256"] = hashlib.sha256(baseline_policy_bytes).hexdigest()
+    expected["harness_overlay_manifest_sha256"] = hashlib.sha256(overlay_bytes).hexdigest()
+    expected["harness_overlay"] = overlay_summary
     provenance = report.get("provenance", {})
     for field, value in expected.items():
         require(type(provenance.get(field)) is type(value) and provenance[field] == value,
                 f"Original-matrix provenance mismatch: {field}")
     files = {"original-matrix/quarantine.json": quarantine_bytes,
              "original-matrix/failure-normalization.json": normalization_bytes,
-             "original-matrix/baseline-policy.json": baseline_policy_bytes}
+             "original-matrix/baseline-policy.json": baseline_policy_bytes,
+             "original-matrix/harness-overlay-manifest.json": overlay_bytes,
+             "original-matrix/issue-2794-worker-overlay.cs": worker_bytes}
     policy = {"grading_policy_sha": args.grading_policy_sha, "capture_definition_sha": args.evidence_definition_sha,
               "comparator_report_sha256": hashlib.sha256(verdict.read_bytes()).hexdigest(), "scripts": {}}
     for name in (".github/scripts/collect_bugfix_full_ci.py", ".github/scripts/compare_bugfix_full_ci.py",
-                 "scripts/bugfix/failure_normalization.py", "scripts/bugfix/trx.py"):
+                 "scripts/bugfix/failure_normalization.py", "scripts/bugfix/trx.py",
+                 ".github/scripts/apply_issue_2794_harness_overlay.py"):
         policy["scripts"][name] = hashlib.sha256((control / name).read_bytes()).hexdigest()
+    apply_script = ".github/scripts/apply_issue_2794_harness_overlay.py"
+    files["original-matrix/apply_issue_2794_harness_overlay.py"] = (control / apply_script).read_bytes()
+    policy["harness_overlay_manifest_sha256"] = expected["harness_overlay_manifest_sha256"]
+    policy["harness_overlay"] = overlay_summary
     files["original-matrix/grading-provenance.json"] = (json.dumps(policy, indent=2) + "\n").encode()
     for path in output.rglob("*"):
         if path.is_file():

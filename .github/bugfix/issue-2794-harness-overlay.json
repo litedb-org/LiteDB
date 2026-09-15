@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "id": "issue-2794-per-wait-deadline",
+  "issue": 2794,
+  "source_path": "LiteDB.ReproRunner/Repros/Issue_2794_SharedJobHandoff/Worker/Program.cs",
+  "overlay_path": ".github/bugfix/issue-2794-worker-overlay.cs",
+  "original_git_blob_sha1": "a1d00ccc395e9f26c68c66d0f77a036fb7cde9a8",
+  "original_blob_sha256": "4de2204a2bd8c854d769c3a13fec24cdde1eebc02fa3b7c7b6b13104b6b6b6bc",
+  "effective_git_blob_sha1": "d54a2c45c52c29c16d1dbd454141345f03ae5f58",
+  "effective_blob_sha256": "4933c442362064a571f0aee635af81bb9b2291021a2587f7a073a1ebf25e8732",
+  "dependency_blobs": {
+    "LiteDB.ReproRunner/Repros/Issue_2794_SharedJobHandoff/Program.cs": {
+      "git_blob_sha1": "248a21a42d57bb4d1bd219c309c004f001084155",
+      "blob_sha256": "4e30117f5443fcc8559f6cf1fabb42d376d9601e79012fd3cd752c47b56fa638"
+    },
+    "LiteDB.ReproRunner/Repros/Issue_2794_SharedJobHandoff/Worker/JobLedger.cs": {
+      "git_blob_sha1": "24b2e93edb2a1d0c753096c719bada7b0a7d53b5",
+      "blob_sha256": "8195e22580fa22c83fe74ee399833ce251540869ce28f51bbd68f2c541f7abf3"
+    },
+    "LiteDB.ReproRunner/Repros/Issue_2794_SharedJobHandoff/repro.json": {
+      "git_blob_sha1": "f10cdda65b128f49caa45ce0cfcbf23150943454",
+      "blob_sha256": "6deead62faae8d8b83adb5264e0fa3f640bab2e11b6b309f8184d819619c6cd0"
+    }
+  },
+  "wait_timeout_seconds": 60,
+  "ready_timeout_seconds": 15,
+  "completion_timeout_seconds": 90,
+  "workload": {
+    "attempts": 3,
+    "rows": 24,
+    "rounds": 24
+  }
+}

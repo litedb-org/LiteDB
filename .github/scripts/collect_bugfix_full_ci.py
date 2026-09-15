@@ -17,6 +17,10 @@ import tempfile
 import zipfile
 
 from bugfix_full_ci_quarantine import load_quarantine
+from apply_issue_2794_harness_overlay import (
+    load_manifest_path as load_harness_overlay,
+    provenance_contract as harness_overlay_contract,
+)
 
 
 SHA = re.compile(r"[0-9a-f]{40}")
@@ -217,10 +221,26 @@ def enum_name(value):
     return str(value).replace("NoRepro", "no_repro").lower()
 
 
-def repro_job(job, data, artifact):
+def repro_job(job, data, artifact, overlay_manifest, overlay_manifest_sha,
+              source_sha, definition_sha):
     match = REPRO_JOB.fullmatch(job["name"])
     require(match is not None, f"Unexpected repro job name: {job['name']}")
     members = zip_members(data)
+    overlay_members = [value for name, value in members.items()
+                       if name.endswith("harness-overlay-provenance.json")]
+    overlay = None
+    if match.group(1) == "Issue_2794_SharedJobHandoff":
+        require(len(overlay_members) == 1,
+                "#2794 repro must contain one harness overlay provenance record")
+        overlay = json.loads(overlay_members[0])
+        expected_overlay = harness_overlay_contract(
+            overlay_manifest, overlay_manifest_sha, source_sha, definition_sha,
+            match.group(2))
+        require(overlay == expected_overlay,
+                "#2794 harness overlay provenance does not match the trusted definition")
+    else:
+        require(not overlay_members,
+                f"Unexpected harness overlay provenance in {job['name']}")
     console = one_member(members, "repro-console.log", artifact["name"]).decode(
         "utf-8-sig", errors="replace")
     diagnostics = []
@@ -267,11 +287,14 @@ def repro_job(job, data, artifact):
     except (CollectionError, json.JSONDecodeError, KeyError, TypeError) as error:
         verdict = "harness_error"
         classification = f"unreadable structured repro evidence: {error}"
-    return {"name": job["name"], "kind": "repro", "status": job["status"],
+    result = {"name": job["name"], "kind": "repro", "status": job["status"],
             "conclusion": job["conclusion"], "job_id": job["id"], "url": job["html_url"],
             "artifact_id": artifact["id"], "artifact_sha256": hashlib.sha256(data).hexdigest(),
             "verdict": verdict, "classification": classification,
             "diagnostics": diagnostics[:20]}
+    if overlay is not None:
+        result["harness_overlay"] = overlay
+    return result
 
 
 def archive_json(directory, name, value):
@@ -283,6 +306,10 @@ def collect(args):
     require(SHA.fullmatch(args.evidence_definition_sha or ""),
             "evidence_definition_sha must be a full lowercase SHA")
     quarantine = load_quarantine(args.quarantine)
+    overlay_path = Path(args.harness_overlay_manifest)
+    if not overlay_path.is_absolute():
+        overlay_path = Path(args.control_root) / overlay_path
+    overlay_manifest, overlay_manifest_sha = load_harness_overlay(overlay_path)
     run = api_json(args.repository, f"actions/runs/{args.run_id}")
     jobs = paged(args.repository, f"actions/runs/{args.run_id}/jobs", "jobs")
     artifacts = paged(args.repository, f"actions/runs/{args.run_id}/artifacts", "artifacts")
@@ -311,6 +338,7 @@ def collect(args):
     archive_json(root, "jobs.json", {"total_count": len(jobs), "jobs": jobs})
     archive_json(root, "artifacts.json", {"total_count": len(artifacts), "artifacts": artifacts})
     (root / "quarantine.json").write_bytes(Path(args.quarantine).read_bytes())
+    (root / "harness-overlay-manifest.json").write_bytes(overlay_path.read_bytes())
     cache = {}
 
     def download(name):
@@ -323,10 +351,11 @@ def collect(args):
     provenance_data, _ = download("bugfix-full-ci-provenance")
     provenance = json.loads(one_member(zip_members(provenance_data),
                                        "full-ci-provenance.json", "provenance"))
-    expected = {"schema_version": 1, "issue": args.issue, "source_sha": args.source_sha,
+    expected = {"schema_version": 2, "issue": args.issue, "source_sha": args.source_sha,
                 "checkout_sha": args.source_sha,
                 "evidence_definition_sha": args.evidence_definition_sha, "run_id": args.run_id}
     expected["quarantine_sha256"] = quarantine["sha256"]
+    expected["harness_overlay_manifest_sha256"] = overlay_manifest_sha
     require(provenance == expected, "Provenance artifact does not match the requested run")
     trx_module = load_trx_module(args.control_root)
     normalizer, failure_policy, failure_policy_sha = load_failure_policy(
@@ -344,7 +373,9 @@ def collect(args):
                                        failure_policy, args.role == "baseline"))
         elif repro:
             data, artifact = download(f"logs-{repro.group(1)}-{repro.group(2)}")
-            normalized.append(repro_job(job, data, artifact))
+            normalized.append(repro_job(
+                job, data, artifact, overlay_manifest, overlay_manifest_sha,
+                args.source_sha, args.evidence_definition_sha))
         else:
             require(job["name"] in CHECK_JOBS, f"Unexpected full CI job: {job['name']}")
             observed_checks.add(job["name"])
@@ -362,6 +393,24 @@ def collect(args):
             "evidence_definition_sha": args.evidence_definition_sha,
             "failure_normalization_sha256": failure_policy_sha,
             "quarantine_sha256": quarantine["sha256"],
+            "harness_overlay_manifest_sha256": overlay_manifest_sha,
+            "harness_overlay": {
+                "id": overlay_manifest["id"],
+                "issue": overlay_manifest["issue"],
+                "source_path": overlay_manifest["source_path"],
+                "overlay_path": overlay_manifest["overlay_path"],
+                "original_git_blob_sha1": overlay_manifest["original_git_blob_sha1"],
+                "original_blob_sha256": overlay_manifest["original_blob_sha256"],
+                "effective_git_blob_sha1": overlay_manifest["effective_git_blob_sha1"],
+                "effective_blob_sha256": overlay_manifest["effective_blob_sha256"],
+                "dependency_blobs": overlay_manifest["dependency_blobs"],
+                "wait_timeout_seconds": overlay_manifest["wait_timeout_seconds"],
+                "ready_timeout_seconds": overlay_manifest["ready_timeout_seconds"],
+                "completion_timeout_seconds": overlay_manifest[
+                    "completion_timeout_seconds"],
+                "workload": overlay_manifest["workload"],
+                "evidence_definition_sha": args.evidence_definition_sha,
+            },
             "coverage_gaps": quarantine["coverage_gaps"],
             "run": {"id": run["id"], "head_sha": run["head_sha"], "path": run["path"],
                     "workflow_path": run["path"], "event": run["event"],
@@ -382,6 +431,8 @@ def parser():
     result.add_argument("--quarantine", default=".github/bugfix/full-ci-quarantine.json")
     result.add_argument("--failure-normalization",
                         default="scripts/bugfix/failure-normalization.json")
+    result.add_argument("--harness-overlay-manifest",
+                        default=".github/bugfix/issue-2794-harness-overlay.json")
     result.add_argument("--archive-dir")
     result.add_argument("--output", required=True)
     return result

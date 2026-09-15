@@ -19,6 +19,13 @@ on:
       ref:
         required: false
         type: string
+      evidence_definition_sha:
+        required: false
+        type: string
+      issue_2794_harness_overlay:
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   generate-matrix:
@@ -86,6 +93,36 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ inputs.ref && inputs.ref || github.ref }}
+
+      - name: 'Check out trusted #2794 harness overlay'
+        if: matrix.repro == 'Issue_2794_SharedJobHandoff' && inputs.issue_2794_harness_overlay
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          ref: ${{ inputs.evidence_definition_sha }}
+          path: .bugfix-evidence-definition
+          persist-credentials: false
+          sparse-checkout: |
+            .github/bugfix/issue-2794-harness-overlay.json
+            .github/bugfix/issue-2794-worker-overlay.cs
+            .github/scripts/apply_issue_2794_harness_overlay.py
+          sparse-checkout-cone-mode: false
+
+      - name: 'Apply trusted #2794 harness overlay'
+        if: matrix.repro == 'Issue_2794_SharedJobHandoff' && inputs.issue_2794_harness_overlay
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.ref }}
+          EVIDENCE_DEFINITION_SHA: ${{ inputs.evidence_definition_sha }}
+          TARGET_OS: ${{ matrix.os }}
+        run: |
+          python .bugfix-evidence-definition/.github/scripts/apply_issue_2794_harness_overlay.py \
+            --source-root . \
+            --definition-root .bugfix-evidence-definition \
+            --source-sha "${SOURCE_SHA}" \
+            --definition-sha "${EVIDENCE_DEFINITION_SHA}" \
+            --target-os "${TARGET_OS}" \
+            --output artifacts/harness-overlay-provenance.json
 
       - name: Set up .NET SDK
         uses: actions/setup-dotnet@v4

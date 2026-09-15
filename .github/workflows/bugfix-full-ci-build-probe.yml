@@ -26,6 +26,10 @@ on:
         description: SHA-256 of the trusted explicit coverage-gap manifest
         required: true
         type: string
+      harness_overlay_manifest_sha256:
+        description: SHA-256 of the trusted #2794 CI harness overlay manifest
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -39,3 +43,4 @@ jobs:
       source-sha: ${{ inputs.source_sha }}
       evidence-definition-sha: ${{ inputs.evidence_definition_sha }}
       quarantine-sha256: ${{ inputs.quarantine_sha256 }}
+      harness-overlay-manifest-sha256: ${{ inputs.harness_overlay_manifest_sha256 }}

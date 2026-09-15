@@ -92,10 +92,13 @@ class FullCiCollectorTests(unittest.TestCase):
         jobs = [{"id": 1, "name": "build-and-test / Build (Linux)",
                  "status": "completed", "conclusion": "success", "html_url": "build"},
                 test_job, repro_job]
-        provenance = {"schema_version": 1, "issue": 2874, "source_sha": SOURCE,
+        overlay_manifest = Path(".github/bugfix/issue-2794-harness-overlay.json")
+        overlay_manifest_sha = hashlib.sha256(overlay_manifest.read_bytes()).hexdigest()
+        provenance = {"schema_version": 2, "issue": 2874, "source_sha": SOURCE,
                       "checkout_sha": SOURCE, "evidence_definition_sha": DEFINITION,
                       "run_id": run_id,
-                      "quarantine_sha256": hashlib.sha256(quarantine_raw).hexdigest()}
+                      "quarantine_sha256": hashlib.sha256(quarantine_raw).hexdigest(),
+                      "harness_overlay_manifest_sha256": overlay_manifest_sha}
         payloads = {
             "bugfix-full-ci-provenance": zipped(
                 {"full-ci-provenance.json": json.dumps(provenance)}),
@@ -135,7 +138,8 @@ class FullCiCollectorTests(unittest.TestCase):
                                       source_sha=SOURCE, evidence_definition_sha=DEFINITION,
                                       control_root=".", archive_dir=directory,
                                       quarantine=str(quarantine_path), role="baseline",
-                                      failure_normalization=str(failure_policy))
+                                      failure_normalization=str(failure_policy),
+                                      harness_overlay_manifest=str(overlay_manifest))
             with patch.object(collector, "CHECK_JOBS", {jobs[0]["name"]}), \
                     patch.object(collector, "EXPECTED_TEST_JOBS", 1), \
                     patch.object(collector, "api_json", side_effect=fake_api), \
@@ -147,6 +151,10 @@ class FullCiCollectorTests(unittest.TestCase):
             self.assertEqual("unmeasured", evidence["jobs"][1]["runtime_architecture"])
             self.assertEqual(hashlib.sha256(failure_policy.read_bytes()).hexdigest(),
                              evidence["failure_normalization_sha256"])
+            self.assertEqual(overlay_manifest_sha,
+                             evidence["harness_overlay_manifest_sha256"])
+            self.assertEqual("issue-2794-per-wait-deadline",
+                             evidence["harness_overlay"]["id"])
             self.assertEqual("harness_error", evidence["jobs"][2]["verdict"])
             self.assertIn("CS0117", "\n".join(evidence["jobs"][2]["diagnostics"]))
             self.assertIn("package: Expected output containing BUG_2854_CONFIRMED",
@@ -158,6 +166,39 @@ class FullCiCollectorTests(unittest.TestCase):
     def test_rejects_incomplete_discovery(self):
         with self.assertRaisesRegex(collector.CollectionError, "complete test discovery"):
             collector.discovery_names(b"no inventory here")
+
+    def test_requires_exact_issue_2794_overlay_provenance(self):
+        manifest, manifest_sha = collector.load_harness_overlay(
+            ".github/bugfix/issue-2794-harness-overlay.json")
+        target_os = "windows-2022"
+        provenance = collector.harness_overlay_contract(
+            manifest, manifest_sha, SOURCE, DEFINITION, target_os)
+        variant = {"Expected": 1, "ExpectedExitCode": 10,
+                   "ExpectedLogContains": "VERIFIED_2794", "Actual": 1,
+                   "Met": True, "ExitCode": 10, "UseProjectReference": True,
+                   "FailureReason": None}
+        report = {"Repros": [{"Id": "Issue_2794_SharedJobHandoff", "State": 1,
+                               "Failed": False, "Warned": False,
+                               "Package": variant, "Latest": variant}]}
+        job = {"id": 1,
+               "name": f"repro-runner / Run Issue_2794_SharedJobHandoff on {target_os}",
+               "status": "completed", "conclusion": "success", "html_url": "job"}
+        artifact = {"id": 2, "name": "logs-Issue_2794-windows-2022"}
+
+        def payload(record):
+            return zipped({
+                "artifacts/repro-report.json": json.dumps(report),
+                "artifacts/repro-console.log": "VERIFIED_2794\n",
+                "artifacts/harness-overlay-provenance.json": json.dumps(record),
+            })
+
+        result = collector.repro_job(
+            job, payload(provenance), artifact, manifest, manifest_sha, SOURCE, DEFINITION)
+        self.assertEqual(provenance, result["harness_overlay"])
+        changed = dict(provenance, effective_git_blob_sha1="d" * 40)
+        with self.assertRaisesRegex(collector.CollectionError, "trusted definition"):
+            collector.repro_job(
+                job, payload(changed), artifact, manifest, manifest_sha, SOURCE, DEFINITION)
 
     def test_preserves_duplicate_rendered_discovery_names(self):
         raw = ("The following Tests are available:\n"
