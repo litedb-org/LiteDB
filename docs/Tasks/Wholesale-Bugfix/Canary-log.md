@@ -103,13 +103,16 @@ build probe also pass evidence validation, including exact #2874 red cases in
 all 21 full-suite lanes. The [fresh full baseline](https://github.com/litedb-org/LiteDB/actions/runs/34982194439)
 has all 109 expected jobs and is still being monitored.
 
-## Acceptance still required
+## Original acceptance requirement (superseded below)
 
 A successful pilot requires the verified candidate, focused and broad CI, three
 independent Sol high reviews, platform and compatibility checks, the original
 full matrix, and an atomic integration update to the tested commit. Existing
 unverified process repros cannot be counted as passing compatibility evidence.
 Scale-up starts only after that pilot is accepted.
+
+This paragraph records the original rollout requirement. The later compressed
+sweep requirement replaces it: the full matrix is required only at the end.
 
 The #2854 process fixture currently fails compilation: `Issue2854Scenario.cs:108`
 calls `RawPageListFixture.InspectHealthyEmptyList`, which is absent from the
@@ -188,3 +191,33 @@ profile planner selects Ubuntu/net8 plus a production build for candidate
 `79e5c69cb9e6a1bcc08e919c2993aaa5401148b7`. Audited targeted revalidation is still
 required before accepting this paused canary because its original broad run
 did not include the complete new profile's production-build evidence.
+
+## Compressed canary passed
+
+The audited revalidation used immutable check definition
+`807054e37840ab31184642a86c4bbb7c15983de8` on
+`automation/bugfix-runtime-v5`, preserving the same candidate and all three
+original reviewer reports. [Run 34995923000](https://github.com/litedb-org/LiteDB/actions/runs/34995923000)
+passed with exactly three jobs:
+
+- Profile selection: 9 seconds.
+- Ubuntu/.NET 8 test lane: 2 minutes 40 seconds, including baseline/candidate
+  builds, focused assertions, and 1,509 broad-suite cases.
+- Production build: 39 seconds, running in parallel with the test lane.
+
+Job execution spanned 2 minutes 52 seconds overall. All seven issue cases passed;
+the broad comparison reported zero new errors, classification changes,
+inconclusive changes, or unexpected passes. The 497 remaining known failures
+are unresolved baseline defects, not passing tests. The ordinary ObjectId diff
+does not require an additional file-compatibility job under the reviewed profile.
+
+The controller recorded `ready` at state commit
+`41f882453716307261f7e0fd6f157d5c1066760c`. The independent integration preview
+verified the exact candidate tree and 20 evidence files. No full-matrix job was
+dispatched for this revalidation.
+
+Integration completed successfully: `integration/bugfixes` now points to
+`79e5c69cb9e6a1bcc08e919c2993aaa5401148b7`, and the accepted ledger permanently
+requires all seven #2874 cases. Its `final_matrix_status` is explicitly `pending`.
+Campaign `sweep-2839-v1` then started on this integration base, using the same
+immutable runtime v5 and the new `compressed-v1` protocol.
