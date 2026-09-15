@@ -5,6 +5,15 @@
     {
       "action": "initialize",
       "at": 1789505792.9181852
+    },
+    {
+      "action": "pause",
+      "at": 1789506324.490909,
+      "owner": {
+        "run_attempt": 1,
+        "run_id": 35023525897
+      },
+      "reason": "Verify durable pause during the hosted canary; resume immediately after readback"
     }
   ],
   "infrastructure_streak": 0,
@@ -27,22 +36,22 @@
   },
   "kind": "hosted-bugfix-sweep",
   "last_tick": {
-    "at": 1789505859.0276186,
-    "campaign": "hosted-v9-1002",
-    "campaign_phase": "baseline",
+    "at": 1789506324.4909117,
+    "campaign": null,
+    "campaign_phase": null,
     "counts": {
       "accepted": 0,
       "active": 1,
       "deferred": 0,
       "pending": 0
     },
-    "issue": 1002,
+    "issue": null,
     "run_attempt": 1,
-    "run_id": 35022719684,
+    "run_id": 35023525897,
     "run_ids": []
   },
-  "paused": false,
-  "phase": "running",
+  "paused": true,
+  "phase": "paused",
   "schema_version": 1,
   "specification": {
     "campaign_prefix": "hosted-v9",
