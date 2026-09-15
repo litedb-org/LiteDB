@@ -25,6 +25,8 @@ SINGLE_AGENT_OVERRIDES = (
     "-c features.multi_agent=false",
     "-c features.multi_agent_v2=false",
 )
+HIGH_REASONING_OVERRIDE = "-c model_reasoning_effort=high"
+RUNTIME_PROBE_STEP = "Verify pinned Codex reasoning requests locally"
 CODEX_ENDPOINT_ENV = "          CODEX_LB_BASE_URL: ${{ secrets.CODEX_LB_BASE_URL }}"
 DETECTION_UPLOAD_STEP = "      - name: Upload threat detection log"
 DETECTION_REDACTION_MARKER = "Redact Codex endpoint detection artifacts"
@@ -186,10 +188,24 @@ def patch_codex_delegation(line: str) -> tuple[str, bool]:
     # npm Codex 0.142.4 treats agents.enabled as an agent role, not a boolean.
     # Remove the unsupported override from previously patched lockfiles too.
     line = line.replace("-c agents.enabled=false ", "")
-    missing = [override for override in SINGLE_AGENT_OVERRIDES if override not in line]
+    missing = [override for override in (*SINGLE_AGENT_OVERRIDES, HIGH_REASONING_OVERRIDE) if override not in line]
     if not missing:
         return line, line != original
     return line.replace(CODEX_EXEC_COMMAND, CODEX_EXEC_COMMAND + " " + " ".join(missing), 1), True
+
+
+def insert_runtime_probe(lines: list[str]) -> list[str]:
+    if any(f"name: {RUNTIME_PROBE_STEP}" in line for line in lines):
+        return lines
+    patched = []
+    for line in lines:
+        patched.append(line)
+        if "run: npm install --ignore-scripts -g @openai/codex@0.154.0" in line:
+            patched.extend([
+                f"      - name: {RUNTIME_PROBE_STEP}",
+                '        run: python3 "$RUNNER_TEMP/gh-aw/bugfix-control/probe.py" --output "$RUNNER_TEMP/gh-aw/bugfix-control/runtime-proof.json"',
+            ])
+    return patched
 
 
 def insert_codex_reasoning_effort(lines: list[str]) -> tuple[list[str], int]:
@@ -263,6 +279,7 @@ def patch_lockfile(path: Path) -> bool:
     lines, env_count = insert_endpoint_env(lines)
     lines, reasoning_effort_count = insert_codex_reasoning_effort(lines)
     lines, detection_redaction_count = insert_detection_redaction(lines)
+    lines = insert_runtime_probe(lines)
     lines = [line.rstrip() for line in lines]
     while lines and lines[-1] == "":
         lines.pop()
@@ -277,7 +294,7 @@ def patch_lockfile(path: Path) -> bool:
         raise RuntimeError(f"{path} was not patched; Codex reasoning effort is missing")
     codex_commands = [line for line in lines if CODEX_EXEC_COMMAND in line]
     if not codex_commands or any(
-        override not in command for command in codex_commands for override in SINGLE_AGENT_OVERRIDES
+        override not in command for command in codex_commands for override in (*SINGLE_AGENT_OVERRIDES, HIGH_REASONING_OVERRIDE)
     ):
         raise RuntimeError(f"{path} was not patched; Codex delegation controls are missing")
 

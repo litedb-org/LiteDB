@@ -40,12 +40,19 @@ safe-outputs:
         return { success: true };
 engine:
   id: codex
+  version: "0.154.0"
   model: gpt-6-astra
+steps:
+  - name: Stage trusted runtime request probe
+    run: |
+      mkdir -p "$RUNNER_TEMP/gh-aw/bugfix-control"
+      cp .github/scripts/probe_gh_aw_reasoning.py "$RUNNER_TEMP/gh-aw/bugfix-control/probe.py"
 post-steps:
   - name: Validate canary evidence
     run: |
       python3 - <<'PY'
       import json
+      import os
       import subprocess
       from pathlib import Path
 
@@ -61,6 +68,8 @@ post-steps:
       status = subprocess.check_output(["git", "status", "--porcelain"], text=True)
       if status.strip():
           raise SystemExit("Canary changed the repository workspace")
+      proof = Path(os.environ["RUNNER_TEMP"]) / "gh-aw" / "bugfix-control" / "runtime-proof.json"
+      Path("/tmp/gh-aw/codex-runtime-proof.json").write_bytes(proof.read_bytes())
       print("Codex canary returned the expected regression contract")
       PY
   - name: Redact Codex endpoint artifacts
@@ -72,7 +81,9 @@ post-steps:
     uses: actions/upload-artifact@v4
     with:
       name: bugfix-agent-canary
-      path: /tmp/gh-aw/bugfix-canary.json
+      path: |
+        /tmp/gh-aw/bugfix-canary.json
+        /tmp/gh-aw/codex-runtime-proof.json
       if-no-files-found: error
       retention-days: 30
 ---

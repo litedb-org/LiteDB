@@ -13,6 +13,48 @@ from pathlib import Path
 
 
 ROLES = {"behavior", "compatibility", "lifecycle"}
+CODEX_VERSION = "0.154.0"
+
+
+def runtime_evidence(env: dict, required_model: str) -> tuple[dict, bytes]:
+    control = Path(env.get("RUNNER_TEMP", "/tmp")) / "gh-aw" / "bugfix-control"
+    proof_path = Path(env.get("BUGFIX_RUNTIME_PROOF", str(control / "runtime-proof.json")))
+    proof_bytes = proof_path.read_bytes()
+    require(len(proof_bytes) <= 16384, "Oversized runtime proof")
+    proof = json.loads(proof_bytes)
+    require(set(proof) == {"schema_version", "codex_version", "transport", "models"}, "Invalid runtime proof fields")
+    require(type(proof["schema_version"]) is int and proof["schema_version"] == 1, "Invalid runtime proof schema")
+    require(proof["codex_version"] == CODEX_VERSION and proof["transport"] == "local_stub", "Wrong runtime proof version or transport")
+    models = proof["models"]
+    require(isinstance(models, list) and len(models) == 2, "Runtime proof must cover both worker models")
+    for record in models:
+        require(isinstance(record, dict) and set(record) == {"model", "reasoning_effort", "requests_checked"}, "Invalid runtime request evidence")
+        require(record["reasoning_effort"] == "high", "Runtime proof lacks high reasoning")
+        require(type(record["requests_checked"]) is int and record["requests_checked"] > 0, "Runtime proof captured no requests")
+    require({record["model"] for record in models} == {"gpt-6-astra", "gpt-5.6-sol"}, "Runtime proof model set differs")
+
+    usage_path = Path(env.get("BUGFIX_AGENT_USAGE", "/tmp/gh-aw/agent_usage.json"))
+    usage = json.loads(usage_path.read_text(encoding="utf-8"))
+    require(usage.get("primary_model") == required_model, "Runtime primary model differs from required worker model")
+    reported_effort = usage.get("reasoning_effort")
+    require(not reported_effort or reported_effort == "high", "Runtime reasoning differs from required high effort")
+    token_path = Path(env.get("BUGFIX_TOKEN_USAGE", "/tmp/gh-aw/sandbox/firewall/logs/api-proxy-logs/token-usage.jsonl"))
+    records = [json.loads(line) for line in token_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    requests = [record for record in records if record.get("event") == "token_usage"]
+    require(bool(requests), "No actual runtime model request evidence")
+    require(all(record.get("model") == required_model for record in requests), "Runtime invoked a different model")
+    metadata = {
+        "runtime_proof_sha256": hashlib.sha256(proof_bytes).hexdigest(),
+        "codex_version": CODEX_VERSION,
+        "verified_reasoning_effort": "high",
+        "reasoning_verification": "local-request-capture",
+        "reported_model": usage["primary_model"],
+        "reported_reasoning_effort": reported_effort,
+        "observed_request_models": [required_model],
+        "observed_request_count": len(requests),
+        "accounted_ai_credits": max((record.get("ai_credits_total", 0) for record in requests), default=0),
+    }
+    return metadata, proof_bytes
 
 
 def git(repo: Path, *args: str) -> bytes:
@@ -98,10 +140,15 @@ def collect(repo: Path, manifest_path: Path, output: Path, env: dict) -> dict:
     require(not output.is_symlink() and not result_path.is_symlink(), "Evidence cannot use symbolic links")
     require(result_path.is_file() and result_path.stat().st_size <= 262144, "Missing or oversized worker result")
     require(not (output / "metadata.json").exists() and not (output / "metadata.json").is_symlink(), "Stale metadata must not be reused")
+    require(not (output / "runtime-proof.json").exists() and not (output / "runtime-proof.json").is_symlink(), "Worker must not supply the trusted runtime proof")
     result = json.loads(result_path.read_text(encoding="utf-8"))
     validate_result(result, expected)
+    required_model = "gpt-5.6-sol" if "role" in expected else "gpt-6-astra"
+    require(env.get("BUGFIX_MODEL") == required_model, "Unexpected worker model")
+    require(env.get("BUGFIX_REASONING_EFFORT") == "high", "Worker reasoning must be high")
+    runtime, proof_bytes = runtime_evidence(env, required_model)
     changed = git(repo, "diff", "--name-status", "--no-renames", "HEAD", "--").decode().splitlines()
-    metadata = {**expected, "kind": "review" if "role" in expected else "fix"}
+    metadata = {**expected, **runtime, "kind": "review" if "role" in expected else "fix"}
     if "role" in expected:
         require(not changed, "Review worker changed tracked files")
     else:
@@ -126,19 +173,7 @@ def collect(repo: Path, manifest_path: Path, output: Path, env: dict) -> dict:
     metadata["run_attempt"] = env.get("GITHUB_RUN_ATTEMPT", "")
     metadata["configured_model"] = env.get("BUGFIX_MODEL", "")
     metadata["configured_reasoning_effort"] = env.get("BUGFIX_REASONING_EFFORT", "")
-    required_model = "gpt-5.6-sol" if "role" in expected else "gpt-6-astra"
-    require(metadata["configured_model"] == required_model, "Unexpected worker model")
-    require(metadata["configured_reasoning_effort"] == "high", "Worker reasoning must be high")
-    usage_path = Path("/tmp/gh-aw/agent_usage.json")
-    if usage_path.is_file():
-        usage = json.loads(usage_path.read_text(encoding="utf-8"))
-        if isinstance(usage, dict):
-            metadata["reported_model"] = usage.get("model")
-            metadata["reported_reasoning_effort"] = usage.get("reasoning_effort")
-            require(not metadata["reported_model"] or metadata["reported_model"] == required_model,
-                    "Runtime model differs from required worker model")
-            require(not metadata["reported_reasoning_effort"] or metadata["reported_reasoning_effort"] == "high",
-                    "Runtime reasoning differs from required high effort")
+    (output / "runtime-proof.json").write_bytes(proof_bytes)
     (output / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
     return metadata
 

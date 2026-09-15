@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 from check_gh_aw_readonly import WORKERS, validate_readonly
-from patch_gh_aw_codex_endpoint import CODEX_EXEC_COMMAND, SINGLE_AGENT_OVERRIDES
+from patch_gh_aw_codex_endpoint import CODEX_EXEC_COMMAND, HIGH_REASONING_OVERRIDE, RUNTIME_PROBE_STEP, SINGLE_AGENT_OVERRIDES
 
 
 class ReadonlyWorkerTests(unittest.TestCase):
@@ -49,6 +49,12 @@ jobs:
                 commands = [line for line in text.splitlines() if CODEX_EXEC_COMMAND in line]
                 self.assertEqual(1, len(commands), "Each worker must have exactly one model process")
                 self.assertNotIn("agents.enabled", commands[0])
+                self.assertIn(HIGH_REASONING_OVERRIDE, commands[0])
+                install = text.index("npm install --ignore-scripts -g @openai/codex@0.154.0")
+                probe = text.index(f"name: {RUNTIME_PROBE_STEP}")
+                execute = text.index("name: Execute Codex CLI")
+                self.assertLess(install, probe)
+                self.assertLess(probe, execute)
                 for override in SINGLE_AGENT_OVERRIDES:
                     self.assertEqual(1, commands[0].count(override))
 

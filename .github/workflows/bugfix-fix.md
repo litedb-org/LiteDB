@@ -74,6 +74,7 @@ safe-outputs:
         return { success: true };
 engine:
   id: codex
+  version: "0.154.0"
   model: gpt-6-astra
 steps:
   - name: Prepare immutable worker contract
@@ -101,6 +102,7 @@ steps:
       for source, target in (
           (".github/scripts/collect_bugfix_worker.py", "collect.py"),
           (".github/scripts/redact_gh_aw_codex_artifacts.py", "redact.py"),
+          (".github/scripts/probe_gh_aw_reasoning.py", "probe.py"),
           ("scripts/bugfix/issues.json", "issues.json"),
       ):
           data = subprocess.check_output(["git", "show", f"{trusted_sha}:{source}"])
@@ -145,6 +147,7 @@ post-steps:
         /tmp/gh-aw/bugfix/patch.diff
         /tmp/gh-aw/bugfix/result.json
         /tmp/gh-aw/bugfix/metadata.json
+        /tmp/gh-aw/bugfix/runtime-proof.json
       if-no-files-found: error
       retention-days: 90
 ---

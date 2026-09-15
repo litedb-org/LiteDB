@@ -16,12 +16,31 @@ agents cannot inherit a different default model. Worker prompts also prohibit
 delegation or launching additional model processes. The controller continues to
 dispatch three independent review workflows with their explicit model settings.
 
-These switches were checked with the actual npm `@openai/codex@0.142.4` binary:
-`codex -c features.multi_agent=false -c features.multi_agent_v2=false features list`
-exits successfully and lists both features as disabled. This command does not
-invoke a model. The similarly named `agents.enabled=false` setting is not
-supported by that binary: it is parsed as an agent-role configuration and aborts
-startup. Do not infer settings support from a newer source checkout's schema.
+## Codex version and verified reasoning
+
+Workers pin npm `@openai/codex@0.154.0`, as requested by the user. The generated
+command explicitly supplies `-c model_reasoning_effort=high`. Model and effort
+are separate settings; the model name must remain `gpt-6-astra` or `gpt-5.6-sol`.
+See the [official configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference).
+
+Before inference, `probe_gh_aw_reasoning.py` checks the installed binary version
+and captures one harmless outgoing request for each model using a local HTTP
+stub. It requires both requests to contain `reasoning.effort: high`. This check
+uses no credentials or model inference and publishes only version, model,
+effort, and request count. Both models passed with the actual 0.154.0 binary;
+no reasoning-support override is needed.
+
+The proof resides in the runner's control directory, mounted read-only in the
+worker. Collection binds its digest into each fix/review artifact and checks
+actual API usage for the requested model. GitHub's step summary displays the
+verified model names and high reasoning explicitly.
+
+The old 0.142.4 binary did not recognize these aliases. Its fallback model
+metadata could suppress reasoning in requests despite high effort in TOML.
+The canary using that runtime was blocked. An earlier `agents.enabled=false`
+setting also aborted startup because that binary parsed it as an agent role.
+Runtime settings must be verified against the installed binary, not inferred
+from a different source checkout or the displayed model label.
 
 ## Artifact-only worker outputs
 
