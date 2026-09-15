@@ -377,6 +377,7 @@
           "level": "acceptance"
         },
         "request_id": "bf-c5c7b804d62c40b0a6e419f14a754380",
+        "run_id": 34988724926,
         "started_at": 1789486127.258154,
         "workflow": "bugfix-check.yml"
       },
