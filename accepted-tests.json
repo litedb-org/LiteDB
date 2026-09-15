@@ -1,5 +1,73 @@
 {
   "issues": {
+    "2839": {
+      "acceptance_profile": {
+        "base_sha": "79e5c69cb9e6a1bcc08e919c2993aaa5401148b7",
+        "candidate_sha": "824dfce9d27a6c0c7ea3890c1ecc9aff31833c83",
+        "checks": [
+          "focused",
+          "broad",
+          "production-build"
+        ],
+        "compatibility": false,
+        "contract_sha256": "3567de9002006cf1b7a1ca042262512bdc3dcd3c412ac81d01eaecc30707f6cf",
+        "diff_sha256": "a0b6f09b2522b3dd283dbdd6ed0ed6b43de9f9b868497eeeca56c6e2255328c7",
+        "issue": 2839,
+        "matched_rules": [
+          {
+            "path": "LiteDB/Client/Database/Collections/Aggregate.cs",
+            "rule": "reviewed-ordinary-issue-path"
+          }
+        ],
+        "matrix": [
+          {
+            "framework": "net8.0",
+            "os": "ubuntu-latest"
+          }
+        ],
+        "paths": [
+          "LiteDB/Client/Database/Collections/Aggregate.cs"
+        ],
+        "policy_sha256": "ce4d7731356b20f0da9dd860a17b1e39fb5fc957c28e86a54e101f2947a043fd",
+        "policy_version": "compressed-acceptance-v2",
+        "production_build": true,
+        "profile_sha256": "762f9a955e98f0282ce5a0f5661be569407aefdbb3dae2f6241c8ec0ed5f689b",
+        "required_environments": [],
+        "required_lanes": [
+          "bugfix-check-ubuntu-latest-net8.0"
+        ],
+        "schema_version": 1,
+        "targeted_test_filters": [],
+        "targeted_tests_covered_by_broad": true
+      },
+      "architecture_limitations": [],
+      "base_sha": "79e5c69cb9e6a1bcc08e919c2993aaa5401148b7",
+      "campaign": "sweep-2839-v2",
+      "candidate_sha": "824dfce9d27a6c0c7ea3890c1ecc9aff31833c83",
+      "candidate_tree_sha": "00facc6594371425575a0ece7c22b1019b1f1efa",
+      "coverage_gaps": [],
+      "final_matrix_status": "pending",
+      "target_jobs": [
+        "bugfix-check-ubuntu-latest-net8.0"
+      ],
+      "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "tests": [
+        "LiteDB.Tests.Issues.Issue2839_Tests.Count_Query_routes_the_exact_query_and_reads_an_Int32_result",
+        "LiteDB.Tests.Issues.Issue2839_Tests.LongCount_Query_routes_the_exact_query_and_preserves_Int64_width",
+        "LiteDB.Tests.Issues.Issue2839_Tests.LongCount_without_Query_preserves_an_engine_result_above_Int32"
+      ],
+      "validation_provenance": {
+        "acceptance_profile_sha256": "762f9a955e98f0282ce5a0f5661be569407aefdbb3dae2f6241c8ec0ed5f689b",
+        "base_sha": "79e5c69cb9e6a1bcc08e919c2993aaa5401148b7",
+        "baseline_run_id": 34997535368,
+        "candidate_run_id": 34998488756,
+        "candidate_sha": "824dfce9d27a6c0c7ea3890c1ecc9aff31833c83",
+        "check_workflow_sha": "ebf413d240e747ead603d5076bdff6d09a35ccf3",
+        "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+        "validation_scope": "per-fix",
+        "worker_review_workflow_sha": "ebf413d240e747ead603d5076bdff6d09a35ccf3"
+      }
+    },
     "2874": {
       "acceptance_profile": {
         "base_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",

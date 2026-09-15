@@ -1,5 +1,5 @@
 {
-  "active": true,
+  "active": false,
   "campaign": "sweep-2839-v2",
   "candidate_tree_sha": "00facc6594371425575a0ece7c22b1019b1f1efa",
   "evidence_prefix": "evidence/sweep-2839-v2/",
@@ -11,7 +11,8 @@
     "candidate_sha": "824dfce9d27a6c0c7ea3890c1ecc9aff31833c83",
     "check_workflow_sha": "ebf413d240e747ead603d5076bdff6d09a35ccf3"
   },
-  "phase": "prepared",
+  "integration_sha": "824dfce9d27a6c0c7ea3890c1ecc9aff31833c83",
+  "phase": "complete",
   "schema_version": 1,
   "token": "8259934c6e144a7bac286f443af071a0"
 }
