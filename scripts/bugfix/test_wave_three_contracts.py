@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "scripts/bugfix/issues.json"
 OBSERVED = json.loads((ROOT / "scripts/bugfix/fixtures/wave-three-baseline.json")
                       .read_text(encoding="utf-8"))
-COUNTS = {1159: (1, 1), 1224: (11, 1), 2858: (4, 1), 2864: (12, 2),
+COUNTS = {1159: (1, 1), 1224: (12, 1), 2858: (4, 1), 2864: (12, 2),
           2769: (7, 5), 2225: (1, 2), 2322: (2, 1), 2873: (2, 1)}
 
 

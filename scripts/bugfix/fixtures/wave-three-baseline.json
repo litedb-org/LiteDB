@@ -66,9 +66,10 @@
     "1224": {
       "source_blobs": {
         "LiteDB.Tests/Issues/Issue1224_Tests.cs": "5b88c28910e569bb635d8e08af0da9a5e2478375",
-        "LiteDB.Tests/Issues/Issue2869_Tests.cs": "75f14d75945fe6912b007b9698e8d38898b02413"
+        "LiteDB.Tests/Issues/Issue2869_Tests.cs": "75f14d75945fe6912b007b9698e8d38898b02413",
+        "LiteDB.Tests/Audit2026/ExpressionAuditRegression_Tests.cs": "44ef3f0f4c6893a3194369f5d163380a09083a21"
       },
-      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue1224_|FullyQualifiedName=LiteDB.Tests.Issues.Issue2869_Tests.Native_numeric_conversions_work_and_non_numeric_values_are_not_coerced",
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue1224_|FullyQualifiedName=LiteDB.Tests.Issues.Issue2869_Tests.Native_numeric_conversions_work_and_non_numeric_values_are_not_coerced|FullyQualifiedName=LiteDB.Tests.Audit2026.ExpressionAuditRegression_Tests.M111_uint64_round_trips_through_bson_value",
       "paths": [
         "LiteDB/Document/BsonValue.cs"
       ],
@@ -139,6 +140,11 @@
           "name": "LiteDB.Tests.Issues.Issue2869_Tests.Native_numeric_conversions_work_and_non_numeric_values_are_not_coerced",
           "outcome": "Passed",
           "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Audit2026.ExpressionAuditRegression_Tests.M111_uint64_round_trips_through_bson_value",
+          "outcome": "Failed",
+          "first_line": "System.InvalidCastException : Unable to cast object of type 'System.Double' to type 'System.UInt64'."
         }
       ]
     },

@@ -15,7 +15,7 @@ The manifest adds these eight definitions without changing the previous thirteen
 | Issue | Baseline red / controls | Required environments | Compatibility |
 | --- | --- | --- | --- |
 | #1159 | 1 / 1 | linux-x64-net8.0 | No |
-| #1224 | 11 / 1 | linux-x64-net8.0, linux-x64-net10.0 | Yes |
+| #1224 | 12 / 1 | linux-x64-net8.0, linux-x64-net10.0 | Yes |
 | #2858 | 4 / 1 | linux-x64-net8.0, linux-x64-net10.0, windows-x64-net8.0, windows-x64-net10.0 | Yes |
 | #2864 | 12 / 2 | linux-x64-net8.0 | Yes |
 | #2769 | 7 / 5 | linux-x64-net8.0, linux-x64-net10.0 | Yes |
@@ -45,7 +45,7 @@ Role-specific task instructions:
 
 ## #1224
 
-- Exact filter: `FullyQualifiedName~LiteDB.Tests.Issues.Issue1224_|FullyQualifiedName=LiteDB.Tests.Issues.Issue2869_Tests.Native_numeric_conversions_work_and_non_numeric_values_are_not_coerced`.
+- Exact filter: `FullyQualifiedName~LiteDB.Tests.Issues.Issue1224_|FullyQualifiedName=LiteDB.Tests.Issues.Issue2869_Tests.Native_numeric_conversions_work_and_non_numeric_values_are_not_coerced|FullyQualifiedName=LiteDB.Tests.Audit2026.ExpressionAuditRegression_Tests.M111_uint64_round_trips_through_bson_value`.
 - Allowed production paths: `LiteDB/Document/BsonValue.cs`.
 
 Both implicit UInt64 directions and typed indexed reopen fail. The separate #2869 control already proves native numeric conversions and rejection of non-numeric coercion. Freeze its original file and keep this accepted neighboring behavior permanently passing. Serialization of typed UInt64 already uses signed bits; the current implicit BsonValue operators lose or reject them.
@@ -63,6 +63,44 @@ Role-specific task instructions:
 
 - **behavior**: Preserve every UInt64 bit through Int64 BSON, including UInt64.MaxValue and the upper half. Keep native numeric conversions and non-numeric rejection. Review indexed equality, Id lookups and the accepted #2869 implicit widening fix.
 - **compatibility**: Compare old persisted BSON Double values from implicit ulong conversions with the new Int64 representation, including ulong values that fit Int64. Examine round-trip, index, equality and ordering effects for old and new documents. Inspect existing callers converting those BsonValues to double and interaction with #2869; satisfying IsInt64 alone is insufficient. Report legacy Double precision loss and evidence or limitations.
+
+### Explicit M111 behavioral co-repair
+
+The exact original `ExpressionAuditRegression_Tests.M111_uint64_round_trips_through_bson_value`
+case is now the twelfth required regression for #1224. It executes the public
+implicit UInt64 round trip at `UInt64.MaxValue`; it is behavior evidence and must
+be red with the recorded Double-to-UInt64 `InvalidCastException` on the fresh
+baseline and green on the candidate. Its frozen source blob is
+`44ef3f0f4c6893a3194369f5d163380a09083a21` at the original test revision.
+[The six-lane observation](../../../scripts/bugfix/fixtures/m111-co-repair-baseline.json)
+records run `34988724926`, each artifact ID, raw baseline TRX digest, actual
+platform/runtime, exact test identity and failure. All six agree. The prior
+11 regressions, positive control, production scope and required Linux net8/net10
+lanes are unchanged. Every other behavioral unexpected pass still blocks.
+
+All six accepted #2869 cases remain mandatory through the immutable passing
+ledger on both baseline and candidate. M111 joins #1224's permanent passing
+contract only after validated integration; this adds no separate issue credit.
+Guard111 stays outside that contract and has no source-observation allowance.
+Its comment/signature/open-brace context can remain unchanged when operator
+bodies are fixed. A cosmetic guard pass remains blocking and requires a separate
+audited decision, never behavioral credit.
+
+Compatibility review must distinguish previously stored Double values from new
+Int64 bit-preserving values. Precision already lost above 2^53 cannot be restored.
+Existing native Double callers and #2869's Int32 widening/non-numeric rejection
+must remain valid. Check `double` consumers of newly constructed ulong BsonValues:
+a naive change to signed Int64 widening would represent upper-half unsigned bits
+as negative values, while the disk representation cannot distinguish those bits
+from an ordinary signed Int64. Require evidence for legacy and new documents,
+indexed equality/order, small values and upper-half values; these are behavioral
+compatibility questions, not nits or a claim of automatic legacy recovery.
+
+This contract requires an explicit future-runtime handoff before starting #1224,
+using the then-current integration base and accepted-ledger snapshot. Do not
+rewrite an active v8 campaign or reuse its narrower baseline verdict. Keep the
+existing compressed profile (two required Linux lanes, production build and
+compatibility checks); run the original full matrix only at final promotion.
 
 ## #2858
 

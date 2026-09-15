@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "issue": 1224,
+  "source_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+  "original_contract_revision": "61ee4aec705024c189345de25508ea19ffc2584e",
+  "run_id": 34988724926,
+  "frozen_test_path": "LiteDB.Tests/Audit2026/ExpressionAuditRegression_Tests.cs",
+  "frozen_test_blob": "44ef3f0f4c6893a3194369f5d163380a09083a21",
+  "lanes": [
+    {
+      "id": 10405370121,
+      "name": "bugfix-check-ubuntu-latest-net8.0",
+      "baseline_trx_sha256": "a4d3b367c661fa8768fbb8668d4a8827713618fa3b488f15f02ca1607c8bd56b",
+      "environment": "linux-x64-net8.0",
+      "test_name": "LiteDB.Tests.Audit2026.ExpressionAuditRegression_Tests.M111_uint64_round_trips_through_bson_value",
+      "outcome": "Failed",
+      "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Double' to type 'System.UInt64'."
+    },
+    {
+      "id": 10405505060,
+      "name": "bugfix-check-ubuntu-latest-net10.0",
+      "baseline_trx_sha256": "d4d7854e6d5e036da9d1ad92ac4f5aebe0a23b8033fe5a50f9793dcf18cbe423",
+      "environment": "linux-x64-net10.0",
+      "test_name": "LiteDB.Tests.Audit2026.ExpressionAuditRegression_Tests.M111_uint64_round_trips_through_bson_value",
+      "outcome": "Failed",
+      "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Double' to type 'System.UInt64'."
+    },
+    {
+      "id": 10404073794,
+      "name": "bugfix-check-windows-latest-net8.0",
+      "baseline_trx_sha256": "931cbd570f47bf6a376f11dde76c0ecf1399f9d742acf0f90eeb9463d781bdf0",
+      "environment": "windows-x64-net8.0",
+      "test_name": "LiteDB.Tests.Audit2026.ExpressionAuditRegression_Tests.M111_uint64_round_trips_through_bson_value",
+      "outcome": "Failed",
+      "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Double' to type 'System.UInt64'."
+    },
+    {
+      "id": 10404574219,
+      "name": "bugfix-check-windows-latest-net10.0",
+      "baseline_trx_sha256": "789212a8598feb82270173bbc4b6e152682e4b1177a51ab6f7ad67d1dcc0c08e",
+      "environment": "windows-x64-net10.0",
+      "test_name": "LiteDB.Tests.Audit2026.ExpressionAuditRegression_Tests.M111_uint64_round_trips_through_bson_value",
+      "outcome": "Failed",
+      "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Double' to type 'System.UInt64'."
+    },
+    {
+      "id": 10405111338,
+      "name": "bugfix-check-macos-latest-net8.0",
+      "baseline_trx_sha256": "c069b53a2512adcd39c9ecf0bbf1d1329ff1371fa21228dbf4de3923340ee719",
+      "environment": "macos-arm64-net8.0",
+      "test_name": "LiteDB.Tests.Audit2026.ExpressionAuditRegression_Tests.M111_uint64_round_trips_through_bson_value",
+      "outcome": "Failed",
+      "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Double' to type 'System.UInt64'."
+    },
+    {
+      "id": 10405450249,
+      "name": "bugfix-check-macos-latest-net10.0",
+      "baseline_trx_sha256": "487ac255e77785b858569e7dbbd93a1e5422db470aae03c8c0d71741709b4e08",
+      "environment": "macos-arm64-net10.0",
+      "test_name": "LiteDB.Tests.Audit2026.ExpressionAuditRegression_Tests.M111_uint64_round_trips_through_bson_value",
+      "outcome": "Failed",
+      "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Double' to type 'System.UInt64'."
+    }
+  ],
+  "excluded_source_guard": {
+    "name": "LiteDB.Tests.Audit2026.AuditFindingSourceGuard_Tests.Audited_source_context_must_be_replaced(id: 111, file: \"LiteDB/Document/BsonValue.cs\", line: 368, title: \"UInt64 implicit conversions are asymmetric: BsonVa\"···, context: \"        // UInt64 (to avoid ambigous between Doubl\"···)",
+    "outcome": "Failed",
+    "failure_first_line": "Expected source.Contains(normalizedContext) to be False because finding 111 is still present at LiteDB/Document/BsonValue.cs:368: UInt64 implicit conversions are asymmetric: BsonValue stores a Double but the reverse cast unboxes a UInt64, throwing InvalidCastException on round trip, but found True."
+  }
+}

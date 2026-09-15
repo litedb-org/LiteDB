@@ -690,9 +690,10 @@
       "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
       "frozen_test_blobs": {
         "LiteDB.Tests/Issues/Issue1224_Tests.cs": "5b88c28910e569bb635d8e08af0da9a5e2478375",
-        "LiteDB.Tests/Issues/Issue2869_Tests.cs": "75f14d75945fe6912b007b9698e8d38898b02413"
+        "LiteDB.Tests/Issues/Issue2869_Tests.cs": "75f14d75945fe6912b007b9698e8d38898b02413",
+        "LiteDB.Tests/Audit2026/ExpressionAuditRegression_Tests.cs": "44ef3f0f4c6893a3194369f5d163380a09083a21"
       },
-      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue1224_|FullyQualifiedName=LiteDB.Tests.Issues.Issue2869_Tests.Native_numeric_conversions_work_and_non_numeric_values_are_not_coerced",
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue1224_|FullyQualifiedName=LiteDB.Tests.Issues.Issue2869_Tests.Native_numeric_conversions_work_and_non_numeric_values_are_not_coerced|FullyQualifiedName=LiteDB.Tests.Audit2026.ExpressionAuditRegression_Tests.M111_uint64_round_trips_through_bson_value",
       "environments": [
         "linux-x64-net8.0",
         "windows-x64-net8.0",
@@ -754,6 +755,10 @@
         {
           "name": "LiteDB.Tests.Issues.Issue1224_Tests.Upper_half_UInt64_values_survive_typed_reopen_and_indexed_queries",
           "failure_first_line": "Assert.NotNull() Failure: Value is null"
+        },
+        {
+          "name": "LiteDB.Tests.Audit2026.ExpressionAuditRegression_Tests.M111_uint64_round_trips_through_bson_value",
+          "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Double' to type 'System.UInt64'."
         }
       ],
       "controls": [
@@ -763,10 +768,12 @@
       ],
       "review_requirements": {
         "behavior": [
-          "Preserve every UInt64 bit through Int64 BSON, including UInt64.MaxValue and the upper half. Keep native numeric conversions and non-numeric rejection. Review indexed equality, Id lookups and the accepted #2869 implicit widening fix."
+          "Preserve every UInt64 bit through Int64 BSON, including UInt64.MaxValue and the upper half. Keep native numeric conversions and non-numeric rejection. Review indexed equality, Id lookups and the accepted #2869 implicit widening fix.",
+          "M111 is an explicit behavioral co-repair: the original UInt64.MaxValue implicit round trip must pass alongside all eleven #1224 cases. Keep all six permanently accepted #2869 conversion cases passing; source guard111 is not a behavioral target and has no unexpected-pass allowance."
         ],
         "compatibility": [
-          "Compare old persisted BSON Double values from implicit ulong conversions with the new Int64 representation, including ulong values that fit Int64. Examine round-trip, index, equality and ordering effects for old and new documents. Inspect existing callers converting those BsonValues to double and interaction with #2869; satisfying IsInt64 alone is insufficient. Report legacy Double precision loss and evidence or limitations."
+          "Compare old persisted BSON Double values from implicit ulong conversions with the new Int64 representation, including ulong values that fit Int64. Examine round-trip, index, equality and ordering effects for old and new documents. Inspect existing callers converting those BsonValues to double and interaction with #2869; satisfying IsInt64 alone is insufficient. Report legacy Double precision loss and evidence or limitations.",
+          "Old implicit UInt64 values were stored as BSON Double; precision already lost above 2^53 cannot be recovered. Preserve existing native Double callers and accepted Int32 widening/non-numeric rejection. Check existing double consumers of newly implicit ulong BsonValues, including values within Int64 and the upper half: merely adding a signed Int64-to-double cast may change positive unsigned magnitudes into negative values. Ordinary signed Int64 and unsigned bit patterns are indistinguishable on disk. Require explicit evidence for legacy/new persisted values, index/equality/order behavior and caller compatibility; do not claim exact legacy recovery or accept unresolved behavior changes as nits."
         ]
       }
     },
