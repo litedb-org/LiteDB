@@ -53,7 +53,7 @@ def main():
             {"type": "input_text", "text": "Check the connection."}]}],
         "store": False,
         "stream": True,
-        "reasoning": {"effort": "low"},
+        "reasoning": {"effort": "high"},
     }
     request = urllib.request.Request(
         endpoint + "/responses", data=json.dumps(payload).encode(),

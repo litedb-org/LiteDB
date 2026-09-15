@@ -1,5 +1,6 @@
 ---
 name: Wholesale bugfix validation worker
+run-name: Bugfix review ${{ inputs.request_id || 'registration' }}
 description: Independently review one immutable candidate from one assigned perspective.
 on:
   push:
@@ -9,6 +10,11 @@ on:
       - .github/workflows/bugfix-validate.lock.yml
   workflow_dispatch:
     inputs:
+      request_id:
+        description: Controller correlation ID
+        required: false
+        default: ""
+        type: string
       issue:
         description: Eligible issue number
         required: true

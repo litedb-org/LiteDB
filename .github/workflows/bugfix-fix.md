@@ -1,5 +1,6 @@
 ---
 name: Wholesale bugfix fix worker
+run-name: Bugfix fix ${{ inputs.request_id || 'registration' }}
 description: Propose one restricted production patch for a confirmed regression.
 on:
   push:
@@ -9,6 +10,11 @@ on:
       - .github/workflows/bugfix-fix.lock.yml
   workflow_dispatch:
     inputs:
+      request_id:
+        description: Controller correlation ID
+        required: false
+        default: ""
+        type: string
       issue:
         description: Eligible issue number
         required: true

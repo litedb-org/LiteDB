@@ -1,5 +1,5 @@
 name: Wholesale bugfix checks
-run-name: Bugfix ${{ inputs.issue || '2874' }} ${{ inputs.level || 'baseline' }} ${{ inputs.candidate_sha || inputs.base_sha || github.sha }}
+run-name: Bugfix ${{ inputs.request_id || 'registration' }} ${{ inputs.issue || '2874' }} ${{ inputs.level || 'baseline' }}
 
 on:
   push:
@@ -11,6 +11,9 @@ on:
       - scripts/bugfix/**
   workflow_dispatch:
     inputs:
+      request_id:
+        type: string
+        default: ''
       issue:
         type: string
         default: '2874'

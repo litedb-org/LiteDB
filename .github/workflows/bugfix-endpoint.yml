@@ -2,6 +2,11 @@ name: Bugfix endpoint canary
 
 on:
   workflow_dispatch:
+    inputs:
+      model:
+        type: choice
+        options: [gpt-6-astra, gpt-5.6-sol]
+        default: gpt-6-astra
   push:
     branches: [automation/wholesale-bugfix]
     paths:
@@ -23,5 +28,5 @@ jobs:
         env:
           CODEX_LB_BASE_URL: ${{ secrets.CODEX_LB_BASE_URL }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          CANARY_MODEL: ${{ vars.GH_AW_MODEL_AGENT_CODEX }}
+          CANARY_MODEL: ${{ inputs.model || vars.GH_AW_MODEL_AGENT_CODEX }}
         run: python3 .github/scripts/probe_codex_endpoint.py
