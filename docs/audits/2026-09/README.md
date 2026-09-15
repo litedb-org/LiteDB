@@ -64,10 +64,12 @@ case in the audited code.
 | 177 | [#2815](https://github.com/litedb-org/LiteDB/issues/2815) — read-only disposal opens/deletes the log |
 | 199 | [#2843](https://github.com/litedb-org/LiteDB/issues/2843) — shell loop at unterminated EOF |
 
-The open draft [#2877](https://github.com/litedb-org/LiteDB/pull/2877)
-already contains regression commits for many of these issue threads. This PR is
-therefore complementary as an audit ledger, not a claim that all 34 reports are
-new.
+The issue-regression work in [#2885](https://github.com/litedb-org/LiteDB/pull/2885),
+which supersedes closed draft #2877, contains regression commits for many of
+these issue threads. The issue inventory and this audit ledger are consolidated
+in that pull request but remain separate because they use different identifiers
+and validation semantics. The audit is complementary, not a claim that all 34
+reports are new.
 
 ### Existing umbrella or post-fix follow-up (21 findings)
 
@@ -76,7 +78,7 @@ new.
 | 26, 27, 31, 99, 102, 103, 195 | [#2881](https://github.com/litedb-org/LiteDB/issues/2881) and merged [#2882](https://github.com/litedb-org/LiteDB/pull/2882); these are residual vector cases found against the post-merge code |
 | 37 | [#2767](https://github.com/litedb-org/LiteDB/issues/2767) and [#2717](https://github.com/litedb-org/LiteDB/pull/2717) cover short reads, but not stale pooled-page publication |
 | 48 | [#2869](https://github.com/litedb-org/LiteDB/issues/2869) and [#2833](https://github.com/litedb-org/LiteDB/issues/2833) cover numeric type fidelity, but not the mapper setter path |
-| 52 | [#2770](https://github.com/litedb-org/LiteDB/issues/2770), [#2322](https://github.com/litedb-org/LiteDB/issues/2322), and [#2877](https://github.com/litedb-org/LiteDB/pull/2877) cover enum-expression failures, but not unnamed flags combinations |
+| 52 | [#2770](https://github.com/litedb-org/LiteDB/issues/2770), [#2322](https://github.com/litedb-org/LiteDB/issues/2322), and [#2885](https://github.com/litedb-org/LiteDB/pull/2885) cover enum-expression failures, but not unnamed flags combinations |
 | 62, 64, 139, 140 | [#2787](https://github.com/litedb-org/LiteDB/issues/2787), [#2790](https://github.com/litedb-org/LiteDB/issues/2790), and [#2848](https://github.com/litedb-org/LiteDB/issues/2848) cover shared/transaction cleanup; these are distinct exception paths |
 | 69 | [#2777](https://github.com/litedb-org/LiteDB/issues/2777) describes the known password-verification block and missing integrity; the all-zero bypass is a new concrete case |
 | 73 | [#2797](https://github.com/litedb-org/LiteDB/issues/2797) and [#2506](https://github.com/litedb-org/LiteDB/issues/2506) cover LIKE and the parameterized FileStorage query, but not null/non-string indexed parameters |
@@ -106,9 +108,9 @@ an old comment may not appear in this classification.
 
 ## Attached audit evidence
 
-- [Narrative audit](https://github.com/JKamsker/LiteDB/blob/codex/audit-2026-regression-tests/docs/audits/2026-09/code-audit-2026-09.md)
-- [Complete findings ledger](https://github.com/JKamsker/LiteDB/blob/codex/audit-2026-regression-tests/docs/audits/2026-09/findings-full.json)
-- [Independent SQL LIKE reference port](https://github.com/JKamsker/LiteDB/blob/codex/audit-2026-regression-tests/docs/audits/2026-09/sqllike_port.py)
+- [Narrative audit](code-audit-2026-09.md)
+- [Complete findings ledger](findings-full.json)
+- [Independent SQL LIKE reference port](sqllike_port.py)
 
 The committed copies are byte-for-byte identical to the supplied attachments.
 

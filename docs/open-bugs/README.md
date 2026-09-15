@@ -5,6 +5,11 @@ Historical/platform follow-up: **2026-09-15**. All 135 defect-related reports ar
 accounted for below. Every issue has its own commit; production `LiteDB/` sources
 remain unchanged from **`a50661a9d1a25b5713586d0096c6325d76bf5dfe`** (`dev`).
 
+The complementary [September 2026 code-audit ledger](../audits/2026-09/README.md)
+tracks 170 canonical audit findings with its own finding IDs, behavioral tests,
+and bounded source guards. It is kept separate from this issue inventory so an
+audit finding is not mistaken for an issue report or counted twice.
+
 ## Does every bug have a proving test?
 
 **No.** The 112 bug-labelled/titled reports now divide as follows:
