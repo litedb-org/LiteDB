@@ -1,18 +1,15 @@
 {
-  "active": false,
-  "campaign": "expansion-v7-2869",
-  "candidate_tree_sha": "c855e4d020184c70322574c529b6e91d20468f94",
-  "evidence_prefix": "evidence/expansion-v7-2869/",
+  "active": true,
+  "campaign": "expansion-v8-1506",
   "identity": {
-    "acceptance_profile_sha256": "3c0e9d4a61c8fac040aec8f76de879b527c29afcc582d07ddd3c97a249864807",
-    "acceptance_run": 35002677408,
-    "base_sha": "824dfce9d27a6c0c7ea3890c1ecc9aff31833c83",
-    "campaign": "expansion-v7-2869",
-    "candidate_sha": "781b3291ee0d6aa7a08e05955545fdf4d03763dc",
-    "check_workflow_sha": "d020aceb92799d9325a2f47669d1d39e5d700248"
+    "acceptance_profile_sha256": "3fd866b1cc8256f24d02883a6ec1f697a32fad38cc749764ba01a189a92c1873",
+    "acceptance_run": 35006858578,
+    "base_sha": "781b3291ee0d6aa7a08e05955545fdf4d03763dc",
+    "campaign": "expansion-v8-1506",
+    "candidate_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+    "check_workflow_sha": "61ee4aec705024c189345de25508ea19ffc2584e"
   },
-  "integration_sha": "781b3291ee0d6aa7a08e05955545fdf4d03763dc",
-  "phase": "complete",
+  "phase": "acquired",
   "schema_version": 1,
-  "token": "910cfa0622274132b4d3183b3a6b7971"
+  "token": "80bc7c68b2e74906aec4ee264be95dc8"
 }
