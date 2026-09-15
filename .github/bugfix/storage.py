@@ -13,16 +13,17 @@ from state import Rejected, require
 STATE_BRANCH = "automation/bugfix-state"
 
 
-def run(command, cwd=None, input_text=None):
+def run(command, cwd=None, input_text=None, infrastructure=False):
     result = subprocess.run(command, cwd=cwd, input=input_text, text=True, encoding="utf-8",
                             capture_output=True, check=False)
     if result.returncode:
-        raise InfrastructureError(f"Command failed ({result.returncode}): {result.stderr.strip()}")
+        error = InfrastructureError if infrastructure else Rejected
+        raise error(f"Command failed ({result.returncode}): {result.stderr.strip()}")
     return result.stdout.strip()
 
 
 def github(repo, path):
-    raw = run(["gh", "api", f"repos/{repo}/{path}"])
+    raw = run(["gh", "api", f"repos/{repo}/{path}"], infrastructure=True)
     try:
         value = json.loads(raw)
         if not isinstance(value, (dict, list)):
@@ -103,7 +104,8 @@ class Store:
         with tempfile.TemporaryDirectory(prefix="litedb-bugfix-state-") as directory:
             def git(*args):
                 return run(["git", "-c", "credential.helper=", "-c",
-                            "credential.helper=!gh auth git-credential", *args], cwd=directory)
+                            "credential.helper=!gh auth git-credential", *args], cwd=directory,
+                           infrastructure=args[0] in ("fetch", "push", "ls-remote"))
 
             git("init", "--quiet")
             git("remote", "add", "origin", f"https://github.com/{self.repo}.git")

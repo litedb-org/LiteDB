@@ -93,7 +93,8 @@ class IntegrationStore:
 
             def git(*arguments):
                 return run(["git", "-c", "credential.helper=", "-c",
-                            "credential.helper=!gh auth git-credential", *arguments], cwd=root)
+                            "credential.helper=!gh auth git-credential", *arguments], cwd=root,
+                           infrastructure=arguments[0] in ("fetch", "push", "ls-remote"))
 
             git("init", "--quiet")
             git("remote", "add", "origin", f"https://github.com/{self.repo}.git")

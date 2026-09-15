@@ -24,7 +24,8 @@ class CandidateConflict(Rejected):
 
 def git(repository, *arguments):
     return run(["git", "-C", str(repository), "-c", "credential.helper=", "-c",
-                "credential.helper=!gh auth git-credential", *map(str, arguments)])
+                "credential.helper=!gh auth git-credential", *map(str, arguments)],
+               infrastructure=arguments[0] in ("fetch", "push", "ls-remote"))
 
 
 def commit_candidate(repository, message):
