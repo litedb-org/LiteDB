@@ -33,7 +33,7 @@ class WaveFourContracts(unittest.TestCase):
             "git", "-C", str(ROOT), "show", "58440a15d433caacbd44af2599127f9f3e13b6f4"]))
         current = json.loads(MANIFEST.read_text(encoding="utf-8"))
         self.assertEqual(21, len(previous["issues"]))
-        self.assertEqual(set(previous["issues"]) | {str(number) for number in COUNTS} | {"2860", "2870"},
+        self.assertEqual(set(previous["issues"]) | {str(number) for number in COUNTS} | {"2860", "2870", "2367"},
                          set(current["issues"]))
         approved_m111 = json.loads(subprocess.check_output([
             "git", "-C", str(ROOT), "show",
@@ -132,10 +132,12 @@ class WaveFourContracts(unittest.TestCase):
 
     def test_held_guards_and_environment_difference_are_not_authorized(self):
         current = json.loads(MANIFEST.read_text(encoding="utf-8"))
-        for number in (2801, 2767, 2819, 2367):
+        for number in (2801, 2767, 2819):
             self.assertNotIn(str(number), current["issues"])
             self.assertTrue(OBSERVED["held"][str(number)]["source_guard_ids"])
         self.assertTrue(OBSERVED["held"]["2367"]["lane_differences"])
+        self.assertIn("focused_baseline", current["issues"]["2367"])
+        self.assertNotIn("source_context_observations", current["issues"]["2367"])
         for number in COUNTS:
             self.assertNotIn("source_context_observations", current["issues"][str(number)])
 

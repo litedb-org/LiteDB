@@ -396,3 +396,7 @@ The queue covers ten additional deterministic reproduced reports, not the comple
 ## Fourth bounded preparation
 
 See [WAVE-4.md](WAVE-4.md) for four further exact contracts (#2746/#2807/#1829/#1444), preserved six-lane evidence, compact profiles and held source-observation/environment candidates.
+
+## Environment-aware #2367 preparation
+
+See [ISSUE-2367.md](ISSUE-2367.md) for exact runtime-specific evidence, two executed neighboring controls and the remaining source-guard review boundary.

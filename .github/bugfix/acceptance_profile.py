@@ -11,8 +11,9 @@ import sys
 
 
 POLICY = {
-    "version": "compressed-acceptance-v5",
+    "version": "compressed-acceptance-v6",
     "ordinary_pairs": {
+        "2367": ["LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs"],
         "2807": ["LiteDB/Client/Structures/Query.cs"],
         "1829": ["LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs"],
         "1159": ["LiteDB/Client/Mapper/EntityBuilder.cs"],

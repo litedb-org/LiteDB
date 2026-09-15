@@ -1,0 +1,210 @@
+{
+  "schema_version": 1,
+  "source_run_id": 34988724926,
+  "source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+  "repeat_candidate_sha": "79e5c69cb9e6a1bcc08e919c2993aaa5401148b7",
+  "workflow_sha": "7629236e73bde318e934509244c3e61ef820d8db",
+  "failure_normalization_sha256": "d4c510bf1504ec8298e0f231548fde8e67a929f7a3ccca9c6ec21a1a89571a36",
+  "artifacts": [
+    {
+      "id": 10405370121,
+      "name": "bugfix-check-ubuntu-latest-net8.0",
+      "baseline_trx_sha256": "a4d3b367c661fa8768fbb8668d4a8827713618fa3b488f15f02ca1607c8bd56b",
+      "environment": "linux-x64-net8.0",
+      "repeat_candidate_trx_sha256": "167eb02e1001d29571ed81d0cae3efae66516b079b78169b2445d765d58f4d88"
+    },
+    {
+      "id": 10405505060,
+      "name": "bugfix-check-ubuntu-latest-net10.0",
+      "baseline_trx_sha256": "d4d7854e6d5e036da9d1ad92ac4f5aebe0a23b8033fe5a50f9793dcf18cbe423",
+      "environment": "linux-x64-net10.0",
+      "repeat_candidate_trx_sha256": "06e8fd06f3069730ba19b93580856134a5514ae5b6d88862e9436499f8d8849b"
+    },
+    {
+      "id": 10404073794,
+      "name": "bugfix-check-windows-latest-net8.0",
+      "baseline_trx_sha256": "931cbd570f47bf6a376f11dde76c0ecf1399f9d742acf0f90eeb9463d781bdf0",
+      "environment": "windows-x64-net8.0",
+      "repeat_candidate_trx_sha256": "341cb8549c8b485af5375dc4e1260016406570c25b34b8005a1b51cb62af57c6"
+    },
+    {
+      "id": 10404574219,
+      "name": "bugfix-check-windows-latest-net10.0",
+      "baseline_trx_sha256": "789212a8598feb82270173bbc4b6e152682e4b1177a51ab6f7ad67d1dcc0c08e",
+      "environment": "windows-x64-net10.0",
+      "repeat_candidate_trx_sha256": "9d6ab521cbee8ca0390c9b1d54c7bb11a415ad5f1ac8b43972d09f632e09bf42"
+    },
+    {
+      "id": 10405111338,
+      "name": "bugfix-check-macos-latest-net8.0",
+      "baseline_trx_sha256": "c069b53a2512adcd39c9ecf0bbf1d1329ff1371fa21228dbf4de3923340ee719",
+      "environment": "macos-arm64-net8.0",
+      "repeat_candidate_trx_sha256": "0bba29b9d0a80d9bb804d3b9e5d3228468d0a6d900c7004201c54981391a18dd"
+    },
+    {
+      "id": 10405450249,
+      "name": "bugfix-check-macos-latest-net10.0",
+      "baseline_trx_sha256": "487ac255e77785b858569e7dbbd93a1e5422db470aae03c8c0d71741709b4e08",
+      "environment": "macos-arm64-net10.0",
+      "repeat_candidate_trx_sha256": "0e97ba85d8c32b48def91f249511913e247a5dd50fd588a1829f6b09d47451df"
+    }
+  ],
+  "cases": {
+    "LiteDB.Tests.Issues.Issue2367_Tests.Captured_element_date_member_matches_CLR_and_tracks_changed_values(kind: \"array\")": {
+      "test_id": "78165f0a-0c44-8165-e5b0-d01e281d14b9",
+      "class_name": "LiteDB.Tests.Issues.Issue2367_Tests",
+      "observed_by_environment": {
+        "linux-x64-net8.0": {
+          "outcome": "Failed",
+          "canonical_failure": "System.Reflection.TargetException : Object does not match target type."
+        },
+        "linux-x64-net10.0": {
+          "outcome": "Failed",
+          "canonical_failure": "System.Reflection.TargetException : Object type LiteDB.Tests.Issues.Issue2367_Tests+Video does not match target type LiteDB.Tests.Issues.Issue2367_Tests+Video[]."
+        },
+        "windows-x64-net8.0": {
+          "outcome": "Failed",
+          "canonical_failure": "System.Reflection.TargetException : Object does not match target type."
+        },
+        "windows-x64-net10.0": {
+          "outcome": "Failed",
+          "canonical_failure": "System.Reflection.TargetException : Object type LiteDB.Tests.Issues.Issue2367_Tests+Video does not match target type LiteDB.Tests.Issues.Issue2367_Tests+Video[]."
+        },
+        "macos-arm64-net8.0": {
+          "outcome": "Failed",
+          "canonical_failure": "System.Reflection.TargetException : Object does not match target type."
+        },
+        "macos-arm64-net10.0": {
+          "outcome": "Failed",
+          "canonical_failure": "System.Reflection.TargetException : Object type LiteDB.Tests.Issues.Issue2367_Tests+Video does not match target type LiteDB.Tests.Issues.Issue2367_Tests+Video[]."
+        }
+      }
+    },
+    "LiteDB.Tests.Issues.Issue2367_Tests.Captured_element_date_member_matches_CLR_and_tracks_changed_values(kind: \"dictionary\")": {
+      "test_id": "9918e282-9732-6472-1dcf-01cf2f283b51",
+      "class_name": "LiteDB.Tests.Issues.Issue2367_Tests",
+      "observed_by_environment": {
+        "linux-x64-net8.0": {
+          "outcome": "Failed",
+          "canonical_failure": "System.Reflection.TargetException : Object does not match target type."
+        },
+        "linux-x64-net10.0": {
+          "outcome": "Failed",
+          "canonical_failure": "System.Reflection.TargetException : Object type LiteDB.Tests.Issues.Issue2367_Tests+Video does not match target type System.Collections.Generic.Dictionary`2[System.String,LiteDB.Tests.Issues.Issue2367_Tests+Video]."
+        },
+        "windows-x64-net8.0": {
+          "outcome": "Failed",
+          "canonical_failure": "System.Reflection.TargetException : Object does not match target type."
+        },
+        "windows-x64-net10.0": {
+          "outcome": "Failed",
+          "canonical_failure": "System.Reflection.TargetException : Object type LiteDB.Tests.Issues.Issue2367_Tests+Video does not match target type System.Collections.Generic.Dictionary`2[System.String,LiteDB.Tests.Issues.Issue2367_Tests+Video]."
+        },
+        "macos-arm64-net8.0": {
+          "outcome": "Failed",
+          "canonical_failure": "System.Reflection.TargetException : Object does not match target type."
+        },
+        "macos-arm64-net10.0": {
+          "outcome": "Failed",
+          "canonical_failure": "System.Reflection.TargetException : Object type LiteDB.Tests.Issues.Issue2367_Tests+Video does not match target type System.Collections.Generic.Dictionary`2[System.String,LiteDB.Tests.Issues.Issue2367_Tests+Video]."
+        }
+      }
+    },
+    "LiteDB.Tests.Issues.Issue2367_Tests.Captured_element_date_member_matches_CLR_and_tracks_changed_values(kind: \"list\")": {
+      "test_id": "b194e37f-e501-19e4-52fb-54c02d27dce7",
+      "class_name": "LiteDB.Tests.Issues.Issue2367_Tests",
+      "observed_by_environment": {
+        "linux-x64-net8.0": {
+          "outcome": "Failed",
+          "canonical_failure": "System.Reflection.TargetException : Object does not match target type."
+        },
+        "linux-x64-net10.0": {
+          "outcome": "Failed",
+          "canonical_failure": "System.Reflection.TargetException : Object type LiteDB.Tests.Issues.Issue2367_Tests+Video does not match target type System.Collections.Generic.List`1[LiteDB.Tests.Issues.Issue2367_Tests+Video]."
+        },
+        "windows-x64-net8.0": {
+          "outcome": "Failed",
+          "canonical_failure": "System.Reflection.TargetException : Object does not match target type."
+        },
+        "windows-x64-net10.0": {
+          "outcome": "Failed",
+          "canonical_failure": "System.Reflection.TargetException : Object type LiteDB.Tests.Issues.Issue2367_Tests+Video does not match target type System.Collections.Generic.List`1[LiteDB.Tests.Issues.Issue2367_Tests+Video]."
+        },
+        "macos-arm64-net8.0": {
+          "outcome": "Failed",
+          "canonical_failure": "System.Reflection.TargetException : Object does not match target type."
+        },
+        "macos-arm64-net10.0": {
+          "outcome": "Failed",
+          "canonical_failure": "System.Reflection.TargetException : Object type LiteDB.Tests.Issues.Issue2367_Tests+Video does not match target type System.Collections.Generic.List`1[LiteDB.Tests.Issues.Issue2367_Tests+Video]."
+        }
+      }
+    },
+    "LiteDB.Tests.Mapper.LinqEval_Tests.Linq_Document_Navigation_Eval": {
+      "test_id": "eec71867-75d2-2c81-ca69-df42e9c652c5",
+      "class_name": "LiteDB.Tests.Mapper.LinqEval_Tests",
+      "observed_by_environment": {
+        "linux-x64-net8.0": {
+          "outcome": "Passed",
+          "canonical_failure": ""
+        },
+        "linux-x64-net10.0": {
+          "outcome": "Passed",
+          "canonical_failure": ""
+        },
+        "windows-x64-net8.0": {
+          "outcome": "Passed",
+          "canonical_failure": ""
+        },
+        "windows-x64-net10.0": {
+          "outcome": "Passed",
+          "canonical_failure": ""
+        },
+        "macos-arm64-net8.0": {
+          "outcome": "Passed",
+          "canonical_failure": ""
+        },
+        "macos-arm64-net10.0": {
+          "outcome": "Passed",
+          "canonical_failure": ""
+        }
+      }
+    },
+    "LiteDB.Tests.Mapper.LinqEval_Tests.Linq_Math_Eval": {
+      "test_id": "ff7d30de-c604-45f9-9f00-132e3ac39f4f",
+      "class_name": "LiteDB.Tests.Mapper.LinqEval_Tests",
+      "observed_by_environment": {
+        "linux-x64-net8.0": {
+          "outcome": "Passed",
+          "canonical_failure": ""
+        },
+        "linux-x64-net10.0": {
+          "outcome": "Passed",
+          "canonical_failure": ""
+        },
+        "windows-x64-net8.0": {
+          "outcome": "Passed",
+          "canonical_failure": ""
+        },
+        "windows-x64-net10.0": {
+          "outcome": "Passed",
+          "canonical_failure": ""
+        },
+        "macos-arm64-net8.0": {
+          "outcome": "Passed",
+          "canonical_failure": ""
+        },
+        "macos-arm64-net10.0": {
+          "outcome": "Passed",
+          "canonical_failure": ""
+        }
+      }
+    }
+  },
+  "source_blobs": {
+    "LiteDB.Tests/Issues/Issue2367_Tests.cs": "685e88b9f143473995b39bcdcb9d769dfd613017",
+    "LiteDB.Tests/Mapper/LinqEval_Tests.cs": "ed40e4af19ba2fd516cb3f46baa880e8bcbc2874"
+  },
+  "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue2367_|FullyQualifiedName=LiteDB.Tests.Mapper.LinqEval_Tests.Linq_Math_Eval|FullyQualifiedName=LiteDB.Tests.Mapper.LinqEval_Tests.Linq_Document_Navigation_Eval",
+  "repeat_matches_baseline": true
+}

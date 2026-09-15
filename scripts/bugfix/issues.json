@@ -2285,6 +2285,263 @@
           "Preserve the exact thrown exception object, message, and original no-inline source frame at every query, wait, and file-reader rethrow site. Retain read counts, error-ledger behavior, healthy query enumeration, lock handling, and persisted file-reader controls."
         ]
       }
+    },
+    "2367": {
+      "inventory_issue": 2367,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2367_Tests.cs": "685e88b9f143473995b39bcdcb9d769dfd613017",
+        "LiteDB.Tests/Mapper/LinqEval_Tests.cs": "ed40e4af19ba2fd516cb3f46baa880e8bcbc2874"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue2367_|FullyQualifiedName=LiteDB.Tests.Mapper.LinqEval_Tests.Linq_Math_Eval|FullyQualifiedName=LiteDB.Tests.Mapper.LinqEval_Tests.Linq_Document_Navigation_Eval",
+      "environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net8.0",
+        "windows-x64-net10.0",
+        "macos-arm64-net8.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs"
+      ],
+      "focused_baseline": {
+        "schema_version": 1,
+        "source_run_id": 34988724926,
+        "source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+        "repeat_candidate_sha": "79e5c69cb9e6a1bcc08e919c2993aaa5401148b7",
+        "workflow_sha": "7629236e73bde318e934509244c3e61ef820d8db",
+        "failure_normalization_sha256": "d4c510bf1504ec8298e0f231548fde8e67a929f7a3ccca9c6ec21a1a89571a36",
+        "artifacts": {
+          "linux-x64-net8.0": {
+            "artifact_id": 10405370121,
+            "artifact_name": "bugfix-check-ubuntu-latest-net8.0",
+            "baseline_trx_sha256": "a4d3b367c661fa8768fbb8668d4a8827713618fa3b488f15f02ca1607c8bd56b",
+            "repeat_candidate_trx_sha256": "167eb02e1001d29571ed81d0cae3efae66516b079b78169b2445d765d58f4d88"
+          },
+          "linux-x64-net10.0": {
+            "artifact_id": 10405505060,
+            "artifact_name": "bugfix-check-ubuntu-latest-net10.0",
+            "baseline_trx_sha256": "d4d7854e6d5e036da9d1ad92ac4f5aebe0a23b8033fe5a50f9793dcf18cbe423",
+            "repeat_candidate_trx_sha256": "06e8fd06f3069730ba19b93580856134a5514ae5b6d88862e9436499f8d8849b"
+          },
+          "windows-x64-net8.0": {
+            "artifact_id": 10404073794,
+            "artifact_name": "bugfix-check-windows-latest-net8.0",
+            "baseline_trx_sha256": "931cbd570f47bf6a376f11dde76c0ecf1399f9d742acf0f90eeb9463d781bdf0",
+            "repeat_candidate_trx_sha256": "341cb8549c8b485af5375dc4e1260016406570c25b34b8005a1b51cb62af57c6"
+          },
+          "windows-x64-net10.0": {
+            "artifact_id": 10404574219,
+            "artifact_name": "bugfix-check-windows-latest-net10.0",
+            "baseline_trx_sha256": "789212a8598feb82270173bbc4b6e152682e4b1177a51ab6f7ad67d1dcc0c08e",
+            "repeat_candidate_trx_sha256": "9d6ab521cbee8ca0390c9b1d54c7bb11a415ad5f1ac8b43972d09f632e09bf42"
+          },
+          "macos-arm64-net8.0": {
+            "artifact_id": 10405111338,
+            "artifact_name": "bugfix-check-macos-latest-net8.0",
+            "baseline_trx_sha256": "c069b53a2512adcd39c9ecf0bbf1d1329ff1371fa21228dbf4de3923340ee719",
+            "repeat_candidate_trx_sha256": "0bba29b9d0a80d9bb804d3b9e5d3228468d0a6d900c7004201c54981391a18dd"
+          },
+          "macos-arm64-net10.0": {
+            "artifact_id": 10405450249,
+            "artifact_name": "bugfix-check-macos-latest-net10.0",
+            "baseline_trx_sha256": "487ac255e77785b858569e7dbbd93a1e5422db470aae03c8c0d71741709b4e08",
+            "repeat_candidate_trx_sha256": "0e97ba85d8c32b48def91f249511913e247a5dd50fd588a1829f6b09d47451df"
+          }
+        },
+        "control_gaps": []
+      },
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2367_Tests.Captured_element_date_member_matches_CLR_and_tracks_changed_values(kind: \"array\")",
+          "test_id": "78165f0a-0c44-8165-e5b0-d01e281d14b9",
+          "component": "linq-member-evaluation",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "net8.0"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "net10.0"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "net8.0"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "net10.0"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "net8.0"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "net10.0"
+            }
+          },
+          "failure_classifications": {
+            "net8.0": {
+              "failure_first_line": "System.Reflection.TargetException : Object does not match target type.",
+              "sha256": "7f05931bc41ec79a8ffc85930c1874b74f5661422b4f8c7ee895bac9959f3d29"
+            },
+            "net10.0": {
+              "failure_first_line": "System.Reflection.TargetException : Object type LiteDB.Tests.Issues.Issue2367_Tests+Video does not match target type LiteDB.Tests.Issues.Issue2367_Tests+Video[].",
+              "sha256": "063e77577079e8fc4a5e0b6c9d83b25b3ce5361c8a91dc9264372057a6fd572b"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2367_Tests.Captured_element_date_member_matches_CLR_and_tracks_changed_values(kind: \"dictionary\")",
+          "test_id": "9918e282-9732-6472-1dcf-01cf2f283b51",
+          "component": "linq-member-evaluation",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "net8.0"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "net10.0"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "net8.0"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "net10.0"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "net8.0"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "net10.0"
+            }
+          },
+          "failure_classifications": {
+            "net8.0": {
+              "failure_first_line": "System.Reflection.TargetException : Object does not match target type.",
+              "sha256": "7f05931bc41ec79a8ffc85930c1874b74f5661422b4f8c7ee895bac9959f3d29"
+            },
+            "net10.0": {
+              "failure_first_line": "System.Reflection.TargetException : Object type LiteDB.Tests.Issues.Issue2367_Tests+Video does not match target type System.Collections.Generic.Dictionary`2[System.String,LiteDB.Tests.Issues.Issue2367_Tests+Video].",
+              "sha256": "ec4b00e3cce8d7a29fe315941ebec40d28dcf15c21d3c65fb3c07879c3012aa9"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2367_Tests.Captured_element_date_member_matches_CLR_and_tracks_changed_values(kind: \"list\")",
+          "test_id": "b194e37f-e501-19e4-52fb-54c02d27dce7",
+          "component": "linq-member-evaluation",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "net8.0"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "net10.0"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "net8.0"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "net10.0"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "net8.0"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "net10.0"
+            }
+          },
+          "failure_classifications": {
+            "net8.0": {
+              "failure_first_line": "System.Reflection.TargetException : Object does not match target type.",
+              "sha256": "7f05931bc41ec79a8ffc85930c1874b74f5661422b4f8c7ee895bac9959f3d29"
+            },
+            "net10.0": {
+              "failure_first_line": "System.Reflection.TargetException : Object type LiteDB.Tests.Issues.Issue2367_Tests+Video does not match target type System.Collections.Generic.List`1[LiteDB.Tests.Issues.Issue2367_Tests+Video].",
+              "sha256": "236833b3f915a2725320b382d425cc25bf8e871caf0edad4741ad491410763e4"
+            }
+          }
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Mapper.LinqEval_Tests.Linq_Document_Navigation_Eval",
+          "test_id": "eec71867-75d2-2c81-ca69-df42e9c652c5",
+          "component": "linq-member-evaluation",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Passed"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Mapper.LinqEval_Tests.Linq_Math_Eval",
+          "test_id": "ff7d30de-c604-45f9-9f00-132e3ac39f4f",
+          "component": "linq-member-evaluation",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Passed"
+            }
+          }
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Evaluate captured list/array/dictionary element member access against its actual object, preserving DateTime comparisons and replacement values across repeated use of the same predicate. Keep genuine document-dependent member access translated for each row; never execute it prematurely as client code. Linq_Math_Eval independently asserts captured u.Id arithmetic and Math calls; Linq_Document_Navigation_Eval asserts root, nested document and string behavior through GetExpression and Execute. Linq_Array_Navigation_Eval is vacuous and is not an approved control.",
+          "Review interaction with #2770/#2779/#2322/#1829 in the same visitor and retain all accepted cases. A fresh integration baseline must still demonstrate this exact defect; an already passing case requires explicit prior-fix disposition. This contract grants no source-observation exemption: any transition of source guard 53 or another unrelated frozen test requires separate review and blocks automatic acceptance."
+        ],
+        "lifecycle": [
+          "Preserve captured value freshness when a list, array or dictionary entry changes, without a shared mutable cache or retained result from an earlier translation. Keep client evaluation and row-dependent execution boundaries clear; do not suppress reflection failures globally or mutate the closure or persisted documents."
+        ]
+      }
     }
   }
 }
