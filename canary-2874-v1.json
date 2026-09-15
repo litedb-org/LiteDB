@@ -1,0 +1,22 @@
+{
+  "base_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+  "campaign": "canary-2874-v1",
+  "candidate_sha": null,
+  "events": {},
+  "evidence": {},
+  "history": [],
+  "infrastructure_retries": {},
+  "issue": 2874,
+  "orchestration": {
+    "requests": {},
+    "worker_retries": 0,
+    "workflow_ref": "automation/bugfix-runtime-v1"
+  },
+  "paused": false,
+  "phase": "baseline",
+  "repair_attempts": 0,
+  "reviews": {},
+  "schema_version": 1,
+  "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+  "workflow_sha": "a3bb2a8e409b26cb6bf1ec48e39285a0dc88ff32"
+}
