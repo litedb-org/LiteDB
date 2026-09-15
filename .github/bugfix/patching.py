@@ -31,13 +31,13 @@ def worktree(repository, sha):
 
 
 def worker_payload(data, state, source_sha, run_id):
-    files = read_members(data, ("patch.diff", "result.json", "metadata.json"))
-    require(set(files) == {"patch.diff", "result.json", "metadata.json"}, "Incomplete fix artifact")
+    files = read_members(data, ("patch.diff", "result.json", "metadata.json", "runtime-proof.json"))
+    require(set(files) == {"patch.diff", "result.json", "metadata.json", "runtime-proof.json"}, "Incomplete fix artifact")
     require(0 < len(files["patch.diff"]) <= 2 * 1024 * 1024, "Empty or oversized worker patch")
     result = json.loads(files["result.json"])
     metadata = json.loads(files["metadata.json"])
     require(isinstance(result, dict) and isinstance(metadata, dict), "Worker reports must be JSON objects")
-    validate_worker_model(metadata, "fix")
+    validate_worker_model(metadata, "fix", files["runtime-proof.json"])
     expected = {"schema_version": 1, "issue": state["issue"], "base_sha": source_sha,
                 "test_source_sha": state["test_source_sha"]}
     for report in (result, metadata):

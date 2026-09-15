@@ -13,6 +13,7 @@ from evidence import MATRIX, event_for
 from integrate_evidence import acceptance_evidence, original_matrix_evidence
 from state import ROLES, Rejected, new_state
 from test_artifacts import archive
+from test_worker_runtime import runtime_fixture
 
 
 class MatrixPolicyTests(unittest.TestCase):
@@ -143,7 +144,10 @@ class AcceptanceRevalidationTests(unittest.TestCase):
             metadata = {key: result[key] for key in ("schema_version", "issue", "base_sha", "candidate_sha", "test_source_sha", "role")}
             metadata.update(kind="review", workflow_sha="c" * 40, run_id=str(index), result_sha256=digest,
                             configured_model="gpt-5.6-sol", configured_reasoning_effort="high")
-            self.data[(index, event["artifact"])] = {"result.json": result, "metadata.json": metadata}
+            runtime, proof = runtime_fixture("gpt-5.6-sol")
+            metadata.update(runtime)
+            self.data[(index, event["artifact"])] = {"result.json": result, "metadata.json": metadata,
+                                                   "runtime-proof.json": proof}
             event["report_sha256"] = digest
             self.state["reviews"][role] = event
             self.events[index] = event

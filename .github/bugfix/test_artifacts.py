@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from artifacts import MAX_REPORT, download, validate
 from state import Rejected
+from test_worker_runtime import runtime_fixture
 
 
 def archive(files):
@@ -45,9 +46,10 @@ class ArtifactTests(unittest.TestCase):
         result.update(verdict="pass", findings=[], coverage=["Checked null handling and valid inputs"])
         metadata = {key: self.event[key] for key in fields}
         metadata.update(workflow_sha=self.event["workflow_sha"], kind="review", run_id="123")
-        metadata.update(configured_model="gpt-5.6-sol", configured_reasoning_effort="high")
+        runtime, proof = runtime_fixture("gpt-5.6-sol")
+        metadata.update(runtime)
         metadata["result_sha256"] = hashlib.sha256(json.dumps(result).encode()).hexdigest()
-        self.files = {"result.json": result, "metadata.json": metadata}
+        self.files = {"result.json": result, "metadata.json": metadata, "runtime-proof.json": proof}
         return result, metadata
 
     def test_positive_payload_returns_computed_report_and_archive_digests(self):
@@ -101,6 +103,12 @@ class ArtifactTests(unittest.TestCase):
     def test_independent_review_payload_and_metadata_pass(self):
         self.review()
         self.check()
+
+    def test_review_cannot_approve_without_runtime_proof(self):
+        self.review()
+        del self.files["runtime-proof.json"]
+        with self.assertRaisesRegex(Rejected, "Missing or oversized runtime proof"):
+            self.check()
 
     def test_stale_review_empty_coverage_or_findings_cannot_approve(self):
         result, _ = self.review()

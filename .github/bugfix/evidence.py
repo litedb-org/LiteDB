@@ -133,10 +133,10 @@ def review_event(repo, state, workflow_run, artifacts, role):
         event["outcome"] = "harness_error"
         return event
     data = download(repo, select_artifact(artifacts, artifact_name))
-    files = read_members(data, ("result.json", "metadata.json"))
+    files = read_members(data, ("result.json", "metadata.json", "runtime-proof.json"))
     result = json.loads(files["result.json"])
     metadata = json.loads(files["metadata.json"])
-    validate_worker_model(metadata, role)
+    validate_worker_model(metadata, role, files.get("runtime-proof.json"))
     for report in (result, metadata):
         for field in ("issue", "base_sha", "candidate_sha", "test_source_sha", "role"):
             require(type(report.get(field)) is type(event[field]) and report[field] == event[field], "Review identity mismatch")

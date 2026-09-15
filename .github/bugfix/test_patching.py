@@ -7,6 +7,7 @@ import unittest
 from patching import worker_payload
 from state import Rejected, new_state
 from test_artifacts import archive
+from test_worker_runtime import runtime_fixture
 
 
 class PatchTests(unittest.TestCase):
@@ -21,13 +22,21 @@ class PatchTests(unittest.TestCase):
                              configured_model="gpt-6-astra", configured_reasoning_effort="high",
                              patch_sha256=hashlib.sha256(self.patch).hexdigest(),
                              result_sha256=hashlib.sha256(json.dumps(self.result).encode()).hexdigest())
+        runtime, self.proof = runtime_fixture("gpt-6-astra")
+        self.metadata.update(runtime)
 
     def check(self):
-        data = archive({"result.json": self.result, "metadata.json": self.metadata, "patch.diff": self.patch})
+        data = archive({"result.json": self.result, "metadata.json": self.metadata,
+                        "patch.diff": self.patch, "runtime-proof.json": self.proof})
         return worker_payload(data, self.state, "a" * 40, 123)
 
     def test_valid_fix_artifact(self):
         self.assertEqual(self.patch, self.check()[0])
+
+    def test_fix_cannot_be_adopted_without_runtime_proof(self):
+        data = archive({"result.json": self.result, "metadata.json": self.metadata, "patch.diff": self.patch})
+        with self.assertRaisesRegex(Rejected, "Incomplete fix artifact"):
+            worker_payload(data, self.state, "a" * 40, 123)
 
     def test_patch_and_report_digest_mismatches_rejected(self):
         self.patch = b"changed after collection"

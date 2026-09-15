@@ -70,13 +70,19 @@ non-accepted and is reported in the structured `inconclusive_changes` array;
 other outcome changes remain errors.
 
 Failure comparison preserves assertion/exception text before stack frames,
-discarding stack locations that change across checkouts. `--failure-normalization`
+including complete quoted stack traces when the stack itself is the assertion
+subject. Diagnostic frames following the assertion are excluded. `--failure-normalization`
 supplies reviewed regexes scoped to exact test names. Every rule has an exact
-expected match count, the baseline must match every rule, and its policy digest
-is bound into ledger provenance. A candidate with a different diagnostic shape
-retains its original failure and is rejected. Harness errors, zero selections,
+expected match count or an explicit set of runtime-specific counts. The baseline
+must match every rule, and its policy digest is bound into ledger provenance. A
+candidate with a different diagnostic shape retains its original failure and is
+rejected. Harness errors, zero selections,
 duplicate result identities, incomplete results, inconsistent counters, and
 unrelated runner errors fail closed.
+
+An unchanged failing test whose normalized assertion changes is reported in
+`classification_changes` with both failure hashes. It remains rejected and
+routes to investigation without consuming another code repair attempt.
 
 Run bounded gate verification with:
 

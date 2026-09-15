@@ -74,6 +74,29 @@ or integrated at this point.
   and duplicate artifact names cannot satisfy acceptance; a fresh complete
   baseline remains required.
 
+## Codex 0.154.0 restart
+
+The user requested Codex 0.154.0 after identifying that GitHub showed only the
+model name. Tests using the actual new binary captured requests for both Astra
+and Sol with `reasoning.effort: high`; the old alias fallback no longer suppresses
+the setting. Commit `67f9f77c3ffa7be39f480a5f86ab37a549efc2a1` pins this version,
+verifies both requests before inference, and records a trusted proof and readable
+GitHub summary. The [new runtime canary](https://github.com/litedb-org/LiteDB/actions/runs/34983508910)
+must finish successfully before restarting the fix campaign.
+
+V3 is durably blocked at state commit
+`dfd372c9371f3ff99c9990c907a57bbf9ccf5bb4`; its controller and second repair worker
+were cancelled. No candidate from that runtime was integrated.
+
+The four #2870 classification changes were confirmed as checkout-root and
+test-library frame variation. The gate now retains the complete stack assertion
+and normalizes only reviewed presentation differences. Other failure drift
+remains rejected and routes to investigation. The paired 1,509-test evidence
+passes with this reviewed grading policy. All 33 artifacts from the isolated
+build probe also pass evidence validation, including exact #2874 red cases in
+all 21 full-suite lanes. The [fresh full baseline](https://github.com/litedb-org/LiteDB/actions/runs/34982194439)
+has all 109 expected jobs and is still being monitored.
+
 ## Acceptance still required
 
 A successful pilot requires the verified candidate, focused and broad CI, three

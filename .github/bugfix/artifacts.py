@@ -16,12 +16,45 @@ MAX_REPORT = 256 * 1024
 HASH_FIELDS = ("artifact_sha256", "report_sha256")
 
 
-def validate_worker_model(metadata, role):
+def validate_worker_model(metadata, role, proof_bytes):
+    """Bind local CLI request proof and observed live model evidence to the artifact."""
+    require(role in ("fix", "behavior", "compatibility", "lifecycle"), "Unknown worker role")
     expected = "gpt-6-astra" if role == "fix" else "gpt-5.6-sol"
     require(metadata.get("configured_model") == expected, "Worker configured model mismatch")
     require(metadata.get("configured_reasoning_effort") == "high", "Worker must use high reasoning effort")
-    require(metadata.get("reported_model") in (None, "", expected), "Worker reported a different model")
+    require(metadata.get("reported_model") == expected, "Worker reported a different or missing model")
     require(metadata.get("reported_reasoning_effort") in (None, "", "high"), "Worker reported different reasoning effort")
+    require(metadata.get("observed_request_models") == [expected], "Worker observed request model mismatch")
+    count = metadata.get("observed_request_count")
+    require(type(count) is int and count > 0, "Worker lacks observed model requests")
+    require(metadata.get("codex_version") == "0.154.0", "Worker Codex version mismatch")
+    require(metadata.get("verified_reasoning_effort") == "high"
+            and metadata.get("reasoning_verification") == "local-request-capture",
+            "Worker lacks local request reasoning verification")
+    require(isinstance(proof_bytes, bytes) and 0 < len(proof_bytes) <= 16384, "Missing or oversized runtime proof")
+    require(metadata.get("runtime_proof_sha256") == hashlib.sha256(proof_bytes).hexdigest(),
+            "Worker runtime proof digest mismatch")
+    try:
+        proof = json.loads(proof_bytes)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise Rejected("Invalid runtime proof JSON") from error
+    require(isinstance(proof, dict) and set(proof) == {"schema_version", "codex_version", "transport", "models"},
+            "Invalid runtime proof fields")
+    require(type(proof["schema_version"]) is int and proof["schema_version"] == 1, "Invalid runtime proof schema")
+    require(proof["codex_version"] == "0.154.0" and proof["transport"] == "local_stub",
+            "Wrong runtime proof version or transport")
+    models = proof["models"]
+    require(isinstance(models, list) and len(models) == 2, "Runtime proof must cover both models")
+    names = []
+    for model in models:
+        require(isinstance(model, dict) and set(model) == {"model", "reasoning_effort", "requests_checked"},
+                "Invalid runtime model proof fields")
+        require(isinstance(model["model"], str) and model["reasoning_effort"] == "high",
+                "Runtime model proof lacks high reasoning")
+        require(type(model["requests_checked"]) is int and model["requests_checked"] > 0,
+                "Runtime model proof captured no requests")
+        names.append(model["model"])
+    require(set(names) == {"gpt-6-astra", "gpt-5.6-sol"}, "Runtime proof model set mismatch")
 
 
 def download(repo, artifact):
@@ -93,7 +126,8 @@ def validate(data, event):
         require(isinstance(coverage, list) and coverage and
                 all(isinstance(item, str) and item.strip() for item in coverage), "Missing concrete review coverage")
         metadata = reports["metadata.json"][0]
-        validate_worker_model(metadata, event["role"])
+        proof = read_members(data, ("runtime-proof.json",)).get("runtime-proof.json")
+        validate_worker_model(metadata, event["role"], proof)
         _matching(metadata, expected, fields + ("workflow_sha",))
         require(metadata.get("kind") == "review", "Unexpected worker artifact kind")
         require(metadata.get("run_id") == str(event["run_id"]), "Review metadata run mismatch")
