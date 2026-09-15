@@ -90,6 +90,14 @@ class MultiIssueComparisonTests(unittest.TestCase):
         self.assertEqual([f"{self.before['name']} :: {KNOWN}"],
                          report["unexpected_passes"])
 
+    def test_declared_guard_missing_from_both_ordinary_runs_blocks_final_promotion(self):
+        with patch.object(promotion, "EXPECTED_ORDINARY_TEST_JOBS", 1):
+            report = promotion.compare(evidence([self.before], 1), evidence([self.after], 2), accepted(),
+                                       {CLASS, KNOWN_CLASS}, set(), set(), [{"test_name": GUARD_TEST}])
+        self.assertFalse(report["accepted"])
+        self.assertTrue(any("Source guard observation is missing from required ordinary job" in error
+                            for error in report["errors"]))
+
     def test_every_ordinary_lane_must_contain_every_accepted_case(self):
         partial = copy.deepcopy(self.after)
         partial["name"] = "build-and-test / Test (macOS .NET 8)"

@@ -485,6 +485,11 @@ def compare(baseline, candidate, accepted, allowed_classes, allowed_skips,
     for issue, environment in sorted(required_arch):
         if environment not in proven_environments:
             blockers.append(f"Accepted issue {issue} requires unproven {environment} execution")
+    for observation in source_observations:
+        observed_jobs = {change["job"] for change in source_changes
+                         if change["test_name"] == observation["test_name"]}
+        for job in sorted(set(target_jobs) - observed_jobs):
+            errors.append(f"Source guard observation is missing from required ordinary job {job}: {observation['test_name']}")
     accepted_result = not errors and not blockers and not unexpected_passes and not inconclusive
     return {
         "schema_version": 1,
