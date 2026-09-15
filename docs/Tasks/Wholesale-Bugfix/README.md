@@ -1,9 +1,10 @@
 # Wholesale bug-fix plan
 
 Status: #2874, #2839, #2869, and #1506 are integrated. The GitHub-hosted scheduler
-bootstrap is deployed, with execution disabled pending final runtime review and
-a hosted canary. This replaces the local v8 queue that stopped at #1002.
-An explicit #1002/#2811 co-repair contract is prepared; neither old #1002 candidate
+bootstrap is deployed and enabled for the #1002 hosted canary. Initialization and
+GitHub-token child dispatch succeeded; the complete hosted cycle is being verified.
+This replaces the local v8 queue that stopped at #1002.
+An explicit #1002/#2811 co-repair contract is deployed; neither old #1002 candidate
 is integrated. See the [agent handoff](HANDOFF.md) for the current deployment,
 exact branches, evidence and continuation instructions. The queue enforces eighteen permanently passing cases. Accepted
 candidate test lanes have taken 2m35s–2m48s, with production builds in parallel. Use one compressed

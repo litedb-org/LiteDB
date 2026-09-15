@@ -24,33 +24,60 @@ local machine**. Do not replace the hosted scheduler with a local blocking queue
 One blocked issue must retain its evidence while independent approved work can
 continue. Infrastructure and usage-limit waits need durable automatic recovery.
 
-Snapshot: **2026-09-15, approximately 20:36 UTC / 22:36 Europe/Vienna**.
+Snapshot: **2026-09-15, approximately 20:59 UTC / 22:59 Europe/Vienna**.
 Re-read GitHub state before acting: this document is a snapshot, not the controller's state store.
 
 ## Current state and first action
 
-**Four fixes are integrated. The hosted bootstrap is deployed on `dev`, but
-execution remains disabled while the new immutable runtime finishes review.
-No hosted sweep has been initialized yet. No #1002 candidate is accepted.**
+**Four fixes are integrated. The unattended hosted scheduler is enabled and its
+one-issue #1002 canary is running. Initialization and token-based child dispatch
+have succeeded; the complete hosted fix/review/integration cycle is still being
+verified. No #1002 candidate is accepted.**
 
 Default-branch bootstrap: [9b2f122fb85ee16ed1fd1457df19fa9811769945](https://github.com/litedb-org/LiteDB/commit/9b2f122fb85ee16ed1fd1457df19fa9811769945).
 It adds only `.github/workflows/bugfix-sweep.yml`. GitHub registered the active
 [Wholesale bugfix sweep workflow](https://github.com/litedb-org/LiteDB/actions/workflows/bugfix-sweep.yml),
-ID `359078992`. `BUGFIX_SWEEP_ENABLED=false`; scheduler SHA and active-sweep
-variables are not set yet. No full-matrix or package-publish run was launched.
+ID `359078992`. Current variables are `BUGFIX_SWEEP_ENABLED=true`,
+`BUGFIX_ACTIVE_SWEEP=hosted-v9-canary`, and
+`BUGFIX_SCHEDULER_SHA=5a823c25057fa4eaffb8cdfbd546ae3f5c360f37`.
+Worker/check runtime v9 remains `167f2677ca07b2e67ccd701fb730b4ea055dc950`.
+No full-matrix or package-publish run was launched.
 
-Next, finish independent review and combined tests, create an immutable v9 pin,
-initialize a fresh one-issue #1002 hosted canary, and verify automatic wakeups
-through candidate publication, compressed CI, three reviews and integration.
-Expand only after that hosted cycle works. Follow the
+- [Live bot heartbeat](https://github.com/litedb-org/LiteDB/issues/2890#issuecomment-5687937290)
+  reports the durable state and links the latest tick.
+- [Sweep manifest](https://github.com/litedb-org/LiteDB/blob/automation/bugfix-state/sweep-hosted-v9-canary.json)
+  contains the immutable scope, pins, owner history and cooldown.
+- [Campaign journal](https://github.com/litedb-org/LiteDB/blob/automation/bugfix-state/hosted-v9-1002.json)
+  preserves each dispatch request and its evidence.
+- [Automatic schedule 35021418781](https://github.com/litedb-org/LiteDB/actions/runs/35021418781)
+  fired while disabled and correctly skipped.
+- [Initialization 35022649813](https://github.com/litedb-org/LiteDB/actions/runs/35022649813)
+  succeeded; [first tick 35022719684](https://github.com/litedb-org/LiteDB/actions/runs/35022719684)
+  dispatched [baseline 35022768603](https://github.com/litedb-org/LiteDB/actions/runs/35022768603).
+- [First initialization 35022389012](https://github.com/litedb-org/LiteDB/actions/runs/35022389012)
+  exposed GitHub's rejection of a trailing-slash repository API URL. It wrote no
+  sweep/campaign state. The independently reviewed scheduler-only fix is `5a823c25`;
+  the worker runtime was not moved.
+
+Next, verify automatic wakeups through candidate publication, compressed CI,
+three reviews and integration. Expand only after that hosted cycle works. Follow the
 [hosted runbook](https://github.com/litedb-org/LiteDB/blob/automation/wholesale-bugfix/docs/Tasks/Wholesale-Bugfix/HOSTED-SWEEP.md).
+
+Budget accounting is now enforced for dispatched workers. The unchanged default
+is 5000 AI credits per worker workflow over the prior 24 hours, not a global
+strict spending ceiling. Six known fixer runs already total 6203.4025 credits,
+so an authenticated automatic budget cooldown is expected under that setting.
+No cap increase is authorized at this snapshot. A trusted daily-limit report
+causes automatic retry after 24 hours; unavailable accounting retries after
+15 minutes. Neither consumes a repair attempt. Per-run limits remain 2000 for
+fixes and 1000 for reviews. See the hosted runbook for accounting limitations.
 
 The old local controller exited after the #1002/#2811 overlap described below.
 Its `expansion-v8-1002` journal and both rejected candidates remain unchanged.
 An explicit independently reviewed **nine-regression, two-control co-repair
-contract** is now prepared in `dde8fc56`; see
+contract** is deployed in v9 from `dde8fc56`; see
 [COREPAIR-1002-2811.md](https://github.com/litedb-org/LiteDB/blob/automation/wholesale-bugfix/docs/Tasks/Wholesale-Bugfix/COREPAIR-1002-2811.md).
-Use a fresh campaign on the current integration base; do not clear the old
+The fresh `hosted-v9-1002` campaign uses the current integration base; do not clear the old
 blocker or reinterpret its failed CI as passing.
 
 ## Key branches and immutable revisions
@@ -62,9 +89,11 @@ Remote `upstream` is litedb-org/LiteDB; `origin` is JKamsker/LiteDB.
 | Purpose | Branch / source | Snapshot revision |
 | --- | --- | --- |
 | Accepted production fixes | [integration/bugfixes](https://github.com/litedb-org/LiteDB/tree/integration/bugfixes) | `bbb0253bc06324f0bb14a21a727a37e8c7f2b213` |
-| Durable campaign journal, accepted tests, evidence, integration locks | [automation/bugfix-state](https://github.com/litedb-org/LiteDB/tree/automation/bugfix-state) | `0106f6321a051c1b5a63613b681476009d612230` |
+| Durable campaign journal, accepted tests, evidence, integration locks | [automation/bugfix-state](https://github.com/litedb-org/LiteDB/tree/automation/bugfix-state) | `3851eac8472973fc2ae246c87959d7406e8d0481` at snapshot; advances automatically |
+| Live immutable worker/check runtime | [automation/bugfix-runtime-v9](https://github.com/litedb-org/LiteDB/tree/automation/bugfix-runtime-v9) | `167f2677ca07b2e67ccd701fb730b4ea055dc950` |
+| Live immutable scheduler | [automation/bugfix-scheduler-v1](https://github.com/litedb-org/LiteDB/tree/automation/bugfix-scheduler-v1) | `5a823c25057fa4eaffb8cdfbd546ae3f5c360f37` |
 | Historical blocked campaign's immutable runtime | [automation/bugfix-runtime-v8](https://github.com/litedb-org/LiteDB/tree/automation/bugfix-runtime-v8) | `61ee4aec705024c189345de25508ea19ffc2584e` |
-| Reviewed preparation, before pending controller/accounting bundle | [automation/wholesale-bugfix](https://github.com/litedb-org/LiteDB/tree/automation/wholesale-bugfix) | `d5f763a8cec04330fa7b2cc74a954fb5ff411270` before this handoff update |
+| Mutable automation preparation and documentation | [automation/wholesale-bugfix](https://github.com/litedb-org/LiteDB/tree/automation/wholesale-bugfix) | `5a823c25057fa4eaffb8cdfbd546ae3f5c360f37` before this handoff update |
 | Hosted default-branch bootstrap | [dev](https://github.com/litedb-org/LiteDB/tree/dev) | `9b2f122fb85ee16ed1fd1457df19fa9811769945` |
 | Rejected #1002 attempt 1 | [fix/issue-1002-expansion-v8-1002-a1](https://github.com/litedb-org/LiteDB/tree/fix/issue-1002-expansion-v8-1002-a1) | `a98b29089c01e21e50856abd0cc9bbea1ecc5631` |
 | Blocked #1002 attempt 2 | [fix/issue-1002-expansion-v8-1002-a2](https://github.com/litedb-org/LiteDB/tree/fix/issue-1002-expansion-v8-1002-a2) | `d600cab9aa8be419f0d3069a21bb5e03ff713307` |
@@ -210,22 +239,28 @@ evidence. Do not launch this local queue alongside the hosted scheduler.
 
 The mutable preparation branch has **28 approved contracts**, versus v8's 21.
 The additional seven are #2746, #2807, #1829, #1444, #2860, #2870 and #2367.
-These are prepared, not swept. Important changes awaiting a new immutable runtime:
+These are prepared, not swept. Important changes now included in immutable v9:
 
 - Explicit M111 UInt64 behavioral co-repair in #1224 (`dc7c03ac7c44cbe8708d9961f5d53fab7780a10e`). **Transition before starting #1224**; v8's old narrow contract will reject the related pass.
 - Four wave-4 contracts (`1aeb49ad5e1447c6268d2321a660e007be689656`). #1444 requires actual old signed-order ObjectId index/Timestamp ABI evidence.
 - Worker SDK absolute-path discovery instructions (`7c0e8ec5`), correcting an optional test-execution limitation observed during #1506 review.
 - Environment-aware #2860/#2870 case identities/full failures plus actual VSTest testhost architecture evidence (`877f406a695bf2c686ccf368c2a3e195f7e28810`). This does not add broad normalization. #2860's max-depth portion lacks an independent positive control; the URI controls must not be represented as that control.
 - #2367 (`e6d76f7d`): three captured-member regressions, two genuine controls, Ubuntu net8/net10, original/repeat evidence independently reviewed. Guard53 has no exemption. The vacuous array-navigation test is not a control.
-- Combined latest checks passed **210 controller + 122 gate + 87 workflow/helper tests**. A future canary must still validate these runtime changes in GitHub.
+- Combined v9 checks passed **281 controller + 129 gate + 116 workflow/helper tests**; the scheduler-only URL correction additionally passed three storage tests and independent review. The hosted canary must still validate the complete cycle in GitHub.
 
-No v9 runtime ref has been created at this snapshot. For a transition, drain/pause the old queue
-at an explicit boundary, finish existing evidence under its original runtime,
-verify no old controller remains, then start fresh campaigns on the current
-integration base and ledger under the new immutable pin. Never silently rewrite
-an existing campaign's runtime, test source, base or contract. The current #1002
-blocker may require an explicit superseding campaign; preserve and link the old
-failed history rather than deleting it.
+The v9 transition uses a fresh campaign and preserves the blocked v8 journal.
+Never silently rewrite an existing campaign's runtime, test source, base or
+contract. No local controller should run alongside the hosted scheduler.
+Expansion must exclude the four original accepted issues and use these remaining
+prepared issues (omit #1002 if already accepted):
+
+`1002 2802 2770 2867 2845 2847 2779 2205 2871 1159 1224 2858 2864 2769 2225 2322 2873 2746 2807 1829 1444 2860 2870 2367`.
+
+The original #2874 contract archive intentionally retains the historical encoding
+corruption; the corrected permanent ledger and separate audited correction are
+valid. New exact archived-contract skip checks reject that old archive, so do not
+include #2874 merely to have the new queue skip it. Preserve both original and
+corrected evidence; no generic Unicode normalization is authorized.
 
 ## Other known traps and final validation
 
@@ -241,7 +276,9 @@ failed history rather than deleting it.
 
 ```powershell
 git status --short
-git ls-remote upstream refs/heads/integration/bugfixes refs/heads/automation/bugfix-state refs/heads/automation/bugfix-runtime-v8
+git ls-remote upstream refs/heads/integration/bugfixes refs/heads/automation/bugfix-state refs/heads/automation/bugfix-runtime-v9 refs/heads/automation/bugfix-scheduler-v1
+gh run list -R litedb-org/LiteDB --workflow bugfix-sweep.yml --limit 10
+gh api 'repos/litedb-org/LiteDB/contents/sweep-hosted-v9-canary.json?ref=automation/bugfix-state' -H 'Accept: application/vnd.github.raw+json'
 Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'python' -and $_.CommandLine -match 'serial_queue|orchestrate.py' } | Select-Object ProcessId,CommandLine
 gh api 'repos/litedb-org/LiteDB/contents/expansion-v8-1002.json?ref=automation/bugfix-state' -H 'Accept: application/vnd.github.raw+json'
 gh run view 35013331767 -R litedb-org/LiteDB
@@ -265,8 +302,7 @@ agent reasoning, additional review tests and hosted-runner setup dominate elapse
 
 - For the **17 unfinished items in the current batch**, a clean first-attempt
   floor is around 9–10 hours. Budget **10–18 hours of serial execution**, plus
-  engineering time for blockers/runtime transitions. The current queue is stopped,
-  so this is not an unattended completion ETA.
+  engineering time for blockers/runtime transitions and budget cooldowns.
 - Completing all **24 remaining prepared contracts** is roughly **14–25 hours**
   under similar conditions, before difficult overlap/compatibility surprises.
 - The full inventory will likely require **several days** and cannot yet be
