@@ -292,6 +292,318 @@
           "name": "LiteDB.Tests.Issues.Issue2802_Tests.Generic_only_mapper_control_differs_from_default_mapping"
         }
       ]
+    },
+    "2770": {
+      "inventory_issue": 2770,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2770_Tests.cs": "6820452205a67c987a5556b2987aa0c3d5d9cc6d"
+      },
+      "filter": "FullyQualifiedName~Issue2770_Tests",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2770_Tests.Enum_property_comparison_matches_CLR_for_equal_and_unequal_rows(asInteger: False)",
+          "failure_first_line": "System.InvalidOperationException : variable 'x' of type 'LiteDB.Tests.Issues.Issue2770_Tests+Row' referenced from scope '', but it is not defined"
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2770_Tests.Enum_property_comparison_matches_CLR_for_equal_and_unequal_rows(asInteger: True)"
+        }
+      ]
+    },
+    "2867": {
+      "inventory_issue": 2867,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2867_Tests.cs": "a807d3189c9c78922e1bb9e377469bee3144dacb"
+      },
+      "filter": "FullyQualifiedName~Issue2867_Tests",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Mapper/BsonMapper.GetEntityMapper.cs",
+        "LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2867_Tests.Duplicate_inherited_mapped_type_ids_are_duplicate_primary_keys",
+          "failure_first_line": "Expected a <LiteDB.LiteException> to be thrown, but no exception was thrown."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2867_Tests.Inherited_mapped_type_id_is_the_persisted_key_and_query_path",
+          "failure_first_line": "Expected firstId.IsInt32 to be True, but found False."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2867_Tests.Inherited_mapped_type_id_round_trips_through_the_id_field",
+          "failure_first_line": "Expected encoded.Keys[0] to be \"_id\" with a length of 3, but \"Payload\" has a length of 7, differs near \"Pay\" (index 0)."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2867_Tests.Existing_id_precedence_and_suffix_boundaries_are_preserved"
+        }
+      ]
+    },
+    "2845": {
+      "inventory_issue": 2845,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2845_Tests.cs": "dd180a83536a9ea537c99a606b6ae1e5d51bfcdc"
+      },
+      "filter": "FullyQualifiedName~Issue2845_Tests",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Document/Json/JsonWriter.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2845_Tests.Json_preserves_double_type_and_bits_through_repeated_exports(value: -1.7976931348623157E+308)",
+          "failure_first_line": "Expected BitConverter.DoubleToInt64Bits(current[\"Value\"].AsDouble) to be -4503599627370497L, but found -4503599627370496L (difference of 1)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2845_Tests.Json_preserves_double_type_and_bits_through_repeated_exports(value: -4.9406564584124654E-324)",
+          "failure_first_line": "Expected BitConverter.DoubleToInt64Bits(current[\"Value\"].AsDouble) to be -9223372036854775807L, but found -9223372036854775808L (difference of -1)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2845_Tests.Json_preserves_double_type_and_bits_through_repeated_exports(value: 0.30000000000000004)",
+          "failure_first_line": "Expected BitConverter.DoubleToInt64Bits(current[\"Value\"].AsDouble) to be 4599075939470750516L, but found 4599075939470750515L (difference of -1)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2845_Tests.Json_preserves_double_type_and_bits_through_repeated_exports(value: 1.2345678901234567)",
+          "failure_first_line": "Expected BitConverter.DoubleToInt64Bits(current[\"Value\"].AsDouble) to be 4608238818662570491L, but found 4608238818662014491L (difference of -556000)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2845_Tests.Json_preserves_double_type_and_bits_through_repeated_exports(value: 1.7976931348623157E+308)",
+          "failure_first_line": "Expected BitConverter.DoubleToInt64Bits(current[\"Value\"].AsDouble) to be 9218868437227405311L, but found 9218868437227405312L (difference of 1)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2845_Tests.Json_preserves_double_type_and_bits_through_repeated_exports(value: 1E-300)",
+          "failure_first_line": "Expected BitConverter.DoubleToInt64Bits(current[\"Value\"].AsDouble) to be 118622047889322841L, but found 0L (difference of -118622047889322841)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2845_Tests.Json_preserves_double_type_and_bits_through_repeated_exports(value: 4.9406564584124654E-324)",
+          "failure_first_line": "Expected BitConverter.DoubleToInt64Bits(current[\"Value\"].AsDouble) to be 1L, but found 0L (difference of -1)."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2845_Tests.Json_preserves_double_type_and_bits_through_repeated_exports(value: 42)"
+        }
+      ]
+    },
+    "2847": {
+      "inventory_issue": 2847,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2847_Tests.cs": "37965125a439f1864ef828448dc39e2571c2f56d"
+      },
+      "filter": "FullyQualifiedName~Issue2847_Tests",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Mapper/Linq/TypeResolver/StringResolver.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2847_Tests.Explicit_string_comparison_agrees_with_CLR_even_with_an_index(comparison: Ordinal, indexed: False)",
+          "failure_first_line": "Expected col.Find(predicate).Select(x => x.Id).OrderBy(x => x) to be equal to {2}, but {1, 2, 3} contains 2 item(s) too many."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2847_Tests.Explicit_string_comparison_agrees_with_CLR_even_with_an_index(comparison: Ordinal, indexed: True)",
+          "failure_first_line": "Expected col.Find(predicate).Select(x => x.Id).OrderBy(x => x) to be equal to {2}, but {1, 2, 3} contains 2 item(s) too many."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2847_Tests.Explicit_string_comparison_agrees_with_CLR_even_with_an_index(comparison: OrdinalIgnoreCase, indexed: False)"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2847_Tests.Explicit_string_comparison_agrees_with_CLR_even_with_an_index(comparison: OrdinalIgnoreCase, indexed: True)"
+        }
+      ]
+    },
+    "2779": {
+      "inventory_issue": 2779,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2779_Tests.cs": "3e6e8004572b8bca68fe15dd3230b4a3a775b3f3"
+      },
+      "filter": "FullyQualifiedName~Issue2779_Tests",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2779_Tests.Captured_method_calls_match_CLR_and_follow_changed_values(operation: \"concat\")",
+          "failure_first_line": "System.NotSupportedException : Method Concat(string,string,string) in String are not supported when convert to BsonExpression (Concat(value(LiteDB.Tests.Issues.Issue2779_Tests+<>c__DisplayClass6_0).part, \".\", value(LiteDB.Tests.Issues.Issue2779_Tests+<>c__DisplayClass6_0).other))."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2779_Tests.Captured_method_calls_match_CLR_and_follow_changed_values(operation: \"distinct\")",
+          "failure_first_line": "System.NotSupportedException : Method Distinct() in Enumerable are not supported when convert to BsonExpression (value(LiteDB.Tests.Issues.Issue2779_Tests+<>c__DisplayClass6_0).names.Distinct())."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2779_Tests.Captured_method_calls_match_CLR_and_follow_changed_values(operation: \"format\")",
+          "failure_first_line": "System.NotImplementedException : The method or operation is not implemented."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2779_Tests.Captured_method_calls_match_CLR_and_follow_changed_values(operation: \"join\")",
+          "failure_first_line": "System.NotImplementedException : The method or operation is not implemented."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2779_Tests.Original_selectmany_distinct_contains_is_one_parameter_and_matches_id_ledger",
+          "failure_first_line": "System.NotSupportedException : Method Distinct() in Enumerable are not supported when convert to BsonExpression (value(LiteDB.Tests.Issues.Issue2779_Tests+<>c__DisplayClass3_0).allstocks.SelectMany(x => x.ContactIds).Distinct())."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2779_Tests.Generic_client_evaluation_and_parameter_dependent_resolver_calls_keep_their_boundaries"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2779_Tests.Precomputed_contains_control_uses_the_same_parameter_and_id_ledger"
+        }
+      ]
+    },
+    "2205": {
+      "inventory_issue": 2205,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2205_Tests.cs": "f2c673cb6d7b0038213a4c6a0e835afb3762d74e"
+      },
+      "filter": "FullyQualifiedName~Issue2205_Tests",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Document/Expression/Parser/BsonExpressionParser.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2205_Tests.Out_of_range_unquoted_numeric_token_matches_the_complete_string_value",
+          "failure_first_line": "System.OverflowException : Value was either too large or too small for an Int64."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2205_Tests.Huge_numeric_looking_strings_are_preserved_when_quoted_or_parameterized"
+        }
+      ]
+    },
+    "2871": {
+      "inventory_issue": 2871,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2871_Tests.cs": "85b265f26e6b995a7af450319bd53424c5959cbd"
+      },
+      "filter": "FullyQualifiedName~Issue2871_Tests",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net8.0",
+        "windows-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Mapper/Reflection/Reflection.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2871_Tests.Plain_constructor_dictionary_serializes_cache_hit_reads",
+          "failure_first_line": "Expected hitCompletedWhileHeld to be False because a hit must use the dictionary monitor when production writes use that monitor, but found True."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2871_Tests.Cache_hits_remain_correct_while_unique_constructor_types_force_resizes"
+        }
+      ]
     }
   }
 }

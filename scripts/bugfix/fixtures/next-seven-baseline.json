@@ -1,0 +1,278 @@
+{
+  "schema_version": 1,
+  "source_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+  "run_id": 34988724926,
+  "workflow_revision": "7629236e73bde318e934509244c3e61ef820d8db",
+  "artifacts": [
+    {
+      "id": 10405370121,
+      "name": "bugfix-check-ubuntu-latest-net8.0",
+      "baseline_trx_sha256": "a4d3b367c661fa8768fbb8668d4a8827713618fa3b488f15f02ca1607c8bd56b"
+    },
+    {
+      "id": 10405505060,
+      "name": "bugfix-check-ubuntu-latest-net10.0",
+      "baseline_trx_sha256": "d4d7854e6d5e036da9d1ad92ac4f5aebe0a23b8033fe5a50f9793dcf18cbe423"
+    },
+    {
+      "id": 10404073794,
+      "name": "bugfix-check-windows-latest-net8.0",
+      "baseline_trx_sha256": "931cbd570f47bf6a376f11dde76c0ecf1399f9d742acf0f90eeb9463d781bdf0"
+    },
+    {
+      "id": 10404574219,
+      "name": "bugfix-check-windows-latest-net10.0",
+      "baseline_trx_sha256": "789212a8598feb82270173bbc4b6e152682e4b1177a51ab6f7ad67d1dcc0c08e"
+    },
+    {
+      "id": 10405111338,
+      "name": "bugfix-check-macos-latest-net8.0",
+      "baseline_trx_sha256": "c069b53a2512adcd39c9ecf0bbf1d1329ff1371fa21228dbf4de3923340ee719"
+    },
+    {
+      "id": 10405450249,
+      "name": "bugfix-check-macos-latest-net10.0",
+      "baseline_trx_sha256": "487ac255e77785b858569e7dbbd93a1e5422db470aae03c8c0d71741709b4e08"
+    }
+  ],
+  "issues": {
+    "2770": {
+      "source": "LiteDB.Tests/Issues/Issue2770_Tests.cs",
+      "source_blob": "6820452205a67c987a5556b2987aa0c3d5d9cc6d",
+      "paths": [
+        "LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "cases": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2770_Tests.Enum_property_comparison_matches_CLR_for_equal_and_unequal_rows(asInteger: False)",
+          "outcome": "Failed",
+          "first_line": "System.InvalidOperationException : variable 'x' of type 'LiteDB.Tests.Issues.Issue2770_Tests+Row' referenced from scope '', but it is not defined"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2770_Tests.Enum_property_comparison_matches_CLR_for_equal_and_unequal_rows(asInteger: True)",
+          "outcome": "Passed",
+          "first_line": ""
+        }
+      ]
+    },
+    "2867": {
+      "source": "LiteDB.Tests/Issues/Issue2867_Tests.cs",
+      "source_blob": "a807d3189c9c78922e1bb9e377469bee3144dacb",
+      "paths": [
+        "LiteDB/Client/Mapper/BsonMapper.GetEntityMapper.cs",
+        "LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "cases": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2867_Tests.Duplicate_inherited_mapped_type_ids_are_duplicate_primary_keys",
+          "outcome": "Failed",
+          "first_line": "Expected a <LiteDB.LiteException> to be thrown, but no exception was thrown."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2867_Tests.Existing_id_precedence_and_suffix_boundaries_are_preserved",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2867_Tests.Inherited_mapped_type_id_is_the_persisted_key_and_query_path",
+          "outcome": "Failed",
+          "first_line": "Expected firstId.IsInt32 to be True, but found False."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2867_Tests.Inherited_mapped_type_id_round_trips_through_the_id_field",
+          "outcome": "Failed",
+          "first_line": "Expected encoded.Keys[0] to be \"_id\" with a length of 3, but \"Payload\" has a length of 7, differs near \"Pay\" (index 0)."
+        }
+      ]
+    },
+    "2845": {
+      "source": "LiteDB.Tests/Issues/Issue2845_Tests.cs",
+      "source_blob": "dd180a83536a9ea537c99a606b6ae1e5d51bfcdc",
+      "paths": [
+        "LiteDB/Document/Json/JsonWriter.cs"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "cases": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2845_Tests.Json_preserves_double_type_and_bits_through_repeated_exports(value: -1.7976931348623157E+308)",
+          "outcome": "Failed",
+          "first_line": "Expected BitConverter.DoubleToInt64Bits(current[\"Value\"].AsDouble) to be -4503599627370497L, but found -4503599627370496L (difference of 1)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2845_Tests.Json_preserves_double_type_and_bits_through_repeated_exports(value: -4.9406564584124654E-324)",
+          "outcome": "Failed",
+          "first_line": "Expected BitConverter.DoubleToInt64Bits(current[\"Value\"].AsDouble) to be -9223372036854775807L, but found -9223372036854775808L (difference of -1)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2845_Tests.Json_preserves_double_type_and_bits_through_repeated_exports(value: 0.30000000000000004)",
+          "outcome": "Failed",
+          "first_line": "Expected BitConverter.DoubleToInt64Bits(current[\"Value\"].AsDouble) to be 4599075939470750516L, but found 4599075939470750515L (difference of -1)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2845_Tests.Json_preserves_double_type_and_bits_through_repeated_exports(value: 1.2345678901234567)",
+          "outcome": "Failed",
+          "first_line": "Expected BitConverter.DoubleToInt64Bits(current[\"Value\"].AsDouble) to be 4608238818662570491L, but found 4608238818662014491L (difference of -556000)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2845_Tests.Json_preserves_double_type_and_bits_through_repeated_exports(value: 1.7976931348623157E+308)",
+          "outcome": "Failed",
+          "first_line": "Expected BitConverter.DoubleToInt64Bits(current[\"Value\"].AsDouble) to be 9218868437227405311L, but found 9218868437227405312L (difference of 1)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2845_Tests.Json_preserves_double_type_and_bits_through_repeated_exports(value: 1E-300)",
+          "outcome": "Failed",
+          "first_line": "Expected BitConverter.DoubleToInt64Bits(current[\"Value\"].AsDouble) to be 118622047889322841L, but found 0L (difference of -118622047889322841)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2845_Tests.Json_preserves_double_type_and_bits_through_repeated_exports(value: 4.9406564584124654E-324)",
+          "outcome": "Failed",
+          "first_line": "Expected BitConverter.DoubleToInt64Bits(current[\"Value\"].AsDouble) to be 1L, but found 0L (difference of -1)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2845_Tests.Json_preserves_double_type_and_bits_through_repeated_exports(value: 42)",
+          "outcome": "Passed",
+          "first_line": ""
+        }
+      ]
+    },
+    "2847": {
+      "source": "LiteDB.Tests/Issues/Issue2847_Tests.cs",
+      "source_blob": "37965125a439f1864ef828448dc39e2571c2f56d",
+      "paths": [
+        "LiteDB/Client/Mapper/Linq/TypeResolver/StringResolver.cs"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0"
+      ],
+      "cases": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2847_Tests.Explicit_string_comparison_agrees_with_CLR_even_with_an_index(comparison: Ordinal, indexed: False)",
+          "outcome": "Failed",
+          "first_line": "Expected col.Find(predicate).Select(x => x.Id).OrderBy(x => x) to be equal to {2}, but {1, 2, 3} contains 2 item(s) too many."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2847_Tests.Explicit_string_comparison_agrees_with_CLR_even_with_an_index(comparison: Ordinal, indexed: True)",
+          "outcome": "Failed",
+          "first_line": "Expected col.Find(predicate).Select(x => x.Id).OrderBy(x => x) to be equal to {2}, but {1, 2, 3} contains 2 item(s) too many."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2847_Tests.Explicit_string_comparison_agrees_with_CLR_even_with_an_index(comparison: OrdinalIgnoreCase, indexed: False)",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2847_Tests.Explicit_string_comparison_agrees_with_CLR_even_with_an_index(comparison: OrdinalIgnoreCase, indexed: True)",
+          "outcome": "Passed",
+          "first_line": ""
+        }
+      ]
+    },
+    "2779": {
+      "source": "LiteDB.Tests/Issues/Issue2779_Tests.cs",
+      "source_blob": "3e6e8004572b8bca68fe15dd3230b4a3a775b3f3",
+      "paths": [
+        "LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "cases": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2779_Tests.Captured_method_calls_match_CLR_and_follow_changed_values(operation: \"concat\")",
+          "outcome": "Failed",
+          "first_line": "System.NotSupportedException : Method Concat(string,string,string) in String are not supported when convert to BsonExpression (Concat(value(LiteDB.Tests.Issues.Issue2779_Tests+<>c__DisplayClass6_0).part, \".\", value(LiteDB.Tests.Issues.Issue2779_Tests+<>c__DisplayClass6_0).other))."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2779_Tests.Captured_method_calls_match_CLR_and_follow_changed_values(operation: \"distinct\")",
+          "outcome": "Failed",
+          "first_line": "System.NotSupportedException : Method Distinct() in Enumerable are not supported when convert to BsonExpression (value(LiteDB.Tests.Issues.Issue2779_Tests+<>c__DisplayClass6_0).names.Distinct())."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2779_Tests.Captured_method_calls_match_CLR_and_follow_changed_values(operation: \"format\")",
+          "outcome": "Failed",
+          "first_line": "System.NotImplementedException : The method or operation is not implemented."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2779_Tests.Captured_method_calls_match_CLR_and_follow_changed_values(operation: \"join\")",
+          "outcome": "Failed",
+          "first_line": "System.NotImplementedException : The method or operation is not implemented."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2779_Tests.Generic_client_evaluation_and_parameter_dependent_resolver_calls_keep_their_boundaries",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2779_Tests.Original_selectmany_distinct_contains_is_one_parameter_and_matches_id_ledger",
+          "outcome": "Failed",
+          "first_line": "System.NotSupportedException : Method Distinct() in Enumerable are not supported when convert to BsonExpression (value(LiteDB.Tests.Issues.Issue2779_Tests+<>c__DisplayClass3_0).allstocks.SelectMany(x => x.ContactIds).Distinct())."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2779_Tests.Precomputed_contains_control_uses_the_same_parameter_and_id_ledger",
+          "outcome": "Passed",
+          "first_line": ""
+        }
+      ]
+    },
+    "2205": {
+      "source": "LiteDB.Tests/Issues/Issue2205_Tests.cs",
+      "source_blob": "f2c673cb6d7b0038213a4c6a0e835afb3762d74e",
+      "paths": [
+        "LiteDB/Document/Expression/Parser/BsonExpressionParser.cs"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0"
+      ],
+      "cases": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2205_Tests.Huge_numeric_looking_strings_are_preserved_when_quoted_or_parameterized",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2205_Tests.Out_of_range_unquoted_numeric_token_matches_the_complete_string_value",
+          "outcome": "Failed",
+          "first_line": "System.OverflowException : Value was either too large or too small for an Int64."
+        }
+      ]
+    },
+    "2871": {
+      "source": "LiteDB.Tests/Issues/Issue2871_Tests.cs",
+      "source_blob": "85b265f26e6b995a7af450319bd53424c5959cbd",
+      "paths": [
+        "LiteDB/Client/Mapper/Reflection/Reflection.cs"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net8.0",
+        "windows-x64-net10.0"
+      ],
+      "cases": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2871_Tests.Cache_hits_remain_correct_while_unique_constructor_types_force_resizes",
+          "outcome": "Passed",
+          "first_line": ""
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2871_Tests.Plain_constructor_dictionary_serializes_cache_hit_reads",
+          "outcome": "Failed",
+          "first_line": "Expected hitCompletedWhileHeld to be False because a hit must use the dictionary monitor when production writes use that monitor, but found True."
+        }
+      ]
+    }
+  }
+}

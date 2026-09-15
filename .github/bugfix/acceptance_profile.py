@@ -11,14 +11,23 @@ import sys
 
 
 POLICY = {
-    "version": "compressed-acceptance-v2",
+    "version": "compressed-acceptance-v3",
     "ordinary_pairs": {
         "2874": ["LiteDB/Document/ObjectId.cs"],
         "1506": ["LiteDB/Client/Database/Collections/Find.cs"],
         "2839": ["LiteDB/Client/Database/Collections/Aggregate.cs"],
         "2869": ["LiteDB/Document/BsonValue.cs"],
+        "2770": ["LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs"],
+        "2779": ["LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs"],
+        "2847": ["LiteDB/Client/Mapper/Linq/TypeResolver/StringResolver.cs"],
+        "2205": ["LiteDB/Document/Expression/Parser/BsonExpressionParser.cs"],
+        "2871": ["LiteDB/Client/Mapper/Reflection/Reflection.cs"],
     },
     "compatibility_pairs": {
+        "2867": {"paths": ["LiteDB/Client/Mapper/BsonMapper.GetEntityMapper.cs",
+                           "LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs"],
+                 "tests": ["LiteDB.Tests.Mapper.MapperInheritance_Tests",
+                           "LiteDB.Tests.Database.AutoId_Tests"]},
         "1002": {"paths": ["LiteDB/Client/Database/Collections/Insert.cs"],
                  "tests": ["LiteDB.Tests.Database.AutoId_Tests"]},
         "2802": {"paths": ["LiteDB/Client/Database/LiteQueryable.cs"],

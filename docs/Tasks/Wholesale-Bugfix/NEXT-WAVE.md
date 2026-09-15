@@ -10,7 +10,7 @@ Each future fix requires a fresh baseline against the current integration commit
 
 Per-fix validation uses the trusted compressed profile selected from the exact production Git diff plus the immutable issue contract. Run focused and broad checks in the same selected job; broad already includes the listed relevant tests, so do not rerun those filters separately. The full repository matrix runs only after the whole sweep.
 
-**Only the first three next-wave contracts are prepared in this revision.** The manifest now adds #1506/#1002/#2802 while preserving the existing #2874/#2839/#2869 entries. The planner adds the exact #1506/Find.cs ordinary pair and #1002/Insert.cs plus #2802/LiteQueryable.cs pairs that retain compatibility. These three use Ubuntu .NET 8 for an ordinary diff and always require a production build. The remaining proposals below are not registered; most still receive the conservative six OS/framework lanes plus compatibility. #2845 already matches the serialization rule. Before dispatch, independently review and promote these changes at a new immutable runtime revision after the pilot. Approved environments are a permitted set, not a requirement to run every lane. Scope expansion or runtime/platform-sensitive diffs can only increase the selected checks.
+**All ten next-wave contracts are prepared in this revision.** The manifest adds the remaining #2770/#2867/#2845/#2847/#2779/#2205/#2871 contracts while preserving the six existing entries exactly. Prepared contracts are not campaign registrations. The remaining seven require independent review and a later immutable runtime; the active v6 campaign is unchanged. Approved environments are a permitted set, while explicit required environments pin the minimum runtime and platform lanes. Unknown additional production paths retain the conservative six-lane compatibility fallback. Scope expansion or runtime/platform-sensitive diffs can only increase the selected checks.
 
 ## Prepared first-three contracts
 
@@ -20,9 +20,33 @@ The [manifest](../../../scripts/bugfix/issues.json) pins 12 regression cases and
 - #1002: exactly Insert.cs; Ubuntu .NET 8; focused plus broad, production build and compatibility. Relevant frozen AutoId_Tests coverage is already part of broad. The passing `(empty: 0)` theory identity is the positive control; the `(empty: null)` identity alone must reproduce the defect.
 - #2802: exactly LiteQueryable.cs; Ubuntu .NET 8; focused plus broad, production build and compatibility. Relevant frozen Mapper_Tests and FindAll_Tests coverage is already part of broad. Both five-case virtual-hook families must pass and the distinct generic-mapper control must remain green.
 
-The planner policy version becomes `compressed-acceptance-v2`; its hash changes intentionally. Consumer profile fields are unchanged. Existing candidates must retain their original profile and runtime binding; do not reuse old profile digests for new candidates. No source implementation, frozen fixture, campaign registration or worker dispatch is included.
+The first-three preparation introduced planner policy `compressed-acceptance-v2`. The remaining-seven preparation below advances it to `compressed-acceptance-v3`; its hash changes intentionally. Consumer profile fields are unchanged. Existing candidates must retain their original profile and runtime binding; do not reuse old profile digests for new candidates. No source implementation, frozen fixture, campaign registration or worker dispatch is included.
 
 Contract tests independently pin names, first lines, blobs and exact scopes. They reject unrelated red results for every regression, missing/extra/skipped candidate identities and broken controls before or after a fix. Profile tests check each compact lane selection, compatibility requirements, same-file unrelated-issue fallback, scope expansion, platform/runtime widening and existence of the relevant frozen test classes. Fresh baseline evidence remains required before fixing each issue.
+
+## Prepared remaining-seven contracts
+
+The remaining seven add **20 exact regressions and nine positive controls**. Their original six-lane observations, source blobs, scopes and required environments are retained independently in [next-seven-baseline.json](../../../scripts/bugfix/fixtures/next-seven-baseline.json). Every listed baseline TRX hash was rechecked locally before deriving the contracts; no new CI or remote operation was used. Test files are unchanged at `dd937719f7eee53c512f50ac604cab639bf42a4c`.
+
+| Issue | Explicit required environments | Compatibility | Exact production scope |
+| --- | --- | --- | --- |
+| #2770 | Linux x64 net8 + net10 | No | LinqExpressionVisitor.cs |
+| #2867 | Linux x64 net8 + net10 | Yes | BsonMapper.GetEntityMapper.cs and LinqExpressionVisitor.cs |
+| #2845 | Linux x64 net8 + net10 | Yes | JsonWriter.cs |
+| #2847 | Linux x64 net8 and Windows x64 net8 | No | StringResolver.cs |
+| #2779 | Linux x64 net8 + net10 | No | LinqExpressionVisitor.cs |
+| #2205 | Linux x64 net8 | No | BsonExpressionParser.cs |
+| #2871 | Linux x64 and Windows x64, each net8 + net10 | No | Reflection.cs |
+
+All profiles require focused and broad checks plus a production build. The #2845 serialization rule already requires BSON coverage and compatibility. The new exact #2867 issue/path compatibility rule also identifies existing MapperInheritance_Tests and AutoId_Tests coverage; broad executes these tests, so no separate duplicate run is needed. Its persisted mapping change requires review of legacy documents authored with the previous ID convention as well as ordinary file-format compatibility.
+
+The frozen tests resolve the three previously identified contract decisions without requiring a weaker gate:
+
+- #2847 explicitly accepts either results matching CLR semantics or a deliberate NotSupportedException for an unsupported mode. Other exceptions and silently ignored modes fail. Both OrdinalIgnoreCase controls must remain passing, including their ordinary equality/data-preservation assertions. A passing gate does not establish that the comparison overload remains supported: the candidate and reviews must state exactly which modes are supported or rejected, and assess any loss of previously working behavior.
+- #2205 requires the complete oversized unquoted token to be treated as a string and match only the exact stored value. A replacement syntax exception is not an accepted fix. Quoted and parameterized positive controls remain required. Review the language-semantics change and neighboring numeric boundaries.
+- #2871 allows replacement of the plain Dictionary with a genuinely thread-safe cache; the deterministic monitor branch then returns normally. The separate concurrent-reader/resize control still must pass. Reviewers must establish the replacement's synchronization guarantees, fresh-object behavior and safe interface recursion; changing the cache type alone is insufficient evidence.
+
+No signature normalization, grader relaxation, skip exception, production implementation or frozen test modification is included. No selected contract remains ambiguous about its existing test acceptance semantics. Fresh current-integration baseline failures and all independent validation reviews are still required; a related issue becoming green must be explicitly dispositioned rather than weakening its expected baseline.
 
 ## Independent baseline provenance
 
@@ -352,10 +376,10 @@ Expected hitCompletedWhileHeld to be False because a hit must use the dictionary
 
 ## Dispatch blockers and later queue
 
-- Independently review the three prepared contracts and profiles before promoting a next runtime. Register the remaining seven only after adding exact regression/control identities, first-line signatures, frozen blob IDs and approved production paths. Preserve the existing #2874 contract. Bind fresh evidence to the actual integration base; these original reports cannot certify later bases.
-- Add reviewed compact profile rules before expecting the proposed lane reductions. Compatibility is required for persisted mapping/key changes and JSON serialization. Do not classify every future issue in the same file as ordinary by filename alone.
+- Independently review the remaining seven prepared contracts and profiles before promoting a later runtime. Preserve all six previously prepared contracts exactly, including #2874. Bind fresh evidence to the actual integration base; these original reports cannot certify later bases.
+- Promote the reviewed compact profile rules at the same immutable runtime as their contracts before expecting the lane reductions. Compatibility is required for persisted mapping/key changes and JSON serialization. Do not classify every future issue in the same file as ordinary by filename alone.
 - #2867, #2770 and #2779 can touch LinqExpressionVisitor.cs. Execute each against the latest accepted integration commit and revalidate the permanent passing ledger; do not merge stale independently prepared patches.
-- #2847 needs an explicit decision on support versus deliberate rejection of unsupported StringComparison modes. #2205 needs explicit acceptance of the frozen unquoted-token-as-string behavior. #2871 needs a synchronization review even if a concurrent replacement takes the allowed alternate test branch.
+- #2847 candidates must disclose support versus deliberate rejection under the frozen permitted semantics. #2205 candidates must implement the frozen unquoted-token-as-string behavior exactly. #2871 needs a synchronization review even if a concurrent replacement takes the allowed alternate test branch.
 - Proposed source scopes are bounded hypotheses from the original code. A worker that needs another file must request a reviewed scope/profile update; a green target alone cannot authorize extra paths. Preserve non-growing size limits for LiteQueryable.cs, LinqExpressionVisitor.cs and BsonExpressionParser.cs.
 - #2860 remains deferred because its frozen class also contains two distinct maximum-depth diagnostic failures in addition to URI cases; dropping those cases would hide separate defects. Split the execution contract only after explicit case-level disposition.
 - #2870 remains deferred until environment-dependent stack/frame evidence has a reviewed signature contract. #2769 needs broader integer-enum/UInt64 serialization and index compatibility review; #2093 changes missing-value/default query semantics beyond a narrow mapper fix.
