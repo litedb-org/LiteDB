@@ -1,0 +1,499 @@
+{
+  "schema_version": 1,
+  "source_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+  "inventory_path": "docs/open-bugs/inventory.json",
+  "inventory_blob": "f862415d354d64c034b1b7a3153ff391910c39ab",
+  "environment_scope": "net8.0, at least two logical processors; standard Linux or Windows runner outside Windows AppContainer",
+  "policy_note": "These explicit source-derived classes authorize fresh baseline classification only. Every individual failed case and its exact normalized failure must be recorded from the completed pinned-baseline run. This file is not evidence that every listed class fails.",
+  "eligible_inventory_statuses": [
+    "intermittent",
+    "reproduced",
+    "reproduced-ci",
+    "reproduced-documentation",
+    "reproduced-publication",
+    "reproduced-script"
+  ],
+  "classes": [
+    "LiteDB.Tests.Audit2026.AuditCoverageLedger_Tests",
+    "LiteDB.Tests.Audit2026.AuditFindingSourceGuard_Tests",
+    "LiteDB.Tests.Audit2026.EngineAuditRegression_Tests",
+    "LiteDB.Tests.Audit2026.ExpressionAuditRegression_Tests",
+    "LiteDB.Tests.Audit2026.JsonAuditRegression_Tests",
+    "LiteDB.Tests.Audit2026.MapperAuditRegression_Tests",
+    "LiteDB.Tests.Audit2026.QueryAuditRegression_Tests",
+    "LiteDB.Tests.Audit2026.SqlAuditRegression_Tests",
+    "LiteDB.Tests.Issues.Issue1002_Tests",
+    "LiteDB.Tests.Issues.Issue1159_Tests",
+    "LiteDB.Tests.Issues.Issue1162_Tests",
+    "LiteDB.Tests.Issues.Issue1192_Tests",
+    "LiteDB.Tests.Issues.Issue1224_Tests",
+    "LiteDB.Tests.Issues.Issue1344_Tests",
+    "LiteDB.Tests.Issues.Issue1376_Tests",
+    "LiteDB.Tests.Issues.Issue1444_Tests",
+    "LiteDB.Tests.Issues.Issue1506_Tests",
+    "LiteDB.Tests.Issues.Issue1545_Tests",
+    "LiteDB.Tests.Issues.Issue1706_Tests",
+    "LiteDB.Tests.Issues.Issue1715_Tests",
+    "LiteDB.Tests.Issues.Issue1829_Tests",
+    "LiteDB.Tests.Issues.Issue1834_Tests",
+    "LiteDB.Tests.Issues.Issue1848_ReadOnlyOwnershipTests",
+    "LiteDB.Tests.Issues.Issue1848_Tests",
+    "LiteDB.Tests.Issues.Issue1851_Tests",
+    "LiteDB.Tests.Issues.Issue1899_Tests",
+    "LiteDB.Tests.Issues.Issue1903_Tests",
+    "LiteDB.Tests.Issues.Issue1904_Tests",
+    "LiteDB.Tests.Issues.Issue1908_Tests",
+    "LiteDB.Tests.Issues.Issue1920_Tests",
+    "LiteDB.Tests.Issues.Issue1958_Tests",
+    "LiteDB.Tests.Issues.Issue1966_Tests",
+    "LiteDB.Tests.Issues.Issue2033_Tests",
+    "LiteDB.Tests.Issues.Issue2052_Tests",
+    "LiteDB.Tests.Issues.Issue2093_Tests",
+    "LiteDB.Tests.Issues.Issue2113_Tests",
+    "LiteDB.Tests.Issues.Issue2144_Tests",
+    "LiteDB.Tests.Issues.Issue2169_CheckpointFailureTests",
+    "LiteDB.Tests.Issues.Issue2169_Tests",
+    "LiteDB.Tests.Issues.Issue2205_Tests",
+    "LiteDB.Tests.Issues.Issue2225_Tests",
+    "LiteDB.Tests.Issues.Issue2243_Tests",
+    "LiteDB.Tests.Issues.Issue2303_Tests",
+    "LiteDB.Tests.Issues.Issue2322_Tests",
+    "LiteDB.Tests.Issues.Issue2324_Tests",
+    "LiteDB.Tests.Issues.Issue2357_Tests",
+    "LiteDB.Tests.Issues.Issue2367_Tests",
+    "LiteDB.Tests.Issues.Issue2450_Tests",
+    "LiteDB.Tests.Issues.Issue2545_Tests",
+    "LiteDB.Tests.Issues.Issue2549_Tests",
+    "LiteDB.Tests.Issues.Issue2578_Tests",
+    "LiteDB.Tests.Issues.Issue2583_Tests",
+    "LiteDB.Tests.Issues.Issue2590_Tests",
+    "LiteDB.Tests.Issues.Issue2739_Tests",
+    "LiteDB.Tests.Issues.Issue2746_Tests",
+    "LiteDB.Tests.Issues.Issue2764_Tests",
+    "LiteDB.Tests.Issues.Issue2765_Tests",
+    "LiteDB.Tests.Issues.Issue2767_Tests",
+    "LiteDB.Tests.Issues.Issue2769_Tests",
+    "LiteDB.Tests.Issues.Issue2770_Tests",
+    "LiteDB.Tests.Issues.Issue2777_Tests",
+    "LiteDB.Tests.Issues.Issue2779_Tests",
+    "LiteDB.Tests.Issues.Issue2784_Tests",
+    "LiteDB.Tests.Issues.Issue2785_Tests",
+    "LiteDB.Tests.Issues.Issue2787_Tests",
+    "LiteDB.Tests.Issues.Issue2790_Tests",
+    "LiteDB.Tests.Issues.Issue2792_Tests",
+    "LiteDB.Tests.Issues.Issue2795_PipelineGuards_Tests",
+    "LiteDB.Tests.Issues.Issue2795_Tests",
+    "LiteDB.Tests.Issues.Issue2796_Tests",
+    "LiteDB.Tests.Issues.Issue2798_Tests",
+    "LiteDB.Tests.Issues.Issue2799_Tests",
+    "LiteDB.Tests.Issues.Issue2800_Tests",
+    "LiteDB.Tests.Issues.Issue2801_Tests",
+    "LiteDB.Tests.Issues.Issue2802_Tests",
+    "LiteDB.Tests.Issues.Issue2803_CheckpointFailureTests",
+    "LiteDB.Tests.Issues.Issue2803_Tests",
+    "LiteDB.Tests.Issues.Issue2805_Tests",
+    "LiteDB.Tests.Issues.Issue2806_Tests",
+    "LiteDB.Tests.Issues.Issue2807_Tests",
+    "LiteDB.Tests.Issues.Issue2810_Tests",
+    "LiteDB.Tests.Issues.Issue2811_Tests",
+    "LiteDB.Tests.Issues.Issue2814_Tests",
+    "LiteDB.Tests.Issues.Issue2815_Tests",
+    "LiteDB.Tests.Issues.Issue2818_Tests",
+    "LiteDB.Tests.Issues.Issue2819_Tests",
+    "LiteDB.Tests.Issues.Issue2820_Tests",
+    "LiteDB.Tests.Issues.Issue2821_Tests",
+    "LiteDB.Tests.Issues.Issue2822_Tests",
+    "LiteDB.Tests.Issues.Issue2823_Tests",
+    "LiteDB.Tests.Issues.Issue2824_Tests",
+    "LiteDB.Tests.Issues.Issue2827_Tests",
+    "LiteDB.Tests.Issues.Issue2839_Tests",
+    "LiteDB.Tests.Issues.Issue2841_Tests",
+    "LiteDB.Tests.Issues.Issue2845_Tests",
+    "LiteDB.Tests.Issues.Issue2847_Tests",
+    "LiteDB.Tests.Issues.Issue2848_Tests",
+    "LiteDB.Tests.Issues.Issue2855_Tests",
+    "LiteDB.Tests.Issues.Issue2858_Tests",
+    "LiteDB.Tests.Issues.Issue2859_Tests",
+    "LiteDB.Tests.Issues.Issue2860_Tests",
+    "LiteDB.Tests.Issues.Issue2864_Tests",
+    "LiteDB.Tests.Issues.Issue2867_Tests",
+    "LiteDB.Tests.Issues.Issue2869_Tests",
+    "LiteDB.Tests.Issues.Issue2870_Tests",
+    "LiteDB.Tests.Issues.Issue2871_Tests",
+    "LiteDB.Tests.Issues.Issue2873_ReportedModelTests",
+    "LiteDB.Tests.Issues.Issue2873_Tests",
+    "LiteDB.Tests.Issues.Issue2874_Tests"
+  ],
+  "skipped_tests": [
+    "LiteDB.Internals.Disk_Tests.Disk_ExclusiveScheduler_Write",
+    "LiteDB.Tests.Database.PredicateBuilder_Tests.Usage_PredicateBuilder",
+    "LiteDB.Tests.Engine.Collation_Tests.Create_Database_Using_Current_Culture",
+    "LiteDB.Tests.Engine.ParallelQuery_Tests.Query_Parallel",
+    "LiteDB.Tests.Engine.Rebuild_Tests.Rebuild_Change_Culture_Error",
+    "LiteDB.Tests.Issues.Issue2127_Tests+ReproTests.InsertItemBackToBack_Test",
+    "LiteDB.Tests.Issues.Issue2793_Tests.Shared_mode_in_an_app_container_uses_a_local_mutex_and_persists_data",
+    "LiteDB.Tests.QueryTest.VectorIndex_Tests.VectorIndex_HandlesVectorsSpanningMultipleDataBlocks_PersistedUpdate"
+  ],
+  "class_sources": {
+    "LiteDB.Tests.Audit2026.AuditCoverageLedger_Tests": [
+      "LiteDB.Tests/Audit2026/AuditCoverageLedger_Tests.cs"
+    ],
+    "LiteDB.Tests.Audit2026.AuditFindingSourceGuard_Tests": [
+      "LiteDB.Tests/Audit2026/AuditFindingSourceGuard_Tests.cs"
+    ],
+    "LiteDB.Tests.Audit2026.EngineAuditRegression_Tests": [
+      "LiteDB.Tests/Audit2026/EngineAuditRegression_Tests.cs"
+    ],
+    "LiteDB.Tests.Audit2026.ExpressionAuditRegression_Tests": [
+      "LiteDB.Tests/Audit2026/ExpressionAuditRegression_Tests.cs"
+    ],
+    "LiteDB.Tests.Audit2026.JsonAuditRegression_Tests": [
+      "LiteDB.Tests/Audit2026/JsonAuditRegression_Tests.cs"
+    ],
+    "LiteDB.Tests.Audit2026.MapperAuditRegression_Tests": [
+      "LiteDB.Tests/Audit2026/MapperAuditRegression_Tests.cs"
+    ],
+    "LiteDB.Tests.Audit2026.QueryAuditRegression_Tests": [
+      "LiteDB.Tests/Audit2026/QueryAuditRegression_Tests.cs"
+    ],
+    "LiteDB.Tests.Audit2026.SqlAuditRegression_Tests": [
+      "LiteDB.Tests/Audit2026/SqlAuditRegression_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue1002_Tests": [
+      "LiteDB.Tests/Issues/Issue1002_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue1159_Tests": [
+      "LiteDB.Tests/Issues/Issue1159_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue1162_Tests": [
+      "LiteDB.Tests/Issues/Issue1162_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue1192_Tests": [
+      "LiteDB.Tests/Issues/Issue1192_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue1224_Tests": [
+      "LiteDB.Tests/Issues/Issue1224_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue1344_Tests": [
+      "LiteDB.Tests/Issues/Issue1344_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue1376_Tests": [
+      "LiteDB.Tests/Issues/Issue1376_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue1444_Tests": [
+      "LiteDB.Tests/Issues/Issue1444_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue1506_Tests": [
+      "LiteDB.Tests/Issues/Issue1506_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue1545_Tests": [
+      "LiteDB.Tests/Issues/Issue1545_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue1706_Tests": [
+      "LiteDB.Tests/Issues/Issue1706_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue1715_Tests": [
+      "LiteDB.Tests/Issues/Issue1715_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue1829_Tests": [
+      "LiteDB.Tests/Issues/Issue1829_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue1834_Tests": [
+      "LiteDB.Tests/Issues/Issue1834_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue1848_ReadOnlyOwnershipTests": [
+      "LiteDB.Tests/Issues/Issue1848_ReadOnlyOwnershipTests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue1848_Tests": [
+      "LiteDB.Tests/Issues/Issue1848_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue1851_Tests": [
+      "LiteDB.Tests/Issues/Issue1851_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue1899_Tests": [
+      "LiteDB.Tests/Issues/Issue1899_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue1903_Tests": [
+      "LiteDB.Tests/Issues/Issue1903_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue1904_Tests": [
+      "LiteDB.Tests/Issues/Issue1904_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue1908_Tests": [
+      "LiteDB.Tests/Issues/Issue1908_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue1920_Tests": [
+      "LiteDB.Tests/Issues/Issue1920_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue1958_Tests": [
+      "LiteDB.Tests/Issues/Issue1958_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue1966_Tests": [
+      "LiteDB.Tests/Issues/Issue1966_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2033_Tests": [
+      "LiteDB.Tests/Issues/Issue2033_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2052_Tests": [
+      "LiteDB.Tests/Issues/Issue2052_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2093_Tests": [
+      "LiteDB.Tests/Issues/Issue2093_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2113_Tests": [
+      "LiteDB.Tests/Issues/Issue2113_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2144_Tests": [
+      "LiteDB.Tests/Issues/Issue2144_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2169_CheckpointFailureTests": [
+      "LiteDB.Tests/Issues/Issue2169_CheckpointFailureTests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2169_Tests": [
+      "LiteDB.Tests/Issues/Issue2169_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2205_Tests": [
+      "LiteDB.Tests/Issues/Issue2205_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2225_Tests": [
+      "LiteDB.Tests/Issues/Issue2225_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2243_Tests": [
+      "LiteDB.Tests/Issues/Issue2243_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2303_Tests": [
+      "LiteDB.Tests/Issues/Issue2303_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2322_Tests": [
+      "LiteDB.Tests/Issues/Issue2322_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2324_Tests": [
+      "LiteDB.Tests/Issues/Issue2324_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2357_Tests": [
+      "LiteDB.Tests/Issues/Issue2357_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2367_Tests": [
+      "LiteDB.Tests/Issues/Issue2367_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2450_Tests": [
+      "LiteDB.Tests/Issues/Issue2450_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2545_Tests": [
+      "LiteDB.Tests/Issues/Issue2545_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2549_Tests": [
+      "LiteDB.Tests/Issues/Issue2549_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2578_Tests": [
+      "LiteDB.Tests/Issues/Issue2578_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2583_Tests": [
+      "LiteDB.Tests/Issues/Issue2583_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2590_Tests": [
+      "LiteDB.Tests/Issues/Issue2590_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2739_Tests": [
+      "LiteDB.Tests/Issues/Issue2739_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2746_Tests": [
+      "LiteDB.Tests/Issues/Issue2746_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2764_Tests": [
+      "LiteDB.Tests/Issues/Issue2764_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2765_Tests": [
+      "LiteDB.Tests/Issues/Issue2765_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2767_Tests": [
+      "LiteDB.Tests/Issues/Issue2767_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2769_Tests": [
+      "LiteDB.Tests/Issues/Issue2769_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2770_Tests": [
+      "LiteDB.Tests/Issues/Issue2770_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2777_Tests": [
+      "LiteDB.Tests/Issues/Issue2777_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2779_Tests": [
+      "LiteDB.Tests/Issues/Issue2779_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2784_Tests": [
+      "LiteDB.Tests/Issues/Issue2784_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2785_Tests": [
+      "LiteDB.Tests/Issues/Issue2785_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2787_Tests": [
+      "LiteDB.Tests/Issues/Issue2787_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2790_Tests": [
+      "LiteDB.Tests/Issues/Issue2790_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2792_Tests": [
+      "LiteDB.Tests/Issues/Issue2792_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2795_PipelineGuards_Tests": [
+      "LiteDB.Tests/Issues/Issue2795_PipelineGuards_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2795_Tests": [
+      "LiteDB.Tests/Issues/Issue2795_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2796_Tests": [
+      "LiteDB.Tests/Issues/Issue2796_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2798_Tests": [
+      "LiteDB.Tests/Issues/Issue2798_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2799_Tests": [
+      "LiteDB.Tests/Issues/Issue2799_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2800_Tests": [
+      "LiteDB.Tests/Issues/Issue2800_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2801_Tests": [
+      "LiteDB.Tests/Issues/Issue2801_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2802_Tests": [
+      "LiteDB.Tests/Issues/Issue2802_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2803_CheckpointFailureTests": [
+      "LiteDB.Tests/Issues/Issue2803_CheckpointFailureTests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2803_Tests": [
+      "LiteDB.Tests/Issues/Issue2803_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2805_Tests": [
+      "LiteDB.Tests/Issues/Issue2805_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2806_Tests": [
+      "LiteDB.Tests/Issues/Issue2806_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2807_Tests": [
+      "LiteDB.Tests/Issues/Issue2807_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2810_Tests": [
+      "LiteDB.Tests/Issues/Issue2810_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2811_Tests": [
+      "LiteDB.Tests/Issues/Issue2811_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2814_Tests": [
+      "LiteDB.Tests/Issues/Issue2814_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2815_Tests": [
+      "LiteDB.Tests/Issues/Issue2815_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2818_Tests": [
+      "LiteDB.Tests/Issues/Issue2818_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2819_Tests": [
+      "LiteDB.Tests/Issues/Issue2819_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2820_Tests": [
+      "LiteDB.Tests/Issues/Issue2820_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2821_Tests": [
+      "LiteDB.Tests/Issues/Issue2821_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2822_Tests": [
+      "LiteDB.Tests/Issues/Issue2822_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2823_Tests": [
+      "LiteDB.Tests/Issues/Issue2823_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2824_Tests": [
+      "LiteDB.Tests/Issues/Issue2824_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2827_Tests": [
+      "LiteDB.Tests/Issues/Issue2827_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2839_Tests": [
+      "LiteDB.Tests/Issues/Issue2839_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2841_Tests": [
+      "LiteDB.Tests/Issues/Issue2841_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2845_Tests": [
+      "LiteDB.Tests/Issues/Issue2845_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2847_Tests": [
+      "LiteDB.Tests/Issues/Issue2847_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2848_Tests": [
+      "LiteDB.Tests/Issues/Issue2848_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2855_Tests": [
+      "LiteDB.Tests/Issues/Issue2855_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2858_Tests": [
+      "LiteDB.Tests/Issues/Issue2858_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2859_Tests": [
+      "LiteDB.Tests/Issues/Issue2859_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2860_Tests": [
+      "LiteDB.Tests/Issues/Issue2860_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2864_Tests": [
+      "LiteDB.Tests/Issues/Issue2864_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2867_Tests": [
+      "LiteDB.Tests/Issues/Issue2867_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2869_Tests": [
+      "LiteDB.Tests/Issues/Issue2869_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2870_Tests": [
+      "LiteDB.Tests/Issues/Issue2870_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2871_Tests": [
+      "LiteDB.Tests/Issues/Issue2871_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2873_ReportedModelTests": [
+      "LiteDB.Tests/Issues/Issue2873_ReportedModelTests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2873_Tests": [
+      "LiteDB.Tests/Issues/Issue2873_Tests.cs"
+    ],
+    "LiteDB.Tests.Issues.Issue2874_Tests": [
+      "LiteDB.Tests/Issues/Issue2874_Tests.cs"
+    ]
+  },
+  "requires_baseline_review": [
+    {
+      "issue": 2814,
+      "status": "intermittent",
+      "original_net8_results": {
+        "Passed": 1
+      },
+      "reason": "Original inventory contains no failing net8 case; any fresh failure requires investigation."
+    },
+    {
+      "issue": 2796,
+      "status": "reproduced-documentation",
+      "original_net8_results": {
+        "Passed": 1
+      },
+      "reason": "Original inventory contains no failing net8 case; any fresh failure requires investigation."
+    },
+    {
+      "issue": 2357,
+      "status": "reproduced",
+      "original_net8_results": {
+        "Passed": 1
+      },
+      "reason": "Original inventory contains no failing net8 case; any fresh failure requires investigation."
+    }
+  ],
+  "skip_policy_notes": [
+    "Seven test methods have explicit skip attributes in the original net8 sources.",
+    "Issue2793 AppContainer test uses WindowsAppContainerFact and skips outside a Windows AppContainer. It must execute in the dedicated AppContainer lane.",
+    "Issue2298 We_Dont_Need_Ctor only skips on non-NETCOREAPP frameworks and is deliberately absent from this net8 policy.",
+    "Six CpuBoundFact transaction tests must execute with at least two logical processors; CPU-starved runners are not accepted through new skips."
+  ],
+  "discovery_note": "Exact class and skipped method names were checked against local net8 --list-tests; CI independently discovers and executes the pinned original sources."
+}

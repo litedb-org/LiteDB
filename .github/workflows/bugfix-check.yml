@@ -1,0 +1,99 @@
+name: Wholesale bugfix checks
+run-name: Bugfix ${{ inputs.issue || '2874' }} ${{ inputs.level || 'baseline' }} ${{ inputs.candidate_sha || inputs.base_sha || github.sha }}
+
+on:
+  push:
+    branches: [automation/wholesale-bugfix]
+    paths:
+      - .github/workflows/bugfix-check.yml
+      - .github/scripts/run_bugfix_tests.py
+      - .github/scripts/grade_bugfix_checks.py
+      - scripts/bugfix/**
+  workflow_dispatch:
+    inputs:
+      issue:
+        type: string
+        default: '2874'
+      base_sha:
+        type: string
+        required: true
+      candidate_sha:
+        type: string
+        default: ''
+      level:
+        type: choice
+        options: [baseline, focused, broad, acceptance]
+        default: focused
+
+permissions:
+  contents: read
+
+jobs:
+  select:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.select.outputs.matrix }}
+    steps:
+      - id: select
+        env:
+          LEVEL: ${{ inputs.level || 'baseline' }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          platforms = ['ubuntu-latest', 'windows-latest', 'macos-latest'] if os.environ['LEVEL'] == 'acceptance' else ['ubuntu-latest']
+          frameworks = ['net8.0', 'net10.0'] if os.environ['LEVEL'] == 'acceptance' else ['net8.0']
+          matrix = {'include': [{'os': os_name, 'framework': framework} for os_name in platforms for framework in frameworks]}
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('matrix=' + json.dumps(matrix) + '\n')
+          PY
+  checks:
+    needs: select
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.select.outputs.matrix) }}
+    steps:
+      - name: Checkout trusted gate
+        uses: actions/checkout@v4
+        with:
+          path: control
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Checkout baseline
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.base_sha || github.sha }}
+          path: baseline
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Checkout candidate
+        if: inputs.candidate_sha != ''
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          path: candidate
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.x
+            8.0.x
+      - name: Test baseline and candidate with immutable regressions
+        shell: bash
+        env:
+          ISSUE: ${{ inputs.issue || '2874' }}
+          LEVEL: ${{ inputs.level || 'baseline' }}
+          BASE_SHA: ${{ inputs.base_sha || github.sha }}
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+          FRAMEWORK: ${{ matrix.framework }}
+        run: python control/.github/scripts/grade_bugfix_checks.py
+      - name: Upload complete check evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bugfix-check-${{ matrix.os }}-${{ matrix.framework }}
+          path: artifacts
+          if-no-files-found: error
+          retention-days: 90
