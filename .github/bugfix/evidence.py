@@ -61,6 +61,10 @@ def broad_failure_outcome(report):
 
 def _failure_outcome(data, control, state):
     """Only completed, correctly selected assertion results count as code failures."""
+    from build_failures import test_build_failure
+    compiler = test_build_failure(data, state)
+    if compiler is not None:
+        return compiler
     names = ("baseline-verdict.json", "candidate/execution.json", "candidate/focused.trx")
     files = read_members(data, names)
     if set(files) != set(names):
@@ -164,7 +168,7 @@ def failed_acceptance(repo, state, workflow_run, artifacts, control, event):
     for name in names:
         try:
             data = download(repo, select_artifact(artifacts, name))
-            files = read_members(data, ("verdict.json", "broad-verdict.json"))
+            files = read_members(data, ("verdict.json", "broad-verdict.json", "candidate/build-report.json"))
             verdict = json.loads(files["verdict.json"]) if "verdict.json" in files else {}
             if verdict.get("accepted") is True:
                 require_lane_environment(name, verdict["environment"])
@@ -173,6 +177,8 @@ def failed_acceptance(repo, state, workflow_run, artifacts, control, event):
             else:
                 outcome, diagnostics = _failure_outcome(data, control, state)
             report_name = "verdict.json" if verdict.get("accepted") is True else "broad-verdict.json"
+            if report_name not in files and "candidate/build-report.json" in files:
+                report_name = "candidate/build-report.json"
             raw = files.get(report_name)
             environment = verdict.get("environment") or (json.loads(raw).get("provenance", {}).get("environment") if raw else None)
             matrix.append({"artifact": name, "outcome": outcome, "environment": environment,
@@ -182,6 +188,15 @@ def failed_acceptance(repo, state, workflow_run, artifacts, control, event):
                 failures.append({"artifact": name, "outcome": outcome, "diagnostics": diagnostics})
         except (ValueError, KeyError, OSError) as error:
             failures.append({"artifact": name, "outcome": "harness_error", "diagnostics": [str(error)]})
+    if profile_complete_check(state, event["kind"]):
+        from build_failures import production_failure
+        try:
+            production = production_failure(repo, state, workflow_run["id"], artifacts)
+            matrix.append(production)
+            if production["outcome"] != "pass":
+                failures.append(production)
+        except (ValueError, KeyError, OSError) as error:
+            failures.append({"artifact": "bugfix-production", "outcome": "harness_error", "diagnostics": [str(error)]})
     outcomes = {item["outcome"] for item in failures}
     outcome = next((kind for kind in ("inconclusive", "harness_error", "fail") if kind in outcomes), "harness_error")
     event.update(outcome=outcome, diagnostics=failures or ["All lanes passed; workflow or compatibility failed"],

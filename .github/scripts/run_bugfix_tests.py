@@ -9,6 +9,9 @@ import subprocess
 import sys
 import time
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bugfix"))
+from compiler_feedback import write_build_report
+
 
 def execute(command, repository, log, timeout):
     started = time.monotonic()
@@ -47,7 +50,15 @@ def main():
                   "-p:TargetFrameworks=" + args.framework]
     build = ["dotnet", "build", project, "-c", "Release", "-f", args.framework,
              "--nologo", *properties]
-    if execute(build, repository, output / "build.log", 600) != 0:
+    build_identity = {"issue": int(args.issue), "source_sha": revision, "test_source_sha": frozen,
+                      "workflow_sha": os.environ.get("GITHUB_SHA"), "build_kind": "test", "framework": args.framework}
+    try:
+        build_exit = execute(build, repository, output / "build.log", 600)
+    except subprocess.TimeoutExpired:
+        write_build_report(output / "build-report.json", output / "build.log", repository, build_identity, None, True)
+        raise
+    write_build_report(output / "build-report.json", output / "build.log", repository, build_identity, build_exit)
+    if build_exit != 0:
         raise RuntimeError("Build failed; this is not a bug reproduction")
     common = ["dotnet", "test", project, "-c", "Release", "-f", args.framework,
               "--no-build", "--no-restore", "--settings", "tests.runsettings",

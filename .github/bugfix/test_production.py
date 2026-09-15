@@ -15,6 +15,9 @@ class ProductionCommandsTests(unittest.TestCase):
     def run_build(self, root, compatibility=False, failure=False):
         profile = profile_fixture()
         profile["compatibility"] = compatibility
+        manifest = root / "control/scripts/bugfix/issues.json"
+        manifest.parent.mkdir(parents=True, exist_ok=True)
+        manifest.write_text(json.dumps({"issues": {"2874": {"frozen_test_revision": "b" * 40}}}))
         output = root / "artifacts/production.json"
         args = ["production.py", "--repository", str(root / "candidate"), "--control", str(root / "control"),
                 "--issue", "2874", "--base-sha", "a" * 40, "--candidate-sha", "d" * 40,
@@ -49,6 +52,8 @@ class ProductionCommandsTests(unittest.TestCase):
             with self.assertRaises(subprocess.CalledProcessError):
                 self.run_build(root, failure=True)
             self.assertFalse((root / "artifacts/production.json").exists())
+            report = json.loads((root / "artifacts/production-build-report.json").read_bytes())
+            self.assertEqual("harness_error", report["outcome"])
 
 
 if __name__ == "__main__":

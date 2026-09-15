@@ -10,6 +10,7 @@ import sys
 from patching import git
 from profiles import build_profile
 from state import require
+from compiler_feedback import write_build_report
 
 
 def main():
@@ -33,8 +34,20 @@ def main():
     if profile["compatibility"]:
         commands.append(("compatibility", [sys.executable, str(args.repository / "scripts/test-vector-compatibility.py")]))
     for name, command in commands:
-        with (args.output.parent / f"production-{name}.log").open("w", encoding="utf-8") as log:
-            subprocess.run(command, cwd=args.repository, stdout=log, stderr=subprocess.STDOUT, check=True, timeout=600)
+        log_path = args.output.parent / f"production-{name}.log"
+        try:
+            with log_path.open("w", encoding="utf-8") as log:
+                subprocess.run(command, cwd=args.repository, stdout=log, stderr=subprocess.STDOUT, check=True, timeout=600,
+                               env={**os.environ, "DOTNET_CLI_UI_LANGUAGE": "en-US", "VSLANG": "1033"})
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+            if name == "build":
+                contract = json.loads((args.control / "scripts/bugfix/issues.json").read_bytes())["issues"][str(args.issue)]
+                identity = {"issue": args.issue, "source_sha": args.candidate_sha,
+                            "test_source_sha": contract["frozen_test_revision"], "workflow_sha": os.environ["GITHUB_SHA"],
+                            "build_kind": "production", "framework": "all-production-targets"}
+                write_build_report(args.output.parent / "production-build-report.json", log_path, args.repository,
+                                   identity, getattr(error, "returncode", None), isinstance(error, subprocess.TimeoutExpired))
+            raise
     report = {"schema_version": 1, **state, "workflow_sha": os.environ["GITHUB_SHA"],
               "acceptance_profile": profile, "accepted": True, "production_build": True,
               "compatibility": profile["compatibility"]}
