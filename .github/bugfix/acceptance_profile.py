@@ -11,11 +11,19 @@ import sys
 
 
 POLICY = {
-    "version": "compressed-acceptance-v1",
+    "version": "compressed-acceptance-v2",
     "ordinary_pairs": {
         "2874": ["LiteDB/Document/ObjectId.cs"],
+        "1506": ["LiteDB/Client/Database/Collections/Find.cs"],
         "2839": ["LiteDB/Client/Database/Collections/Aggregate.cs"],
         "2869": ["LiteDB/Document/BsonValue.cs"],
+    },
+    "compatibility_pairs": {
+        "1002": {"paths": ["LiteDB/Client/Database/Collections/Insert.cs"],
+                 "tests": ["LiteDB.Tests.Database.AutoId_Tests"]},
+        "2802": {"paths": ["LiteDB/Client/Database/LiteQueryable.cs"],
+                 "tests": ["LiteDB.Tests.Mapper.Mapper_Tests",
+                           "LiteDB.Tests.Database.FindAll_Tests"]},
     },
     "rules": [
         {"id": "storage", "paths": ["LiteDB/Engine/Disk/*", "LiteDB/Engine/Pages/*",
@@ -100,11 +108,16 @@ def profile_for_changes(changes, contract, base_sha, candidate_sha, diff_text):
     rules, filters = [], set()
     compatibility, unknown = False, False
     ordinary = POLICY["ordinary_pairs"].get(str(issue), [])
+    compatible = POLICY["compatibility_pairs"].get(str(issue), {})
     for path in sorted(changes):
         matches = [rule for rule in POLICY["rules"]
                    if any(fnmatch.fnmatchcase(path, pattern) for pattern in rule["paths"])]
         if path in ordinary:
             rules.append({"rule": "reviewed-ordinary-issue-path", "path": path})
+        elif path in compatible.get("paths", []):
+            compatibility = True
+            rules.append({"rule": "reviewed-compatible-issue-path", "path": path})
+            filters.update("FullyQualifiedName~" + name for name in compatible["tests"])
         elif not matches:
             unknown = True
             rules.append({"rule": "unknown-production-path", "path": path})

@@ -1,6 +1,6 @@
 # Next ordinary bugfix wave
 
-Prepared on 2026-09-15. This is a reviewed-contract preparation queue after #2874, #2839 and #2869; it does not register or dispatch new workers. The active manifest is unchanged. No new CI was launched for this preparation.
+Prepared on 2026-09-15. This is a reviewed-contract preparation queue after #2874, #2839 and #2869; it does not register or dispatch new workers. The immutable pilot runtime is unchanged. No new CI was launched for this preparation.
 
 ## Scope and acceptance
 
@@ -10,7 +10,19 @@ Each future fix requires a fresh baseline against the current integration commit
 
 Per-fix validation uses the trusted compressed profile selected from the exact production Git diff plus the immutable issue contract. Run focused and broad checks in the same selected job; broad already includes the listed relevant tests, so do not rerun those filters separately. The full repository matrix runs only after the whole sweep.
 
-**Profile proposals below are not active policy.** The current planner has reviewed ordinary pairs only for #2874/#2839/#2869. Most proposed paths below therefore currently receive the conservative six OS/framework lanes plus compatibility. #2845 already matches the serialization rule. Before dispatch, commit reviewed issue/path rules and any explicit required environments at a new immutable runtime revision. Approved environments are a permitted set, not a requirement to run every lane. Scope expansion or runtime/platform-sensitive diffs can only increase the selected checks.
+**Only the first three next-wave contracts are prepared in this revision.** The manifest now adds #1506/#1002/#2802 while preserving the existing #2874/#2839/#2869 entries. The planner adds the exact #1506/Find.cs ordinary pair and #1002/Insert.cs plus #2802/LiteQueryable.cs pairs that retain compatibility. These three use Ubuntu .NET 8 for an ordinary diff and always require a production build. The remaining proposals below are not registered; most still receive the conservative six OS/framework lanes plus compatibility. #2845 already matches the serialization rule. Before dispatch, independently review and promote these changes at a new immutable runtime revision after the pilot. Approved environments are a permitted set, not a requirement to run every lane. Scope expansion or runtime/platform-sensitive diffs can only increase the selected checks.
+
+## Prepared first-three contracts
+
+The [manifest](../../../scripts/bugfix/issues.json) pins 12 regression cases and three positive controls for #1506, #1002 and #2802 to their original Git blobs. Exact failure first lines below are used verbatim; no new normalization or skip exceptions are introduced. Their environment lists permit later widening but do not require every approved lane.
+
+- #1506: exactly Find.cs; Ubuntu .NET 8; focused plus broad and production build. A Query.cs helper needs reviewed scope expansion and receives the conservative fallback until separately classified.
+- #1002: exactly Insert.cs; Ubuntu .NET 8; focused plus broad, production build and compatibility. Relevant frozen AutoId_Tests coverage is already part of broad. The passing `(empty: 0)` theory identity is the positive control; the `(empty: null)` identity alone must reproduce the defect.
+- #2802: exactly LiteQueryable.cs; Ubuntu .NET 8; focused plus broad, production build and compatibility. Relevant frozen Mapper_Tests and FindAll_Tests coverage is already part of broad. Both five-case virtual-hook families must pass and the distinct generic-mapper control must remain green.
+
+The planner policy version becomes `compressed-acceptance-v2`; its hash changes intentionally. Consumer profile fields are unchanged. Existing candidates must retain their original profile and runtime binding; do not reuse old profile digests for new candidates. No source implementation, frozen fixture, campaign registration or worker dispatch is included.
+
+Contract tests independently pin names, first lines, blobs and exact scopes. They reject unrelated red results for every regression, missing/extra/skipped candidate identities and broken controls before or after a fix. Profile tests check each compact lane selection, compatibility requirements, same-file unrelated-issue fallback, scope expansion, platform/runtime widening and existence of the relevant frozen test classes. Fresh baseline evidence remains required before fixing each issue.
 
 ## Independent baseline provenance
 
@@ -340,7 +352,7 @@ Expected hitCompletedWhileHeld to be False because a hit must use the dictionary
 
 ## Dispatch blockers and later queue
 
-- Add exact regression/control identities, first-line signatures, frozen blob IDs and approved production paths to a reviewed next-runtime manifest before registration. Preserve the existing #2874 contract. Bind fresh evidence to the actual integration base; these original reports cannot certify later bases.
+- Independently review the three prepared contracts and profiles before promoting a next runtime. Register the remaining seven only after adding exact regression/control identities, first-line signatures, frozen blob IDs and approved production paths. Preserve the existing #2874 contract. Bind fresh evidence to the actual integration base; these original reports cannot certify later bases.
 - Add reviewed compact profile rules before expecting the proposed lane reductions. Compatibility is required for persisted mapping/key changes and JSON serialization. Do not classify every future issue in the same file as ordinary by filename alone.
 - #2867, #2770 and #2779 can touch LinqExpressionVisitor.cs. Execute each against the latest accepted integration commit and revalidate the permanent passing ledger; do not merge stale independently prepared patches.
 - #2847 needs an explicit decision on support versus deliberate rejection of unsupported StringComparison modes. #2205 needs explicit acceptance of the frozen unquoted-token-as-string behavior. #2871 needs a synchronization review even if a concurrent replacement takes the allowed alternate test branch.

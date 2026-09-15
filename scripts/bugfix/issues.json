@@ -160,6 +160,138 @@
           "name": "LiteDB.Tests.Issues.Issue2869_Tests.Native_numeric_conversions_work_and_non_numeric_values_are_not_coerced"
         }
       ]
+    },
+    "1506": {
+      "inventory_issue": 1506,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue1506_Tests.cs": "42722f965457a84ac385399b59707e1a7d9a9084"
+      },
+      "filter": "FullyQualifiedName~Issue1506_Tests",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Database/Collections/Find.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue1506_Tests.Find_paging_override_preserves_the_complete_reusable_query",
+          "failure_first_line": "Expected query.Offset to be 1 because immediately after Find returns, but found 2."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue1506_Tests.Find_honors_query_limit_when_optional_paging_is_omitted"
+        }
+      ]
+    },
+    "1002": {
+      "inventory_issue": 1002,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue1002_Tests.cs": "300112d2fa9c10055460484549e551f7d750451e"
+      },
+      "filter": "FullyQualifiedName~Issue1002_Tests",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Database/Collections/Insert.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue1002_Tests.Nullable_integer_empty_ids_generate_unique_persisted_integer_keys(empty: null)",
+          "failure_first_line": "LiteDB.LiteException : Invalid BSON data type 'Null' on field '_id'."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue1002_Tests.Nullable_integer_empty_ids_generate_unique_persisted_integer_keys(empty: 0)"
+        }
+      ]
+    },
+    "2802": {
+      "inventory_issue": 2802,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2802_Tests.cs": "d39406d4e8982b3081fb58149848907a25d97822"
+      },
+      "filter": "FullyQualifiedName~Issue2802_Tests",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Database/LiteQueryable.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2802_Tests.Typed_read_uses_generic_only_virtual_mapper_and_returns_its_result(api: \"Find\")",
+          "failure_first_line": "Expected result.Name to be \"generic:stored\" with a length of 14, but \"stored\" has a length of 6, differs near \"sto\" (index 0)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2802_Tests.Typed_read_uses_generic_only_virtual_mapper_and_returns_its_result(api: \"FindAll\")",
+          "failure_first_line": "Expected result.Name to be \"generic:stored\" with a length of 14, but \"stored\" has a length of 6, differs near \"sto\" (index 0)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2802_Tests.Typed_read_uses_generic_only_virtual_mapper_and_returns_its_result(api: \"FindById\")",
+          "failure_first_line": "Expected result.Name to be \"generic:stored\" with a length of 14, but \"stored\" has a length of 6, differs near \"sto\" (index 0)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2802_Tests.Typed_read_uses_generic_only_virtual_mapper_and_returns_its_result(api: \"FindOne\")",
+          "failure_first_line": "Expected result.Name to be \"generic:stored\" with a length of 14, but \"stored\" has a length of 6, differs near \"sto\" (index 0)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2802_Tests.Typed_read_uses_generic_only_virtual_mapper_and_returns_its_result(api: \"Query\")",
+          "failure_first_line": "Expected result.Name to be \"generic:stored\" with a length of 14, but \"stored\" has a length of 6, differs near \"sto\" (index 0)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2802_Tests.Typed_read_uses_virtual_mapper_and_returns_its_result(api: \"Find\")",
+          "failure_first_line": "Expected result.Name to be \"decoded:one\" with a length of 11 because calling and discarding the override's result is insufficient, but \"one\" has a length of 3, differs near \"one\" (index 0)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2802_Tests.Typed_read_uses_virtual_mapper_and_returns_its_result(api: \"FindAll\")",
+          "failure_first_line": "Expected result.Name to be \"decoded:one\" with a length of 11 because calling and discarding the override's result is insufficient, but \"one\" has a length of 3, differs near \"one\" (index 0)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2802_Tests.Typed_read_uses_virtual_mapper_and_returns_its_result(api: \"FindById\")",
+          "failure_first_line": "Expected result.Name to be \"decoded:one\" with a length of 11 because calling and discarding the override's result is insufficient, but \"one\" has a length of 3, differs near \"one\" (index 0)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2802_Tests.Typed_read_uses_virtual_mapper_and_returns_its_result(api: \"FindOne\")",
+          "failure_first_line": "Expected result.Name to be \"decoded:one\" with a length of 11 because calling and discarding the override's result is insufficient, but \"one\" has a length of 3, differs near \"one\" (index 0)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2802_Tests.Typed_read_uses_virtual_mapper_and_returns_its_result(api: \"Query\")",
+          "failure_first_line": "Expected result.Name to be \"decoded:one\" with a length of 11 because calling and discarding the override's result is insufficient, but \"one\" has a length of 3, differs near \"one\" (index 0)."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2802_Tests.Generic_only_mapper_control_differs_from_default_mapping"
+        }
+      ]
     }
   }
 }
