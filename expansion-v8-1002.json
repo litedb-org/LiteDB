@@ -48,7 +48,8 @@
     "run-35009168160-candidate-ci": "ce83e5721cf5290a514974470ffa2f6834cf7a939e348300b0bce090180f4c0b",
     "run-35010144390-broad-ci": "a584a65b6464ba5c27dd9802e3c2f8140a05cf1ec788d5c4516a5d2a1a04a376",
     "run-35010513878-review-behavior": "faf850ced03f144682347a02a000899b619ad1b8649f7ad0442f7ab48dd992f7",
-    "run-35010539971-review-compatibility": "2e85789c1243d2167b7fb6b342bab3120b0f3b9dd16999333dcc586aaeb86df5"
+    "run-35010539971-review-compatibility": "2e85789c1243d2167b7fb6b342bab3120b0f3b9dd16999333dcc586aaeb86df5",
+    "run-35010564817-review-lifecycle": "44b896e95929f2f9149a2f358280cf50499a202d1704b704d220bf73695d5231"
   },
   "evidence": {
     "baseline": {
@@ -207,6 +208,40 @@
       "report_sha256": "0872312ad6d23263755b7b91616d8378bc80b9f853e62b9ee538c29fe632065f",
       "role": "compatibility",
       "run_id": 35010539971,
+      "schema_version": 1,
+      "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "workflow_sha": "61ee4aec705024c189345de25508ea19ffc2584e"
+    },
+    "review:lifecycle": {
+      "artifact": "bugfix-review-1002-lifecycle",
+      "artifact_sha256": "37423e63eb0e32ec29d7212da840f5e78a8b89d58b08d8a6ae70e624f5900c09",
+      "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+      "campaign": "expansion-v8-1002",
+      "candidate_sha": "a98b29089c01e21e50856abd0cc9bbea1ecc5631",
+      "environment": "independent-agent",
+      "event_id": "run-35010564817-review-lifecycle",
+      "findings": [
+        {
+          "evidence": "Candidate line 96 newly removes a null Int32 _id and returns removed=true. Insert(T) then calls _engine.Insert at line 20; Engine/Engine/Transaction.cs lines 89-92 commit and release the auto-transaction before control returns. Only afterward, Insert.cs line 27 invokes _id.Setter. Client/Mapper/Reflection/Reflection.Expression.cs lines 52-53 deliberately return a null setter for a get-only property, so this invocation throws NullReferenceException after commit. An executed net8.0 candidate repro using `public int? Id { get; }` produced `exception=System.NullReferenceException`, `immediate-count=1`, and `reopened-count=1`. At the base SHA the changed predicate leaves the null _id in place, so Engine/Engine/Insert.cs rejects id.IsNull inside AutoTransaction before storage and rolls back. The candidate therefore turns a failed call into a durable, caller-unacknowledged write. Validate writability before entering the engine or otherwise ensure ID copy-back cannot fail after commit.",
+          "path": "LiteDB/Client/Database/Collections/Insert.cs",
+          "severity": "major",
+          "summary": "A get-only nullable integer ID throws after its insert has already committed"
+        }
+      ],
+      "issue": 1002,
+      "kind": "review",
+      "outcome": "fail",
+      "passing_contract": {
+        "case_count": 18,
+        "cases_sha256": "6ba25c6aad8e1c8baf0fb89329bb9788c344851965f307bbee4f0e5e7f492254",
+        "ledger_sha256": "25d36bd781896cea84a1d0b163b0de2290e7fb14b9e1fecbce5299cf84f90ee8",
+        "schema_version": 1,
+        "state_commit": "f6d5a4caae1fdba1737bb38161c34693d7b68db6"
+      },
+      "protocol": "compressed-v1",
+      "report_sha256": "991d8570e546610659867a7040f857311b79f19e4e624b9d4e99bbde6e5f7297",
+      "role": "lifecycle",
+      "run_id": 35010564817,
       "schema_version": 1,
       "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
       "workflow_sha": "61ee4aec705024c189345de25508ea19ffc2584e"
@@ -462,6 +497,40 @@
       "schema_version": 1,
       "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
       "workflow_sha": "61ee4aec705024c189345de25508ea19ffc2584e"
+    },
+    {
+      "artifact": "bugfix-review-1002-lifecycle",
+      "artifact_sha256": "37423e63eb0e32ec29d7212da840f5e78a8b89d58b08d8a6ae70e624f5900c09",
+      "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+      "campaign": "expansion-v8-1002",
+      "candidate_sha": "a98b29089c01e21e50856abd0cc9bbea1ecc5631",
+      "environment": "independent-agent",
+      "event_id": "run-35010564817-review-lifecycle",
+      "findings": [
+        {
+          "evidence": "Candidate line 96 newly removes a null Int32 _id and returns removed=true. Insert(T) then calls _engine.Insert at line 20; Engine/Engine/Transaction.cs lines 89-92 commit and release the auto-transaction before control returns. Only afterward, Insert.cs line 27 invokes _id.Setter. Client/Mapper/Reflection/Reflection.Expression.cs lines 52-53 deliberately return a null setter for a get-only property, so this invocation throws NullReferenceException after commit. An executed net8.0 candidate repro using `public int? Id { get; }` produced `exception=System.NullReferenceException`, `immediate-count=1`, and `reopened-count=1`. At the base SHA the changed predicate leaves the null _id in place, so Engine/Engine/Insert.cs rejects id.IsNull inside AutoTransaction before storage and rolls back. The candidate therefore turns a failed call into a durable, caller-unacknowledged write. Validate writability before entering the engine or otherwise ensure ID copy-back cannot fail after commit.",
+          "path": "LiteDB/Client/Database/Collections/Insert.cs",
+          "severity": "major",
+          "summary": "A get-only nullable integer ID throws after its insert has already committed"
+        }
+      ],
+      "issue": 1002,
+      "kind": "review",
+      "outcome": "fail",
+      "passing_contract": {
+        "case_count": 18,
+        "cases_sha256": "6ba25c6aad8e1c8baf0fb89329bb9788c344851965f307bbee4f0e5e7f492254",
+        "ledger_sha256": "25d36bd781896cea84a1d0b163b0de2290e7fb14b9e1fecbce5299cf84f90ee8",
+        "schema_version": 1,
+        "state_commit": "f6d5a4caae1fdba1737bb38161c34693d7b68db6"
+      },
+      "protocol": "compressed-v1",
+      "report_sha256": "991d8570e546610659867a7040f857311b79f19e4e624b9d4e99bbde6e5f7297",
+      "role": "lifecycle",
+      "run_id": 35010564817,
+      "schema_version": 1,
+      "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "workflow_sha": "61ee4aec705024c189345de25508ea19ffc2584e"
     }
   ],
   "infrastructure_retries": {},
@@ -691,65 +760,10 @@
     "state_commit": "f6d5a4caae1fdba1737bb38161c34693d7b68db6"
   },
   "paused": false,
-  "phase": "reviewing",
+  "phase": "repairing",
   "protocol": "compressed-v1",
   "repair_attempts": 1,
-  "reviews": {
-    "behavior": {
-      "artifact": "bugfix-review-1002-behavior",
-      "artifact_sha256": "6a8a91f30dfc3dfb42684811bf25ea1b772d29a9d08c7f90fdf4de7b36795482",
-      "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
-      "campaign": "expansion-v8-1002",
-      "candidate_sha": "a98b29089c01e21e50856abd0cc9bbea1ecc5631",
-      "environment": "independent-agent",
-      "event_id": "run-35010513878-review-behavior",
-      "findings": [],
-      "issue": 1002,
-      "kind": "review",
-      "outcome": "pass",
-      "passing_contract": {
-        "case_count": 18,
-        "cases_sha256": "6ba25c6aad8e1c8baf0fb89329bb9788c344851965f307bbee4f0e5e7f492254",
-        "ledger_sha256": "25d36bd781896cea84a1d0b163b0de2290e7fb14b9e1fecbce5299cf84f90ee8",
-        "schema_version": 1,
-        "state_commit": "f6d5a4caae1fdba1737bb38161c34693d7b68db6"
-      },
-      "protocol": "compressed-v1",
-      "report_sha256": "abc1bcc2d9b4b9d024a99823e2473f4b67b90cc5ba9bf29ccaaefda48aadb313",
-      "role": "behavior",
-      "run_id": 35010513878,
-      "schema_version": 1,
-      "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
-      "workflow_sha": "61ee4aec705024c189345de25508ea19ffc2584e"
-    },
-    "compatibility": {
-      "artifact": "bugfix-review-1002-compatibility",
-      "artifact_sha256": "dac1600268ef549e353920e300a4c862d53f6789b8c0c7b56749b062e685ca96",
-      "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
-      "campaign": "expansion-v8-1002",
-      "candidate_sha": "a98b29089c01e21e50856abd0cc9bbea1ecc5631",
-      "environment": "independent-agent",
-      "event_id": "run-35010539971-review-compatibility",
-      "findings": [],
-      "issue": 1002,
-      "kind": "review",
-      "outcome": "pass",
-      "passing_contract": {
-        "case_count": 18,
-        "cases_sha256": "6ba25c6aad8e1c8baf0fb89329bb9788c344851965f307bbee4f0e5e7f492254",
-        "ledger_sha256": "25d36bd781896cea84a1d0b163b0de2290e7fb14b9e1fecbce5299cf84f90ee8",
-        "schema_version": 1,
-        "state_commit": "f6d5a4caae1fdba1737bb38161c34693d7b68db6"
-      },
-      "protocol": "compressed-v1",
-      "report_sha256": "0872312ad6d23263755b7b91616d8378bc80b9f853e62b9ee538c29fe632065f",
-      "role": "compatibility",
-      "run_id": 35010539971,
-      "schema_version": 1,
-      "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
-      "workflow_sha": "61ee4aec705024c189345de25508ea19ffc2584e"
-    }
-  },
+  "reviews": {},
   "schema_version": 1,
   "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
   "workflow_sha": "61ee4aec705024c189345de25508ea19ffc2584e"
