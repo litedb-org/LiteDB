@@ -3,6 +3,7 @@ name: Wholesale bugfix fix worker
 run-name: Bugfix fix ${{ inputs.request_id || 'registration' }}
 description: Propose one restricted production patch for a confirmed regression.
 on:
+  bots: ["github-actions[bot]"]
   push:
     branches: [automation/wholesale-bugfix]
     paths:
@@ -149,6 +150,9 @@ post-steps:
 ---
 
 # Fix one confirmed regression
+
+Perform this task yourself. Do not delegate, spawn child agents, or launch another
+agent or model process. The controller owns all independent agent scheduling.
 
 Read `/tmp/gh-aw/bugfix/task.json` first. Its `identity` fields must appear
 unchanged in your result. Read the listed frozen regression tests and production

@@ -1,5 +1,5 @@
 name: Bugfix Full CI
-run-name: Bugfix full CI for #${{ inputs.issue }} at ${{ inputs.source_sha }}
+run-name: 'Bugfix full CI for #${{ inputs.issue }} at ${{ inputs.source_sha }}'
 
 on:
   push:
@@ -44,5 +44,6 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/reprorunner.yml
     with:
+      # Temporary compile blocker; exact coverage gap is in full-ci-quarantine.json.
       filter: '^(?!Issue_2854_CircularPageList$).*'
       ref: ${{ inputs.source_sha }}

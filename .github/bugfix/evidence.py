@@ -3,6 +3,7 @@
 import hashlib
 import importlib.util
 import json
+from collections import Counter
 from pathlib import Path
 import sys
 import tempfile
@@ -44,9 +45,9 @@ def _failure_outcome(data, control, state):
             result = module.read_trx(path, execution["runs"]["focused"])
         except (module.GateError, KeyError):
             return "harness_error", ["Candidate focused test execution is incomplete or invalid"]
-    contract = json.loads((control / "scripts/bugfix/issues.json").read_text())["issues"][str(state["issue"])]
-    expected = {case["name"] for case in contract["regressions"] + contract["controls"]}
-    if set(result.tests) != expected:
+    contract = json.loads((control / "scripts/bugfix/issues.json").read_text(encoding="utf-8"))["issues"][str(state["issue"])]
+    expected = Counter(case["name"] for case in contract["regressions"] + contract["controls"])
+    if Counter(test.name for test in result.tests.values()) != expected:
         return "harness_error", ["Candidate focused test selection changed"]
     failures = [{"test": test.name, "message": test.message[:2000]}
                 for test in result.tests.values() if test.outcome == "Failed"]
@@ -56,6 +57,8 @@ def _failure_outcome(data, control, state):
         broader = read_members(data, ("broad-verdict.json",))
         if "broad-verdict.json" in broader:
             report = json.loads(broader["broad-verdict.json"])
+            if report.get("inconclusive_changes"):
+                return "inconclusive", report["inconclusive_changes"][:8]
             if report.get("unexpected_passes"):
                 return "inconclusive", report["unexpected_passes"][:8]
             if report.get("errors") and report.get("outcome") != "harness_error":

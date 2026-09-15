@@ -39,10 +39,32 @@ class TrxTests(unittest.TestCase):
         with self.assertRaisesRegex(GateError, "summary disagrees"):
             self.parse(root, 0)
 
-    def test_duplicate_display_identity_rejected(self):
+    def test_duplicate_execution_identity_rejected(self):
         root = xml_report(target_run())
         root.find("Results").append(copy.deepcopy(root.find("./Results/UnitTestResult")))
-        with self.assertRaisesRegex(GateError, "duplicate"):
+        with self.assertRaisesRegex(GateError, "execution identity"):
+            self.parse(root)
+
+    def test_duplicate_display_names_preserve_every_execution(self):
+        root = xml_report(target_run(False))
+        duplicate = copy.deepcopy(root.find("./Results/UnitTestResult"))
+        duplicate.set("executionId", "second-execution")
+        root.find("Results").append(duplicate)
+        ET.SubElement(root.find("TestEntries"), "TestEntry",
+                      testId=duplicate.get("testId"), executionId="second-execution")
+        counters = root.find("./ResultSummary/Counters")
+        for name in ("total", "passed", "executed"):
+            counters.set(name, str(int(counters.get(name)) + 1))
+        run = self.parse(root, 0)
+        matches = [test for test in run.tests.values() if test.name == duplicate.get("testName")]
+        self.assertEqual(2, len(matches))
+        self.assertEqual(2, len({key for key, test in run.tests.items()
+                                if test.name == duplicate.get("testName")}))
+
+    def test_missing_test_entry_rejected(self):
+        root = xml_report(target_run())
+        root.find("TestEntries").remove(root.find("./TestEntries/TestEntry"))
+        with self.assertRaisesRegex(GateError, "entries do not exactly match"):
             self.parse(root)
 
     def test_result_without_definition_rejected(self):
@@ -96,7 +118,9 @@ class TrxTests(unittest.TestCase):
         info = ET.SubElement(ET.SubElement(root.find("ResultSummary"), "RunInfos"),
                              "RunInfo", outcome="Warning")
         ET.SubElement(info, "Text").text = "[xUnit.net 00:00:00.23]     " + name + " [SKIP]"
-        self.assertEqual("NotExecuted", self.parse(root, 0).tests[name].outcome)
+        parsed = self.parse(root, 0)
+        self.assertEqual("NotExecuted",
+                         next(test for test in parsed.tests.values() if test.name == name).outcome)
 
 
 if __name__ == "__main__":

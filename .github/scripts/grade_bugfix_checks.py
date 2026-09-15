@@ -13,6 +13,7 @@ CONTROL = ROOT / "control"
 ARTIFACTS = ROOT / "artifacts"
 MANIFEST = CONTROL / "scripts/bugfix/issues.json"
 GATE = CONTROL / "scripts/bugfix/gate.py"
+FAILURE_NORMALIZATION = CONTROL / "scripts/bugfix/failure-normalization.json"
 
 
 def call(arguments):
@@ -62,12 +63,14 @@ def main():
               "--baseline-exit-code", executions["baseline"]["runs"]["broad"],
               "--test-inventory", ARTIFACTS / "baseline/test-inventory.json",
               "--allowed-failure-classes", CONTROL / "scripts/bugfix/known-failure-classes.json",
+              "--failure-normalization", FAILURE_NORMALIZATION,
               "--output", ARTIFACTS / "baseline-ledger.json"])
         call([GATE, "compare", *shared, *provenance,
               "--candidate-sha", candidate, "--ledger", ARTIFACTS / "baseline-ledger.json",
               "--candidate-trx", ARTIFACTS / "candidate/broad.trx",
               "--candidate-exit-code", executions["candidate"]["runs"]["broad"],
               "--test-inventory", ARTIFACTS / "candidate/test-inventory.json",
+              "--failure-normalization", FAILURE_NORMALIZATION,
               "--output", ARTIFACTS / "broad-verdict.json"])
     summary = {"schema_version": 1, "accepted": True, "issue": int(issue),
                "base_sha": base, "candidate_sha": candidate or None,

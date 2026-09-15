@@ -10,6 +10,12 @@ generated model settings are literals, so repository model variables cannot
 silently change these choices. API-proxy model fallback is disabled; unavailable
 models must fail the run rather than select a weaker model.
 
+Each workflow runs one agent. The generated Codex command explicitly disables
+`agents.enabled`, `features.multi_agent`, and `features.multi_agent_v2` so child
+agents cannot inherit a different default model. Worker prompts also prohibit
+delegation or launching additional model processes. The controller continues to
+dispatch three independent review workflows with their explicit model settings.
+
 ## Artifact-only worker outputs
 
 The pinned compiler automatically enables issue creation when no non-builtin
@@ -25,6 +31,11 @@ permissions, publication handlers, or safe-output tools other than `noop` and
 `record_completion`. Run `.github/scripts/test_gh_aw_readonly.py` to verify all
 three compiled workers and the rejection cases. Controller permissions remain
 separate from these artifact-only workers.
+
+Workers explicitly allow `github-actions[bot]` through gh-aw's activation check
+so the deterministic controller can dispatch them using its workflow token.
+Other actors still require the default `admin`, `maintainer`, or `write` role.
+The bot exception is an exact allowlist entry, not a disabled membership gate.
 
 ## Endpoint and accounting compatibility
 

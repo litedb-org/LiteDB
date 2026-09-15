@@ -7,6 +7,7 @@ from pathlib import Path
 import subprocess
 import sys
 
+from failure_normalization import load_failure_normalization
 from policy import (compare_ledger, load_baseline_policy, load_issue,
                     load_test_inventory, make_ledger, require_sha, verify_focused,
                     verify_target)
@@ -41,6 +42,7 @@ def parser():
             command.add_argument("--allowed-failure-classes", required=True)
         if name in ("snapshot", "compare"):
             command.add_argument("--test-inventory", required=True)
+            command.add_argument("--failure-normalization", required=True)
         if name == "compare":
             command.add_argument("--ledger", required=True)
     return root
@@ -77,15 +79,21 @@ def evaluate(args):
             result.update(outcome="behavior_correct", candidate_trx_sha256=candidate.sha256)
     elif args.command == "snapshot":
         verify_target(baseline, issue, baseline=True)
-        allowed_classes, allowed_skips = load_baseline_policy(args.allowed_failure_classes)
+        allowed_classes, allowed_skips, intermittent_classes = load_baseline_policy(
+            args.allowed_failure_classes)
+        normalization, normalization_hash = load_failure_normalization(args.failure_normalization)
+        provenance["failure_normalization_sha256"] = normalization_hash
         result = make_ledger(baseline, provenance, allowed_classes,
-                             load_test_inventory(args.test_inventory), allowed_skips)
+                             load_test_inventory(args.test_inventory), allowed_skips,
+                             normalization, intermittent_classes)
         result.update(accepted=True, outcome="baseline_recorded")
     else:
         candidate = read_trx(args.candidate_trx, args.candidate_exit_code)
         ledger = json.loads(Path(args.ledger).read_text(encoding="utf-8"))
+        normalization, normalization_hash = load_failure_normalization(args.failure_normalization)
+        provenance["failure_normalization_sha256"] = normalization_hash
         result = compare_ledger(ledger, candidate, issue, provenance,
-                                load_test_inventory(args.test_inventory))
+                                load_test_inventory(args.test_inventory), normalization)
         result["outcome"] = "behavior_correct" if result["accepted"] else "inconclusive"
     result["provenance"] = provenance
     return result
@@ -101,7 +109,9 @@ def main(argv=None):
     path = Path(args.output)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    print(json.dumps(report, ensure_ascii=False))
+    # Windows consoles are not reliably UTF-8 even when the evidence contains
+    # valid Unicode display names. The report file above remains human-readable.
+    print(json.dumps(report, ensure_ascii=True))
     return 0 if report["accepted"] else 1
 
 

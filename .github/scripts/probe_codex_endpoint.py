@@ -25,26 +25,10 @@ def main():
 
     print(f"::add-mask::{endpoint}")
     print(f"::add-mask::{parsed.hostname}")
-    model = os.environ.get("CANARY_MODEL", "").strip()
-    if not model:
-        request = urllib.request.Request(
-            endpoint + "/models", headers={"Authorization": "Bearer " + api_key})
-        try:
-            with urllib.request.build_opener(NoRedirect).open(request, timeout=30) as response:
-                models = json.loads(response.read(1024 * 1024))
-            entries = models.get("data", models.get("models", []))
-            names = [entry.get("id", entry.get("slug", "")) for entry in entries]
-            names = [name for name in names if re.fullmatch(r"[a-zA-Z0-9_.-]{1,80}", name)]
-            print("Available model IDs: " + ", ".join(names[:40]))
-            preferred = ["gpt-6-astra", "gpt-5.6", "gpt-5.4", "gpt-5.3-codex"]
-            model = next((name for name in preferred if name in names), None)
-            if not model:
-                model = next((name for name in names if name.startswith("gpt-")), None)
-            if not model:
-                raise ValueError("No suitable model advertised")
-        except Exception as error:
-            print(f"Model discovery failed ({type(error).__name__}); details suppressed.")
-            return 1
+    model = os.environ.get("CANARY_MODEL", "").strip() or "gpt-6-astra"
+    if model not in {"gpt-6-astra", "gpt-5.6-sol"}:
+        print("Canary model must be one of the two approved campaign models.")
+        return 1
     print("Selected canary model: " + model)
     payload = {
         "model": model,

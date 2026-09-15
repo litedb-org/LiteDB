@@ -2,6 +2,7 @@
 name: Wholesale bugfix agent canary
 description: Verify the Codex worker can read the regression contract and return checked evidence.
 on:
+  bots: ["github-actions[bot]"]
   push:
     branches: [automation/wholesale-bugfix]
     paths:
@@ -77,6 +78,9 @@ post-steps:
 ---
 
 # Read-only Codex canary
+
+Perform this task yourself. Do not delegate, spawn child agents, or launch another
+agent or model process. The controller owns all independent agent scheduling.
 
 Read `LiteDB.Tests/Issues/Issue2874_Tests.cs` in this checkout. Confirm it
 contains the argument-validation regression tests for issue 2874. This checkout

@@ -10,8 +10,9 @@ The regression source is pinned to
 `dd937719f7eee53c512f50ac604cab639bf42a4c` from
 `codex/implement-regression-tests-for-all`. Fix workers use `gpt-6-astra` with
 high reasoning; all three reviewers use `gpt-5.6-sol` with high reasoning.
-Model fallback is disabled. See [worker runtime](Worker-runtime.md) and the
-[controller runbook](../../../.github/bugfix/README.md) for implementation details.
+Model fallback is disabled. See [worker runtime](Worker-runtime.md), the
+[controller runbook](../../../.github/bugfix/README.md), and the
+[canary log](Canary-log.md) for implementation details and rollout evidence.
 
 ## Objective
 
@@ -170,6 +171,12 @@ During the pilot, retain the full existing matrix before every integration merge
 Only reduce the acceptance subset after establishing reliable coverage. Ordinary
 repair commits should trigger focused CI rather than the entire matrix.
 
+Temporary user-authorized exception (2026-09-15): quarantine the three #2854
+process jobs because the frozen fixture fails compilation before either variant
+executes. Preserve the fixture source and its unverified issue status. Record
+the exact excluded jobs and reason alongside every acceptance result; all other
+original matrix jobs remain required. See the [canary log](Canary-log.md).
+
 Verify that matrix labels describe actual execution. Add runtime-architecture
 assertions for x86 and ARM64 coverage; a job name or QEMU setup alone does not
 prove the test host uses that architecture.
@@ -282,7 +289,9 @@ Initial operational limits:
 
 Use explicit dispatch for retries and downstream CI. GitHub limits `workflow_run`
 chains to three levels, and automation-created PR events can require approval
-before CI starts. Bootstrap controller workflows on the fork's default branch.
+before CI starts. These campaign workflows are registered upstream using a
+limited push trigger on `automation/wholesale-bugfix`, then explicitly dispatched
+from a pinned runtime branch. The repository's default branch is unchanged.
 Keep controller code and policy at a trusted revision while checking out candidate
 code separately for execution. These boundaries also prevent a candidate from
 changing its own grader.

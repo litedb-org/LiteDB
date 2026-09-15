@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "tests": {
+    "LiteDB.Tests.Issues.Issue2590_Tests.Empty_string_ids_are_addressable_or_rejected_before_any_write(path: InsertOne)": [
+      {
+        "pattern": "[0-9a-f]{24}(?=\"}\\|\"target-a\")",
+        "replacement": "<generated-object-id>",
+        "matches": 1
+      }
+    ],
+    "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_object_id_is_atomic_for_every_typed_write_path(path: InsertOne)": [
+      {
+        "pattern": "[0-9a-f]{24}(?=\"}\\], \\[Name, \"target-a\"\\])",
+        "replacement": "<generated-object-id>",
+        "matches": 1
+      }
+    ],
+    "LiteDB.Tests.Issues.Issue2820_Tests.Writable_open_trims_a_torn_v5_tail_only_after_validating_and_preserves_the_ledger": [
+      {
+        "pattern": "(?:[A-Za-z]:\\\\[^'\\r\\n]*\\\\|/[^'\\r\\n]*/)?litedb-[0-9a-f]+\\.db",
+        "replacement": "<temp-database-path>",
+        "matches": 1
+      }
+    ],
+    "LiteDB.Tests.Issues.Issue1966_Tests.Readonly_index_creation_is_rejected_explicitly_and_existing_data_remains_readable(mode: Direct, existing: False)": [
+      {
+        "pattern": "(?:[A-Za-z]:\\\\[^'\\r\\n]*\\\\|/[^'\\r\\n]*/)?litedb-[0-9a-f]+-log\\.db",
+        "replacement": "<temp-log-path>",
+        "matches": 2
+      }
+    ],
+    "LiteDB.Tests.Issues.Issue1966_Tests.Readonly_index_creation_is_rejected_explicitly_and_existing_data_remains_readable(mode: Direct, existing: True)": [
+      {
+        "pattern": "(?:[A-Za-z]:\\\\[^'\\r\\n]*\\\\|/[^'\\r\\n]*/)?litedb-[0-9a-f]+-log\\.db",
+        "replacement": "<temp-log-path>",
+        "matches": 2
+      }
+    ],
+    "LiteDB.Tests.Issues.Issue1966_Tests.Readonly_index_creation_is_rejected_explicitly_and_existing_data_remains_readable(mode: Shared, existing: False)": [
+      {
+        "pattern": "(?:[A-Za-z]:\\\\[^'\\r\\n]*\\\\|/[^'\\r\\n]*/)?litedb-[0-9a-f]+-log\\.db",
+        "replacement": "<temp-log-path>",
+        "matches": 2
+      }
+    ],
+    "LiteDB.Tests.Issues.Issue1966_Tests.Readonly_index_creation_is_rejected_explicitly_and_existing_data_remains_readable(mode: Shared, existing: True)": [
+      {
+        "pattern": "(?:[A-Za-z]:\\\\[^'\\r\\n]*\\\\|/[^'\\r\\n]*/)?litedb-[0-9a-f]+-log\\.db",
+        "replacement": "<temp-log-path>",
+        "matches": 2
+      }
+    ],
+    "LiteDB.Tests.Issues.Issue2324_Tests.Reapplying_same_id_mapping_during_serialization_never_exposes_partial_mapping": [
+      {
+        "pattern": "(?<=Expected raw\\[\"_id\"\\] to be equal to )[0-9]+(?=, but found null\\.)",
+        "replacement": "<generated-id>",
+        "matches": 1
+      }
+    ],
+    "LiteDB.Tests.Issues.Issue2777_Tests.Identical_plaintext_pages_do_not_disclose_repeated_ciphertext_blocks": [
+      {
+        "pattern": "\\{(?:0x[0-9A-F]{2}, ){15}0x[0-9A-F]{2}\\}",
+        "replacement": "<ciphertext-block>",
+        "matches": 2
+      }
+    ],
+    "LiteDB.Tests.Audit2026.ExpressionAuditRegression_Tests.M145_collation_hash_matches_collation_equality": [
+      {
+        "pattern": "(?<=Expected collation\\.GetHashCode\\(lower\\) to be )-?[0-9]+(?=, but found )",
+        "replacement": "<lower-hash>",
+        "matches": 1
+      },
+      {
+        "pattern": "(?<=, but found )-?[0-9]+(?= \\(difference of )",
+        "replacement": "<upper-hash>",
+        "matches": 1
+      },
+      {
+        "pattern": "(?<= \\(difference of )-?[0-9]+(?=\\)\\.)",
+        "replacement": "<hash-difference>",
+        "matches": 1
+      }
+    ],
+    "LiteDB.Tests.Issues.Issue2820_Tests.Opening_a_foreign_file_rejects_it_without_changing_any_byte(length: 16, readOnly: False)": [
+      {
+        "pattern": "(?<=, but \")[0-9a-f]{64}(?=\" differs near )",
+        "replacement": "<actual-sha256>",
+        "matches": 1
+      },
+      {
+        "pattern": "(?<=<actual-sha256>\" differs near \")[0-9a-f]{3}(?=\" \\(index 0\\)\\.)",
+        "replacement": "<actual-prefix>",
+        "matches": 1
+      }
+    ],
+    "LiteDB.Tests.Issues.Issue2814_Tests.Finite_concurrent_readers_do_not_allow_WAL_growth_far_beyond_checkpoint_budget": [
+      {
+        "pattern": "(?<=, but found )[0-9]+(?=L \\(difference of )",
+        "replacement": "<observed-peak>",
+        "matches": 1
+      },
+      {
+        "pattern": "(?<= \\(difference of )[0-9]+(?=\\)\\.)",
+        "replacement": "<peak-difference>",
+        "matches": 1
+      }
+    ]
+  }
+}

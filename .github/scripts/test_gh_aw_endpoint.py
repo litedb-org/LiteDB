@@ -84,6 +84,7 @@ class EndpointTests(unittest.TestCase):
             '          cat > "/tmp/gh-aw/mcp-config/config.toml" << GH_AW_CODEX_SHELL_POLICY_123',
             "          GH_AW_CODEX_SHELL_POLICY_123",
             "          sudo -E awf --config config.json --env-all -- command",
+            "          node codex_harness.cjs codex exec --model gpt-6-astra",
             "        env:",
             "          OPENAI_API_KEY: token-placeholder",
             "      - name: Upload threat detection log",
@@ -100,6 +101,8 @@ class EndpointTests(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             self.assertIn("--exclude-env CODEX_LB_BASE_URL", text)
             self.assertIn("--legacy-security", text)
+            for override in patcher.SINGLE_AGENT_OVERRIDES:
+                self.assertEqual(1, text.count(override))
             self.assertEqual(2, text.count("CODEX_LB_BASE_URL: ${{ secrets.CODEX_LB_BASE_URL }}"))
             self.assertIn(patcher.DETECTION_REDACTION_MARKER, text)
             path.write_text("# codex_harness.cjs\n", encoding="utf-8")
@@ -114,6 +117,15 @@ class EndpointTests(unittest.TestCase):
             self.assertEqual(1, redactor.redact_tree(Path(temp), redactor.redaction_needles(endpoint)))
             self.assertNotIn("provider.example.test", path.read_text(encoding="utf-8"))
             self.assertEqual(0, redactor.redact_tree(Path(temp), redactor.redaction_needles(endpoint)))
+
+    def test_delegation_overrides_preserve_model_and_are_idempotent(self):
+        original = 'node codex_harness.cjs codex exec${GH_AW_MODEL_AGENT_CODEX:+ --model "$GH_AW_MODEL_AGENT_CODEX"} -c web_search="disabled"'
+        patched, changed = patcher.patch_codex_delegation(original)
+        self.assertTrue(changed)
+        self.assertIn('${GH_AW_MODEL_AGENT_CODEX:+ --model "$GH_AW_MODEL_AGENT_CODEX"}', patched)
+        self.assertEqual((patched, False), patcher.patch_codex_delegation(patched))
+        for override in patcher.SINGLE_AGENT_OVERRIDES:
+            self.assertEqual(1, patched.count(override))
 
 
 if __name__ == "__main__":

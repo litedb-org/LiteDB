@@ -23,8 +23,8 @@ Every command writes a structured report and exits zero only on acceptance.
 | `protect` | `--repository --candidate-sha` | Candidate descends from baseline, preserves original tests, and changes only allowlisted production files or newly added C# tests |
 | `baseline` | Common evidence arguments below | Exact defect assertions fail and controls pass |
 | `focused` | Baseline and candidate evidence arguments | Same exact selection goes from established defect to all passing |
-| `snapshot` | Baseline arguments, `--test-inventory`, and `--allowed-failure-classes` | Records the independently discovered baseline inventory, admitting only explicitly classified failures and skips |
-| `compare` | Candidate arguments, `--test-inventory`, and `--ledger` | Discovery matches the baseline ledger; targets pass; no new failures/skips or changed known failures |
+| `snapshot` | Baseline arguments, `--test-inventory`, `--allowed-failure-classes`, and `--failure-normalization` | Records the independently discovered baseline inventory, admitting only explicitly classified failures and skips |
+| `compare` | Candidate arguments, `--test-inventory`, `--failure-normalization`, and `--ledger` | Discovery matches the baseline ledger; targets pass; no new failures/skips or changed known failures |
 
 Common evidence arguments are `--environment` (for example
 `linux-x64-net8.0`) and `--test-definition-sha` (trusted controller revision).
@@ -53,20 +53,30 @@ snapshotting a complete suite. `--test-inventory` is a JSON file with
 `schema_version: 1` and a nonempty `tests` array produced by a separate full test
 discovery. Both baseline and candidate execution must exactly match their
 independently generated inventory. The generated ledger stores every exact test
-case and failure text, not just class names or totals. Keep that ledger immutable
-with its baseline run evidence. Baseline/candidate builds must use the same
-framework, test hooks, dependencies, and controller revision.
+definition ID, every result instance, and every failure text, not just display
+names or totals. Repeated display names retain their multiplicity; VSTest
+execution IDs are checked for completeness but excluded from stable comparison
+because the runner regenerates them. Keep the ledger immutable with its baseline
+run evidence. Baseline/candidate builds must use the same framework, test hooks,
+dependencies, and controller revision.
 
 Unexpected passes block `compare` and are listed individually for investigation;
 the gate has no blanket override switch. Review related fixes and update the
 contract through the controller before accepting them. New test cases must pass.
 Previously skipped cases remain visible and must retain their outcome.
+Reviewed intermittent classes are carried into the immutable ledger. A
+Passed-to-Failed or Failed-to-Passed flip in one of those classes remains
+non-accepted and is reported in the structured `inconclusive_changes` array;
+other outcome changes remain errors.
 
 Failure comparison preserves assertion/exception text before stack frames,
-discarding only stack locations that change across checkouts. Nondeterministic
-assertion messages therefore require explicit investigation rather than a loose
-automatic match. Harness errors, zero selections, duplicate names, incomplete
-results, inconsistent counters, and unrelated runner errors fail closed.
+discarding stack locations that change across checkouts. `--failure-normalization`
+supplies reviewed regexes scoped to exact test names. Every rule has an exact
+expected match count, the baseline must match every rule, and its policy digest
+is bound into ledger provenance. A candidate with a different diagnostic shape
+retains its original failure and is rejected. Harness errors, zero selections,
+duplicate result identities, incomplete results, inconsistent counters, and
+unrelated runner errors fail closed.
 
 Run bounded gate verification with:
 

@@ -3,6 +3,7 @@ name: Wholesale bugfix validation worker
 run-name: Bugfix review ${{ inputs.request_id || 'registration' }}
 description: Independently review one immutable candidate from one assigned perspective.
 on:
+  bots: ["github-actions[bot]"]
   push:
     branches: [automation/wholesale-bugfix]
     paths:
@@ -152,6 +153,9 @@ post-steps:
 ---
 
 # Independent regression review
+
+Perform this task yourself. Do not delegate, spawn child agents, or launch another
+agent or model process. The controller dispatches all three independent reviewers.
 
 Read `/tmp/gh-aw/bugfix/task.json` first. Review the full diff from its `base_sha`
 to `candidate_sha`, the frozen regression contract, relevant callers, and adjacent

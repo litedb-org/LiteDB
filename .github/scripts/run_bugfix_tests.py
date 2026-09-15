@@ -12,9 +12,10 @@ import time
 
 def execute(command, repository, log, timeout):
     started = time.monotonic()
+    environment = {**os.environ, "DOTNET_CLI_UI_LANGUAGE": "en-US", "VSLANG": "1033"}
     with log.open("w", encoding="utf-8") as output:
         result = subprocess.run(command, cwd=repository, stdout=output,
-                                stderr=subprocess.STDOUT, timeout=timeout)
+                                stderr=subprocess.STDOUT, timeout=timeout, env=environment)
     print(f"{log.name}: exit={result.returncode}, seconds={time.monotonic() - started:.1f}",
           flush=True)
     if result.returncode not in (0, 1):

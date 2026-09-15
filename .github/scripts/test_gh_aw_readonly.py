@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 from check_gh_aw_readonly import WORKERS, validate_readonly
+from patch_gh_aw_codex_endpoint import CODEX_EXEC_COMMAND, SINGLE_AGENT_OVERRIDES
 
 
 class ReadonlyWorkerTests(unittest.TestCase):
@@ -24,6 +25,31 @@ jobs:
         for name in sorted(WORKERS):
             with self.subTest(worker=name):
                 validate_readonly((workflows / name).read_text(encoding="utf-8"))
+
+    def test_workers_allow_only_controller_bot_and_keep_human_role_gate(self):
+        workflows = Path(__file__).resolve().parents[1] / "workflows"
+        for name in sorted(WORKERS):
+            with self.subTest(worker=name):
+                text = (workflows / name).read_text(encoding="utf-8")
+                bots = [line.strip() for line in text.splitlines() if "GH_AW_ALLOWED_BOTS:" in line]
+                roles = [line.strip() for line in text.splitlines() if "GH_AW_REQUIRED_ROLES:" in line]
+                self.assertTrue(bots, "Controller bot must be allowed through activation")
+                self.assertEqual({'GH_AW_ALLOWED_BOTS: "github-actions[bot]"'}, set(bots))
+                self.assertTrue(roles, "Human role checks must remain enabled")
+                self.assertEqual({'GH_AW_REQUIRED_ROLES: "admin,maintainer,write"'}, set(roles))
+
+    def test_workers_pin_models_and_disable_internal_delegation(self):
+        workflows = Path(__file__).resolve().parents[1] / "workflows"
+        for name in sorted(WORKERS):
+            with self.subTest(worker=name):
+                text = (workflows / name).read_text(encoding="utf-8")
+                model = "gpt-5.6-sol" if name == "bugfix-validate.lock.yml" else "gpt-6-astra"
+                self.assertIn(f"GH_AW_MODEL_AGENT_CODEX: {model}\n", text)
+                self.assertIn('model_reasoning_effort = "high"', text)
+                commands = [line for line in text.splitlines() if CODEX_EXEC_COMMAND in line]
+                self.assertEqual(1, len(commands), "Each worker must have exactly one model process")
+                for override in SINGLE_AGENT_OVERRIDES:
+                    self.assertEqual(1, commands[0].count(override))
 
     def test_accepts_readonly_generated_structure(self):
         validate_readonly(self.fixture)

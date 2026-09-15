@@ -20,6 +20,12 @@ AWF_COMMAND = "sudo -E awf --config"
 PATCH_MARKER = "Patch gh-aw OpenAI proxy target from CODEX_LB_BASE_URL"
 CODEX_CONFIG_HEREDOC = 'cat > "/tmp/gh-aw/mcp-config/config.toml" << GH_AW_CODEX_SHELL_POLICY_'
 REASONING_EFFORT_LINE = 'model_reasoning_effort = "high"'
+CODEX_EXEC_COMMAND = "codex_harness.cjs codex exec"
+SINGLE_AGENT_OVERRIDES = (
+    "-c agents.enabled=false",
+    "-c features.multi_agent=false",
+    "-c features.multi_agent_v2=false",
+)
 CODEX_ENDPOINT_ENV = "          CODEX_LB_BASE_URL: ${{ secrets.CODEX_LB_BASE_URL }}"
 DETECTION_UPLOAD_STEP = "      - name: Upload threat detection log"
 DETECTION_REDACTION_MARKER = "Redact Codex endpoint detection artifacts"
@@ -173,6 +179,16 @@ def insert_endpoint_env(lines: list[str]) -> tuple[list[str], int]:
     return patched, insertions
 
 
+def patch_codex_delegation(line: str) -> tuple[str, bool]:
+    """Keep each worker on its explicitly selected model without child agents."""
+    if CODEX_EXEC_COMMAND not in line:
+        return line, False
+    missing = [override for override in SINGLE_AGENT_OVERRIDES if override not in line]
+    if not missing:
+        return line, False
+    return line.replace(CODEX_EXEC_COMMAND, CODEX_EXEC_COMMAND + " " + " ".join(missing), 1), True
+
+
 def insert_codex_reasoning_effort(lines: list[str]) -> tuple[list[str], int]:
     patched: list[str] = []
     insertions = 0
@@ -232,10 +248,14 @@ def patch_lockfile(path: Path) -> bool:
     lines, snippet_count = insert_runtime_patch(lines)
 
     awf_patch_count = 0
+    codex_patch_count = 0
     for index, line in enumerate(lines):
         lines[index], changed = patch_awf_command(line)
         if changed:
             awf_patch_count += 1
+        lines[index], changed = patch_codex_delegation(lines[index])
+        if changed:
+            codex_patch_count += 1
 
     lines, env_count = insert_endpoint_env(lines)
     lines, reasoning_effort_count = insert_codex_reasoning_effort(lines)
@@ -252,6 +272,11 @@ def patch_lockfile(path: Path) -> bool:
         raise RuntimeError(f"{path} was not patched; CODEX_LB_BASE_URL env is missing")
     if REASONING_EFFORT_LINE not in "\n".join(lines):
         raise RuntimeError(f"{path} was not patched; Codex reasoning effort is missing")
+    codex_commands = [line for line in lines if CODEX_EXEC_COMMAND in line]
+    if not codex_commands or any(
+        override not in command for command in codex_commands for override in SINGLE_AGENT_OVERRIDES
+    ):
+        raise RuntimeError(f"{path} was not patched; Codex delegation controls are missing")
 
     patched_text = "\n".join(lines) + "\n"
     if patched_text == text:
@@ -260,6 +285,7 @@ def patch_lockfile(path: Path) -> bool:
     print(
         f"patched {path}: snippets={snippet_count}, "
         f"awf_commands={awf_patch_count}, env_blocks={env_count}, "
+        f"codex_delegation_commands={codex_patch_count}, "
         f"reasoning_effort_blocks={reasoning_effort_count}, "
         f"detection_redaction_steps={detection_redaction_count}"
     )
