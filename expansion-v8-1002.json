@@ -20,6 +20,7 @@
           "protocol": "compressed-v1"
         },
         "request_id": "bf-1ee2a1f875314f589dca9f4e2f8c5b93",
+        "run_id": 35009017612,
         "started_at": 1789497670.733579,
         "workflow": "bugfix-check.yml"
       }
