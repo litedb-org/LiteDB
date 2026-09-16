@@ -897,10 +897,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2739_Tests.cs"
-      ]
+      ],
+      "validation": "296 focused net8 passes/1 skip; full net10 1401 passes/298 remaining failures/8 skips without pass regressions; all production targets build; four fresh independent Sol high final approvals"
     },
     {
       "issue": 2764,

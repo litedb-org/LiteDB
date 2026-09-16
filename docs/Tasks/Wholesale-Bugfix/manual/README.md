@@ -688,3 +688,20 @@ Validation: 49 focused storage tests pass; isolated probe reports blank=True and
 tailPreserved=True; ordinary/vector compatibility (plain and encrypted) passes;
 all production targets build. Four fresh independent Sol high reviews report no
 findings above nits.
+
+## #2739 — preserve DbRef mapping in captured update assignments
+
+Captured UpdateMany member assignments now serialize through the destination
+member, preserving $id/$ref metadata, polymorphic $type, mapped fields, and list
+null omission. Conditional/coalesce branches retain that destination context.
+BsonRefId expression markers retain their server translation; mixed initializer
+lists support captured references and omit captured nulls with correct commas.
+Ordinary row reference paths remain unchanged. Capture values are read anew for
+each translation. Coverage includes on-disk reopen and Include after the target
+record changes, distinct destination collections, null/empty lists, polymorphism,
+conditional/coalesce branches and mixed marker lists.
+
+Validation: 296 focused net8 passes, one existing skip; full net10 1,401 passes,
+298 remaining failures and eight skips. No original-baseline or preceding-stage
+pass regressed; 165 original baseline failures now pass. All production targets
+build. Four fresh independent Sol high reviewers report no findings.
