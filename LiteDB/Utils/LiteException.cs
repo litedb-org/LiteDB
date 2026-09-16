@@ -186,6 +186,11 @@ namespace LiteDB
             return new LiteException(INDEX_ALREADY_EXIST, "Index name '{0}' already exist with a differnt expression. Try drop index first.", name);
         }
 
+        internal static LiteException IndexAlreadyExistNotUnique(string name)
+        {
+            return new LiteException(INDEX_ALREADY_EXIST, "Index name '{0}' already exist and is not unique. Try drop index first.", name);
+        }
+
         internal static LiteException InvalidUpdateField(string field)
         {
             return new LiteException(INVALID_UPDATE_FIELD, "'{0}' can't be modified in UPDATE command.", field);
