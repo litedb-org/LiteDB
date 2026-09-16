@@ -1,0 +1,158 @@
+name: Publish v4 security release
+
+on:
+  pull_request:
+    branches: [v4]
+  push:
+    branches: [v4, codex/manual-v4-security]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Reviewed branch, tag, or SHA to build
+        default: v4
+        required: true
+      publish_nuget:
+        description: Publish the validated v4.1.5 tag to NuGet
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      commit: ${{ steps.source.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref }}
+
+      - name: Record the exact source commit
+        id: source
+        shell: bash
+        run: echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.x
+            8.0.x
+
+      - name: Test security backport
+        run: dotnet test LiteDB.Security.Tests -c Release
+
+      - name: Pack all original framework assets with the existing signing key
+        run: dotnet pack LiteDB/LiteDB.csproj -c Release '-p:TargetFrameworks="net35;net40;netstandard1.3;netstandard2.0"' -p:SignAssembly=true -o artifacts_temp/v4-security
+
+      - name: Test each packaged assembly on .NET 8
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_dir="$RUNNER_TEMP/v4-security-package"
+          mkdir -p "$package_dir"
+          unzip -q artifacts_temp/v4-security/LiteDB.4.1.5.nupkg -d "$package_dir"
+          for framework in net35 net40 netstandard1.3 netstandard2.0; do
+            dotnet test LiteDB.Security.Tests -c Release "-p:LiteDBAssembly=$package_dir/lib/$framework/LiteDB.dll"
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LiteDB-v4-security-candidate
+          path: artifacts_temp/v4-security/LiteDB.4.1.5.nupkg
+          if-no-files-found: error
+
+  framework:
+    needs: build
+    runs-on: windows-2022
+    strategy:
+      matrix:
+        include:
+          - framework: net35
+            clr: 2
+          - framework: net40
+            clr: 4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.build.outputs.commit }}
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: LiteDB-v4-security-candidate
+          path: package
+
+      - name: Enable CLR 2.0 for .NET Framework 3.5
+        if: ${{ matrix.framework == 'net35' }}
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not (Get-WindowsFeature NET-Framework-Core).Installed) {
+            $result = Install-WindowsFeature NET-Framework-Core
+            if (-not $result.Success -or $result.RestartNeeded -eq 'Yes') {
+              throw 'The .NET Framework 3.5 runtime is not ready for validation.'
+            }
+          }
+
+      - name: Run security checks on the declared framework CLR
+        shell: pwsh
+        env:
+          FRAMEWORK_TARGET: ${{ matrix.framework }}
+          EXPECTED_CLR: ${{ matrix.clr }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $packageDir = Join-Path $env:RUNNER_TEMP 'v4-security-package'
+          [System.IO.Compression.ZipFile]::ExtractToDirectory((Resolve-Path 'package/LiteDB.4.1.5.nupkg'), $packageDir)
+          $assembly = Join-Path $packageDir "lib/$env:FRAMEWORK_TARGET/LiteDB.dll"
+          dotnet build LiteDB.Security.FrameworkTests -c Release -f $env:FRAMEWORK_TARGET "-p:LiteDBAssembly=$assembly"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & "./LiteDB.Security.FrameworkTests/bin/Release/$env:FRAMEWORK_TARGET/LiteDB.Security.FrameworkTests.exe" $env:EXPECTED_CLR
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  publish:
+    needs: [build, framework]
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_nuget }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.build.outputs.commit }}
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: LiteDB-v4-security-candidate
+          path: artifacts_temp/v4-security
+
+      - name: Require the reviewed v4 release tag before publication
+        if: ${{ inputs.publish_nuget }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$(git rev-parse 'refs/tags/v4.1.5^{commit}')"
+          git merge-base --is-ancestor HEAD origin/v4
+          test "$(git cat-file -t refs/tags/v4.1.5)" = tag
+
+      - name: Retrieve NuGet publishing credential
+        if: ${{ inputs.publish_nuget }}
+        uses: bitwarden/sm-action@v2
+        with:
+          access_token: ${{ secrets.BW_ACCESS_TOKEN }}
+          base_url: https://vault.bitwarden.eu
+          secrets: |
+            265b2fb6-2cf0-4859-9bc8-b24c00ab4378 > NUGET_API_KEY
+
+      - name: Publish the validated package
+        if: ${{ inputs.publish_nuget }}
+        run: dotnet nuget push artifacts_temp/v4-security/LiteDB.4.1.5.nupkg --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json

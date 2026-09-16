@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net35;net40</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <LangVersion>latest</LangVersion>
+    <IsPackable>false</IsPackable>
+    <AppConfig Condition="'$(TargetFramework)' == 'net35'">App.net35.config</AppConfig>
+    <AppConfig Condition="'$(TargetFramework)' == 'net40'">App.net40.config</AppConfig>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="LiteDB">
+      <HintPath>$(LiteDBAssembly)</HintPath>
+    </Reference>
+  </ItemGroup>
+  <Target Name="RequirePackagedAssembly" BeforeTargets="ResolveReferences">
+    <Error Condition="!Exists('$(LiteDBAssembly)')" Text="Set LiteDBAssembly to the extracted package DLL for this target framework." />
+  </Target>
+</Project>

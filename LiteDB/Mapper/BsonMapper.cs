@@ -90,6 +90,18 @@ namespace LiteDB
         /// </summary>
         public Func<Type, string> ResolveCollectionName;
 
+        private ITypeNameBinder _typeNameBinder = DefaultTypeNameBinder.Instance;
+
+        /// <summary>
+        /// Resolves polymorphic type names. The default rejects known unsafe types;
+        /// applications accepting untrusted documents should use an explicit allow-list.
+        /// </summary>
+        public ITypeNameBinder TypeNameBinder
+        {
+            get { return _typeNameBinder; }
+            set { _typeNameBinder = value ?? throw new ArgumentNullException(nameof(value)); }
+        }
+
         #endregion
 
         public BsonMapper(Func<Type, object> customTypeInstantiator = null)
