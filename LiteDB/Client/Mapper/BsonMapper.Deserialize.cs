@@ -97,6 +97,8 @@ namespace LiteDB
         /// </summary>
         public virtual object Deserialize(Type type, BsonValue value)
         {
+            var input = value;
+
             if (OnDeserialization is not null)
             {
                 var result = OnDeserialization(this, type, value);
@@ -204,6 +206,13 @@ namespace LiteDB
                         throw LiteException.DataTypeNotAssignable(type.FullName, actualType.FullName);
                     }
 
+                    // The resolved type may have its own registered decoder.
+                    // Validate assignability before allowing that callback to run.
+                    if (!ReferenceEquals(input, _resolvedDecoderValue) && _customDeserializer.TryGetValue(actualType, out custom))
+                    {
+                        return InvokeResolvedDeserializer(custom, value);
+                    }
+
                     type = actualType;
                 }
                 // when complex type has no definition (== typeof(object)) use Dictionary<string, object> to better set values
@@ -270,6 +279,26 @@ namespace LiteDB
 
             // Enum.ToObject truncates silently; the checked conversion throws OverflowException instead.
             return Enum.ToObject(type, Convert.ChangeType(number, underlyingType, CultureInfo.InvariantCulture));
+        }
+
+        // The value a resolved-type decoder is decoding on this thread. A decoder can only reach the default
+        // materialisation by deserializing that same value again, which must not dispatch back to the decoder.
+        [ThreadStatic]
+        private static BsonValue _resolvedDecoderValue;
+
+        private static object InvokeResolvedDeserializer(Func<BsonValue, object> custom, BsonValue value)
+        {
+            var outer = _resolvedDecoderValue;
+            _resolvedDecoderValue = value;
+
+            try
+            {
+                return custom(value);
+            }
+            finally
+            {
+                _resolvedDecoderValue = outer;
+            }
         }
 
         /// <summary>
