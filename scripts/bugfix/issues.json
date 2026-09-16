@@ -199,9 +199,10 @@
       "frozen_test_blobs": {
         "LiteDB.Tests/Issues/Issue1002_Tests.cs": "300112d2fa9c10055460484549e551f7d750451e",
         "LiteDB.Tests/Issues/Issue2811_Tests.cs": "408f4c3df519e6e446bb9e15fdfd63da0580e95d",
-        "LiteDB.Tests/Database/AutoId_Tests.cs": "0e2eed9f88e95e29623b5f99122b294cac1e9787"
+        "LiteDB.Tests/Database/AutoId_Tests.cs": "0e2eed9f88e95e29623b5f99122b294cac1e9787",
+        "LiteDB.Tests/Issues/Issue2590_Tests.cs": "76cb4f55627ffccee1a6eb77753931a3786493fb"
       },
-      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue1002_|FullyQualifiedName~LiteDB.Tests.Issues.Issue2811_|FullyQualifiedName=LiteDB.Tests.Database.AutoId_Tests.AutoId_Strong_Typed",
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue1002_|FullyQualifiedName~LiteDB.Tests.Issues.Issue2811_|FullyQualifiedName=LiteDB.Tests.Database.AutoId_Tests.AutoId_Strong_Typed|FullyQualifiedName~LiteDB.Tests.Issues.Issue2590_|FullyQualifiedName=LiteDB.Tests.Database.AutoId_Tests.AutoId_BsonDocument",
       "environments": [
         "linux-x64-net8.0",
         "linux-x64-net10.0",
@@ -597,6 +598,154 @@
               "sha256": "edf61022a483c6e7f47903b8d1c6dc957d9f967e08d59d92164b1c8b8e174393"
             }
           }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2590_Tests.Empty_string_ids_are_addressable_or_rejected_before_any_write(path: InsertMany)",
+          "test_id": "ff0e12e0-2217-2965-fd57-0b1f33952c14",
+          "component": "typed-auto-id-write",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            }
+          },
+          "failure_classifications": {
+            "original-defect": {
+              "failure_first_line": "Expected type to be LiteDB.LiteException because an unsupported String/ObjectId auto-id mapping needs a stable LiteDB diagnostic, but found System.InvalidCastException.",
+              "sha256": "d27dd3fd3a45430331874bb58efe26ed78a78850b53e8950a46359e174ac2e43"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2590_Tests.Empty_string_ids_are_addressable_or_rejected_before_any_write(path: InsertOne)",
+          "test_id": "1aae9c09-e5c5-f11a-0c6a-38f1dfe0b917",
+          "component": "typed-auto-id-write",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            }
+          },
+          "failure_classifications": {
+            "original-defect": {
+              "failure_first_line": "Expected type to be LiteDB.LiteException because an unsupported String/ObjectId auto-id mapping needs a stable LiteDB diagnostic, but found System.InvalidCastException.",
+              "sha256": "a5cb127e80308bbf3f4f3782a83988986973b0e73c564001af1e594e30427fa7"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2590_Tests.Empty_string_ids_are_addressable_or_rejected_before_any_write(path: UpsertMany)",
+          "test_id": "78c16fad-1f1e-9414-a924-65cc79f7b55b",
+          "component": "typed-auto-id-write",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            }
+          },
+          "failure_classifications": {
+            "original-defect": {
+              "failure_first_line": "Expected type to be LiteDB.LiteException because an unsupported String/ObjectId auto-id mapping needs a stable LiteDB diagnostic, but found System.InvalidCastException.",
+              "sha256": "d27dd3fd3a45430331874bb58efe26ed78a78850b53e8950a46359e174ac2e43"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2590_Tests.Empty_string_ids_are_addressable_or_rejected_before_any_write(path: UpsertOne)",
+          "test_id": "3b58fea5-5574-4b86-bf26-367daae865ca",
+          "component": "typed-auto-id-write",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            }
+          },
+          "failure_classifications": {
+            "original-defect": {
+              "failure_first_line": "Expected type to be LiteDB.LiteException because an unsupported String/ObjectId auto-id mapping needs a stable LiteDB diagnostic, but found System.InvalidCastException.",
+              "sha256": "d27dd3fd3a45430331874bb58efe26ed78a78850b53e8950a46359e174ac2e43"
+            }
+          }
         }
       ],
       "controls": [
@@ -649,21 +798,50 @@
               "outcome": "Passed"
             }
           }
+        },
+        {
+          "name": "LiteDB.Tests.Database.AutoId_Tests.AutoId_BsonDocument",
+          "test_id": "ec5e0f64-4e16-3ded-3f46-9836fa12f2ea",
+          "component": "typed-auto-id-write",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Passed"
+            }
+          }
         }
       ],
       "review_requirements": {
         "behavior": [
           "This is an explicit behavioral co-repair of #1002 and all eight frozen #2811 cases, not permission for changed failure classifications. Settable nullable Int32 null and zero IDs must generate unique persisted integer keys and copy them back. Read-only Int32/ObjectId auto-ID InsertOne, InsertMany, UpsertOne and UpsertMany must either succeed coherently or fail before writes with a LiteException naming Id and explaining read-only/setter status. Preserve explicit-ID writes to immutable objects and ordinary writable Int32/Int64/Guid/ObjectId auto-generation; AutoId_Strong_Typed is a real independent passing control.",
-          "Keep the shared RemoveDocId/GetBsonDocs behavior consistent across Insert and Upsert. Do not broaden rejection to assigned IDs or mapped documents that do not need copy-back. No source-guard disposition, failure normalization extension or class-drift allowance is authorized."
+          "Keep the shared RemoveDocId/GetBsonDocs behavior consistent across Insert and Upsert. Do not broaden rejection to assigned IDs or mapped documents that do not need copy-back. No source-guard disposition, failure normalization extension or class-drift allowance is authorized.",
+          "This additive co-repair includes all four frozen #2590 String/ObjectId auto-ID cases. Reject an unsupported generated ObjectId assignment to a String ID before any write with LiteException.DATA_TYPE_NOT_ASSIGNABLE (214) and exactly: Data type System.String is not assignable from data type LiteDB.ObjectId. Do not merely catch or relabel InvalidCastException after a write, restore a hidden durable row to preserve the old failure, or invent new string auto-ID support as part of this bounded repair. All thirteen regressions and three controls must pass.",
+          "For the fixer: Unaccepted implementation seed only: prior candidate 33fbf17558062276c223946b66aa3f7c01810ad6 from fix/issue-1002-hosted-v10-1002-a1, produced by run 35075342165, failed combined CI 35077204440. Inspect git show 33fbf17558062276c223946b66aa3f7c01810ad6:LiteDB/Client/Database/Collections/Insert.cs to reuse and improve its transactional copy-back design. Keep HEAD and the accepted base at bbb0253bc06324f0bb14a21a727a37e8c7f2b213, and export the complete new patch relative to that base. The seed passed the former eleven focused cases but all four #2590 cases still failed; it is not accepted and its checks do not substitute for fresh CI or reviews. Preserve the consumed v10 attempt and failed history under the explicit superseding campaign."
         ],
         "compatibility": [
-          "Preserve stored BSON key types, numeric sequence behavior, uniqueness, entity copy-back and existing explicit-ID rows. Inspect single and enumerable Insert/Upsert, including the obsolete InsertBulk wrapper; all reach the shared Insert.cs helpers except explicit-ID overloads. The frozen #2811 successful branch permits retaining a get-only entity ID unchanged, so explain the chosen public behavior instead of claiming it necessarily gains writable-ID semantics. Preserve ordinary v8 reopen and compatibility checks; no format change is authorized."
+          "Preserve stored BSON key types, numeric sequence behavior, uniqueness, entity copy-back and existing explicit-ID rows. Inspect single and enumerable Insert/Upsert, including the obsolete InsertBulk wrapper; all reach the shared Insert.cs helpers except explicit-ID overloads. The frozen #2811 successful branch permits retaining a get-only entity ID unchanged, so explain the chosen public behavior instead of claiming it necessarily gains writable-ID semantics. Preserve ordinary v8 reopen and compatibility checks; no format change is authorized.",
+          "For #2590 preserve assigned nonempty String IDs, including 24-hex-character strings distinct from ObjectId keys, explicit-ID overloads and custom mapper/member configuration. AutoId_Strong_Typed independently covers assigned String and writable typed IDs; AutoId_BsonDocument independently covers untyped ObjectId auto-generation and explicit Int32 keys. Reject only the unsupported generated-value/member-type combination; do not block BsonDocument or existing correctly assignable mappings. Preserve all prior persisted key, sequence, reopen and upgrade compatibility obligations."
         ],
         "lifecycle": [
           "Mandatory prior finding from expansion-v8-1002 candidate a98b29089c01e21e50856abd0cc9bbea1ecc5631: a model with public int? Id { get; } and null ID threw NullReferenceException after Insert had committed; immediate and reopened counts were both one. Reproduce this exact get-only nullable-ID case on the new candidate and demonstrate either acknowledged coherent success or rejection with no durable write. Frozen #2811 uses non-nullable int and ObjectId, so passing it alone does not close this finding. Do not drop this obligation when starting a superseding campaign.",
           "Validate writability before any engine mutation that can commit; never repair atomicity by write-then-delete compensation. Provide evidence for implicit and explicit transactions, caller Commit after catching rejection, unchanged pre-existing rows, and immediate plus independently reopened state. Check mixed/lazy batches with valid earlier items and an invalid later item: no prefix from a failed write call may remain commit-able or durable. Explain rollback effects on prior explicit-transaction work and avoid claiming per-call rollback preserves earlier work without evidence.",
           "Attempt d600cab9aa8be419f0d3069a21bb5e03ff713307 only changed the error to InvalidOperationException and still failed all eight #2811 cases; it is not an accepted base or a completed repair. Use the current integrated base and fresh focused+broad evidence, retaining all original findings through three new reviews.",
-          "Assess every newly reachable post-engine ID copy-back failure, including a non-null custom setter that throws. A Setter != null guard alone does not prove safety for newly supported null nullable IDs. Demonstrate that no newly supported input can produce a durable failed call because assignment occurs after commit; review both single and enumerable paths and require rollback-safe placement or an equivalent justified design."
+          "Assess every newly reachable post-engine ID copy-back failure, including a non-null custom setter that throws. A Setter != null guard alone does not prove safety for newly supported null nullable IDs. Demonstrate that no newly supported input can produce a durable failed call because assignment occurs after commit; review both single and enumerable paths and require rollback-safe placement or an equivalent justified design.",
+          "For #2590 verify pre-write rejection leaves the complete original String/ObjectId control ledger, file bytes and target empty String IDs unchanged across InsertOne, InsertMany, UpsertOne and UpsertMany. Keep assignment inside the transaction for all newly reachable throwing setters; the v10 removal of hidden-row/byte-change assertions was a real atomicity improvement, not diagnostic drift. Retain all earlier get-only nullable-ID, explicit transaction, caller Commit, lazy/mixed batch and non-null throwing-setter evidence requirements."
         ]
       }
     },

@@ -1,4 +1,4 @@
-"""The #1002/#2811 co-repair must turn every exact defect green."""
+"""The expanded auto-ID contract must repair the String/ObjectId overlap."""
 
 from collections import Counter
 from dataclasses import replace
@@ -7,7 +7,7 @@ from pathlib import Path
 import subprocess
 import unittest
 
-from corepair_contract_assertions import EVIDENCE, expected_after_auto_id_corepair
+from corepair_contract_assertions import EXPANDED as EVIDENCE, expected_after_auto_id_corepair
 from failure_normalization import canonical_failure, load_failure_normalization
 from policy import compare_ledger, load_issue, make_ledger, verify_focused
 from trx import GateError, TestResult, TestRun
@@ -16,16 +16,14 @@ ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "scripts/bugfix/issues.json"
 
 
-class AutoIdCorepairTests(unittest.TestCase):
+class StringIdCorepairTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.normalization, cls.policy_sha = load_failure_normalization(
             ROOT / "scripts/bugfix/failure-normalization.json")
 
     def issue(self):
-        # Preserve the former nine-regression proof; the active additive repair
-        # is tested with all sixteen cases in test_string_id_corepair.py.
-        return EVIDENCE["contract"]
+        return load_issue(MANIFEST, 1002)[0]
 
     def run_for(self, baseline=True):
         tests, definitions = {}, {}
@@ -42,7 +40,7 @@ class AutoIdCorepairTests(unittest.TestCase):
 
     def test_only_the_reviewed_contract_changes(self):
         previous = json.loads(subprocess.check_output(["git", "-C", str(ROOT), "show",
-                              "72d47cbb529c91f35f3a1fd0f81935284cdced22"]))
+                              "3e88920da5fec3636f150fa622b7ec5e75360187"]))
         current = json.loads(MANIFEST.read_text(encoding="utf-8"))
         self.assertEqual(28, len(current["issues"]))
         self.assertEqual(previous["issues"].keys(), current["issues"].keys())
@@ -53,18 +51,22 @@ class AutoIdCorepairTests(unittest.TestCase):
 
     def test_original_blobs_cases_and_components_are_explicit(self):
         issue = self.issue()
-        self.assertEqual((9, 2), (len(issue["regressions"]), len(issue["controls"])))
+        self.assertEqual((13, 3), (len(issue["regressions"]), len(issue["controls"])))
         original = EVIDENCE["superseded_contract"]
         self.assertEqual(original["allowed_production_paths"], issue["allowed_production_paths"])
-        names = {case["name"] for case in issue["regressions"]}
-        expected = {f"LiteDB.Tests.Issues.Issue2811_Tests.{method}(path: {path})"
-                    for method in ("Read_only_int_auto_id_is_atomic_for_every_typed_write_path",
-                                   "Read_only_object_id_is_atomic_for_every_typed_write_path")
+        self.assertEqual(original["regressions"], issue["regressions"][:9])
+        self.assertEqual(original["controls"], issue["controls"][:2])
+        expected = {f"LiteDB.Tests.Issues.Issue2590_Tests."
+                    f"Empty_string_ids_are_addressable_or_rejected_before_any_write(path: {path})"
                     for path in ("InsertOne", "InsertMany", "UpsertOne", "UpsertMany")}
-        self.assertEqual(expected | {original["regressions"][0]["name"]}, names)
-        self.assertEqual({original["controls"][0]["name"],
-                          "LiteDB.Tests.Database.AutoId_Tests.AutoId_Strong_Typed"},
-                         {case["name"] for case in issue["controls"]})
+        self.assertEqual(expected, {case["name"] for case in issue["regressions"][9:]})
+        self.assertEqual("LiteDB.Tests.Database.AutoId_Tests.AutoId_BsonDocument",
+                         issue["controls"][2]["name"])
+        self.assertEqual(original["focused_baseline"], issue["focused_baseline"])
+        self.assertEqual(original["required_environments"], issue["required_environments"])
+        self.assertEqual(original["environments"], issue["environments"])
+        for role, notes in original["review_requirements"].items():
+            self.assertEqual(notes, issue["review_requirements"][role][:len(notes)])
         self.assertEqual([], issue["focused_baseline"]["control_gaps"])
         self.assertEqual(EVIDENCE["source_blobs"], issue["frozen_test_blobs"])
         for path, blob in issue["frozen_test_blobs"].items():
@@ -81,12 +83,12 @@ class AutoIdCorepairTests(unittest.TestCase):
             self.verify(self.run_for(), True, environment)
             self.verify(self.run_for(False), False, environment)
 
-    def test_attempt_two_remains_rejected_not_reclassified_as_fixed(self):
+    def test_v10_seed_remains_rejected_not_reclassified_as_fixed(self):
         run = self.run_for(False)
-        for name, row in EVIDENCE["current_attempt"]["cases"]["candidate"].items():
+        for name, row in EVIDENCE["v10_diagnostic"]["cases"]["candidate"].items():
             run.tests[name] = replace(run.tests[name], outcome=row["outcome"],
                                       message=row["canonical_failure"])
-        self.assertEqual(8, sum(t.outcome == "Failed" for t in run.tests.values()))
+        self.assertEqual(4, sum(t.outcome == "Failed" for t in run.tests.values()))
         with self.assertRaisesRegex(GateError, "Expected Passed"):
             self.verify(run, False)
         with self.assertRaises(GateError):

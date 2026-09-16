@@ -404,3 +404,7 @@ See [ISSUE-2367.md](ISSUE-2367.md) for exact runtime-specific evidence, two exec
 ## Required #1002 repair transition
 
 See [COREPAIR-1002-2811.md](COREPAIR-1002-2811.md) for the explicit nine-case behavioral co-repair, durable-write review obligations and fresh campaign boundary.
+
+## Additive #2590 repair transition
+
+See [COREPAIR-1002-2811-2590.md](COREPAIR-1002-2811-2590.md) for the 13-regression/3-control contract and authenticated unaccepted v10 seed.
