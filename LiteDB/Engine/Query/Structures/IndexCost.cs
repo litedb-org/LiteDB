@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using static LiteDB.Constants;
@@ -64,6 +64,14 @@ namespace LiteDB.Engine
 
             // calcs index cost
             this.Cost = this.Index.GetCost(index);
+        }
+
+        internal IndexCost(CollectionIndex index, BsonExpression expression, Index scan)
+        {
+            this.Expression = expression;
+            this.IndexExpression = index.Expression;
+            this.Index = scan;
+            this.Cost = scan.GetCost(index);
         }
 
         // used when full index search
