@@ -14,10 +14,10 @@
         "action": "resume",
         "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
         "campaign": "hosted-v11-1002",
-        "candidate_sha": null,
-        "data_sha": "262d213472746f8e39a879a7119ace2424eb202b",
+        "candidate_sha": "cef2fd1d1724f030468c301d52526d188572b6f9",
+        "data_sha": "e0af0fe82c457394ac211d226ac587a6bc1b18d3",
         "issue": 1002,
-        "phase": "repairing",
+        "phase": "broad",
         "resume_integration": false
       },
       "observed_infrastructure_retries": 0,
@@ -119,9 +119,9 @@
   },
   "kind": "hosted-bugfix-sweep",
   "last_tick": {
-    "at": 1789552212.4039888,
-    "campaign": "hosted-v11-1002",
-    "campaign_phase": "broad",
+    "at": 1789552254.7487004,
+    "campaign": null,
+    "campaign_phase": null,
     "counts": {
       "accepted": 0,
       "active": 1,
@@ -130,11 +130,8 @@
     },
     "issue": 1002,
     "run_attempt": 1,
-    "run_id": 35081574261,
-    "run_ids": [
-      35079889653,
-      35080196043
-    ]
+    "run_id": 35081673273,
+    "run_ids": []
   },
   "paused": false,
   "phase": "running",
