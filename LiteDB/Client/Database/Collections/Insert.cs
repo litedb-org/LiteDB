@@ -98,6 +98,12 @@ namespace LiteDB
                     (_autoId == BsonAutoId.Guid && id.IsGuid && id.AsGuid == Guid.Empty) ||
                     (_autoId == BsonAutoId.Int64 && id.IsInt64 && id.AsInt64 == 0))
                 {
+                    if (_id.Setter == null)
+                    {
+                        throw new LiteException(LiteException.PROPERTY_READ_WRITE,
+                            "Cannot generate an auto ID for read-only member '{0}': it has no setter.", _id.MemberName);
+                    }
+
                     // in this cases, remove _id and set new value after
                     doc.Remove("_id");
                     return true;
