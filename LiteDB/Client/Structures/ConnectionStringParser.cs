@@ -7,7 +7,7 @@ namespace LiteDB
 {
     internal static class ConnectionStringParser
     {
-        public static Dictionary<string, string> Parse(string text)
+        public static Dictionary<string, string> Parse(string text, ISet<string> quotedValues = null)
         {
             var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var position = 0;
@@ -31,17 +31,27 @@ namespace LiteDB
                 var key = Regex.Replace(text.Substring(start, position - start).Trim(), @"\s+", " ");
                 if (key.Length == 0) throw new FormatException("Expected a connection option name.");
                 position++;
-                values[key] = ReadValue(text, ref position);
+                values[key] = ReadValue(text, ref position, out var wasQuoted);
+
+                if (wasQuoted)
+                {
+                    quotedValues?.Add(key);
+                }
+                else
+                {
+                    quotedValues?.Remove(key);
+                }
             }
 
             return values;
         }
 
-        private static string ReadValue(string text, ref int position)
+        private static string ReadValue(string text, ref int position, out bool wasQuoted)
         {
             SkipWhitespace(text, ref position);
             var quote = position < text.Length && (text[position] == '"' || text[position] == '\'')
                 ? text[position++] : '\0';
+            wasQuoted = quote != '\0';
             var value = new StringBuilder();
 
             while (position < text.Length)
@@ -81,7 +91,7 @@ namespace LiteDB
                     SkipWhitespace(text, ref position);
                     if (position < text.Length && text[position] != ';')
                     {
-                        throw new FormatException("Unexpected text after a quoted connection value.");
+                        throw new FormatException("Expected ';' after a quoted connection value.");
                     }
                     if (position < text.Length) position++;
                     return value.ToString();

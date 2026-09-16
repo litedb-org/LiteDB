@@ -258,8 +258,11 @@ namespace LiteDB.Engine
             }
             else
             {
-                // can't use _tempoBuffer because Guid validate 16 bytes array length
-                value = new Guid(this.ReadBytes(16));
+                Span<byte> buffer = stackalloc byte[16];
+
+                this.Read(buffer);
+
+                value = BufferSliceExtensions.ReadGuid(buffer);
             }
 
             return value;
@@ -274,23 +277,18 @@ namespace LiteDB.Engine
 
             if (_currentPosition + 12 <= _current.Count)
             {
-                value = new ObjectId(_current.Array, _current.Offset + _currentPosition);
+                _current.EnsureReadable();
+                value = BufferSliceExtensions.ReadObjectId(new ReadOnlySpan<byte>(_current.Array, _current.Offset + _currentPosition, 12));
 
                 this.MoveForward(12);
             }
             else
             {
-                var buffer = _bufferPool.Rent(12);
-                try
-                {
-                    this.Read(buffer, 0, 12);
+                Span<byte> buffer = stackalloc byte[12];
 
-                    value = new ObjectId(buffer, 0);
-                }
-                finally
-                {
-                    _bufferPool.Return(buffer, true);
-                }
+                this.Read(buffer);
+
+                value = BufferSliceExtensions.ReadObjectId(buffer);
             }
 
             return value;
