@@ -203,6 +203,10 @@ namespace LiteDB
                         throw LiteException.DataTypeNotAssignable(type.FullName, actualType.FullName);
                     }
 
+                    // The resolved type may have its own registered decoder.
+                    // Validate assignability before allowing that callback to run.
+                    if (_customDeserializer.TryGetValue(actualType, out custom)) return custom(value);
+
                     type = actualType;
                 }
                 // when complex type has no definition (== typeof(object)) use Dictionary<string, object> to better set values
