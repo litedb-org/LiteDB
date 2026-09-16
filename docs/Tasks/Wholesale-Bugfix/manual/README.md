@@ -503,3 +503,19 @@ Final: 361 net8 engine/query tests pass, four existing skips, including 10,000-r
 indexed rebuild, 6,000-row insertion/index creation in one transaction and real
 cycle detection. Plain/encrypted vector compatibility and all library targets
 pass. Four Sol reviewers approved the final ledger-based revision.
+
+
+## #2819 — read extended sort keys and reject oversized keys before writing
+
+The streaming sort-key decoder reads the full ten-bit string/binary length used
+by the existing writer. Other types retain their exact raw type byte, including
+Vector=100; the first draft's vector masking regression was caught by three
+existing query tests and review, then corrected. SortContainer validates the
+serialized size before writing, preserving the expected code-111 error.
+
+Final: 278 net8 query/BSON tests pass, one existing skip. The 16 issue cases cover
+255/256-byte boundaries, maximum 1023-byte serialized keys, oversized rejection,
+ascending/descending results, indexed controls and full payloads across multiple
+sort containers and page slices. All library targets build; four final Sol
+approvals. Existing less-than wording at the inclusive size limit is retained
+for compatibility with the documented error contract.

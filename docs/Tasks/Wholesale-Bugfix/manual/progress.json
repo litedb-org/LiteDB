@@ -1307,10 +1307,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2819_Tests.cs"
-      ]
+      ],
+      "validation": "12 original failures fixed;278 net8 query/BSON tests pass,1skip;extendedlengthdecoder plus prewrite sizecheck;vectorregression caught/corrected;all librarytargets build;fourfinalSolapprovals"
     },
     {
       "issue": 2821,
