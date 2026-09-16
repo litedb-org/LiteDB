@@ -125,6 +125,18 @@
         "run_id": 35068448523,
         "started_at": 1789543523.1505647,
         "workflow": "bugfix-fix.lock.yml"
+      },
+      "fix-1-1": {
+        "inputs": {
+          "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+          "feedback": "",
+          "issue": "1002",
+          "source_run": "35022768603",
+          "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c"
+        },
+        "request_id": "bf-d46db61d9eb84050b0d1d2392609e21b",
+        "started_at": 1789546082.5854023,
+        "workflow": "bugfix-fix.lock.yml"
       }
     },
     "worker_retries": 1,
