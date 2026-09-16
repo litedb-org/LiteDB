@@ -118,6 +118,10 @@ namespace LiteDB
             {
                 if (EnumAsInteger)
                 {
+                    var underlyingType = Enum.GetUnderlyingType(obj.GetType());
+                    // Match integer mapping, including UInt64's lossless signed BSON bit representation.
+                    if (underlyingType == typeof(UInt64)) return new BsonValue(unchecked((Int64)Convert.ToUInt64(obj)));
+                    if (underlyingType == typeof(Int64) || underlyingType == typeof(UInt32)) return new BsonValue(Convert.ToInt64(obj));
                     return new BsonValue(Convert.ToInt32(obj));
                 }
                 else
