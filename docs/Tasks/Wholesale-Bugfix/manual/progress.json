@@ -1153,10 +1153,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2801_Tests.cs"
-      ]
+      ],
+      "validation": "11 original failures resolved by descriptive ArgumentException;349 net8 BSON/mapper/expression/query passes,1 existing skip; boxed scalar/binary/vector controls;all library targets build;four Sol approvals"
     },
     {
       "issue": 2802,

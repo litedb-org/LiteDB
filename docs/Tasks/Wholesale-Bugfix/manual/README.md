@@ -375,3 +375,18 @@ Baseline: three reproduced query forms fail. Final: 288 net8 expression/query/LI
 tests pass, one existing skip; added changing sort/index values, doubly nested
 interleaved enumerators and parallel filter executions. All library targets build.
 Four Sol reviewers approved without findings.
+
+
+## #2801 — reject unusable object-constructor collection values
+
+BsonValue(object) now throws ArgumentException for collection inputs and directs
+callers to BsonArray, BsonDocument or BsonMapper. This is the issue's explicitly
+accepted rejection contract: construction can no longer succeed with Array or
+Document type while the corresponding adapter is null. Existing BSON collections
+passed through object also reject; collection inputs are never enumerated. Valid
+boxed scalar, string, binary, vector, date and scalar-BsonValue inputs retain their
+prior behavior. Canonical collection constructors and mapper paths remain intact.
+
+Baseline: eleven collection failures. Final: 349 net8 BSON/mapper/expression/query
+tests pass, one existing skip; explicit lazy-rejection and supported-type controls
+pass. All library targets build; four Sol reviewers approved without findings.

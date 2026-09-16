@@ -125,6 +125,10 @@ namespace LiteDB
             this.RawValue = value;
         }
 
+        /// <summary>
+        /// Create a scalar BSON value. Use BsonArray, BsonDocument or BsonMapper for collections.
+        /// </summary>
+        /// <exception cref="ArgumentException">The value is an array or document collection.</exception>
         public BsonValue(object value)
         {
             this.RawValue = value;
@@ -135,8 +139,6 @@ namespace LiteDB
             else if (value is Double) this.Type = BsonType.Double;
             else if (value is Decimal) this.Type = BsonType.Decimal;
             else if (value is String) this.Type = BsonType.String;
-            else if (value is IDictionary<string, BsonValue>) this.Type = BsonType.Document;
-            else if (value is IList<BsonValue>) this.Type = BsonType.Array;
             else if (value is Byte[]) this.Type = BsonType.Binary;
             else if (value is ObjectId) this.Type = BsonType.ObjectId;
             else if (value is Guid) this.Type = BsonType.Guid;
@@ -147,6 +149,11 @@ namespace LiteDB
                 this.Type = BsonType.DateTime;
                 this.RawValue = ((DateTime)value).Truncate();
             }
+            else if (value is System.Collections.IEnumerable ||
+                value is BsonValue collection && (collection.IsArray || collection.IsDocument))
+            {
+                throw new ArgumentException("Use BsonArray, BsonDocument or BsonMapper to create collection values.", nameof(value));
+            }
             else if (value is BsonValue)
             {
                 var v = (BsonValue)value;
@@ -155,39 +162,7 @@ namespace LiteDB
             }
             else
             {
-                // test for array or dictionary (document)
-                var enumerable = value as System.Collections.IEnumerable;
-                var dictionary = value as System.Collections.IDictionary;
-
-                // test first for dictionary (because IDictionary implements IEnumerable)
-                if (dictionary != null)
-                {
-                    var dict = new Dictionary<string, BsonValue>();
-
-                    foreach (var key in dictionary.Keys)
-                    {
-                        dict.Add(key.ToString(), new BsonValue(dictionary[key]));
-                    }
-
-                    this.Type = BsonType.Document;
-                    this.RawValue = dict;
-                }
-                else if (enumerable != null)
-                {
-                    var list = new List<BsonValue>();
-
-                    foreach (var x in enumerable)
-                    {
-                        list.Add(new BsonValue(x));
-                    }
-
-                    this.Type = BsonType.Array;
-                    this.RawValue = list;
-                }
-                else
-                {
-                    throw new InvalidCastException("Value is not a valid BSON data type - Use Mapper.ToDocument for more complex types converts");
-                }
+                throw new InvalidCastException("Value is not a valid BSON data type - Use Mapper.ToDocument for more complex types converts");
             }
         }
 
