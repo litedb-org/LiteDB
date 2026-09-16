@@ -26,6 +26,9 @@ namespace LiteDB.Engine
 
             if (expression.Source == "$._id") return false; // always exists
 
+            _state.Validate();
+            if (_settings.ReadOnly) throw new NotSupportedException("Cannot create an index in a read-only database.");
+
             return this.AutoTransaction(transaction =>
             {
                 var snapshot = transaction.CreateSnapshot(LockMode.Write, collection, true);
@@ -109,6 +112,9 @@ namespace LiteDB.Engine
             if (name.Length > INDEX_NAME_MAX_LENGTH) throw LiteException.InvalidIndexName(name, collection, "MaxLength = " + INDEX_NAME_MAX_LENGTH);
             if (!name.IsWord()) throw LiteException.InvalidIndexName(name, collection, "Use only [a-Z$_]");
             if (name.StartsWith("$")) throw LiteException.InvalidIndexName(name, collection, "Index name can't start with `$`");
+
+            _state.Validate();
+            if (_settings.ReadOnly) throw new NotSupportedException("Cannot create an index in a read-only database.");
 
             return this.AutoTransaction(transaction =>
             {

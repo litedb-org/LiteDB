@@ -1070,3 +1070,18 @@ is not claimed fixed. Before/after probe results are identical (normal DbRef hoo
 returns null; standalone projection creates a default entity), as recorded in
 `/tmp/litedb-include-probes-{baseline,candidate}.log`. That broader hook-parity
 proposal was refuted as outside this successfully resolved-target report.
+
+## #1966 — read-only index rejection before WAL access
+
+Scalar/vector EnsureIndex validates engine lifecycle and rejects ReadOnly with a
+clear NotSupportedException before creating a transaction or write snapshot.
+The scalar primary-key no-op remains unchanged. Rejected operations do not poison
+the connection or create/write a WAL; subsequent Direct/Shared reads work.
+
+Validation: all four original cases fail before the fix; 16 read-only cases pass,
+including repeated scalar/vector rejection, byte preservation and disposed-engine
+error precedence. Full suite: 1691 passed, 252 existing failures, 8 skipped; no
+regressions versus #1920. The earlier #1472 temporary-name failure also passes in
+this run. Production and net462 builds pass. Two fresh four-Sol-high waves;
+addressed lifecycle error precedence. All final reviewers (`review_1966_w2_a`
+through `_d`) were clean.

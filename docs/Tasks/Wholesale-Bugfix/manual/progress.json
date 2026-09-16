@@ -488,10 +488,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue1966_Tests.cs"
-      ]
+      ],
+      "validation": "4 original failures become passing; 16 focused readonly tests pass; full suite 1691 passed / 252 existing failures / 8 skipped, no regressions; production/net462 pass; two fresh four-Sol-high waves, final four clean."
     },
     {
       "issue": 2006,
