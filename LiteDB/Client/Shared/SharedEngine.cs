@@ -72,35 +72,43 @@ namespace LiteDB
         /// <summary>
         /// Dequeue stack and dispose database on empty stack
         /// </summary>
-        private void CloseDatabase()
+        private void CloseDatabase(bool ownsEngine = true)
         {
-            // Don't dispose the engine while a transaction is running.
-            if (!_transactionRunning && _engine != null)
+            try
             {
-                // If no transaction pending, dispose the engine.
-                _engine.Dispose();
-                _engine = null;
+                // Nested operations borrow an engine owned by a transaction or reader.
+                if (ownsEngine && !_transactionRunning && _engine != null)
+                {
+                    var engine = _engine;
+                    _engine = null;
+                    engine.Dispose();
+                }
             }
-
-            // Release Mutex on every call to close DB.
-            _mutex.ReleaseMutex();
+            finally
+            {
+                // Every OpenDatabase call acquires a recursion, even when it borrows.
+                _mutex.ReleaseMutex();
+            }
         }
 
         #region Transaction Operations
 
         public bool BeginTrans()
         {
-            OpenDatabase();
+            var opened = OpenDatabase();
 
             try
             {
-                _transactionRunning = _engine.BeginTrans();
-
-                return _transactionRunning;
+                var started = _engine.BeginTrans();
+                _transactionRunning = true;
+                // Joining a caller transaction must neither close it nor retain
+                // another mutex recursion that its single Commit cannot release.
+                if (!started) CloseDatabase(opened);
+                return started;
             }
             catch
             {
-                CloseDatabase();
+                CloseDatabase(opened);
                 throw;
             }
         }
@@ -142,16 +150,16 @@ namespace LiteDB
         public IBsonDataReader Query(string collection, Query query)
         {
             bool opened = OpenDatabase();
-
-            var reader = _engine.Query(collection, query);
-
-            return new SharedDataReader(reader, () =>
+            try
             {
-                if (opened)
-                {
-                    CloseDatabase();
-                }
-            });
+                var reader = _engine.Query(collection, query);
+                return new SharedDataReader(reader, () => CloseDatabase(opened));
+            }
+            catch
+            {
+                CloseDatabase(opened);
+                throw;
+            }
         }
 
         public BsonValue Pragma(string name)
@@ -268,10 +276,7 @@ namespace LiteDB
             }
             finally
             {
-                if (opened)
-                {
-                    CloseDatabase();
-                }
+                CloseDatabase(opened);
             }
         }
     }
