@@ -376,10 +376,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue1851_Tests.cs"
-      ]
+      ],
+      "validation": "14 date tests pass in New York and Auckland; 22 combined tests pass; full suite 1669 passed / 259 existing failures / 8 skipped, no regressions; production/net462 builds pass; fourth fresh four-Sol-high wave clean."
     },
     {
       "issue": 1899,

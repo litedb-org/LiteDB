@@ -993,3 +993,21 @@ Validation: original and two new baseline cases failed; final selection passes
 Production and net462 builds pass. Two waves of four fresh Sol high reviewers;
 wave one identified include dependency order, corrected with a nested-reference
 regression. All four final reviewers (`review_1899_w2_a` through `_d`) were clean.
+
+## #1851 — date aggregate projection and replay
+
+Covered index queries reload date-bearing fields from the document using UTC
+decoding and apply UtcDate to the projection. An internal factory retains the
+ambiguous-DST flag of already-decoded dates. Scalar/nested sentinels and boundary
+values retain document semantics. Non-date keys retain their fast path; index
+encoding and comparison stay unchanged, preserving existing-file interpretation.
+Address-based sort and aggregate replay correctly uses the cached data-block
+address. This does not repair old lossy timestamps or incorrectly ordered indexes.
+
+Validation: original baseline one failure / one pass; final 14 date cases pass in
+New York and Auckland, 22 combined date/include/aggregate cases pass. Full suite:
+1669 passed, 259 existing failures, 8 skipped, no regressions versus #1899.
+Production and net462 builds pass. Four waves of four fresh Sol high reviewers:
+addressed nested boundary decoding, existing-index compatibility, replay addresses,
+and repeated-hour grouping. All four final reviewers (`review_1851_w4_a` through
+`_d`) were clean.
