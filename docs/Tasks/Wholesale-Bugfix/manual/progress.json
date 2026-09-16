@@ -1,0 +1,2034 @@
+{
+  "labelsChecked": "2026-09-16",
+  "sourcePR": 2885,
+  "previousIntegration": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+  "issues": [
+    {
+      "issue": 2806,
+      "title": "FileStorage re-upload fails with \"LiteDB ENSURE\" and downloads are silently truncated after an interrupted (non-atomic) upload",
+      "priority": "P1",
+      "labels": [
+        "bug",
+        "severity: critical",
+        "priority: P1"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2806_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2818,
+      "title": "Committed transactions are lost on power loss or OS crash: commits never fsync the log file, and encrypted databases never fsync at all",
+      "priority": "P1",
+      "labels": [
+        "bug",
+        "severity: critical",
+        "priority: P1"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "fixed-four-reviews",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2818_Tests.cs"
+      ],
+      "validation": "25 focused tests pass on net10.0; vector compatibility passes; four independent gpt-5.6-sol final approvals"
+    },
+    {
+      "issue": 2820,
+      "title": "Opening a file that is not a v5 LiteDB database modifies it: files under 8 KB are overwritten with an empty database, larger ones are truncated",
+      "priority": "P1",
+      "labels": [
+        "bug",
+        "severity: critical",
+        "priority: P1",
+        "from fork"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2820_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2824,
+      "title": "Rebuild() on an encrypted database: parameterless call leaves a plaintext file (\"File is not encrypted\"), password change throws \"Invalid password\"",
+      "priority": "P1",
+      "labels": [
+        "bug",
+        "severity: critical",
+        "priority: P1"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2824_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2848,
+      "title": "When Rollback() or Commit() throws, the transaction is never released: locks stay held and later auto-transaction writes are silently lost",
+      "priority": "P1",
+      "labels": [
+        "bug",
+        "severity: critical",
+        "priority: P1"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2848_Tests.cs"
+      ]
+    },
+    {
+      "issue": 1002,
+      "title": "Is there a way to get auto increment as \"int?\" insted of \"int\"?",
+      "priority": "P2",
+      "labels": [
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue1002_Tests.cs"
+      ]
+    },
+    {
+      "issue": 1087,
+      "title": "Concurrency on Linux platform",
+      "priority": "P2",
+      "labels": [
+        "need review",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": []
+    },
+    {
+      "issue": 1159,
+      "title": "BsonMapper's Ignore invokation on a property more than once throws ArgumentNullException",
+      "priority": "P2",
+      "labels": [
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue1159_Tests.cs"
+      ]
+    },
+    {
+      "issue": 1162,
+      "title": "How to insert dynamic ExpandoObject List",
+      "priority": "P2",
+      "labels": [
+        "severity: medium",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue1162_Tests.cs"
+      ]
+    },
+    {
+      "issue": 1192,
+      "title": "Serializer suggestions",
+      "priority": "P2",
+      "labels": [
+        "suggestion",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue1192_Tests.cs"
+      ]
+    },
+    {
+      "issue": 1224,
+      "title": "Implicit BsonValue from ulong operator casts to double instead of long.",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue1224_Tests.cs"
+      ]
+    },
+    {
+      "issue": 1325,
+      "title": "How to set the password?",
+      "priority": "P2",
+      "labels": [
+        "question",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "skipped-no-repro",
+      "disposition": "not-currently-reproduced",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue1325_Tests.cs"
+      ]
+    },
+    {
+      "issue": 1344,
+      "title": "duplicated key randomly pop",
+      "priority": "P2",
+      "labels": [
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue1344_Tests.cs"
+      ]
+    },
+    {
+      "issue": 1376,
+      "title": "v5 Beta - NotSupportedException: Dictionary.ContainsKey()",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "need review",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue1376_Tests.cs"
+      ]
+    },
+    {
+      "issue": 1392,
+      "title": "System.NotImplementedException: The method or operation is not implemented",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "need review",
+        "needs more information",
+        "severity: critical",
+        "priority: P2"
+      ],
+      "reproduction": "skipped-no-repro",
+      "disposition": "not-currently-reproduced",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue1392_Tests.cs"
+      ]
+    },
+    {
+      "issue": 1467,
+      "title": "DB/Collection breaks after power loss?",
+      "priority": "P2",
+      "labels": [
+        "question",
+        "needs more information",
+        "severity: critical",
+        "priority: P2"
+      ],
+      "reproduction": "skipped-no-repro",
+      "disposition": "not-currently-reproduced",
+      "tests": []
+    },
+    {
+      "issue": 1472,
+      "title": "[BUG] System.InvalidOperationException on insert/query",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "needs more information",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "historical-repro",
+      "disposition": "not-currently-reproduced",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue1472_Tests.cs",
+        "LiteDB.Tests/Issues/Issue1472_CompoundQueryScenario.cs"
+      ]
+    },
+    {
+      "issue": 1506,
+      "title": "[SOLVED but...] Query.Limit is ignored by Find(Query)",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "previously-integrated",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue1506_Tests.cs"
+      ]
+    },
+    {
+      "issue": 1545,
+      "title": "[BUG]BsonExpression with IGrouping.Key acts an unexpect behavior",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue1545_Tests.cs"
+      ]
+    },
+    {
+      "issue": 1715,
+      "title": "[BUG] Query.And produce incorrect query.",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue1715_Tests.cs"
+      ]
+    },
+    {
+      "issue": 1793,
+      "title": "[SUGGESTION] Robust Json serialization",
+      "priority": "P2",
+      "labels": [
+        "suggestion",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "skipped-passing",
+      "disposition": "not-currently-reproduced",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue1793_Tests.cs"
+      ]
+    },
+    {
+      "issue": 1829,
+      "title": "[QUESTION] Predicate Order matter ?",
+      "priority": "P2",
+      "labels": [
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue1829_Tests.cs"
+      ]
+    },
+    {
+      "issue": 1848,
+      "title": "Independent Direct read-only instance races with a live writer instead of failing fast",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue1848_ReadOnlyOwnershipTests.cs",
+        "LiteDB.Tests/Issues/Issue1848_Tests.cs"
+      ]
+    },
+    {
+      "issue": 1851,
+      "title": "[BUG]",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue1851_Tests.cs"
+      ]
+    },
+    {
+      "issue": 1899,
+      "title": "Collection.include(x => x.document).find(Query.all()... ) return null ",
+      "priority": "P2",
+      "labels": [
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue1899_Tests.cs"
+      ]
+    },
+    {
+      "issue": 1903,
+      "title": "[BUG] Custom serialization/deserialization not used with polymorphism",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2",
+        "from fork"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue1903_Tests.cs"
+      ]
+    },
+    {
+      "issue": 1904,
+      "title": "[BUG] Quering Based On Referenced Entity Failed After Creating The Index",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue1904_Tests.cs"
+      ]
+    },
+    {
+      "issue": 1908,
+      "title": "[BUG] Cannot support Linq expression with array index",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue1908_Tests.cs"
+      ]
+    },
+    {
+      "issue": 1920,
+      "title": "[BUG] BsonRef Key field not set",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue1920_Tests.cs"
+      ]
+    },
+    {
+      "issue": 1958,
+      "title": "[BUG] Rebuild cause \"LiteDB ENSURE: Use EnterTransaction() before EnterLock(name) \"",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue1958_Tests.cs"
+      ]
+    },
+    {
+      "issue": 1966,
+      "title": "[QUESTION] System.IO.FileNotFoundException when trying to use EnsureIndex ",
+      "priority": "P2",
+      "labels": [
+        "question",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue1966_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2006,
+      "title": "DateTime stohastic index use - again",
+      "priority": "P2",
+      "labels": [
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "skipped-passing",
+      "disposition": "not-currently-reproduced",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2006_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2033,
+      "title": "[BUG] Query Select for enumerables throws System.ArgumentException",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2033_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2043,
+      "title": "[BUG] Cannot insert duplicate key in unique index '_id'",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "needs more information",
+        "severity: critical",
+        "priority: P2"
+      ],
+      "reproduction": "skipped-no-repro",
+      "disposition": "not-currently-reproduced",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2043_Tests.cs",
+        "LiteDB.Tests/Issues/Issue2043_BulkLifecycleTests.cs",
+        "LiteDB.Tests/Issues/Issue2043_BulkLifecycleScenario.cs",
+        "LiteDB.Tests/Issues/Issue2043_BulkLifecycleLedger.cs"
+      ]
+    },
+    {
+      "issue": 2052,
+      "title": "[BUG] how to show json string when DB file is broken with Datetime ArgumentOutOfRangeException",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2052_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2059,
+      "title": "[BUG] DB get operation fails with LiteDB ENSURE: invalid segment position",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "needs more information",
+        "severity: critical",
+        "priority: P2"
+      ],
+      "reproduction": "skipped-no-repro",
+      "disposition": "not-currently-reproduced",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2059_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2113,
+      "title": "[QUESTION] Expression '*' is not a scalar expression and can return more than one result? (GroupBy and Having)",
+      "priority": "P2",
+      "labels": [
+        "question",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2113_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2144,
+      "title": "[BUG] Wrong 'StartsWith' result when EnsureIndex() to non-ascii string column",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2144_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2163,
+      "title": "Mixing Direct and Shared access on Linux can silently lose writes; fail-fast ownership needed",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: critical",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": []
+    },
+    {
+      "issue": 2169,
+      "title": "[BUG] Error in parallel Insert (Also Upsert)",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2169_CheckpointFailureTests.cs",
+        "LiteDB.Tests/Issues/Issue2169_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2195,
+      "title": "[QUESTION] \"this page should be in slot #0\" exception on Insert() ",
+      "priority": "P2",
+      "labels": [
+        "question",
+        "needs more information",
+        "severity: critical",
+        "priority: P2"
+      ],
+      "reproduction": "skipped-no-repro",
+      "disposition": "not-currently-reproduced",
+      "tests": []
+    },
+    {
+      "issue": 2205,
+      "title": "[BUG] Value was too small or to large int64 when using BsonExpression",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2205_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2225,
+      "title": "Inherited private Id setter is missed during deserialization with a parameterless constructor",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2225_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2226,
+      "title": "[QUESTION] \"Use EnterTransaction() before EnterLock(name)\" - what does it tell me?",
+      "priority": "P2",
+      "labels": [
+        "question",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "skipped-no-repro",
+      "disposition": "not-currently-reproduced",
+      "tests": []
+    },
+    {
+      "issue": 2243,
+      "title": "[BUG] #768 if using DbRef with interface with no ID mapped: partially fixed",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2243_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2253,
+      "title": "[QUESTION] Reading / Writing Dictionary<string, object>",
+      "priority": "P2",
+      "labels": [
+        "question",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "skipped-passing",
+      "disposition": "not-currently-reproduced",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2253_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2303,
+      "title": "[BUG]",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2303_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2320,
+      "title": "[BUG] NuGet packages and assemblies are not signed via SignPath",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: medium",
+        "priority: P2"
+      ],
+      "reproduction": "artifact-only",
+      "disposition": "pending",
+      "tests": []
+    },
+    {
+      "issue": 2322,
+      "title": "[BUG] generic Enums cannot be tested for equality in linq queries",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2322_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2357,
+      "title": "[BUG] Cannot insert duplicate key in unique index '_id'. The duplicate value is '{\"$date\":\"2006-04-02T07:00:00.0000000Z\"}'.",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2357_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2367,
+      "title": "LINQ captured collection element members throw TargetException with non-null values",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2367_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2375,
+      "title": "[QUESTION] LiteDB almost works perfectly with Uno on WebAssembly but loses things on close",
+      "priority": "P2",
+      "labels": [
+        "question",
+        "needs more information",
+        "severity: critical",
+        "priority: P2"
+      ],
+      "reproduction": "skipped-platform",
+      "disposition": "not-currently-reproduced",
+      "tests": []
+    },
+    {
+      "issue": 2450,
+      "title": "[BUG] Rebuild function never deletes the previous database backup",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: medium",
+        "priority: P2",
+        "from fork"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2450_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2545,
+      "title": "[BUG] DropCollection causes \"page type must be data page: {0}\"",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: critical",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2545_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2549,
+      "title": "[BUG] Regression 5.0.17 -> 5.0.18, Database.Rebuild() not disposing correctly",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2549_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2578,
+      "title": "[BUG] BsonCtor not called",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2578_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2583,
+      "title": "[BUG] \"Order By <computed_colum>\" in SQL query doesn't have effect.",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2583_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2590,
+      "title": "[BUG] InvalidCastException From LiteDB.ObjectId To System.String",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2590_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2739,
+      "title": "[BUG] collection.UpdateMany stores property with DbRef inline instead of as reference",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: critical",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2739_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2764,
+      "title": "[BUG] AesStream.Seek adds the hidden-page offset for Current and End origins",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2764_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2767,
+      "title": "[BUG] [Crash / unchecked exception] Partial-read streams can prevent valid LiteDB databases from opening",
+      "priority": "P2",
+      "labels": [
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2767_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2769,
+      "title": "[BUG] [Crash / unchecked exception] Non-Int32-backed enums can abort serialization with EnumAsInteger=true",
+      "priority": "P2",
+      "labels": [
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2769_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2770,
+      "title": "[BUG] [Crash / unchecked exception] Enum property comparison can abort LINQ translation with EnumAsInteger=false",
+      "priority": "P2",
+      "labels": [
+        "severity: high",
+        "priority: P2",
+        "from fork"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2770_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2777,
+      "title": "Password-protected v5 datafiles use AES-ECB (repeating ciphertext blocks), a known-plaintext password check and weak key derivation",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2777_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2779,
+      "title": "LINQ predicates throw on method calls that don't depend on the lambda parameter (string interpolation, Distinct() over a captured list) instead of evaluating them client-side",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2779_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2784,
+      "title": "Opening a file that is not a valid LiteDB v5 datafile throws ArgumentOutOfRangeException \"Ticks must be between...\" instead of an invalid-database error",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2784_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2785,
+      "title": "A leftover or foreign -log.db file is replayed into a new or different data file without any identity check",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: critical",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2785_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2787,
+      "title": "Shared mode across threads: \"Object synchronization method was called from an unsynchronized block of code\" and hangs from mutex released on the wrong thread or never released",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2787_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2790,
+      "title": "Query enumerated or disposed on another thread leaks the transaction read lock (SynchronizationLockException, LockRecursionException, checkpoint timeout)",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2790_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2792,
+      "title": "\"ENSURE: page type must be collection page\" / \"Invalid Collection on 0 ... Full zero: True\" when a collection is read while another transaction is creating it",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2792_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2793,
+      "title": "Shared mode throws \"Access to the path 'Global\\<hash>.Mutex' is denied\" across Windows accounts (5.x) and in UWP/AppContainer apps",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2",
+        "from fork"
+      ],
+      "reproduction": "historical-repro",
+      "disposition": "not-currently-reproduced",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2793_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2794,
+      "title": "Documents become unreadable with \"BSON type not supported\" after repeated updates under concurrent writers (corrupted data block chain)",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "needs more information",
+        "severity: critical",
+        "priority: P2",
+        "from fork"
+      ],
+      "reproduction": "skipped-no-repro",
+      "disposition": "not-currently-reproduced",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2794_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2797,
+      "title": "LIKE / LINQ Contains wildcard matching: patterns with consecutive % hang forever and _ after % never matches",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced-ci",
+      "disposition": "pending",
+      "tests": []
+    },
+    {
+      "issue": 2798,
+      "title": "LINQ queries on GetCollection<IInterface> ignore [BsonId] declared on the implementing class and silently match nothing",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2798_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2800,
+      "title": "Queries with nested lambdas (FILTER/MAP/array filter) return the first execution's results when re-run with different captured values",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2",
+        "from fork"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2800_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2801,
+      "title": "new BsonValue(object) with an array, list or dictionary creates a value whose AsArray/AsDocument is null, causing NullReferenceException in Upsert, ToString and CompareTo",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2801_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2802,
+      "title": "Overridden BsonMapper.ToObject is never called when reading through ILiteCollection<T> / ILiteQueryable<T> in v5",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2",
+        "from fork"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2802_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2804,
+      "title": "LiteDB crashes on iOS and other AOT-only runtimes (Mono full-AOT, Unity IL2CPP) because it compiles expression trees at runtime",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2",
+        "from fork"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": []
+    },
+    {
+      "issue": 2805,
+      "title": "EnsureIndex(x => x.Prop) generates an empty or colliding index name for non-ASCII field names and under the Turkish (tr-TR) culture",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2805_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2808,
+      "title": "Publish a LiteDB v4 release with the CVE-2022-23535 (GHSA-3x49-g6rc-c284) deserialization fix",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: critical",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced-publication",
+      "disposition": "pending",
+      "tests": []
+    },
+    {
+      "issue": 2810,
+      "title": "LINQ Any(x => ids.Contains(x)) over an array property throws \"Any/All requires simple parameter on left side\" (NullReferenceException for IEnumerable<T>)",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2810_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2811,
+      "title": "Insert with auto-id throws NullReferenceException after writing the document when the Id member has no setter (get-only property, F# record)",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2811_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2812,
+      "title": "Index lookups silently return no results when a datafile is used under a different string collation implementation (Alpine invariant globalization, NLS vs ICU, OS sort version)",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2",
+        "from fork"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": []
+    },
+    {
+      "issue": 2815,
+      "title": "ReadOnly=true Direct connection interferes with a database another process is writing (checkpoint write on close, blocked -log.db delete, torn reads)",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2815_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2816,
+      "title": "\"The process cannot access the file because it is being used by another process\": data file stays locked after Dispose fails to open the -log.db file",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "historical-repro",
+      "disposition": "not-currently-reproduced",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2816_DisposeFailureTests.cs",
+        "LiteDB.Tests/Issues/Issue2816_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2819,
+      "title": "Unindexed OrderBy throws NotImplementedException when a string or binary sort key is longer than 255 bytes",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2819_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2821,
+      "title": "After a disk-full IOException the LiteDatabase instance stays unusable, and some failure paths leak file handles",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2",
+        "from fork"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2821_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2822,
+      "title": "Explicit transactions are bound to the OS thread, so BeginTrans/Commit/Rollback across await act on the wrong transaction",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2",
+        "from fork"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2822_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2823,
+      "title": "v4 to v5 upgrade fails with \"Cannot insert duplicate key in unique index '_id'\" when the v4 file contains duplicate keys",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2823_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2825,
+      "title": "Concurrent writes to different collections corrupt the free empty-page list (\"ENSURE: empty page must be defined as empty type\")",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: critical",
+        "priority: P2"
+      ],
+      "reproduction": "historical-repro",
+      "disposition": "not-currently-reproduced",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2825_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2826,
+      "title": "v3/v4 to v5 upgrade crashes in FileReaderV7 on broken page links (\"Stream was too long\", OutOfMemoryException, NullReferenceException)",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced-ci",
+      "disposition": "pending",
+      "tests": []
+    },
+    {
+      "issue": 2827,
+      "title": "Rebuild() throws \"Detected loop in FindAll({0})\" when a collection with a secondary index has more than 2,550 documents",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2",
+        "from fork"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2827_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2841,
+      "title": "After a fatal ENSURE error, DropCollection/RenameCollection/Pragma report \"open transaction\" instead of the real error",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: medium",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2841_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2842,
+      "title": "Exceeding LimitSize throws LiteException with ErrorCode 0 instead of FILE_SIZE_EXCEEDED",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: medium",
+        "priority: P2",
+        "from fork"
+      ],
+      "reproduction": "historical-repro",
+      "disposition": "not-currently-reproduced",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2842_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2843,
+      "title": "LiteDB.Shell spins forever at end of piped input when the last command has no trailing semicolon",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced-script",
+      "disposition": "pending",
+      "tests": []
+    },
+    {
+      "issue": 2845,
+      "title": "JsonSerializer doesn't round-trip doubles: ~15 significant digits, double.MaxValue becomes Infinity, then null",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2845_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2846,
+      "title": "DropCollection on a large collection is ~3x slower on dev than 5.0.9 (101 s vs 33 s at 2.7 GB)",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: medium",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced-script",
+      "disposition": "pending",
+      "tests": []
+    },
+    {
+      "issue": 2847,
+      "title": "LINQ string.Equals(value, StringComparison) ignores the comparison and uses the database collation (Ordinal matches case-insensitively)",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2847_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2849,
+      "title": "Large single-transaction inserts and deletes are 3-4x slower since the 1,000-page default (safepoint cost)",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: medium",
+        "priority: P2",
+        "from fork"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": []
+    },
+    {
+      "issue": 2858,
+      "title": "SQL parser uses culture-sensitive ToUpper(): lowercase keywords fail to parse under tr-TR",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2",
+        "from fork"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2858_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2859,
+      "title": "Collation is ignored when comparing nested documents and arrays",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2",
+        "from fork"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2859_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2860,
+      "title": "Relative Uri properties are written but reading them back throws UriFormatException",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: medium",
+        "priority: P2",
+        "from fork"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2860_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2867,
+      "title": "Id convention '<TypeName>Id' ignores the mapped type when the property is inherited",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: medium",
+        "priority: P2",
+        "from fork"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2867_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2869,
+      "title": "Implicit BsonValue to long/double conversion throws InvalidCastException for Int32-stored numbers",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: medium",
+        "priority: P2",
+        "from fork"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "previously-integrated",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2869_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2871,
+      "title": "Reflection.CreateInstance reads the static _cacheCtor Dictionary without a lock while other threads add to it",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2",
+        "from fork"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2871_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2873,
+      "title": "Let Entity<T>().Ctor(...) own object creation without members being re-assigned afterwards",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: medium",
+        "priority: P2",
+        "from fork"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2873_ReportedModelTests.cs",
+        "LiteDB.Tests/Issues/Issue2873_Tests.cs"
+      ]
+    },
+    {
+      "issue": 1166,
+      "title": "Folder name with space is not working in litdb.shell.exe",
+      "priority": "P3",
+      "labels": [
+        "severity: low",
+        "priority: P3"
+      ],
+      "reproduction": "reproduced-script",
+      "disposition": "pending",
+      "tests": []
+    },
+    {
+      "issue": 1444,
+      "title": "ObjectId timestamps wrap in 2038, reversing ordering and CreationTime",
+      "priority": "P3",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P3"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue1444_Tests.cs"
+      ]
+    },
+    {
+      "issue": 1513,
+      "title": "[QUESTION] Changes in v5 relating to the new -log.db file",
+      "priority": "P3",
+      "labels": [
+        "question",
+        "needs more information",
+        "severity: high",
+        "priority: P3"
+      ],
+      "reproduction": "skipped-no-repro",
+      "disposition": "not-currently-reproduced",
+      "tests": []
+    },
+    {
+      "issue": 1644,
+      "title": "[BUG] Query.Or is very slow",
+      "priority": "P3",
+      "labels": [
+        "bug",
+        "severity: medium",
+        "priority: P3"
+      ],
+      "reproduction": "reproduced-ci",
+      "disposition": "pending",
+      "tests": []
+    },
+    {
+      "issue": 1706,
+      "title": "[SUGGESTION] Improve query optimization",
+      "priority": "P3",
+      "labels": [
+        "bug",
+        "severity: medium",
+        "priority: P3"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue1706_Tests.cs"
+      ]
+    },
+    {
+      "issue": 1834,
+      "title": "System.Threading.ReaderWriterLockSlim.TryEnterReadLockCore using Xamarin Forms",
+      "priority": "P3",
+      "labels": [
+        "bug",
+        "needs more information",
+        "severity: high",
+        "priority: P3"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue1834_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2093,
+      "title": "[BUG]",
+      "priority": "P3",
+      "labels": [
+        "bug",
+        "needs more information",
+        "severity: high",
+        "priority: P3"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2093_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2324,
+      "title": "[BUG] EntityBuilder<T>.Id method is not thread safe",
+      "priority": "P3",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P3"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2324_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2328,
+      "title": "[BUG] Serialize double.MaxValue",
+      "priority": "P3",
+      "labels": [
+        "bug",
+        "needs more information",
+        "severity: high",
+        "priority: P3"
+      ],
+      "reproduction": "skipped-passing",
+      "disposition": "not-currently-reproduced",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2328_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2414,
+      "title": "[BUG] Tests about `DAY()` fails in Japan Standard Time",
+      "priority": "P3",
+      "labels": [
+        "bug",
+        "severity: low",
+        "priority: P3"
+      ],
+      "reproduction": "fixture-corrected",
+      "disposition": "not-currently-reproduced",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2414_Tests.cs",
+        "LiteDB.Tests/Expressions/Expressions_Exec_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2544,
+      "title": " In version 5 of LiteDB, the file upload speed to the database has slowed down.",
+      "priority": "P3",
+      "labels": [
+        "question",
+        "needs more information",
+        "severity: medium",
+        "priority: P3"
+      ],
+      "reproduction": "skipped-no-repro",
+      "disposition": "not-currently-reproduced",
+      "tests": []
+    },
+    {
+      "issue": 2712,
+      "title": "[BUG] Flaky vector Test",
+      "priority": "P3",
+      "labels": [
+        "bug",
+        "severity: low",
+        "priority: P3"
+      ],
+      "reproduction": "historical-repro",
+      "disposition": "not-currently-reproduced",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2712_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2738,
+      "title": "[BUG] Android create database file with password failed.",
+      "priority": "P3",
+      "labels": [
+        "bug",
+        "needs more information",
+        "severity: high",
+        "priority: P3"
+      ],
+      "reproduction": "skipped-no-repro",
+      "disposition": "not-currently-reproduced",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2738_NativeControlTests.cs"
+      ]
+    },
+    {
+      "issue": 2746,
+      "title": "[BUG] Doc update request",
+      "priority": "P3",
+      "labels": [
+        "bug",
+        "severity: low",
+        "priority: P3"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2746_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2765,
+      "title": "[BUG] Opening an encrypted database without a password returns generic ErrorCode 0",
+      "priority": "P3",
+      "labels": [
+        "bug",
+        "severity: low",
+        "priority: P3"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2765_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2774,
+      "title": "LiteDB.Shell ignores absolute Unix paths (arguments starting with / are parsed as options)",
+      "priority": "P3",
+      "labels": [
+        "bug",
+        "severity: low",
+        "priority: P3"
+      ],
+      "reproduction": "reproduced-script",
+      "disposition": "pending",
+      "tests": []
+    },
+    {
+      "issue": 2775,
+      "title": "Index scans and COUNT keep every document address in memory: usage grows ~100 B per document",
+      "priority": "P3",
+      "labels": [
+        "bug",
+        "severity: medium",
+        "priority: P3"
+      ],
+      "reproduction": "reproduced-ci",
+      "disposition": "pending",
+      "tests": []
+    },
+    {
+      "issue": 2795,
+      "title": "Skip/Offset pagination slows down linearly with the offset because skipped documents are fully loaded",
+      "priority": "P3",
+      "labels": [
+        "suggestion",
+        "priority: P3"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2795_PipelineGuards_Tests.cs",
+        "LiteDB.Tests/Issues/Issue2795_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2796,
+      "title": "Docs: document size limit is 16MB per root document (sub-documents included, BsonRef targets not), but the FileStorage page still says 1MB",
+      "priority": "P3",
+      "labels": [
+        "bug",
+        "severity: low",
+        "priority: P3"
+      ],
+      "reproduction": "reproduced-documentation",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2796_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2799,
+      "title": "Database on a network share or Azure App Service storage: UnauthorizedAccessException from FileStream.Flush(true) during checkpoint/dispose, then \"file in use\"",
+      "priority": "P3",
+      "labels": [
+        "bug",
+        "needs more information",
+        "severity: high",
+        "priority: P3",
+        "from fork"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2799_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2803,
+      "title": "EnsureIndex throws SynchronizationLockException from LockService.ExitLock during rollback, masking the original error",
+      "priority": "P3",
+      "labels": [
+        "bug",
+        "needs more information",
+        "severity: high",
+        "priority: P3",
+        "from fork"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2803_CheckpointFailureTests.cs",
+        "LiteDB.Tests/Issues/Issue2803_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2807,
+      "title": "Parameterize Query helpers to avoid recompiling distinct literal values",
+      "priority": "P3",
+      "labels": [
+        "bug",
+        "severity: medium",
+        "priority: P3"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2807_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2814,
+      "title": "Log file (-log.db) grows without bound when other transactions are always open, because auto-checkpoint is skipped instead of retried",
+      "priority": "P3",
+      "labels": [
+        "bug",
+        "severity: medium",
+        "priority: P3"
+      ],
+      "reproduction": "intermittent",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2814_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2839,
+      "title": "LongCount(Query) counts through the int Count() path, so it can't exceed int.MaxValue",
+      "priority": "P3",
+      "labels": [
+        "bug",
+        "severity: low",
+        "priority: P3"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "previously-integrated",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2839_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2854,
+      "title": "Page-list walks in Snapshot have no loop bound: a circular page chain can hang DropCollection",
+      "priority": "P3",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P3",
+        "from fork"
+      ],
+      "reproduction": "skipped-unverified",
+      "disposition": "not-currently-reproduced",
+      "tests": []
+    },
+    {
+      "issue": 2855,
+      "title": "Upgrade=true is silently ignored for stream-based databases (LiteDatabase(Stream) / EngineSettings.DataStream)",
+      "priority": "P3",
+      "labels": [
+        "suggestion",
+        "priority: P3",
+        "from fork"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2855_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2864,
+      "title": "ENSURE page-type failures should say which page type was actually found",
+      "priority": "P3",
+      "labels": [
+        "bug",
+        "severity: low",
+        "priority: P3",
+        "from fork"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2864_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2870,
+      "title": "`throw ex;` in the query path loses the original stack trace",
+      "priority": "P3",
+      "labels": [
+        "bug",
+        "severity: low",
+        "priority: P3",
+        "from fork"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2870_Tests.cs"
+      ]
+    },
+    {
+      "issue": 2874,
+      "title": "ObjectId(byte[], int) doesn't validate the input length",
+      "priority": "P3",
+      "labels": [
+        "bug",
+        "severity: low",
+        "priority: P3",
+        "from fork"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "previously-integrated",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2874_Tests.cs"
+      ]
+    }
+  ]
+}

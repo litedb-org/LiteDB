@@ -173,6 +173,7 @@ namespace LiteDB.Engine
             IReadOnlyDictionary<uint, PagePosition> transactionPages = null)
         {
             var count = 0;
+            var hasConfirmation = false;
             var stream = _writer.Value;
 
             // do a global write lock - only 1 thread can write on disk at time
@@ -210,6 +211,7 @@ namespace LiteDB.Engine
 
                         this.PreserveFileVersion(page);
                         stream.Write(page.Array, page.Offset, PAGE_SIZE);
+                        hasConfirmation |= page.ReadBool(BasePage.P_IS_CONFIRMED);
 
                         // Publish only after the bytes are written to the stream.
                         // The callback can make the position visible to readers.
@@ -241,7 +243,26 @@ namespace LiteDB.Engine
                         readable?.Release();
                     }
                 }
-                stream.Flush();
+                // A confirmation makes this WAL batch recoverable. Make all preceding
+                // pages durable before WAL-index confirmation or acknowledging commit.
+                if (hasConfirmation)
+                {
+                    try
+                    {
+                        stream.FlushToDisk();
+                    }
+                    catch (Exception ex)
+                    {
+                        // The confirmation may already be durable. Stop the engine:
+                        // neither rollback nor further writes can resolve this uncertainty.
+                        var failure = ex as IOException ?? new IOException("WAL durable flush failed.", ex);
+                        _state.Handle(failure);
+                        if (failure == ex) throw;
+                        throw failure;
+                    }
+                }
+                else
+                    stream.Flush();
             }
 
             return count;
