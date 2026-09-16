@@ -147,11 +147,18 @@ namespace LiteDB.Engine
                 // Once released, rebuild or close may have replaced this generation.
                 if (!ReferenceEquals(state, _state) || state.Disposed) return;
 
-                // try checkpoint when finish transaction and log file are bigger than checkpoint pragma value (in pages)
-                if (_header.Pragmas.Checkpoint > 0 &&
-                    _disk.GetFileLength(FileOrigin.Log) >= (_header.Pragmas.Checkpoint * PAGE_SIZE))
+                try
                 {
-                    _walIndex.TryAutoCheckpoint();
+                    if (_header.Pragmas.Checkpoint > 0 &&
+                        _disk.GetFileLength(FileOrigin.Log) >= (_header.Pragmas.Checkpoint * PAGE_SIZE))
+                        _walIndex.TryAutoCheckpoint();
+                }
+                catch (Exception ex)
+                {
+                    // Explicit Commit needs the same critical-I/O handling as
+                    // auto-transactions. Pre-checkpoint access errors can retry.
+                    _state.Handle(ex);
+                    throw;
                 }
             }
         }

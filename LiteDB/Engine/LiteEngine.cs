@@ -287,7 +287,23 @@ namespace LiteDB.Engine
         /// <summary>
         /// Run checkpoint command to copy log file into data file
         /// </summary>
-        public int Checkpoint() => _walIndex.Checkpoint();
+        public int Checkpoint()
+        {
+            EngineState state;
+            WalIndexService wal;
+            lock (_lifecycleLock)
+            {
+                state = _state;
+                state.Validate();
+                wal = _walIndex;
+            }
+            try { return wal.Checkpoint(); }
+            catch (Exception ex)
+            {
+                state.Handle(ex);
+                throw;
+            }
+        }
 
         public void Dispose()
         {
