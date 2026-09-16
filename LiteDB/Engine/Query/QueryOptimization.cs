@@ -228,6 +228,7 @@ namespace LiteDB.Engine
             // fill filter using all expressions (remove selected term used in Index)
             _queryPlan.Filters.AddRange(_terms.Where(x => x != selected));
             this.NarrowRange(selected);
+            this.PruneContradictions();
         }
 
         #endregion

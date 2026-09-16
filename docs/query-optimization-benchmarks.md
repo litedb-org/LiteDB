@@ -71,3 +71,22 @@ at an inclusive range endpoint now also uses the database collation.
 
 This case returns ten documents. The gain depends on how much of the original
 one-sided scan the other bound excludes. Range and disjunction tests: 14 passed.
+
+## 3. Prune contradictory scalar constraints
+
+The optimizer proves incompatible equalities/ranges on scalar paths using the
+active collation, then supplies an empty input to the normal query pipeline.
+This works without an index and preserves empty aggregate/group/count behavior.
+Bound parameters are checked on each execution, including separate Where calls.
+Multikey predicates and computed field expressions are excluded from the proof.
+
+| Complete query | Before µs | After µs | Time reduction | Before B/query | After B/query |
+|---|---:|---:|---:|---:|---:|
+| Indexed impossible range | 14,274.38 | 38.01 | 99.7% (376×) | 19,465,812 | 21,771 |
+| Unindexed incompatible equalities | 30,508.36 | 40.57 | 99.9% (752×) | 38,640,520 | 19,971 |
+
+The workloads are `Score > 10010 && Score < 10000` and
+`Name == "Person1" && Name == "Person2"`. These are deliberately impossible
+queries: this optimization helps generated predicates and does not promise a
+speedup for satisfiable queries. Optimizer and vector regression tests: 268 passed,
+one existing skip.
