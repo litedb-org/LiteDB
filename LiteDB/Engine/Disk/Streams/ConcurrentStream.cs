@@ -46,6 +46,10 @@ namespace LiteDB.Engine
             lock (_stream)
             {
                 _stream.SetLength(value);
+                // Match FileStream/MemoryStream truncation semantics. In
+                // particular, an encrypted writer's final zero-byte write must
+                // not resurrect a truncated WAL at this wrapper's old position.
+                if (_position > value) _position = value;
             }
         }
 

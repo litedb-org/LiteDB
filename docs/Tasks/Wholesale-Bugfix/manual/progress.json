@@ -834,10 +834,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2545_Tests.cs"
-      ]
+      ],
+      "validation": "78 focused net8 passes; full net10 1549 pass/271 remaining failures/8 skips without pass regressions; foreign/stale/modified-completed WAL preservation, crash ordering, legacy/v8/v9 and plain/encrypted coverage; actual5.0.21 appended-tail probe; four fresh independent Sol high final approvals"
     },
     {
       "issue": 2549,
@@ -1035,10 +1036,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2785_Tests.cs"
-      ]
+      ],
+      "validation": "78 focused net8 passes; full net10 1549 pass/271 remaining failures/8 skips without pass regressions; foreign/stale/modified-completed WAL preservation, crash ordering, legacy/v8/v9 and plain/encrypted coverage; actual5.0.21 appended-tail probe; four fresh independent Sol high final approvals"
     },
     {
       "issue": 2787,

@@ -802,3 +802,60 @@ and encrypted spilling sorts leaves no scratch files; late scratch creation
 after disposal is rejected. Windows/Darwin/FreeBSD backends received static ABI
 review, not runtime execution here. Four fresh independent GPT-5.6 Sol high
 reviewers in the final wave report no substantive findings.
+
+## #2545 / #2785 — database-bound WAL generations
+
+New transactional WALs have an unconfirmed identity prefix; reserved data-header
+bytes contain a random database identity, current checkpoint generation, previous
+generation, completed-WAL fingerprint, and checksum. A restored data file rejects a later generation;
+an exact completed predecessor cannot roll back later checkpointed commits. Foreign
+and orphan WALs are rejected before replay, initialization, alignment repair,
+or recovery import, preserving both files. Read-only opens ignore completed
+WALs without truncation. Ordinary v8 and vector v9 remain unchanged.
+
+Durable order is identity-before-first-frame, then on checkpoint: data flush,
+full WAL durable flush, new generation/fingerprint flush, WAL truncation and
+flush. Legacy migration truncates its
+unmarked WAL before installing identity. Every uncertainty while publishing
+metadata or truncating WAL stops the engine, including explicit Commit's automatic
+checkpoint and non-IOException caller-stream errors. Pre-publication noncritical
+access failures preserve established retry behavior. ConcurrentStream truncation
+now clamps its logical position, preventing encrypted disposal from restoring a
+truncated WAL through a zero-byte write. All transaction scans ignore the prefix,
+including a wrapped transaction ID of zero.
+
+Legacy logs can only prove creation-time identity when a confirmed header is
+present. Older writers must checkpoint before handing protected files back;
+their prefixless WALs are rejected, and generation guarantees cannot span their
+checkpoints. Damaged/partial prefixes intentionally fail closed. A review request
+to silently discard a torn initial prefix was not adopted: the same bytes can
+also represent damage to a formerly committed WAL. New crash tests establish
+that no transaction is published on initial identity flush failure and that a
+torn prefix preserves all checkpointed receipts and both original byte arrays.
+The manual recovery limitation is explicit in docs/wal-recovery-identity.md.
+Recognizable nonzero modern identity metadata also rejects a structurally damaged
+prefix beside legacy data, preventing accidental fallback to unmarked replay.
+Eight structural-field/magic corruption cases exercise a header-free update WAL.
+Recognition also requires the normal header signature: a real legacy update
+whose user payload spells the identity magic at byte 109 must still replay.
+
+Validation: 78 focused net8 passes,
+including plain/encrypted orphan preservation, two-generations-old rejection,
+initial-binding interruptions, and vector identity/format preservation. The
+latest full net10 run has 1,549 passes, 271 remaining failures and eight skips,
+with no pass regressions against the preceding committed stage. All production targets build and net462 tests compile.
+An actual NuGet 5.0.21 probe passed plain/encrypted legacy WAL replay, new-prefix
+reading by the old engine, an old-engine checkpoint, and reopening its results.
+
+The predecessor fingerprint is a 128-bit truncation of SHA-256 over the complete
+logical WAL. A later old-engine append, modification, or restored subset cannot
+be silently discarded as completed. A real 5.0.21 append after a simulated
+post-checkpoint crash is rejected with both files byte-for-byte preserved, for
+plain and encrypted files. A FileStream fault fixture distinguishes Flush()
+from Flush(true): rolled-back safepoints are durably flushed before their bytes
+enter the published fingerprint. Fingerprinting reads whole pages for the
+existing encrypted-stream alignment contract. These latest changes pass 78
+focused net8 tests. All four fresh independent Sol high reviewers in the sixth
+wave report no substantive findings. The full-suite rerun archived a leftover
+`demo.db` from this patch's earlier unpublished metadata layout; no released
+layout was changed or migrated.

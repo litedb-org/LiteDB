@@ -129,11 +129,18 @@ namespace LiteDB.Engine
                     throw;
                 }
 
-                // try checkpoint when finish transaction and log file are bigger than checkpoint pragma value (in pages)
-                if (_header.Pragmas.Checkpoint > 0 &&
-                    _disk.GetFileLength(FileOrigin.Log) >= (_header.Pragmas.Checkpoint * PAGE_SIZE))
+                try
                 {
-                    _walIndex.TryCheckpoint();
+                    if (_header.Pragmas.Checkpoint > 0 &&
+                        _disk.GetFileLength(FileOrigin.Log) >= (_header.Pragmas.Checkpoint * PAGE_SIZE))
+                        _walIndex.TryCheckpoint();
+                }
+                catch (Exception ex)
+                {
+                    // Explicit Commit needs the same critical-I/O handling as
+                    // auto-transactions. Pre-checkpoint access errors can retry.
+                    _state.Handle(ex);
+                    throw;
                 }
             }
         }

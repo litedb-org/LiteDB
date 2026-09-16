@@ -52,6 +52,7 @@ namespace LiteDB.Engine
 
                 if (isNew)
                 {
+                    this.RejectOrphanWal();
                     LOG($"creating new database: '{Path.GetFileName(_dataFactory.Name)}'", "DISK");
 
                     this.Initialize(_dataPool.Writer.Value, settings.Collation, settings.InitialSize);
@@ -66,7 +67,7 @@ namespace LiteDB.Engine
 
                 _dataLength = this.GetAlignedLength(_dataFactory, _dataPool, settings.ReadOnly) - PAGE_SIZE;
 
-                if (_logFactory.Exists())
+                if (_logFactory.Exists() && !_ignoreCompletedWal)
                 {
                     _logLength = this.GetAlignedLength(_logFactory, _logPool, settings.ReadOnly) - PAGE_SIZE;
                 }
@@ -192,6 +193,8 @@ namespace LiteDB.Engine
                     try
                     {
                         ENSURE(page.ShareCounter == BUFFER_WRITABLE, "to enqueue page, page must be writable");
+                        this.EnsureWalPrefix(stream);
+                        previousLogLength = _logLength;
                         previousStreamLength = stream.Length;
                         var pageID = page.ReadUInt32(BasePage.P_PAGE_ID);
                         // Only this transaction can see its unconfirmed slots. Keep
@@ -367,6 +370,7 @@ namespace LiteDB.Engine
         /// </summary>
         public void WriteDataDisk(IEnumerable<PageBuffer> pages)
         {
+            if (_readOnly) throw new NotSupportedException("Cannot checkpoint a read-only database.");
             var stream = _dataPool.Writer.Value;
 
             foreach (var page in pages)

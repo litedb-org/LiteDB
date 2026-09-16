@@ -14,7 +14,7 @@ namespace LiteDB.Engine
     /// <summary>
     /// Internal class to read all datafile documents - use only Stream - no cache system. Read log file (read commited transtraction)
     /// </summary>
-    internal class FileReaderV8 : IFileReader
+    internal partial class FileReaderV8 : IFileReader
     {
         private struct PageInfo
         {
@@ -51,44 +51,6 @@ namespace LiteDB.Engine
         {
             _settings = settings;
             _errors = errors;
-        }
-
-        /// <summary>
-        /// Open data file and log file, read header and collection pages
-        /// </summary>
-        public void Open()
-        {
-            try
-            {
-                var dataFactory = _settings.CreateDataFactory();
-                var logFactory = _settings.CreateLogFactory();
-
-                // get maxPageID based on both file length
-                _maxPageID = (uint)((dataFactory.GetLength() + logFactory.GetLength()) / PAGE_SIZE);
-
-                _dataStream = dataFactory.GetStream(true, false);
-
-                _dataStream.Position = 0;
-
-                if (logFactory.Exists())
-                {
-                    _logStream = logFactory.GetStream(false, true);
-
-                    this.LoadIndexMap();
-                }
-
-                this.LoadPragmas();
-
-                this.LoadDataPages();
-
-                this.LoadCollections();
-
-                this.LoadIndexes();
-            }
-            catch (Exception ex)
-            {
-                this.HandleError(ex, new PageInfo());
-            }
         }
 
         /// <summary>
@@ -442,7 +404,7 @@ namespace LiteDB.Engine
                     _logStream.Position = pageInfo.Position = currentPosition;
 
                     var read = _logStream.ReadFully(buffer.Array, buffer.Offset, PAGE_SIZE);
-
+                    if (currentPosition == 0 && WalIdentity.IsPrefix(buffer)) continue;
                     if (buffer.IsBlank())
                     {
                         // this should not happen, but if it does, it means there's a zeroed page in the file

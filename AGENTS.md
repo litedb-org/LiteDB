@@ -42,3 +42,13 @@ continues to rebuild v7 files before applying read-only access. Durable flushes
 must reach the underlying file through encryption and caller-stream wrappers. Run `python3 scripts/test-vector-compatibility.py`
 to verify ordinary v8 round trips and vector-file rejection by LiteDB 5.0.21,
 including encrypted files. See `docs/vector-query-compatibility.md` for semantics.
+
+## WAL Recovery Identity
+Transactional WALs bind to a database and checkpoint generation using reserved
+v8/v9 header bytes. Preserve the durable order: data identity before WAL frames;
+checkpoint data flush and full WAL durable flush before generation/fingerprint
+publication, then WAL truncate and flush.
+Metadata/truncation uncertainty must stop the engine, including explicit Commit's
+automatic checkpoint. Legacy migration truncates first. Never discard unverified
+WAL bytes or let damaged modern prefixes fall back to legacy replay. See
+`docs/wal-recovery-identity.md` for old-writer and manual-recovery limitations.
