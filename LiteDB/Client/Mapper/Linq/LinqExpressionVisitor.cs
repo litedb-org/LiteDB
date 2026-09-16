@@ -10,7 +10,7 @@ using static LiteDB.Constants;
 
 namespace LiteDB
 {
-    internal class LinqExpressionVisitor : ExpressionVisitor
+    internal partial class LinqExpressionVisitor : ExpressionVisitor
     {
         private static readonly Dictionary<Type, ITypeResolver> _resolver = new Dictionary<Type, ITypeResolver>
         {
@@ -186,6 +186,7 @@ namespace LiteDB
         /// </summary>
         protected override Expression VisitMethodCall(MethodCallExpression node)
         {
+            if (this.TryVisitEnumEquals(node)) return node;
             if (this.IsSpanImplicitConversion(node.Method))
             {
                 this.Visit(node.Arguments[0]);

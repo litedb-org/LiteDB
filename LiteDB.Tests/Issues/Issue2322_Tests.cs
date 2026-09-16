@@ -8,6 +8,7 @@ namespace LiteDB.Tests.Issues
     public class Issue2322_Tests
     {
         public enum Kind { A, B }
+        public enum OtherKind { A, B }
         public interface IRow<K> where K : Enum
         {
             int Id { get; }
@@ -17,6 +18,41 @@ namespace LiteDB.Tests.Issues
         {
             public int Id { get; set; }
             public Kind Kind { get; set; }
+            public Kind Other { get; set; }
+            public OtherKind Foreign { get; set; }
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Enum_Equals_preserves_boxed_type_identity_and_row_dependent_comparisons(bool asInteger)
+        {
+            using var db = new LiteDatabase(":memory:", new BsonMapper { EnumAsInteger = asInteger });
+            var col = db.GetCollection<Row>();
+            col.Insert(new[]
+            {
+                new Row { Id = 1, Kind = Kind.A, Other = Kind.A, Foreign = OtherKind.A },
+                new Row { Id = 2, Kind = Kind.B, Other = Kind.A, Foreign = OtherKind.B }
+            });
+            object boxed = Kind.A;
+            col.Find(x => x.Kind.Equals(boxed)).Select(x => x.Id).Should().Equal(1);
+            col.Find(x => ((ValueType)x.Kind).Equals(Kind.A)).Select(x => x.Id).Should().Equal(1);
+            col.Find(x => ((Enum)x.Kind).Equals(Kind.A)).Select(x => x.Id).Should().Equal(1);
+            col.Find(x => ((object)x.Kind).Equals(Kind.A)).Select(x => x.Id).Should().Equal(1);
+            var receiver = Kind.A;
+            col.Find(x => receiver.Equals(x.Kind)).Select(x => x.Id).Should().Equal(1);
+            Kind? optional = Kind.A;
+            col.Find(x => x.Kind.Equals(optional)).Select(x => x.Id).Should().Equal(1);
+            optional = null;
+            col.Find(x => x.Kind.Equals(optional)).Should().BeEmpty();
+            boxed = Kind.B;
+            col.Find(x => x.Kind.Equals(boxed)).Select(x => x.Id).Should().Equal(2);
+            foreach (var differentType in new object[] { null, 0, "A", OtherKind.A })
+            {
+                col.Find(x => x.Kind.Equals(differentType)).Should().BeEmpty();
+            }
+            col.Find(x => x.Kind.Equals(x.Other)).Select(x => x.Id).Should().Equal(1);
+            col.Find(x => x.Kind.Equals(x.Foreign)).Should().BeEmpty();
         }
 
         [Theory]

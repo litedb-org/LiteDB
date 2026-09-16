@@ -740,10 +740,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2322_Tests.cs"
-      ]
+      ],
+      "validation": "2 originalgeneric failures fixed;292 net8 mapper/query passes,1skip;4 final issue cases coverboxing,typeidentity,nullables,rowcomparisons;alltargetsbuild;fourfinalSolapprovals"
     },
     {
       "issue": 2357,

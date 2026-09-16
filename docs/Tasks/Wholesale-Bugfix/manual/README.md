@@ -534,3 +534,20 @@ tests pass. Coverage includes the exact stored exception instance (review nit
 addressed), getter/no-op/changed setter, collection operations, healthy explicit
 transactions and normal disposal. All library targets build; four Sol approvals.
 GetCollectionNames validation was noted as a separate existing behavior.
+
+
+## #2322 — translate generic enum Equals with CLR type identity
+
+Instance Enum/Object/ValueType Equals calls on statically known enum receivers
+rewrite to the existing equality mapper only for the same enum type. Closed
+boxed arguments are evaluated once and checked by runtime type; null, primitive,
+string and foreign enum values compare false. Same-enum row fields compare in
+the database; foreign enum fields compare false. Unknown object-typed row values
+remain unsupported. Method-free object/Enum/ValueType boxing is unwrapped without
+erasing user conversions.
+
+Final: 292 net8 mapper/query passes, one existing skip; all four issue cases pass
+in both enum storage modes. Controls include undefined values, changed captures,
+all three boxing forms, reverse receivers, nullable captures, foreign enum
+identity and field comparisons. ValueType boxing and optional coverage findings
+were addressed. All library targets build; four final Sol approvals.
