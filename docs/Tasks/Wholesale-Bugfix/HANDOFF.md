@@ -24,15 +24,34 @@ local machine**. Do not replace the hosted scheduler with a local blocking queue
 One blocked issue must retain its evidence while independent approved work can
 continue. Infrastructure and usage-limit waits need durable automatic recovery.
 
-Snapshot: **2026-09-16, approximately 08:55 UTC / 10:55 Europe/Vienna**.
+Snapshot: **2026-09-16, approximately 09:15 UTC / 11:15 Europe/Vienna**.
 Re-read GitHub state before acting: this document is a snapshot, not the controller's state store.
 
 ## Current state and first action
 
-**The hosted scheduler is enabled for `hosted-v10-main`, using the new uncapped
-worker runtime. Four fixes remain integrated; the same 24 approved issues are
-queued, beginning with #1002. Fresh baseline validation passed, and the uncapped
-fixer is executing.**
+**The uncapped worker completed successfully at 2573.77 credits, beyond the old
+2,000-credit cutoff. Four fixes remain integrated. Its candidate is withheld
+because broad CI exposed a linked #2590 diagnostic defect. The old v10 queue is
+briefly paused while an explicit expanded co-repair contract is prepared.**
+
+[Worker 35075342165](https://github.com/litedb-org/LiteDB/actions/runs/35075342165)
+passed with valid gpt-6-astra/high/Codex 0.154.0 proof and live uncapped-config
+assertion. Candidate [33fbf175](https://github.com/litedb-org/LiteDB/commit/33fbf17558062276c223946b66aa3f7c01810ad6)
+was published on `fix/issue-1002-hosted-v10-1002-a1`.
+[CI 35077204440](https://github.com/litedb-org/LiteDB/actions/runs/35077204440)
+passed all 11 focused cases and production/compatibility, but both broad lanes
+found the changed #2590 InsertOne failure. The patch removes its hidden write;
+the remaining InvalidCastException must become documented pre-write rejection.
+No normalization or test weakening is authorized. The expanded contract will
+retain all previous obligations and add all four frozen #2590 cases plus an
+untyped BsonDocument auto-ID control (13 regressions / 3 controls).
+
+The v10 campaign is durably blocked with attempt 1 and its evidence intact.
+Its scheduler correctly deferred #1002 and started independent #2802 baseline
+[35078119652](https://github.com/litedb-org/LiteDB/actions/runs/35078119652), which
+passed before [handoff pause 35078094282](https://github.com/litedb-org/LiteDB/actions/runs/35078094282).
+`BUGFIX_SWEEP_ENABLED=false` is temporary for this contract transition; restore
+unattended scheduling after the new immutable runtime and manifest are reviewed.
 
 The user explicitly said **"remove the limit entirely"** after two workers hit
 the separate 2,000-credit execution cap. This supersedes the earlier 50,000 daily
@@ -66,10 +85,11 @@ restricted patch scope, frozen tests, compressed CI and all three reviews remain
 - Validation before dispatch: 41 helper tests, 12 handoff tests, independent
   runtime review and independent live handoff previews passed.
 
-**Next action:** monitor the uncapped fixer, candidate publication,
-compressed CI and three reviews. A successful tick or model startup is not a
-confirmed fix. No v10 candidate is accepted at this snapshot. The user explicitly
-requires fixing the failed flow and confirming it works before stopping.
+**Next action:** complete the reviewed expanded-contract runtime and audited
+superseding campaign, preserving both v10 journals and the unchanged integration
+base. The prior candidate is an unaccepted reference, never an accepted base.
+Run its fresh baseline, uncapped fixer, compressed CI and three reviews. No v10
+candidate is accepted. The user requires fixing and confirming the flow before stopping.
 See [credit-limit removal](https://github.com/litedb-org/LiteDB/blob/automation/wholesale-bugfix/docs/Tasks/Wholesale-Bugfix/CREDIT-LIMIT-REMOVAL.md).
 
 ## Previous v9 deployment (historical)

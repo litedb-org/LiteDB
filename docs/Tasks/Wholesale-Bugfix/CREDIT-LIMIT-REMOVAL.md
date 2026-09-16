@@ -71,8 +71,15 @@ audit. Live worker and CI validation are still required.
   [35075168174](https://github.com/litedb-org/LiteDB/actions/runs/35075168174),
   retaining the 18-case permanent passing contract.
 - [Uncapped fixer 35075342165](https://github.com/litedb-org/LiteDB/actions/runs/35075342165)
-  passed activation without daily admission and is executing Codex. Candidate
-  and CI outcomes remain pending at this snapshot.
+  completed successfully, reporting 2573.77 credits and valid model/runtime proof.
+  Its effective-config assertion confirms no per-run or inherited credit limit;
+  activation ran without daily admission.
+- Candidate [33fbf175](https://github.com/litedb-org/LiteDB/commit/33fbf17558062276c223946b66aa3f7c01810ad6)
+  was published. [Compressed CI 35077204440](https://github.com/litedb-org/LiteDB/actions/runs/35077204440)
+  passed the 11 targeted cases and production/compatibility. Both broad lanes
+  caught a separate #2590 overlap: the hidden write is fixed, but its exception
+  remains InvalidCastException. The candidate is withheld pending an explicit
+  expanded co-repair; no failure-classification exemption is being added.
 
 ## Evidence to record after worker verification
 
