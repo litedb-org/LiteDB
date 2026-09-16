@@ -859,3 +859,68 @@ focused net8 tests. All four fresh independent Sol high reviewers in the sixth
 wave report no substantive findings. The full-suite rerun archived a leftover
 `demo.db` from this patch's earlier unpublished metadata layout; no released
 layout was changed or migrated.
+
+### #2808 v4 security release candidate (deferred by user)
+
+The existing v4 branch contained only the earlier Process/assignability patch.
+Prepared and pushed `a13746f5` on `codex/manual-v4-security`, based on v4
+`3af2be2b`: v5's 35 exact denied names, an application binder hook, retained
+assignability and Process error 215, and an explicit allow-list example.
+The default policy deliberately matches v5; it does not recursively inspect
+permitted generic/member graphs or turn assembly-looking entries into namespace
+bans. These inherited limitations and the trusted custom-binder boundary are
+explicit in the candidate's `docs/v4-security-release.md`.
+
+Three review waves used four new independent GPT-5.6 Sol high/no-fork agents each.
+The final wave found no actionable defects. Valid test-path/native-runtime gaps
+from earlier waves led to a dedicated v4 workflow and CLR2/CLR4 harnesses. Exact
+policy limitations were documented rather than claiming a general deserialization
+sandbox. Local validation: 55 security tests, all four signed extracted framework
+assets run under .NET 8, net35/net40 harness compilation, assembly version/key
+checks, and actionlint. Windows CLR2/CLR4 runtime validation also passed in CI run `35143229609`.
+The workflow publishes only the same artifact that passes all gates, requires an
+annotated v4.1.5 tag already integrated into v4, and defaults publication to off.
+The user explicitly deferred v4 work and requested that the reviewed candidate
+remain unpublished. The ledger records #2808 as `deferred-user`. No v4 integration,
+stable tag, release, or advisory mutation has been made.
+
+### #1192 — dictionary schemas and runtime metadata serialization
+
+Dictionary mapping recognizes standard collection types implementing the legacy
+IDictionary indexer instead of indexing every concrete generic type's argument array. Inherited
+Dictionary schemas survive unrelated tags and reordered subclass parameters;
+opaque legacy adapters retain established declared mappings, including explicit
+read-only interfaces and multiple side views. Opaque two-argument legacy adapters
+retain their historical convention. The reflection cache uses ConditionalWeakTable, with
+collectible runtime, contract-argument, and declared-interface coverage.
+
+Delegate and MemberInfo values become BSON null after exact declared/runtime
+custom serializers and the virtual SerializeObject hook can handle them. This retains normal
+exception diagnostics without invoking delegates or traversing reflection graphs.
+The existing public Serialize/Deserialize APIs already provide BsonValue mapping.
+
+Review-driven regressions cover generic legacy adapters, custom factories,
+discriminators, direct generic implementations, extra/reordered type arguments,
+opaque side stores, mutable/read-only views, and collectible assemblies. Claims
+that IReadOnlyDictionary is covariant were refuted using CLR generic-parameter
+attributes and assignability: both parameters are invariant. Framework API
+availability claims were checked with successful net462/net481 compilation.
+Custom dictionary interfaces cannot establish backing-store identity through
+reflection; opaque adapters preserve the selected declared schema rather than
+claiming to validate an arbitrary custom implementation's semantics.
+
+Serialization preserves historical object/object BSON shapes for non-generic
+concrete types and interfaces, including erased non-generic BCL subclasses.
+Deserialization separately resolves dictionary interfaces, discriminators, and
+custom factory results without indexing missing generic arguments.
+
+The final focused selection passes 50 cases on net8, including mapper inheritance.
+All production targets build, and net462/net481 tests compile. Full net10 validation
+(`p2-1192-w18.trx`) records 1601 passed, 266 failed, and 8 skipped, with no previously
+passing regressions against 67b214cc. Both original reproductions and audit guards
+133/134 now pass; an unrelated intermittent pass is not counted as a fix.
+Eighteen review waves used four fresh independent Sol high agents apiece. In the
+final wave, three reviewers found no issues. The fourth proposed changing consumed
+`_type` dictionary-entry handling; exact baseline source already retains that key
+and rejects non-string-convertible keys, so this separate pre-existing limitation
+was refuted rather than changing persisted dictionary semantics here.

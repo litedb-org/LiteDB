@@ -155,10 +155,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue1192_Tests.cs"
-      ]
+      ],
+      "validation": "50 focused net8 cases pass; full net10 1601 passed/266 failed/8 skipped with no previously passing regressions against 67b214cc. Production targets and net462/net481 compile. Final wave of four fresh independent Sol high reviewers: three clean; fourth reserved _type dictionary-entry finding refuted as unchanged baseline behavior. Historical BSON shapes/custom serializers preserved for non-generic declarations; runtime metadata fallback and generic schema failures fixed."
     },
     {
       "issue": 1224,
@@ -1240,8 +1241,9 @@
         "priority: P2"
       ],
       "reproduction": "reproduced-publication",
-      "disposition": "pending",
-      "tests": []
+      "disposition": "deferred-user",
+      "tests": [],
+      "validation": "User explicitly deferred v4 work and requested candidate stay unpublished. Reviewed candidate a13746f5 is preserved on codex/manual-v4-security. CI 35143229609 passed 55 tests against each of four signed package assets plus native CLR2/CLR4 harnesses. Four final fresh Sol high reviewers approved. No v4 integration, stable tag, NuGet publication, or advisory mutation performed."
     },
     {
       "issue": 2810,
