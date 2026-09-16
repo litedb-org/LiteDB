@@ -87,7 +87,7 @@ namespace LiteDB.Engine
                         throw LiteException.FileNotEncrypted();
                     }
 
-                    _stream.Read(this.Salt, 0, ENCRYPTION_SALT_SIZE);
+                    _stream.ReadRequired(this.Salt, 0, ENCRYPTION_SALT_SIZE);
                 }
 
                 _aes = Aes.Create();
@@ -125,7 +125,7 @@ namespace LiteDB.Engine
                 else if (!isNew)
                 {
                     // check whether bytes 32 to 64 is empty. This indicates LiteDb was unable to write encrypted 1s during last attempt.
-                    _stream.Read(checkBuffer, 0, checkBufferSize);
+                    _stream.ReadRequired(checkBuffer, 0, checkBufferSize);
                     isNew = checkBuffer.All(x => x == 0);
 
                     // reset checkBuffer and stream position
@@ -146,7 +146,7 @@ namespace LiteDB.Engine
                 }
                 else
                 {
-                    _reader.Read(checkBuffer, 0, checkBufferSize);
+                    _reader.ReadRequired(checkBuffer, 0, checkBufferSize);
 
                     if (!checkBuffer.All(x => x == 1))
                     {
@@ -158,10 +158,13 @@ namespace LiteDB.Engine
 
                 _stream.Position = PAGE_SIZE;
                 _stream.FlushToDisk();
-                using (var ms = new MemoryStream(msBuffer))
+                // Rented buffers are not zero-initialized. Derive the blank-page
+                // sentinel from exactly one zero ciphertext block.
+                Array.Clear(msBuffer, 0, 16);
+                using (var ms = new MemoryStream(msBuffer, 0, 16))
                 using (var tempStream = new CryptoStream(ms, _decryptor, CryptoStreamMode.Read))
                 {
-                    tempStream.Read(_decryptedZeroes, 0, _decryptedZeroes.Length);
+                    tempStream.ReadRequired(_decryptedZeroes, 0, _decryptedZeroes.Length);
                 }
             }
             catch
@@ -185,14 +188,14 @@ namespace LiteDB.Engine
         {
             ENSURE(this.Position % PAGE_SIZE == 0, "AesRead: position must be in PAGE_SIZE module. Position={0}, File={1}", this.Position, _name);
 
-            var r = _reader.Read(array, offset, count);
+            var r = _reader.ReadFully(array, offset, count);
 
             // checks if the first 16 bytes of the page in the original stream are zero
             // this should never happen, but if it does, return a blank page
             // the blank page will be skipped by WalIndexService.CheckpointInternal() and WalIndexService.RestoreIndex()
-            if (this.IsBlank(array, offset))
+            if (r >= 16 && this.IsBlank(array, offset))
             {
-                array.Fill(0, offset, count);
+                array.Fill(0, offset, r);
             }
 
             return r;

@@ -74,14 +74,7 @@ namespace LiteDB.Engine
             try
             {
                 stream.Position = from;
-                for (var read = 0; read < count;)
-                {
-                    var bytes = stream.Read(buffer, read, count - read);
-
-                    if (bytes == 0) throw new EndOfStreamException();
-
-                    read += bytes;
-                }
+                stream.ReadRequired(buffer, 0, count);
 
                 for (var i = 0; i < count; i++)
                 {
