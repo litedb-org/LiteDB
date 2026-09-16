@@ -11,11 +11,11 @@
   "issues": {
     "1002": {
       "decision": {
-        "action": "start",
+        "action": "resume",
         "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
         "campaign": "hosted-v11-1002",
         "candidate_sha": null,
-        "data_sha": "f573a98f1105a986fcd5a0918d1e0c9b4761c876",
+        "data_sha": "68ba772533b935fe9cbee1b41013ce2c27fd20a6",
         "issue": 1002,
         "phase": "baseline",
         "resume_integration": false
@@ -119,9 +119,9 @@
   },
   "kind": "hosted-bugfix-sweep",
   "last_tick": {
-    "at": 1789551083.482107,
-    "campaign": "hosted-v11-1002",
-    "campaign_phase": "baseline",
+    "at": 1789551207.0350127,
+    "campaign": null,
+    "campaign_phase": null,
     "counts": {
       "accepted": 0,
       "active": 1,
@@ -130,7 +130,7 @@
     },
     "issue": 1002,
     "run_attempt": 1,
-    "run_id": 35079831747,
+    "run_id": 35080052281,
     "run_ids": []
   },
   "paused": false,
