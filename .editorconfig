@@ -1,0 +1,28 @@
+# Top-most EditorConfig file.
+root = true
+
+[*.cs]
+end_of_line = lf
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Keep using directives grouped with System namespaces first.
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = true
+
+# Use var only when the assigned type is apparent.
+csharp_style_var_for_built_in_types = false:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_elsewhere = false:suggestion
+
+# Use Allman-style braces.
+csharp_new_line_before_open_brace = all
+
+# Keep Unix entry points executable on Linux and macOS.
+[*.{sh,bash}]
+end_of_line = lf
+
+[.githooks/*]
+end_of_line = lf
