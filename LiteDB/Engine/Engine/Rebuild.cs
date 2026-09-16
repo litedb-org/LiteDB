@@ -22,28 +22,73 @@ namespace LiteDB.Engine
             options = options ?? new RebuildOptions();
             var password = options.ResolvePassword(_settings.Password);
 
-            if (string.IsNullOrEmpty(_settings.Filename)) return 0; // works only with os file
+            lock (_lifecycleLock)
+            {
+                _state.Validate();
+                if (_settings.ReadOnly) throw new LiteException(0, "Cannot rebuild a read-only database.");
+                if (string.IsNullOrEmpty(_settings.Filename)) return 0; // works only with os file
 
-            var collation = options.Collation ?? new Collation(this.Pragma(Pragmas.COLLATION));
+                var collation = options.Collation ?? new Collation(this.Pragma(Pragmas.COLLATION));
 
-            this.Close();
+                // Reject an active transaction before changing any engine state.
+                // Hold the old transaction gate until its monitor is closed, so
+                // a new transaction cannot enter between checkpoint and close.
+                var locker = _locker;
+                if (!locker.TryEnterExclusive(out var mustExit))
+                    throw new LiteException(0, "Cannot rebuild while database transactions are active.");
+                try
+                {
+                    // Even CHECKPOINT=0 must leave a complete original data file
+                    // if installation of the replacement fails or is interrupted.
+                    this.Checkpoint();
+                    var errors = this.Close(releaseOwnership: false);
+                    if (errors.Count > 0) throw new AggregateException("Unable to close the database before rebuild.", errors);
+                }
+                catch (Exception ex)
+                {
+                    // A failed checkpoint may have partially written the original.
+                    // Keep the causal error and close every service before releasing
+                    // ownership, including when another thread already stopped state.
+                    _state.Stop(ex);
+                    this.Close(ex);
+                    this.ReleaseOwnership();
+                    throw;
+                }
+                finally
+                {
+                    if (mustExit) locker.ExitExclusive();
+                    if (_state.Disposed) locker.Dispose();
+                }
 
-            // run build service
-            var rebuilder = new RebuildService(_settings);
+                try
+                {
+#if DEBUG || TESTING
+                    SimulateRebuildClosed?.Invoke();
+#endif
 
-            // return how many bytes of diference from original/rebuild version
-            var diff = rebuilder.Rebuild(options, collation);
+                    // run build service
+                    var rebuilder = new RebuildService(_settings);
 
-            // SharedEngine retains this same settings instance for subsequent opens.
-            _settings.Password = password;
-            _settings.Collation = collation;
+                    // return how many bytes of diference from original/rebuild version
+                    var diff = this.RebuildWithOwnership(rebuilder, options, collation);
 
-            // re-open engine
-            this.Open();
+                    // SharedEngine retains this same settings instance for subsequent opens.
+                    _settings.Password = password;
+                    _settings.Collation = collation;
 
-            _state.Disposed = false;
+                    // re-open engine
+                    this.Open();
 
-            return diff;
+                    _state.Disposed = false;
+
+                    return diff;
+                }
+                catch
+                {
+                    this.ReleaseOwnership();
+                    throw;
+                }
+            }
         }
 
         /// <summary>

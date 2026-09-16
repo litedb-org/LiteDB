@@ -397,6 +397,9 @@ namespace LiteDB.Engine
                 stream.Position = page.Position;
 
                 this.PreserveFileVersion(page);
+#if DEBUG || TESTING
+                _state.SimulateDataWriteFail?.Invoke(page);
+#endif
                 stream.Write(page.Array, page.Offset, PAGE_SIZE);
             }
 
@@ -444,7 +447,7 @@ namespace LiteDB.Engine
             var errors = new List<Exception>();
             var delete = false;
 
-            TryAction(() => delete = _logFactory.Exists() && _logPool.Writer.Value.Length == 0, errors);
+            if (!_readOnly) TryAction(() => delete = _logFactory.Exists() && _logPool.Writer.Value.Length == 0, errors);
             TryAction(() => _dataPool.Dispose(), errors);
             TryAction(() => _logPool.Dispose(), errors);
             if (delete) TryAction(() => _logFactory.Delete(), errors);

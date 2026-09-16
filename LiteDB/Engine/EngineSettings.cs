@@ -18,6 +18,8 @@ namespace LiteDB.Engine
     public class EngineSettings
     {
         private int? _transactionPageLimit;
+        private Func<string, BsonValue, BsonValue> _readTransform;
+        private EngineSettings _readTransformSource;
 
         /// <summary>
         /// Memory and transaction defaults for this database. Explicit limits
@@ -36,12 +38,12 @@ namespace LiteDB.Engine
         public Stream LogStream { get; set; } = null;
 
         /// <summary>
-        /// Get/Set custom stream to be used as temp file. If is null, will create new FileStreamFactory with "-tmp" on name
+        /// Get/Set custom stream to be used as temp file. If null, use private temporary storage for disk-backed sorts
         /// </summary>
         public Stream TempStream { get; set; } = null;
 
         /// <summary>
-        /// Full path or relative path from DLL directory. Can use ':temp:' for temp database or ':memory:' for in-memory database. (default: null)
+        /// Full path or path relative to the working directory at engine creation. Can use ':temp:' for temp database or ':memory:' for in-memory database. (default: null)
         /// </summary>
         public string Filename { get; set; }
 
@@ -125,12 +127,33 @@ namespace LiteDB.Engine
         /// <summary>
         /// Is used to transform a <see cref="BsonValue"/> from the database on read. This can be used to upgrade data from older versions.
         /// </summary>
-        public Func<string, BsonValue, BsonValue> ReadTransform { get; set; }
+        public Func<string, BsonValue, BsonValue> ReadTransform
+        {
+            get => _readTransformSource == null ? _readTransform : _readTransformSource.ReadTransform;
+            set
+            {
+                _readTransform = value;
+                _readTransformSource = null;
+            }
+        }
         
         /// <summary>
         /// Determines how the mutex name is generated.
         /// </summary>
         public SharedMutexNameStrategy SharedMutexNameStrategy { get; set; }
+
+        internal EngineSettings Snapshot()
+        {
+            if (this.DataStream != null && !string.IsNullOrEmpty(this.Filename))
+                throw new ArgumentException("Specify either DataStream or Filename, not both.");
+            var copy = (EngineSettings)this.MemberwiseClone();
+            // ReadTransform is an established live callback. Freeze storage and
+            // access settings while retaining dynamic callback replacement.
+            copy._readTransformSource = _readTransformSource ?? this;
+            if (!string.IsNullOrEmpty(copy.Filename) && copy.Filename != ":memory:" && copy.Filename != ":temp:")
+                copy.Filename = Path.GetFullPath(copy.Filename);
+            return copy;
+        }
 
         /// <summary>
         /// Create new IStreamFactory for datafile
@@ -212,9 +235,19 @@ namespace LiteDB.Engine
             }
             else if (!string.IsNullOrEmpty(this.Filename))
             {
-                var tempName = FileHelper.GetTempFile(this.Filename);
+                // Independently cached read-only engines may coexist. Their sort
+                // allocation tables must never address the same scratch file.
+                var legacyName = FileHelper.GetTempFile(this.Filename);
+                if (!this.ReadOnly)
+                {
+                    // Exclusive database ownership makes a prior scratch file stale.
+                    try { File.Delete(legacyName); }
+                    catch (IOException) { }
+                    catch (UnauthorizedAccessException) { }
+                }
+                var tempName = Path.Combine(Path.GetDirectoryName(this.Filename), "litedb-sort-" + Guid.NewGuid().ToString("N") + ".tmp");
 
-                return new FileStreamFactory(tempName, this.Password, false, true);
+                return new SortStreamFactory(tempName, this.Password);
             }
 
             return new StreamFactory(new TempStream(), this.Password, true);
