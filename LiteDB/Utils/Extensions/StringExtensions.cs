@@ -38,132 +38,43 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Implement SqlLike in C# string - based on
-        /// https://stackoverflow.com/a/8583383/3286260
-        /// I remove support for [ and ] to avoid missing close brackets
+        /// Match SQL LIKE patterns: percent matches any sequence and underscore one character.
         /// </summary>
         public static bool SqlLike(this string str, string pattern, Collation collation)
         {
-            var isMatch = true;
-            var isWildCardOn = false;
-            var isCharWildCardOn = false;
-            var isCharSetOn = false;
-            var isNotCharSetOn = false;
-            var endOfPattern = false;
-            var lastWildCard = -1;
+            var valueIndex = 0;
             var patternIndex = 0;
-            var p = '\0';
+            var wildcardIndex = -1;
+            var wildcardValueIndex = 0;
 
-            for (var i = 0; i < str.Length; i++)
+            while (valueIndex < str.Length)
             {
-                var c = str[i];
-
-                endOfPattern = (patternIndex >= pattern.Length);
-
-                if (!endOfPattern)
+                if (patternIndex < pattern.Length && pattern[patternIndex] == '%')
                 {
-                    p = pattern[patternIndex];
-
-                    if (!isWildCardOn && p == '%')
-                    {
-                        lastWildCard = patternIndex;
-                        isWildCardOn = true;
-
-                        while (patternIndex < pattern.Length && pattern[patternIndex] == '%')
-                        {
-                            patternIndex++;
-                        }
-
-                        if (patternIndex >= pattern.Length)
-                        {
-                            p = '\0';
-                        }
-                        else
-                        {
-                            p = pattern[patternIndex];
-                        }
-                    }
-                    else if (p == '_')
-                    {
-                        isCharWildCardOn = true;
-                        patternIndex++;
-                    }
+                    wildcardIndex = patternIndex++;
+                    wildcardValueIndex = valueIndex;
                 }
-
-                if (isWildCardOn)
+                else if (patternIndex < pattern.Length &&
+                    (pattern[patternIndex] == '_' ||
+                     collation.Compare(str[valueIndex].ToString(), pattern[patternIndex].ToString()) == 0))
                 {
-                    if (collation.Compare(c.ToString(), p.ToString()) == 0)
-                    {
-                        isWildCardOn = false;
-                        patternIndex++;
-                    }
+                    valueIndex++;
+                    patternIndex++;
                 }
-                else if (isCharWildCardOn)
+                else if (wildcardIndex >= 0)
                 {
-                    isCharWildCardOn = false;
-                }
-                else if (isCharSetOn || isNotCharSetOn)
-                {
-                    //var charMatch = (set.Contains(char.ToUpper(c))); // -- always "false" - remove [abc] support
-                    //if ((isNotCharSetOn && charMatch) || (isCharSetOn && !charMatch))
-
-                    if (isCharSetOn)
-                    {
-                        if (lastWildCard >= 0)
-                        {
-                            patternIndex = lastWildCard;
-                        }
-                        else
-                        {
-                            isMatch = false;
-                            break;
-                        }
-                    }
-
-                    isNotCharSetOn = isCharSetOn = false;
+                    // Retry after the last percent, consuming one more input character each time.
+                    patternIndex = wildcardIndex + 1;
+                    valueIndex = ++wildcardValueIndex;
                 }
                 else
                 {
-                    if (collation.Compare(c.ToString(), p.ToString()) == 0)
-                    {
-                        patternIndex++;
-                    }
-                    else
-                    {
-                        if (lastWildCard >= 0)
-                        {
-                            int back = patternIndex - lastWildCard - 1;
-                            i -= back;
-                            patternIndex = lastWildCard;
-                        }
-                        else
-                        {
-                            isMatch = false;
-                            break;
-                        }
-                    }
+                    return false;
                 }
             }
 
-            endOfPattern = (patternIndex >= pattern.Length);
-
-            if (isMatch && !endOfPattern)
-            {
-                var isOnlyWildCards = true;
-
-                for (var i = patternIndex; i < pattern.Length; i++)
-                {
-                    if (pattern[i] != '%')
-                    {
-                        isOnlyWildCards = false;
-                        break;
-                    }
-                }
-
-                if (isOnlyWildCards) endOfPattern = true;
-            }
-
-            return isMatch && endOfPattern;
+            while (patternIndex < pattern.Length && pattern[patternIndex] == '%') patternIndex++;
+            return patternIndex == pattern.Length;
         }
 
         /// <summary>
@@ -187,7 +98,7 @@ namespace LiteDB
                 i++;
             }
 
-            hasMore = !(i == len || i == len - 1);
+            hasMore = i < len && (c != '%' || i < len - 1);
 
             return str.Substring(0, i);
         }
