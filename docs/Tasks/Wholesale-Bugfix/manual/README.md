@@ -1048,3 +1048,25 @@ root-Include filters fail even without an index on the unchanged baseline, and
 the vector planner is a separate untouched path. Executed before/after controls
 are `/tmp/litedb-include-probes-root-{baseline,candidate}.log`. This fix does not
 claim to repair those inherited behaviors.
+
+## #1920 — identities in standalone included-reference projections
+
+Resolved references retain _id alongside $id, so direct/anonymous entity
+projections preserve their identity without relying on the DbRef member hook.
+Stub $type is also mapped to _type with the same precedence as the existing hook,
+covering abstract/base references whose concrete target has no own discriminator.
+The retained-$id guarantee from #1904 remains intact; stored stubs do not change.
+
+Validation: original baseline fails; 36 reference/include cases pass. Full suite:
+1683 passed, 257 failed, 8 skipped. The only extra failure was #1472 opening a
+TempFile beside another test's orphan WAL before any query ran; both #1472 cases
+pass isolated recheck. This is the known five-character temporary-name collision,
+not a production regression. Production and net462 builds pass. Three fresh
+four-Sol-high waves covered the initial fix, polymorphic metadata, and integration
+with retained $id. All final reviewers (`review_1920_w3_a` through `_d`) were clean.
+
+Missing/deleted-reference standalone projection behavior remains inherited and
+is not claimed fixed. Before/after probe results are identical (normal DbRef hook
+returns null; standalone projection creates a default entity), as recorded in
+`/tmp/litedb-include-probes-{baseline,candidate}.log`. That broader hook-parity
+proposal was refuted as outside this successfully resolved-target report.

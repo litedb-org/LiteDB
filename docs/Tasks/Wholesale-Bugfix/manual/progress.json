@@ -456,10 +456,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue1920_Tests.cs"
-      ]
+      ],
+      "validation": "Original baseline fails; 36 reference/include tests pass; full suite 1683 passed / 257 failures / 8 skipped, extra #1472 failure was TempFile WAL-name collision before query execution and both #1472 tests pass isolated recheck; production/net462 pass; three fresh four-Sol-high waves, final four clean."
     },
     {
       "issue": 1958,
