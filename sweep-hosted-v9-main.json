@@ -21,7 +21,7 @@
         "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
         "campaign": "hosted-v9-1002",
         "candidate_sha": null,
-        "data_sha": "907d62ea4c9b9066e9c94fec9eeb6c995522fa23",
+        "data_sha": "8a6201867db44450ebfb1081904636295b9c2a02",
         "issue": 1002,
         "phase": "repairing",
         "resume_integration": false
@@ -125,7 +125,7 @@
   },
   "kind": "hosted-bugfix-sweep",
   "last_tick": {
-    "at": 1789543050.8695083,
+    "at": 1789543514.666721,
     "campaign": null,
     "campaign_phase": null,
     "counts": {
@@ -134,9 +134,9 @@
       "deferred": 0,
       "pending": 23
     },
-    "issue": null,
+    "issue": 1002,
     "run_attempt": 1,
-    "run_id": 35067758819,
+    "run_id": 35068393133,
     "run_ids": []
   },
   "paused": false,
