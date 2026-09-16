@@ -94,12 +94,7 @@ namespace LiteDB
         /// </summary>
         protected override Expression VisitLambda<T>(Expression<T> node)
         {
-            var l = base.VisitLambda(node);
-
-            // remove last parameter $ (or @)
-            _builder.Length--;
-
-            return l;
+            return this.VisitLambdaWithReferences(node);
         }
 
         /// <summary>
@@ -162,6 +157,10 @@ namespace LiteDB
                         {
                             owner = conversion.Operand;
                         }
+                        if (owner is ParameterExpression parameter && _lambdaReferences.TryGetValue(parameter, out var referenceType))
+                        {
+                            _dbRefType = referenceType;
+                        }
                         var name = this.ResolveMember(member, owner.Type, out _);
 
                         _builder.Append(name);
@@ -187,6 +186,7 @@ namespace LiteDB
         protected override Expression VisitMethodCall(MethodCallExpression node)
         {
             if (this.TryVisitEnumEquals(node)) return node;
+            if (this.TryVisitEnumerableQuantifier(node)) return node;
             if (this.IsSpanImplicitConversion(node.Method))
             {
                 this.Visit(node.Arguments[0]);
@@ -537,6 +537,10 @@ namespace LiteDB
                 {
                     var i = Convert.ToInt32(tokenizer.ReadToken(false).Expect(TokenType.Int).Value);
 
+                    if (i > 0 && args[i] is LambdaExpression)
+                    {
+                        _dbRefType = this.GetEnumerableReferenceType(args[0]);
+                    }
                     this.Visit(args[i]);
                 }
                 else if (token.Type == TokenType.Percent)
@@ -549,52 +553,6 @@ namespace LiteDB
                     _builder.Append(token.Type == TokenType.String ? "'" + token.Value + "'" : token.Value);
                 }
             }
-        }
-
-        /// <summary>
-        /// Resolve Enumerable predicate when using Any/All enumerable extensions
-        /// </summary>
-        private void VisitEnumerablePredicate(LambdaExpression lambda)
-        {
-            var expression = lambda.Body;
-
-            // Visit .Any(x => `x == 10`)
-            if (expression is BinaryExpression bin)
-            {
-                // requires only parameter in left side
-                if (bin.Left.NodeType != ExpressionType.Parameter) throw new LiteException(0, "Any/All requires simple parameter on left side. Eg: `x => x.Phones.Select(p => p.Number).Any(n => n > 5)`");
-
-                var op = this.GetOperator(bin.NodeType);
-
-                _builder.Append(op);
-
-                this.VisitAsPredicate(bin.Right, false);
-            }
-            // Visit .Any(x => `x.StartsWith("John")`)
-            else if (expression is MethodCallExpression met)
-            {
-                // requires only parameter in left side
-                if (met.Object.NodeType != ExpressionType.Parameter) throw new NotSupportedException("Any/All requires simple parameter on left side. Eg: `x.Customers.Select(c => c.Name).Any(n => n.StartsWith('J'))`");
-
-                // if not found in resolver, try run method
-                if (!TryGetResolver(met.Method.DeclaringType, out var type))
-                {
-                    throw new NotSupportedException($"Method {met.Method.Name} not available to convert to BsonExpression inside Any/All call.");
-                }
-
-                // otherwise I have resolver for this method
-                var pattern = type.ResolveMethod(met.Method);
-
-                if (pattern == null || !pattern.StartsWith("#")) throw new NotSupportedException($"Method {met.Method.Name} not available to convert to BsonExpression inside Any/All call.");
-
-                // call resolve pattern removing first `#`
-                this.ResolvePattern(pattern.Substring(1), met.Object, met.Arguments);
-            }
-            else
-            {
-                throw new LiteException(0, "When using Any/All method test do only simple predicate variable. Eg: `x => x.Phones.Select(p => p.Number).Any(n => n > 5)`");
-            }
-
         }
 
         /// <summary>

@@ -3,7 +3,9 @@
 The user's latest instructions supersede the hosted execution plan: manually fix
 reproduced reports from PR #2885 in live priority-label order, obtain four
 independent GPT-5.6 Sol reviews, resolve justified findings, then commit and push
-each fix before selecting the next. P1 precedes P2 and P3.
+each fix before selecting the next. P1 precedes P2 and P3. Starting with #1376,
+every review wave must spawn four fresh gpt-5.6-sol agents with high reasoning
+and fork_turns=none; no reviewer may carry context between waves.
 
 GitHub controls were stopped before manual work: `BUGFIX_SWEEP_ENABLED=false`,
 `bugfix-sweep.yml` is `disabled_manually`, and active fixer run 35084716213 is
@@ -551,3 +553,42 @@ in both enum storage modes. Controls include undefined values, changed captures,
 all three boxing forms, reverse receivers, nullable captures, foreign enum
 identity and field comparisons. ValueType boxing and optional coverage findings
 were addressed. All library targets build; four final Sol approvals.
+
+
+## #1376 / #2810 — dictionary presence and general Any/All predicates
+
+String-key dictionary ContainsKey calls use a BSON field-presence expression,
+including Dictionary, IDictionary, IReadOnlyDictionary and BsonDocument. Present
+null fields match; absent fields do not. Keys remain parameters, including empty,
+punctuated and quoted names. Lookup follows stored BSON OrdinalIgnoreCase field
+semantics independently of value collation; CLR dictionary custom comparers are
+not persisted. Non-string dictionary key types remain unsupported. Generic-only
+dictionaries stored as key/value arrays, null keys and non-string runtime keys
+fail explicitly. Interface method maps exclude hidden ContainsKey methods with
+unrelated behavior. Reviews identified each of these boundary cases.
+
+Any/All retain existing simple translations and add a MAP-based per-item fallback
+for compound predicates, captured Contains, dictionary ContainsKey and nested
+quantifiers. This also fixes #2810 for embedded/referenced lists and captured
+List/IEnumerable inputs. Empty-sequence semantics follow ANY/ALL. Nested captures
+of an outer collection item fail explicitly because the BSON evaluator has one
+current-item slot; root-document references remain supported. The original
+predicate renderer moved to a partial file to respect the source-size cap.
+
+Review also caught lost $id mapping in compound referenced-list predicates.
+Lambda parameter scopes now retain reference metadata across repeated IDs and
+unrelated root members; sequence metadata survives Where and identity Select.
+Each pattern-rendered lambda derives metadata from its own source, including
+Where/Select composition and identity projections. Embedded/reference controls
+cover repeated IDs, root lookups, filtering and composed projections.
+
+Validation: 325 net8 mapper/query/expression tests pass, one existing skip.
+All library targets build. Final net10 stage: 1,343 passes, 306 failures and eight
+skips, with no formerly passing baseline test regressing. There are 159 passing
+baseline failures in this run; one is #2324's intermittent mapper-configuration
+race, which failed in the baseline, five earlier stages and the preceding run.
+That race remains unresolved. Four fresh Sol high-reasoning reviewers approved
+the final revision with no findings above nits.
+
+Every review wave uses four fresh gpt-5.6-sol agents at high reasoning with
+fork_turns=none, without reading prior reviews. Agents are never reused.

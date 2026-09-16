@@ -211,10 +211,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue1376_Tests.cs"
-      ]
+      ],
+      "validation": "325 focused net8 passes / 1 existing skip; full net10 1343 passes / 306 known failures / 8 skips, no baseline pass regressions; all library targets build; four fresh gpt-5.6-sol high/no-fork final approvals"
     },
     {
       "issue": 1392,
@@ -1232,10 +1233,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2810_Tests.cs"
-      ]
+      ],
+      "validation": "325 focused net8 passes / 1 existing skip; full net10 1343 passes / 306 known failures / 8 skips, no baseline pass regressions; all library targets build; four fresh gpt-5.6-sol high/no-fork final approvals"
     },
     {
       "issue": 2811,
