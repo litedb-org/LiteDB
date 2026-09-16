@@ -194,17 +194,18 @@ namespace LiteDB
         /// <summary>
         /// Execute expression and returns IEnumerable values - returns NULL if no elements
         /// </summary>
-        internal IEnumerable<BsonValue> Execute(IEnumerable<BsonDocument> source, BsonDocument root, BsonValue current, Collation collation)
+        internal IEnumerable<BsonValue> Execute(IEnumerable<BsonDocument> source, BsonDocument root, BsonValue current, Collation collation, BsonDocument parameters = null)
         {
+            // Nested expressions can belong to a cached delegate; use the current execution's parameters.
             if (this.IsScalar)
             {
-                var value = _funcScalar(source, root, current, collation ?? Collation.Binary, this.Parameters);
+                var value = _funcScalar(source, root, current, collation ?? Collation.Binary, parameters ?? this.Parameters);
 
                 yield return value;
             }
             else
             {
-                var values = _funcEnumerable(source, root, current, collation ?? Collation.Binary, this.Parameters);
+                var values = _funcEnumerable(source, root, current, collation ?? Collation.Binary, parameters ?? this.Parameters);
 
                 foreach (var value in values)
                 {
@@ -262,11 +263,11 @@ namespace LiteDB
         /// <summary>
         /// Execute expression and returns IEnumerable values - returns NULL if no elements
         /// </summary>
-        internal BsonValue ExecuteScalar(IEnumerable<BsonDocument> source, BsonDocument root, BsonValue current, Collation collation)
+        internal BsonValue ExecuteScalar(IEnumerable<BsonDocument> source, BsonDocument root, BsonValue current, Collation collation, BsonDocument parameters = null)
         {
             if (this.IsScalar)
             {
-                return _funcScalar(source, root, current, collation ?? Collation.Binary, this.Parameters);
+                return _funcScalar(source, root, current, collation ?? Collation.Binary, parameters ?? this.Parameters);
             }
             else
             {
