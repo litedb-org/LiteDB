@@ -49,9 +49,9 @@ namespace LiteDB
         public LinqExpressionVisitor(BsonMapper mapper, Expression expr)
         {
             _mapper = mapper;
-            _expr = expr;
+            _expr = new InvocationExpander().Visit(expr);
 
-            if (expr is LambdaExpression lambda)
+            if (_expr is LambdaExpression lambda)
             {
                 _rootParameter = lambda.Parameters.First();
             }
@@ -103,6 +103,12 @@ namespace LiteDB
         /// </summary>
         protected override Expression VisitInvocation(InvocationExpression node)
         {
+            if (!ParameterExpressionVisitor.Test(node) && !ContainsServerRuntime(node))
+            {
+                this.VisitConstant(Expression.Constant(this.Evaluate(node)));
+                return node;
+            }
+
             var l = base.VisitInvocation(node);
 
             // remove last parameter $ (or @)
