@@ -81,7 +81,20 @@ audit. Live worker and CI validation are still required.
   remains InvalidCastException. The candidate is withheld pending an explicit
   expanded co-repair; no failure-classification exemption is being added.
 
-## Evidence to record after worker verification
+## V11 live confirmation
+
+The expanded co-repair preserves the exact uncapped fixer/reviewer workflow
+blobs under runtime `8140596303eac2c0dca5c1e123953f06b12a08c6`.
+[Worker 35080196043](https://github.com/litedb-org/LiteDB/actions/runs/35080196043)
+completed successfully with **3613.955 credits**, valid gpt-6-astra/high proof,
+and effective-config assertions confirming no per-run or inherited credit cap.
+Activation contained no daily-credit gate.
+[Compressed CI 35081733552](https://github.com/litedb-org/LiteDB/actions/runs/35081733552)
+passed all required lanes; the longest test job took 3m08s. The cap-related
+worker failure is fixed and live-verified. Candidate acceptance is separate:
+an additional custom-mapper compatibility finding still requires repair.
+
+## Continuing evidence
 
 Record the immutable runtime, handoff audit, new sweep manifest, baseline run,
 successful worker, candidate and compressed CI here and in [HANDOFF.md](HANDOFF.md).

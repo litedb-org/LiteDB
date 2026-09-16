@@ -24,7 +24,7 @@ local machine**. Do not replace the hosted scheduler with a local blocking queue
 One blocked issue must retain its evidence while independent approved work can
 continue. Infrastructure and usage-limit waits need durable automatic recovery.
 
-Snapshot: **2026-09-16, approximately 09:40 UTC / 11:40 Europe/Vienna**.
+Snapshot: **2026-09-16, approximately 10:00 UTC / 12:00 Europe/Vienna**.
 Re-read GitHub state before acting: this document is a snapshot, not the controller's state store.
 
 ## Current state and first action
@@ -32,6 +32,13 @@ Re-read GitHub state before acting: this document is a snapshot, not the control
 **The v11 queue is enabled and running on GitHub. Both per-worker and daily
 AI-credit limits are removed. Four fixes remain integrated; #1002/#2811/#2590
 is the active expanded repair, followed by 23 approved tasks.**
+
+**Candidate 1 has green CI but a confirmed custom-ID-setter regression. Do not
+integrate it unchanged.** See the [differential finding](https://github.com/litedb-org/LiteDB/blob/automation/wholesale-bugfix/docs/Tasks/Wholesale-Bugfix/CUSTOM-ID-SETTER-REGRESSION.md).
+The hosted reviewers are running. Preserve this additional finding even if
+their reports miss it; it violates an existing custom-mapper compatibility
+obligation and must reach the next repair. Do not claim a local review is an
+authenticated hosted review or alter completed request inputs to inject it.
 
 - Immutable runtime: [8140596303eac2c0dca5c1e123953f06b12a08c6](https://github.com/litedb-org/LiteDB/commit/8140596303eac2c0dca5c1e123953f06b12a08c6),
   `automation/bugfix-runtime-v11`. Fixer/reviewer workflows are byte-identical to
@@ -48,8 +55,17 @@ is the active expanded repair, followed by 23 approved tasks.**
   succeeded. [Baseline 35079889653](https://github.com/litedb-org/LiteDB/actions/runs/35079889653)
   passed and was authenticated by [35080052281](https://github.com/litedb-org/LiteDB/actions/runs/35080052281).
   [Fixer 35080196043](https://github.com/litedb-org/LiteDB/actions/runs/35080196043)
-  is executing after successful startup and activation. Monitor the journal,
-  consume completed requests and continue compressed CI and three reviewers.
+  succeeded using **3613.955 credits**, with valid model/high-reasoning proof and
+  live assertions that both per-run and inherited credit limits are absent.
+  Candidate [cef2fd1d](https://github.com/litedb-org/LiteDB/commit/cef2fd1d1724f030468c301d52526d188572b6f9)
+  passed [compressed CI 35081733552](https://github.com/litedb-org/LiteDB/actions/runs/35081733552)
+  on both Ubuntu runtimes and production/compatibility; the longest test lane
+  took **3m08s**, with no full matrix. [35082164192](https://github.com/litedb-org/LiteDB/actions/runs/35082164192)
+  authenticated CI and moved the campaign to reviewing.
+  Reviews: [behavior 35082336171](https://github.com/litedb-org/LiteDB/actions/runs/35082336171),
+  [compatibility 35082344419](https://github.com/litedb-org/LiteDB/actions/runs/35082344419),
+  [lifecycle 35082352371](https://github.com/litedb-org/LiteDB/actions/runs/35082352371).
+  Monitor the journal, consume completed requests and retain every finding.
   Never rerun an uncertain request blindly or resume historical v9/v10 manifests.
 - [Expanded repair contract](https://github.com/litedb-org/LiteDB/blob/automation/wholesale-bugfix/docs/Tasks/Wholesale-Bugfix/COREPAIR-1002-2811-2590.md): 13 regressions and 3
   controls, hash `b4dc8542010a307c2eee3053af4cbd0dba98ee5818041c9024889f8519fdba94`.
@@ -60,8 +76,9 @@ is the active expanded repair, followed by 23 approved tasks.**
 
 The scheduler runs independently of this chat. One issue is active at a time,
 with three parallel reviewers after CI passes. Cron timing is best effort and
-has been slower than the configured five-minute interval. Fresh v11 candidate
-and review/integration evidence is still pending. No full matrix is needed per
+has been slower than the configured five-minute interval. [Scheduled tick 35080940821](https://github.com/litedb-org/LiteDB/actions/runs/35080940821)
+successfully recognized the active fixer without duplicating it. Fresh v11
+review/repair/integration evidence is still pending. No full matrix is needed per
 attempt; final full-matrix validation remains after the sweep.
 
 ## Preserved v10 transition evidence
