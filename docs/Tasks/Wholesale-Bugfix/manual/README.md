@@ -519,3 +519,18 @@ ascending/descending results, indexed controls and full payloads across multiple
 sort containers and page slices. All library targets build; four final Sol
 approvals. Existing less-than wording at the inclusive size limit is retained
 for compatibility with the documented error contract.
+
+
+## #2841 — validate terminal state before metadata prechecks
+
+Drop/Rename validate after public argument checks and before inspecting the
+transaction locker. Pragma reads validate before header access, so both changed
+and same-value setter calls preserve a terminal error instead of reporting an
+open transaction or returning success. Healthy transaction/no-op semantics remain
+unchanged.
+
+Final: 123 net8 engine tests pass, three existing skips; all three final issue
+tests pass. Coverage includes the exact stored exception instance (review nit
+addressed), getter/no-op/changed setter, collection operations, healthy explicit
+transactions and normal disposal. All library targets build; four Sol approvals.
+GetCollectionNames validation was noted as a separate existing behavior.

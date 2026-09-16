@@ -1415,10 +1415,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2841_Tests.cs"
-      ]
+      ],
+      "validation": "Original fatalcause regression fixed;123 net8 engine passes,3skips;3final issue tests pass including exact exceptionidentity,no-oppragma,healthytransaction,disposal;alllibrarytargets build;fourSolapprovals"
     },
     {
       "issue": 2842,
