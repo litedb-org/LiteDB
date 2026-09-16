@@ -24,10 +24,47 @@ local machine**. Do not replace the hosted scheduler with a local blocking queue
 One blocked issue must retain its evidence while independent approved work can
 continue. Infrastructure and usage-limit waits need durable automatic recovery.
 
-Snapshot: **2026-09-16, approximately 09:15 UTC / 11:15 Europe/Vienna**.
+Snapshot: **2026-09-16, approximately 09:32 UTC / 11:32 Europe/Vienna**.
 Re-read GitHub state before acting: this document is a snapshot, not the controller's state store.
 
 ## Current state and first action
+
+**The v11 queue is enabled and running on GitHub. Both per-worker and daily
+AI-credit limits are removed. Four fixes remain integrated; #1002/#2811/#2590
+is the active expanded repair, followed by 23 approved tasks.**
+
+- Immutable runtime: [8140596303eac2c0dca5c1e123953f06b12a08c6](https://github.com/litedb-org/LiteDB/commit/8140596303eac2c0dca5c1e123953f06b12a08c6),
+  `automation/bugfix-runtime-v11`. Fixer/reviewer workflows are byte-identical to
+  the live-verified uncapped v10 runtime. Scheduler remains `5a823c25057fa4eaffb8cdfbd546ae3f5c360f37`.
+- Active manifest: [hosted-v11-main](https://github.com/litedb-org/LiteDB/blob/automation/bugfix-state/sweep-hosted-v11-main.json);
+  campaign: [hosted-v11-1002](https://github.com/litedb-org/LiteDB/blob/automation/bugfix-state/hosted-v11-1002.json).
+  `BUGFIX_ACTIVE_SWEEP=hosted-v11-main`, `BUGFIX_SWEEP_ENABLED=true`.
+- [Handoff audit 540c1dfc](https://github.com/litedb-org/LiteDB/blob/540c1dfcd929fd2d7d9ba763611f8cd5f0baef63/evidence/handoff-hosted-v10-to-v11/audit.json)
+  preserves v10 attempt 1, candidate/CI, completed #2802 baseline, parent audit,
+  all journals and 18 permanently passing cases. Eight audit tests and two
+  independent live previews passed; commit readback verified unchanged old state.
+- [Initialization 35079743792](https://github.com/litedb-org/LiteDB/actions/runs/35079743792)
+  succeeded. [First tick 35079831747](https://github.com/litedb-org/LiteDB/actions/runs/35079831747)
+  starts the fresh baseline. Monitor the journal, consume completed requests and
+  continue the fixer, compressed CI and three reviewers. Never rerun an uncertain
+  request blindly or resume historical v9/v10 manifests.
+- [Expanded repair contract](https://github.com/litedb-org/LiteDB/blob/automation/wholesale-bugfix/docs/Tasks/Wholesale-Bugfix/COREPAIR-1002-2811-2590.md): 13 regressions and 3
+  controls, hash `b4dc8542010a307c2eee3053af4cbd0dba98ee5818041c9024889f8519fdba94`.
+  All former cases and review obligations remain. The new task requires exact
+  pre-write String/ObjectId rejection and retains transactional copy-back safety.
+  Candidate `33fbf175` is unaccepted reference work, never the accepted base.
+  The base remains `bbb0253bc06324f0bb14a21a727a37e8c7f2b213`.
+
+The scheduler runs independently of this chat. One issue is active at a time,
+with three parallel reviewers after CI passes. Cron timing is best effort and
+has been slower than the configured five-minute interval. Fresh v11 candidate
+and review/integration evidence is still pending. No full matrix is needed per
+attempt; final full-matrix validation remains after the sweep.
+
+## Preserved v10 transition evidence
+
+The following describes the completed v10 stage and temporary handoff pause.
+Current controls and continuation instructions are above.
 
 **The uncapped worker completed successfully at 2573.77 credits, beyond the old
 2,000-credit cutoff. Four fixes remain integrated. Its candidate is withheld

@@ -1,17 +1,15 @@
 # Wholesale bug-fix plan
 
-Status: #2874, #2839, #2869, and #1506 are integrated. The GitHub-hosted scheduler
-bootstrap is deployed and enabled for `hosted-v10-main`: #1002 is active and 23
-approved issues are pending. Both AI-credit limits are explicitly disabled for
-fixers and reviewers, as requested after two capped v9 workers failed. The
-reviewed v10 runtime is deployed, its fresh baseline passed, and the uncapped
-fixer is executing. Candidate publication and validation remain pending.
-Hosted state recovery, dispatch, red CI, pause/resume and scheduled quota handling
-passed. The first hosted candidate publication/review/integration remains pending.
-This replaces the local v8 queue that stopped at #1002.
-An explicit #1002/#2811 co-repair contract is deployed; neither old #1002 candidate
-is integrated. See the [agent handoff](HANDOFF.md) for the current deployment,
-exact branches, evidence and continuation instructions. The queue enforces eighteen permanently passing cases. Accepted
+Status: #2874, #2839, #2869, and #1506 are integrated. The GitHub-hosted
+`hosted-v11-main` queue is enabled for 24 remaining approved tasks. Both per-worker
+and daily AI-credit limits are removed; an uncapped fixer already completed
+successfully at 2573.77 credits. Its candidate passed the previous focused tests,
+but broad CI found a linked #2590 defect. The explicit #1002/#2811/#2590 task now
+requires all 13 regressions and 3 controls, preserving prior review obligations.
+The v11 runtime and handoff audit passed independent review; fresh validation is
+starting. No unaccepted candidate was integrated. See the [agent handoff](HANDOFF.md)
+for live branches, Actions runs and continuation instructions. The queue enforces
+eighteen permanently passing cases. Accepted
 candidate test lanes have taken 2m35s–2m48s, with production builds in parallel. Use one compressed
 candidate CI run per repair attempt and run the expensive original matrix only
 after the sweep. The acceptance profile, controller, and integration gate enforce
