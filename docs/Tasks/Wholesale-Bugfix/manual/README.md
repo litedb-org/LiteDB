@@ -429,3 +429,19 @@ queued EOF, nonexecution of unfinished INSERT, complete/multiline positive
 controls and committed data read through separate processes. The runner reads
 the actual framework from the project instead of assuming net8. Four Sol
 reviewers approved; their generated Python cache cleanup nit was addressed.
+
+
+## #2845 — exact finite JSON double round trips
+
+Finite doubles use invariant G17 formatting; integer-looking tokens gain .0 to
+preserve BSON Double classification. Writer and reader explicitly preserve the
+negative-zero bit, including older parsers that normalize it. NaN/infinities
+retain their existing JSON null representation. The reader portability finding
+was addressed before final approval.
+
+Baseline: seven failures, one control. Final: 71 net8 JSON/BSON/expression tests
+pass, including 2,000 seeded finite bit samples under de-DE, repeated exports,
+independent invariant parsing, ±0, extrema, normal/subnormal boundaries, large
+integers and nonfinite controls. All library targets compile; net462/net481 tests
+were not executed because no legacy .NET Framework runtime is available here.
+Four Sol reviewers approved the final writer/reader revision.

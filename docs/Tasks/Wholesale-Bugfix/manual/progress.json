@@ -1456,10 +1456,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2845_Tests.cs"
-      ]
+      ],
+      "validation": "7 original failures fixed;71 net8 JSON/BSON/expression passes including2000sampled bitpatterns;G17 type+signedzero preservation;legacyparser reviewgap fixed;all librarytargetsbuild;fourfinalSolapprovals;legacyFrameworkruntime unavailable"
     },
     {
       "issue": 2846,
