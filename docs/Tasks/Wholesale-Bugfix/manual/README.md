@@ -1011,3 +1011,15 @@ Production and net462 builds pass. Four waves of four fresh Sol high reviewers:
 addressed nested boundary decoding, existing-index compatibility, replay addresses,
 and repeated-hour grouping. All four final reviewers (`review_1851_w4_a` through
 `_d`) were clean.
+
+## #1903 — registered deserializers after discriminator resolution
+
+After resolving a document's _type and validating assignability, the mapper uses
+an exact registered decoder for that resolved type. Declared-type decoders retain
+precedence; decoder results, nulls and exceptions are returned without fallback.
+The assignability guard runs before the resolved callback.
+
+Validation: original baseline fails; five dispatch regressions and 54 combined
+mapper/dictionary cases pass. Full suite: 1674 passed, 258 existing failures,
+8 skipped, no regressions versus #1851. Production and net462 builds pass.
+Four fresh Sol high reviewers (`review_1903_w1_a` through `_d`) were clean.

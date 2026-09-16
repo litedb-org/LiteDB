@@ -408,10 +408,11 @@
         "from fork"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue1903_Tests.cs"
-      ]
+      ],
+      "validation": "Original baseline failed; 5 regression tests and 54 combined dictionary/dispatch tests pass; full suite 1674 passed / 258 existing failures / 8 skipped, no regressions; production/net462 builds pass; four fresh Sol-high reviewers clean."
     },
     {
       "issue": 1904,
