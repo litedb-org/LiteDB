@@ -253,7 +253,7 @@ namespace LiteDB
 
         internal static LiteException DocumentMaxDepth(int depth, Type type)
         {
-            return new LiteException(DOCUMENT_MAX_DEPTH, "Document has more than {0} nested documents in '{1}'. Check for circular references (use DbRef).", depth, type == null ? "-" : type.Name);
+            return new LiteException(DOCUMENT_MAX_DEPTH, "Document has more than {0} nested documents in '{1}'. Check for circular references (use DbRef).", depth, type == null ? "-" : type.FullName);
         }
 
         internal static LiteException InvalidCtor(Type type, Exception inner)

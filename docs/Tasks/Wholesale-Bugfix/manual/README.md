@@ -226,3 +226,13 @@ Original baseline: five failures / 29 controls. Final: 284 net8 mapper/query che
 pass, one existing skip; all library targets build. Added nested-capture rejection
 and midpoint-mode controls complement the original exact plan/parameter/ID ledger.
 All four final Sol reviews approved.
+
+
+## #2860 — relative URI decoding and precise max-depth diagnostics
+
+The built-in URI decoder accepts RelativeOrAbsolute text, retaining relative paths
+including /a/b while preserving explicit HTTP/URN/file schemes. Serialization is
+unchanged. The same report's diagnostic contract now uses Type.FullName to identify
+nested types with identical simple names. Baseline: eight failures / six controls.
+Final: 66 net8 URI/mapper tests pass, including independently authored BSON and
+both URI-kind controls. All library targets build; four Sol reviewers approved.

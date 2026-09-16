@@ -1537,10 +1537,11 @@
         "from fork"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2860_Tests.cs"
-      ]
+      ],
+      "validation": "8 baseline failures fixed;66 net8 URI/mapper tests pass; all library targets build; four Sol approvals"
     },
     {
       "issue": 2867,
