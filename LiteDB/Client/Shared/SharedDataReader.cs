@@ -48,8 +48,8 @@ namespace LiteDB
 
             if (disposing)
             {
-                _reader.Dispose();
-                _dispose();
+                try { _reader.Dispose(); }
+                finally { _dispose(); }
             }
         }
     }

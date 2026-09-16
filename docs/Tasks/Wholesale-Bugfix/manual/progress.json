@@ -13,10 +13,11 @@
         "priority: P1"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2806_Tests.cs"
-      ]
+      ],
+      "validation": "20 storage/Shared transaction tests pass; four final Sol approvals; reproduced 2787 mutex retention case fixed, arbitrary cross-thread reader disposal remains separate"
     },
     {
       "issue": 2818,
@@ -1018,10 +1019,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2787_Tests.cs"
-      ]
+      ],
+      "validation": "20 storage/Shared transaction tests pass; four final Sol approvals; reproduced 2787 mutex retention case fixed, arbitrary cross-thread reader disposal remains separate"
     },
     {
       "issue": 2790,

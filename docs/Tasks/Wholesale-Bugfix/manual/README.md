@@ -115,3 +115,35 @@ monitor, independent recovery and checkpoint oracles. The issue regression now
 requires exact original exception identity on subsequent writes. Four Sol
 reviewers approved after addressing first-cause publication races and these
 lifecycle expectations. New tests additionally cover non-I/O completion failures.
+
+## #2806 — atomic uploads and explicit corruption errors
+
+High-level Upload performs deletion, chunk writes and metadata replacement in one
+transaction. It commits only a transaction it owns; failure aborts buffered
+output and rolls back the active transaction, preserving the source exception.
+Replacement repairs missing/orphaned chunks rather than asserting stale metadata
+counts. Downloads reject missing/empty chunks and inconsistent length/count
+metadata instead of succeeding with truncated content. Streaming OpenWrite keeps
+its existing incremental semantics; callers can bracket it in a transaction.
+
+Shared-mode support required fixing recursive mutex accounting: nested BeginTrans
+preserves the caller transaction, every operation/reader balances its acquired
+recursion, borrowed-engine exception cleanup preserves ownership, and disposal
+releases in finally. This also passes the reproduced #2787 owner-alive mutex case.
+Overlapping shared readers disposed out of creation order remain a pre-existing
+lifetime limitation, explicitly deferred after reviewer agreement; arbitrary
+cross-thread reader disposal is not claimed fixed.
+
+Baseline: both #2806 cases fail. Final selection: 20 pass, including encrypted
+interruption, owned/caller Direct/Shared transactions, deterministic dedicated
+second-thread mutex checks, first/middle/last missing chunks, replacement repair,
+empty/exact-multiple files, seek/EOF boundaries and corrupt metadata. Both
+production targets build. Four Sol reviewers approved the final candidate after
+fixing the mutex-recursion and borrowed-engine cleanup findings. The first async
+worker check could reuse the owner thread; dedicated Thread coverage replaces it.
+
+A broader net10 behavioral comparison (excluding source-context audit guards)
+ran 1,339 baseline and 1,380 earlier P1-candidate cases: 32 existing failures became
+passes, and no previously passing test became failing. All remaining failures
+are still visible. This was before the final Shared mutex correction/additional
+storage cases and is not a final full platform matrix.

@@ -138,14 +138,30 @@ namespace LiteDB
 
         /// <summary>
         /// Upload a file based on stream data
+        /// Content and metadata are committed together. Failure rolls back the active transaction.
         /// </summary>
         public LiteFileInfo<TFileId> Upload(TFileId id, string filename, Stream stream, BsonDocument metadata = null)
         {
-            using (var writer = this.OpenWrite(id, filename, metadata))
-            {
-                stream.CopyTo(writer);
+            if (stream == null) throw new ArgumentNullException(nameof(stream));
 
+            var ownsTransaction = _db.BeginTrans();
+            LiteFileStream<TFileId> writer = null;
+            try
+            {
+                writer = this.OpenWrite(id, filename, metadata);
+                stream.CopyTo(writer);
+                writer.Dispose();
+                if (ownsTransaction) _db.Commit();
                 return writer.FileInfo;
+            }
+            catch
+            {
+                writer?.Abort();
+                // A failed engine operation may already have aborted or closed it.
+                // Preserve the upload error if rollback reports that terminal state.
+                try { _db.Rollback(); }
+                catch { }
+                throw;
             }
         }
 
