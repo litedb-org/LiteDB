@@ -208,15 +208,10 @@ public partial class BsonMapper
             for (i = 0; i < pars.Length; i++)
             {
                 ParameterInfo par = pars[i];
-                MemberMapper mi = null;
-                foreach (MemberMapper member in mapper.Members)
-                {
-                    if (member.MemberName.ToLower() == par.Name.ToLower() && member.DataType == par.ParameterType)
-                    {
-                        mi = member;
-                        break;
-                    }
-                }
+                var mi = mapper.Members.FirstOrDefault(member => member.DataType == par.ParameterType &&
+                    member.MemberName.Equals(par.Name, StringComparison.OrdinalIgnoreCase)) ??
+                    mapper.Members.FirstOrDefault(member => member.DataType == par.ParameterType &&
+                        member.FieldName.Equals(par.Name, StringComparison.OrdinalIgnoreCase));
 
                 if (mi == null)
                 {
@@ -232,7 +227,7 @@ public partial class BsonMapper
             }
 
             CreateObject toAdd = (BsonDocument value) =>
-                Activator.CreateInstance(type, paramMap.Select(x =>
+                ctor.Invoke(paramMap.Select(x =>
                     this.Deserialize(x.Value, value[x.Key])).ToArray());
             if (ctor.GetCustomAttribute<BsonCtorAttribute>() != null)
             {
