@@ -477,37 +477,19 @@ namespace LiteDB
 
             if (value != null)
             {
-                var isInt32 = Int32.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture.NumberFormat, out var i32);
-                if (isInt32)
-                {
-                    var constant32 = Expression.Constant(new BsonValue(i32));
-
-                    return new BsonExpression
-                    {
-                        Type = BsonExpressionType.Int,
-                        Parameters = parameters,
-                        IsImmutable = true,
-                        UseSource = false,
-                        IsScalar = true,
-                        Fields = new HashSet<string>(StringComparer.OrdinalIgnoreCase),
-                        Expression = constant32,
-                        Source = i32.ToString(CultureInfo.InvariantCulture.NumberFormat)
-                    };
-                }
-
-                var i64 = Int64.Parse(value, NumberStyles.Any, CultureInfo.InvariantCulture.NumberFormat);
-                var constant64 = Expression.Constant(new BsonValue(i64));
+                var literal = JsonReader.ParseInteger(value);
 
                 return new BsonExpression
                 {
-                    Type = BsonExpressionType.Int,
+                    Type = literal.IsDouble ? BsonExpressionType.Double : BsonExpressionType.Int,
                     Parameters = parameters,
                     IsImmutable = true,
                     UseSource = false,
                     IsScalar = true,
                     Fields = new HashSet<string>(StringComparer.OrdinalIgnoreCase),
-                    Expression = constant64,
-                    Source = i64.ToString(CultureInfo.InvariantCulture.NumberFormat)
+                    Expression = Expression.Constant(literal),
+                    // The lexeme is the only spelling of a Double-sized integer that reparses to the same value.
+                    Source = literal.IsDouble ? value : Convert.ToString(literal.RawValue, CultureInfo.InvariantCulture)
                 };
             }
 
