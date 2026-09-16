@@ -226,6 +226,21 @@
         "started_at": 1789547983.0627844,
         "workflow": "bugfix-check.yml"
       },
+      "broad-1-0": {
+        "inputs": {
+          "acceptance_profile_sha256": "a54c6da23c484d70eb27958331e7b4450903a58d4f10913260f2bd2c94d08545",
+          "accepted_ledger_sha256": "25d36bd781896cea84a1d0b163b0de2290e7fb14b9e1fecbce5299cf84f90ee8",
+          "accepted_state_sha": "336d5b49262c817aaa3e844b5f225b77abc9b79a",
+          "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+          "candidate_sha": "33fbf17558062276c223946b66aa3f7c01810ad6",
+          "issue": "1002",
+          "level": "broad",
+          "protocol": "compressed-v1"
+        },
+        "request_id": "bf-43f3e76b9dfc41b58781ab1004f34dc1",
+        "started_at": 1789549395.208004,
+        "workflow": "bugfix-check.yml"
+      },
       "fix-1-0": {
         "branch": "fix/issue-1002-hosted-v10-1002-a1",
         "candidate_sha": "33fbf17558062276c223946b66aa3f7c01810ad6",
