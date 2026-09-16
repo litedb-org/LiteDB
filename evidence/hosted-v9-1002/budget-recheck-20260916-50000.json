@@ -1,0 +1,44 @@
+{
+  "at": 1789543459.8805285,
+  "authorization": "User: Use 50,000 for the approved bugfix sweep",
+  "campaign": "hosted-v9-1002",
+  "effective_retry_after": 1789543459.8805285,
+  "kind": "authorized-budget-recheck",
+  "new_daily_threshold": 50000,
+  "next_step": "Normal hosted tick creates one budget retry; worker rechecks all usage under the new cap",
+  "old_daily_threshold": 5000,
+  "original_budget": {
+    "artifact_id": 10418642788,
+    "artifact_sha256": "ac0761a4fc8fa21917a9f6f9096a4ec0ca1d6b55f5a1db6f413bec108f3eee86",
+    "reason": "daily_credit_limit",
+    "report": {
+      "exceeded": true,
+      "observed_at": "2026-09-15T21:15:55Z",
+      "run_attempt": 1,
+      "run_id": 35024027102,
+      "schema_version": 1,
+      "threshold": 5000.0,
+      "total": 13971.885,
+      "workflow_sha": "167f2677ca07b2e67ccd701fb730b4ea055dc950"
+    },
+    "report_sha256": "f4d312efeaaa661212dd69081e865d8f2a95817e0c349956f6270e0e3a57f89b",
+    "resume_after": 1789593355.0
+  },
+  "request_id": "bf-cf97abaef4214ebd8d154c2e3e5c2980",
+  "run_id": 35024027102,
+  "schema_version": 1,
+  "source_state_sha": "2d1d99026424b92350a7ffdbd889d8ef16804d52",
+  "sweep": "hosted-v9-main",
+  "unchanged": [
+    "worker runtime",
+    "scheduler runtime",
+    "test source",
+    "integration base",
+    "repair attempts",
+    "worker retries",
+    "request identities",
+    "original report and hashes",
+    "per-worker caps",
+    "acceptance gates"
+  ]
+}

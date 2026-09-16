@@ -1,11 +1,16 @@
 {
   "bootstrap_blob_sha": "29e3a758e7f7332466c90e4e235b8664cde19ac7",
-  "cooldown_reason": "Authenticated AI budget/accounting cooldown; no repair or infrastructure attempt consumed",
-  "cooldown_until": 1789593355.0,
+  "cooldown_reason": "User authorized 50000 credits; retry through the worker's fresh daily guard",
+  "cooldown_until": 1789543459.8805285,
   "history": [
     {
       "action": "initialize",
       "at": 1789506834.2012134
+    },
+    {
+      "action": "authorized_budget_recheck",
+      "at": 1789543459.8805285,
+      "audit": "evidence/hosted-v9-1002/budget-recheck-20260916-50000.json"
     }
   ],
   "infrastructure_streak": 0,

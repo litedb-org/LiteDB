@@ -62,7 +62,10 @@
   "infrastructure_retries": {},
   "issue": 1002,
   "orchestration": {
-    "cooldown_until": 1789593355.0,
+    "budget_overrides": [
+      "evidence/hosted-v9-1002/budget-recheck-20260916-50000.json"
+    ],
+    "cooldown_until": 1789543459.8805285,
     "requests": {
       "baseline-0-0": {
         "inputs": {
@@ -95,7 +98,7 @@
             "workflow_sha": "167f2677ca07b2e67ccd701fb730b4ea055dc950"
           },
           "report_sha256": "f4d312efeaaa661212dd69081e865d8f2a95817e0c349956f6270e0e3a57f89b",
-          "resume_after": 1789593355.0
+          "resume_after": 1789543459.8805285
         },
         "inputs": {
           "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
