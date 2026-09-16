@@ -1109,3 +1109,24 @@ date cases pass, including first-invalid values, exact bounds and sentinels.
 Full suite: 1700 passed, 250 existing failures, 8 skipped; no regressions versus
 #1966. Production and net462 builds pass. Four fresh Sol high reviewers
 (`review_2052_w1_a` through `_d`) were clean; removed an incidental BOM nit.
+
+## #2033 — enumerable projection shapes and mapper hooks
+
+Engine-created scalar/array envelopes carry internal, non-persisted shape metadata.
+The base mapper unwraps those envelopes while preserving custom document encodings
+and virtual ToObject hooks. Ordinary, grouped, aggregate and scored vector paths
+retain the metadata through replacement read transforms. Array/list/enumerable
+results preserve order, duplicates, empty values and terminal operation behavior.
+
+Validation: all three original cases fail before the fix; 50 focused cases pass.
+Full suite: 1713 passed, 246 existing failures, 8 skipped; no regressions versus
+#2052. Production and net462 builds pass. Four fresh four-Sol-high waves addressed
+scored projections, custom document encodings and ordinary/scored mapper hooks.
+All final reviewers (`review_2033_w4_a` through `_d`) were clean. The unrelated
+#2324 race happened to pass; it remains pending.
+
+The proposed simple string/Guid custom-document expansion was refuted: baseline
+and candidate both fail that inherited path (`/tmp/litedb-simple-projection-
+{baseline,candidate}.log`). This fix preserves the existing simple-type contract
+for custom engines. Byte arrays are not simple types and have explicit passing
+custom document serializer coverage.

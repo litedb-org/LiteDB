@@ -68,7 +68,7 @@ namespace LiteDB
             // if T is BsonDocument, just return them
             if (type == typeof(BsonDocument)) return doc;
 
-            return this.Deserialize(type, doc);
+            return this.Deserialize(type, doc.IsProjectionValue ? doc[doc.Keys.First()] : doc);
         }
 
         /// <summary>
