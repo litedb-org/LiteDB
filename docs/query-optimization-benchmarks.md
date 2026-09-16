@@ -220,6 +220,38 @@ ordinary lookup/projection workloads. Raw measurements: `08-diagnostics-*`.
 The full .NET 10 suite passes 981 tests with seven existing skips, and all Release
 solution targets build. Existing query/EXPLAIN coverage validates this change.
 
+## 9. Count matching rows directly from the index
+
+Pure row COUNT/ANY projections now consume the index's deduplicated document
+stream when no residual filter, sort, group, include, vector operation, or update
+lookup is needed. Count/LongCount/Exists use this automatically. Multiple pure
+COUNT/ANY fields share one traversal, and ANY-only queries stop at the first row
+after the offset. Recognition uses the structured expression tree. Pagination,
+null/missing scalar paths, aliases, empty inputs, and transaction safepoints keep
+their existing behavior; other aggregates retain the document pipeline.
+
+| Complete query | Before µs | After µs | Time reduction | Before B/query | After B/query |
+|---|---:|---:|---:|---:|---:|
+| Indexed range count, LINQ | 13,993.09 | 2,220.25 | 84.1% (6.3×) | 17,582,376 | 5,204,049 |
+| Indexed range count, SQL | 13,387.05 | 2,270.31 | 83.0% (5.9×) | 18,861,608 | 5,203,989 |
+| Full collection count, LINQ | 10,666.49 | 4,213.71 | 60.5% (2.5×) | 18,943,592 | 10,098,376 |
+| Two counts plus ANY, SQL | 25,191.02 | 2,282.48 | 90.9% (11.0×) | 33,831,152 | 5,211,517 |
+| Indexed Exists, LINQ | 55.50 | 51.97 | 6.4% | 36,123 | 34,111 |
+| Empty indexed Exists, LINQ | 58.23 | 56.84 | 2.4% | 47,828 | 47,296 |
+| Count with residual filter, control | 26,457.38 | 25,961.55 | 1.9% | 25,910,432 | 25,910,500 |
+| Primary-key lookup, control | 34.48 | 33.67 | 2.3% | 30,970 | 30,978 |
+
+The range matches 10,001 documents; the full count traverses all 20,000 index
+entries. Counts still traverse the index and do not use cached row totals.
+Exists already stopped early, so avoiding one lookup gives a much smaller gain.
+Small control timing differences remain within the shared host's observed
+variation. Both versions use twice the default iterations per batch; all
+consumed-result checksums match. Raw measurements: `09-aggregate-*`.
+
+Full .NET 8 suite: 1,001 passed; the final 22-case aggregate suite (including two
+additional transaction/update cases) also passes. Full .NET 10 suite: 1,003 passed.
+Both full runs have seven existing skips; all Release solution targets build.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -256,8 +288,9 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 981 passed on .NET 8 at step 7 and
-  .NET 10 at step 8. Each run has seven existing skips.
+- Full `LiteDB.Tests` with `tests.runsettings`: 1,001 passed on .NET 8, plus
+  the final 22-case aggregate suite; 1,003 passed on .NET 10 at step 9. Each full
+  run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file
   rejection by LiteDB 5.0.21 pass for plain and encrypted files.

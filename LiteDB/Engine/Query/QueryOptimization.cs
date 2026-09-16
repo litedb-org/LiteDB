@@ -69,6 +69,8 @@ namespace LiteDB.Engine
             // define IncludeBefore + IncludeAfter
             this.DefineIncludes();
 
+            this.DefineRowAggregate();
+
             return _queryPlan;
         }
 

@@ -98,6 +98,21 @@ ANY/ALL bounds are not intersected: different array elements can satisfy them.
 The existing pipeline already filters before sorting and projection, and defers
 includes that are not needed by filters; these changes do not reorder those stages.
 
+## Index-only row aggregates
+
+After index selection, the planner recognizes pure COUNT/ANY projections over
+source rows or scalar member paths. If the selected index enforces every filter
+and no remaining grouping, sort, include, vector operation, or update lookup is
+needed, a dedicated pipe counts the index's deduplicated document stream. It
+preserves offset/limit and transaction safepoints and stops early for ANY-only
+projections. Multiple COUNT/ANY fields share one traversal. Missing/null scalar
+member paths still emit one value per row, matching existing aggregate semantics.
+
+Recognition inspects the structured expression tree, including SQL aliases and
+the expressions used by ordinary Count/LongCount/Exists. EXPLAIN reports
+`indexAggregatePipe` and a `none` lookup loader. Other aggregate shapes use the
+existing document pipeline; no count, index choice, or parameter values are cached.
+
 ## Verification
 
 The existing LINQ expression corpus now checks canonical text, type, cardinality,
