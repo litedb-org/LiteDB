@@ -1200,10 +1200,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2805_Tests.cs"
-      ]
+      ],
+      "validation": "5 original failures fixed;239 net8 scalar/vector query passes,1 existing skip;6 final issue cases pass including legacy-name reopen;all library targets build;four Sol reviews,scope findings resolved"
     },
     {
       "issue": 2808,

@@ -390,3 +390,27 @@ prior behavior. Canonical collection constructors and mapper paths remain intact
 Baseline: eleven collection failures. Final: 349 net8 BSON/mapper/expression/query
 tests pass, one existing skip; explicit lazy-rejection and supported-type controls
 pass. All library targets build; four Sol reviewers approved without findings.
+
+
+## #2805 — culture-independent supported Unicode index names
+
+Both scalar and vector auto-name paths retain letters/digits using the same
+UTF-16 character categories accepted by the existing index-name validator. This
+preserves supported BMP Unicode names and removes Turkish-I regex dependence.
+Ordinary ASCII names and punctuation filtering remain unchanged. Supplementary
+characters remain unsupported by the existing index-name validator; simply
+copying surrogate pairs would still fail validation, so that review suggestion
+was refuted as a separate identifier/naming expansion.
+
+Persisted names are not silently renamed or reused by expression: different
+names for the same expression are valid and can have different uniqueness/vector
+options. An old Turkish-generated Name index for $.IName remains present when
+the canonical IName index is first created. Further auto-name calls are idempotent
+across cultures. Callers may explicitly DropIndex("Name") to remove the obsolete
+legacy index after creating the canonical replacement. This one-time duplicate
+is intentional; expression-only deduplication was refuted as incompatible.
+
+Baseline: five failures. Final: 239 net8 scalar/vector query tests pass, one skip;
+all six final issue cases pass, including persisted legacy scalar/vector names,
+reopen, stable catalog entries, query results and explicit old-name removal. All
+library targets build. Four Sol reviewers approved the resolved scope/contracts.

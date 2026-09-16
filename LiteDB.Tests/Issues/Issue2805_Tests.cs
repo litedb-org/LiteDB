@@ -27,6 +27,46 @@ namespace LiteDB.Tests.Issues
             public float[] 向量二 { get; set; }
         }
 
+        [Fact]
+        public void Persisted_legacy_names_are_preserved_when_canonical_names_are_created()
+        {
+            using var file = new TempFile();
+            var options = new VectorIndexOptions(2);
+            var target = new float[] { 1, 0 };
+            using (var db = new LiteDatabase(file.Filename))
+            {
+                var rows = db.GetCollection<Row>("rows");
+                rows.Insert(new Row { Id = 1, IName = "hit" });
+                // These are the names produced by the old Turkish-culture filter.
+                rows.EnsureIndex("Name", x => x.IName).Should().BeTrue();
+                ILiteCollection<VectorRow> vectors = db.GetCollection<VectorRow>("vectors");
+                vectors.Insert(new VectorRow { Id = 1, IEmbedding = target });
+                vectors.EnsureIndex("Embedding", x => x.IEmbedding, options).Should().BeTrue();
+            }
+            using (var db = new LiteDatabase(file.Filename))
+            {
+                var rows = db.GetCollection<Row>("rows");
+                ILiteCollection<VectorRow> vectors = db.GetCollection<VectorRow>("vectors");
+                rows.EnsureIndex(x => x.IName).Should().BeTrue();
+                vectors.EnsureIndex(x => x.IEmbedding, options).Should().BeTrue();
+                using (new CultureScope("tr-TR"))
+                {
+                    rows.EnsureIndex(x => x.IName).Should().BeFalse();
+                    vectors.EnsureIndex(x => x.IEmbedding, options).Should().BeFalse();
+                }
+                AssertCatalog(db, "rows", ("_id", "$._id"), ("Name", "$.IName"), ("IName", "$.IName"));
+                AssertCatalog(db, "vectors", ("_id", "$._id"),
+                    ("Embedding", "$.IEmbedding"), ("IEmbedding", "$.IEmbedding"));
+                rows.Find(x => x.IName == "hit").Select(x => x.Id).Should().Equal(1);
+                vectors.Query().WhereNear(x => x.IEmbedding, target, 0.001)
+                    .ToArray().Select(x => x.Id).Should().Equal(1);
+                rows.DropIndex("Name").Should().BeTrue();
+                vectors.DropIndex("Embedding").Should().BeTrue();
+                rows.EnsureIndex(x => x.IName).Should().BeFalse();
+                vectors.EnsureIndex(x => x.IEmbedding, options).Should().BeFalse();
+            }
+        }
+
         [Theory]
         [InlineData("")]
         [InlineData("tr-TR")]

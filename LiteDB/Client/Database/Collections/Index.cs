@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Text.RegularExpressions;
 using LiteDB.Vector;
 using static LiteDB.Constants;
 
@@ -48,7 +47,7 @@ namespace LiteDB
         {
             if (expression == null) throw new ArgumentNullException(nameof(expression));
 
-            var name = Regex.Replace(expression.Source, @"[^a-z0-9]", "", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            var name = new string(expression.Source.Where(char.IsLetterOrDigit).ToArray());
 
             return this.EnsureIndex(name, expression, unique);
         }
@@ -58,7 +57,7 @@ namespace LiteDB
             if (expression == null) throw new ArgumentNullException(nameof(expression));
             if (options == null) throw new ArgumentNullException(nameof(options));
 
-            var name = Regex.Replace(expression.Source, @"[^a-z0-9]", "", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            var name = new string(expression.Source.Where(char.IsLetterOrDigit).ToArray());
 
             return this.EnsureVectorIndex(name, expression, options);
         }
