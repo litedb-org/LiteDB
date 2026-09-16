@@ -347,11 +347,16 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// Read single IndexKey (BsonValue) from buffer. Use +1 length only for string/binary
+        /// Read a single IndexKey, including the extended string/binary length encoded in its type byte.
         /// </summary>
         public BsonValue ReadIndexKey()
         {
-            var type = (BsonType)this.ReadByte();
+            var typeByte = this.ReadByte();
+            ExtendedLengthHelper.ReadLength(typeByte, 0, out var type, out _);
+            if (type != BsonType.String && type != BsonType.Binary)
+            {
+                type = (BsonType)typeByte;
+            }
 
             switch (type)
             {
@@ -362,14 +367,16 @@ namespace LiteDB.Engine
                 case BsonType.Double: return this.ReadDouble();
                 case BsonType.Decimal: return this.ReadDecimal();
 
-                // Use +1 byte only for length
-                case BsonType.String: return this.ReadString(this.ReadByte());
+                case BsonType.String:
+                    ExtendedLengthHelper.ReadLength(typeByte, this.ReadByte(), out _, out var stringLength);
+                    return this.ReadString(stringLength);
 
                 case BsonType.Document: return this.ReadDocument(null).GetValue();
                 case BsonType.Array: return this.ReadArray().GetValue();
 
-                // Use +1 byte only for length
-                case BsonType.Binary: return this.ReadBytes(this.ReadByte());
+                case BsonType.Binary:
+                    ExtendedLengthHelper.ReadLength(typeByte, this.ReadByte(), out _, out var binaryLength);
+                    return this.ReadBytes(binaryLength);
                 case BsonType.ObjectId: return this.ReadObjectId();
                 case BsonType.Guid: return this.ReadGuid();
 
