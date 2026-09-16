@@ -109,8 +109,12 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
-      "tests": []
+      "disposition": "fixed-four-reviews",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue1087_Tests.cs",
+        "LiteDB.ReproRunner/Repros/Issue_1087_LinuxLockRetry/repro.json"
+      ],
+      "validation": "23 focused net8 passes; real two-process package/latest run matches expectations (latest acquires after 21 attempts/504 ms, exit10 NO_BUG_1087); production builds pass; four fresh independent Sol high approvals"
     },
     {
       "issue": 1159,

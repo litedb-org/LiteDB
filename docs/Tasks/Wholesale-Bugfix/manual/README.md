@@ -737,3 +737,17 @@ Validation: 314 focused net8 passes/one existing skip; full net10 1,430 passes,
 baseline or preceding stage. There are 178 passing original baseline failures.
 All production targets build. Four fresh independent Sol high reviewers report
 no findings above nits.
+
+## #1087 — retry native Linux lock contention
+
+The lock classifier recognizes raw Linux errno 11, preserving existing codes
+32/33 and rejecting wrapped Win32 error 11 or unrelated I/O failures. The real
+two-process baseline failed after one attempt. Fixed source retries 21 times over
+504 ms and acquires the lock after controlled release; package 4.1.4 retains its
+expected failure. The latest manifest requires noRepro/exit 10/NO_BUG_1087 and the
+README separates historical reproduction from current verification.
+
+Validation: 23 focused net8 tests pass (both retry helpers, timeout, non-lock
+propagation and platform/error-code controls); two-process package/latest run
+matches both expectations; all production targets build. Four fresh independent
+Sol high reviewers report no findings above nits; the documentation nit is fixed.

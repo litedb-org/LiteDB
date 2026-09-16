@@ -35,7 +35,7 @@ The package variant uses LiteDB 4.1.4, from the affected 4.1 line. The latest va
 repository source. The manifest deliberately schedules this repro only on Linux and runs exactly two
 instances for each variant.
 
-## Observed on current dev
+## Historical reproduction on dev
 
 **REPRODUCED** on Linux x64 (Ubuntu 24.04, ReproRunner target `ubuntu-24.04`) at exact source SHA
 `a7ac43a0f7e0e002138ad909f1f91432a1f709e7`.
@@ -59,3 +59,16 @@ Both the affected LiteDB 4.1.4 package and the current-source (`latest`) variant
 made exactly one attempt before propagating `IOException` (`acquired=False`, `elapsedMs=0`). After the
 owner's controlled release, the independent direct-lock control acquired the same range successfully
 (`postReleaseControlAcquired=True`).
+
+## Manual fix verification (2026-09-16)
+
+Current source recognizes raw Linux errno 11 as a retryable lock collision while
+leaving wrapped Win32 error 11 and unrelated I/O failures non-retryable. The latest
+manifest now requires exit 10 and `NO_BUG_1087`; package 4.1.4 still requires its
+original bug outcome.
+
+The same two-process run passes both expectations. Package 4.1.4 makes one attempt
+and fails immediately. Fixed source classifies the actual collision, makes 21
+attempts over 504 ms, and acquires the lock after the owner's controlled release.
+The independent post-release acquisition and immediate non-lock-error controls
+also pass. Focused tests additionally cover both retry helpers and timeout expiry.
