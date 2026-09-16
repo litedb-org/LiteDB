@@ -53,6 +53,30 @@ cache keyed only by CLR type; each translation observes its own mapper. Reuse a
 template with the mapping under which it was translated. Rebinding stores no
 index choice; creating or dropping an index still changes subsequent planning.
 
+## Automatic LINQ reuse
+
+Ordinary `Where`, `Select`, and other mapper-translated LINQ calls now reuse
+logical templates automatically. Each mapper owns a bounded 256-entry shape
+cache. Its keys contain expression structure, CLR types, members, methods, and
+lambda parameter identity, excluding captured objects and constant values.
+Hash collisions are checked against the full structural key.
+
+Each call reevaluates and serializes its parameter slots in the original order,
+including repeated getter accesses. The cache checks the mapper's enum setting
+and the mapped members used during translation, including changes made through
+the publicly mutable entity/member metadata. Bindings receive independent
+parameter documents and field sets. A small per-thread scratch visitor is reused
+and cleared in `finally`; reentrant translation rents another visitor.
+
+Indexers whose evaluated arguments become part of canonical `Source`, synthetic
+enum/DbRef bindings, invoked lambdas, unsupported shapes, and shapes over 512
+tokens use the direct translator. They remain functional and still use the
+compiled-delegate cache. No physical index choice is cached. Explicit `Bind`
+remains available to callers that want to avoid even the structural cache lookup.
+
+See [`query-optimization-benchmarks.md`](query-optimization-benchmarks.md) for
+separately measured automatic reuse and shared query optimizer improvements.
+
 ## Verification
 
 The existing LINQ expression corpus now checks canonical text, type, cardinality,
@@ -72,8 +96,7 @@ and complete queries, and can reference an unmodified baseline assembly. See
 The internal factories are the construction boundary for a future opt-in source
 generator. Generated code can build a logical template and bind parameter values;
 it must still enter `QueryOptimization` to select a plan at execution time.
-A supported public generated-template surface, structural expression fingerprints,
-automatic mapper-aware shape caching, and specialized materializers remain
+A supported public generated-template surface and specialized materializers remain
 separate follow-ups. This change preserves canonical `Source` identity for
 index matching and the bounded compiled-delegate cache. It introduces no physical
 plan cache or experimental call-site interceptors.

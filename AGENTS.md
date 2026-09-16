@@ -51,3 +51,9 @@ Nested evaluators must receive the caller's parameter document explicitly.
 Use `DirectTranslationScope` in differential tests to forbid tokenizer creation
 and bypass cached delegates. Compare production assemblies with
 `tools/QueryIrBenchmarks` (`TestingEnabled=false`); see `docs/shared-query-ir.md`.
+Automatic LINQ reuse is mapper-local and bounded. Cache keys must not retain
+closures; validate publicly mutable mapping metadata and bind current values on
+every call. Structural arguments that become part of `Source` must be included
+in the key or use the uncached translator. Optimizer rewrites must use the active
+collation and must not intersect separate ANY/ALL predicates as scalar bounds.
+Use `tools/QueryOptimizationBenchmarks` for per-optimization end-to-end comparisons.

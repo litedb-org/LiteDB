@@ -89,6 +89,7 @@ namespace LiteDB
             var field = entity.Members.FirstOrDefault(x => x.MemberName == name);
 
             memberMapper = field ?? throw new NotSupportedException($"Member {name} not found on BsonMapper for type {member.DeclaringType}.");
+            MemberGuards?.Add(new LinqMemberGuard(entity, field));
 
             // define if this field are DbRef (child will need check parent)
             _dbRefType = field.IsDbRef ? field.UnderlyingType : null;
@@ -97,7 +98,7 @@ namespace LiteDB
             return (isParentDbRef && field.FieldName == "_id" ? "$id" : field.FieldName);
         }
 
-        private static object Evaluate(Expression expression, params Type[] validTypes)
+        internal static object Evaluate(Expression expression, params Type[] validTypes)
         {
             object value;
             if (expression is ConstantExpression constant)

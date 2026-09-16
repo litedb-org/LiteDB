@@ -43,6 +43,12 @@ internal static class Program
             var minimum = i % 500;
             return rows.Query().Where(x => x.City == city && x.Score >= minimum).FirstOrDefault()?.Id ?? 0;
         });
+        Measure("ordinary-projection", 500, i =>
+        {
+            var city = "City" + i % 1000;
+            return rows.Query().Where(x => x.City == city).Select(x => new { x.Id, x.Name })
+                .Limit(5).ToList().Sum(x => x.Id);
+        });
         Measure("scan-control", 3, i => rows.Query().Where(x => x.Name.StartsWith("Person1"))
             .ToList().Sum(x => x.Id));
 

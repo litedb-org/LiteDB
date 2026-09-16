@@ -18,12 +18,20 @@ namespace LiteDB
         private Type _dbRefType;
         private int _parameterIndex;
 
-        internal LinqExpressionTranslator(BsonMapper mapper, Expression expression)
+        internal List<Expression> Bindings { get; }
+        internal List<LinqMemberGuard> MemberGuards { get; }
+
+        internal LinqExpressionTranslator(BsonMapper mapper, Expression expression, bool recordBindings = false)
         {
             _mapper = mapper;
             _expression = expression as LambdaExpression ??
                 throw new NotSupportedException($"Expression {expression} must be a lambda expression");
             _root = _expression.Parameters.First();
+            if (recordBindings)
+            {
+                Bindings = new List<Expression>();
+                MemberGuards = new List<LinqMemberGuard>();
+            }
         }
 
         internal BsonExpression Resolve(bool predicate)
@@ -51,7 +59,7 @@ namespace LiteDB
             {
                 case LambdaExpression lambda: return Translate(lambda.Body);
                 case ParameterExpression parameter: return Path("", parameter == _root, _scope, _context, _parameters);
-                case ConstantExpression constant: return Bind(constant.Value);
+                case ConstantExpression constant: return Bind(constant.Value, constant);
                 case MemberExpression member: return TranslateMember(member);
                 case MethodCallExpression method: return TranslateMethod(method);
                 case BinaryExpression binary: return TranslateBinary(binary);
@@ -80,7 +88,7 @@ namespace LiteDB
                 if (binding == null) throw Unsupported(node, node.Member.Name);
                 return binding(new LinqBindingContext(this, node.Expression, new Expression[0]));
             }
-            if (!ParameterExpressionVisitor.Test(node)) return Bind(Evaluate(node));
+            if (!ParameterExpressionVisitor.Test(node)) return Bind(Evaluate(node), node);
             if (node.Expression is ParameterExpression parameter)
             {
                 return Path(ResolveMember(node.Member, out _), parameter == _root, _scope, _context, _parameters);
@@ -116,7 +124,7 @@ namespace LiteDB
             if (!hasResolver)
             {
                 if (ParameterExpressionVisitor.Test(node)) throw Unsupported(node, node.Method.Name);
-                return Bind(Evaluate(node));
+                return Bind(Evaluate(node), node);
             }
             var binding = resolver.ResolveMethod(node.Method);
             if (binding == null) throw Unsupported(node, Reflection.MethodName(node.Method));
@@ -171,8 +179,9 @@ namespace LiteDB
             return result;
         }
 
-        private BsonExpression Bind(object value)
+        private BsonExpression Bind(object value, Expression origin = null)
         {
+            Bindings?.Add(origin);
             var name = "p" + _parameterIndex++;
             _parameters[name] = value == null ? BsonValue.Null : value is string text ? new BsonValue(text) : _mapper.Serialize(value.GetType(), value);
             return Parameter(name, _context, _parameters);

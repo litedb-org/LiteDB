@@ -90,3 +90,30 @@ The workloads are `Score > 10010 && Score < 10000` and
 queries: this optimization helps generated predicates and does not promise a
 speedup for satisfiable queries. Optimizer and vector regression tests: 268 passed,
 one existing skip.
+
+## 4. Automatically reuse ordinary LINQ shapes
+
+A bounded cache owned by each mapper reuses compiled logical templates for
+structurally equivalent LINQ expressions. The workloads construct ordinary LINQ
+queries with changing captured values on every iteration; none calls `Bind`.
+Each call reevaluates and serializes its current values. Metadata guards handle
+mapper changes, and structural keys retain no captured objects. Tests cover
+nested bindings, closures, getter evaluation order, mutable metadata, live custom
+serializers, enum settings, concurrent callers, reentrancy, and bounded storage.
+
+This smaller effect uses three processes per version (27 batches, interleaved
+before/after/after/before/before/after) after finalizing the cache implementation.
+
+| Complete ordinary LINQ query | Before µs | After µs | Time reduction | Before B/query | After B/query |
+|---|---:|---:|---:|---:|---:|
+| Primary-key lookup | 38.03 | 34.83 | 8.4% | 33,676 | 32,451 |
+| Combined indexed predicate | 63.28 | 52.03 | 17.8% | 38,363 | 34,895 |
+| Indexed filter plus projection, five rows | 98.37 | 85.31 | 13.3% | 50,835 | 46,641 |
+
+These are warm repeated shapes, including fresh expression trees and closures;
+first use still translates. Structural indexer arguments, synthetic enum/DbRef
+bindings, invoked lambdas, and oversized/unsupported shapes retain the existing
+direct path. Explicit `Bind` can avoid the structural lookup as well. This is a
+broad incremental improvement; unlike the earlier plan changes, it does not
+reduce how many documents a query reads. Full .NET 8 suite: 933 passed, seven
+existing skips.
