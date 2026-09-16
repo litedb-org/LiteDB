@@ -155,7 +155,14 @@ namespace LiteDB
 
                     if (isParam)
                     {
-                        var name = this.ResolveMember(member, out _);
+                        var owner = node.Expression;
+                        while (owner is UnaryExpression conversion && conversion.Method == null &&
+                            (conversion.NodeType == ExpressionType.Convert || conversion.NodeType == ExpressionType.TypeAs) &&
+                            conversion.Type.IsAssignableFrom(conversion.Operand.Type))
+                        {
+                            owner = conversion.Operand;
+                        }
+                        var name = this.ResolveMember(member, owner.Type, out _);
 
                         _builder.Append(name);
                     }
@@ -392,7 +399,7 @@ namespace LiteDB
             for (var i = 0; i < node.Bindings.Count; i++)
             {
                 var bind = node.Bindings[i] as MemberAssignment;
-                var member = this.ResolveMember(bind.Member, out var memberMapper);
+                var member = this.ResolveMember(bind.Member, node.Type, out var memberMapper);
 
                 _builder.Append(i > 0 ? ", " : "");
                 _builder.Append(member.Substring(1));
@@ -618,7 +625,7 @@ namespace LiteDB
         /// <summary>
         /// Returns document field name for some type member
         /// </summary>
-        private string ResolveMember(MemberInfo member, out MemberMapper memberMapper)
+        private string ResolveMember(MemberInfo member, Type mappedType, out MemberMapper memberMapper)
         {
             var name = member.Name;
 
@@ -626,13 +633,13 @@ namespace LiteDB
             var isParentDbRef = _dbRefType != null && member.DeclaringType.IsAssignableFrom(_dbRefType);
 
             // get class entity from mapper
-            var entity = _mapper.GetEntityMapper(member.DeclaringType);
+            var entity = _mapper.GetEntityMapper(mappedType);
             entity.WaitForInitialization();
 
             // get mapped field from entity
             var field = entity.Members.FirstOrDefault(x => x.MemberName == name);
 
-            memberMapper = field ?? throw new NotSupportedException($"Member {name} not found on BsonMapper for type {member.DeclaringType}.");
+            memberMapper = field ?? throw new NotSupportedException($"Member {name} not found on BsonMapper for type {mappedType}.");
 
             // define if this field are DbRef (child will need check parent)
             _dbRefType = field.IsDbRef ? field.UnderlyingType : null;

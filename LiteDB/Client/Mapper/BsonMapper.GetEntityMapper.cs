@@ -151,6 +151,7 @@ public partial class BsonMapper
         return Reflection.SelectMember(members,
             x => CustomAttributeExtensions.IsDefined(x, typeof(BsonIdAttribute), true),
             x => x.Name.Equals("Id", StringComparison.OrdinalIgnoreCase),
+            x => x.Name.Equals(x.ReflectedType.Name + "Id", StringComparison.OrdinalIgnoreCase),
             x => x.Name.Equals(x.DeclaringType.Name + "Id", StringComparison.OrdinalIgnoreCase));
     }
 
