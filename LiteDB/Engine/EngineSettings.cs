@@ -139,7 +139,7 @@ namespace LiteDB.Engine
         {
             if (this.DataStream != null)
             {
-                return new StreamFactory(this.DataStream, this.Password, false);
+                return new StreamFactory(this.DataStream, useAesStream ? this.Password : null, false);
             }
             else if (this.Filename == ":memory:")
             {

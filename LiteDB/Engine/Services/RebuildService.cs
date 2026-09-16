@@ -123,7 +123,7 @@ namespace LiteDB.Engine
             using (var stream = factory.GetStream(false, true))
             {
                 stream.Position = 0;
-                stream.Read(buffer, 0, buffer.Length);
+                stream.ReadFully(buffer, 0, buffer.Length);
             }
 
             return buffer;
