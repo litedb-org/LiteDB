@@ -247,3 +247,15 @@ persistence/transaction/rebuild oracles retained. The broader SQL selection has
 70 passes and nine unrelated failures; each failure matches the full behavioral
 baseline (LIKE, grouping and SQL audit cases). All library targets build and all
 four Sol reviewers approved without findings.
+
+
+## #1159 — repeated fluent Ignore calls
+
+The cached entity mapper remembers successfully ignored CLR member names across
+fluent builder instances. Only repeated Ignore calls use that ledger; other
+mapping operations and invalid/null selectors retain their existing validation.
+Renamed BSON fields do not affect CLR-name tracking. Original baseline: one failure.
+Final: 54 net8 mapper tests pass, including unrelated-field persistence and added
+strict-validation controls; all library targets build. Four Sol reviewers approved.
+The inherited string-based GetPath parser limitation was noted and left separate;
+it affects prior member resolution and is not introduced by the ignored-name ledger.

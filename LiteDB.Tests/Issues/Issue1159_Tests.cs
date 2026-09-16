@@ -1,4 +1,5 @@
 
+using System;
 using FluentAssertions;
 using Xunit;
 
@@ -12,6 +13,20 @@ namespace LiteDB.Tests.Issues
             public decimal Coefficient { get; set; }
             public decimal? Sum { get; set; }
             public decimal? AdjustedSum => Sum * Coefficient;
+        }
+
+        [Fact]
+        public void Repeated_ignore_keeps_other_member_validation_strict()
+        {
+            var mapper = new BsonMapper();
+            mapper.Entity<Row>().Field(x => x.AdjustedSum, "renamed").Ignore(x => x.AdjustedSum);
+            mapper.Entity<Row>().Ignore(x => x.AdjustedSum);
+            Action nullSelector = () => mapper.Entity<Row>().Ignore<int>(null);
+            Action invalidSelector = () => mapper.Entity<Row>().Ignore(x => x.Sum + 1);
+            Action renameIgnored = () => mapper.Entity<Row>().Field(x => x.AdjustedSum, "again");
+            nullSelector.Should().Throw<ArgumentNullException>();
+            invalidSelector.Should().Throw<ArgumentNullException>();
+            renameIgnored.Should().Throw<ArgumentNullException>();
         }
 
         [Fact]
