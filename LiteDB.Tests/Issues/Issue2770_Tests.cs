@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using FluentAssertions;
 using Xunit;
@@ -12,6 +13,26 @@ namespace LiteDB.Tests.Issues
             public int Id { get; set; }
             public Kind Type { get; set; }
             public Kind BackupType { get; set; }
+        }
+
+        [Fact]
+        public void Closed_nested_lambda_remains_a_constant_enum_operand()
+        {
+            using var db = new LiteDatabase(":memory:", new BsonMapper { EnumAsInteger = false });
+            var col = db.GetCollection<Row>();
+            col.Insert(new[] { new Row { Id = 1, Type = Kind.First }, new Row { Id = 2, Type = Kind.Second } });
+            col.Find(x => x.Type == new[] { Kind.First }.Select(kind => kind).First())
+                .Select(x => x.Id).Should().Equal(1);
+        }
+
+        [Fact]
+        public void Numeric_enum_operations_do_not_compare_or_add_stored_names()
+        {
+            var mapper = new BsonMapper { EnumAsInteger = false };
+            Action order = () => mapper.GetExpression<Row, bool>(x => (int)x.Type < (int)x.BackupType);
+            Action add = () => mapper.GetExpression<Row, int>(x => (int)x.Type + (int)x.BackupType);
+            order.Should().Throw<InvalidOperationException>();
+            add.Should().Throw<InvalidOperationException>();
         }
 
         [Theory]

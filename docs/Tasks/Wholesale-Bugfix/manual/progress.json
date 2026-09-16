@@ -947,10 +947,11 @@
         "from fork"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2770_Tests.cs"
-      ]
+      ],
+      "validation": "Baseline1fail4pass;68 net8 mapper/enum checks pass; all library targets build; four final Sol approvals"
     },
     {
       "issue": 2777,

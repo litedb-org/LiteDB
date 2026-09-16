@@ -197,3 +197,15 @@ existing signed BSON storage contract. Baseline: seven failures / eight controls
 Candidate: 81 mapper/enum/enum-array/dictionary tests pass, including independent
 raw oracles, all eight backing types, high-bit UInt64, reopen and indexed queries.
 All library targets build. Four Sol reviewers approved without findings.
+
+
+## #2770 — row-dependent enum equality
+
+String-mapped enum equality/inequality translates a row-dependent right operand
+instead of evaluating it outside the query. Parameter detection excludes parameters
+bound by nested lambdas while retaining captured outer dependencies, preserving
+closed constant computations. Other numeric enum operators retain their previous
+rejection instead of accidentally comparing/adding stored names. Both safeguards
+address initial Sol findings and have regression controls. Baseline: one failed /
+four passed. Final: 68 net8 mapper/enum tests pass; all library targets build.
+Four final Sol reviews approved without remaining findings.

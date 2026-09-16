@@ -453,12 +453,12 @@ namespace LiteDB
             this.VisitAsPredicate(node.Left, andOr);
 
             _builder.Append(op);
-
             if (!_mapper.EnumAsInteger &&
                 node.Left.NodeType == ExpressionType.Convert &&
                 node.Left is UnaryExpression unex &&
                 unex.Operand.Type.GetTypeInfo().IsEnum &&
-                unex.Type == typeof(Int32))
+                unex.Type == typeof(Int32) &&
+                ((node.NodeType != ExpressionType.Equal && node.NodeType != ExpressionType.NotEqual) || !ParameterExpressionVisitor.Test(node.Right)))
             {
                 this.VisitAsPredicate(Expression.Constant(Enum.GetName(unex.Operand.Type, this.Evaluate(node.Right))), andOr);
             }
