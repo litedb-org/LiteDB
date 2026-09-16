@@ -83,6 +83,9 @@ namespace LiteDB.Engine
                 if (ts == 253402300800000) return DateTime.MaxValue;
                 if (ts == -62135596800000) return DateTime.MinValue;
 
+                if (ts < -62135596800000 || ts > 253402300800000)
+                    throw new LiteException(LiteException.INVALID_FORMAT, "BSON DateTime milliseconds are outside the supported range: {0}.", ts);
+
                 var date = BsonValue.UnixEpoch.AddMilliseconds(ts);
 
                 return utcDate ? date : date.ToLocalTime();
