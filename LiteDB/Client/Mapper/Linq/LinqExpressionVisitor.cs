@@ -133,6 +133,12 @@ namespace LiteDB
             // special types contains method access: string.Length, DateTime.Day, ...
             if (TryGetResolver(member.DeclaringType, out var type))
             {
+                if (!isParam && type is GroupingResolver)
+                {
+                    this.VisitConstant(Expression.Constant(this.Evaluate(node)));
+                    return node;
+                }
+
                 var pattern = type.ResolveMember(member);
 
                 if (pattern == null) throw new NotSupportedException($"Member {member.Name} are not support in {member.DeclaringType.Name} when convert to BsonExpression ({node.ToString()}).");
