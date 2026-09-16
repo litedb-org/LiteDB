@@ -15,9 +15,9 @@
         "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
         "campaign": "hosted-v11-1002",
         "candidate_sha": "cef2fd1d1724f030468c301d52526d188572b6f9",
-        "data_sha": "88252a2438ce4473083f3f9b0fc34e64e7a33d73",
+        "data_sha": "45f21692f3a0c59c5d5c40f6aa224f1249e9ea90",
         "issue": 1002,
-        "phase": "reviewing",
+        "phase": "repairing",
         "resume_integration": false
       },
       "observed_infrastructure_retries": 0,
@@ -119,9 +119,9 @@
   },
   "kind": "hosted-bugfix-sweep",
   "last_tick": {
-    "at": 1789553904.3129582,
-    "campaign": "hosted-v11-1002",
-    "campaign_phase": "repairing",
+    "at": 1789554200.0090735,
+    "campaign": null,
+    "campaign_phase": null,
     "counts": {
       "accepted": 0,
       "active": 1,
@@ -130,15 +130,8 @@
     },
     "issue": 1002,
     "run_attempt": 1,
-    "run_id": 35084191186,
-    "run_ids": [
-      35079889653,
-      35080196043,
-      35081733552,
-      35082336171,
-      35082344419,
-      35082352371
-    ]
+    "run_id": 35084676323,
+    "run_ids": []
   },
   "paused": false,
   "phase": "running",
