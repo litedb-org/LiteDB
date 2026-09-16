@@ -220,25 +220,17 @@ namespace LiteDB
                 }
             }
 
-            if (!hasResolver)
+            // Preserve server translations, including runtime functions such as GUID() and NOW().
+            var pattern = hasResolver ? type.ResolveMethod(node.Method) : null;
+            if (pattern == null)
             {
-                // if method are called by parameter expression and it's not exists, throw error
-                var isParam = ParameterExpressionVisitor.Test(node);
-
-                if (isParam) throw new NotSupportedException($"Method {node.Method.Name} not available to convert to BsonExpression ({node.ToString()}).");
-
-                // otherwise, try compile and execute
-                var value = this.Evaluate(node);
-
-                base.Visit(Expression.Constant(value));
-
+                if (ParameterExpressionVisitor.Test(node))
+                {
+                    throw new NotSupportedException($"Method {node.Method.Name} not available to convert to BsonExpression ({node.ToString()}).");
+                }
+                this.VisitConstant(Expression.Constant(this.Evaluate(node)));
                 return node;
             }
-
-            // otherwise I have resolver for this method
-            var pattern = type.ResolveMethod(node.Method);
-
-            if (pattern == null) throw new NotSupportedException($"Method {Reflection.MethodName(node.Method)} in {node.Method.DeclaringType.Name} are not supported when convert to BsonExpression ({node.ToString()}).");
 
             // run pattern using object as # and args as @n
             this.ResolvePattern(pattern, node.Object, node.Arguments);

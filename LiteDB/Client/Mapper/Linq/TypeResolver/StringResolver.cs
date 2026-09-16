@@ -40,8 +40,6 @@ namespace LiteDB
                 // static methods
                 case "IsNullOrEmpty": return "(LENGTH(@0) = 0)";
                 case "IsNullOrWhiteSpace": return "(LENGTH(TRIM(@0)) = 0)";
-                case "Format": throw new NotImplementedException(); //TODO implement format
-                case "Join": throw new NotImplementedException(); //TODO implement join
             };
 
             return null;
