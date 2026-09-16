@@ -108,6 +108,7 @@ namespace LiteDB.Engine
                 // read header database page
                 _header = new HeaderPage(buffer);
                 _disk.FileVersion = _header.FileVersion;
+                _disk.TrimTrailingPages();
 
                 // if database is set to invalid state, need rebuild
                 if (buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0 && _settings.AutoRebuild)

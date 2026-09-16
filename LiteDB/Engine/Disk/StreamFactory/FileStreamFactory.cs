@@ -79,39 +79,38 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// Get file length using FileInfo. Crop file length if not length % PAGE_SIZE
+        /// Get the logical file length without modifying the file.
         /// </summary>
         public long GetLength()
         {
             // if not file do not exists, returns 0
             if (!this.Exists()) return 0;
 
-            // get physical file length from OS
             var length = new FileInfo(_filename).Length;
 
-            // if file length are not PAGE_SIZE module, maybe last save are not completed saved on disk
-            // crop file removing last uncompleted page saved
-            if (length % PAGE_SIZE != 0)
+            if (_password == null || length == 0)
             {
-                length = length - (length % PAGE_SIZE);
+                return length;
+            }
 
-                using (var fs = new FileStream(
+            // A partial encrypted preamble is treated as an interrupted creation.
+            // Any other short, non-empty input must still reach validation.
+            if (length < PAGE_SIZE)
+            {
+                using (var stream = new FileStream(
                     _filename,
                     System.IO.FileMode.Open,
-                    FileAccess.Write,
-                    FileShare.None,
-                    PAGE_SIZE,
+                    FileAccess.Read,
+                    FileShare.ReadWrite,
+                    1,
                     FileOptions.SequentialScan))
                 {
-                    fs.SetLength(length);
-                    fs.FlushToDisk();
+                    return stream.ReadByte() == 1 ? 0 : length;
                 }
             }
 
-            // if encrypted must remove salt first page (only if page contains data)
-            return length > 0 ?
-                length - (_password == null ? 0 : PAGE_SIZE) :
-                0;
+            // Encrypted files reserve the first physical page for their salt.
+            return length - PAGE_SIZE;
         }
 
         /// <summary>
