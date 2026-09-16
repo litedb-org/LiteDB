@@ -328,6 +328,7 @@ namespace LiteDB
                 foreach (var item in (IEnumerable)list)
                 {
                     if (item == null) continue;
+                    if (idField == null) throw new LiteException(0, "There is no _id field mapped in your type: " + member.UnderlyingType.FullName);
 
                     var id = idField.Getter(item);
 
