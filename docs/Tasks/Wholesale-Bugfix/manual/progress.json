@@ -585,10 +585,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2113_Tests.cs"
-      ]
+      ],
+      "validation": "15 integrated focused cases pass; full 1715 passed / 246 failed / 8 skipped, only known #2324 race varies; production/net462 builds pass; four fresh Sol high approvals"
     },
     {
       "issue": 2144,

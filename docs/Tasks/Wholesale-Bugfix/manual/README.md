@@ -1130,3 +1130,15 @@ and candidate both fail that inherited path (`/tmp/litedb-simple-projection-
 {baseline,candidate}.log`). This fix preserves the existing simple-type contract
 for custom engines. Byte arrays are not simple types and have explicit passing
 custom document serializer coverage.
+
+## #2113 — fluent grouped star projections
+
+The grouped-query planner wraps enumerable selectors in ARRAY, matching SQL
+SELECT semantics without mutating the caller's Query or its parameters. Group
+members, HAVING filters, index use, query reuse and pagination remain intact.
+
+Validation: original reproduction fails before the fix; 15 integrated focused
+cases pass. Full suite: 1715 passed, 246 failed, 8 skipped. The only newly failing
+case versus #2033 is the already-known intermittent #2324 mapper race; no other
+regressions. Production and net462 builds pass. All four fresh Sol high reviewers
+(`review_2113_w1_a` through `_d`) were clean.
