@@ -79,7 +79,16 @@ namespace LiteDB
                     }
                     else
                     {
-                        _writer.Write(value.AsDouble.ToString("0.0########", _numberFormat));
+                        var number = d == 0 && BitConverter.DoubleToInt64Bits(d) < 0
+                            ? "-0.0"
+                            : d.ToString("G17", _numberFormat);
+
+                        // An integer-looking token would deserialize as Int32/Int64 instead of Double.
+                        if (number.IndexOf('.') < 0 && number.IndexOf('E') < 0 && number.IndexOf('e') < 0)
+                        {
+                            number += ".0";
+                        }
+                        _writer.Write(number);
                     }
 
                     break;
