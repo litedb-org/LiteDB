@@ -58,4 +58,6 @@ in the key or use the uncached translator. Optimizer rewrites must use the activ
 collation and must not intersect separate ANY/ALL predicates as scalar bounds.
 Propagate internal `IsVolatile` through every expression factory and binding;
 `IsImmutable` alone does not distinguish parameters from volatile functions.
+Preserve `IsANY` when copying predicate nodes; inspecting generated delegate text
+loses that distinction after logical rewrites.
 Use `tools/QueryOptimizationBenchmarks` for per-optimization end-to-end comparisons.

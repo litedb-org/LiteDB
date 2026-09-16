@@ -24,6 +24,7 @@ internal static class Program
         var results = new List<object>();
         var plans = new Dictionary<string, string>();
         ConstraintWorkloads.Run(db, Measure, plans);
+        BooleanWorkloads.Run(db, Measure, plans);
         Measure("or-linq", 20, i => rows.Query().Where(x => x.Score == 1234 || x.Score == 17890)
             .ToList().Sum(x => x.Id));
         Measure("or-sql", 20, i => Read("SELECT $ FROM rows WHERE Score = 1234 OR Score = 17890"));
@@ -85,6 +86,7 @@ internal static class Program
         void Measure(string name, int iterations, Func<int, long> operation)
         {
             if (args.Length > 1 && !name.StartsWith(args[1], StringComparison.Ordinal)) return;
+            iterations = checked(iterations * (args.Length > 2 ? int.Parse(args[2]) : 1));
             var initial = _sink;
             for (var i = 0; i < iterations; i++) _sink += operation(i);
             var times = new double[9];

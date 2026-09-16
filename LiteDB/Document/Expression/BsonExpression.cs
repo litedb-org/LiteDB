@@ -113,9 +113,7 @@ namespace LiteDB
         /// <summary>
         /// Indicate when predicate expression uses ANY keywork for filter array items
         /// </summary>
-        internal bool IsANY =>
-            this.IsPredicate &&
-            this.Expression.ToString().Contains("_ANY");
+        internal bool IsANY { get; set; }
 
         /// <summary>
         /// Compiled Expression into a function to be executed: func(source[], root, current, parameters)[]

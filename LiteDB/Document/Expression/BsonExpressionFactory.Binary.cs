@@ -56,6 +56,7 @@ namespace LiteDB
                     IsVolatile = left.IsVolatile || right.IsVolatile,
                     UseSource = left.UseSource || right.UseSource,
                     IsScalar = true,
+                    IsANY = operation.StartsWith("ANY", StringComparison.Ordinal),
                     Fields = new HashSet<string>(StringComparer.OrdinalIgnoreCase).AddRange(left.Fields).AddRange(right.Fields),
                     Expression = Expression.Call(method, args.ToArray()),
                     Left = left,

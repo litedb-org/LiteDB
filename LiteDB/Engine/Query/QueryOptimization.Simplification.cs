@@ -9,6 +9,8 @@ namespace LiteDB.Engine
         private BsonExpression SimplifyPredicate(BsonExpression expression, out bool? constant)
         {
             constant = null;
+            if (TryUnwrapBooleanPredicate(expression, out var predicate))
+                return SimplifyPredicate(predicate, out constant);
             if (TryEvaluateBoolean(expression, out var value))
             {
                 constant = value;
@@ -33,6 +35,25 @@ namespace LiteDB.Engine
             if (ReferenceEquals(left, expression.Left) && ReferenceEquals(right, expression.Right)) return expression;
             return BsonExpressionFactory.RebuildLogical(expression, left, right);
         }
+
+        private bool TryUnwrapBooleanPredicate(BsonExpression expression, out BsonExpression predicate)
+        {
+            predicate = null;
+            if (expression.Type != BsonExpressionType.Equal && expression.Type != BsonExpressionType.NotEqual) return false;
+            if (expression.IsVolatile) return false;
+            var left = expression.Left;
+            var right = expression.Right;
+            if (IsBooleanPredicate(left) && TryEvaluateBoolean(right, out var rhs) &&
+                rhs == (expression.Type == BsonExpressionType.Equal)) predicate = left;
+            else if (IsBooleanPredicate(right) && TryEvaluateBoolean(left, out var lhs) &&
+                lhs == (expression.Type == BsonExpressionType.Equal)) predicate = right;
+            return predicate != null;
+        }
+
+        // Only predicates and logical operators guarantee Boolean results. A path
+        // can contain null, numbers, or strings, so its comparison must remain.
+        private static bool IsBooleanPredicate(BsonExpression expression) => expression != null &&
+            (expression.IsPredicate || expression.Type == BsonExpressionType.And || expression.Type == BsonExpressionType.Or);
 
         private bool TryEvaluateBoolean(BsonExpression expression, out bool value)
         {

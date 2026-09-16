@@ -85,7 +85,10 @@ bounds and IN/BETWEEN constraints are intersected before index selection, with
 only the scan-enforced filters removed. Contradictory scalar path constraints
 produce an empty pipeline input, preserving aggregate behavior. Constant Boolean
 guards expose indexable predicates while respecting short circuits and volatility.
-Normalization constructs nodes directly and preserves the original reusable tree.
+Boolean identity comparisons around predicates are removed so composed LINQ
+Contains calls reach the same normalization and index selection. ANY is explicit
+node metadata, preserved through grouping, rewrites, and binding. Normalization
+constructs nodes directly and preserves the original reusable tree.
 
 Values, collation, and available indexes are read for each execution. Internal
 volatility metadata distinguishes changing parameters from functions such as

@@ -31,7 +31,8 @@ python3 tools/QueryIrBenchmarks/compare.py --before before-1.json before-2.json 
 ```
 
 The optional final argument filters workload names by prefix; omit it to run
-the full suite. The `or` prefix also includes the `ordinary-*` control queries.
+the full suite. An optional third argument scales iterations per batch (for
+example, `label boolean-control 10` uses ten times as many). The `or` prefix also includes the `ordinary-*` control queries.
 
 ## 1. Equality disjunctions use indexed seeks
 
@@ -166,6 +167,34 @@ separate Contains/range Where calls can use the new intersection.
 Raw samples: `06-constraints-*`. All checksums match. Full .NET 8 and .NET 10
 suites each pass 967 tests with seven existing skips; the Release solution builds.
 
+## 7. Expose predicates inside Boolean identity comparisons
+
+The optimizer removes Boolean identity comparisons such as `(predicate) = true`
+and `(predicate) != false`. This exposes Contains when it appears inside an
+ordinary LINQ conjunction, allowing the existing IN normalization and constraint
+intersection to run. SQL uses the same rewrite. Changing Boolean parameters,
+BSON type distinctions, short circuits, and negated comparisons retain their
+semantics. ANY is now explicit node metadata; logical rewrites previously lost
+it when its detection depended on generated expression text.
+
+| Complete query | Before µs | After µs | Time reduction | Before B/query | After B/query |
+|---|---:|---:|---:|---:|---:|
+| Combined Contains and range, LINQ | 978,483.30 | 673.84 | 99.9% (1,452×) | 42,244,760 | 413,488 |
+| Boolean-wrapped OR, SQL | 30,318.25 | 70.15 | 99.8% (432×) | 42,005,704 | 60,294 |
+| Primary-key lookup, longer control | 37.90 | 35.94 | 5.2% | 33,290 | 33,290 |
+| Different-field predicate, longer control | 49.54 | 47.44 | 4.2% | 31,762 | 31,762 |
+
+The LINQ workload is the same case left unchanged by step 6, with a 1,000-key
+candidate list and eleven returned documents. No API change or explicit Bind is
+needed. Initial short control runs varied in both directions (including a 3.9%
+slowdown for the point lookup), so the controls above use a fresh pair of runs
+with ten times as many iterations per batch. Their allocations and plans are
+unchanged; the timing variation does not establish a general speedup or regression.
+All original short samples and the longer repeats are retained in `07-*`.
+
+All checksums match within each comparison. Full .NET 8 suite: 981 passed, seven
+existing skips. The Release solution builds all targets.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -202,8 +231,8 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 967 passed and seven existing skips
-  on each of .NET 8 and .NET 10.
+- Full `LiteDB.Tests` with `tests.runsettings`: 981 passed on .NET 8 at step 7;
+  967 passed on .NET 10 at step 6. Each run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file
   rejection by LiteDB 5.0.21 pass for plain and encrypted files.

@@ -146,7 +146,7 @@ namespace LiteDB
             {
                 Type = expression.Type, Parameters = expression.Parameters,
                 IsImmutable = expression.IsImmutable, UseSource = expression.UseSource, IsVolatile = expression.IsVolatile,
-                IsScalar = expression.IsScalar, Fields = expression.Fields,
+                IsScalar = expression.IsScalar, IsANY = expression.IsANY, Fields = expression.Fields,
                 Expression = expression.Expression, Left = expression.Left, Right = expression.Right,
                 Source = expression.Source
             };
