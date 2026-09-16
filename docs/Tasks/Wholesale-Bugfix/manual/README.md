@@ -361,3 +361,17 @@ that callbacks execute once and do not alter stored data.
 Follow-up validation: 314 net8 passes, one existing skip and seven audit failures
 confirmed against the full baseline. The document-upgrade test now passes. All
 library targets build; four additional Sol reviews approved without findings.
+
+
+## #2800 — execution-local nested expression parameters
+
+MAP, FILTER, SORT selectors, parameterized array indexing and array predicates
+forward the current execution's parameter document into nested delegates. Cached
+inner expression instances remain untouched, avoiding stale first-query values
+and races between queries sharing compiled expressions. Public execution still
+uses each expression instance's Parameters.
+
+Baseline: three reproduced query forms fail. Final: 288 net8 expression/query/LINQ
+tests pass, one existing skip; added changing sort/index values, doubly nested
+interleaved enumerators and parallel filter executions. All library targets build.
+Four Sol reviewers approved without findings.

@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Threading.Tasks;
 using FluentAssertions;
 using Xunit;
 
@@ -7,6 +8,61 @@ namespace LiteDB.Tests.Issues
 {
     public class Issue2800_Tests
     {
+        [Fact]
+        public void Cached_sort_keys_and_array_indexes_use_current_parameters()
+        {
+            var root = new BsonDocument { ["Items"] = new BsonArray(11, 22, 33) };
+            foreach (var direction in new[] { 1, -1, 1 })
+            {
+                var expression = BsonExpression.Create("SORT($.Items[*] => @ * @0)", direction);
+                expression.Execute(root).Select(x => x.AsInt32).Should()
+                    .Equal(direction == 1 ? new[] { 11, 22, 33 } : new[] { 33, 22, 11 });
+            }
+            foreach (var index in new[] { 0, 2, 1, 0 })
+            {
+                BsonExpression.Create("$.Items[@0]", index).ExecuteScalar(root).AsInt32
+                    .Should().Be(new[] { 11, 22, 33 }[index]);
+            }
+        }
+
+        [Fact]
+        public void Nested_cached_enumerators_keep_parameters_when_interleaved()
+        {
+            const string source = "MAP($.Items[*] => MAP(@[*] => @ + @0))";
+            var root = new BsonDocument
+            {
+                ["Items"] = new BsonArray(new BsonArray(1, 2), new BsonArray(3, 4))
+            };
+            var first = BsonExpression.Create(source, 10);
+            var second = BsonExpression.Create(source, 100);
+            using var left = first.Execute(root).GetEnumerator();
+            using var right = second.Execute(root).GetEnumerator();
+            foreach (var value in new[] { 1, 2, 3, 4 })
+            {
+                left.MoveNext().Should().BeTrue();
+                left.Current.AsInt32.Should().Be(value + 10);
+                right.MoveNext().Should().BeTrue();
+                right.Current.AsInt32.Should().Be(value + 100);
+            }
+            left.MoveNext().Should().BeFalse();
+            right.MoveNext().Should().BeFalse();
+            first.Parameters["0"].AsInt32.Should().Be(10);
+            second.Parameters["0"].AsInt32.Should().Be(100);
+        }
+
+        [Fact]
+        public void Concurrent_cached_filters_do_not_share_parameter_state()
+        {
+            const string source = "FILTER($.ConcurrentItems[*] => @ = @0)";
+            Parallel.For(0, 100, value =>
+            {
+                var root = new BsonDocument { ["ConcurrentItems"] = new BsonArray(value, value + 1) };
+                var expression = BsonExpression.Create(source, value);
+                expression.Execute(root).Select(x => x.AsInt32).Should().Equal(value);
+                expression.Parameters["0"].AsInt32.Should().Be(value);
+            });
+        }
+
         [Theory]
         [InlineData("COUNT(FILTER($.Items[*] => @ = @0)) > 0")]
         [InlineData("COUNT($.Items[@ = @0]) > 0")]

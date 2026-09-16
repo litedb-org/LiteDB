@@ -1137,10 +1137,11 @@
         "from fork"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2800_Tests.cs"
-      ]
+      ],
+      "validation": "3 original failures fixed;288 net8 expression/query/LINQ passes,1 existing skip; runtime parameters propagated without cached state mutation; all library targets build;four Sol approvals"
     },
     {
       "issue": 2801,
