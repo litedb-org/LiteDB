@@ -24,22 +24,23 @@ local machine**. Do not replace the hosted scheduler with a local blocking queue
 One blocked issue must retain its evidence while independent approved work can
 continue. Infrastructure and usage-limit waits need durable automatic recovery.
 
-Snapshot: **2026-09-16, approximately 07:25 UTC / 09:25 Europe/Vienna**.
+Snapshot: **2026-09-16, approximately 07:30 UTC / 09:30 Europe/Vienna**.
 Re-read GitHub state before acting: this document is a snapshot, not the controller's state store.
 
 ## Current state and first action
 
 **Four fixes are integrated. The unattended GitHub scheduler is enabled for the
 24-issue `hosted-v9-main` queue: #1002 is active and 23 issues are pending. It is
-resuming under the user-authorized 50,000 daily AI-credit threshold. The original
-5,000-credit wait was shortened through an audited recheck; the next worker must
-pass a fresh admission check.**
+running under the user-authorized 50,000 daily AI-credit threshold. The original
+5,000-credit wait was shortened through an audited recheck. The fresh worker
+passed admission at 13971.885 / 50000 and entered its agent job.**
 
 The hosted control path passed initialization, fresh-runner state recovery,
 GitHub-token child dispatch, red-baseline validation, explicit pause/resume and
 scheduled budget-deferral consumption. The first hosted candidate publication,
-three-review cycle and integration are **still unverified because the model was
-skipped by the previous daily guard**. No #1002 candidate is accepted. Continue monitoring
+three-review cycle and integration are **still pending**. The previous worker was
+skipped by the old guard; the fresh worker has passed admission. No #1002 candidate
+is accepted. Continue monitoring
 that first cycle and repair any workflow defect; never infer acceptance from a
 successful scheduler tick.
 
@@ -64,7 +65,9 @@ No full-matrix or package-publish run was launched.
   for the atomic state edit, then reenabled. [Retry tick 35068393133](https://github.com/litedb-org/LiteDB/actions/runs/35068393133)
   succeeded and dispatched [worker 35068448523](https://github.com/litedb-org/LiteDB/actions/runs/35068448523)
   under request `bf-bb8d2e743553490ab1112f4b9d2fc508`, key `fix-1-0-budget`.
-  The worker is in startup checks at this snapshot. Do not dispatch a duplicate.
+  Its [activation job](https://github.com/litedb-org/LiteDB/actions/runs/35068448523/job/104704456740)
+  passed at 07:29 UTC with `Daily workflow AIC guardrail not exceeded (13971.885/50000)`.
+  The agent job is running at this snapshot. Do not dispatch a duplicate.
 - [Overnight scheduled tick 35067758819](https://github.com/litedb-org/LiteDB/actions/runs/35067758819)
   and the preceding scheduled ticks continued successfully while waiting for budget.
 - [Automatic schedule 35021418781](https://github.com/litedb-org/LiteDB/actions/runs/35021418781)
@@ -95,7 +98,7 @@ No full-matrix or package-publish run was launched.
   sweep/campaign state. The independently reviewed scheduler-only fix is `5a823c25`;
   the worker runtime was not moved.
 
-Next, monitor the fresh worker's budget admission and the first complete hosted candidate,
+Next, monitor the fresh worker and the first complete hosted candidate,
 CI, review and integration cycle. The remaining approved issues are queued behind
 the same #1002 campaign so no online operator is needed to select another batch.
 Only one issue is active at a time; an exhausted or inconclusive candidate remains

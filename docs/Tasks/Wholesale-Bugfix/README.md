@@ -2,11 +2,11 @@
 
 Status: #2874, #2839, #2869, and #1506 are integrated. The GitHub-hosted scheduler
 bootstrap is deployed and enabled for `hosted-v9-main`: #1002 is active, 23 approved
-issues are pending, and a guarded retry is resuming after the user authorized a
-50,000 daily AI-credit threshold. The old 5,000-credit cooldown has an audited override.
+issues are pending, and the fresh worker passed budget admission at
+13971.885 / 50000 after the user authorized the new daily AI-credit threshold.
+The old 5,000-credit cooldown has an audited override; the agent job is running.
 Hosted state recovery, dispatch, red CI, pause/resume and scheduled quota handling
-passed. The first hosted candidate publication/review/integration remains unverified
-until the worker can run.
+passed. The first hosted candidate publication/review/integration remains pending.
 This replaces the local v8 queue that stopped at #1002.
 An explicit #1002/#2811 co-repair contract is deployed; neither old #1002 candidate
 is integrated. See the [agent handoff](HANDOFF.md) for the current deployment,
