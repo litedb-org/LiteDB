@@ -74,6 +74,7 @@ namespace LiteDB.Engine
                 }
 
                 if (dataLength < PAGE_SIZE) throw LiteException.InvalidDatabase();
+                if (!isNew) this.ValidateExistingData();
 
                 if (settings.ReadOnly == false)
                 {
@@ -103,27 +104,6 @@ namespace LiteDB.Engine
                 TryDispose(_cache);
                 throw;
             }
-        }
-
-        /// <summary>
-        /// Remove incomplete trailing pages only after the data header was validated.
-        /// </summary>
-        internal void TrimTrailingPages()
-        {
-            if (_readOnly) return;
-
-            this.TrimTrailingPage(_dataPool, _dataLength + PAGE_SIZE, ref _dataTrailingLength);
-            this.TrimTrailingPage(_logPool, _logLength + PAGE_SIZE, ref _logTrailingLength);
-        }
-
-        private void TrimTrailingPage(StreamPool pool, long length, ref long trailingLength)
-        {
-            if (trailingLength == 0) return;
-
-            var stream = pool.Writer.Value;
-            stream.SetLength(length);
-            stream.FlushToDisk();
-            trailingLength = 0;
         }
 
         /// <summary>
