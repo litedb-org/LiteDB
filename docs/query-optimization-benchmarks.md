@@ -279,6 +279,36 @@ Both versions use five times the default iterations; every checksum matches.
 Raw measurements: `10-sets-*`. Existing optimizer tests, including randomized
 intersections and collation/numeric cases: 95 passed. All Release targets build.
 
+## 11. Reuse built-in Count/Exists expression templates
+
+Count/LongCount/Exists previously reparsed their fixed SELECT expressions on
+every invocation. They now construct those logical templates once through the
+shared factories, then bind independent parameter documents. This independence
+matters because GROUP BY writes its key parameter during execution. The helpers
+still restore the original projection on success or failure and select physical
+indexes for each query.
+
+| Complete query | Before µs | After µs | Time reduction | Before B/query | After B/query |
+|---|---:|---:|---:|---:|---:|
+| One-row Count, LINQ | 51.18 | 29.53 | 42.3% | 35,963 | 29,746 |
+| One-row LongCount, LINQ | 51.28 | 29.90 | 41.7% | 35,963 | 29,746 |
+| Indexed Exists, LINQ | 50.74 | 29.51 | 41.8% | 34,051 | 27,850 |
+| Empty indexed Exists, LINQ | 56.35 | 34.57 | 38.6% | 47,236 | 41,034 |
+| One-row Count with residual filter | 76.59 | 52.72 | 31.2% | 44,485 | 38,490 |
+| SQL count, control | 46.37 | 43.05 | 7.2% | 36,082 | 36,082 |
+| Primary-key lookup, control | 34.18 | 32.29 | 5.5% | 30,978 | 30,978 |
+
+Each process records nine batches of 4,000 complete queries. Both before/after
+pairs show the aggregate-helper improvement, with about 6 KB fewer allocated
+bytes per invocation. Controls have unchanged allocations and plans; their timing
+variation is not attributable to this change. Raw samples: `11-helpers-*`; all
+checksums match.
+
+Tests cover canonical expression parity, no tokenization within an existing
+snapshot, independent grouped/concurrent bindings, and projection restoration
+after exceptions. Full .NET 8 suite: 1,007 passed, seven existing skips. All Release
+solution targets build.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -315,8 +345,8 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 1,001 passed on .NET 8, plus
-  the final 22-case aggregate suite; 1,003 passed on .NET 10 at step 9. Each full
+- Full `LiteDB.Tests` with `tests.runsettings`: 1,007 passed on .NET 8 at step 11;
+  1,003 passed on .NET 10 at step 9. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file

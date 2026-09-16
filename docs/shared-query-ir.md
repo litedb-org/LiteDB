@@ -109,7 +109,10 @@ projections. Multiple COUNT/ANY fields share one traversal. Missing/null scalar
 member paths still emit one value per row, matching existing aggregate semantics.
 
 Recognition inspects the structured expression tree, including SQL aliases and
-the expressions used by ordinary Count/LongCount/Exists. EXPLAIN reports
+the expressions used by ordinary Count/LongCount/Exists. Those helpers now build
+their fixed logical templates once through the shared factories. Each invocation
+binds its own parameter document, including GROUP BY key mutations, and restores
+the caller's projection even after an error. EXPLAIN reports
 `indexAggregatePipe` and a `none` lookup loader. Other aggregate shapes use the
 existing document pipeline; no count, index choice, or parameter values are cached.
 

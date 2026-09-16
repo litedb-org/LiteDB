@@ -27,6 +27,7 @@ internal static class Program
         BooleanWorkloads.Run(db, Measure, plans);
         DiagnosticsWorkloads.Run(db, Measure, plans);
         AggregateWorkloads.Run(db, Measure, plans);
+        HelperWorkloads.Run(db, Measure, plans);
         Measure("or-linq", 20, i => rows.Query().Where(x => x.Score == 1234 || x.Score == 17890)
             .ToList().Sum(x => x.Id));
         Measure("or-sql", 20, i => Read("SELECT $ FROM rows WHERE Score = 1234 OR Score = 17890"));
