@@ -229,9 +229,6 @@ jobs:
     name: Test (Windows ${{ matrix.os }} - ${{ matrix.arch }} - ${{ matrix.item.display }})
     runs-on: ${{ matrix.os }}
     needs: build-windows
-    env:
-      DOTNET_ROOT_X86: C:\Program Files (x86)\dotnet
-      DOTNET_SDK_HOST: C:\Program Files\dotnet\dotnet.exe
     strategy:
       fail-fast: false
       matrix:
@@ -262,8 +259,6 @@ jobs:
           dotnet build LiteDB.Tests/LiteDB.Tests.csproj
           --configuration Release
           --framework ${{ matrix.item.framework }}
-          --arch ${{ matrix.arch }}
-          -p:AppendRuntimeIdentifierToOutputPath=false
           --no-dependencies
           ${{ matrix.item.msbuildProps }}
 
@@ -274,8 +269,6 @@ jobs:
           --configuration Release
           --no-build
           --framework ${{ matrix.item.framework }}
-          --arch ${{ matrix.arch }}
-          -p:AppendRuntimeIdentifierToOutputPath=false
           --verbosity normal
           --settings tests.runsettings
           --logger "trx;LogFileName=TestResults-${{ matrix.arch }}.trx"
@@ -337,9 +330,6 @@ jobs:
     name: Cross-Process Tests (Windows ${{ matrix.os }} - ${{ matrix.arch }} - ${{ matrix.item.display }})
     runs-on: ${{ matrix.os }}
     needs: build-windows
-    env:
-      DOTNET_ROOT_X86: C:\Program Files (x86)\dotnet
-      DOTNET_SDK_HOST: C:\Program Files\dotnet\dotnet.exe
     strategy:
       fail-fast: false
       matrix:
@@ -370,8 +360,6 @@ jobs:
           dotnet build LiteDB.Tests/LiteDB.Tests.csproj
           --configuration Release
           --framework ${{ matrix.item.framework }}
-          --arch ${{ matrix.arch }}
-          -p:AppendRuntimeIdentifierToOutputPath=false
           --no-dependencies
           ${{ matrix.item.msbuildProps }}
 
@@ -382,8 +370,6 @@ jobs:
           --configuration Release
           --no-build
           --framework ${{ matrix.item.framework }}
-          --arch ${{ matrix.arch }}
-          -p:AppendRuntimeIdentifierToOutputPath=false
           --filter "FullyQualifiedName~CrossProcess_Shared_Tests"
           --verbosity normal
           --logger "trx;LogFileName=CrossProcessTestResults-${{ matrix.arch }}.trx"
