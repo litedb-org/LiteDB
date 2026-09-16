@@ -41,9 +41,10 @@ namespace LiteDB
         {
             if (query == null) throw new ArgumentNullException(nameof(query));
 
-            if (skip != 0 || limit != int.MaxValue)
+            if (_includes.Count > 0 || skip != 0 || limit != int.MaxValue)
             {
-                // Keep paging overrides local to this execution, including lazy enumeration.
+                // Keep collection includes and paging local to this execution,
+                // including lazy enumeration, without mutating a caller's query.
                 var executionQuery = new Query
                 {
                     Select = query.Select,
@@ -61,6 +62,9 @@ namespace LiteDB
                     IntoAutoId = query.IntoAutoId,
                     ExplainPlan = query.ExplainPlan
                 };
+                // Match collection.Query().Include(...): collection-level parents
+                // are expanded before includes supplied by the query definition.
+                executionQuery.Includes.AddRange(_includes);
                 executionQuery.Includes.AddRange(query.Includes);
                 executionQuery.Where.AddRange(query.Where);
                 executionQuery.OrderBy.AddRange(query.OrderBy);

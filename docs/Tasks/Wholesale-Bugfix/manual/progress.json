@@ -390,10 +390,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue1899_Tests.cs"
-      ]
+      ],
+      "validation": "10 focused tests pass; full suite 1656 passed / 260 existing failures / 8 skipped, no regressions versus #1344; production and net462 builds pass; two fresh four-Sol-high review waves, final four clean."
     },
     {
       "issue": 1903,

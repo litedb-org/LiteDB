@@ -978,3 +978,18 @@ Production targets build and net462 tests compile. Full net10 validation
 failing tests; original #1344 plus audit guards 42/185 now pass. Nine review waves
 used four fresh independent Sol high agents each. Final three reviews were clean;
 the fourth Include-reacquisition claim was refuted by the passing 67b214cc control.
+
+## #1899 — retain collection includes in Query-based reads
+
+Find(Query), including paging and FindOne, clones the query when collection
+includes must be applied. The clone combines collection includes followed by
+query includes, matching fluent query composition, while preserving caller-owned
+query lists and pagination. Parent collection includes therefore resolve before
+nested query includes. Reusing the caller query does not retain those additions.
+
+Validation: original and two new baseline cases failed; final selection passes
+10 tests including query composition and DbRef includes. Full suite: 1656 passed,
+260 existing failures, 8 skipped; no previously passing regressions versus #1344.
+Production and net462 builds pass. Two waves of four fresh Sol high reviewers;
+wave one identified include dependency order, corrected with a nested-reference
+regression. All four final reviewers (`review_1899_w2_a` through `_d`) were clean.
