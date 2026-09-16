@@ -209,3 +209,20 @@ rejection instead of accidentally comparing/adding stored names. Both safeguards
 address initial Sol findings and have regression controls. Baseline: one failed /
 four passed. Final: 68 net8 mapper/enum tests pass; all library targets build.
 Four final Sol reviews approved without remaining findings.
+
+
+## #2779 — evaluate closed unsupported method calls
+
+Existing resolver translations take precedence, preserving server runtime functions
+such as GUID()/NOW(). Unsupported methods may be evaluated once and bound as a
+parameter only if no free query-row dependency exists. String Format/Join and
+unsupported Math.Round signatures now return no pattern and use that fallback;
+row-dependent calls still reject before client execution. MidpointRounding is
+never mistaken for an integer digit count. Explicit Guid.TryParse rejection stays.
+
+Initial eager evaluation caused four compatibility failures and a Sol finding;
+resolver-first dispatch fixed them. Review also exposed the Round fallback gap.
+Original baseline: five failures / 29 controls. Final: 284 net8 mapper/query checks
+pass, one existing skip; all library targets build. Added nested-capture rejection
+and midpoint-mode controls complement the original exact plan/parameter/ID ledger.
+All four final Sol reviews approved.

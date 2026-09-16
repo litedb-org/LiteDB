@@ -978,10 +978,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2779_Tests.cs"
-      ]
+      ],
+      "validation": "5 baseline failures fixed;284 net8 mapper/query tests pass,1existing skip; all library targets build; four final Sol approvals"
     },
     {
       "issue": 2784,

@@ -33,6 +33,25 @@ namespace LiteDB.Tests.Issues
         }
 
         [Fact]
+        public void Closed_round_overloads_use_CLR_and_unsupported_row_overloads_reject()
+        {
+            using var db = new LiteDatabase(":memory:");
+            var col = db.GetCollection<Row>();
+            col.Insert(new[] { new Row { Id = 2, MobileId = 2 }, new Row { Id = 3, MobileId = 3 } });
+            var captured = 2.5;
+            col.Find(x => x.MobileId == Math.Round(captured)).Select(x => x.Id).Should().Equal(2);
+            col.Find(x => x.MobileId == Math.Round(captured, MidpointRounding.AwayFromZero))
+                .Select(x => x.Id).Should().Equal(3);
+            col.Find(x => x.MobileId == Math.Round(captured, 0, MidpointRounding.ToEven))
+                .Select(x => x.Id).Should().Equal(2);
+            Action dependent = () => db.Mapper.GetExpression<Row, bool>(x => Math.Round((double)x.MobileId) == 2);
+            Action roundingMode = () => db.Mapper.GetExpression<Row, bool>(x =>
+                Math.Round((double)x.MobileId, MidpointRounding.AwayFromZero) == 2);
+            dependent.Should().Throw<NotSupportedException>();
+            roundingMode.Should().Throw<NotSupportedException>();
+        }
+
+        [Fact]
         public void Original_selectmany_distinct_contains_is_one_parameter_and_matches_id_ledger()
         {
             var allstocks = new[]
@@ -143,6 +162,11 @@ namespace LiteDB.Tests.Issues
             parameterDependent.Should().Throw<NotSupportedException>(
                 "client evaluation must never execute a method that depends on the document parameter");
             evaluator.Calls.Should().Be(1, "rejection must happen before document-dependent client code is invoked");
+
+            Action nestedCapture = () => db.Mapper.GetExpression<Row, bool>(x =>
+                evaluator.Evaluate(new[] { 1 }.Select(unused => x.Name).First()) == "a.b");
+            nestedCapture.Should().Throw<NotSupportedException>();
+            evaluator.Calls.Should().Be(1, "a nested lambda must not hide a captured row dependency");
         }
 
         [Theory]
