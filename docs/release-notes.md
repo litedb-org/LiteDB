@@ -58,6 +58,19 @@ readers during explicit engine disposal. Applications must still finish their
 transactions on the originating thread and dispose their databases; garbage
 collection does not release abandoned thread-affine locks in a live engine.
 
+## Durable commits (#2818)
+
+Every committed transaction is now synced to the storage device before the
+commit returns, so acknowledged commits survive power loss on storage that can
+sync. Storage that rejects the sync (some network shares and virtual file
+systems, #2242) falls back to the earlier behaviour; `$database.durableLogFlush`
+reports which one is in effect. This costs about one
+device sync per commit (about 1 ms on NVMe, far more on hard disks and network
+volumes); batched transactions and `InsertBulk` are unaffected. Set
+`durable commits=false` (`DurableCommits = false`) to restore the earlier
+behaviour, where commits survive a process crash but not necessarily a power
+loss. See [the trade-off](connection-string-parsing.md#opting-out-of-durable-commits-2818).
+
 ## Connection strings and equals signs in filenames
 
 Raw paths such as `data/test=1.db` now work in the string constructors.
