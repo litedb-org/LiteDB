@@ -292,6 +292,18 @@ namespace LiteDB
         /// </summary>
         public IEnumerable<BsonDocument> ToDocuments()
         {
+            // The projection marker is for typed materialization only. A document handed to the
+            // caller must map like any other document (BsonMapper.ToObject is public).
+            foreach (var doc in this.ReadDocuments())
+            {
+                doc.IsProjectionValue = false;
+
+                yield return doc;
+            }
+        }
+
+        private IEnumerable<BsonDocument> ReadDocuments()
+        {
             using (var reader = this.ExecuteReader())
             {
                 while (reader.Read())
@@ -320,7 +332,7 @@ namespace LiteDB
             }
             else
             {
-                return this.ToDocuments()
+                return this.ReadDocuments()
                     .Select(x => _mapper.ToObject<T>(x));
             }
         }

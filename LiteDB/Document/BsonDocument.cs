@@ -51,6 +51,9 @@ namespace LiteDB
         /// </summary>
         internal PageAddress RawId { get; set; } = PageAddress.Empty;
 
+        // Query output metadata only; never persisted as a BSON field.
+        internal bool IsProjectionValue { get; set; }
+
         /// <summary>
         /// Get/Set a field for document. Fields are case sensitive
         /// </summary>
