@@ -119,12 +119,15 @@ namespace LiteDB.Engine
                         //do not remove $id
                         value.Remove("$ref");
 
-                        // copy values from refDocument into current documet (except _id - will keep $id)
-                        foreach (var element in refDoc.Where(x => !StringComparer.OrdinalIgnoreCase.Equals(x.Key, "_id") &&
-                            !StringComparer.OrdinalIgnoreCase.Equals(x.Key, "$id")))
+                        // Keep $id for reference expressions and copy _id for ordinary
+                        // entity mapping when the included value is projected on its own.
+                        foreach (var element in refDoc.Where(x => !StringComparer.OrdinalIgnoreCase.Equals(x.Key, "$id")))
                         {
                             value[element.Key] = element.Value;
                         }
+
+                        // Standalone projections also bypass the DbRef discriminator hook.
+                        if (value.TryGetValue("$type", out var type)) value["_type"] = type;
                     }
                     else
                     {
