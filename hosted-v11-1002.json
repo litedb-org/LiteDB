@@ -522,6 +522,111 @@
         "workflow": "bugfix-validate.lock.yml"
       }
     },
+    "review_reports": {
+      "cef2fd1d1724f030468c301d52526d188572b6f9": [
+        {
+          "artifact": "bugfix-review-1002-behavior",
+          "artifact_sha256": "d2775234aada77e9c9f2ef908cd37173796af434baf25c949ac3f02ceb2ab9ec",
+          "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+          "campaign": "hosted-v11-1002",
+          "candidate_sha": "cef2fd1d1724f030468c301d52526d188572b6f9",
+          "environment": "independent-agent",
+          "event_id": "run-35082336171-review-behavior",
+          "findings": [],
+          "issue": 1002,
+          "kind": "review",
+          "outcome": "pass",
+          "passing_contract": {
+            "case_count": 18,
+            "cases_sha256": "6ba25c6aad8e1c8baf0fb89329bb9788c344851965f307bbee4f0e5e7f492254",
+            "ledger_sha256": "25d36bd781896cea84a1d0b163b0de2290e7fb14b9e1fecbce5299cf84f90ee8",
+            "schema_version": 1,
+            "state_commit": "d2ee7bbab99d09acb4c67f7921a5d62f11a9ac21"
+          },
+          "protocol": "compressed-v1",
+          "report_sha256": "c4c3bc8987d4fe385df7acfdaaac1932215132fc5636e99dec417b6717a71392",
+          "role": "behavior",
+          "run_id": 35082336171,
+          "schema_version": 1,
+          "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+          "workflow_sha": "8140596303eac2c0dca5c1e123953f06b12a08c6"
+        },
+        {
+          "artifact": "bugfix-review-1002-compatibility",
+          "artifact_sha256": "69d525499efb1ee2c394f2c697b0a51361be285eba974f48906ac171d9f22091",
+          "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+          "campaign": "hosted-v11-1002",
+          "candidate_sha": "cef2fd1d1724f030468c301d52526d188572b6f9",
+          "environment": "independent-agent",
+          "event_id": "run-35082344419-review-compatibility",
+          "findings": [
+            {
+              "evidence": "RemoveDocId now requires the declared MemberMapper.DataType to be assignable from ObjectId, even though BsonMapper exposes registered type conversion and ResolveMember can replace MemberMapper.Setter. I ran the same custom Token ID mapping against the exact base and candidate: the mapping serializes an empty Token as BSON null and its configured setter converts a generated ObjectId back to Token. Base bbb0253 succeeded with `returned=ObjectId stored=ObjectId` and a nonempty copied-back Token; candidate cef2fd rejected it before write with LiteException 214, `Data type Token is not assignable from data type LiteDB.ObjectId`, and count 0. Thus a previously valid custom mapper/member configuration can no longer insert, contrary to the frozen requirement to reject only unsupported generated-value/member-type combinations. The same gate is reached by Insert, Insert(IEnumerable), InsertBulk, and Upsert through the shared GetBsonDocs/RemoveDocId helpers.",
+              "path": "LiteDB/Client/Database/Collections/Insert.cs:107",
+              "severity": "major",
+              "summary": "The ObjectId type gate rejects working custom ID member mappings"
+            }
+          ],
+          "issue": 1002,
+          "kind": "review",
+          "outcome": "fail",
+          "passing_contract": {
+            "case_count": 18,
+            "cases_sha256": "6ba25c6aad8e1c8baf0fb89329bb9788c344851965f307bbee4f0e5e7f492254",
+            "ledger_sha256": "25d36bd781896cea84a1d0b163b0de2290e7fb14b9e1fecbce5299cf84f90ee8",
+            "schema_version": 1,
+            "state_commit": "d2ee7bbab99d09acb4c67f7921a5d62f11a9ac21"
+          },
+          "protocol": "compressed-v1",
+          "report_sha256": "58653803e2f2f486bfbfeb0cb3f9ea1325e95ba807f7b9fa1657a3d2888c8c3c",
+          "role": "compatibility",
+          "run_id": 35082344419,
+          "schema_version": 1,
+          "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+          "workflow_sha": "8140596303eac2c0dca5c1e123953f06b12a08c6"
+        },
+        {
+          "artifact": "bugfix-review-1002-lifecycle",
+          "artifact_sha256": "0a864a5b657a9c67599f9f2bdf800e5954fa79f178d3e1141bddc5b96639dd22",
+          "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+          "campaign": "hosted-v11-1002",
+          "candidate_sha": "cef2fd1d1724f030468c301d52526d188572b6f9",
+          "environment": "independent-agent",
+          "event_id": "run-35082352371-review-lifecycle",
+          "findings": [
+            {
+              "evidence": "Insert(T) passes the lazy GetBsonDocs iterator to the engine at lines 19 and 74-84, and enumerable Insert/InsertBulk/Upsert use the same lazy helper. LiteEngine.Insert and Upsert create a write snapshot with addIfNotExists=true before their foreach first advances that iterator (Engine/Engine/Insert.cs:20-30 and Upsert.cs:19-30). For a new collection, CollectionService.Add allocates the collection and primary-index pages before RemoveDocId can reject a get-only nullable Id or incompatible String/ObjectId member. Those page IDs enter TransactionPages.NewPages; the exception path calls TransactionService.Rollback, whose ReturnNewPages writes and confirms empty pages plus a changed header in the WAL (TransactionService.cs:295-299,331-399). The same occurs for a lazy/mixed batch when a valid prefix causes page allocation before a later item is rejected. Thus no document prefix is committed, but a failed call can still durably change file/allocation state, contrary to the required pre-engine validation and unchanged-byte atomicity. The frozen #2811/#2590 cases pre-create the target collection and put the invalid item first, so they do not exercise this boundary.",
+              "path": "LiteDB/Client/Database/Collections/Insert.cs",
+              "severity": "major",
+              "summary": "Lazy preflight still permits durable allocator changes before rejecting an invalid model"
+            },
+            {
+              "evidence": "The new single-item path invokes the user-controlled _id.Setter at line 83 while LiteEngine.AutoTransaction is active. If a custom non-null setter throws System.IO.IOException, AutoTransaction catches it and calls EngineState.Handle; EngineState.cs:41-48 classifies every IOException as an engine storage failure, calls LiteEngine.Close(ex), and returns false, so AutoTransaction skips its normal Rollback/ReleaseTransaction branch at Transaction.cs:97-102. The failed model assignment therefore shuts down the entire database session, and subsequent operations fail validation with the stored exception. This is newly reachable for Insert(T)/Upsert(T), whose setters previously ran after the engine call, and it violates the required error/disposal assessment for arbitrary throwing custom setters even though an ordinary InvalidOperationException takes the normal rollback path.",
+              "path": "LiteDB/Client/Database/Collections/Insert.cs",
+              "severity": "major",
+              "summary": "A user setter IOException is treated as database I/O corruption and disposes the engine"
+            }
+          ],
+          "issue": 1002,
+          "kind": "review",
+          "outcome": "fail",
+          "passing_contract": {
+            "case_count": 18,
+            "cases_sha256": "6ba25c6aad8e1c8baf0fb89329bb9788c344851965f307bbee4f0e5e7f492254",
+            "ledger_sha256": "25d36bd781896cea84a1d0b163b0de2290e7fb14b9e1fecbce5299cf84f90ee8",
+            "schema_version": 1,
+            "state_commit": "d2ee7bbab99d09acb4c67f7921a5d62f11a9ac21"
+          },
+          "protocol": "compressed-v1",
+          "report_sha256": "23118d36717059d55c1fc01326e5a0c4b5f8204ce67b27f6860f63dde3f13680",
+          "role": "lifecycle",
+          "run_id": 35082352371,
+          "schema_version": 1,
+          "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+          "workflow_sha": "8140596303eac2c0dca5c1e123953f06b12a08c6"
+        }
+      ]
+    },
     "worker_retries": 0,
     "workflow_ref": "automation/bugfix-runtime-v11"
   },
