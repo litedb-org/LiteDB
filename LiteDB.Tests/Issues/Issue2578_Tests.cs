@@ -27,6 +27,51 @@ namespace LiteDB.Tests.Issues
             public bool UsedBsonCtor { get; }
         }
 
+        public class StoredNames
+        {
+            public int Id { get; }
+            [BsonField("stored_name")]
+            public string Name { get; }
+
+            [BsonCtor]
+            public StoredNames(int _id, string stored_name)
+            {
+                Id = _id;
+                Name = stored_name;
+            }
+        }
+
+        public class SelectedOverload
+        {
+            public object Value { get; }
+            [BsonIgnore]
+            public bool UsedBsonCtor { get; }
+
+            [BsonCtor]
+            public SelectedOverload(object value)
+            {
+                Value = value;
+                UsedBsonCtor = true;
+            }
+
+            public SelectedOverload(string value)
+            {
+                Value = value;
+            }
+        }
+
+        [Fact]
+        public void Stored_field_names_bind_and_selected_constructor_is_invoked_exactly()
+        {
+            var mapper = new BsonMapper();
+            var named = mapper.ToObject<StoredNames>(new BsonDocument { ["_id"] = 37, ["stored_name"] = "raw" });
+            named.Id.Should().Be(37);
+            named.Name.Should().Be("raw");
+            var selected = mapper.ToObject<SelectedOverload>(new BsonDocument { ["Value"] = "raw" });
+            selected.UsedBsonCtor.Should().BeTrue("runtime argument types must not select a different overload");
+            selected.Value.Should().Be("raw");
+        }
+
         [Fact]
         public void BsonCtor_receives_stored_id_for_overridden_get_only_properties()
         {

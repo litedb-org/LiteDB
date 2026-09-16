@@ -286,3 +286,15 @@ remain unwritable. The normal DefaultSetter/custom-setter pipeline is preserved.
 Original baseline: one failure. Final: 80 net8 mapper/auto-ID tests pass, including
 identity-preserving reopen/update, generated inherited IDs and hidden getter-only
 rejection. All library targets build; four Sol reviewers approved without findings.
+
+
+## #2578 — stored-name constructor binding
+
+Constructor parameters first match CLR member names, then stored BSON field names
+including _id and BsonField aliases, using ordinal case-insensitive comparison and
+exact declared types. Materialization invokes the selected ConstructorInfo directly,
+so runtime argument subtypes cannot redirect an annotated object overload to an
+unannotated string overload. Constructor precedence and post-construction member
+population remain compatible. Baseline: one failure / eight controls. Final:
+56 net8 mapper/constructor tests pass, including raw stored-name and overload-trap
+controls; all library targets build. Four Sol reviewers approved without findings.
