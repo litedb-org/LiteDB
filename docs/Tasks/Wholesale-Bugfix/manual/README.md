@@ -275,3 +275,14 @@ caught explicit base casts; both cast/as and typed projections now have controls
 Legacy inherited BaseTypeId and explicit-attribute precedence remain covered.
 Final: 305 net8 mapper/query/auto-ID/DbRef tests pass, one existing skip; all library
 targets build. All four final Sol reviews approved.
+
+
+## #2225 — inherited private setters
+
+When reflected inherited property metadata omits its private setter, setter creation
+re-fetches that exact property from its declaring type with DeclaredOnly. Closed
+generic type arguments are retained; genuine or hidden getter-only declarations
+remain unwritable. The normal DefaultSetter/custom-setter pipeline is preserved.
+Original baseline: one failure. Final: 80 net8 mapper/auto-ID tests pass, including
+identity-preserving reopen/update, generated inherited IDs and hidden getter-only
+rejection. All library targets build; four Sol reviewers approved without findings.

@@ -652,10 +652,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2225_Tests.cs"
-      ]
+      ],
+      "validation": "Original failure fixed;80 net8 mapper/autoID tests pass; all library targets build; four Sol approvals"
     },
     {
       "issue": 2226,

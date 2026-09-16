@@ -24,6 +24,32 @@ namespace LiteDB.Tests.Issues
             public ConstructorOnly(Guid id, int value) { SetId(id); Value = value; }
         }
 
+        public class IntegerRow : Base<int>
+        {
+        }
+
+        public class HiddenReadOnlyRow : Base<Guid>
+        {
+            public new Guid Id => Guid.Empty;
+        }
+
+        [Fact]
+        public void Inherited_private_setter_receives_generated_ids_without_making_hidden_getters_writable()
+        {
+            using var file = new TempFile();
+            var row = new IntegerRow();
+            using (var db = new LiteDatabase(file.Filename, new BsonMapper()))
+            {
+                db.GetCollection<IntegerRow>("rows").Insert(row).AsInt32.Should().Be(1);
+                row.Id.Should().Be(1);
+                Action writeReadOnly = () => db.GetCollection<HiddenReadOnlyRow>("readonly").Insert(new HiddenReadOnlyRow());
+                writeReadOnly.Should().Throw<LiteException>().Which.ErrorCode.Should().Be(LiteException.PROPERTY_READ_WRITE);
+                db.GetCollection("readonly").Count().Should().Be(0);
+            }
+            using var reopened = new LiteDatabase(file.Filename, new BsonMapper());
+            reopened.GetCollection<IntegerRow>("rows").FindById(1).Id.Should().Be(1);
+        }
+
         [Fact]
         public void Inherited_private_id_setter_preserves_identity_with_parameterless_constructor()
         {
