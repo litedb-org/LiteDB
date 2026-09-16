@@ -44,28 +44,36 @@ namespace LiteDB.Tests.Issues
         [Fact]
         public void Concurrent_first_inserts_into_new_collections_do_not_throw()
         {
-            const int CollectionsPerRound = 200;
+            const int ExistingCollections = 300;
+            const int NewCollectionsPerRound = 200;
             var budget = Stopwatch.StartNew();
             var failures = new ConcurrentQueue<Exception>();
             int rounds = 0;
 
-            // The CheckName -> GetAvailableCollectionSpace race is timing dependent: repeat fresh databases
-            // until it shows up or the time budget is spent.
+            // The CheckName -> GetAvailableCollectionSpace race is timing dependent. Existing collections make each
+            // unlocked header enumeration longer; fresh databases are repeated until it shows up or the budget is spent.
             while (failures.IsEmpty && budget.Elapsed < TimeSpan.FromSeconds(12))
             {
                 rounds++;
                 using var file = new TempFile();
                 using var db = new LiteDatabase(file.Filename);
 
-                Parallel.For(0, CollectionsPerRound, new ParallelOptions { MaxDegreeOfParallelism = 16 }, i =>
+                db.BeginTrans().Should().BeTrue();
+                for (int i = 0; i < ExistingCollections; i++)
                 {
-                    try { db.GetCollection("col_" + i).Insert(new BsonDocument { ["_id"] = i }); }
+                    db.GetCollection("p_" + i).Insert(new BsonDocument { ["_id"] = i });
+                }
+                db.Commit().Should().BeTrue();
+
+                Parallel.For(0, NewCollectionsPerRound, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(16, Environment.ProcessorCount * 4) }, i =>
+                {
+                    try { db.GetCollection("n_" + i).Insert(new BsonDocument { ["_id"] = i }); }
                     catch (Exception ex) { failures.Enqueue(ex); }
                 });
 
                 if (failures.IsEmpty)
                 {
-                    db.GetCollectionNames().Count().Should().Be(CollectionsPerRound);
+                    db.GetCollectionNames().Count().Should().Be(ExistingCollections + NewCollectionsPerRound);
                 }
             }
 
