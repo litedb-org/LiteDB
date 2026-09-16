@@ -578,10 +578,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2144_Tests.cs"
-      ]
+      ],
+      "validation": "2 original failures fixed;236 net8 query tests pass1skip; all library targets build; four Sol approvals"
     },
     {
       "issue": 2163,

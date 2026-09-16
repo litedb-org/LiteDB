@@ -58,7 +58,7 @@ namespace LiteDB.Engine
             }
 
             // create index instance
-            this.Index = value.Execute(collation).Select(x => this.CreateIndex(exprType, index.Name, x)).FirstOrDefault();
+            this.Index = value.Execute(collation).Select(x => this.CreateIndex(exprType, index.Name, x, collation)).FirstOrDefault();
 
             ENSURE(this.Index != null, "index must be not null");
 
@@ -78,13 +78,13 @@ namespace LiteDB.Engine
         /// <summary>
         /// Create index based on expression predicate
         /// </summary>
-        private Index CreateIndex(BsonExpressionType type, string name, BsonValue value)
+        private Index CreateIndex(BsonExpressionType type, string name, BsonValue value, Collation collation)
         {
             switch(type)
             {
                 case BsonExpressionType.Equal: return new IndexEquals(name, value);
                 case BsonExpressionType.Between: return new IndexRange(name, value.AsArray[0], value.AsArray[1], true, true, Query.Ascending);
-                case BsonExpressionType.Like: return new IndexLike(name, value.AsString, Query.Ascending);
+                case BsonExpressionType.Like: return new IndexLike(name, value.AsString, Query.Ascending, collation);
                 case BsonExpressionType.GreaterThan: return new IndexRange(name, value, BsonValue.MaxValue, false, true, Query.Ascending);
                 case BsonExpressionType.GreaterThanOrEqual: return new IndexRange(name, value, BsonValue.MaxValue, true, true, Query.Ascending);
                 case BsonExpressionType.LessThan: return new IndexRange(name, BsonValue.MinValue, value, true, false, Query.Ascending);

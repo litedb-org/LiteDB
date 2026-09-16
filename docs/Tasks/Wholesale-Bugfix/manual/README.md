@@ -330,3 +330,20 @@ boundary cases. ReproRunner report confirms package5.0.21 still reproduces while
 latest returns exact exit10 plus VERIFIED_2797 with Met=true. Latest manifest is
 green/noRepro with those strict expectations. All library targets build; four Sol
 reviewers approved. Report: /tmp/litedb-manual-results/2797-repro-final.json.
+
+
+## #2144 — index LIKE respects collation
+
+Only ordinal/ordinal-ignore-case collations use prefix range seeks; linguistic
+sorts may interleave nonmatching prefixes and now use a filtered full index scan.
+Planner cost and plan text describe the chosen path. Ordinal seeks use matching
+comparison rules, filter supplementary case pairs through scalar LIKE, and never
+stringify non-string keys into matches. This trades linguistic-prefix speed for
+correct results; ordinal seeks remain available and other selective predicates
+can compete against the honest scan cost.
+
+Baseline: both en-US/ja-JP prefix cases fail after indexing. Final: 236 net8 query
+tests pass, one existing skip. Added hand-written case/type ledgers run before and
+after indexing/reopen in both directions; a Deseret supplementary-case regression
+checks the ordinal-ignore-case residual. All library targets build. Four Sol
+reviewers approved; the trailing-whitespace nit was corrected.

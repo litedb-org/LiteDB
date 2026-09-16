@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using static LiteDB.Constants;
 
@@ -11,18 +12,26 @@ namespace LiteDB.Engine
         private readonly bool _equals;
         private readonly bool _testSqlLike;
         private readonly string _pattern;
+        private readonly bool _usePrefixSeek;
+        private readonly StringComparison _comparison;
 
-        public IndexLike(string name, BsonValue value, int order)
+        public IndexLike(string name, BsonValue value, int order, Collation collation)
             : base(name, order)
         {
             _pattern = value.AsString;
             _startsWith = _pattern.SqlLikeStartsWith(out _testSqlLike);
             _equals = _pattern == _startsWith;
+            // Linguistic sort order can interleave nonmatching prefixes; an early range exit loses matches.
+            _usePrefixSeek = _startsWith.Length > 0 &&
+                (collation.SortOptions == CompareOptions.Ordinal || collation.SortOptions == CompareOptions.OrdinalIgnoreCase);
+            _comparison = collation.SortOptions == CompareOptions.Ordinal ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+            // Preserve the matcher's UTF-16 character semantics even for supplementary case pairs.
+            _testSqlLike |= collation.SortOptions == CompareOptions.OrdinalIgnoreCase;
         }
 
         public override uint GetCost(CollectionIndex index)
         {
-            if (_startsWith.Length > 0) return 10; // similar to equals non-unique
+            if (_usePrefixSeek) return 10; // similar to equals non-unique
 
             return 100; // index full scan
         }
@@ -31,7 +40,7 @@ namespace LiteDB.Engine
         {
             // if contains startsWith string, search using index Find
             // otherwise, use index full scan and test results
-            return _startsWith.Length > 0 ? 
+            return _usePrefixSeek ?
                 this.ExecuteStartsWith(indexer, index) : 
                 this.ExecuteLike(indexer, index);
         }
@@ -58,14 +67,12 @@ namespace LiteDB.Engine
 
                 var next = node.GetNextPrev(0, -this.Order);
 
-                var valueString = 
-                    node.Key.IsString ? node.Key.AsString : 
-                    node.Key.IsNull ? "" :
-                    node.Key.ToString();
+                if (!node.Key.IsString) break;
+                var valueString = node.Key.AsString;
 
                 if (_equals ?
-                    valueString.Equals(_startsWith, StringComparison.OrdinalIgnoreCase) :
-                    valueString.StartsWith(_startsWith, StringComparison.OrdinalIgnoreCase))
+                    valueString.Equals(_startsWith, _comparison) :
+                    valueString.StartsWith(_startsWith, _comparison))
                 {
                     // must still testing SqlLike method for rest of pattern - only if exists more to test (avoid slow SqlLike test)
                     if ((_testSqlLike == false) ||
@@ -93,14 +100,12 @@ namespace LiteDB.Engine
 
                 var next = node.GetNextPrev(0, this.Order);
 
-                var valueString =
-                    node.Key.IsString ? node.Key.AsString :
-                    node.Key.IsNull ? "" :
-                    node.Key.ToString();
+                if (!node.Key.IsString) break;
+                var valueString = node.Key.AsString;
 
                 if (_equals ?
-                    valueString.Equals(_pattern, StringComparison.OrdinalIgnoreCase) :
-                    valueString.StartsWith(_startsWith, StringComparison.OrdinalIgnoreCase))
+                    valueString.Equals(_pattern, _comparison) :
+                    valueString.StartsWith(_startsWith, _comparison))
                 {
                     // must still testing SqlLike method for rest of pattern - only if exists more to test (avoid slow SqlLike test)
                     if (node.DataBlock.IsEmpty == false &&
@@ -135,7 +140,7 @@ namespace LiteDB.Engine
         public override string ToString()
         {
             return string.Format("{0}({1} LIKE \"{2}\")",
-                _startsWith.Length > 0 ? "INDEX SEEK (+RANGE SCAN)" : "FULL INDEX SCAN",
+                _usePrefixSeek ? "INDEX SEEK (+RANGE SCAN)" : "FULL INDEX SCAN",
                 this.Name,
                 _pattern);
         }
