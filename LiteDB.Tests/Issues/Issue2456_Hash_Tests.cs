@@ -8,6 +8,20 @@ namespace LiteDB.Tests.Issues;
 public class Issue2456_Hash_Tests
 {
     [Fact]
+    public void Native_and_plain_vectors_should_share_equality_and_hashing()
+    {
+        BsonValue native = new BsonVector(new[] { 1f, 2f });
+        BsonValue plain = new BsonValue((object)new[] { 1f, 2f });
+
+        native.Equals(plain).Should().BeTrue();
+        plain.Equals(native).Should().BeTrue();
+        native.Equals((object)plain).Should().BeTrue();
+        plain.Equals((object)native).Should().BeTrue();
+        native.GetHashCode().Should().Be(plain.GetHashCode());
+        new HashSet<BsonValue> { native }.Should().Contain(plain);
+    }
+
+    [Fact]
     public void Wrapped_collections_should_compare_equal_and_share_hash_codes_with_their_adapters()
     {
         var array = new BsonValue(new[] { "a" });
