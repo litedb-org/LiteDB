@@ -765,9 +765,9 @@
   {
     "id": 132,
     "file": "LiteDB/Client/Mapper/Reflection/Reflection.cs",
-    "line": 39,
+    "line": 30,
     "title": "Reflection.CreateInstance reads the shared ctor cache Dictionary outside the lock that guards its writes",
-    "context": "            {\n                if (_cacheCtor.TryGetValue(type, out CreateObject c))\n                {"
+    "context": "        private static readonly Dictionary<Type, CreateObject> _cacheCtor = new Dictionary<Type, CreateObject>();"
   },
   {
     "id": 133,

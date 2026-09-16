@@ -1581,10 +1581,11 @@
         "from fork"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2871_Tests.cs"
-      ]
+      ],
+      "validation": "Baseline1fail1pass;54 constructor-cache/mapper tests pass plus ledger; all library targets build; four Sol approvals"
     },
     {
       "issue": 2873,

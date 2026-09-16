@@ -162,3 +162,15 @@ five insert/upsert/bulk surfaces, lazy input, caller transaction rollback,
 custom/throwing setters, nullable copy-back uniqueness and reopen. Both production
 targets build. Four Sol reviewers approved after addressing the nullable long/Guid
 sibling gap identified in review; no unresolved substantive findings remain.
+
+
+## #2871 — concurrent constructor-cache reads
+
+The constructor cache uses ConcurrentDictionary for safe fast-path reads while
+retaining the existing miss lock, serialized compilation and recursive interface
+construction. Baseline: 1 failure / 1 control. Candidate: 54 constructor/mapper
+tests pass, including 4,096 unique types racing four cache-hit readers. The ledger
+and repeated issue cases pass; all library targets build. Four Sol reviewers
+approved. Audit guard 132 now identifies the original unsafe Dictionary field
+instead of a generic lookup snippet that also matched the corrected implementation;
+the paired behavioral tests remain the proof of correctness.
