@@ -1,0 +1,3167 @@
+{
+  "schema_version": 1,
+  "inventory": "docs/open-bugs/inventory.json",
+  "issues": {
+    "2874": {
+      "inventory_issue": 2874,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2874_Tests.cs": "3a69734465d57b0ac4f0c6a7a7cdceeb180873c4"
+      },
+      "filter": "FullyQualifiedName~Issue2874_Tests",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Document/ObjectId.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2874_Tests.Invalid_byte_windows_are_rejected_as_argument_errors(bytes: [], startIndex: 0)",
+          "failure_first_line": "Expected a <System.ArgumentException> to be thrown, but found <System.IndexOutOfRangeException>:",
+          "failure_contains": [
+            "System.IndexOutOfRangeException:",
+            "at LiteDB.ObjectId..ctor(Byte[] bytes, Int32 startIndex)"
+          ]
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2874_Tests.Invalid_byte_windows_are_rejected_as_argument_errors(bytes: [0, 0, 0, 0, 0, ···], startIndex: 0)",
+          "failure_first_line": "Expected a <System.ArgumentException> to be thrown, but found <System.IndexOutOfRangeException>:",
+          "failure_contains": [
+            "System.IndexOutOfRangeException:",
+            "at LiteDB.ObjectId..ctor(Byte[] bytes, Int32 startIndex)"
+          ]
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2874_Tests.Invalid_byte_windows_are_rejected_as_argument_errors(bytes: [0, 0, 0, 0, 0, ···], startIndex: 1)",
+          "failure_first_line": "Expected a <System.ArgumentException> to be thrown, but found <System.IndexOutOfRangeException>:",
+          "failure_contains": [
+            "System.IndexOutOfRangeException:",
+            "at LiteDB.ObjectId..ctor(Byte[] bytes, Int32 startIndex)"
+          ]
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2874_Tests.Invalid_byte_windows_are_rejected_as_argument_errors(bytes: [0, 0, 0, 0, 0, ···], startIndex: 12)",
+          "failure_first_line": "Expected a <System.ArgumentException> to be thrown, but found <System.IndexOutOfRangeException>:",
+          "failure_contains": [
+            "System.IndexOutOfRangeException:",
+            "at LiteDB.ObjectId..ctor(Byte[] bytes, Int32 startIndex)"
+          ]
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2874_Tests.Invalid_byte_windows_are_rejected_as_argument_errors(bytes: [0, 0, 0, 0, 0, ···], startIndex: -1)",
+          "failure_first_line": "Expected a <System.ArgumentException> to be thrown, but found <System.IndexOutOfRangeException>:",
+          "failure_contains": [
+            "System.IndexOutOfRangeException:",
+            "at LiteDB.ObjectId..ctor(Byte[] bytes, Int32 startIndex)"
+          ]
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2874_Tests.Invalid_byte_windows_are_rejected_as_argument_errors(bytes: [0, 0, 0, 0, 0, ···], startIndex: 2147483647)",
+          "failure_first_line": "Expected a <System.ArgumentException> to be thrown, but found <System.IndexOutOfRangeException>:",
+          "failure_contains": [
+            "System.IndexOutOfRangeException:",
+            "at LiteDB.ObjectId..ctor(Byte[] bytes, Int32 startIndex)"
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2874_Tests.Every_valid_twelve_byte_window_round_trips_only_its_own_bytes"
+        }
+      ]
+    },
+    "2839": {
+      "inventory_issue": 2839,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2839_Tests.cs": "a98df12a912e780edf12d7cc87f1dbf65cdf7db9"
+      },
+      "filter": "FullyQualifiedName~Issue2839_Tests",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Database/Collections/Aggregate.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2839_Tests.LongCount_Query_routes_the_exact_query_and_preserves_Int64_width",
+          "failure_first_line": "System.OverflowException : Value was either too large or too small for an Int32."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2839_Tests.Count_Query_routes_the_exact_query_and_reads_an_Int32_result"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2839_Tests.LongCount_without_Query_preserves_an_engine_result_above_Int32"
+        }
+      ]
+    },
+    "2869": {
+      "inventory_issue": 2869,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2869_Tests.cs": "75f14d75945fe6912b007b9698e8d38898b02413"
+      },
+      "filter": "FullyQualifiedName~Issue2869_Tests",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Document/BsonValue.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2869_Tests.Int32_values_implicitly_widen_to_Int64_and_Double(expected: -2147483648)",
+          "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Int32' to type 'System.Int64'."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2869_Tests.Int32_values_implicitly_widen_to_Int64_and_Double(expected: -1)",
+          "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Int32' to type 'System.Int64'."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2869_Tests.Int32_values_implicitly_widen_to_Int64_and_Double(expected: 0)",
+          "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Int32' to type 'System.Int64'."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2869_Tests.Int32_values_implicitly_widen_to_Int64_and_Double(expected: 1)",
+          "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Int32' to type 'System.Int64'."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2869_Tests.Int32_values_implicitly_widen_to_Int64_and_Double(expected: 2147483647)",
+          "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Int32' to type 'System.Int64'."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2869_Tests.Native_numeric_conversions_work_and_non_numeric_values_are_not_coerced"
+        }
+      ]
+    },
+    "1506": {
+      "inventory_issue": 1506,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue1506_Tests.cs": "42722f965457a84ac385399b59707e1a7d9a9084"
+      },
+      "filter": "FullyQualifiedName~Issue1506_Tests",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Database/Collections/Find.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue1506_Tests.Find_paging_override_preserves_the_complete_reusable_query",
+          "failure_first_line": "Expected query.Offset to be 1 because immediately after Find returns, but found 2."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue1506_Tests.Find_honors_query_limit_when_optional_paging_is_omitted"
+        }
+      ]
+    },
+    "1002": {
+      "inventory_issue": 1002,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue1002_Tests.cs": "300112d2fa9c10055460484549e551f7d750451e",
+        "LiteDB.Tests/Issues/Issue2811_Tests.cs": "408f4c3df519e6e446bb9e15fdfd63da0580e95d",
+        "LiteDB.Tests/Database/AutoId_Tests.cs": "0e2eed9f88e95e29623b5f99122b294cac1e9787",
+        "LiteDB.Tests/Issues/Issue2590_Tests.cs": "76cb4f55627ffccee1a6eb77753931a3786493fb"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue1002_|FullyQualifiedName~LiteDB.Tests.Issues.Issue2811_|FullyQualifiedName=LiteDB.Tests.Database.AutoId_Tests.AutoId_Strong_Typed|FullyQualifiedName~LiteDB.Tests.Issues.Issue2590_|FullyQualifiedName=LiteDB.Tests.Database.AutoId_Tests.AutoId_BsonDocument",
+      "environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net8.0",
+        "windows-x64-net10.0",
+        "macos-arm64-net8.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Database/Collections/Insert.cs"
+      ],
+      "focused_baseline": {
+        "schema_version": 1,
+        "source_run_id": 34988724926,
+        "source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+        "repeat_candidate_sha": "79e5c69cb9e6a1bcc08e919c2993aaa5401148b7",
+        "workflow_sha": "7629236e73bde318e934509244c3e61ef820d8db",
+        "failure_normalization_sha256": "d4c510bf1504ec8298e0f231548fde8e67a929f7a3ccca9c6ec21a1a89571a36",
+        "artifacts": {
+          "linux-x64-net8.0": {
+            "artifact_id": 10405370121,
+            "artifact_name": "bugfix-check-ubuntu-latest-net8.0",
+            "baseline_trx_sha256": "a4d3b367c661fa8768fbb8668d4a8827713618fa3b488f15f02ca1607c8bd56b",
+            "repeat_candidate_trx_sha256": "167eb02e1001d29571ed81d0cae3efae66516b079b78169b2445d765d58f4d88"
+          },
+          "linux-x64-net10.0": {
+            "artifact_id": 10405505060,
+            "artifact_name": "bugfix-check-ubuntu-latest-net10.0",
+            "baseline_trx_sha256": "d4d7854e6d5e036da9d1ad92ac4f5aebe0a23b8033fe5a50f9793dcf18cbe423",
+            "repeat_candidate_trx_sha256": "06e8fd06f3069730ba19b93580856134a5514ae5b6d88862e9436499f8d8849b"
+          },
+          "windows-x64-net8.0": {
+            "artifact_id": 10404073794,
+            "artifact_name": "bugfix-check-windows-latest-net8.0",
+            "baseline_trx_sha256": "931cbd570f47bf6a376f11dde76c0ecf1399f9d742acf0f90eeb9463d781bdf0",
+            "repeat_candidate_trx_sha256": "341cb8549c8b485af5375dc4e1260016406570c25b34b8005a1b51cb62af57c6"
+          },
+          "windows-x64-net10.0": {
+            "artifact_id": 10404574219,
+            "artifact_name": "bugfix-check-windows-latest-net10.0",
+            "baseline_trx_sha256": "789212a8598feb82270173bbc4b6e152682e4b1177a51ab6f7ad67d1dcc0c08e",
+            "repeat_candidate_trx_sha256": "9d6ab521cbee8ca0390c9b1d54c7bb11a415ad5f1ac8b43972d09f632e09bf42"
+          },
+          "macos-arm64-net8.0": {
+            "artifact_id": 10405111338,
+            "artifact_name": "bugfix-check-macos-latest-net8.0",
+            "baseline_trx_sha256": "c069b53a2512adcd39c9ecf0bbf1d1329ff1371fa21228dbf4de3923340ee719",
+            "repeat_candidate_trx_sha256": "0bba29b9d0a80d9bb804d3b9e5d3228468d0a6d900c7004201c54981391a18dd"
+          },
+          "macos-arm64-net10.0": {
+            "artifact_id": 10405450249,
+            "artifact_name": "bugfix-check-macos-latest-net10.0",
+            "baseline_trx_sha256": "487ac255e77785b858569e7dbbd93a1e5422db470aae03c8c0d71741709b4e08",
+            "repeat_candidate_trx_sha256": "0e97ba85d8c32b48def91f249511913e247a5dd50fd588a1829f6b09d47451df"
+          }
+        },
+        "control_gaps": []
+      },
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue1002_Tests.Nullable_integer_empty_ids_generate_unique_persisted_integer_keys(empty: null)",
+          "test_id": "6a6112a1-4157-a1d3-8b5c-a7b3b813631b",
+          "component": "typed-auto-id-write",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            }
+          },
+          "failure_classifications": {
+            "original-defect": {
+              "failure_first_line": "LiteDB.LiteException : Invalid BSON data type 'Null' on field '_id'.",
+              "sha256": "f3d319412038c304a9098a8cf3ad28dd538eb40c2597d6157de42c0a0538f02d"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_int_auto_id_is_atomic_for_every_typed_write_path(path: InsertMany)",
+          "test_id": "a11c7fca-c6e4-e44f-29e8-b7b5edb09f22",
+          "component": "typed-auto-id-write",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            }
+          },
+          "failure_classifications": {
+            "original-defect": {
+              "failure_first_line": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.",
+              "sha256": "edf61022a483c6e7f47903b8d1c6dc957d9f967e08d59d92164b1c8b8e174393"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_int_auto_id_is_atomic_for_every_typed_write_path(path: InsertOne)",
+          "test_id": "608569d7-80ea-7a1d-e39f-c78ea6ecb853",
+          "component": "typed-auto-id-write",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            }
+          },
+          "failure_classifications": {
+            "original-defect": {
+              "failure_first_line": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.",
+              "sha256": "a18833b0eb1db770bb9ebab375a85e8a4db2d227e6dff857077ad0ffb1b23cad"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_int_auto_id_is_atomic_for_every_typed_write_path(path: UpsertMany)",
+          "test_id": "96dd1933-af03-2f82-6ee4-ea0721e3c82f",
+          "component": "typed-auto-id-write",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            }
+          },
+          "failure_classifications": {
+            "original-defect": {
+              "failure_first_line": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.",
+              "sha256": "edf61022a483c6e7f47903b8d1c6dc957d9f967e08d59d92164b1c8b8e174393"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_int_auto_id_is_atomic_for_every_typed_write_path(path: UpsertOne)",
+          "test_id": "e0969e3f-fa89-09d7-54f9-e38645cbec46",
+          "component": "typed-auto-id-write",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            }
+          },
+          "failure_classifications": {
+            "original-defect": {
+              "failure_first_line": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.",
+              "sha256": "edf61022a483c6e7f47903b8d1c6dc957d9f967e08d59d92164b1c8b8e174393"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_object_id_is_atomic_for_every_typed_write_path(path: InsertMany)",
+          "test_id": "8be49034-0623-7625-28a1-48c6cf715fe8",
+          "component": "typed-auto-id-write",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            }
+          },
+          "failure_classifications": {
+            "original-defect": {
+              "failure_first_line": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.",
+              "sha256": "edf61022a483c6e7f47903b8d1c6dc957d9f967e08d59d92164b1c8b8e174393"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_object_id_is_atomic_for_every_typed_write_path(path: InsertOne)",
+          "test_id": "3a8fb504-bfa3-ffb4-95ae-3baa644297ec",
+          "component": "typed-auto-id-write",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            }
+          },
+          "failure_classifications": {
+            "original-defect": {
+              "failure_first_line": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.",
+              "sha256": "5b94968784d53f07bc4179500f75f6e1816be075499e94446afe65220319d8db"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_object_id_is_atomic_for_every_typed_write_path(path: UpsertMany)",
+          "test_id": "ae91b9c9-cec3-f8aa-c18d-3440de9c8702",
+          "component": "typed-auto-id-write",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            }
+          },
+          "failure_classifications": {
+            "original-defect": {
+              "failure_first_line": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.",
+              "sha256": "edf61022a483c6e7f47903b8d1c6dc957d9f967e08d59d92164b1c8b8e174393"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2811_Tests.Read_only_object_id_is_atomic_for_every_typed_write_path(path: UpsertOne)",
+          "test_id": "f0f942d7-b1cc-a333-fc83-9cce15239425",
+          "component": "typed-auto-id-write",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            }
+          },
+          "failure_classifications": {
+            "original-defect": {
+              "failure_first_line": "Expected type to be LiteDB.LiteException because a null dereference or generic argument error does not identify the invalid id member, but found System.NullReferenceException.",
+              "sha256": "edf61022a483c6e7f47903b8d1c6dc957d9f967e08d59d92164b1c8b8e174393"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2590_Tests.Empty_string_ids_are_addressable_or_rejected_before_any_write(path: InsertMany)",
+          "test_id": "ff0e12e0-2217-2965-fd57-0b1f33952c14",
+          "component": "typed-auto-id-write",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            }
+          },
+          "failure_classifications": {
+            "original-defect": {
+              "failure_first_line": "Expected type to be LiteDB.LiteException because an unsupported String/ObjectId auto-id mapping needs a stable LiteDB diagnostic, but found System.InvalidCastException.",
+              "sha256": "d27dd3fd3a45430331874bb58efe26ed78a78850b53e8950a46359e174ac2e43"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2590_Tests.Empty_string_ids_are_addressable_or_rejected_before_any_write(path: InsertOne)",
+          "test_id": "1aae9c09-e5c5-f11a-0c6a-38f1dfe0b917",
+          "component": "typed-auto-id-write",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            }
+          },
+          "failure_classifications": {
+            "original-defect": {
+              "failure_first_line": "Expected type to be LiteDB.LiteException because an unsupported String/ObjectId auto-id mapping needs a stable LiteDB diagnostic, but found System.InvalidCastException.",
+              "sha256": "a5cb127e80308bbf3f4f3782a83988986973b0e73c564001af1e594e30427fa7"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2590_Tests.Empty_string_ids_are_addressable_or_rejected_before_any_write(path: UpsertMany)",
+          "test_id": "78c16fad-1f1e-9414-a924-65cc79f7b55b",
+          "component": "typed-auto-id-write",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            }
+          },
+          "failure_classifications": {
+            "original-defect": {
+              "failure_first_line": "Expected type to be LiteDB.LiteException because an unsupported String/ObjectId auto-id mapping needs a stable LiteDB diagnostic, but found System.InvalidCastException.",
+              "sha256": "d27dd3fd3a45430331874bb58efe26ed78a78850b53e8950a46359e174ac2e43"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2590_Tests.Empty_string_ids_are_addressable_or_rejected_before_any_write(path: UpsertOne)",
+          "test_id": "3b58fea5-5574-4b86-bf26-367daae865ca",
+          "component": "typed-auto-id-write",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "original-defect"
+            }
+          },
+          "failure_classifications": {
+            "original-defect": {
+              "failure_first_line": "Expected type to be LiteDB.LiteException because an unsupported String/ObjectId auto-id mapping needs a stable LiteDB diagnostic, but found System.InvalidCastException.",
+              "sha256": "d27dd3fd3a45430331874bb58efe26ed78a78850b53e8950a46359e174ac2e43"
+            }
+          }
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Database.AutoId_Tests.AutoId_Strong_Typed",
+          "test_id": "5379889c-6d6d-3d20-1030-5442fe56449e",
+          "component": "typed-auto-id-write",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Passed"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1002_Tests.Nullable_integer_empty_ids_generate_unique_persisted_integer_keys(empty: 0)",
+          "test_id": "a419db97-6ab3-62f6-d689-6129e52e1333",
+          "component": "typed-auto-id-write",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Passed"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Database.AutoId_Tests.AutoId_BsonDocument",
+          "test_id": "ec5e0f64-4e16-3ded-3f46-9836fa12f2ea",
+          "component": "typed-auto-id-write",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Passed"
+            }
+          }
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "This is an explicit behavioral co-repair of #1002 and all eight frozen #2811 cases, not permission for changed failure classifications. Settable nullable Int32 null and zero IDs must generate unique persisted integer keys and copy them back. Read-only Int32/ObjectId auto-ID InsertOne, InsertMany, UpsertOne and UpsertMany must either succeed coherently or fail before writes with a LiteException naming Id and explaining read-only/setter status. Preserve explicit-ID writes to immutable objects and ordinary writable Int32/Int64/Guid/ObjectId auto-generation; AutoId_Strong_Typed is a real independent passing control.",
+          "Keep the shared RemoveDocId/GetBsonDocs behavior consistent across Insert and Upsert. Do not broaden rejection to assigned IDs or mapped documents that do not need copy-back. No source-guard disposition, failure normalization extension or class-drift allowance is authorized.",
+          "This additive co-repair includes all four frozen #2590 String/ObjectId auto-ID cases. Reject an unsupported generated ObjectId assignment to a String ID before any write with LiteException.DATA_TYPE_NOT_ASSIGNABLE (214) and exactly: Data type System.String is not assignable from data type LiteDB.ObjectId. Do not merely catch or relabel InvalidCastException after a write, restore a hidden durable row to preserve the old failure, or invent new string auto-ID support as part of this bounded repair. All thirteen regressions and three controls must pass.",
+          "For the fixer: Unaccepted implementation seed only: prior candidate 33fbf17558062276c223946b66aa3f7c01810ad6 from fix/issue-1002-hosted-v10-1002-a1, produced by run 35075342165, failed combined CI 35077204440. Inspect git show 33fbf17558062276c223946b66aa3f7c01810ad6:LiteDB/Client/Database/Collections/Insert.cs to reuse and improve its transactional copy-back design. Keep HEAD and the accepted base at bbb0253bc06324f0bb14a21a727a37e8c7f2b213, and export the complete new patch relative to that base. The seed passed the former eleven focused cases but all four #2590 cases still failed; it is not accepted and its checks do not substitute for fresh CI or reviews. Preserve the consumed v10 attempt and failed history under the explicit superseding campaign."
+        ],
+        "compatibility": [
+          "Preserve stored BSON key types, numeric sequence behavior, uniqueness, entity copy-back and existing explicit-ID rows. Inspect single and enumerable Insert/Upsert, including the obsolete InsertBulk wrapper; all reach the shared Insert.cs helpers except explicit-ID overloads. The frozen #2811 successful branch permits retaining a get-only entity ID unchanged, so explain the chosen public behavior instead of claiming it necessarily gains writable-ID semantics. Preserve ordinary v8 reopen and compatibility checks; no format change is authorized.",
+          "For #2590 preserve assigned nonempty String IDs, including 24-hex-character strings distinct from ObjectId keys, explicit-ID overloads and custom mapper/member configuration. AutoId_Strong_Typed independently covers assigned String and writable typed IDs; AutoId_BsonDocument independently covers untyped ObjectId auto-generation and explicit Int32 keys. Reject only the unsupported generated-value/member-type combination; do not block BsonDocument or existing correctly assignable mappings. Preserve all prior persisted key, sequence, reopen and upgrade compatibility obligations."
+        ],
+        "lifecycle": [
+          "Mandatory prior finding from expansion-v8-1002 candidate a98b29089c01e21e50856abd0cc9bbea1ecc5631: a model with public int? Id { get; } and null ID threw NullReferenceException after Insert had committed; immediate and reopened counts were both one. Reproduce this exact get-only nullable-ID case on the new candidate and demonstrate either acknowledged coherent success or rejection with no durable write. Frozen #2811 uses non-nullable int and ObjectId, so passing it alone does not close this finding. Do not drop this obligation when starting a superseding campaign.",
+          "Validate writability before any engine mutation that can commit; never repair atomicity by write-then-delete compensation. Provide evidence for implicit and explicit transactions, caller Commit after catching rejection, unchanged pre-existing rows, and immediate plus independently reopened state. Check mixed/lazy batches with valid earlier items and an invalid later item: no prefix from a failed write call may remain commit-able or durable. Explain rollback effects on prior explicit-transaction work and avoid claiming per-call rollback preserves earlier work without evidence.",
+          "Attempt d600cab9aa8be419f0d3069a21bb5e03ff713307 only changed the error to InvalidOperationException and still failed all eight #2811 cases; it is not an accepted base or a completed repair. Use the current integrated base and fresh focused+broad evidence, retaining all original findings through three new reviews.",
+          "Assess every newly reachable post-engine ID copy-back failure, including a non-null custom setter that throws. A Setter != null guard alone does not prove safety for newly supported null nullable IDs. Demonstrate that no newly supported input can produce a durable failed call because assignment occurs after commit; review both single and enumerable paths and require rollback-safe placement or an equivalent justified design.",
+          "For #2590 verify pre-write rejection leaves the complete original String/ObjectId control ledger, file bytes and target empty String IDs unchanged across InsertOne, InsertMany, UpsertOne and UpsertMany. Keep assignment inside the transaction for all newly reachable throwing setters; the v10 removal of hidden-row/byte-change assertions was a real atomicity improvement, not diagnostic drift. Retain all earlier get-only nullable-ID, explicit transaction, caller Commit, lazy/mixed batch and non-null throwing-setter evidence requirements."
+        ]
+      }
+    },
+    "2802": {
+      "inventory_issue": 2802,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2802_Tests.cs": "d39406d4e8982b3081fb58149848907a25d97822"
+      },
+      "filter": "FullyQualifiedName~Issue2802_Tests",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Database/LiteQueryable.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2802_Tests.Typed_read_uses_generic_only_virtual_mapper_and_returns_its_result(api: \"Find\")",
+          "failure_first_line": "Expected result.Name to be \"generic:stored\" with a length of 14, but \"stored\" has a length of 6, differs near \"sto\" (index 0)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2802_Tests.Typed_read_uses_generic_only_virtual_mapper_and_returns_its_result(api: \"FindAll\")",
+          "failure_first_line": "Expected result.Name to be \"generic:stored\" with a length of 14, but \"stored\" has a length of 6, differs near \"sto\" (index 0)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2802_Tests.Typed_read_uses_generic_only_virtual_mapper_and_returns_its_result(api: \"FindById\")",
+          "failure_first_line": "Expected result.Name to be \"generic:stored\" with a length of 14, but \"stored\" has a length of 6, differs near \"sto\" (index 0)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2802_Tests.Typed_read_uses_generic_only_virtual_mapper_and_returns_its_result(api: \"FindOne\")",
+          "failure_first_line": "Expected result.Name to be \"generic:stored\" with a length of 14, but \"stored\" has a length of 6, differs near \"sto\" (index 0)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2802_Tests.Typed_read_uses_generic_only_virtual_mapper_and_returns_its_result(api: \"Query\")",
+          "failure_first_line": "Expected result.Name to be \"generic:stored\" with a length of 14, but \"stored\" has a length of 6, differs near \"sto\" (index 0)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2802_Tests.Typed_read_uses_virtual_mapper_and_returns_its_result(api: \"Find\")",
+          "failure_first_line": "Expected result.Name to be \"decoded:one\" with a length of 11 because calling and discarding the override's result is insufficient, but \"one\" has a length of 3, differs near \"one\" (index 0)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2802_Tests.Typed_read_uses_virtual_mapper_and_returns_its_result(api: \"FindAll\")",
+          "failure_first_line": "Expected result.Name to be \"decoded:one\" with a length of 11 because calling and discarding the override's result is insufficient, but \"one\" has a length of 3, differs near \"one\" (index 0)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2802_Tests.Typed_read_uses_virtual_mapper_and_returns_its_result(api: \"FindById\")",
+          "failure_first_line": "Expected result.Name to be \"decoded:one\" with a length of 11 because calling and discarding the override's result is insufficient, but \"one\" has a length of 3, differs near \"one\" (index 0)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2802_Tests.Typed_read_uses_virtual_mapper_and_returns_its_result(api: \"FindOne\")",
+          "failure_first_line": "Expected result.Name to be \"decoded:one\" with a length of 11 because calling and discarding the override's result is insufficient, but \"one\" has a length of 3, differs near \"one\" (index 0)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2802_Tests.Typed_read_uses_virtual_mapper_and_returns_its_result(api: \"Query\")",
+          "failure_first_line": "Expected result.Name to be \"decoded:one\" with a length of 11 because calling and discarding the override's result is insufficient, but \"one\" has a length of 3, differs near \"one\" (index 0)."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2802_Tests.Generic_only_mapper_control_differs_from_default_mapping"
+        }
+      ]
+    },
+    "2770": {
+      "inventory_issue": 2770,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2770_Tests.cs": "6820452205a67c987a5556b2987aa0c3d5d9cc6d"
+      },
+      "filter": "FullyQualifiedName~Issue2770_Tests",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2770_Tests.Enum_property_comparison_matches_CLR_for_equal_and_unequal_rows(asInteger: False)",
+          "failure_first_line": "System.InvalidOperationException : variable 'x' of type 'LiteDB.Tests.Issues.Issue2770_Tests+Row' referenced from scope '', but it is not defined"
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2770_Tests.Enum_property_comparison_matches_CLR_for_equal_and_unequal_rows(asInteger: True)"
+        }
+      ]
+    },
+    "2867": {
+      "inventory_issue": 2867,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2867_Tests.cs": "a807d3189c9c78922e1bb9e377469bee3144dacb"
+      },
+      "filter": "FullyQualifiedName~Issue2867_Tests",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Mapper/BsonMapper.GetEntityMapper.cs",
+        "LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2867_Tests.Duplicate_inherited_mapped_type_ids_are_duplicate_primary_keys",
+          "failure_first_line": "Expected a <LiteDB.LiteException> to be thrown, but no exception was thrown."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2867_Tests.Inherited_mapped_type_id_is_the_persisted_key_and_query_path",
+          "failure_first_line": "Expected firstId.IsInt32 to be True, but found False."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2867_Tests.Inherited_mapped_type_id_round_trips_through_the_id_field",
+          "failure_first_line": "Expected encoded.Keys[0] to be \"_id\" with a length of 3, but \"Payload\" has a length of 7, differs near \"Pay\" (index 0)."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2867_Tests.Existing_id_precedence_and_suffix_boundaries_are_preserved"
+        }
+      ],
+      "review_requirements": {
+        "compatibility": [
+          "Assess old databases written with the former inherited-ID convention: an automatically generated BSON _id alongside the inherited mapped-type-name ID property stored as a normal field. Trace reads, inherited-property queries, duplicate checks and reopen behavior for those legacy documents under the candidate. Use existing files or independently authored legacy documents where feasible, identify migration needs and report evidence or limitations. The generic vector/file-format compatibility check does not exercise this mapping change."
+        ]
+      }
+    },
+    "2845": {
+      "inventory_issue": 2845,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2845_Tests.cs": "dd180a83536a9ea537c99a606b6ae1e5d51bfcdc"
+      },
+      "filter": "FullyQualifiedName~Issue2845_Tests",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Document/Json/JsonWriter.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2845_Tests.Json_preserves_double_type_and_bits_through_repeated_exports(value: -1.7976931348623157E+308)",
+          "failure_first_line": "Expected BitConverter.DoubleToInt64Bits(current[\"Value\"].AsDouble) to be -4503599627370497L, but found -4503599627370496L (difference of 1)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2845_Tests.Json_preserves_double_type_and_bits_through_repeated_exports(value: -4.9406564584124654E-324)",
+          "failure_first_line": "Expected BitConverter.DoubleToInt64Bits(current[\"Value\"].AsDouble) to be -9223372036854775807L, but found -9223372036854775808L (difference of -1)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2845_Tests.Json_preserves_double_type_and_bits_through_repeated_exports(value: 0.30000000000000004)",
+          "failure_first_line": "Expected BitConverter.DoubleToInt64Bits(current[\"Value\"].AsDouble) to be 4599075939470750516L, but found 4599075939470750515L (difference of -1)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2845_Tests.Json_preserves_double_type_and_bits_through_repeated_exports(value: 1.2345678901234567)",
+          "failure_first_line": "Expected BitConverter.DoubleToInt64Bits(current[\"Value\"].AsDouble) to be 4608238818662570491L, but found 4608238818662014491L (difference of -556000)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2845_Tests.Json_preserves_double_type_and_bits_through_repeated_exports(value: 1.7976931348623157E+308)",
+          "failure_first_line": "Expected BitConverter.DoubleToInt64Bits(current[\"Value\"].AsDouble) to be 9218868437227405311L, but found 9218868437227405312L (difference of 1)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2845_Tests.Json_preserves_double_type_and_bits_through_repeated_exports(value: 1E-300)",
+          "failure_first_line": "Expected BitConverter.DoubleToInt64Bits(current[\"Value\"].AsDouble) to be 118622047889322841L, but found 0L (difference of -118622047889322841)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2845_Tests.Json_preserves_double_type_and_bits_through_repeated_exports(value: 4.9406564584124654E-324)",
+          "failure_first_line": "Expected BitConverter.DoubleToInt64Bits(current[\"Value\"].AsDouble) to be 1L, but found 0L (difference of -1)."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2845_Tests.Json_preserves_double_type_and_bits_through_repeated_exports(value: 42)"
+        }
+      ]
+    },
+    "2847": {
+      "inventory_issue": 2847,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2847_Tests.cs": "37965125a439f1864ef828448dc39e2571c2f56d"
+      },
+      "filter": "FullyQualifiedName~Issue2847_Tests",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Mapper/Linq/TypeResolver/StringResolver.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2847_Tests.Explicit_string_comparison_agrees_with_CLR_even_with_an_index(comparison: Ordinal, indexed: False)",
+          "failure_first_line": "Expected col.Find(predicate).Select(x => x.Id).OrderBy(x => x) to be equal to {2}, but {1, 2, 3} contains 2 item(s) too many."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2847_Tests.Explicit_string_comparison_agrees_with_CLR_even_with_an_index(comparison: Ordinal, indexed: True)",
+          "failure_first_line": "Expected col.Find(predicate).Select(x => x.Id).OrderBy(x => x) to be equal to {2}, but {1, 2, 3} contains 2 item(s) too many."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2847_Tests.Explicit_string_comparison_agrees_with_CLR_even_with_an_index(comparison: OrdinalIgnoreCase, indexed: False)"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2847_Tests.Explicit_string_comparison_agrees_with_CLR_even_with_an_index(comparison: OrdinalIgnoreCase, indexed: True)"
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "State which StringComparison modes remain supported and which deliberately throw NotSupportedException. Compare candidate behavior with the pinned base for previously working OrdinalIgnoreCase calls, with and without an index. Passing the frozen test does not prove retained overload support; report any support loss and assess affected callers."
+        ],
+        "compatibility": [
+          "Assess API compatibility for callers using explicit StringComparison modes. Disclose any deliberate unsupported mode and compare it with the pinned base behavior, including formerly working OrdinalIgnoreCase paths. Explain whether existing queries retain their results or now throw; do not infer compatibility solely from the frozen test accepting NotSupportedException."
+        ]
+      }
+    },
+    "2779": {
+      "inventory_issue": 2779,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2779_Tests.cs": "3e6e8004572b8bca68fe15dd3230b4a3a775b3f3"
+      },
+      "filter": "FullyQualifiedName~Issue2779_Tests",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2779_Tests.Captured_method_calls_match_CLR_and_follow_changed_values(operation: \"concat\")",
+          "failure_first_line": "System.NotSupportedException : Method Concat(string,string,string) in String are not supported when convert to BsonExpression (Concat(value(LiteDB.Tests.Issues.Issue2779_Tests+<>c__DisplayClass6_0).part, \".\", value(LiteDB.Tests.Issues.Issue2779_Tests+<>c__DisplayClass6_0).other))."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2779_Tests.Captured_method_calls_match_CLR_and_follow_changed_values(operation: \"distinct\")",
+          "failure_first_line": "System.NotSupportedException : Method Distinct() in Enumerable are not supported when convert to BsonExpression (value(LiteDB.Tests.Issues.Issue2779_Tests+<>c__DisplayClass6_0).names.Distinct())."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2779_Tests.Captured_method_calls_match_CLR_and_follow_changed_values(operation: \"format\")",
+          "failure_first_line": "System.NotImplementedException : The method or operation is not implemented."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2779_Tests.Captured_method_calls_match_CLR_and_follow_changed_values(operation: \"join\")",
+          "failure_first_line": "System.NotImplementedException : The method or operation is not implemented."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2779_Tests.Original_selectmany_distinct_contains_is_one_parameter_and_matches_id_ledger",
+          "failure_first_line": "System.NotSupportedException : Method Distinct() in Enumerable are not supported when convert to BsonExpression (value(LiteDB.Tests.Issues.Issue2779_Tests+<>c__DisplayClass3_0).allstocks.SelectMany(x => x.ContactIds).Distinct())."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2779_Tests.Generic_client_evaluation_and_parameter_dependent_resolver_calls_keep_their_boundaries"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2779_Tests.Precomputed_contains_control_uses_the_same_parameter_and_id_ledger"
+        }
+      ]
+    },
+    "2205": {
+      "inventory_issue": 2205,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2205_Tests.cs": "f2c673cb6d7b0038213a4c6a0e835afb3762d74e"
+      },
+      "filter": "FullyQualifiedName~Issue2205_Tests",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Document/Expression/Parser/BsonExpressionParser.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2205_Tests.Out_of_range_unquoted_numeric_token_matches_the_complete_string_value",
+          "failure_first_line": "System.OverflowException : Value was either too large or too small for an Int64."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2205_Tests.Huge_numeric_looking_strings_are_preserved_when_quoted_or_parameterized"
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Require the complete out-of-range unquoted numeric token to be treated as the exact string value and match only the intended row. Replacing OverflowException with another exception, truncating the token or clamping a numeric value is not an accepted fix. Preserve prefix/suffix distractors, quoted and parameterized string behavior, and review neighboring numeric boundaries and the query-language semantics."
+        ]
+      }
+    },
+    "2871": {
+      "inventory_issue": 2871,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2871_Tests.cs": "85b265f26e6b995a7af450319bd53424c5959cbd",
+        "LiteDB.Tests/Audit2026/AuditFindingSourceGuard_Tests.cs": "ba8272e35980a36ced33dcb4d61661b0061ebeb0",
+        "LiteDB.Tests/Audit2026/audit-source-guards.json": "9f1b6689cb13fe3df06663a8f47fa17d96d0c986"
+      },
+      "filter": "FullyQualifiedName~Issue2871_Tests",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net8.0",
+        "windows-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Mapper/Reflection/Reflection.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2871_Tests.Plain_constructor_dictionary_serializes_cache_hit_reads",
+          "failure_first_line": "Expected hitCompletedWhileHeld to be False because a hit must use the dictionary monitor when production writes use that monitor, but found True."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2871_Tests.Cache_hits_remain_correct_while_unique_constructor_types_force_resizes"
+        }
+      ],
+      "review_requirements": {
+        "lifecycle": [
+          "Establish actual synchronization of constructor-cache reads and writes, including concurrent misses and resizing, from the candidate code. A non-Dictionary cache bypasses the deterministic monitor assertion; changing the cache type alone is not evidence of thread safety. Verify fresh object creation, safe cached factories and interface recursion, and assess concurrent execution using the separate bounded stress control. Record evidence and any limitations.",
+          "Inspect the trusted task source_context_changes observation for source guard 132. A changed three-line source context has behavior_unverified=true and issue_credit=false; it is not synchronization proof. Establish from the actual candidate that constructor-cache reads and writes share appropriate synchronization, and report the concrete evidence independently of the static guard result."
+        ]
+      },
+      "source_context_observations": [
+        {
+          "guard_id": 132,
+          "test_name": "LiteDB.Tests.Audit2026.AuditFindingSourceGuard_Tests.Audited_source_context_must_be_replaced(id: 132, file: \"LiteDB/Client/Mapper/Reflection/Reflection.cs\", line: 39, title: \"Reflection.CreateInstance reads the shared ctor ca\"···, context: \"            {\\n                if (_cacheCtor.TryG\"···)",
+          "source_path": "LiteDB/Client/Mapper/Reflection/Reflection.cs",
+          "frozen_source_blob": "fd66327f298d785da70776bcc8623d061c0f147b",
+          "fixture_blobs": {
+            "LiteDB.Tests/Audit2026/AuditFindingSourceGuard_Tests.cs": "ba8272e35980a36ced33dcb4d61661b0061ebeb0",
+            "LiteDB.Tests/Audit2026/audit-source-guards.json": "9f1b6689cb13fe3df06663a8f47fa17d96d0c986"
+          },
+          "context_sha256": "316e6638a079552c0284ddff9221ad696da899ed86188a00143ffee14c3a368a"
+        }
+      ]
+    },
+    "1159": {
+      "inventory_issue": 1159,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue1159_Tests.cs": "80fa2f0525c2d0507de042bb69af5a7677363892",
+        "LiteDB.Tests/Mapper/CustomMapping_Tests.cs": "50b42d032c84eea7ad4acf7c00da77ec2dfe745f"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue1159_|FullyQualifiedName=LiteDB.Tests.Mapper.CustomMappingCtor_Tests.Custom_Ctor_With_Custom_Id",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Mapper/EntityBuilder.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue1159_Tests.Repeated_ignore_is_idempotent_without_dropping_other_fields",
+          "failure_first_line": "System.ArgumentNullException : Value cannot be null. (Parameter 'Member 'AdjustedSum' not found in type 'Row' (use IncludeFields in BsonMapper)')"
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Mapper.CustomMappingCtor_Tests.Custom_Ctor_With_Custom_Id"
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Make repeated Ignore idempotent while preserving valid Id, Field and DbRef member selection. Do not silently accept invalid member expressions or remove unrelated fields. The independent custom-ID constructor control exercises the shared GetMember helper."
+        ]
+      }
+    },
+    "1224": {
+      "inventory_issue": 1224,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue1224_Tests.cs": "5b88c28910e569bb635d8e08af0da9a5e2478375",
+        "LiteDB.Tests/Issues/Issue2869_Tests.cs": "75f14d75945fe6912b007b9698e8d38898b02413",
+        "LiteDB.Tests/Audit2026/ExpressionAuditRegression_Tests.cs": "44ef3f0f4c6893a3194369f5d163380a09083a21"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue1224_|FullyQualifiedName=LiteDB.Tests.Issues.Issue2869_Tests.Native_numeric_conversions_work_and_non_numeric_values_are_not_coerced|FullyQualifiedName=LiteDB.Tests.Audit2026.ExpressionAuditRegression_Tests.M111_uint64_round_trips_through_bson_value",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Document/BsonValue.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Implicit_UInt64_conversion_preserves_Int64_wire_bits(value: 18364758544493064720, signedBits: -81985529216486896, wireBytes: [16, 50, 84, 118, 152, ···])",
+          "failure_first_line": "Expected encoded.Type to be BsonType.Int64 {value: 3}, but found BsonType.Double {value: 4}."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Implicit_UInt64_conversion_preserves_Int64_wire_bits(value: 18446744073709551615, signedBits: -1, wireBytes: [255, 255, 255, 255, 255, ···])",
+          "failure_first_line": "Expected encoded.Type to be BsonType.Int64 {value: 3}, but found BsonType.Double {value: 4}."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Implicit_UInt64_conversion_preserves_Int64_wire_bits(value: 9007199254740993, signedBits: 9007199254740993, wireBytes: [1, 0, 0, 0, 0, ···])",
+          "failure_first_line": "Expected encoded.Type to be BsonType.Int64 {value: 3}, but found BsonType.Double {value: 4}."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Implicit_UInt64_conversion_preserves_Int64_wire_bits(value: 9223372036854775807, signedBits: 9223372036854775807, wireBytes: [255, 255, 255, 255, 255, ···])",
+          "failure_first_line": "Expected encoded.Type to be BsonType.Int64 {value: 3}, but found BsonType.Double {value: 4}."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Implicit_UInt64_conversion_preserves_Int64_wire_bits(value: 9223372036854775808, signedBits: -9223372036854775808, wireBytes: [0, 0, 0, 0, 0, ···])",
+          "failure_first_line": "Expected encoded.Type to be BsonType.Int64 {value: 3}, but found BsonType.Double {value: 4}."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Independently_authored_Int64_bits_convert_back_to_UInt64(expected: 18364758544493064720, signedBits: -81985529216486896, wireBytes: [16, 50, 84, 118, 152, ···])",
+          "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Int64' to type 'System.UInt64'."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Independently_authored_Int64_bits_convert_back_to_UInt64(expected: 18446744073709551615, signedBits: -1, wireBytes: [255, 255, 255, 255, 255, ···])",
+          "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Int64' to type 'System.UInt64'."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Independently_authored_Int64_bits_convert_back_to_UInt64(expected: 9007199254740993, signedBits: 9007199254740993, wireBytes: [1, 0, 0, 0, 0, ···])",
+          "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Int64' to type 'System.UInt64'."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Independently_authored_Int64_bits_convert_back_to_UInt64(expected: 9223372036854775807, signedBits: 9223372036854775807, wireBytes: [255, 255, 255, 255, 255, ···])",
+          "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Int64' to type 'System.UInt64'."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Independently_authored_Int64_bits_convert_back_to_UInt64(expected: 9223372036854775808, signedBits: -9223372036854775808, wireBytes: [0, 0, 0, 0, 0, ···])",
+          "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Int64' to type 'System.UInt64'."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1224_Tests.Upper_half_UInt64_values_survive_typed_reopen_and_indexed_queries",
+          "failure_first_line": "Assert.NotNull() Failure: Value is null"
+        },
+        {
+          "name": "LiteDB.Tests.Audit2026.ExpressionAuditRegression_Tests.M111_uint64_round_trips_through_bson_value",
+          "failure_first_line": "System.InvalidCastException : Unable to cast object of type 'System.Double' to type 'System.UInt64'."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2869_Tests.Native_numeric_conversions_work_and_non_numeric_values_are_not_coerced"
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Preserve every UInt64 bit through Int64 BSON, including UInt64.MaxValue and the upper half. Keep native numeric conversions and non-numeric rejection. Review indexed equality, Id lookups and the accepted #2869 implicit widening fix.",
+          "M111 is an explicit behavioral co-repair: the original UInt64.MaxValue implicit round trip must pass alongside all eleven #1224 cases. Keep all six permanently accepted #2869 conversion cases passing; source guard111 is not a behavioral target and has no unexpected-pass allowance."
+        ],
+        "compatibility": [
+          "Compare old persisted BSON Double values from implicit ulong conversions with the new Int64 representation, including ulong values that fit Int64. Examine round-trip, index, equality and ordering effects for old and new documents. Inspect existing callers converting those BsonValues to double and interaction with #2869; satisfying IsInt64 alone is insufficient. Report legacy Double precision loss and evidence or limitations.",
+          "Old implicit UInt64 values were stored as BSON Double; precision already lost above 2^53 cannot be recovered. Preserve existing native Double callers and accepted Int32 widening/non-numeric rejection. Check existing double consumers of newly implicit ulong BsonValues, including values within Int64 and the upper half: merely adding a signed Int64-to-double cast may change positive unsigned magnitudes into negative values. Ordinary signed Int64 and unsigned bit patterns are indistinguishable on disk. Require explicit evidence for legacy/new persisted values, index/equality/order behavior and caller compatibility; do not claim exact legacy recovery or accept unresolved behavior changes as nits."
+        ]
+      }
+    },
+    "2858": {
+      "inventory_issue": 2858,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2858_Tests.cs": "f7ac80752a4210eaf5b64d393d3af5d3aaa3e80f",
+        "LiteDB.Tests/Engine/Index_Tests.cs": "16c522c1c4086897a294660c04082e73899a5fb0"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue2858_|FullyQualifiedName=LiteDB.Tests.Engine.Index_Tests.Index_With_Like",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net8.0",
+        "windows-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/SqlParser/SqlParser.cs",
+        "LiteDB/Client/SqlParser/Commands/Insert.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2858_Tests.Lowercase_commit_closes_and_durably_commits_the_transaction_under_Turkish_culture",
+          "failure_first_line": "LiteDB.LiteException : Unexpected token `commit` in position 1."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2858_Tests.Lowercase_insert_auto_id_type_executes_under_Turkish_culture",
+          "failure_first_line": "LiteDB.LiteException : Unexpected token `int` in position 30. Expected `DATE, GUID, INT, LONG, OBJECTID`."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2858_Tests.Lowercase_insert_keyword_executes_under_Turkish_culture",
+          "failure_first_line": "LiteDB.LiteException : Unexpected token `insert` in position 1."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2858_Tests.Lowercase_rebuild_executes_and_persists_its_options_under_Turkish_culture",
+          "failure_first_line": "LiteDB.LiteException : Unexpected token `rebuild` in position 1."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Engine.Index_Tests.Index_With_Like"
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Make SQL keyword and auto-ID dispatch culture-invariant without changing data literals or global CurrentCulture. Preserve uppercase SQL and Turkish lowercase insert, auto-ID, rebuild and commit semantics across NLS/ICU and required runtimes. The separate Index_With_Like control calls LiteDatabase.Execute through the affected SQL parser and checks mixed-case literal results."
+        ],
+        "compatibility": [
+          "Verify rebuilt files preserve requested collation, unique indexes, UserVersion and data; verify lowercase commit durably closes the transaction before reopen. Generic format compatibility does not establish SQL rebuild/commit semantics; inspect the frozen persisted-state checks."
+        ],
+        "lifecycle": [
+          "Preserve transaction ownership and culture restoration. Do not replace parser invariance with global culture mutation or bypass rebuild/commit."
+        ]
+      }
+    },
+    "2864": {
+      "inventory_issue": 2864,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2864_Tests.cs": "4e2ec45ea4d0dbd3a82634b5c980986918fb964e"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue2864_",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Engine/Pages/CollectionPage.cs",
+        "LiteDB/Engine/Pages/IndexPage.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Collection_page_mismatch_reports_the_type_stored_in_the_page(rawType: 0, typeName: \"Empty\")",
+          "failure_first_line": "Expected exception.Message to be \"page type must be collection page, but it is Empty\" with a length of 50, but \"page type must be collection page\" has a length of 33, differs near \"e\" (index 32)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Collection_page_mismatch_reports_the_type_stored_in_the_page(rawType: 1, typeName: \"Header\")",
+          "failure_first_line": "Expected exception.Message to be \"page type must be collection page, but it is Header\" with a length of 51, but \"page type must be collection page\" has a length of 33, differs near \"e\" (index 32)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Collection_page_mismatch_reports_the_type_stored_in_the_page(rawType: 127, typeName: \"127\")",
+          "failure_first_line": "Expected exception.Message to be \"page type must be collection page, but it is 127\" with a length of 48, but \"page type must be collection page\" has a length of 33, differs near \"e\" (index 32)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Collection_page_mismatch_reports_the_type_stored_in_the_page(rawType: 3, typeName: \"Index\")",
+          "failure_first_line": "Expected exception.Message to be \"page type must be collection page, but it is Index\" with a length of 50, but \"page type must be collection page\" has a length of 33, differs near \"e\" (index 32)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Collection_page_mismatch_reports_the_type_stored_in_the_page(rawType: 4, typeName: \"Data\")",
+          "failure_first_line": "Expected exception.Message to be \"page type must be collection page, but it is Data\" with a length of 49, but \"page type must be collection page\" has a length of 33, differs near \"e\" (index 32)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Collection_page_mismatch_reports_the_type_stored_in_the_page(rawType: 5, typeName: \"VectorIndex\")",
+          "failure_first_line": "Expected exception.Message to be \"page type must be collection page, but it is VectorIndex\" with a length of 56, but \"page type must be collection page\" has a length of 33, differs near \"e\" (index 32)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Index_page_mismatch_reports_the_type_stored_in_the_page(rawType: 0, typeName: \"Empty\")",
+          "failure_first_line": "Expected exception.Message to be \"page type must be index page, but it is Empty\" with a length of 45, but \"page type must be index page\" has a length of 28, differs near \"e\" (index 27)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Index_page_mismatch_reports_the_type_stored_in_the_page(rawType: 1, typeName: \"Header\")",
+          "failure_first_line": "Expected exception.Message to be \"page type must be index page, but it is Header\" with a length of 46, but \"page type must be index page\" has a length of 28, differs near \"e\" (index 27)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Index_page_mismatch_reports_the_type_stored_in_the_page(rawType: 127, typeName: \"127\")",
+          "failure_first_line": "Expected exception.Message to be \"page type must be index page, but it is 127\" with a length of 43, but \"page type must be index page\" has a length of 28, differs near \"e\" (index 27)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Index_page_mismatch_reports_the_type_stored_in_the_page(rawType: 2, typeName: \"Collection\")",
+          "failure_first_line": "Expected exception.Message to be \"page type must be index page, but it is Collection\" with a length of 50, but \"page type must be index page\" has a length of 28, differs near \"e\" (index 27)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Index_page_mismatch_reports_the_type_stored_in_the_page(rawType: 4, typeName: \"Data\")",
+          "failure_first_line": "Expected exception.Message to be \"page type must be index page, but it is Data\" with a length of 44, but \"page type must be index page\" has a length of 28, differs near \"e\" (index 27)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Index_page_mismatch_reports_the_type_stored_in_the_page(rawType: 5, typeName: \"VectorIndex\")",
+          "failure_first_line": "Expected exception.Message to be \"page type must be index page, but it is VectorIndex\" with a length of 51, but \"page type must be index page\" has a length of 28, differs near \"e\" (index 27)."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Matching_page_type_is_accepted_and_preserves_the_raw_header(rawType: 2)"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2864_Tests.Matching_page_type_is_accepted_and_preserves_the_raw_header(rawType: 3)"
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Report the actual stored page type including unknown byte 127; preserve INVALID_DATAFILE_STATE and the existing validation boundary. Never accept a mismatched page or substitute a valid enum type."
+        ],
+        "compatibility": [
+          "Preserve valid page headers and persisted bytes. The matching-page controls must preserve the raw header; diagnostic changes must not alter storage acceptance or file-format semantics."
+        ]
+      }
+    },
+    "2769": {
+      "inventory_issue": 2769,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2769_Tests.cs": "a7b1da15a2d52d1a32195efb326d0d4919678652"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue2769_",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Mapper/BsonMapper.Serialize.cs",
+        "LiteDB/Client/Mapper/BsonMapper.Deserialize.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: DistinctHighBitValue, expected: -4611686018427387862)",
+          "failure_first_line": "System.OverflowException : Value was either too large or too small for an Int32."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: FirstHighBitValue, expected: -9223372036854775807)",
+          "failure_first_line": "System.OverflowException : Value was either too large or too small for an Int32."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: Maximum, expected: -1)",
+          "failure_first_line": "System.OverflowException : Value was either too large or too small for an Int32."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: Value, expected: -9007199254740993)",
+          "failure_first_line": "System.OverflowException : Value was either too large or too small for an Int32."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: Value, expected: 4000000000)",
+          "failure_first_line": "System.OverflowException : Value was either too large or too small for an Int32."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: Value, expected: 9007199254740993)",
+          "failure_first_line": "System.OverflowException : Value was either too large or too small for an Int32."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.UInt64_enum_high_bit_values_survive_mapping_reopen_and_indexed_queries",
+          "failure_first_line": "System.OverflowException : Value was either too large or too small for an Int32."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: Value, expected: -127)"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: Value, expected: -2000000000)"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: Value, expected: -32000)"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: Value, expected: 254)"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2769_Tests.Every_enum_backing_type_preserves_its_integer_value(value: Value, expected: 65000)"
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Preserve all signed and unsigned enum backing types, including UInt64 high bits and distinct values, without Double conversion or Int32 truncation. Keep independently authored BSON decoding, typed indexed equality and all five small-integer controls. Review neighboring #1224 UInt64 behavior."
+        ],
+        "compatibility": [
+          "Assess existing EnumAsInteger Int32 documents alongside new Int64 values and EnumAsInteger=false string data. Preserve enum identity, index lookup and reopen. Explain signed-bit representation of upper-half UInt64 and ordering effects; generic file-format compatibility is insufficient."
+        ]
+      }
+    },
+    "2225": {
+      "inventory_issue": 2225,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2225_Tests.cs": "a9ac8b9776b901b060e1c850b4c87cde2726acf2",
+        "LiteDB.Tests/Mapper/CustomMappingCtor_Tests.cs": "3695c48e8d999db66b4c5a1dd89a447da750baee"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue2225_|FullyQualifiedName=LiteDB.Tests.Mapper.CustomMapping_Tests.Custom_Ctor|FullyQualifiedName=LiteDB.Tests.Mapper.CustomMapping_Tests.ParameterLess_Ctor",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net8.0",
+        "windows-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Mapper/Reflection/Reflection.Expression.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2225_Tests.Inherited_private_id_setter_preserves_identity_with_parameterless_constructor",
+          "failure_first_line": "Expected loaded.Id to be {85ddfae2-67ca-4117-9f9a-7527d16972c0}, but found {00000000-0000-0000-0000-000000000000}."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Mapper.CustomMapping_Tests.Custom_Ctor"
+        },
+        {
+          "name": "LiteDB.Tests.Mapper.CustomMapping_Tests.ParameterLess_Ctor"
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Restore inherited private Id setters using the correct declaring member while preserving ordinary parameterless and constructor-only mapping. The fixed Guid must survive reopen, update and FindById without inserting another record."
+        ],
+        "compatibility": [
+          "Inspect existing inherited-ID documents, read-only properties and constructor mapping. Do not broadly bypass setters or expand non-public access. Compare expression/reflection behavior on required Windows/Linux runtimes and state evidence or limitations."
+        ]
+      }
+    },
+    "2322": {
+      "inventory_issue": 2322,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2322_Tests.cs": "96f85eb02a876deaf1d9c663948de0dfa5c3daa5",
+        "LiteDB.Tests/Mapper/Enum_Tests.cs": "4d4fbab81ad8ba9060c7da5bffc451a6ea8e54c0"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue2322_|FullyQualifiedName=LiteDB.Tests.Mapper.Enum_Tests.Enum_Convert_Into_Linq_Query",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2322_Tests.Generic_enum_Equals_matches_original_rows_in_both_storage_modes(asInteger: False)",
+          "failure_first_line": "System.NotSupportedException : Method Equals not available to convert to BsonExpression (Convert(x, IRow`1).Kind.Equals(Convert(value(LiteDB.Tests.Issues.Issue2322_Tests+<>c__DisplayClass4_0`2[LiteDB.Tests.Issues.Issue2322_Tests+Row,LiteDB.Tests.Issues.Issue2322_Tests+Kind]).kind, Object)))."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2322_Tests.Generic_enum_Equals_matches_original_rows_in_both_storage_modes(asInteger: True)",
+          "failure_first_line": "System.NotSupportedException : Method Equals not available to convert to BsonExpression (Convert(x, IRow`1).Kind.Equals(Convert(value(LiteDB.Tests.Issues.Issue2322_Tests+<>c__DisplayClass4_0`2[LiteDB.Tests.Issues.Issue2322_Tests+Row,LiteDB.Tests.Issues.Issue2322_Tests+Kind]).kind, Object)))."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Mapper.Enum_Tests.Enum_Convert_Into_Linq_Query"
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Support generic enum Equals through IRow<K> in both integer and string storage modes, including unknown enum values and nonmatching rows. Preserve ordinary enum LINQ and row-dependent/client-evaluation boundaries. Review prior #2770/#2779 changes; report an already-green issue instead of manufacturing a baseline failure."
+        ]
+      }
+    },
+    "2873": {
+      "inventory_issue": 2873,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2873_Tests.cs": "6112d1742227cb16cdb28cb55e89b3e4a316cbc8",
+        "LiteDB.Tests/Issues/Issue2873_ReportedModelTests.cs": "f354acc80bf3df2a1c2407df424719d729b3c5d5"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue2873_",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Mapper/EntityBuilder.cs",
+        "LiteDB/Client/Mapper/EntityMapper.cs",
+        "LiteDB/Client/Mapper/BsonMapper.Deserialize.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2873_ReportedModelTests.Reported_Enum_model_survives_custom_construction_and_independent_reopen",
+          "failure_first_line": "Expected failure to be <null> because the reported model must not fail with String-to-Enum InvalidCastException after its factory succeeds, but found System.InvalidCastException: Unable to cast object of type 'System.String' to type 'System.Enum'."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2873_Tests.Explicit_constructor_only_mapping_owns_state_without_running_mapped_setters",
+          "failure_first_line": "Expected configuredApi not to be <null> because issue #2873 requires an explicit CtorOnly(factory) or Ctor(factory, populateMembers: false) API."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2873_Tests.Existing_ctor_mapping_keeps_populating_mapped_members_for_compatibility"
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Provide explicit CtorOnly(factory) or Ctor(factory, populateMembers: false) opt-in. Preserve constructor-owned normalized/validated state and factory result identity without running mapped setters. Include the separately frozen reported System.Enum model and independent reopen test; exposing a method alone is insufficient."
+        ],
+        "compatibility": [
+          "The existing one-argument Ctor(factory) must keep post-construction member population. Preserve old documents, init-only members, DbRef and custom DeserializeObject behavior; assess prior #2802 virtual-mapping changes and legacy constructor callers."
+        ],
+        "lifecycle": [
+          "Preserve mapper initialization, entity configuration isolation, factory invocation count and concurrent readers. Do not globally disable member population or swallow factory failures."
+        ]
+      }
+    },
+    "2746": {
+      "inventory_issue": 2746,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2746_Tests.cs": "3b4d3213b45bb1fd1a2ab9157f2a3463c016da42"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue2746_",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Engine/Services/CollectionService.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2746_Tests.Initial_digit_error_explains_the_position_rule_and_preserves_committed_data",
+          "failure_first_line": "Expected failure.Message to match regex \"(?i)(?:(?:cannot|can't|must not|may not)\\s+(?:start|begin).{0,40}(?:digit|number|0-9)|(?:must|should)\\s+(?:start|begin).{0,40}(?:letter|alphabetic)|(?:first|initial)\\s+character.{0,30}(?:cannot|must not|may not).{0,30}(?:digit|number|0-9))\" because the diagnostic must explain the initial-digit restriction, not only list allowed characters, but \"Invalid collection name '2e4e2069_da7c_4dbd_8c11_a5ac31041079': Use only [a-Z$_]\" does not match."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2746_Tests.Collection_name_contract_distinguishes_initial_digits_from_later_digits(name: \"2e4e2069_da7c_4dbd_8c11_a5ac31041079\", valid: False)"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2746_Tests.Collection_name_contract_distinguishes_initial_digits_from_later_digits(name: \"_2\", valid: True)"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2746_Tests.Collection_name_contract_distinguishes_initial_digits_from_later_digits(name: \"a2e4e2069_da7c_4dbd_8c11_a5ac31041079\", valid: True)"
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Preserve the collection-name grammar, INVALID_COLLECTION_NAME error code and rejected-write boundary. Explain the initial-digit restriction without accepting previously invalid names or rejecting valid later digits."
+        ],
+        "compatibility": [
+          "Preserve committed documents and subsequent valid writes after invalid collection creation, including checkpoint and reopen. Do not change file format or collection naming acceptance to satisfy the diagnostic."
+        ]
+      }
+    },
+    "2807": {
+      "inventory_issue": 2807,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2807_Tests.cs": "bf5e8414ada777029c93c93ee07bbd2c0908e754",
+        "LiteDB.Tests/Query/QueryApi_Tests.cs": "9cef4afa20be0ef4403567e86e4e42c235a2ae26"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue2807_|FullyQualifiedName=LiteDB.Tests.QueryTest.QueryApi_Tests.Query_And|FullyQualifiedName=LiteDB.Tests.QueryTest.QueryApi_Tests.Query_StartsWith",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Structures/Query.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"Between\")",
+          "failure_first_line": "Expected first.Source to be \"$.value BETWEEN \"b\" AND \"bz\"\" because different values must not require recompilation, but \"$.value BETWEEN \"a\" AND \"az\"\" differs near \"a\" \" (index 17)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"Contains\")",
+          "failure_first_line": "Expected first.Source to be \"$.value LIKE \"%b%\"\" because different values must not require recompilation, but \"$.value LIKE \"%a%\"\" differs near \"a%\"\" (index 15)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"EQ\")",
+          "failure_first_line": "Expected first.Source to be \"$.value=\"b\"\" because different values must not require recompilation, but \"$.value=\"a\"\" differs near \"a\"\" (index 9)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"EndsWith\")",
+          "failure_first_line": "Expected first.Source to be \"$.value LIKE \"%b\"\" because different values must not require recompilation, but \"$.value LIKE \"%a\"\" differs near \"a\"\" (index 15)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"GT\")",
+          "failure_first_line": "Expected first.Source to be \"$.value>\"b\"\" because different values must not require recompilation, but \"$.value>\"a\"\" differs near \"a\"\" (index 9)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"GTE\")",
+          "failure_first_line": "Expected first.Source to be \"$.value>=\"b\"\" because different values must not require recompilation, but \"$.value>=\"a\"\" differs near \"a\"\" (index 10)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"In\")",
+          "failure_first_line": "Expected first.Source to be \"$.value IN [\"b\",\"ba\"]\" because different values must not require recompilation, but \"$.value IN [\"a\",\"aa\"]\" differs near \"a\",\" (index 13)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"LT\")",
+          "failure_first_line": "Expected first.Source to be \"$.value<\"b\"\" because different values must not require recompilation, but \"$.value<\"a\"\" differs near \"a\"\" (index 9)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"LTE\")",
+          "failure_first_line": "Expected first.Source to be \"$.value<=\"b\"\" because different values must not require recompilation, but \"$.value<=\"a\"\" differs near \"a\"\" (index 10)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"Not\")",
+          "failure_first_line": "Expected first.Source to be \"$.value!=\"b\"\" because different values must not require recompilation, but \"$.value!=\"a\"\" differs near \"a\"\" (index 10)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"StartsWith\")",
+          "failure_first_line": "Expected first.Source to be \"$.value LIKE \"b%\"\" because different values must not require recompilation, but \"$.value LIKE \"a%\"\" differs near \"a%\"\" (index 14)."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.QueryTest.QueryApi_Tests.Query_And"
+        },
+        {
+          "name": "LiteDB.Tests.QueryTest.QueryApi_Tests.Query_StartsWith"
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Parameterize all eleven Query helpers while preserving independent values, operation boundaries and existing LIKE wildcard/literal semantics. Compare Query.And/Or/Not composition and parameter-name collisions; equal expression source must not cause different queries to share values. The separate Query_And and Query_StartsWith controls execute actual database queries against in-memory expected results."
+        ],
+        "lifecycle": [
+          "Review repeated and concurrent query use, cache reuse and parameter ownership. Do not introduce a shared mutable parameter dictionary or retain values from a previous expression."
+        ]
+      }
+    },
+    "1829": {
+      "inventory_issue": 1829,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue1829_Tests.cs": "dddd92292528613e080fa8eb777f2406267e8c2c"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue1829_",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue1829_Tests.Predicate_builder_or_keeps_matches_from_each_independent_predicate(idPredicateFirst: True)",
+          "failure_first_line": "Expected count to be 3, but found 1."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1829_Tests.Predicate_builder_or_matches_direct_linq_in_both_operand_orders(falseFirst: True)",
+          "failure_first_line": "Expected count to be 2, but found 0 (difference of -2)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1829_Tests.Predicate_builder_or_preserves_same_named_nested_parameter_scopes(falseFirst: True)",
+          "failure_first_line": "Expected count to be 2, but found 0 (difference of -2)."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue1829_Tests.Predicate_builder_or_keeps_matches_from_each_independent_predicate(idPredicateFirst: False)"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1829_Tests.Predicate_builder_or_matches_direct_linq_in_both_operand_orders(falseFirst: False)"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1829_Tests.Predicate_builder_or_preserves_same_named_nested_parameter_scopes(falseFirst: False)"
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Preserve invocation argument binding by parameter identity, not parameter name. Both operand orders, independent predicates and same-named nested scopes must return the hard-coded IDs, with Count equal to enumeration. Do not rewrite the frozen PredicateBuilder helper or coerce all nested parameters into the root scope. Review interaction with #2770/#2779/#2322 in LinqExpressionVisitor and keep their accepted cases passing."
+        ]
+      }
+    },
+    "1444": {
+      "inventory_issue": 1444,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue1444_Tests.cs": "322c10d4a4c2aa51bafb0fd6a18f0bb7fe227a5f"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue1444_",
+      "environments": [
+        "linux-x64-net8.0",
+        "windows-x64-net8.0",
+        "macos-x64-net8.0",
+        "macos-arm64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net10.0",
+        "macos-x64-net10.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Document/ObjectId.cs"
+      ],
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue1444_Tests.Comparison_follows_the_unsigned_timestamp_then_the_remaining_bytes(earlierHex: \"7fffffffffffffffffffffff\", laterHex: \"800000000000000000000000\")",
+          "failure_first_line": "Expected earlier.CompareTo(later) to be less than 0, but found 1 (difference of 1)."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1444_Tests.Primary_index_round_trips_and_orders_the_full_unsigned_timestamp_range",
+          "failure_first_line": "Expected actual to be equal to {000000001122334455667788, 7fffffff1122334455667788, 800000001122334455667788, ffffffff1122334455667788} because FindAll must follow the ObjectId primary-index order, but {800000001122334455667788, ffffffff1122334455667788, 000000001122334455667788, 7fffffff1122334455667788} differs at index 0."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1444_Tests.Timestamp_bits_round_trip_and_creation_time_uses_unsigned_seconds(expectedBytes: [128, 0, 0, 0, 17, ···], expectedHex: \"800000001122334455667788\", expectedTimestamp: 2147483648, expectedCreationTime: 2038-01-19T03:14:08.0000000Z)",
+          "failure_first_line": "Expected fromBytes.CreationTime to be <2038-01-19 03:14:08>, but found <1901-12-13 20:45:52>."
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1444_Tests.Timestamp_bits_round_trip_and_creation_time_uses_unsigned_seconds(expectedBytes: [255, 255, 255, 255, 17, ···], expectedHex: \"ffffffff1122334455667788\", expectedTimestamp: 4294967295, expectedCreationTime: 2106-02-07T06:28:15.0000000Z)",
+          "failure_first_line": "Expected fromBytes.CreationTime to be <2106-02-07 06:28:15>, but found <1969-12-31 23:59:59>."
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue1444_Tests.Comparison_follows_the_unsigned_timestamp_then_the_remaining_bytes(earlierHex: \"00000000ffffffffffffffff\", laterHex: \"7fffffff0000000000000000\")"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1444_Tests.Comparison_follows_the_unsigned_timestamp_then_the_remaining_bytes(earlierHex: \"800000000000000000000000\", laterHex: \"800000000000000000000001\")"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1444_Tests.Comparison_follows_the_unsigned_timestamp_then_the_remaining_bytes(earlierHex: \"80000000ffffffffffffffff\", laterHex: \"ffffffff0000000000000000\")"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1444_Tests.Timestamp_bits_round_trip_and_creation_time_uses_unsigned_seconds(expectedBytes: [0, 0, 0, 0, 17, ···], expectedHex: \"000000001122334455667788\", expectedTimestamp: 0, expectedCreationTime: 1970-01-01T00:00:00.0000000Z)"
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue1444_Tests.Timestamp_bits_round_trip_and_creation_time_uses_unsigned_seconds(expectedBytes: [127, 255, 255, 255, 17, ···], expectedHex: \"7fffffff1122334455667788\", expectedTimestamp: 2147483647, expectedCreationTime: 2038-01-19T03:14:07.0000000Z)"
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Interpret the ObjectId timestamp bits as unsigned seconds for CreationTime and ordering while preserving the remaining-byte tie break, equality, JSON and 12-byte wire representation. Preserve accepted #2874 constructor window validation."
+        ],
+        "compatibility": [
+          "Examine old ObjectId indexes written with signed timestamp ordering, especially mixed pre/post-2038 keys: lookup, range traversal and insert behavior under a new comparer may require rebuild or migration. The frozen primary-index test creates a fresh database and does not prove old indexes are compatible; generic vector compatibility does not exercise this ordering. Supply evidence and explicitly report unresolved compatibility limitations. Preserve the public Timestamp API type/ABI and raw timestamp bits unless an independently reviewed API change is authorized."
+        ]
+      }
+    },
+    "2860": {
+      "inventory_issue": 2860,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2860_Tests.cs": "227f97a4449aec740cf654397327b9205b69a0fe"
+      },
+      "filter": "FullyQualifiedName~Issue2860_Tests",
+      "environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net8.0",
+        "windows-x64-net10.0",
+        "macos-arm64-net8.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net8.0",
+        "windows-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Mapper/BsonMapper.cs",
+        "LiteDB/Utils/LiteException.cs"
+      ],
+      "focused_baseline": {
+        "schema_version": 1,
+        "source_run_id": 34988724926,
+        "source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+        "repeat_candidate_sha": "79e5c69cb9e6a1bcc08e919c2993aaa5401148b7",
+        "workflow_sha": "7629236e73bde318e934509244c3e61ef820d8db",
+        "failure_normalization_sha256": "d4c510bf1504ec8298e0f231548fde8e67a929f7a3ccca9c6ec21a1a89571a36",
+        "artifacts": {
+          "linux-x64-net8.0": {
+            "artifact_id": 10405370121,
+            "artifact_name": "bugfix-check-ubuntu-latest-net8.0",
+            "baseline_trx_sha256": "a4d3b367c661fa8768fbb8668d4a8827713618fa3b488f15f02ca1607c8bd56b",
+            "repeat_candidate_trx_sha256": "167eb02e1001d29571ed81d0cae3efae66516b079b78169b2445d765d58f4d88"
+          },
+          "linux-x64-net10.0": {
+            "artifact_id": 10405505060,
+            "artifact_name": "bugfix-check-ubuntu-latest-net10.0",
+            "baseline_trx_sha256": "d4d7854e6d5e036da9d1ad92ac4f5aebe0a23b8033fe5a50f9793dcf18cbe423",
+            "repeat_candidate_trx_sha256": "06e8fd06f3069730ba19b93580856134a5514ae5b6d88862e9436499f8d8849b"
+          },
+          "windows-x64-net8.0": {
+            "artifact_id": 10404073794,
+            "artifact_name": "bugfix-check-windows-latest-net8.0",
+            "baseline_trx_sha256": "931cbd570f47bf6a376f11dde76c0ecf1399f9d742acf0f90eeb9463d781bdf0",
+            "repeat_candidate_trx_sha256": "341cb8549c8b485af5375dc4e1260016406570c25b34b8005a1b51cb62af57c6"
+          },
+          "windows-x64-net10.0": {
+            "artifact_id": 10404574219,
+            "artifact_name": "bugfix-check-windows-latest-net10.0",
+            "baseline_trx_sha256": "789212a8598feb82270173bbc4b6e152682e4b1177a51ab6f7ad67d1dcc0c08e",
+            "repeat_candidate_trx_sha256": "9d6ab521cbee8ca0390c9b1d54c7bb11a415ad5f1ac8b43972d09f632e09bf42"
+          },
+          "macos-arm64-net8.0": {
+            "artifact_id": 10405111338,
+            "artifact_name": "bugfix-check-macos-latest-net8.0",
+            "baseline_trx_sha256": "c069b53a2512adcd39c9ecf0bbf1d1329ff1371fa21228dbf4de3923340ee719",
+            "repeat_candidate_trx_sha256": "0bba29b9d0a80d9bb804d3b9e5d3228468d0a6d900c7004201c54981391a18dd"
+          },
+          "macos-arm64-net10.0": {
+            "artifact_id": 10405450249,
+            "artifact_name": "bugfix-check-macos-latest-net10.0",
+            "baseline_trx_sha256": "487ac255e77785b858569e7dbbd93a1e5422db470aae03c8c0d71741709b4e08",
+            "repeat_candidate_trx_sha256": "0e97ba85d8c32b48def91f249511913e247a5dd50fd588a1829f6b09d47451df"
+          }
+        },
+        "control_gaps": [
+          {
+            "component": "max-depth-diagnostic",
+            "status": "control_gap",
+            "reason": "The frozen source has two exact red namespace-disambiguation cases but no independently green max-depth control; URI controls do not count as diagnostic controls."
+          }
+        ]
+      },
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Database_round_trip_preserves_Uri_text_and_kind(text: \"../img/a.png?size=2#preview\", isAbsolute: False)",
+          "test_id": "5a4b95f1-ed5a-bdd6-d285-a4c63c05e2fb",
+          "component": "uri-read",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            }
+          },
+          "failure_classifications": {
+            "expected": {
+              "failure_first_line": "System.UriFormatException : Invalid URI: The format of the URI could not be determined.",
+              "sha256": "ad7144e5e7904c9181c299d0a98d48de3edc7443a0508849547cc9d2c0509281"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Database_round_trip_preserves_Uri_text_and_kind(text: \"/a/b\", isAbsolute: False)",
+          "test_id": "3f4b1bca-3bf4-f028-0226-01d45c01f615",
+          "component": "uri-read",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "windows"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "windows"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            }
+          },
+          "failure_classifications": {
+            "unix": {
+              "failure_first_line": "Expected actual.IsAbsoluteUri to be False, but found True.",
+              "sha256": "61ecb81438af2dd2ba1a6ae9ccfb3d820c5d5ac0bc595a95d27d158db99e93d0"
+            },
+            "windows": {
+              "failure_first_line": "System.UriFormatException : Invalid URI: The format of the URI could not be determined.",
+              "sha256": "ad7144e5e7904c9181c299d0a98d48de3edc7443a0508849547cc9d2c0509281"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Database_round_trip_preserves_Uri_text_and_kind(text: \"img/a.png\", isAbsolute: False)",
+          "test_id": "f73a709c-a0b6-25e2-8f74-414c3378908d",
+          "component": "uri-read",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            }
+          },
+          "failure_classifications": {
+            "expected": {
+              "failure_first_line": "System.UriFormatException : Invalid URI: The format of the URI could not be determined.",
+              "sha256": "ad7144e5e7904c9181c299d0a98d48de3edc7443a0508849547cc9d2c0509281"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Mapper_reads_independently_authored_Uri_strings_with_their_kind(text: \"../img/a.png?size=2#preview\", isAbsolute: False)",
+          "test_id": "a6e12cd4-cd98-993a-bb7d-ddb3587f1d14",
+          "component": "uri-read",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            }
+          },
+          "failure_classifications": {
+            "expected": {
+              "failure_first_line": "System.UriFormatException : Invalid URI: The format of the URI could not be determined.",
+              "sha256": "ad7144e5e7904c9181c299d0a98d48de3edc7443a0508849547cc9d2c0509281"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Mapper_reads_independently_authored_Uri_strings_with_their_kind(text: \"/a/b\", isAbsolute: False)",
+          "test_id": "183009ba-ebfe-5344-1e20-acac164ea6a0",
+          "component": "uri-read",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "windows"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "windows"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            }
+          },
+          "failure_classifications": {
+            "unix": {
+              "failure_first_line": "Expected actual.IsAbsoluteUri to be False, but found True.",
+              "sha256": "61ecb81438af2dd2ba1a6ae9ccfb3d820c5d5ac0bc595a95d27d158db99e93d0"
+            },
+            "windows": {
+              "failure_first_line": "System.UriFormatException : Invalid URI: The format of the URI could not be determined.",
+              "sha256": "ad7144e5e7904c9181c299d0a98d48de3edc7443a0508849547cc9d2c0509281"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Mapper_reads_independently_authored_Uri_strings_with_their_kind(text: \"img/a.png\", isAbsolute: False)",
+          "test_id": "70462219-3d49-0a29-d7f0-46ec0a62be50",
+          "component": "uri-read",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            }
+          },
+          "failure_classifications": {
+            "expected": {
+              "failure_first_line": "System.UriFormatException : Invalid URI: The format of the URI could not be determined.",
+              "sha256": "ad7144e5e7904c9181c299d0a98d48de3edc7443a0508849547cc9d2c0509281"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Max_depth_error_disambiguates_types_with_the_same_simple_name(value: DepthEnvelope`1 { Child = Node { } }, nestedType: typeof(LiteDB.Tests.Issues.Issue2860_Tests+FirstDomain+Node))",
+          "test_id": "baba02e8-4d3a-3425-ec29-2bca0db4437d",
+          "component": "max-depth-diagnostic",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            }
+          },
+          "failure_classifications": {
+            "expected": {
+              "failure_first_line": "Expected exception.Message to be \"Document has more than 1 nested documents in 'LiteDB.Tests.Issues.Issue2860_Tests+FirstDomain+Node'. Check for circular references (use DbRef).\" with a length of 143, but \"Document has more than 1 nested documents in 'Node'. Check for circular references (use DbRef).\" has a length of 95, differs near \"Nod\" (index 46).",
+              "sha256": "48ede9085b492d0542229dadfa3ea08f7eae5d8978d9a96825d2331ceb350afd"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Max_depth_error_disambiguates_types_with_the_same_simple_name(value: DepthEnvelope`1 { Child = Node { } }, nestedType: typeof(LiteDB.Tests.Issues.Issue2860_Tests+SecondDomain+Node))",
+          "test_id": "baba02e8-4d3a-3425-ec29-2bca0db4437d",
+          "component": "max-depth-diagnostic",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "expected"
+            }
+          },
+          "failure_classifications": {
+            "expected": {
+              "failure_first_line": "Expected exception.Message to be \"Document has more than 1 nested documents in 'LiteDB.Tests.Issues.Issue2860_Tests+SecondDomain+Node'. Check for circular references (use DbRef).\" with a length of 144, but \"Document has more than 1 nested documents in 'Node'. Check for circular references (use DbRef).\" has a length of 95, differs near \"Nod\" (index 46).",
+              "sha256": "ce0aade983dc108808aa2354d4d394d1844194798063e3df228c6d3396bcacf4"
+            }
+          }
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Database_round_trip_preserves_Uri_text_and_kind(text: \"file:///a/b\", isAbsolute: True)",
+          "test_id": "07404c36-780c-b498-270b-7a9d2d3ac1dc",
+          "component": "uri-read",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Passed"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Database_round_trip_preserves_Uri_text_and_kind(text: \"https://example.test/img/a.png?size=2#preview\", isAbsolute: True)",
+          "test_id": "614cc074-4b74-88c2-bd9e-d7fe38d7dcf6",
+          "component": "uri-read",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Passed"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Database_round_trip_preserves_Uri_text_and_kind(text: \"urn:example:animal:ferret:nose\", isAbsolute: True)",
+          "test_id": "489ff75b-74ab-1a0e-192e-6c35c9aa4f53",
+          "component": "uri-read",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Passed"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Mapper_reads_independently_authored_Uri_strings_with_their_kind(text: \"file:///a/b\", isAbsolute: True)",
+          "test_id": "bac8e973-3414-2586-1ff0-8f8278d64406",
+          "component": "uri-read",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Passed"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Mapper_reads_independently_authored_Uri_strings_with_their_kind(text: \"https://example.test/img/a.png?size=2#preview\", isAbsolute: True)",
+          "test_id": "95497139-4e91-5673-d1c4-4fbe09b971cb",
+          "component": "uri-read",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Passed"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2860_Tests.Mapper_reads_independently_authored_Uri_strings_with_their_kind(text: \"urn:example:animal:ferret:nose\", isAbsolute: True)",
+          "test_id": "3789aa9c-a295-9169-1256-060f60c852a3",
+          "component": "uri-read",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Passed"
+            }
+          }
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Preserve relative and absolute URI text and kind on every required platform, including the OS-dependent /a/b baseline, and report exact max-depth type full names while retaining DOCUMENT_MAX_DEPTH. Treat URI and diagnostic components as one atomic acceptance contract."
+        ]
+      }
+    },
+    "2870": {
+      "inventory_issue": 2870,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2870_Tests.cs": "b09cc10649079b70ee29dbbf24a72e290fcc9483"
+      },
+      "filter": "FullyQualifiedName~Issue2870_Tests",
+      "environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net8.0",
+        "windows-x64-net10.0",
+        "macos-arm64-net8.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net8.0",
+        "windows-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Engine/Query/QueryExecutor.cs",
+        "LiteDB/Document/DataReader/BsonDataReader.cs",
+        "LiteDB/Utils/Extensions/IOExceptionExtensions.cs",
+        "LiteDB/Engine/FileReader/FileReaderV8.cs"
+      ],
+      "focused_baseline": {
+        "schema_version": 1,
+        "source_run_id": 34988724926,
+        "source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+        "repeat_candidate_sha": "79e5c69cb9e6a1bcc08e919c2993aaa5401148b7",
+        "workflow_sha": "7629236e73bde318e934509244c3e61ef820d8db",
+        "failure_normalization_sha256": "d4c510bf1504ec8298e0f231548fde8e67a929f7a3ccca9c6ec21a1a89571a36",
+        "artifacts": {
+          "linux-x64-net8.0": {
+            "artifact_id": 10405370121,
+            "artifact_name": "bugfix-check-ubuntu-latest-net8.0",
+            "baseline_trx_sha256": "a4d3b367c661fa8768fbb8668d4a8827713618fa3b488f15f02ca1607c8bd56b",
+            "repeat_candidate_trx_sha256": "167eb02e1001d29571ed81d0cae3efae66516b079b78169b2445d765d58f4d88"
+          },
+          "linux-x64-net10.0": {
+            "artifact_id": 10405505060,
+            "artifact_name": "bugfix-check-ubuntu-latest-net10.0",
+            "baseline_trx_sha256": "d4d7854e6d5e036da9d1ad92ac4f5aebe0a23b8033fe5a50f9793dcf18cbe423",
+            "repeat_candidate_trx_sha256": "06e8fd06f3069730ba19b93580856134a5514ae5b6d88862e9436499f8d8849b"
+          },
+          "windows-x64-net8.0": {
+            "artifact_id": 10404073794,
+            "artifact_name": "bugfix-check-windows-latest-net8.0",
+            "baseline_trx_sha256": "931cbd570f47bf6a376f11dde76c0ecf1399f9d742acf0f90eeb9463d781bdf0",
+            "repeat_candidate_trx_sha256": "341cb8549c8b485af5375dc4e1260016406570c25b34b8005a1b51cb62af57c6"
+          },
+          "windows-x64-net10.0": {
+            "artifact_id": 10404574219,
+            "artifact_name": "bugfix-check-windows-latest-net10.0",
+            "baseline_trx_sha256": "789212a8598feb82270173bbc4b6e152682e4b1177a51ab6f7ad67d1dcc0c08e",
+            "repeat_candidate_trx_sha256": "9d6ab521cbee8ca0390c9b1d54c7bb11a415ad5f1ac8b43972d09f632e09bf42"
+          },
+          "macos-arm64-net8.0": {
+            "artifact_id": 10405111338,
+            "artifact_name": "bugfix-check-macos-latest-net8.0",
+            "baseline_trx_sha256": "c069b53a2512adcd39c9ecf0bbf1d1329ff1371fa21228dbf4de3923340ee719",
+            "repeat_candidate_trx_sha256": "0bba29b9d0a80d9bb804d3b9e5d3228468d0a6d900c7004201c54981391a18dd"
+          },
+          "macos-arm64-net10.0": {
+            "artifact_id": 10405450249,
+            "artifact_name": "bugfix-check-macos-latest-net10.0",
+            "baseline_trx_sha256": "487ac255e77785b858569e7dbbd93a1e5422db470aae03c8c0d71741709b4e08",
+            "repeat_candidate_trx_sha256": "0e97ba85d8c32b48def91f249511913e247a5dd50fd588a1829f6b09d47451df"
+          }
+        },
+        "control_gaps": []
+      },
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2870_Tests.FileReaderV8_preserves_the_original_stream_failure_frame",
+          "test_id": "7a765f9f-7bdf-047e-1d44-4201ab5a9237",
+          "component": "file-reader-rethrow",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "windows"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "windows"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            }
+          },
+          "failure_classifications": {
+            "unix": {
+              "failure_first_line": "Expected actual.StackTrace \"   at LiteDB.Engine.FileReaderV8.HandleError(Exception ex, PageInfo pageInfo) in <checkout>/LiteDB/Engine/FileReader/FileReaderV8.cs:line 576",
+              "sha256": "681896b05a1a028aec691e672aacd311559d7cd883fb1802de913bd31f029ce3"
+            },
+            "windows": {
+              "failure_first_line": "Expected actual.StackTrace \"   at LiteDB.Engine.FileReaderV8.HandleError(Exception ex, PageInfo pageInfo) in <checkout>/LiteDB\\Engine\\FileReader\\FileReaderV8.cs:line 576",
+              "sha256": "5871ca48b8dc4bd5b4be9febe2a084b6c94561ea58acf7768fe01d6b3654396c"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2870_Tests.Query_preserves_the_original_frame_when_a_later_source_read_throws",
+          "test_id": "419bfae8-e017-7b19-e5c0-9a23b58c1a51",
+          "component": "query-rethrow",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "windows"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "windows"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            }
+          },
+          "failure_classifications": {
+            "unix": {
+              "failure_first_line": "Expected actual.StackTrace \"   at LiteDB.BsonDataReader.Read() in <checkout>/LiteDB/Document/DataReader/BsonDataReader.cs:line 118",
+              "sha256": "1ffad189244df7cf9c078222330fc64240f1e5c0ffffcb69eb901d784375d3d7"
+            },
+            "windows": {
+              "failure_first_line": "Expected actual.StackTrace \"   at LiteDB.BsonDataReader.Read() in <checkout>/LiteDB\\Document\\DataReader\\BsonDataReader.cs:line 118",
+              "sha256": "b023d93dcb8cb36a0689d7777ea4e8ea219ef14eb635e4afedec05c4d33c03f7"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2870_Tests.Query_preserves_the_original_frame_when_the_first_source_read_throws",
+          "test_id": "7d0d6fcd-0d48-7a6b-d09f-7c6134821dde",
+          "component": "query-rethrow",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "windows"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "windows"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            }
+          },
+          "failure_classifications": {
+            "unix": {
+              "failure_first_line": "Expected actual.StackTrace \"   at LiteDB.Engine.QueryExecutor.<>c__DisplayClass12_0.<<ExecuteQuery>g__RunQuery|2>d.MoveNext() in <checkout>/LiteDB/Engine/Query/QueryExecutor.cs:line 139",
+              "sha256": "48df41402f7b97c61d27145efab164d4674b4fcfaffa2498b385a9b3c7473ef0"
+            },
+            "windows": {
+              "failure_first_line": "Expected actual.StackTrace \"   at LiteDB.Engine.QueryExecutor.<>c__DisplayClass12_0.<<ExecuteQuery>g__RunQuery|2>d.MoveNext() in <checkout>/LiteDB/Engine/Query/QueryExecutor.cs:line 139",
+              "sha256": "4252291c8de1644ba85322b3d9f83b80bf94b5c6d908dd472294bbc4e79597f4"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2870_Tests.WaitIfLocked_preserves_the_original_frame_for_non_lock_errors",
+          "test_id": "fd7f9f90-ed5c-01be-3404-33c610eb09d3",
+          "component": "wait-if-locked",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "windows"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "windows"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "unix"
+            }
+          },
+          "failure_classifications": {
+            "unix": {
+              "failure_first_line": "Expected actual.StackTrace \"   at LiteDB.IOExceptionExtensions.WaitIfLocked(IOException ex, Int32 timerInMilliseconds) in <checkout>/LiteDB/Utils/Extensions/IOExceptionExtensions.cs:line 38",
+              "sha256": "0696aa4fb82c9e89bacb0e199cac9acbcff0e03a329fba8562641a7e459680f7"
+            },
+            "windows": {
+              "failure_first_line": "Expected actual.StackTrace \"   at LiteDB.IOExceptionExtensions.WaitIfLocked(IOException ex, Int32 timerInMilliseconds) in <checkout>/LiteDB\\Utils\\Extensions\\IOExceptionExtensions.cs:line 38",
+              "sha256": "0ea14f2213e41c456bb29eb045a55ca731539e347893f31a560bacc63f3d99d3"
+            }
+          }
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2870_Tests.Healthy_FileReaderV8_reopens_persisted_documents",
+          "test_id": "2dd52d2f-4b18-b4b8-08ea-3d9881c0ceaa",
+          "component": "file-reader-rethrow",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Passed"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2870_Tests.Healthy_external_source_enumerates_every_document_through_query",
+          "test_id": "a6342816-4560-94bb-f1c7-42e324bedfd7",
+          "component": "query-rethrow",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Passed"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2870_Tests.WaitIfLocked_returns_normally_for_a_lock_error",
+          "test_id": "c64e63ff-56c0-3e52-30f0-49c530baa626",
+          "component": "wait-if-locked",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Passed"
+            }
+          }
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Preserve the exact thrown exception object, message, and original no-inline source frame at every query, wait, and file-reader rethrow site. Retain read counts, error-ledger behavior, healthy query enumeration, lock handling, and persisted file-reader controls."
+        ]
+      }
+    },
+    "2367": {
+      "inventory_issue": 2367,
+      "frozen_test_revision": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "frozen_test_blobs": {
+        "LiteDB.Tests/Issues/Issue2367_Tests.cs": "685e88b9f143473995b39bcdcb9d769dfd613017",
+        "LiteDB.Tests/Mapper/LinqEval_Tests.cs": "ed40e4af19ba2fd516cb3f46baa880e8bcbc2874"
+      },
+      "filter": "FullyQualifiedName~LiteDB.Tests.Issues.Issue2367_|FullyQualifiedName=LiteDB.Tests.Mapper.LinqEval_Tests.Linq_Math_Eval|FullyQualifiedName=LiteDB.Tests.Mapper.LinqEval_Tests.Linq_Document_Navigation_Eval",
+      "environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0",
+        "windows-x64-net8.0",
+        "windows-x64-net10.0",
+        "macos-arm64-net8.0",
+        "macos-arm64-net10.0"
+      ],
+      "required_environments": [
+        "linux-x64-net8.0",
+        "linux-x64-net10.0"
+      ],
+      "allowed_production_paths": [
+        "LiteDB/Client/Mapper/Linq/LinqExpressionVisitor.cs"
+      ],
+      "focused_baseline": {
+        "schema_version": 1,
+        "source_run_id": 34988724926,
+        "source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+        "repeat_candidate_sha": "79e5c69cb9e6a1bcc08e919c2993aaa5401148b7",
+        "workflow_sha": "7629236e73bde318e934509244c3e61ef820d8db",
+        "failure_normalization_sha256": "d4c510bf1504ec8298e0f231548fde8e67a929f7a3ccca9c6ec21a1a89571a36",
+        "artifacts": {
+          "linux-x64-net8.0": {
+            "artifact_id": 10405370121,
+            "artifact_name": "bugfix-check-ubuntu-latest-net8.0",
+            "baseline_trx_sha256": "a4d3b367c661fa8768fbb8668d4a8827713618fa3b488f15f02ca1607c8bd56b",
+            "repeat_candidate_trx_sha256": "167eb02e1001d29571ed81d0cae3efae66516b079b78169b2445d765d58f4d88"
+          },
+          "linux-x64-net10.0": {
+            "artifact_id": 10405505060,
+            "artifact_name": "bugfix-check-ubuntu-latest-net10.0",
+            "baseline_trx_sha256": "d4d7854e6d5e036da9d1ad92ac4f5aebe0a23b8033fe5a50f9793dcf18cbe423",
+            "repeat_candidate_trx_sha256": "06e8fd06f3069730ba19b93580856134a5514ae5b6d88862e9436499f8d8849b"
+          },
+          "windows-x64-net8.0": {
+            "artifact_id": 10404073794,
+            "artifact_name": "bugfix-check-windows-latest-net8.0",
+            "baseline_trx_sha256": "931cbd570f47bf6a376f11dde76c0ecf1399f9d742acf0f90eeb9463d781bdf0",
+            "repeat_candidate_trx_sha256": "341cb8549c8b485af5375dc4e1260016406570c25b34b8005a1b51cb62af57c6"
+          },
+          "windows-x64-net10.0": {
+            "artifact_id": 10404574219,
+            "artifact_name": "bugfix-check-windows-latest-net10.0",
+            "baseline_trx_sha256": "789212a8598feb82270173bbc4b6e152682e4b1177a51ab6f7ad67d1dcc0c08e",
+            "repeat_candidate_trx_sha256": "9d6ab521cbee8ca0390c9b1d54c7bb11a415ad5f1ac8b43972d09f632e09bf42"
+          },
+          "macos-arm64-net8.0": {
+            "artifact_id": 10405111338,
+            "artifact_name": "bugfix-check-macos-latest-net8.0",
+            "baseline_trx_sha256": "c069b53a2512adcd39c9ecf0bbf1d1329ff1371fa21228dbf4de3923340ee719",
+            "repeat_candidate_trx_sha256": "0bba29b9d0a80d9bb804d3b9e5d3228468d0a6d900c7004201c54981391a18dd"
+          },
+          "macos-arm64-net10.0": {
+            "artifact_id": 10405450249,
+            "artifact_name": "bugfix-check-macos-latest-net10.0",
+            "baseline_trx_sha256": "487ac255e77785b858569e7dbbd93a1e5422db470aae03c8c0d71741709b4e08",
+            "repeat_candidate_trx_sha256": "0e97ba85d8c32b48def91f249511913e247a5dd50fd588a1829f6b09d47451df"
+          }
+        },
+        "control_gaps": []
+      },
+      "regressions": [
+        {
+          "name": "LiteDB.Tests.Issues.Issue2367_Tests.Captured_element_date_member_matches_CLR_and_tracks_changed_values(kind: \"array\")",
+          "test_id": "78165f0a-0c44-8165-e5b0-d01e281d14b9",
+          "component": "linq-member-evaluation",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "net8.0"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "net10.0"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "net8.0"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "net10.0"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "net8.0"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "net10.0"
+            }
+          },
+          "failure_classifications": {
+            "net8.0": {
+              "failure_first_line": "System.Reflection.TargetException : Object does not match target type.",
+              "sha256": "7f05931bc41ec79a8ffc85930c1874b74f5661422b4f8c7ee895bac9959f3d29"
+            },
+            "net10.0": {
+              "failure_first_line": "System.Reflection.TargetException : Object type LiteDB.Tests.Issues.Issue2367_Tests+Video does not match target type LiteDB.Tests.Issues.Issue2367_Tests+Video[].",
+              "sha256": "063e77577079e8fc4a5e0b6c9d83b25b3ce5361c8a91dc9264372057a6fd572b"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2367_Tests.Captured_element_date_member_matches_CLR_and_tracks_changed_values(kind: \"dictionary\")",
+          "test_id": "9918e282-9732-6472-1dcf-01cf2f283b51",
+          "component": "linq-member-evaluation",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "net8.0"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "net10.0"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "net8.0"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "net10.0"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "net8.0"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "net10.0"
+            }
+          },
+          "failure_classifications": {
+            "net8.0": {
+              "failure_first_line": "System.Reflection.TargetException : Object does not match target type.",
+              "sha256": "7f05931bc41ec79a8ffc85930c1874b74f5661422b4f8c7ee895bac9959f3d29"
+            },
+            "net10.0": {
+              "failure_first_line": "System.Reflection.TargetException : Object type LiteDB.Tests.Issues.Issue2367_Tests+Video does not match target type System.Collections.Generic.Dictionary`2[System.String,LiteDB.Tests.Issues.Issue2367_Tests+Video].",
+              "sha256": "ec4b00e3cce8d7a29fe315941ebec40d28dcf15c21d3c65fb3c07879c3012aa9"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Issues.Issue2367_Tests.Captured_element_date_member_matches_CLR_and_tracks_changed_values(kind: \"list\")",
+          "test_id": "b194e37f-e501-19e4-52fb-54c02d27dce7",
+          "component": "linq-member-evaluation",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "net8.0"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "net10.0"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Failed",
+              "classification": "net8.0"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Failed",
+              "classification": "net10.0"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Failed",
+              "classification": "net8.0"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Failed",
+              "classification": "net10.0"
+            }
+          },
+          "failure_classifications": {
+            "net8.0": {
+              "failure_first_line": "System.Reflection.TargetException : Object does not match target type.",
+              "sha256": "7f05931bc41ec79a8ffc85930c1874b74f5661422b4f8c7ee895bac9959f3d29"
+            },
+            "net10.0": {
+              "failure_first_line": "System.Reflection.TargetException : Object type LiteDB.Tests.Issues.Issue2367_Tests+Video does not match target type System.Collections.Generic.List`1[LiteDB.Tests.Issues.Issue2367_Tests+Video].",
+              "sha256": "236833b3f915a2725320b382d425cc25bf8e871caf0edad4741ad491410763e4"
+            }
+          }
+        }
+      ],
+      "controls": [
+        {
+          "name": "LiteDB.Tests.Mapper.LinqEval_Tests.Linq_Document_Navigation_Eval",
+          "test_id": "eec71867-75d2-2c81-ca69-df42e9c652c5",
+          "component": "linq-member-evaluation",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Passed"
+            }
+          }
+        },
+        {
+          "name": "LiteDB.Tests.Mapper.LinqEval_Tests.Linq_Math_Eval",
+          "test_id": "ff7d30de-c604-45f9-9f00-132e3ac39f4f",
+          "component": "linq-member-evaluation",
+          "baseline_by_environment": {
+            "linux-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "linux-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net8.0": {
+              "outcome": "Passed"
+            },
+            "windows-x64-net10.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net8.0": {
+              "outcome": "Passed"
+            },
+            "macos-arm64-net10.0": {
+              "outcome": "Passed"
+            }
+          }
+        }
+      ],
+      "review_requirements": {
+        "behavior": [
+          "Evaluate captured list/array/dictionary element member access against its actual object, preserving DateTime comparisons and replacement values across repeated use of the same predicate. Keep genuine document-dependent member access translated for each row; never execute it prematurely as client code. Linq_Math_Eval independently asserts captured u.Id arithmetic and Math calls; Linq_Document_Navigation_Eval asserts root, nested document and string behavior through GetExpression and Execute. Linq_Array_Navigation_Eval is vacuous and is not an approved control.",
+          "Review interaction with #2770/#2779/#2322/#1829 in the same visitor and retain all accepted cases. A fresh integration baseline must still demonstrate this exact defect; an already passing case requires explicit prior-fix disposition. This contract grants no source-observation exemption: any transition of source guard 53 or another unrelated frozen test requires separate review and blocks automatic acceptance."
+        ],
+        "lifecycle": [
+          "Preserve captured value freshness when a list, array or dictionary entry changes, without a shared mutable cache or retained result from an earlier translation. Keep client evaluation and row-dependent execution boundaries clear; do not suppress reflection failures globally or mutate the closure or persisted documents."
+        ]
+      }
+    }
+  }
+}

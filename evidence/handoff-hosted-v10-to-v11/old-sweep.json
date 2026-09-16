@@ -1,0 +1,362 @@
+{
+  "bootstrap_blob_sha": "29e3a758e7f7332466c90e4e235b8664cde19ac7",
+  "cooldown_until": 0,
+  "history": [
+    {
+      "action": "initialize",
+      "at": 1789547919.330688
+    },
+    {
+      "action": "defer",
+      "at": 1789549847.552319,
+      "issue": 1002,
+      "reason": "Verified campaign gates blocked progress"
+    },
+    {
+      "action": "pause",
+      "at": 1789549992.2969143,
+      "owner": {
+        "run_attempt": 1,
+        "run_id": 35078094282
+      },
+      "reason": "Preserve the verified uncapped worker and blocked #2590 overlap while deploying the explicit expanded co-repair contract; acceptance evidence is not waived."
+    }
+  ],
+  "infrastructure_streak": 0,
+  "issues": {
+    "1002": {
+      "blocked_by": [],
+      "decision": {
+        "action": "resume",
+        "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+        "campaign": "hosted-v10-1002",
+        "candidate_sha": "33fbf17558062276c223946b66aa3f7c01810ad6",
+        "data_sha": "33915947f620742ee180a947af072a6a5dbde6ad",
+        "issue": 1002,
+        "phase": "broad",
+        "resume_integration": false
+      },
+      "deferred_at": 1789549847.5523117,
+      "investigation": {
+        "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+        "campaign": "hosted-v10-1002",
+        "candidate_sha": "33fbf17558062276c223946b66aa3f7c01810ad6",
+        "last_event": [
+          {
+            "acceptance_profile": {
+              "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+              "candidate_sha": "33fbf17558062276c223946b66aa3f7c01810ad6",
+              "checks": [
+                "focused",
+                "broad",
+                "production-build"
+              ],
+              "compatibility": true,
+              "contract_sha256": "58ab3eab73e61f69a223668158261864cdab2cc6d60dbc0df27ac03b6651fd82",
+              "diff_sha256": "cbb129ed4a763d7a934bae9872018be9e6350de815ac36cad84452f977849e5c",
+              "issue": 1002,
+              "matched_rules": [
+                {
+                  "path": "LiteDB/Client/Database/Collections/Insert.cs",
+                  "rule": "reviewed-compatible-issue-path"
+                }
+              ],
+              "matrix": [
+                {
+                  "framework": "net8.0",
+                  "os": "ubuntu-latest"
+                },
+                {
+                  "framework": "net10.0",
+                  "os": "ubuntu-latest"
+                }
+              ],
+              "paths": [
+                "LiteDB/Client/Database/Collections/Insert.cs"
+              ],
+              "policy_sha256": "463eff772f7928dc9b83e4b2b480d63c555db579c0e82b418ce00ad9037166f7",
+              "policy_version": "compressed-acceptance-v6",
+              "production_build": true,
+              "profile_sha256": "a54c6da23c484d70eb27958331e7b4450903a58d4f10913260f2bd2c94d08545",
+              "required_environments": [
+                "linux-x64-net10.0",
+                "linux-x64-net8.0"
+              ],
+              "required_lanes": [
+                "bugfix-check-ubuntu-latest-net8.0",
+                "bugfix-check-ubuntu-latest-net10.0"
+              ],
+              "schema_version": 1,
+              "targeted_test_filters": [
+                "FullyQualifiedName~LiteDB.Tests.Database.AutoId_Tests"
+              ],
+              "targeted_tests_covered_by_broad": true
+            },
+            "artifact": "bugfix-check-ubuntu-latest-net8.0",
+            "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+            "campaign": "hosted-v10-1002",
+            "candidate_sha": "33fbf17558062276c223946b66aa3f7c01810ad6",
+            "diagnostics": [
+              {
+                "artifact": "bugfix-check-ubuntu-latest-net8.0",
+                "diagnostics": [
+                  {
+                    "baseline_failure_sha256": "a5cb127e80308bbf3f4f3782a83988986973b0e73c564001af1e594e30427fa7",
+                    "candidate_failure_sha256": "d27dd3fd3a45430331874bb58efe26ed78a78850b53e8950a46359e174ac2e43",
+                    "class_name": "LiteDB.Tests.Issues.Issue2590_Tests",
+                    "name": "LiteDB.Tests.Issues.Issue2590_Tests.Empty_string_ids_are_addressable_or_rejected_before_any_write(path: InsertOne)"
+                  }
+                ],
+                "outcome": "inconclusive"
+              },
+              {
+                "artifact": "bugfix-check-ubuntu-latest-net10.0",
+                "diagnostics": [
+                  {
+                    "baseline_failure_sha256": "a5cb127e80308bbf3f4f3782a83988986973b0e73c564001af1e594e30427fa7",
+                    "candidate_failure_sha256": "d27dd3fd3a45430331874bb58efe26ed78a78850b53e8950a46359e174ac2e43",
+                    "class_name": "LiteDB.Tests.Issues.Issue2590_Tests",
+                    "name": "LiteDB.Tests.Issues.Issue2590_Tests.Empty_string_ids_are_addressable_or_rejected_before_any_write(path: InsertOne)"
+                  }
+                ],
+                "outcome": "inconclusive"
+              }
+            ],
+            "environment": "linux-x64-net8.0",
+            "event_id": "run-35077204440-broad-ci",
+            "failed_matrix": [
+              {
+                "artifact": "bugfix-check-ubuntu-latest-net8.0",
+                "artifact_sha256": "434df10d12d514ef0e1d080622fc4f5097e8c85f10c5da8a8503ea546b6f534c",
+                "environment": "linux-x64-net8.0",
+                "outcome": "inconclusive",
+                "report_sha256": "058327a2056c6b27096cf7110c5cab2d7346e5a94cef7ce68735b522477d52ed"
+              },
+              {
+                "artifact": "bugfix-check-ubuntu-latest-net10.0",
+                "artifact_sha256": "96cdd191d584c29afb41a895ee7cac885c12849f14dcac8ff533f20294ca0d29",
+                "environment": "linux-x64-net10.0",
+                "outcome": "inconclusive",
+                "report_sha256": "a84d746651e8e93fedf69a1d51e45c1c99518adfab04a8a4085a095da4ee13b1"
+              },
+              {
+                "artifact": "bugfix-production",
+                "artifact_id": 10439010419,
+                "artifact_sha256": "b2a24d8c91072fb06051aaebfafd6e816bcc58ffa25d8b280b7a626f3dccf93b",
+                "diagnostics": [],
+                "outcome": "pass",
+                "report_sha256": "f0799d9bff111cbd608438947c87a039aa8842f74f4d53141cb9e3f052a069ec"
+              }
+            ],
+            "issue": 1002,
+            "kind": "broad",
+            "outcome": "inconclusive",
+            "passing_contract": {
+              "case_count": 18,
+              "cases_sha256": "6ba25c6aad8e1c8baf0fb89329bb9788c344851965f307bbee4f0e5e7f492254",
+              "ledger_sha256": "25d36bd781896cea84a1d0b163b0de2290e7fb14b9e1fecbce5299cf84f90ee8",
+              "schema_version": 1,
+              "state_commit": "336d5b49262c817aaa3e844b5f225b77abc9b79a"
+            },
+            "protocol": "compressed-v1",
+            "reason": "Check workflow concluded failure",
+            "run_id": 35077204440,
+            "schema_version": 1,
+            "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+            "workflow_sha": "6b9cf0507ae2f341834682da1b1d268946548931"
+          }
+        ],
+        "phase": "blocked",
+        "repair_attempts": 1
+      },
+      "observed_infrastructure_retries": 0,
+      "reason": "Verified campaign gates blocked progress",
+      "status": "deferred",
+      "tick_errors": 0
+    },
+    "1159": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "1224": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "1444": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "1829": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2205": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2225": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2322": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2367": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2746": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2769": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2770": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2779": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2802": {
+      "decision": {
+        "action": "start",
+        "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+        "campaign": "hosted-v10-2802",
+        "candidate_sha": null,
+        "data_sha": "53428362d33d09ef5173faf830ec15ddcbaf4c41",
+        "issue": 2802,
+        "phase": "baseline",
+        "resume_integration": false
+      },
+      "observed_infrastructure_retries": 0,
+      "status": "active",
+      "tick_errors": 0
+    },
+    "2807": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2845": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2847": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2858": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2860": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2864": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2867": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2870": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2871": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2873": {
+      "status": "pending",
+      "tick_errors": 0
+    }
+  },
+  "kind": "hosted-bugfix-sweep",
+  "last_tick": {
+    "at": 1789549992.296918,
+    "campaign": null,
+    "campaign_phase": null,
+    "counts": {
+      "accepted": 0,
+      "active": 1,
+      "deferred": 1,
+      "pending": 22
+    },
+    "issue": null,
+    "run_attempt": 1,
+    "run_id": 35078094282,
+    "run_ids": []
+  },
+  "paused": true,
+  "phase": "paused",
+  "schema_version": 1,
+  "specification": {
+    "campaign_prefix": "hosted-v10",
+    "contract_sha256": {
+      "1002": "58ab3eab73e61f69a223668158261864cdab2cc6d60dbc0df27ac03b6651fd82",
+      "1159": "a972039a348832937f115575b61b3be5c552ad445e6ceae1b5a1d6c5565dfed2",
+      "1224": "1e58b345ad9c66c9431763ce6ea8e1dd2581ddc130ff269f1598293ba1736634",
+      "1444": "0b42d267f0bda20163b6bb23c28b711399ff3a10ad1558b7a0256d81c3fb91bd",
+      "1829": "6c210f455731c5815dc385fd754bb592c41b6199bad32d9e10e302d8dc4ce7af",
+      "2205": "ad55aae027b9d4cad4f119f2cb8523c339c79f2a5eb2574b37c4a1906aa323c6",
+      "2225": "9ddea7f16753649bcfb327c7b88a27d8d8afca9e1596a7a529c7988ca1620500",
+      "2322": "985ce67c21ced2b0aeddd87d4af3e01fa10f2d57a2ae181e609a85ccc2054062",
+      "2367": "a67d6686012de3bd378702d3289b9f035ff9f2338279897d77de70bd3a349513",
+      "2746": "0e9ef979ac5ae3bf573af11d4ef758b3cd60d12718915fba6b62e61e1418683e",
+      "2769": "4015d4c4533fd73eae746b10cbae443135ef46ba8d8b996eeb093c794bdad5cf",
+      "2770": "b5b62a1a9c0da7c0db06dff52dd459ab10cb9a1c4ba73807f644fe846159f5bf",
+      "2779": "2d8d6cad649f29981cb89c319a1adcc6372e997239113d5be94469d7e779b6ac",
+      "2802": "a30e92225755f3888a8f814f84b8c77030f75478328b6ffcb6f3e617efce2d7f",
+      "2807": "adaac3946525946f1126ee02b26e10071f00453e3919bc88548bd8bdba502c53",
+      "2845": "eb1049fb4a159991445c7e42468382cc039e0830dfdaf7c4b34f58c95a86163a",
+      "2847": "9f78d14ad7705877d8dec374b1aceb9c65c9af563659bcd545898699b6832474",
+      "2858": "15e08ae6c76726d9bb91f51d0763b308950777d9b331eac5ae472b932b5c47ec",
+      "2860": "b7e21bae320c76154e9ff8d9e3c3cf2753fd2eee99341c3250b2dd299416dd72",
+      "2864": "8c7cb9cab7a9f9bc78f028e2892baa7f5ac5d91ef600170060569bf738828659",
+      "2867": "cabc3ab41bc61f92fa5cf201593cadf915e14b12458963027d401f687b9c6157",
+      "2870": "a7f369ae780c6c19fe811e775ef217a8cb25ede68003d36741fe49027adeb6ef",
+      "2871": "50cfdf01f05a5eecd5a94e23832e2a2ead0dd3bc7e58f7b791cc0aad7cf65b3f",
+      "2873": "914fcebedb7e60a00367719cbb38399112eaeb22faed9ef15d79a0918e2ea2ec"
+    },
+    "issues": [
+      1002,
+      2802,
+      2770,
+      2867,
+      2845,
+      2847,
+      2779,
+      2205,
+      2871,
+      1159,
+      1224,
+      2858,
+      2864,
+      2769,
+      2225,
+      2322,
+      2873,
+      2746,
+      2807,
+      1829,
+      1444,
+      2860,
+      2870,
+      2367
+    ],
+    "max_runs": 40,
+    "scheduler_sha": "5a823c25057fa4eaffb8cdfbd546ae3f5c360f37",
+    "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+    "timeout_minutes": 180,
+    "workflow_ref": "automation/bugfix-runtime-v10",
+    "workflow_sha": "6b9cf0507ae2f341834682da1b1d268946548931"
+  },
+  "sweep": "hosted-v10-main"
+}

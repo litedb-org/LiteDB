@@ -1,0 +1,103 @@
+{
+  "files": [
+    {
+      "new_blob": "d15fb4fd0bc33b6c023900682a8ba4cd384e6ef7",
+      "new_mode": "100644",
+      "old_blob": "0000000000000000000000000000000000000000",
+      "old_mode": "000000",
+      "path": ".github/bugfix/test_string_id_corepair_profile.py",
+      "status": "A"
+    },
+    {
+      "new_blob": "87e04d171af394a63a1b1f495095af2d5d12c5b5",
+      "new_mode": "100644",
+      "old_blob": "0000000000000000000000000000000000000000",
+      "old_mode": "000000",
+      "path": "docs/Tasks/Wholesale-Bugfix/COREPAIR-1002-2811-2590.md",
+      "status": "A"
+    },
+    {
+      "new_blob": "bc54722440959366db2da3081bae66ccfb02f3ee",
+      "new_mode": "100644",
+      "old_blob": "0000000000000000000000000000000000000000",
+      "old_mode": "000000",
+      "path": "docs/Tasks/Wholesale-Bugfix/CREDIT-LIMIT-REMOVAL.md",
+      "status": "A"
+    },
+    {
+      "new_blob": "bff89b2d33fca2bb2fc920bb48ba8980e50007d2",
+      "new_mode": "100644",
+      "old_blob": "1aaac4cf734c05a0dc50303793e13f02da4fe80e",
+      "old_mode": "100644",
+      "path": "docs/Tasks/Wholesale-Bugfix/HANDOFF.md",
+      "status": "M"
+    },
+    {
+      "new_blob": "ddf5747cfb509c56413943c8b06e802971b876b2",
+      "new_mode": "100644",
+      "old_blob": "973ed60e124b709ee945c848b458207474ee8ecf",
+      "old_mode": "100644",
+      "path": "docs/Tasks/Wholesale-Bugfix/HOSTED-SWEEP.md",
+      "status": "M"
+    },
+    {
+      "new_blob": "fcc6307ee48033284d39d6ee78a7f048a5f3b04b",
+      "new_mode": "100644",
+      "old_blob": "a7cbe3c30baa9f498a7a4a9a0f2a8d464003ed15",
+      "old_mode": "100644",
+      "path": "docs/Tasks/Wholesale-Bugfix/NEXT-WAVE.md",
+      "status": "M"
+    },
+    {
+      "new_blob": "b20f16a77a6e7bd9cf3f8e072f610a52e074c1df",
+      "new_mode": "100644",
+      "old_blob": "717631f8376515ab831e85512aa8a945b78ac105",
+      "old_mode": "100644",
+      "path": "docs/Tasks/Wholesale-Bugfix/README.md",
+      "status": "M"
+    },
+    {
+      "new_blob": "a55f5e6cfda50dc8562cbc65091ad8be44f04ce6",
+      "new_mode": "100644",
+      "old_blob": "060bc403ba90666bdbed68dfb79a474b1dbf7b2b",
+      "old_mode": "100644",
+      "path": "scripts/bugfix/corepair_contract_assertions.py",
+      "status": "M"
+    },
+    {
+      "new_blob": "05f502f6174724a62160d19e0fd675d52e2adc1b",
+      "new_mode": "100644",
+      "old_blob": "0000000000000000000000000000000000000000",
+      "old_mode": "000000",
+      "path": "scripts/bugfix/fixtures/issue-1002-2811-2590-corepair.json",
+      "status": "A"
+    },
+    {
+      "new_blob": "e76a26f3feee4f1c918f33421a1d4dd25f5d32eb",
+      "new_mode": "100644",
+      "old_blob": "3e88920da5fec3636f150fa622b7ec5e75360187",
+      "old_mode": "100644",
+      "path": "scripts/bugfix/issues.json",
+      "status": "M"
+    },
+    {
+      "new_blob": "749a16e1b3908846a002ab9b0e45f3a7d44d0fcf",
+      "new_mode": "100644",
+      "old_blob": "657ede8859f37f362b786b89eec22d89dd1cc207",
+      "old_mode": "100644",
+      "path": "scripts/bugfix/test_auto_id_corepair.py",
+      "status": "M"
+    },
+    {
+      "new_blob": "389f22fd20a28f7760a5acb350607668d3aacf42",
+      "new_mode": "100644",
+      "old_blob": "0000000000000000000000000000000000000000",
+      "old_mode": "000000",
+      "path": "scripts/bugfix/test_string_id_corepair.py",
+      "status": "A"
+    }
+  ],
+  "new_sha": "8140596303eac2c0dca5c1e123953f06b12a08c6",
+  "old_sha": "6b9cf0507ae2f341834682da1b1d268946548931",
+  "patch_sha256": "3830e8e9894354fb89f7b6f69316a77b7d7a9724948334aa91227b9ddf2403d5"
+}

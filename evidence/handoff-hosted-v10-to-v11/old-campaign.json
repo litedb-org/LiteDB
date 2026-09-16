@@ -1,0 +1,554 @@
+{
+  "acceptance_profile": {
+    "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+    "candidate_sha": "33fbf17558062276c223946b66aa3f7c01810ad6",
+    "checks": [
+      "focused",
+      "broad",
+      "production-build"
+    ],
+    "compatibility": true,
+    "contract_sha256": "58ab3eab73e61f69a223668158261864cdab2cc6d60dbc0df27ac03b6651fd82",
+    "diff_sha256": "cbb129ed4a763d7a934bae9872018be9e6350de815ac36cad84452f977849e5c",
+    "issue": 1002,
+    "matched_rules": [
+      {
+        "path": "LiteDB/Client/Database/Collections/Insert.cs",
+        "rule": "reviewed-compatible-issue-path"
+      }
+    ],
+    "matrix": [
+      {
+        "framework": "net8.0",
+        "os": "ubuntu-latest"
+      },
+      {
+        "framework": "net10.0",
+        "os": "ubuntu-latest"
+      }
+    ],
+    "paths": [
+      "LiteDB/Client/Database/Collections/Insert.cs"
+    ],
+    "policy_sha256": "463eff772f7928dc9b83e4b2b480d63c555db579c0e82b418ce00ad9037166f7",
+    "policy_version": "compressed-acceptance-v6",
+    "production_build": true,
+    "profile_sha256": "a54c6da23c484d70eb27958331e7b4450903a58d4f10913260f2bd2c94d08545",
+    "required_environments": [
+      "linux-x64-net10.0",
+      "linux-x64-net8.0"
+    ],
+    "required_lanes": [
+      "bugfix-check-ubuntu-latest-net8.0",
+      "bugfix-check-ubuntu-latest-net10.0"
+    ],
+    "schema_version": 1,
+    "targeted_test_filters": [
+      "FullyQualifiedName~LiteDB.Tests.Database.AutoId_Tests"
+    ],
+    "targeted_tests_covered_by_broad": true
+  },
+  "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+  "campaign": "hosted-v10-1002",
+  "candidate_sha": "33fbf17558062276c223946b66aa3f7c01810ad6",
+  "events": {
+    "run-35075002723-baseline-ci": "c3005cf45ccf2932aca20c9d8d70c8188a295defe414214976dd02f82246bff3",
+    "run-35075342165-candidate-ci": "ec14f0a8276106087e74ef2934e0c1b1a373b04485bd6a03a0adf0c4904ece38",
+    "run-35077204440-broad-ci": "dc1bd93571ac2f547a8d552675f598ea80e2cd719c4878d69b57646f1b91d722"
+  },
+  "evidence": {
+    "baseline": {
+      "artifact": "bugfix-check-ubuntu-latest-net8.0",
+      "artifact_sha256": "178f236d04545d0bc8a081e6ab96cc027ef35afcf7d52b02296939c56899f6a6",
+      "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+      "campaign": "hosted-v10-1002",
+      "candidate_sha": null,
+      "environment": "linux-x64-net8.0",
+      "event_id": "run-35075002723-baseline-ci",
+      "issue": 1002,
+      "kind": "baseline",
+      "outcome": "bug_present",
+      "passing_contract": {
+        "case_count": 18,
+        "cases_sha256": "6ba25c6aad8e1c8baf0fb89329bb9788c344851965f307bbee4f0e5e7f492254",
+        "ledger_sha256": "25d36bd781896cea84a1d0b163b0de2290e7fb14b9e1fecbce5299cf84f90ee8",
+        "schema_version": 1,
+        "state_commit": "336d5b49262c817aaa3e844b5f225b77abc9b79a"
+      },
+      "protocol": "compressed-v1",
+      "report_sha256": "1c5c7cbe46eef8774b67150df26dbac78e6e5f502b7dd11e9649553db24e20cd",
+      "run_id": 35075002723,
+      "schema_version": 1,
+      "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "workflow_sha": "6b9cf0507ae2f341834682da1b1d268946548931"
+    },
+    "broad": {
+      "acceptance_profile": {
+        "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+        "candidate_sha": "33fbf17558062276c223946b66aa3f7c01810ad6",
+        "checks": [
+          "focused",
+          "broad",
+          "production-build"
+        ],
+        "compatibility": true,
+        "contract_sha256": "58ab3eab73e61f69a223668158261864cdab2cc6d60dbc0df27ac03b6651fd82",
+        "diff_sha256": "cbb129ed4a763d7a934bae9872018be9e6350de815ac36cad84452f977849e5c",
+        "issue": 1002,
+        "matched_rules": [
+          {
+            "path": "LiteDB/Client/Database/Collections/Insert.cs",
+            "rule": "reviewed-compatible-issue-path"
+          }
+        ],
+        "matrix": [
+          {
+            "framework": "net8.0",
+            "os": "ubuntu-latest"
+          },
+          {
+            "framework": "net10.0",
+            "os": "ubuntu-latest"
+          }
+        ],
+        "paths": [
+          "LiteDB/Client/Database/Collections/Insert.cs"
+        ],
+        "policy_sha256": "463eff772f7928dc9b83e4b2b480d63c555db579c0e82b418ce00ad9037166f7",
+        "policy_version": "compressed-acceptance-v6",
+        "production_build": true,
+        "profile_sha256": "a54c6da23c484d70eb27958331e7b4450903a58d4f10913260f2bd2c94d08545",
+        "required_environments": [
+          "linux-x64-net10.0",
+          "linux-x64-net8.0"
+        ],
+        "required_lanes": [
+          "bugfix-check-ubuntu-latest-net8.0",
+          "bugfix-check-ubuntu-latest-net10.0"
+        ],
+        "schema_version": 1,
+        "targeted_test_filters": [
+          "FullyQualifiedName~LiteDB.Tests.Database.AutoId_Tests"
+        ],
+        "targeted_tests_covered_by_broad": true
+      },
+      "artifact": "bugfix-check-ubuntu-latest-net8.0",
+      "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+      "campaign": "hosted-v10-1002",
+      "candidate_sha": "33fbf17558062276c223946b66aa3f7c01810ad6",
+      "diagnostics": [
+        {
+          "artifact": "bugfix-check-ubuntu-latest-net8.0",
+          "diagnostics": [
+            {
+              "baseline_failure_sha256": "a5cb127e80308bbf3f4f3782a83988986973b0e73c564001af1e594e30427fa7",
+              "candidate_failure_sha256": "d27dd3fd3a45430331874bb58efe26ed78a78850b53e8950a46359e174ac2e43",
+              "class_name": "LiteDB.Tests.Issues.Issue2590_Tests",
+              "name": "LiteDB.Tests.Issues.Issue2590_Tests.Empty_string_ids_are_addressable_or_rejected_before_any_write(path: InsertOne)"
+            }
+          ],
+          "outcome": "inconclusive"
+        },
+        {
+          "artifact": "bugfix-check-ubuntu-latest-net10.0",
+          "diagnostics": [
+            {
+              "baseline_failure_sha256": "a5cb127e80308bbf3f4f3782a83988986973b0e73c564001af1e594e30427fa7",
+              "candidate_failure_sha256": "d27dd3fd3a45430331874bb58efe26ed78a78850b53e8950a46359e174ac2e43",
+              "class_name": "LiteDB.Tests.Issues.Issue2590_Tests",
+              "name": "LiteDB.Tests.Issues.Issue2590_Tests.Empty_string_ids_are_addressable_or_rejected_before_any_write(path: InsertOne)"
+            }
+          ],
+          "outcome": "inconclusive"
+        }
+      ],
+      "environment": "linux-x64-net8.0",
+      "event_id": "run-35077204440-broad-ci",
+      "failed_matrix": [
+        {
+          "artifact": "bugfix-check-ubuntu-latest-net8.0",
+          "artifact_sha256": "434df10d12d514ef0e1d080622fc4f5097e8c85f10c5da8a8503ea546b6f534c",
+          "environment": "linux-x64-net8.0",
+          "outcome": "inconclusive",
+          "report_sha256": "058327a2056c6b27096cf7110c5cab2d7346e5a94cef7ce68735b522477d52ed"
+        },
+        {
+          "artifact": "bugfix-check-ubuntu-latest-net10.0",
+          "artifact_sha256": "96cdd191d584c29afb41a895ee7cac885c12849f14dcac8ff533f20294ca0d29",
+          "environment": "linux-x64-net10.0",
+          "outcome": "inconclusive",
+          "report_sha256": "a84d746651e8e93fedf69a1d51e45c1c99518adfab04a8a4085a095da4ee13b1"
+        },
+        {
+          "artifact": "bugfix-production",
+          "artifact_id": 10439010419,
+          "artifact_sha256": "b2a24d8c91072fb06051aaebfafd6e816bcc58ffa25d8b280b7a626f3dccf93b",
+          "diagnostics": [],
+          "outcome": "pass",
+          "report_sha256": "f0799d9bff111cbd608438947c87a039aa8842f74f4d53141cb9e3f052a069ec"
+        }
+      ],
+      "issue": 1002,
+      "kind": "broad",
+      "outcome": "inconclusive",
+      "passing_contract": {
+        "case_count": 18,
+        "cases_sha256": "6ba25c6aad8e1c8baf0fb89329bb9788c344851965f307bbee4f0e5e7f492254",
+        "ledger_sha256": "25d36bd781896cea84a1d0b163b0de2290e7fb14b9e1fecbce5299cf84f90ee8",
+        "schema_version": 1,
+        "state_commit": "336d5b49262c817aaa3e844b5f225b77abc9b79a"
+      },
+      "protocol": "compressed-v1",
+      "reason": "Check workflow concluded failure",
+      "run_id": 35077204440,
+      "schema_version": 1,
+      "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "workflow_sha": "6b9cf0507ae2f341834682da1b1d268946548931"
+    }
+  },
+  "history": [
+    {
+      "artifact": "bugfix-check-ubuntu-latest-net8.0",
+      "artifact_sha256": "178f236d04545d0bc8a081e6ab96cc027ef35afcf7d52b02296939c56899f6a6",
+      "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+      "campaign": "hosted-v10-1002",
+      "candidate_sha": null,
+      "environment": "linux-x64-net8.0",
+      "event_id": "run-35075002723-baseline-ci",
+      "issue": 1002,
+      "kind": "baseline",
+      "outcome": "bug_present",
+      "passing_contract": {
+        "case_count": 18,
+        "cases_sha256": "6ba25c6aad8e1c8baf0fb89329bb9788c344851965f307bbee4f0e5e7f492254",
+        "ledger_sha256": "25d36bd781896cea84a1d0b163b0de2290e7fb14b9e1fecbce5299cf84f90ee8",
+        "schema_version": 1,
+        "state_commit": "336d5b49262c817aaa3e844b5f225b77abc9b79a"
+      },
+      "protocol": "compressed-v1",
+      "report_sha256": "1c5c7cbe46eef8774b67150df26dbac78e6e5f502b7dd11e9649553db24e20cd",
+      "run_id": 35075002723,
+      "schema_version": 1,
+      "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "workflow_sha": "6b9cf0507ae2f341834682da1b1d268946548931"
+    },
+    {
+      "acceptance_profile": {
+        "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+        "candidate_sha": "33fbf17558062276c223946b66aa3f7c01810ad6",
+        "checks": [
+          "focused",
+          "broad",
+          "production-build"
+        ],
+        "compatibility": true,
+        "contract_sha256": "58ab3eab73e61f69a223668158261864cdab2cc6d60dbc0df27ac03b6651fd82",
+        "diff_sha256": "cbb129ed4a763d7a934bae9872018be9e6350de815ac36cad84452f977849e5c",
+        "issue": 1002,
+        "matched_rules": [
+          {
+            "path": "LiteDB/Client/Database/Collections/Insert.cs",
+            "rule": "reviewed-compatible-issue-path"
+          }
+        ],
+        "matrix": [
+          {
+            "framework": "net8.0",
+            "os": "ubuntu-latest"
+          },
+          {
+            "framework": "net10.0",
+            "os": "ubuntu-latest"
+          }
+        ],
+        "paths": [
+          "LiteDB/Client/Database/Collections/Insert.cs"
+        ],
+        "policy_sha256": "463eff772f7928dc9b83e4b2b480d63c555db579c0e82b418ce00ad9037166f7",
+        "policy_version": "compressed-acceptance-v6",
+        "production_build": true,
+        "profile_sha256": "a54c6da23c484d70eb27958331e7b4450903a58d4f10913260f2bd2c94d08545",
+        "required_environments": [
+          "linux-x64-net10.0",
+          "linux-x64-net8.0"
+        ],
+        "required_lanes": [
+          "bugfix-check-ubuntu-latest-net8.0",
+          "bugfix-check-ubuntu-latest-net10.0"
+        ],
+        "schema_version": 1,
+        "targeted_test_filters": [
+          "FullyQualifiedName~LiteDB.Tests.Database.AutoId_Tests"
+        ],
+        "targeted_tests_covered_by_broad": true
+      },
+      "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+      "branch": "fix/issue-1002-hosted-v10-1002-a1",
+      "campaign": "hosted-v10-1002",
+      "candidate_sha": "33fbf17558062276c223946b66aa3f7c01810ad6",
+      "event_id": "run-35075342165-candidate-ci",
+      "issue": 1002,
+      "kind": "candidate",
+      "passing_contract": {
+        "case_count": 18,
+        "cases_sha256": "6ba25c6aad8e1c8baf0fb89329bb9788c344851965f307bbee4f0e5e7f492254",
+        "ledger_sha256": "25d36bd781896cea84a1d0b163b0de2290e7fb14b9e1fecbce5299cf84f90ee8",
+        "schema_version": 1,
+        "state_commit": "336d5b49262c817aaa3e844b5f225b77abc9b79a"
+      },
+      "protocol": "compressed-v1",
+      "run_id": 35075342165,
+      "schema_version": 1,
+      "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "worker_metadata": {
+        "accounted_ai_credits": 2573.77,
+        "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+        "changed_paths": [
+          "LiteDB/Client/Database/Collections/Insert.cs"
+        ],
+        "codex_version": "0.154.0",
+        "configured_model": "gpt-6-astra",
+        "configured_reasoning_effort": "high",
+        "issue": 1002,
+        "kind": "fix",
+        "observed_request_count": 19,
+        "observed_request_models": [
+          "gpt-6-astra"
+        ],
+        "patch_sha256": "cbb129ed4a763d7a934bae9872018be9e6350de815ac36cad84452f977849e5c",
+        "reasoning_verification": "local-request-capture",
+        "reported_model": "gpt-6-astra",
+        "reported_reasoning_effort": null,
+        "result_sha256": "6b674a1d333fe062f2fa5f550ad04d8fecde8f87499ea01fc9b5ff03f33dd466",
+        "run_attempt": "1",
+        "run_id": "35075342165",
+        "runtime_proof_sha256": "cef9ca61239a45dfb2681d9f3078330c9584fc9635b226bb40e01954672193df",
+        "schema_version": 1,
+        "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+        "verified_reasoning_effort": "high",
+        "workflow_sha": "6b9cf0507ae2f341834682da1b1d268946548931"
+      },
+      "workflow_sha": "6b9cf0507ae2f341834682da1b1d268946548931"
+    },
+    {
+      "acceptance_profile": {
+        "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+        "candidate_sha": "33fbf17558062276c223946b66aa3f7c01810ad6",
+        "checks": [
+          "focused",
+          "broad",
+          "production-build"
+        ],
+        "compatibility": true,
+        "contract_sha256": "58ab3eab73e61f69a223668158261864cdab2cc6d60dbc0df27ac03b6651fd82",
+        "diff_sha256": "cbb129ed4a763d7a934bae9872018be9e6350de815ac36cad84452f977849e5c",
+        "issue": 1002,
+        "matched_rules": [
+          {
+            "path": "LiteDB/Client/Database/Collections/Insert.cs",
+            "rule": "reviewed-compatible-issue-path"
+          }
+        ],
+        "matrix": [
+          {
+            "framework": "net8.0",
+            "os": "ubuntu-latest"
+          },
+          {
+            "framework": "net10.0",
+            "os": "ubuntu-latest"
+          }
+        ],
+        "paths": [
+          "LiteDB/Client/Database/Collections/Insert.cs"
+        ],
+        "policy_sha256": "463eff772f7928dc9b83e4b2b480d63c555db579c0e82b418ce00ad9037166f7",
+        "policy_version": "compressed-acceptance-v6",
+        "production_build": true,
+        "profile_sha256": "a54c6da23c484d70eb27958331e7b4450903a58d4f10913260f2bd2c94d08545",
+        "required_environments": [
+          "linux-x64-net10.0",
+          "linux-x64-net8.0"
+        ],
+        "required_lanes": [
+          "bugfix-check-ubuntu-latest-net8.0",
+          "bugfix-check-ubuntu-latest-net10.0"
+        ],
+        "schema_version": 1,
+        "targeted_test_filters": [
+          "FullyQualifiedName~LiteDB.Tests.Database.AutoId_Tests"
+        ],
+        "targeted_tests_covered_by_broad": true
+      },
+      "artifact": "bugfix-check-ubuntu-latest-net8.0",
+      "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+      "campaign": "hosted-v10-1002",
+      "candidate_sha": "33fbf17558062276c223946b66aa3f7c01810ad6",
+      "diagnostics": [
+        {
+          "artifact": "bugfix-check-ubuntu-latest-net8.0",
+          "diagnostics": [
+            {
+              "baseline_failure_sha256": "a5cb127e80308bbf3f4f3782a83988986973b0e73c564001af1e594e30427fa7",
+              "candidate_failure_sha256": "d27dd3fd3a45430331874bb58efe26ed78a78850b53e8950a46359e174ac2e43",
+              "class_name": "LiteDB.Tests.Issues.Issue2590_Tests",
+              "name": "LiteDB.Tests.Issues.Issue2590_Tests.Empty_string_ids_are_addressable_or_rejected_before_any_write(path: InsertOne)"
+            }
+          ],
+          "outcome": "inconclusive"
+        },
+        {
+          "artifact": "bugfix-check-ubuntu-latest-net10.0",
+          "diagnostics": [
+            {
+              "baseline_failure_sha256": "a5cb127e80308bbf3f4f3782a83988986973b0e73c564001af1e594e30427fa7",
+              "candidate_failure_sha256": "d27dd3fd3a45430331874bb58efe26ed78a78850b53e8950a46359e174ac2e43",
+              "class_name": "LiteDB.Tests.Issues.Issue2590_Tests",
+              "name": "LiteDB.Tests.Issues.Issue2590_Tests.Empty_string_ids_are_addressable_or_rejected_before_any_write(path: InsertOne)"
+            }
+          ],
+          "outcome": "inconclusive"
+        }
+      ],
+      "environment": "linux-x64-net8.0",
+      "event_id": "run-35077204440-broad-ci",
+      "failed_matrix": [
+        {
+          "artifact": "bugfix-check-ubuntu-latest-net8.0",
+          "artifact_sha256": "434df10d12d514ef0e1d080622fc4f5097e8c85f10c5da8a8503ea546b6f534c",
+          "environment": "linux-x64-net8.0",
+          "outcome": "inconclusive",
+          "report_sha256": "058327a2056c6b27096cf7110c5cab2d7346e5a94cef7ce68735b522477d52ed"
+        },
+        {
+          "artifact": "bugfix-check-ubuntu-latest-net10.0",
+          "artifact_sha256": "96cdd191d584c29afb41a895ee7cac885c12849f14dcac8ff533f20294ca0d29",
+          "environment": "linux-x64-net10.0",
+          "outcome": "inconclusive",
+          "report_sha256": "a84d746651e8e93fedf69a1d51e45c1c99518adfab04a8a4085a095da4ee13b1"
+        },
+        {
+          "artifact": "bugfix-production",
+          "artifact_id": 10439010419,
+          "artifact_sha256": "b2a24d8c91072fb06051aaebfafd6e816bcc58ffa25d8b280b7a626f3dccf93b",
+          "diagnostics": [],
+          "outcome": "pass",
+          "report_sha256": "f0799d9bff111cbd608438947c87a039aa8842f74f4d53141cb9e3f052a069ec"
+        }
+      ],
+      "issue": 1002,
+      "kind": "broad",
+      "outcome": "inconclusive",
+      "passing_contract": {
+        "case_count": 18,
+        "cases_sha256": "6ba25c6aad8e1c8baf0fb89329bb9788c344851965f307bbee4f0e5e7f492254",
+        "ledger_sha256": "25d36bd781896cea84a1d0b163b0de2290e7fb14b9e1fecbce5299cf84f90ee8",
+        "schema_version": 1,
+        "state_commit": "336d5b49262c817aaa3e844b5f225b77abc9b79a"
+      },
+      "protocol": "compressed-v1",
+      "reason": "Check workflow concluded failure",
+      "run_id": 35077204440,
+      "schema_version": 1,
+      "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+      "workflow_sha": "6b9cf0507ae2f341834682da1b1d268946548931"
+    }
+  ],
+  "infrastructure_retries": {},
+  "issue": 1002,
+  "orchestration": {
+    "requests": {
+      "baseline-0-0": {
+        "inputs": {
+          "accepted_ledger_sha256": "25d36bd781896cea84a1d0b163b0de2290e7fb14b9e1fecbce5299cf84f90ee8",
+          "accepted_state_sha": "336d5b49262c817aaa3e844b5f225b77abc9b79a",
+          "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+          "candidate_sha": "",
+          "issue": "1002",
+          "level": "baseline",
+          "protocol": "compressed-v1"
+        },
+        "request_id": "bf-d6adf6538e45473289b900cd6e2af3b2",
+        "run_id": 35075002723,
+        "started_at": 1789547983.0627844,
+        "workflow": "bugfix-check.yml"
+      },
+      "broad-1-0": {
+        "inputs": {
+          "acceptance_profile_sha256": "a54c6da23c484d70eb27958331e7b4450903a58d4f10913260f2bd2c94d08545",
+          "accepted_ledger_sha256": "25d36bd781896cea84a1d0b163b0de2290e7fb14b9e1fecbce5299cf84f90ee8",
+          "accepted_state_sha": "336d5b49262c817aaa3e844b5f225b77abc9b79a",
+          "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+          "candidate_sha": "33fbf17558062276c223946b66aa3f7c01810ad6",
+          "issue": "1002",
+          "level": "broad",
+          "protocol": "compressed-v1"
+        },
+        "request_id": "bf-43f3e76b9dfc41b58781ab1004f34dc1",
+        "run_id": 35077204440,
+        "started_at": 1789549395.208004,
+        "workflow": "bugfix-check.yml"
+      },
+      "fix-1-0": {
+        "branch": "fix/issue-1002-hosted-v10-1002-a1",
+        "candidate_sha": "33fbf17558062276c223946b66aa3f7c01810ad6",
+        "inputs": {
+          "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+          "feedback": "",
+          "issue": "1002",
+          "source_run": "35075002723",
+          "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c"
+        },
+        "request_id": "bf-7437964035544a8fa491816eff39e6ab",
+        "run_id": 35075342165,
+        "started_at": 1789548199.1968307,
+        "worker_metadata": {
+          "accounted_ai_credits": 2573.77,
+          "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+          "changed_paths": [
+            "LiteDB/Client/Database/Collections/Insert.cs"
+          ],
+          "codex_version": "0.154.0",
+          "configured_model": "gpt-6-astra",
+          "configured_reasoning_effort": "high",
+          "issue": 1002,
+          "kind": "fix",
+          "observed_request_count": 19,
+          "observed_request_models": [
+            "gpt-6-astra"
+          ],
+          "patch_sha256": "cbb129ed4a763d7a934bae9872018be9e6350de815ac36cad84452f977849e5c",
+          "reasoning_verification": "local-request-capture",
+          "reported_model": "gpt-6-astra",
+          "reported_reasoning_effort": null,
+          "result_sha256": "6b674a1d333fe062f2fa5f550ad04d8fecde8f87499ea01fc9b5ff03f33dd466",
+          "run_attempt": "1",
+          "run_id": "35075342165",
+          "runtime_proof_sha256": "cef9ca61239a45dfb2681d9f3078330c9584fc9635b226bb40e01954672193df",
+          "schema_version": 1,
+          "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+          "verified_reasoning_effort": "high",
+          "workflow_sha": "6b9cf0507ae2f341834682da1b1d268946548931"
+        },
+        "workflow": "bugfix-fix.lock.yml"
+      }
+    },
+    "worker_retries": 0,
+    "workflow_ref": "automation/bugfix-runtime-v10"
+  },
+  "passing_contract": {
+    "case_count": 18,
+    "cases_sha256": "6ba25c6aad8e1c8baf0fb89329bb9788c344851965f307bbee4f0e5e7f492254",
+    "ledger_sha256": "25d36bd781896cea84a1d0b163b0de2290e7fb14b9e1fecbce5299cf84f90ee8",
+    "schema_version": 1,
+    "state_commit": "336d5b49262c817aaa3e844b5f225b77abc9b79a"
+  },
+  "paused": false,
+  "phase": "blocked",
+  "protocol": "compressed-v1",
+  "repair_attempts": 1,
+  "reviews": {},
+  "schema_version": 1,
+  "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+  "workflow_sha": "6b9cf0507ae2f341834682da1b1d268946548931"
+}

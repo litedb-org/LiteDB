@@ -1,0 +1,45 @@
+{
+  "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+  "campaign": "hosted-v10-2802",
+  "candidate_sha": null,
+  "events": {},
+  "evidence": {},
+  "history": [],
+  "infrastructure_retries": {},
+  "issue": 2802,
+  "orchestration": {
+    "requests": {
+      "baseline-0-0": {
+        "inputs": {
+          "accepted_ledger_sha256": "25d36bd781896cea84a1d0b163b0de2290e7fb14b9e1fecbce5299cf84f90ee8",
+          "accepted_state_sha": "db37de9098ecc9b16121874a317608f151c5a8a1",
+          "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+          "candidate_sha": "",
+          "issue": "2802",
+          "level": "baseline",
+          "protocol": "compressed-v1"
+        },
+        "request_id": "bf-04adb2dcca724f9a8455ea17c20ba8cf",
+        "started_at": 1789549960.2189808,
+        "workflow": "bugfix-check.yml"
+      }
+    },
+    "worker_retries": 0,
+    "workflow_ref": "automation/bugfix-runtime-v10"
+  },
+  "passing_contract": {
+    "case_count": 18,
+    "cases_sha256": "6ba25c6aad8e1c8baf0fb89329bb9788c344851965f307bbee4f0e5e7f492254",
+    "ledger_sha256": "25d36bd781896cea84a1d0b163b0de2290e7fb14b9e1fecbce5299cf84f90ee8",
+    "schema_version": 1,
+    "state_commit": "db37de9098ecc9b16121874a317608f151c5a8a1"
+  },
+  "paused": false,
+  "phase": "baseline",
+  "protocol": "compressed-v1",
+  "repair_attempts": 0,
+  "reviews": {},
+  "schema_version": 1,
+  "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+  "workflow_sha": "6b9cf0507ae2f341834682da1b1d268946548931"
+}
