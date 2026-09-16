@@ -120,7 +120,7 @@
   },
   "kind": "hosted-bugfix-sweep",
   "last_tick": {
-    "at": 1789529027.9789722,
+    "at": 1789529993.9811423,
     "campaign": null,
     "campaign_phase": null,
     "counts": {
@@ -131,7 +131,7 @@
     },
     "issue": null,
     "run_attempt": 1,
-    "run_id": 35051620149,
+    "run_id": 35052627819,
     "run_ids": []
   },
   "paused": false,
