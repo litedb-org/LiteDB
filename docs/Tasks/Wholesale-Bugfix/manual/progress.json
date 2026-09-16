@@ -1505,10 +1505,11 @@
         "from fork"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2858_Tests.cs"
-      ]
+      ],
+      "validation": "4 original failures pass; SQL selection70pass9preexisting failures verified against baseline; all library targets build; four Sol approvals"
     },
     {
       "issue": 2859,

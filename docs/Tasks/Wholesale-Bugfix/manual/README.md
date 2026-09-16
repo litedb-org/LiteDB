@@ -236,3 +236,14 @@ unchanged. The same report's diagnostic contract now uses Type.FullName to ident
 nested types with identical simple names. Baseline: eight failures / six controls.
 Final: 66 net8 URI/mapper tests pass, including independently authored BSON and
 both URI-kind controls. All library targets build; four Sol reviewers approved.
+
+
+## #2858 — culture-independent SQL grammar
+
+Command dispatch/log labels and INSERT auto-ID type tokens use invariant casing.
+Payloads, identifiers and database collation stay on their existing paths.
+All four original Turkish-culture failures pass, with uppercase controls and
+persistence/transaction/rebuild oracles retained. The broader SQL selection has
+70 passes and nine unrelated failures; each failure matches the full behavioral
+baseline (LIKE, grouping and SQL audit cases). All library targets build and all
+four Sol reviewers approved without findings.
