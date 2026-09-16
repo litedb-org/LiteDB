@@ -107,8 +107,6 @@ namespace LiteDB.Engine
 
                 var queryPlan = optimizer.ProcessQuery();
 
-                var plan = queryPlan.GetExecutionPlan();
-
                 // if execution is just to get explan plan, return as single document result
                 if (executionPlan)
                 {

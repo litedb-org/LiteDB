@@ -195,6 +195,31 @@ All original short samples and the longer repeats are retained in `07-*`.
 All checksums match within each comparison. Full .NET 8 suite: 981 passed, seven
 existing skips. The Release solution builds all targets.
 
+## 8. Build EXPLAIN documents only when requested
+
+Every ordinary query previously built and discarded a BSON execution-plan
+document. EXPLAIN queries built it twice. Removing that unused call avoids plan
+formatting and allocation while keeping the requested EXPLAIN output identical.
+This is a small execution-path change that benefits both frontends automatically.
+
+| Complete query | Before µs | After µs | Time reduction | Before B/query | After B/query |
+|---|---:|---:|---:|---:|---:|
+| Primary-key lookup, LINQ | 36.28 | 36.76 | -1.3% | 33,290 | 30,970 |
+| Primary-key lookup, SQL | 37.07 | 36.14 | 2.5% | 36,801 | 34,481 |
+| Combined predicate, LINQ | 48.01 | 44.87 | 6.5% | 31,762 | 29,234 |
+| Five-row projection, LINQ | 86.34 | 81.56 | 5.5% | 43,764 | 41,124 |
+| EXPLAIN query | 22.28 | 20.60 | 7.5% | 16,217 | 13,897 |
+| Full-scan control | 64,430.93 | 62,526.50 | 3.0% | 51,529,808 | 51,527,538 |
+
+The two paired processes use five times the default iterations per batch. All
+checksums and the EXPLAIN documents match. Point-query timings still vary on this
+shared host; their small differences and the scan timing are inconclusive. The
+allocation reduction is consistent: roughly 2.3–2.6 KB per query, or 6–8% in the
+ordinary lookup/projection workloads. Raw measurements: `08-diagnostics-*`.
+
+The full .NET 10 suite passes 981 tests with seven existing skips, and all Release
+solution targets build. Existing query/EXPLAIN coverage validates this change.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -231,8 +256,8 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 981 passed on .NET 8 at step 7;
-  967 passed on .NET 10 at step 6. Each run has seven existing skips.
+- Full `LiteDB.Tests` with `tests.runsettings`: 981 passed on .NET 8 at step 7 and
+  .NET 10 at step 8. Each run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file
   rejection by LiteDB 5.0.21 pass for plain and encrypted files.
