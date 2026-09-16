@@ -111,6 +111,18 @@
         "run_id": 35024027102,
         "started_at": 1789506605.5504198,
         "workflow": "bugfix-fix.lock.yml"
+      },
+      "fix-1-0-budget": {
+        "inputs": {
+          "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+          "feedback": "",
+          "issue": "1002",
+          "source_run": "35022768603",
+          "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c"
+        },
+        "request_id": "bf-bb8d2e743553490ab1112f4b9d2fc508",
+        "started_at": 1789543523.1505647,
+        "workflow": "bugfix-fix.lock.yml"
       }
     },
     "worker_retries": 0,
