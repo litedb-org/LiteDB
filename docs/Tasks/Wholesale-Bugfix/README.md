@@ -2,7 +2,8 @@
 
 Status: #2874, #2839, #2869, and #1506 are integrated. The GitHub-hosted scheduler
 bootstrap is deployed and enabled for `hosted-v9-main`: #1002 is active, 23 approved
-issues are pending, and an authenticated daily-budget wait will resume automatically.
+issues are pending, and a guarded retry is resuming after the user authorized a
+50,000 daily AI-credit threshold. The old 5,000-credit cooldown has an audited override.
 Hosted state recovery, dispatch, red CI, pause/resume and scheduled quota handling
 passed. The first hosted candidate publication/review/integration remains unverified
 until the worker can run.
@@ -63,7 +64,8 @@ controller/runtime and a lease tied to the owning Actions run.
 
 The control-path canary verified separate Actions runners and automatic budget
 handling. The approved queue is armed behind the unchanged #1002 campaign to
-avoid an online batch handoff after the budget wait. Continue monitoring the
+avoid an online batch handoff. The user authorized 50,000 daily AI credits on
+September 16; per-worker caps remain unchanged. Continue monitoring the
 first complete candidate cycle before treating hosted fix integration as proven.
 Further contract expansion or parallel candidate execution needs its own review.
 

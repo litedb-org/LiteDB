@@ -24,21 +24,22 @@ local machine**. Do not replace the hosted scheduler with a local blocking queue
 One blocked issue must retain its evidence while independent approved work can
 continue. Infrastructure and usage-limit waits need durable automatic recovery.
 
-Snapshot: **2026-09-15, approximately 21:26 UTC / 23:26 Europe/Vienna**.
+Snapshot: **2026-09-16, approximately 07:25 UTC / 09:25 Europe/Vienna**.
 Re-read GitHub state before acting: this document is a snapshot, not the controller's state store.
 
 ## Current state and first action
 
 **Four fixes are integrated. The unattended GitHub scheduler is enabled for the
 24-issue `hosted-v9-main` queue: #1002 is active and 23 issues are pending. It is
-currently in an authenticated daily-budget cooldown until 2026-09-16 21:15:55 UTC
-/ 23:15:55 Europe/Vienna, with automatic retry scheduled by durable state.**
+resuming under the user-authorized 50,000 daily AI-credit threshold. The original
+5,000-credit wait was shortened through an audited recheck; the next worker must
+pass a fresh admission check.**
 
 The hosted control path passed initialization, fresh-runner state recovery,
 GitHub-token child dispatch, red-baseline validation, explicit pause/resume and
 scheduled budget-deferral consumption. The first hosted candidate publication,
 three-review cycle and integration are **still unverified because the model was
-skipped by the daily guard**. No #1002 candidate is accepted. Continue monitoring
+skipped by the previous daily guard**. No #1002 candidate is accepted. Continue monitoring
 that first cycle and repair any workflow defect; never infer acceptance from a
 successful scheduler tick.
 
@@ -57,6 +58,15 @@ No full-matrix or package-publish run was launched.
   contains the immutable scope, pins, owner history and cooldown.
 - [Campaign journal](https://github.com/litedb-org/LiteDB/blob/automation/bugfix-state/hosted-v9-1002.json)
   preserves each dispatch request and its evidence.
+- [Authorized budget recheck](https://github.com/litedb-org/LiteDB/blob/7feb6d04d4fc152257dc726f923ac522809595dc/evidence/hosted-v9-1002/budget-recheck-20260916-50000.json)
+  records the user's explicit 50,000 approval and preserves the original report,
+  hashes, request identities and attempt counts. The scheduler was briefly disabled
+  for the atomic state edit, then reenabled. [Retry tick 35068393133](https://github.com/litedb-org/LiteDB/actions/runs/35068393133)
+  succeeded and dispatched [worker 35068448523](https://github.com/litedb-org/LiteDB/actions/runs/35068448523)
+  under request `bf-bb8d2e743553490ab1112f4b9d2fc508`, key `fix-1-0-budget`.
+  The worker is in startup checks at this snapshot. Do not dispatch a duplicate.
+- [Overnight scheduled tick 35067758819](https://github.com/litedb-org/LiteDB/actions/runs/35067758819)
+  and the preceding scheduled ticks continued successfully while waiting for budget.
 - [Automatic schedule 35021418781](https://github.com/litedb-org/LiteDB/actions/runs/35021418781)
   fired while disabled and correctly skipped.
 - [Initialization 35022649813](https://github.com/litedb-org/LiteDB/actions/runs/35022649813)
@@ -85,7 +95,7 @@ No full-matrix or package-publish run was launched.
   sweep/campaign state. The independently reviewed scheduler-only fix is `5a823c25`;
   the worker runtime was not moved.
 
-Next, monitor automatic budget resumption and the first complete hosted candidate,
+Next, monitor the fresh worker's budget admission and the first complete hosted candidate,
 CI, review and integration cycle. The remaining approved issues are queued behind
 the same #1002 campaign so no online operator is needed to select another batch.
 Only one issue is active at a time; an exhausted or inconclusive candidate remains
@@ -100,17 +110,18 @@ Cron is the recurring wakeup path and can be delayed. Observed intervals include
 roughly 9, 12 and 15 minutes despite the requested five-minute schedule. Scheduled
 run `35025037352` successfully consumed the completed budget disposition.
 
-Budget accounting is now enforced for dispatched workers. The unchanged default
-is 5000 AI credits per worker workflow over the prior 24 hours, not a global
-strict spending ceiling. The live guard accounted **13971.885 credits**, including
-conservative reservations for older runs lacking complete usage evidence. Six
-known positive fixer totals alone sum to 6203.4025. No cap increase is authorized
-at this snapshot. A trusted daily-limit report
+Budget accounting is enforced for dispatched workers. The user explicitly
+authorized **50,000 AI credits for the approved bugfix sweep** on September 16.
+`GH_AW_DEFAULT_MAX_DAILY_AI_CREDITS=50000` is saved and verified. The framework
+applies this threshold separately per worker workflow over the prior 24 hours;
+it is not a strict shared spending ceiling. The original 5,000 guard accounted
+**13971.885 credits**, including conservative reservations for older runs lacking
+complete usage evidence. A trusted daily-limit report
 causes automatic retry after 24 hours; unavailable accounting retries after
 15 minutes. Neither consumes a repair attempt. Per-run limits remain 2000 for
 fixes and 1000 for reviews. See the hosted runbook for accounting limitations.
 
-The current report is artifact `10418642788`, SHA-256
+The preserved original report is artifact `10418642788`, SHA-256
 `ac0761a4fc8fa21917a9f6f9096a4ec0ca1d6b55f5a1db6f413bec108f3eee86`;
 its JSON digest is `f4d312efeaaa661212dd69081e865d8f2a95817e0c349956f6270e0e3a57f89b`.
 Do not clear or repeatedly redispatch it as an infrastructure failure. The

@@ -197,8 +197,12 @@ replay verifies three concurrent reviews where a cache fork contains only one:
 both missing reviews are fetched and all three counted. Cache lineage therefore
 does not silently omit completed reviews. In-flight parallel runs are not yet
 counted and can overshoot the admission threshold by their bounded allowances.
-The default 5000 daily threshold and AWF per-run limits (2000 fixer, 1000 reviewer)
-are unchanged. The daily threshold applies separately to the fix and validation
+The user authorized a 50,000 daily threshold for the approved sweep on September 16;
+`GH_AW_DEFAULT_MAX_DAILY_AI_CREDITS=50000` replaces the framework's 5000 default.
+AWF per-run limits remain 2000 fixer and 1000 reviewer. An
+[audited recheck](https://github.com/litedb-org/LiteDB/blob/7feb6d04d4fc152257dc726f923ac522809595dc/evidence/hosted-v9-1002/budget-recheck-20260916-50000.json)
+preserves the original 5000-credit deferral while allowing a fresh guarded retry.
+The daily threshold applies separately to the fix and validation
 workflow IDs; it is not a global spending ceiling. Collector metadata alone is
 not a daily-budget enforcer. All
 credits use conservative accounting assumptions, not actual provider charges;
