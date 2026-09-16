@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using System.ComponentModel;
+using System.Globalization;
 
 namespace LiteDB
 {
@@ -153,12 +154,12 @@ namespace LiteDB
                 return unchecked((UInt64)value.AsInt64);
             }
 
-            // enum value is an int
+            // Preserve all underlying enum bits, including UInt64 values stored as signed BSON Int64.
             else if (typeInfo.IsEnum)
             {
                 if (value.IsString) return Enum.Parse(type, value.AsString);
 
-                if (value.IsNumber) return Enum.ToObject(type, value.AsInt32);
+                if (value.IsNumber) return DeserializeEnumNumber(type, value.AsInt64);
             }
 
             // if value is array, deserialize as array
@@ -258,6 +259,17 @@ namespace LiteDB
             // in last case, return value as-is - can cause "cast error"
             // it's used for "public object MyInt { get; set; }"
             return value.RawValue;
+        }
+
+        private static object DeserializeEnumNumber(Type type, long number)
+        {
+            var underlyingType = Enum.GetUnderlyingType(type);
+
+            // UInt64 enums are stored as their signed bit pattern, so every Int64 is a valid value.
+            if (underlyingType == typeof(UInt64)) return Enum.ToObject(type, unchecked((UInt64)number));
+
+            // Enum.ToObject truncates silently; the checked conversion throws OverflowException instead.
+            return Enum.ToObject(type, Convert.ChangeType(number, underlyingType, CultureInfo.InvariantCulture));
         }
 
         /// <summary>
