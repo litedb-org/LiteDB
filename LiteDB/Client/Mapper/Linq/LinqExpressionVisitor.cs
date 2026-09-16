@@ -186,6 +186,7 @@ namespace LiteDB
         /// </summary>
         protected override Expression VisitMethodCall(MethodCallExpression node)
         {
+            if (this.TryVisitEnumEquals(node)) return node;
             if (this.IsSpanImplicitConversion(node.Method))
             {
                 this.Visit(node.Arguments[0]);
