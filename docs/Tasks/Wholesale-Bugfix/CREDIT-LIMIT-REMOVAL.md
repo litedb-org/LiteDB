@@ -67,6 +67,12 @@ audit. Live worker and CI validation are still required.
   passed for the same 24 approved issues under `hosted-v10-main`.
 - [First tick 35074950298](https://github.com/litedb-org/LiteDB/actions/runs/35074950298)
   passed and dispatched [baseline 35075002723](https://github.com/litedb-org/LiteDB/actions/runs/35075002723).
+- The baseline passed and was authenticated by
+  [35075168174](https://github.com/litedb-org/LiteDB/actions/runs/35075168174),
+  retaining the 18-case permanent passing contract.
+- [Uncapped fixer 35075342165](https://github.com/litedb-org/LiteDB/actions/runs/35075342165)
+  passed activation without daily admission and is executing Codex. Candidate
+  and CI outcomes remain pending at this snapshot.
 
 ## Evidence to record after worker verification
 

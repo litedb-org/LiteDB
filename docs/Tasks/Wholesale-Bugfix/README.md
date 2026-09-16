@@ -4,7 +4,8 @@ Status: #2874, #2839, #2869, and #1506 are integrated. The GitHub-hosted schedul
 bootstrap is deployed and enabled for `hosted-v10-main`: #1002 is active and 23
 approved issues are pending. Both AI-credit limits are explicitly disabled for
 fixers and reviewers, as requested after two capped v9 workers failed. The
-reviewed v10 runtime is deployed and its fresh baseline is running.
+reviewed v10 runtime is deployed, its fresh baseline passed, and the uncapped
+fixer is executing. Candidate publication and validation remain pending.
 Hosted state recovery, dispatch, red CI, pause/resume and scheduled quota handling
 passed. The first hosted candidate publication/review/integration remains pending.
 This replaces the local v8 queue that stopped at #1002.
