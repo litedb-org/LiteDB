@@ -26,6 +26,9 @@ namespace LiteDB
         /// </summary>
         public List<MemberMapper> Members { get; } = new List<MemberMapper>();
 
+        // Shared by fluent builders so repeated Ignore calls retain strict member validation.
+        internal HashSet<string> IgnoredMembers { get; } = new HashSet<string>();
+
         /// <summary>
         /// Indicate which member is _id
         /// </summary>

@@ -32,7 +32,8 @@ namespace LiteDB
             {
                 _entity.WaitForInitialization();
                 _entity.Members.Remove(p);
-            });
+                _entity.IgnoredMembers.Add(p.MemberName);
+            }, allowIgnored: true);
         }
 
         /// <summary>
@@ -96,7 +97,7 @@ namespace LiteDB
         /// <summary>
         /// Get a property based on a expression. Eg.: 'x => x.UserId' return string "UserId"
         /// </summary>
-        private EntityBuilder<T> GetMember<TK, K>(Expression<Func<TK, K>> member, Action<MemberMapper> action)
+        private EntityBuilder<T> GetMember<TK, K>(Expression<Func<TK, K>> member, Action<MemberMapper> action, bool allowIgnored = false)
         {
             if (member == null) throw new ArgumentNullException(nameof(member));
             _entity.WaitForInitialization();
@@ -105,6 +106,7 @@ namespace LiteDB
 
             if (memb == null)
             {
+                if (allowIgnored && _entity.IgnoredMembers.Contains(member.GetPath())) return this;
                 throw new ArgumentNullException($"Member '{member.GetPath()}' not found in type '{_entity.ForType.Name}' (use IncludeFields in BsonMapper)");
             }
 
