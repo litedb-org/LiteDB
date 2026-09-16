@@ -705,3 +705,16 @@ Validation: 296 focused net8 passes, one existing skip; full net10 1,401 passes,
 298 remaining failures and eight skips. No original-baseline or preceding-stage
 pass regressed; 165 original baseline failures now pass. All production targets
 build. Four fresh independent Sol high reviewers report no findings.
+
+## #1224 — lossless unsigned integer BSON conversions
+
+Implicit UInt64 values use signed BSON Int64 bits, matching BsonMapper, instead
+of Double. Reverse conversion accepts Int32/Int64 via signed widening and
+unchecked reinterpretation; other BSON types retain strict conversion errors.
+The legacy implicit-conversion test now expects that signed representation.
+Independent wire bytes cover zero, small integers, both signed halves, patterned
+bits and UInt64.MaxValue. Existing reopen/secondary-index/FindById regressions
+pass; new Int32 and noninteger controls cover reverse conversions.
+
+Validation: 103 focused net8 tests pass, all production targets build, and four
+fresh independent Sol high reviewers report no findings above nits.

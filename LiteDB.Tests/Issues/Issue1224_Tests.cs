@@ -19,6 +19,13 @@ namespace LiteDB.Tests.Issues
 
         public static IEnumerable<object[]> UnsignedWireValues()
         {
+            yield return new object[] { 0UL, 0L, new byte[8] };
+            yield return new object[] { 1UL, 1L, new byte[] { 1, 0, 0, 0, 0, 0, 0, 0 } };
+            yield return new object[]
+            {
+                2147483648UL, 2147483648L,
+                new byte[] { 0, 0, 0, 0x80, 0, 0, 0, 0 }
+            };
             yield return new object[]
             {
                 9007199254740993UL,
@@ -49,6 +56,27 @@ namespace LiteDB.Tests.Issues
                 -1L,
                 new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF }
             };
+        }
+
+        [Theory]
+        [InlineData(0, 0UL)]
+        [InlineData(1, 1UL)]
+        [InlineData(Int32.MaxValue, 2147483647UL)]
+        [InlineData(-1, UInt64.MaxValue)]
+        public void Int32_values_widen_before_reinterpreting_unsigned_bits(int signed, ulong expected)
+        {
+            ulong actual = new BsonValue(signed);
+            actual.Should().Be(expected);
+        }
+
+        [Fact]
+        public void Non_integer_Bson_values_do_not_silently_coerce_to_unsigned_ids()
+        {
+            foreach (var value in new BsonValue[] { 1.0, 1m, "1", true })
+            {
+                Action convert = () => { ulong ignored = value; };
+                convert.Should().Throw<InvalidCastException>();
+            }
         }
 
         [Theory]

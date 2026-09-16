@@ -166,10 +166,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue1224_Tests.cs"
-      ]
+      ],
+      "validation": "103 focused net8 passes including independent wire bytes and indexed persisted IDs; all production targets build; four fresh independent Sol high approvals"
     },
     {
       "issue": 1325,
