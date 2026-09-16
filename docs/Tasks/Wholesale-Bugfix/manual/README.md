@@ -1085,3 +1085,13 @@ regressions versus #1920. The earlier #1472 temporary-name failure also passes i
 this run. Production and net462 builds pass. Two fresh four-Sol-high waves;
 addressed lifecycle error precedence. All final reviewers (`review_1966_w2_a`
 through `_d`) were clean.
+
+## Validation infrastructure — collision-resistant temporary filenames
+
+TempFile now uses the complete GUID in both constructors instead of its first
+five hex characters. The former 20-bit namespace collided with orphan WALs left
+by intentionally failing tests, including inside fresh TMPDIRs; #1829 and #1920
+validation encountered those false setup failures. Naming prefixes/extensions,
+copy semantics and cleanup remain unchanged. Four fresh Sol high reviewers
+(`review_tempfile_w1_a` through `_d`) were clean; 52 file-backed issue/reference/
+transaction/read-only tests pass. No production behavior changes.
