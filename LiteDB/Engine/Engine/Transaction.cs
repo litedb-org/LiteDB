@@ -63,9 +63,7 @@ namespace LiteDB.Engine
 
             if (transaction != null && transaction.State == TransactionState.Active)
             {
-                transaction.Rollback();
-
-                _monitor.ReleaseTransaction(transaction);
+                this.RollbackAndReleaseTransaction(transaction);
 
                 return true;
             }
@@ -94,11 +92,9 @@ namespace LiteDB.Engine
             }
             catch(Exception ex)
             {
-                if (_state.Handle(ex))
+                if (_state.Handle(ex) && transaction.State == TransactionState.Active)
                 {
-                    transaction.Rollback();
-
-                    _monitor.ReleaseTransaction(transaction);
+                    this.RollbackAndReleaseTransaction(transaction);
                 }
 
                 throw;
@@ -107,15 +103,38 @@ namespace LiteDB.Engine
 
         private void CommitAndReleaseTransaction(TransactionService transaction)
         {
-            transaction.Commit();
-
-            _monitor.ReleaseTransaction(transaction);
+            try
+            {
+                transaction.Commit();
+                _monitor.ReleaseTransaction(transaction);
+            }
+            catch (Exception ex)
+            {
+                // Completion may have partially persisted state. Do not let a later
+                // write reuse this transaction and report success without committing.
+                _state.Stop(ex);
+                throw;
+            }
 
             // try checkpoint when finish transaction and log file are bigger than checkpoint pragma value (in pages)
             if (_header.Pragmas.Checkpoint > 0 &&
                 _disk.GetFileLength(FileOrigin.Log) >= (_header.Pragmas.Checkpoint * PAGE_SIZE))
             {
                 _walIndex.TryCheckpoint();
+            }
+        }
+
+        private void RollbackAndReleaseTransaction(TransactionService transaction)
+        {
+            try
+            {
+                transaction.Rollback();
+                _monitor.ReleaseTransaction(transaction);
+            }
+            catch (Exception ex)
+            {
+                _state.Stop(ex);
+                throw;
             }
         }
     }
