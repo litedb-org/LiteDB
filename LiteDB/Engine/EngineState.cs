@@ -55,7 +55,10 @@ namespace LiteDB.Engine
         {
             if (_settings?.ReadTransform is null) return value;
 
-            return _settings.ReadTransform(collection, value);
+            var result = _settings.ReadTransform(collection, value);
+            if (value is BsonDocument source && result is BsonDocument target)
+                target.IsProjectionValue = source.IsProjectionValue;
+            return result;
         }
     }
 }

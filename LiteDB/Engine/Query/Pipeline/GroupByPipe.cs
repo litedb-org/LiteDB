@@ -203,7 +203,7 @@ namespace LiteDB.Engine
                     }
                     else
                     {
-                        document = new BsonDocument { [defaultName] = value };
+                        document = new BsonDocument { [defaultName] = value, IsProjectionValue = true };
                     }
 
                     if (resultOrderBy != null)
