@@ -22,7 +22,6 @@ namespace LiteDB.Engine
                     this.MoveForward(0);
                     continue;
                 }
-
                 var bytesToCopy = Math.Min(destination.Length - written, bytesLeft);
 
                 _current.EnsureReadable();

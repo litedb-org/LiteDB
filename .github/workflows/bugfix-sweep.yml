@@ -1,0 +1,169 @@
+name: Wholesale bugfix sweep
+run-name: Bugfix sweep ${{ inputs.operation || 'tick' }} / ${{ inputs.sweep || vars.BUGFIX_ACTIVE_SWEEP }}
+
+on:
+  schedule:
+    - cron: '2-59/5 * * * *'
+  workflow_run:
+    workflows:
+      - Wholesale bugfix checks
+      - Wholesale bugfix fix worker
+      - Wholesale bugfix validation worker
+    branches: ['automation/bugfix-runtime-*']
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      operation:
+        type: choice
+        options: [tick, init, pause, resume, status]
+        default: tick
+        required: true
+      sweep:
+        description: Sweep name; blank uses BUGFIX_ACTIVE_SWEEP
+        type: string
+      workflow_sha:
+        description: Init only; approved immutable worker/check runtime SHA
+        type: string
+      workflow_ref:
+        description: Init only; branch fixed at workflow_sha
+        type: string
+      campaign_prefix:
+        description: Init only; unique campaign prefix
+        type: string
+      issues:
+        description: Init only; ordered issue IDs separated by spaces
+        type: string
+      reason:
+        description: Required for pause or resume
+        type: string
+
+permissions:
+  contents: write
+  actions: write
+  issues: write
+
+concurrency:
+  group: wholesale-bugfix-global-writer
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    if: >-
+      github.repository == 'litedb-org/LiteDB' &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      (vars.BUGFIX_SWEEP_ENABLED == 'true' ||
+       (github.event_name == 'workflow_dispatch' && inputs.operation != 'tick')) &&
+      (github.event_name != 'workflow_run' ||
+       (github.event.workflow_run.event == 'workflow_dispatch' &&
+        github.event.workflow_run.head_repository.full_name == github.repository))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - name: Validate scheduler configuration
+        id: configuration
+        shell: python
+        env:
+          SCHEDULER_SHA: ${{ vars.BUGFIX_SCHEDULER_SHA }}
+          ACTIVE_SWEEP: ${{ vars.BUGFIX_ACTIVE_SWEEP }}
+          REQUESTED_SWEEP: ${{ inputs.sweep }}
+          OPERATION: ${{ inputs.operation || 'tick' }}
+          WORKFLOW_SHA: ${{ inputs.workflow_sha }}
+          WORKFLOW_REF: ${{ inputs.workflow_ref }}
+          CAMPAIGN_PREFIX: ${{ inputs.campaign_prefix }}
+          ISSUES: ${{ inputs.issues }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          import os
+          import re
+
+          env = os.environ
+          operation = env['OPERATION']
+          sweep = env['REQUESTED_SWEEP'] or env['ACTIVE_SWEEP']
+          if operation not in {'tick', 'init', 'pause', 'resume', 'status'}:
+              raise SystemExit('Unsupported scheduler operation')
+          if not re.fullmatch(r'[0-9a-f]{40}', env['SCHEDULER_SHA']):
+              raise SystemExit('BUGFIX_SCHEDULER_SHA must be an approved full commit SHA')
+          if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,59}', sweep):
+              raise SystemExit('Invalid or missing sweep name')
+          if operation == 'init':
+              if not re.fullmatch(r'[0-9a-f]{40}', env['WORKFLOW_SHA']):
+                  raise SystemExit('Init requires an immutable worker runtime SHA')
+              ref = env['WORKFLOW_REF']
+              if not re.fullmatch(r'automation/bugfix-runtime-[A-Za-z0-9._-]+', ref):
+                  raise SystemExit('Init requires an approved runtime branch')
+              if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,49}', env['CAMPAIGN_PREFIX']):
+                  raise SystemExit('Invalid campaign prefix')
+              issues = env['ISSUES'].split()
+              if not 1 <= len(issues) <= 40 or not all(re.fullmatch(r'[1-9][0-9]*', issue) for issue in issues):
+                  raise SystemExit('Supply one to forty positive issue IDs separated by spaces')
+              if len(issues) != len(set(issues)):
+                  raise SystemExit('Duplicate issue IDs')
+          if operation in {'pause', 'resume'} and not 1 <= len(env['REASON'].strip()) <= 2000:
+              raise SystemExit('Pause/resume requires a reason of at most 2000 characters')
+          with open(env['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write(f"sha={env['SCHEDULER_SHA']}\nsweep={sweep}\n")
+
+      - name: Checkout immutable scheduler
+        id: checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ steps.configuration.outputs.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Advance one bounded scheduler operation
+        shell: python
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SCHEDULER_SHA: ${{ steps.configuration.outputs.sha }}
+          SWEEP: ${{ steps.configuration.outputs.sweep }}
+          OPERATION: ${{ inputs.operation || 'tick' }}
+          WORKFLOW_SHA: ${{ inputs.workflow_sha }}
+          WORKFLOW_REF: ${{ inputs.workflow_ref }}
+          CAMPAIGN_PREFIX: ${{ inputs.campaign_prefix }}
+          ISSUES: ${{ inputs.issues }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          import os
+          import subprocess
+          import sys
+
+          env = os.environ
+          operation = env['OPERATION']
+          actual_sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], encoding='utf-8').strip()
+          if actual_sha != env['SCHEDULER_SHA']:
+              raise SystemExit('Checked-out scheduler differs from the approved immutable SHA')
+          command = [sys.executable, '.github/bugfix/sweep.py', operation,
+                     '--repo', env['GITHUB_REPOSITORY'], '--sweep', env['SWEEP']]
+          if operation != 'status':
+              command += ['--owner-run-id', env['GITHUB_RUN_ID'],
+                          '--owner-run-attempt', env['GITHUB_RUN_ATTEMPT'],
+                          '--scheduler-sha', env['SCHEDULER_SHA']]
+          if operation == 'init':
+              command += ['--workflow-sha', env['WORKFLOW_SHA'], '--workflow-ref', env['WORKFLOW_REF'],
+                          '--campaign-prefix', env['CAMPAIGN_PREFIX'], '--issues', *env['ISSUES'].split()]
+          elif operation == 'tick':
+              command += ['--repository', env['GITHUB_WORKSPACE']]
+          elif operation in {'pause', 'resume'}:
+              command += ['--reason', env['REASON']]
+          try:
+              result = subprocess.run(command, check=False, timeout=480)
+              code = result.returncode
+          except subprocess.TimeoutExpired:
+              code = 124
+          with open(env['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
+              summary.write(f'## Hosted bugfix sweep\n\nOperation: `{operation}`. Exit code: `{code}`.\n\n'
+                            'The durable sweep state records progress, pending runs and blocker dispositions. '
+                            'This run performs one bounded operation; future wakeups resume from that state.\n')
+          raise SystemExit(code)
+
+      - name: Publish durable sweep status
+        if: always() && steps.checkout.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SWEEP_NAME: ${{ steps.configuration.outputs.sweep }}
+        run: >-
+          python3 .github/bugfix/sweep_report.py --repo "$GITHUB_REPOSITORY"
+          --sweep "$SWEEP_NAME" --run-id "$GITHUB_RUN_ID" --issue 2890
