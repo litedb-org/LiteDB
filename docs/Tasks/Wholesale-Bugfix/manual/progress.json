@@ -1556,10 +1556,11 @@
         "from fork"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2867_Tests.cs"
-      ]
+      ],
+      "validation": "3 baseline failures fixed;305 net8 mapper/query/autoID/DbRef tests pass,1existing skip; all library targets build; four final Sol approvals"
     },
     {
       "issue": 2869,

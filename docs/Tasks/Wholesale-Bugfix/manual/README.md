@@ -259,3 +259,19 @@ Final: 54 net8 mapper tests pass, including unrelated-field persistence and adde
 strict-validation controls; all library targets build. Four Sol reviewers approved.
 The inherited string-based GetPath parser limitation was noted and left separate;
 it affects prior member resolution and is not introduced by the ignored-name ledger.
+
+
+## #2867 — inherited mapped-type ID convention
+
+ID selection honors the reflected mapped type after explicit BsonId/plain Id and
+before the legacy declaring-type fallback. LINQ member access uses its mapped
+owner, and MemberInit uses the constructed result type, keeping query/projection
+paths consistent with serialization. Transparent reference upcasts retain the
+underlying mapped owner; other conversion categories keep their prior handling.
+
+Baseline: three failures / one control. Original typed-query checks caught the
+initial serializer/query mismatch, also identified by Sol review. Review then
+caught explicit base casts; both cast/as and typed projections now have controls.
+Legacy inherited BaseTypeId and explicit-attribute precedence remain covered.
+Final: 305 net8 mapper/query/auto-ID/DbRef tests pass, one existing skip; all library
+targets build. All four final Sol reviews approved.

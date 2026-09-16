@@ -42,6 +42,38 @@ namespace LiteDB.Tests.Issues
         {
         }
 
+        public class LegacyBase
+        {
+            public int LegacyBaseId { get; set; }
+        }
+
+        public class LegacyDerived : LegacyBase
+        {
+        }
+
+        public class ExplicitIdInvoice : InheritedInvoiceBase
+        {
+            [BsonId]
+            public int Key { get; set; }
+            public int ExplicitIdInvoiceId { get; set; }
+        }
+
+        [Fact]
+        public void Legacy_declaring_type_convention_and_explicit_id_precedence_remain_supported()
+        {
+            var mapper = new BsonMapper();
+            var legacy = mapper.ToDocument(new LegacyDerived { LegacyBaseId = 81 });
+            legacy["_id"].AsInt32.Should().Be(81);
+            mapper.ToObject<LegacyDerived>(new BsonDocument { ["_id"] = 82 }).LegacyBaseId.Should().Be(82);
+            var explicitId = mapper.ToDocument(new ExplicitIdInvoice
+            {
+                Key = 91, ExplicitIdInvoiceId = 92, InheritedInvoiceId = 93
+            });
+            explicitId["_id"].AsInt32.Should().Be(91);
+            explicitId[nameof(ExplicitIdInvoice.ExplicitIdInvoiceId)].AsInt32.Should().Be(92);
+            explicitId[nameof(ExplicitIdInvoice.InheritedInvoiceId)].AsInt32.Should().Be(93);
+        }
+
         [Fact]
         public void Inherited_mapped_type_id_round_trips_through_the_id_field()
         {
@@ -112,6 +144,15 @@ namespace LiteDB.Tests.Issues
                 invoices.FindById(7301).Payload.Should().Be("first");
                 invoices.Find(x => x.InheritedInvoiceId == 7302)
                     .Select(x => x.Payload).Should().Equal("second");
+                invoices.Find(x => ((InheritedInvoiceBase)x).InheritedInvoiceId == 7302)
+                    .Select(x => x.Payload).Should().Equal("second");
+                invoices.Find(x => (x as InheritedInvoiceBase).InheritedInvoiceId == 7302)
+                    .Select(x => x.Payload).Should().Equal("second");
+                var projected = invoices.Query().Where(x => x.InheritedInvoiceId == 7302)
+                    .Select(x => new InheritedInvoice { InheritedInvoiceId = x.InheritedInvoiceId, Payload = x.Payload })
+                    .ToArray().Single();
+                projected.InheritedInvoiceId.Should().Be(7302);
+                projected.Payload.Should().Be("second");
             }
         }
 
