@@ -150,7 +150,7 @@ public class Issue2456_HashContract_Tests
         var values = new BsonValue[] { 1, 1L, new BsonValue(new[] { "a" }), new BsonArray { "a" }, new BsonDocument { ["k"] = 1 }, new BsonValue(new Dictionary<string, object> { ["K"] = 1.0 }) };
 
         values.Distinct().Should().HaveCount(3);
-        values.ToHashSet().Should().HaveCount(3);
+        new HashSet<BsonValue>(values).Should().HaveCount(3);
         values.GroupBy(x => x).Should().HaveCount(3);
         new Dictionary<BsonValue, string> { [values[2]] = "array" }.Should().ContainKey(values[3]);
         new Dictionary<BsonValue, string> { [values[4]] = "document" }.Should().ContainKey(values[5]);

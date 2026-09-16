@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -258,15 +259,16 @@ public class Issue2456_Tests
     [Fact]
     public void Wrapped_dictionary_should_use_last_case_colliding_key()
     {
-        var source = new Dictionary<string, BsonValue>
+        // ordinal order enumerates "NAME" before "name", so "lower" is the last value seen
+        var source = new SortedDictionary<string, BsonValue>(StringComparer.Ordinal)
         {
-            ["name"] = "first",
-            ["NAME"] = "last"
+            ["name"] = "lower",
+            ["NAME"] = "upper"
         };
 
         var wrapped = new BsonValue((object)source);
 
         Assert.Single(wrapped.AsDocument);
-        wrapped.AsDocument["Name"].AsString.Should().Be("last");
+        wrapped.AsDocument["Name"].AsString.Should().Be("lower");
     }
 }

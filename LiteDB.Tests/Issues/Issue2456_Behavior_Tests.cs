@@ -16,7 +16,8 @@ public class Issue2456_Behavior_Tests
 
     private static BsonValue ArrayWrapper() => new BsonValue(Tags);
 
-    private static BsonValue DocumentWrapper() => new BsonValue(new Dictionary<string, object> { ["x"] = 1, ["y"] = "two" });
+    // an ordered source keeps the copied key order deterministic for byte-level comparisons
+    private static BsonValue DocumentWrapper() => new BsonValue(new SortedDictionary<string, object>(StringComparer.Ordinal) { ["x"] = 1, ["y"] = "two" });
 
     [Fact]
     public void Wrapped_values_should_serialize_to_identical_bytes_as_native_collections()
@@ -73,7 +74,11 @@ public class Issue2456_Behavior_Tests
         var json = JsonSerializer.Serialize(wrapper);
         var pretty = JsonSerializer.Serialize(wrapper, indent: true);
 
-        json.Should().Be("{\"tags\":[\"a\",\"b\",\"c\"],\"count\":3,\"nested\":{\"ok\":true}}");
+        var parsed = JsonSerializer.Deserialize(json).AsDocument;
+        parsed.Keys.Should().BeEquivalentTo("tags", "count", "nested");
+        parsed["tags"].AsArray.Select(x => x.AsString).Should().Equal("a", "b", "c");
+        parsed["count"].AsInt32.Should().Be(3);
+        parsed["nested"]["ok"].AsBoolean.Should().BeTrue();
         JsonSerializer.Deserialize(json).Should().Be(wrapper);
         JsonSerializer.Deserialize(pretty).Should().Be(wrapper);
         wrapper.ToString().Should().Be(json);

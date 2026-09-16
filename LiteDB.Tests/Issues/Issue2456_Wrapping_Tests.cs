@@ -77,7 +77,8 @@ public class Issue2456_Wrapping_Tests
         value.IsDocument.Should().BeTrue(label);
         ((object)value.AsDocument).Should().NotBeNull(label);
         ((object)value.AsArray).Should().BeNull(label);
-        value.ToString().Should().Be(expectedJson, label);
+        // key order of a copied Dictionary is not contractual, so compare parsed documents
+        value.Should().Be(JsonSerializer.Deserialize(expectedJson), label);
         JsonSerializer.Deserialize(value.ToString()).Should().Be(value, label);
         value.Should().Be(value.AsDocument, label);
         value.Should().Be(new BsonDocument(value.AsDocument), label);
@@ -156,13 +157,14 @@ public class Issue2456_Wrapping_Tests
     public void Dictionary_keys_should_be_case_insensitive_like_BsonDocument()
     {
         var value = new BsonValue(new Dictionary<string, object> { ["Name"] = "x" });
-        var mixed = new BsonValue(new Dictionary<string, object> { ["a"] = 1, ["A"] = 2 });
+        // ordinal order enumerates "A" before "a", so "a" is the last value seen
+        var mixed = new BsonValue(new SortedDictionary<string, object>(StringComparer.Ordinal) { ["a"] = 1, ["A"] = 2 });
 
         value.AsDocument["name"].AsString.Should().Be("x");
         value.AsDocument["NAME"].AsString.Should().Be("x");
         value.AsDocument.ContainsKey("nAmE").Should().BeTrue();
         mixed.AsDocument.Count.Should().Be(1);
-        mixed.AsDocument["a"].AsInt32.Should().Be(2);
+        mixed.AsDocument["A"].AsInt32.Should().Be(1);
     }
 
     [Fact]
@@ -184,6 +186,25 @@ public class Issue2456_Wrapping_Tests
         sourceList.Should().Equal(new BsonValue[] { 1, null });
         sourceDictionary.Keys.Should().Equal("a");
         sourceArray.Should().Equal("x");
+    }
+
+    [Fact]
+    public void Wrapped_fixed_size_and_read_only_sources_should_support_every_mutation()
+    {
+        var array = new BsonValue((object)new BsonValue[] { 1 });
+        var document = new BsonValue((object)new ReadOnlyDictionary<string, BsonValue>(new Dictionary<string, BsonValue> { ["a"] = 1 }));
+
+        array.AsArray.AddRange(new BsonValue[] { 2, 3 });
+        array.AsArray.AddRange(new List<BsonValue> { 4 });
+        array.AsArray.Insert(0, 0);
+        array.AsArray.Remove(3).Should().BeTrue();
+        document.AsDocument.Add("b", 2);
+        document.AsDocument.Remove("a").Should().BeTrue();
+        document.AsDocument["C"] = 3;
+
+        array.AsArray.Select(x => x.AsInt32).Should().Equal(0, 1, 2, 4);
+        document.AsDocument.Keys.Should().BeEquivalentTo("b", "C");
+        document.AsDocument["c"].AsInt32.Should().Be(3);
     }
 
     [Fact]
