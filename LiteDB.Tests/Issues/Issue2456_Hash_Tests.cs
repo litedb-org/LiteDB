@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using FluentAssertions;
 using Xunit;
@@ -36,5 +37,40 @@ public class Issue2456_Hash_Tests
 
         new HashSet<BsonValue> { firstArray }.Should().Contain(equalArray);
         new HashSet<BsonValue> { firstDocument }.Should().Contain(equalDocument);
+    }
+
+    [Fact]
+    public void Equal_scalars_should_share_hash_codes()
+    {
+        var utc = new DateTime(2024, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+
+        new HashSet<BsonValue> { new BsonValue(1) }.Should().Contain(new BsonValue(1L));
+        new HashSet<BsonValue> { new BsonValue(1.0) }.Should().Contain(new BsonValue(1m));
+        new HashSet<BsonValue> { new BsonValue(new byte[] { 1, 2 }) }.Should().Contain(new BsonValue(new byte[] { 1, 2 }));
+        new HashSet<BsonValue> { new BsonValue(new float[] { 1f, 2f }) }.Should().Contain(new BsonValue(new float[] { 1f, 2f }));
+        new HashSet<BsonValue> { new BsonValue(utc) }.Should().Contain(new BsonValue(utc.ToLocalTime()));
+    }
+
+    [Theory]
+    [InlineData(7.922816251426434E+28)]   // (double)decimal.MaxValue == 2^96, overflows Convert.ToDecimal
+    [InlineData(-7.922816251426434E+28)]
+    [InlineData(1E+29)]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    public void Doubles_outside_decimal_range_should_not_throw_from_GetHashCode(double number)
+    {
+        var scalar = new BsonValue(number);
+        var array = new BsonValue((object)new BsonValue[] { number });
+        var document = new BsonDocument { ["x"] = number };
+
+        var exception = Record.Exception(() =>
+        {
+            scalar.GetHashCode();
+            array.GetHashCode();
+            document.GetHashCode();
+        });
+
+        exception.Should().BeNull();
+        new HashSet<BsonValue> { scalar }.Should().Contain(new BsonValue(number));
     }
 }

@@ -148,7 +148,7 @@ public class Issue2456_Tests
             ["_id"] = 1
         });
 
-        // The wrapped Dictionary uses a case-sensitive comparer. A regular
+        // The source Dictionary uses a case-sensitive comparer, but the wrapped
         // BsonDocument does not, so this spelling must update the same field.
         wrapped["_ID"] = 2;
         col.Insert(wrapped.AsDocument);

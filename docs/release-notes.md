@@ -12,6 +12,11 @@ list or dictionary are therefore not reflected in the `BsonValue`. Dictionary
 keys use case-insensitive BSON document semantics; when source keys differ only
 by case, the last value enumerated wins.
 
+`BsonValue.GetHashCode()` now agrees with `Equals()`: numerically equal values
+(`1`, `1L`, `1.0`, `1m`), binary values with the same bytes, UTC-equivalent
+dates, and arrays/documents with equal content share a hash code. Collection
+hash codes are content-based, so they change when the collection is mutated.
+
 ## Stream ownership change
 
 Streams supplied through `EngineSettings.DataStream`, `LogStream`, and

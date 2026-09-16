@@ -73,10 +73,7 @@ namespace LiteDB
 
         public override int GetHashCode()
         {
-            if (this.IsArray) return GetArrayHashCode(this.AsArray);
-            if (this.IsDocument) return GetDocumentHashCode(this.AsDocument);
-
-            return CombineHashCodes(this.Type.GetHashCode(), this.RawValue?.GetHashCode() ?? 0);
+            return GetEqualityHashCode(this);
         }
 
         private static int GetEqualityHashCode(BsonValue value)
@@ -87,8 +84,10 @@ namespace LiteDB
                 {
                     var number = value.AsDouble;
 
+                    // (double)Decimal.MaxValue rounds up to 2^96, which itself overflows
+                    // Convert.ToDecimal, so the bounds must be exclusive.
                     if (Double.IsNaN(number) || Double.IsInfinity(number) ||
-                        number > (double)Decimal.MaxValue || number < (double)Decimal.MinValue)
+                        number >= (double)Decimal.MaxValue || number <= (double)Decimal.MinValue)
                     {
                         return CombineHashCodes(value.Type.GetHashCode(), number.GetHashCode());
                     }
