@@ -63,6 +63,7 @@ namespace LiteDB
             {
                 return custom(obj);
             }
+            else if (this.TrySerializeStream(obj, out var streamValue)) return streamValue;
             // test string - mapper has some special options
             else if (obj is String)
             {

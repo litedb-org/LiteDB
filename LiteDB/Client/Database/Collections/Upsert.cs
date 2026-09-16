@@ -36,7 +36,7 @@ namespace LiteDB
             if (id == null || id.IsNull) throw new ArgumentNullException(nameof(id));
 
             // get BsonDocument from object
-            var doc = _mapper.ToDocument(entity);
+            var doc = this.Serialize(entity);
 
             // set document _id using id parameter
             doc["_id"] = id;

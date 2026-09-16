@@ -14,7 +14,7 @@ namespace LiteDB
         {
             if (entity == null) throw new ArgumentNullException(nameof(entity));
 
-            var doc = _mapper.ToDocument(entity);
+            var doc = this.Serialize(entity);
             var removed = this.RemoveDocId(doc);
 
             _engine.Insert(_collection, new[] { doc }, _autoId);
@@ -38,7 +38,7 @@ namespace LiteDB
             if (entity == null) throw new ArgumentNullException(nameof(entity));
             if (id == null || id.IsNull) throw new ArgumentNullException(nameof(id));
 
-            var doc = _mapper.ToDocument(entity);
+            var doc = this.Serialize(entity);
 
             doc["_id"] = id;
 
@@ -73,7 +73,7 @@ namespace LiteDB
         {
             foreach (var document in documents)
             {
-                var doc = _mapper.ToDocument(document);
+                var doc = this.Serialize(document);
                 var removed = this.RemoveDocId(doc);
 
                 yield return doc;

@@ -111,7 +111,7 @@ namespace LiteDB
         /// <param name="autoId">Define autoId data type (when object contains no id field)</param>
         public ILiteCollection<T> GetCollection<T>(string name, BsonAutoId autoId = BsonAutoId.ObjectId)
         {
-            return new LiteCollection<T>(name, autoId, _engine, _mapper);
+            return new LiteCollection<T>(name, autoId, _engine, _mapper, this.GetStreamReferenceMapper());
         }
 
         /// <summary>
@@ -139,7 +139,7 @@ namespace LiteDB
         {
             if (name.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(name));
 
-            return new LiteCollection<BsonDocument>(name, autoId, _engine, _mapper);
+            return new LiteCollection<BsonDocument>(name, autoId, _engine, _mapper, this.GetStreamReferenceMapper());
         }
 
         #endregion

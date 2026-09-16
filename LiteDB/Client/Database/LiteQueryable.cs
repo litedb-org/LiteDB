@@ -22,10 +22,11 @@ namespace LiteDB
         // indicate that T type are simple and result are inside first document fields (query always return a BsonDocument)
         private readonly bool _isSimpleType = Reflection.IsSimpleType(typeof(T));
 
-        internal LiteQueryable(ILiteEngine engine, BsonMapper mapper, string collection, Query query)
+        internal LiteQueryable(ILiteEngine engine, BsonMapper mapper, StreamReferenceMapper streamReferenceMapper, string collection, Query query)
         {
             _engine = engine;
             _mapper = mapper;
+            _streamReferenceMapper = streamReferenceMapper;
             _collection = collection;
             _query = query;
         }
@@ -184,7 +185,7 @@ namespace LiteDB
 
             _mapper.RegisterGroupingType<K, T>();
 
-            return new LiteQueryable<IGrouping<K, T>>(_engine, _mapper, _collection, _query);
+            return new LiteQueryable<IGrouping<K, T>>(_engine, _mapper, _streamReferenceMapper, _collection, _query);
         }
 
         /// <summary>
@@ -224,7 +225,7 @@ namespace LiteDB
         {
             _query.Select = selector;
 
-            return new LiteQueryable<BsonDocument>(_engine, _mapper, _collection, _query);
+            return new LiteQueryable<BsonDocument>(_engine, _mapper, _streamReferenceMapper, _collection, _query);
         }
 
         /// <summary>
@@ -234,7 +235,7 @@ namespace LiteDB
         {
             _query.Select = _mapper.GetExpression(selector);
 
-            return new LiteQueryable<K>(_engine, _mapper, _collection, _query);
+            return new LiteQueryable<K>(_engine, _mapper, _streamReferenceMapper, _collection, _query);
         }
 
         #endregion
@@ -314,8 +315,7 @@ namespace LiteDB
             }
             else
             {
-                return this.ToDocuments()
-                    .Select(x => (T)_mapper.Deserialize(typeof(T), x));
+                return this.ToDocuments().Select(this.Deserialize);
             }
         }
 

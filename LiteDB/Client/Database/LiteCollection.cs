@@ -14,6 +14,7 @@ namespace LiteDB
         private readonly EntityMapper _entity;
         private readonly MemberMapper _id;
         private readonly BsonAutoId _autoId;
+        private readonly StreamReferenceMapper _streamReferenceMapper;
 
         /// <summary>
         /// Get collection name
@@ -30,11 +31,12 @@ namespace LiteDB
         /// </summary>
         public EntityMapper EntityMapper => _entity;
 
-        internal LiteCollection(string name, BsonAutoId autoId, ILiteEngine engine, BsonMapper mapper)
+        internal LiteCollection(string name, BsonAutoId autoId, ILiteEngine engine, BsonMapper mapper, StreamReferenceMapper streamReferenceMapper)
         {
             _collection = name ?? mapper.ResolveCollectionName(typeof(T));
             _engine = engine;
             _mapper = mapper;
+            _streamReferenceMapper = streamReferenceMapper;
             _includes = new List<BsonExpression>();
 
             // if strong typed collection, get _id member mapped (if exists)
@@ -63,6 +65,14 @@ namespace LiteDB
                 {
                     _autoId = autoId;
                 }
+            }
+        }
+
+        private BsonDocument Serialize(T entity)
+        {
+            using (_mapper.UseStreamReferences(_streamReferenceMapper))
+            {
+                return _mapper.ToDocument(entity);
             }
         }
     }
