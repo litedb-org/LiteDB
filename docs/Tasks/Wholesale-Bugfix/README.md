@@ -1,10 +1,10 @@
 # Wholesale bug-fix plan
 
 Status: #2874, #2839, #2869, and #1506 are integrated. The GitHub-hosted scheduler
-bootstrap is deployed and enabled for `hosted-v9-main`: #1002 is active, 23 approved
-issues are pending, and the fresh worker passed budget admission at
-13971.885 / 50000 after the user authorized the new daily AI-credit threshold.
-The old 5,000-credit cooldown has an audited override; the agent job is running.
+bootstrap is deployed and enabled for `hosted-v10-main`: #1002 is active and 23
+approved issues are pending. Both AI-credit limits are explicitly disabled for
+fixers and reviewers, as requested after two capped v9 workers failed. The
+reviewed v10 runtime is deployed and its fresh baseline is running.
 Hosted state recovery, dispatch, red CI, pause/resume and scheduled quota handling
 passed. The first hosted candidate publication/review/integration remains pending.
 This replaces the local v8 queue that stopped at #1002.
@@ -64,8 +64,10 @@ controller/runtime and a lease tied to the owning Actions run.
 
 The control-path canary verified separate Actions runners and automatic budget
 handling. The approved queue is armed behind the unchanged #1002 campaign to
-avoid an online batch handoff. The user authorized 50,000 daily AI credits on
-September 16; per-worker caps remain unchanged. Continue monitoring the
+avoid an online batch handoff. The user's later September 16 instruction removed
+both per-worker and daily AI-credit limits for this sweep, superseding the earlier
+50,000 daily threshold. Usage reporting and all acceptance gates remain. See
+[credit-limit removal](CREDIT-LIMIT-REMOVAL.md). Continue monitoring the
 first complete candidate cycle before treating hosted fix integration as proven.
 Further contract expansion or parallel candidate execution needs its own review.
 

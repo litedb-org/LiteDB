@@ -7,6 +7,13 @@ The scheduler preserves existing per-fix CI, three independent reviews, exact
 candidate integration, retry limits, and blocked-issue dispositions. It never
 launches the original full matrix for each fix.
 
+Current deployment: `hosted-v10-main`, runtime
+`6b9cf0507ae2f341834682da1b1d268946548931`. The user explicitly removed both
+per-worker and daily AI-credit limits after two capped workers failed.
+Fixers and reviewers set both credit fields to `-1`; usage reporting remains
+observational. No other workflow's policy changes. See the
+[audited rollout](CREDIT-LIMIT-REMOVAL.md) and [current handoff](HANDOFF.md).
+
 ## Deployment boundary
 
 Only `.github/workflows/bugfix-sweep.yml` must be added to the default branch,
@@ -99,7 +106,8 @@ reads current state and refreshes the tracking comment even when ticks are off.
   to reconcile; it must not blindly dispatch a second copy.
 - Blocked/deferred items remain visible in the durable sweep disposition and
   tracking comment. They must not cause a new model attempt every five minutes.
-  Existing per-run and daily credit limits remain enabled.
+  Runtime timeouts and bounded candidate/review retries remain enabled. The
+  current v10 sweep has no AI-credit admission cap.
 - Do not run a local queue, the old long-running controller, or another publisher
   concurrently with the hosted sweep. Workflow concurrency does not serialize
   unrelated scripts; controller state leases remain the final conflict check.
@@ -135,7 +143,11 @@ Run bootstrap tests with `python .github/scripts/test_hosted_sweep_workflow.py`
 (test dependency: PyYAML). These validate event gates, the immutable checkout,
 literal argument passing, token scope, time limits, and status publication guard.
 
-## Daily credit deferrals
+## Historical v9 daily credit deferrals
+
+This section explains retained v9 evidence. It does not describe current v10
+admission: the user's later instruction removed both credit caps, and v10 emits
+no daily-credit deferral artifact. Do not reintroduce these caps during recovery.
 
 The maintained gh-aw compiler patch emits artifact `bugfix-budget` containing
 `budget-status.json` when activation explicitly reports its daily limit

@@ -24,10 +24,53 @@ local machine**. Do not replace the hosted scheduler with a local blocking queue
 One blocked issue must retain its evidence while independent approved work can
 continue. Infrastructure and usage-limit waits need durable automatic recovery.
 
-Snapshot: **2026-09-16, approximately 07:30 UTC / 09:30 Europe/Vienna**.
+Snapshot: **2026-09-16, approximately 08:40 UTC / 10:40 Europe/Vienna**.
 Re-read GitHub state before acting: this document is a snapshot, not the controller's state store.
 
 ## Current state and first action
+
+**The hosted scheduler is enabled for `hosted-v10-main`, using the new uncapped
+worker runtime. Four fixes remain integrated; the same 24 approved issues are
+queued, beginning with #1002. Fresh baseline validation is starting.**
+
+The user explicitly said **"remove the limit entirely"** after two workers hit
+the separate 2,000-credit execution cap. This supersedes the earlier 50,000 daily
+limit for this sweep. Fixers and reviewers now explicitly use
+`max-ai-credits: -1` and `max-daily-ai-credits: -1`; their generated workflows have
+no per-run credit field, cost-based token steering, or daily admission step.
+Usage reporting remains observational. The old repository daily-limit variable
+is no longer referenced by these two workers. Runtime timeouts, pinned models,
+restricted patch scope, frozen tests, compressed CI and all three reviews remain.
+
+- Runtime: [6b9cf0507ae2f341834682da1b1d268946548931](https://github.com/litedb-org/LiteDB/commit/6b9cf0507ae2f341834682da1b1d268946548931),
+  pinned on `automation/bugfix-runtime-v10` and independently reviewed.
+- [Handoff audit](https://github.com/litedb-org/LiteDB/blob/a225d1cdbb784209374d723d6d85751475be9fae/evidence/handoff-hosted-v9-to-v10/audit.json)
+  verifies all old requests drained, no orphan dispatches, zero v9 candidates,
+  byte-identical contracts and the unchanged 18-case passing ledger. Old journals
+  and artifact hashes are preserved; no correctness finding was waived.
+- [New manifest](https://github.com/litedb-org/LiteDB/blob/automation/bugfix-state/sweep-hosted-v10-main.json)
+  and [campaign journal](https://github.com/litedb-org/LiteDB/blob/automation/bugfix-state/hosted-v10-1002.json)
+  are the live state. Do not resume the historical v9 manifests.
+- [Initialization 35074889935](https://github.com/litedb-org/LiteDB/actions/runs/35074889935)
+  passed; [first tick 35074950298](https://github.com/litedb-org/LiteDB/actions/runs/35074950298)
+  starts the fresh baseline. The scheduler pin remains `5a823c25057fa4eaffb8cdfbd546ae3f5c360f37`.
+- Validation before dispatch: 41 helper tests, 12 handoff tests, independent
+  runtime review and independent live handoff previews passed.
+
+**Next action:** monitor the v10 baseline, uncapped fixer, candidate publication,
+compressed CI and three reviews. A successful tick or model startup is not a
+confirmed fix. No v10 candidate is accepted at this snapshot. The user explicitly
+requires fixing the failed flow and confirming it works before stopping.
+See [credit-limit removal](https://github.com/litedb-org/LiteDB/blob/automation/wholesale-bugfix/docs/Tasks/Wholesale-Bugfix/CREDIT-LIMIT-REMOVAL.md).
+
+## Previous v9 deployment (historical)
+
+The following records the earlier 07:30 UTC snapshot. It is superseded by v10
+above. Both v9 execution attempts later failed at their 2,000-credit cap:
+[35068448523](https://github.com/litedb-org/LiteDB/actions/runs/35068448523) and
+[35072131341](https://github.com/litedb-org/LiteDB/actions/runs/35072131341).
+The old main manifest was explicitly paused by
+[35073660331](https://github.com/litedb-org/LiteDB/actions/runs/35073660331).
 
 **Four fixes are integrated. The unattended GitHub scheduler is enabled for the
 24-issue `hosted-v9-main` queue: #1002 is active and 23 issues are pending. It is
@@ -150,11 +193,12 @@ Remote `upstream` is litedb-org/LiteDB; `origin` is JKamsker/LiteDB.
 | Purpose | Branch / source | Snapshot revision |
 | --- | --- | --- |
 | Accepted production fixes | [integration/bugfixes](https://github.com/litedb-org/LiteDB/tree/integration/bugfixes) | `bbb0253bc06324f0bb14a21a727a37e8c7f2b213` |
-| Durable campaign journal, accepted tests, evidence, integration locks | [automation/bugfix-state](https://github.com/litedb-org/LiteDB/tree/automation/bugfix-state) | `fe5978f812512676775039510a0fdda5b50f705f` at snapshot; advances automatically |
-| Live immutable worker/check runtime | [automation/bugfix-runtime-v9](https://github.com/litedb-org/LiteDB/tree/automation/bugfix-runtime-v9) | `167f2677ca07b2e67ccd701fb730b4ea055dc950` |
+| Durable campaign journal, accepted tests, evidence, integration locks | [automation/bugfix-state](https://github.com/litedb-org/LiteDB/tree/automation/bugfix-state) | Handoff audit `a225d1cdbb784209374d723d6d85751475be9fae`; live state advances automatically |
+| Live immutable worker/check runtime | [automation/bugfix-runtime-v10](https://github.com/litedb-org/LiteDB/tree/automation/bugfix-runtime-v10) | `6b9cf0507ae2f341834682da1b1d268946548931` |
+| Historical capped worker/check runtime | [automation/bugfix-runtime-v9](https://github.com/litedb-org/LiteDB/tree/automation/bugfix-runtime-v9) | `167f2677ca07b2e67ccd701fb730b4ea055dc950` |
 | Live immutable scheduler | [automation/bugfix-scheduler-v1](https://github.com/litedb-org/LiteDB/tree/automation/bugfix-scheduler-v1) | `5a823c25057fa4eaffb8cdfbd546ae3f5c360f37` |
 | Historical blocked campaign's immutable runtime | [automation/bugfix-runtime-v8](https://github.com/litedb-org/LiteDB/tree/automation/bugfix-runtime-v8) | `61ee4aec705024c189345de25508ea19ffc2584e` |
-| Mutable automation preparation and documentation | [automation/wholesale-bugfix](https://github.com/litedb-org/LiteDB/tree/automation/wholesale-bugfix) | `5a823c25057fa4eaffb8cdfbd546ae3f5c360f37` before this handoff update |
+| Mutable automation preparation and documentation | [automation/wholesale-bugfix](https://github.com/litedb-org/LiteDB/tree/automation/wholesale-bugfix) | v10 runtime plus current documentation; read branch HEAD |
 | Hosted default-branch bootstrap | [dev](https://github.com/litedb-org/LiteDB/tree/dev) | `9b2f122fb85ee16ed1fd1457df19fa9811769945` |
 | Rejected #1002 attempt 1 | [fix/issue-1002-expansion-v8-1002-a1](https://github.com/litedb-org/LiteDB/tree/fix/issue-1002-expansion-v8-1002-a1) | `a98b29089c01e21e50856abd0cc9bbea1ecc5631` |
 | Blocked #1002 attempt 2 | [fix/issue-1002-expansion-v8-1002-a2](https://github.com/litedb-org/LiteDB/tree/fix/issue-1002-expansion-v8-1002-a2) | `d600cab9aa8be419f0d3069a21bb5e03ff713307` |
@@ -336,9 +380,9 @@ corrected evidence; no generic Unicode normalization is authorized.
 
 ```powershell
 git status --short
-git ls-remote upstream refs/heads/integration/bugfixes refs/heads/automation/bugfix-state refs/heads/automation/bugfix-runtime-v9 refs/heads/automation/bugfix-scheduler-v1
+git ls-remote upstream refs/heads/integration/bugfixes refs/heads/automation/bugfix-state refs/heads/automation/bugfix-runtime-v10 refs/heads/automation/bugfix-scheduler-v1
 gh run list -R litedb-org/LiteDB --workflow bugfix-sweep.yml --limit 10
-gh api 'repos/litedb-org/LiteDB/contents/sweep-hosted-v9-main.json?ref=automation/bugfix-state' -H 'Accept: application/vnd.github.raw+json'
+gh api 'repos/litedb-org/LiteDB/contents/sweep-hosted-v10-main.json?ref=automation/bugfix-state' -H 'Accept: application/vnd.github.raw+json'
 Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'python' -and $_.CommandLine -match 'serial_queue|orchestrate.py' } | Select-Object ProcessId,CommandLine
 gh api 'repos/litedb-org/LiteDB/contents/expansion-v8-1002.json?ref=automation/bugfix-state' -H 'Accept: application/vnd.github.raw+json'
 gh run view 35013331767 -R litedb-org/LiteDB
@@ -360,13 +404,11 @@ for #2839, 34 for #2869 and 32 for #1506**, excluding small integration overhead
 and deliberate runtime handoffs. Candidate test lanes were only 2m35s–2m57s;
 agent reasoning, additional review tests and hosted-runner setup dominate elapsed time.
 
-- For the **17 unfinished items in the current batch**, a clean first-attempt
-  floor is around 9–10 hours. Budget **10–18 hours of serial execution**, plus
-  engineering time for blockers/runtime transitions and budget cooldowns.
 - Completing all **24 remaining prepared contracts** is roughly **14–25 hours**
   of the previously observed execution pace, before overlap/compatibility
-  surprises. That is not a wall-clock ETA with enforced daily-budget cooldowns
-  and delayed cron wakeups; those can extend the sweep over several days.
+  surprises. That is not a verified hosted wall-clock ETA: delayed cron wakeups
+  between stages can extend the sweep over several days. AI-credit cooldowns
+  no longer apply to v10. Re-estimate after a complete hosted candidate cycle.
 - The full inventory will likely require **several days** and cannot yet be
   estimated reliably. Final full-matrix validation adds its own run time and any
   resulting repairs. Do not extrapolate three simple fixes into a completion promise.
