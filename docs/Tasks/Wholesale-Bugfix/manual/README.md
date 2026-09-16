@@ -174,3 +174,14 @@ and repeated issue cases pass; all library targets build. Four Sol reviewers
 approved. Audit guard 132 now identifies the original unsafe Dictionary field
 instead of a generic lookup snippet that also matched the corrected implementation;
 the paired behavioral tests remain the proof of correctness.
+
+
+## #2802 — virtual mapper dispatch for typed reads
+
+Non-simple query results dispatch through ToObject<T>, whose base implementation
+continues through virtual ToObject(Type, BsonDocument) and Deserialize. Either
+public override is honored and its returned object is used. Scalar projections
+retain their value-based conversion. The original ten failures now pass; the
+complete mapper/query selection is 283 passed / one existing skip (baseline ten
+failed / 273 passed / one skip). All library targets build. Four independent Sol
+reviewers approved without findings.
