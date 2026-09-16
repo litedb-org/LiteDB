@@ -29,7 +29,7 @@ namespace LiteDB.Shell
             {
                 this.AutoExit = true;
                 this.Running = false;
-                return "";
+                return "exit";
             }
 
             cmd = cmd.Trim();
@@ -43,6 +43,13 @@ namespace LiteDB.Shell
                     Console.Write("| ");
 
                     var line = this.ReadLine();
+                    if (line == null)
+                    {
+                        // Discard unfinished SQL and use normal shutdown to dispose the database.
+                        this.AutoExit = true;
+                        this.Running = false;
+                        return "exit";
+                    }
                     cmd += Environment.NewLine + line;
                 }
             }
@@ -69,7 +76,7 @@ namespace LiteDB.Shell
             }
             else
             {
-                if (this.AutoExit) return "exit";
+                if (this.AutoExit) return null;
 
                 return Console.ReadLine();
             }
