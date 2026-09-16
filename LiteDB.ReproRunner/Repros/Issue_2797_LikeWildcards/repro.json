@@ -13,7 +13,7 @@
     "wildcard",
     "regression"
   ],
-  "state": "red",
+  "state": "green",
   "expectedOutcomes": {
     "package": {
       "kind": "reproduce",
@@ -21,9 +21,9 @@
       "logContains": "BUG_2797_CONFIRMED"
     },
     "latest": {
-      "kind": "reproduce",
-      "exitCode": 0,
-      "logContains": "BUG_2797_CONFIRMED"
+      "kind": "noRepro",
+      "exitCode": 10,
+      "logContains": "VERIFIED_2797"
     }
   }
 }

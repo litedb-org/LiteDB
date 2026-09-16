@@ -313,3 +313,20 @@ QuantityRange/Enum model. Final: 59 net8 mapper/constructor tests pass, covering
 factory-owned invariants, exact identity, setter/instantiator suppression, legacy
 registration restoration, null contracts and the real reported persistence case.
 All library targets build; four Sol reviewers approved without findings.
+
+
+## #2797 — terminating LIKE wildcards and complete matches
+
+The matcher uses last-percent backtracking with an advancing retry position,
+requires full input/pattern consumption, and treats underscore as one UTF-16 code
+unit. The index prefix helper retains residual checks for a terminal underscore;
+only an exact literal or lone trailing percent can skip them. Per-character
+collation semantics are retained; IndexLike linguistic range behavior is #2144.
+
+Baseline bounded runner reproduced wrong results/nontermination; four existing
+wildcard audit cases failed. Final: 229 net8 query/wildcard tests pass, one existing
+skip, including 21,483 independent anchored-regex comparisons and indexed/unindexed
+boundary cases. ReproRunner report confirms package5.0.21 still reproduces while
+latest returns exact exit10 plus VERIFIED_2797 with Met=true. Latest manifest is
+green/noRepro with those strict expectations. All library targets build; four Sol
+reviewers approved. Report: /tmp/litedb-manual-results/2797-repro-final.json.

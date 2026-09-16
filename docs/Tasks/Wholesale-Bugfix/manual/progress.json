@@ -1106,8 +1106,9 @@
         "priority: P2"
       ],
       "reproduction": "reproduced-ci",
-      "disposition": "pending",
-      "tests": []
+      "disposition": "fixed-four-reviews",
+      "tests": [],
+      "validation": "Bounded latest runner verified exact exit10/marker;package5.0.21 reproduces;229 net8 tests pass1skip with21483 oracle pairs; all library targets build; four Sol approvals"
     },
     {
       "issue": 2798,
