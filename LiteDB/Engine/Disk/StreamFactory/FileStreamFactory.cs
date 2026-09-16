@@ -55,7 +55,7 @@ namespace LiteDB.Engine
 
             var isNewFile = write && this.Exists() == false;
 
-            var stream = new FileStream(_filename,
+            var stream = FileOwnership.OpenFile(_filename,
                 fileMode,
                 fileAccess,
                 fileShare,

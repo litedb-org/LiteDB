@@ -356,11 +356,12 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue1848_ReadOnlyOwnershipTests.cs",
         "LiteDB.Tests/Issues/Issue1848_Tests.cs"
-      ]
+      ],
+      "validation": "212 focused net8 passes; full net10 1476 passes/275 remaining failures/8 skips with no prior pass regressions; additional standalone-backup control passes (24 ownership cases). Two-process 2163 package/latest repro green; ordinary/vector compatibility plain/encrypted passes; all production targets and net462 tests compile; four fresh final Sol high reviews clean. Native runtime exercised on Linux; other OS backends statically reviewed. Repeated-backup retention remains #2450."
     },
     {
       "issue": 1851,
@@ -463,10 +464,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue1958_Tests.cs"
-      ]
+      ],
+      "validation": "212 focused net8 passes; full net10 1476 passes/275 remaining failures/8 skips with no prior pass regressions; additional standalone-backup control passes (24 ownership cases). Two-process 2163 package/latest repro green; ordinary/vector compatibility plain/encrypted passes; all production targets and net462 tests compile; four fresh final Sol high reviews clean. Native runtime exercised on Linux; other OS backends statically reviewed. Repeated-backup retention remains #2450."
     },
     {
       "issue": 1966,
@@ -603,8 +605,14 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
-      "tests": []
+      "disposition": "fixed-four-reviews",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2163_Tests.cs",
+        "LiteDB.Tests/Issues/Issue2163_SettingsTests.cs",
+        "LiteDB.Tests/Issues/Issue2163_LifecycleTests.cs",
+        "LiteDB.ReproRunner/Repros/Issue_2163_MixedAccess"
+      ],
+      "validation": "212 focused net8 passes; full net10 1476 passes/275 remaining failures/8 skips with no prior pass regressions; additional standalone-backup control passes (24 ownership cases). Two-process 2163 package/latest repro green; ordinary/vector compatibility plain/encrypted passes; all production targets and net462 tests compile; four fresh final Sol high reviews clean. Native runtime exercised on Linux; other OS backends statically reviewed. Repeated-backup retention remains #2450."
     },
     {
       "issue": 2169,
@@ -1289,10 +1297,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2815_Tests.cs"
-      ]
+      ],
+      "validation": "212 focused net8 passes; full net10 1476 passes/275 remaining failures/8 skips with no prior pass regressions; additional standalone-backup control passes (24 ownership cases). Two-process 2163 package/latest repro green; ordinary/vector compatibility plain/encrypted passes; all production targets and net462 tests compile; four fresh final Sol high reviews clean. Native runtime exercised on Linux; other OS backends statically reviewed. Repeated-backup retention remains #2450."
     },
     {
       "issue": 2816,

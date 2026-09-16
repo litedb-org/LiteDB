@@ -18,33 +18,78 @@ namespace LiteDB.Engine
         /// </summary>
         public long Rebuild(RebuildOptions options)
         {
-            if (string.IsNullOrEmpty(_settings.Filename)) return 0; // works only with os file
-
-            // Omitted options preserve encryption; an explicit null Password removes it.
-            options = options ?? new RebuildOptions
+            lock (_lifecycleLock)
             {
-                Password = _settings.Password
-            };
-            var collation = options.Collation ?? new Collation(this.Pragma(Pragmas.COLLATION));
+                _state.Validate();
+                if (_settings.ReadOnly) throw new LiteException(0, "Cannot rebuild a read-only database.");
+                if (string.IsNullOrEmpty(_settings.Filename)) return 0; // works only with os file
 
-            this.Close();
+                // Omitted options preserve encryption; an explicit null Password removes it.
+                options = options ?? new RebuildOptions
+                {
+                    Password = _settings.Password
+                };
+                var collation = options.Collation ?? new Collation(this.Pragma(Pragmas.COLLATION));
 
-            // run build service
-            var rebuilder = new RebuildService(_settings);
+                // Reject an active transaction before changing any engine state.
+                // Hold the old transaction gate until its monitor is closed, so
+                // a new transaction cannot enter between checkpoint and close.
+                var locker = _locker;
+                if (!locker.TryEnterExclusive(out var mustExit))
+                    throw new LiteException(0, "Cannot rebuild while database transactions are active.");
+                try
+                {
+                    // Even CHECKPOINT=0 must leave a complete original data file
+                    // if installation of the replacement fails or is interrupted.
+                    this.Checkpoint();
+                    var errors = this.Close(releaseOwnership: false);
+                    if (errors.Count > 0) throw new AggregateException("Unable to close the database before rebuild.", errors);
+                }
+                catch (Exception ex)
+                {
+                    // A failed checkpoint may have partially written the original.
+                    // Keep the causal error and close every service before releasing
+                    // ownership, including when another thread already stopped state.
+                    _state.Stop(ex);
+                    this.Close(ex);
+                    this.ReleaseOwnership();
+                    throw;
+                }
+                finally
+                {
+                    if (mustExit) locker.ExitExclusive();
+                    if (_state.Disposed) locker.Dispose();
+                }
 
-            // return how many bytes of diference from original/rebuild version
-            var diff = rebuilder.Rebuild(options, collation);
+                try
+                {
+#if DEBUG || TESTING
+                    SimulateRebuildClosed?.Invoke();
+#endif
 
-            // SharedEngine retains this same settings instance for subsequent opens.
-            _settings.Password = options.Password;
-            _settings.Collation = collation;
+                    // run build service
+                    var rebuilder = new RebuildService(_settings);
 
-            // re-open engine
-            this.Open();
+                    // return how many bytes of diference from original/rebuild version
+                    var diff = this.RebuildWithOwnership(rebuilder, options, collation);
 
-            _state.Disposed = false;
+                    // SharedEngine retains this same settings instance for subsequent opens.
+                    _settings.Password = options.Password;
+                    _settings.Collation = collation;
 
-            return diff;
+                    // re-open engine
+                    this.Open();
+
+                    _state.Disposed = false;
+
+                    return diff;
+                }
+                catch
+                {
+                    this.ReleaseOwnership();
+                    throw;
+                }
+            }
         }
 
         /// <summary>

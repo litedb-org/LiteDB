@@ -14,9 +14,8 @@ namespace LiteDB.Engine
         /// </summary>
         public bool BeginTrans()
         {
-            _state.Validate();
-
-            var transacion = _monitor.GetTransaction(true, false, out var isNew);
+            var monitor = this.CaptureTransactionMonitor(out _);
+            var transacion = monitor.GetTransaction(true, false, out var isNew);
 
             transacion.ExplicitTransaction = true;
 
@@ -76,9 +75,8 @@ namespace LiteDB.Engine
         /// </summary>
         private T AutoTransaction<T>(Func<TransactionService, T> fn)
         {
-            _state.Validate();
-
-            var transaction = _monitor.GetTransaction(true, false, out var isNew);
+            var monitor = this.CaptureTransactionMonitor(out var state);
+            var transaction = monitor.GetTransaction(true, false, out var isNew);
 
             try
             {
@@ -92,7 +90,7 @@ namespace LiteDB.Engine
             }
             catch(Exception ex)
             {
-                if (_state.Handle(ex) && transaction.State == TransactionState.Active)
+                if (state.Handle(ex) && transaction.State == TransactionState.Active)
                 {
                     this.RollbackAndReleaseTransaction(transaction);
                 }
@@ -101,40 +99,59 @@ namespace LiteDB.Engine
             }
         }
 
+        private TransactionMonitor CaptureTransactionMonitor(out EngineState state)
+        {
+            lock (_lifecycleLock)
+            {
+                state = _state;
+                state.Validate();
+                // Register outside this lock: a waiting checkpoint must be able
+                // to finish existing transactions. If rebuild wins before the
+                // registration, this generation's disposed monitor rejects it.
+                return _monitor;
+            }
+        }
+
         private void CommitAndReleaseTransaction(TransactionService transaction)
         {
-            try
+            lock (_lifecycleLock)
             {
-                transaction.Commit();
-                _monitor.ReleaseTransaction(transaction);
-            }
-            catch (Exception ex)
-            {
-                // Completion may have partially persisted state. Do not let a later
-                // write reuse this transaction and report success without committing.
-                _state.Stop(ex);
-                throw;
-            }
+                try
+                {
+                    transaction.Commit();
+                    _monitor.ReleaseTransaction(transaction);
+                }
+                catch (Exception ex)
+                {
+                    // Completion may have partially persisted state. Do not let a later
+                    // write reuse this transaction and report success without committing.
+                    _state.Stop(ex);
+                    throw;
+                }
 
-            // try checkpoint when finish transaction and log file are bigger than checkpoint pragma value (in pages)
-            if (_header.Pragmas.Checkpoint > 0 &&
-                _disk.GetFileLength(FileOrigin.Log) >= (_header.Pragmas.Checkpoint * PAGE_SIZE))
-            {
-                _walIndex.TryCheckpoint();
+                // try checkpoint when finish transaction and log file are bigger than checkpoint pragma value (in pages)
+                if (_header.Pragmas.Checkpoint > 0 &&
+                    _disk.GetFileLength(FileOrigin.Log) >= (_header.Pragmas.Checkpoint * PAGE_SIZE))
+                {
+                    _walIndex.TryCheckpoint();
+                }
             }
         }
 
         private void RollbackAndReleaseTransaction(TransactionService transaction)
         {
-            try
+            lock (_lifecycleLock)
             {
-                transaction.Rollback();
-                _monitor.ReleaseTransaction(transaction);
-            }
-            catch (Exception ex)
-            {
-                _state.Stop(ex);
-                throw;
+                try
+                {
+                    transaction.Rollback();
+                    _monitor.ReleaseTransaction(transaction);
+                }
+                catch (Exception ex)
+                {
+                    _state.Stop(ex);
+                    throw;
+                }
             }
         }
     }

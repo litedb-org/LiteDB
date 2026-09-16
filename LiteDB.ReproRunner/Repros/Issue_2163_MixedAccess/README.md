@@ -51,3 +51,8 @@ Rechecked on 2026-09-14 after merging dev `a50661a9`: both 5.0.21 and current
 source still acknowledge row 202 and then lose exactly that receipt on both
 fresh reopens. Each process emits `BUG_2163_CONFIRMED`; the passing manifest
 comparison records successful reproduction, not repaired durability.
+
+The manual ownership fix rejects the overlapping Shared operation before it
+acknowledges a write (`NO_BUG_2163_SHARED_REJECTED`, exit `10`). The latest-source
+manifest now expects that outcome; package 5.0.21 retains the exact lost-receipt
+expectation. Both final reopens and the post-release Shared insert are checked.

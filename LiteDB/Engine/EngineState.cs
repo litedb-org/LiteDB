@@ -22,6 +22,7 @@ namespace LiteDB.Engine
 #if DEBUG || TESTING
         public Action<PageBuffer> SimulateDiskReadFail = null;
         public Action<PageBuffer> SimulateDiskWriteFail = null;
+        internal Action<PageBuffer> SimulateDataWriteFail;
 #endif
 
         public EngineState(LiteEngine engine, EngineSettings settings)
@@ -56,7 +57,7 @@ namespace LiteDB.Engine
         {
             // A later completion/cleanup race must not replace the causal failure.
             if (Interlocked.CompareExchange(ref _exception, ex, null) != null) return;
-            _engine?.Close(ex);
+            _engine?.Close(ex, this);
             this.Disposed = true;
         }
 

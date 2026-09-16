@@ -27,6 +27,11 @@ namespace LiteDB.Tests.Engine
                     names.Should().NotBeEmpty();
                     foreach (var name in names) db.GetCollection(name).FindAll().ToArray();
                     if (password == null) db.GetCollection("col1").Count().Should().Be(3);
+                    using (var parallel = new LiteDatabase(new ConnectionString
+                    {
+                        Filename = file.Filename, Password = password, ReadOnly = true
+                    }))
+                        parallel.GetCollectionNames().Should().BeEquivalentTo(names);
                     Action write = () => db.GetCollection("new_collection").Insert(new BsonDocument { ["_id"] = 1 });
                     write.Should().Throw<IOException>();
                 }

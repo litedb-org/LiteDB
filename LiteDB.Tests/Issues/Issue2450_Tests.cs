@@ -19,7 +19,7 @@ namespace LiteDB.Tests.Issues
         }
 
         [Fact]
-        public void Repeated_rebuild_with_live_wal_replaces_both_owned_backups_without_losing_generations()
+        public void Repeated_rebuild_with_live_wal_consolidates_commits_into_the_current_backup()
         {
             ExerciseRepeatedRebuild(checkpointBeforeRebuild: false);
         }
@@ -35,7 +35,6 @@ namespace LiteDB.Tests.Issues
             var file = Path.Combine(directory, "data.db");
             var log = Path.Combine(directory, "data-log.db");
             var dataBackup = Path.Combine(directory, "data-backup.db");
-            var logBackup = Path.Combine(directory, "data-log-backup.db");
             var sentinel = Path.Combine(directory, "data-backup-manual.db");
             File.WriteAllText(sentinel, SentinelContents);
 
@@ -68,7 +67,7 @@ namespace LiteDB.Tests.Issues
                         db.Rebuild();
                     }
 
-                    AssertExactInventory(directory, checkpointBeforeRebuild);
+                    AssertExactInventory(directory);
                     File.ReadAllText(sentinel).Should().Be(SentinelContents,
                         "cleanup may replace LiteDB-owned backups but not a same-prefix user file");
 
@@ -76,28 +75,18 @@ namespace LiteDB.Tests.Issues
                     AssertRowsInFile(file, expectedRows);
 
                     var dataBackupBytes = File.ReadAllBytes(dataBackup);
-                    var logBackupBytes = checkpointBeforeRebuild ?
-                        Array.Empty<byte>() :
-                        File.ReadAllBytes(logBackup);
-                    AssertRowsInStreams(dataBackupBytes, logBackupBytes, expectedRows);
-
-                    if (!checkpointBeforeRebuild)
-                    {
-                        AssertRowsInStreams(
-                            dataBackupBytes,
-                            Array.Empty<byte>(),
-                            Enumerable.Range(1, generation - 1).ToArray());
-                    }
-
-                    var backupGeneration = dataBackupBytes.Concat(logBackupBytes).ToArray();
+                    // Rebuild checkpoints before atomic replacement, so the backup
+                    // is now independently complete even when CHECKPOINT was zero.
+                    AssertRowsInStreams(dataBackupBytes, Array.Empty<byte>(), expectedRows);
+                    var backupGeneration = dataBackupBytes;
                     if (previousBackupGeneration != null)
                     {
                         backupGeneration.Should().NotEqual(previousBackupGeneration,
-                            "the single canonical backup pair must be replaced with the latest generation");
+                            "the single canonical backup must be replaced with the latest generation");
                     }
                     previousBackupGeneration = backupGeneration;
 
-                    AssertExactInventory(directory, checkpointBeforeRebuild);
+                    AssertExactInventory(directory);
                     File.ReadAllText(sentinel).Should().Be(SentinelContents);
                 }
             }
@@ -117,22 +106,14 @@ namespace LiteDB.Tests.Issues
             };
         }
 
-        private static void AssertExactInventory(string directory, bool checkpointBeforeRebuild)
+        private static void AssertExactInventory(string directory)
         {
-            var expected = checkpointBeforeRebuild ?
-                new[]
-                {
-                    "data-backup-manual.db",
-                    "data-backup.db",
-                    "data.db"
-                } :
-                new[]
-                {
-                    "data-backup-manual.db",
-                    "data-backup.db",
-                    "data-log-backup.db",
-                    "data.db"
-                };
+            var expected = new[]
+            {
+                "data-backup-manual.db",
+                "data-backup.db",
+                "data.db"
+            };
 
             Directory.GetFiles(directory)
                 .Select(Path.GetFileName)

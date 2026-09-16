@@ -17,9 +17,9 @@ namespace LiteDB
 
         public SharedEngine(EngineSettings settings)
         {
-            _settings = settings;
+            _settings = (settings ?? throw new ArgumentNullException(nameof(settings))).Snapshot();
 
-            var name = SharedMutexNameFactory.Create(settings.Filename, settings.SharedMutexNameStrategy);
+            var name = SharedMutexNameFactory.Create(_settings.Filename, _settings.SharedMutexNameStrategy);
 
             try
             {
@@ -54,7 +54,7 @@ namespace LiteDB
             {
                 try
                 {
-                    _engine = new LiteEngine(_settings);
+                    _engine = new LiteEngine(_settings, snapshotSettings: false);
                     return true;
                 }
                 catch

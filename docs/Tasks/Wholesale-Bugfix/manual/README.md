@@ -751,3 +751,54 @@ Validation: 23 focused net8 tests pass (both retry helpers, timeout, non-lock
 propagation and platform/error-code controls); two-process package/latest run
 matches both expectations; all production targets build. Four fresh independent
 Sol high reviewers report no findings above nits; the documentation nit is fixed.
+
+
+## #2163 / #1848 / #2815 / #1958 — own physical files and preserve rebuild isolation
+
+Filename engines acquire a native lock before accessing the WAL: exclusive for
+writers and shared for read-only engines. Locks follow the physical file rather
+than its textual path; an identity recheck rejects an opener delayed across
+atomic replacement. Windows uses LockFileEx, Linux/Darwin use OFD locks, and
+older Linux kernels/FreeBSD use flock with compatible stream opening. Unsupported
+native/virtual filename APIs fail closed; caller streams remain available.
+Read-only close neither checkpoints nor opens/deletes a WAL writer.
+
+Rebuild rejects active transactions before changing state, checkpoints the
+original even with CHECKPOINT=0, and holds both original/replacement ownership
+through File.Replace. Its backup is now a complete standalone data file, so the
+live-WAL backup test reflects that contract. #2450's separate repeated-backup
+retention failure remains pending. Checkpoint or cleanup failures abort rebuild
+and preserve a terminal causal error. Lifecycle serialization, generation-bound
+service capture and stale-state checks keep delayed operations from closing a
+replacement engine. Registration happens outside the lifecycle lock to avoid
+blocking transaction completion behind a waiting checkpoint.
+
+Settings freeze storage/access fields and absolute paths while preserving the
+established live ReadTransform callback. Ambiguous DataStream+Filename settings
+are rejected before file access. Independent sort engines use private scratch
+streams, immediately unlinked on Unix and delete-on-close on Windows. Disposal
+cannot race first creation or delete an unrelated recreated pathname.
+
+Review resolutions include native ABI/old-kernel handling, readonly recovery's
+return to shared ownership, atomic close/rebuild ordering, mixed settings,
+partial checkpoint failure, path retargeting, alias exclusion, and scratch-file
+crash cleanup. Automatic reopening after uncertain I/O was refuted as unsafe;
+callers must dispose/reopen. Stable pathname use across later opens is explicit:
+physical locking does not relocate a filename-derived WAL between aliases.
+Unsupported modern OFD filesystems fail closed instead of switching lock
+protocols while another owner may already use OFD locks.
+
+Validation: 212 focused net8 cases pass. The latest full net10 run has 1,476
+passes, 275 remaining failures, eight skips, and no pass regressions against the
+original baseline or preceding committed stage. After the backup-contract test
+update, all 24 ownership cases pass; both #2450 tests still fail on the existing
+extra numbered backup. All production targets build and net462 tests compile.
+The two-process #2163 runner is green: package 5.0.21 loses acknowledged row 202;
+latest rejects the conflicting owner and preserves every receipt/index after
+reopen. Ordinary/vector compatibility passes for plain and encrypted files.
+Linux ownership/rebuild/readers pass, including the flock path under an injected
+older reported kernel version (not actual old hardware). SIGKILL after plain
+and encrypted spilling sorts leaves no scratch files; late scratch creation
+after disposal is rejected. Windows/Darwin/FreeBSD backends received static ABI
+review, not runtime execution here. Four fresh independent GPT-5.6 Sol high
+reviewers in the final wave report no substantive findings.
