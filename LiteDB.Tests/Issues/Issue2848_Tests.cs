@@ -54,6 +54,7 @@ namespace LiteDB.Tests.Issues
                 log.FailureCount.Should().BeGreaterThan(0);
                 var nextFailure = Record.Exception(() => col.Insert(new BsonDocument { ["_id"] = 50000, ["payload"] = "acknowledged after failure" }));
                 acknowledged = nextFailure == null;
+                nextFailure.Should().BeSameAs(failure, "transaction completion failure must close the engine with its original cause");
                 if (!acknowledged)
                     (nextFailure is IOException || nextFailure is LiteException || nextFailure is ObjectDisposedException)
                         .Should().BeTrue("a closed engine must fail explicitly");

@@ -96,3 +96,22 @@ Oracle program/output: `/tmp/litedb-2820-v4-oracle/`. Corrected tests still prod
 the same 9 baseline failures. Four Sol reviewers approved the production changes
 and independently checked the oracle correction and added coverage. No blocking
 findings remained.
+
+## #2848 — terminal transaction completion failures
+
+Commit/rollback completion and monitor-release failures stop the engine, drain
+transactions/resources, and preserve the first fatal exception atomically.
+Later operations reject immediately, including while cleanup is still running.
+Automatic error handling rolls back only active transactions. This also fixes
+the reproduced #2169/#2803 post-commit checkpoint-error masking; it does not
+claim confirmation of #2803's original SynchronizationLockException report.
+
+Baseline: all three original #2848 cases fail. Final selection: 47 passed across
+original issue cases, non-I/O failures, first-cause concurrency, frame cleanup,
+WAL recovery/durability and checkpoint errors. Production builds pass both targets.
+The older WAL boundary test's rollback-after-failed-Commit expectation was
+updated to fatal rejection, retaining and strengthening all frame, WAL length,
+monitor, independent recovery and checkpoint oracles. The issue regression now
+requires exact original exception identity on subsequent writes. Four Sol
+reviewers approved after addressing first-cause publication races and these
+lifecycle expectations. New tests additionally cover non-I/O completion failures.

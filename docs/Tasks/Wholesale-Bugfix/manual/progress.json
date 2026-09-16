@@ -77,10 +77,11 @@
         "priority: P1"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2848_Tests.cs"
-      ]
+      ],
+      "validation": "47 candidate transaction/WAL/checkpoint cases pass; four Sol approvals for 2848 and post-commit rollback guard; 2803 original SynchronizationLockException remains unconfirmed"
     },
     {
       "issue": 1002,
@@ -602,11 +603,12 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2169_CheckpointFailureTests.cs",
         "LiteDB.Tests/Issues/Issue2169_Tests.cs"
-      ]
+      ],
+      "validation": "47 candidate transaction/WAL/checkpoint cases pass; four Sol approvals for 2848 and post-commit rollback guard; 2803 original SynchronizationLockException remains unconfirmed"
     },
     {
       "issue": 2195,
@@ -1904,11 +1906,12 @@
         "from fork"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2803_CheckpointFailureTests.cs",
         "LiteDB.Tests/Issues/Issue2803_Tests.cs"
-      ]
+      ],
+      "validation": "47 candidate transaction/WAL/checkpoint cases pass; four Sol approvals for 2848 and post-commit rollback guard; 2803 original SynchronizationLockException remains unconfirmed"
     },
     {
       "issue": 2807,
