@@ -252,6 +252,33 @@ Full .NET 8 suite: 1,001 passed; the final 22-case aggregate suite (including tw
 additional transaction/update cases) also passes. Full .NET 10 suite: 1,003 passed.
 Both full runs have seven existing skips; all Release solution targets build.
 
+## 10. Apply bounds before constructing IN sets
+
+Constraint planning now evaluates the complete bounds before building sorted
+candidate sets. Values excluded by those bounds never enter the sets, and
+multiple IN lists start with the shortest list. Equality constraints are applied
+as bounds while preserving the previous equality-seek behavior. Final scans and
+result ordering remain the same.
+
+| Complete query | Before µs | After µs | Time reduction | Before B/query | After B/query |
+|---|---:|---:|---:|---:|---:|
+| Contains plus range, LINQ | 717.53 | 366.59 | 48.9% | 409,519 | 354,359 |
+| IN plus range, SQL | 514.26 | 192.94 | 62.5% | 295,985 | 240,909 |
+| Overlapping IN lists, SQL | 685.40 | 655.22 | 4.4% | 178,833 | 178,317 |
+| BETWEEN control, SQL | 77.03 | 70.62 | 8.3% | 57,321 | 57,409 |
+| Primary-key lookup, control | 36.70 | 32.54 | 11.3% | 30,978 | 30,978 |
+| Different-field predicate, control | 43.14 | 42.70 | 1.0% | 29,242 | 29,242 |
+
+The selective IN/range case rejects 989 of 1,000 keys before set construction,
+saving roughly 55 KB per complete query. The control timings again show host
+variation (particularly one slower baseline process), so the small IN/IN and
+control timing differences are inconclusive. The large selective-IN improvement
+appears in both paired processes and reduces measured allocation as well.
+
+Both versions use five times the default iterations; every checksum matches.
+Raw measurements: `10-sets-*`. Existing optimizer tests, including randomized
+intersections and collation/numeric cases: 95 passed. All Release targets build.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
