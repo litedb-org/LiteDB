@@ -79,6 +79,8 @@
         "workflow": "bugfix-check.yml"
       },
       "fix-1-0": {
+        "branch": "fix/issue-1002-hosted-v11-1002-a1",
+        "candidate_sha": "cef2fd1d1724f030468c301d52526d188572b6f9",
         "inputs": {
           "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
           "feedback": "",
@@ -89,6 +91,34 @@
         "request_id": "bf-b1e6f3b4acda4e329c28be51a1fbbde1",
         "run_id": 35080196043,
         "started_at": 1789551270.8879902,
+        "worker_metadata": {
+          "accounted_ai_credits": 3613.955,
+          "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
+          "changed_paths": [
+            "LiteDB/Client/Database/Collections/Insert.cs"
+          ],
+          "codex_version": "0.154.0",
+          "configured_model": "gpt-6-astra",
+          "configured_reasoning_effort": "high",
+          "issue": 1002,
+          "kind": "fix",
+          "observed_request_count": 25,
+          "observed_request_models": [
+            "gpt-6-astra"
+          ],
+          "patch_sha256": "643977ac3c8cd6fa8b9ae3f3ff22c2456df72cc79884d3c5a2117e8eddb0823b",
+          "reasoning_verification": "local-request-capture",
+          "reported_model": "gpt-6-astra",
+          "reported_reasoning_effort": null,
+          "result_sha256": "d4b055d4311cd57f889dc7ad14bf70c8a8c819fc3b74b72a78eaf7040ca0be3b",
+          "run_attempt": "1",
+          "run_id": "35080196043",
+          "runtime_proof_sha256": "cef9ca61239a45dfb2681d9f3078330c9584fc9635b226bb40e01954672193df",
+          "schema_version": 1,
+          "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+          "verified_reasoning_effort": "high",
+          "workflow_sha": "8140596303eac2c0dca5c1e123953f06b12a08c6"
+        },
         "workflow": "bugfix-fix.lock.yml"
       }
     },
