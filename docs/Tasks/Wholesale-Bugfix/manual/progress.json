@@ -45,10 +45,11 @@
         "from fork"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2820_Tests.cs"
-      ]
+      ],
+      "validation": "9 corrected baseline failures / 2 controls; 215 candidate passes; vector compatibility and production builds pass; four final Sol approvals"
     },
     {
       "issue": 2824,

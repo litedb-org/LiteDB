@@ -45,7 +45,7 @@ namespace LiteDB.Engine
             }
             else
             {
-                return new AesStream(_password, new ConcurrentStream(_stream, canWrite, true));
+                return new AesStream(_password, new ConcurrentStream(_stream, canWrite, true), allowRecovery: false);
             }
         }
 
@@ -56,19 +56,8 @@ namespace LiteDB.Engine
         {
             var length = _stream.Length;
 
-            // if file length are not PAGE_SIZE module, maybe last save are not completed saved on disk
-            // crop file removing last uncompleted page saved
-            if (length % PAGE_SIZE != 0)
-            {
-                length = length - (length % PAGE_SIZE);
-
-                _stream.SetLength(length);
-                _stream.FlushToDisk();
-            }
-
-            return length > 0 ?
-                length - (_password == null ? 0 : PAGE_SIZE) :
-                0;
+            // Format validation owns any later repair, never a length query.
+            return length > 0 ? Math.Max(1, length - (_password == null ? 0 : PAGE_SIZE)) : 0;
         }
 
         /// <summary>

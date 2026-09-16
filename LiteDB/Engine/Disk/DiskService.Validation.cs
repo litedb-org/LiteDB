@@ -1,0 +1,48 @@
+using System.IO;
+using static LiteDB.Constants;
+
+namespace LiteDB.Engine
+{
+    internal partial class DiskService
+    {
+        private void ValidateExistingData()
+        {
+            var stream = _dataPool.Rent();
+            try
+            {
+                var bytes = new byte[PAGE_SIZE];
+                stream.Position = 0;
+                var offset = 0;
+                while (offset < bytes.Length)
+                {
+                    var read = stream.Read(bytes, offset, bytes.Length - offset);
+                    if (read == 0) throw LiteException.InvalidDatabase();
+                    offset += read;
+                }
+
+                if (bytes[0] == 1)
+                    throw new LiteException(0, "This data file is encrypted and needs a password to open");
+
+                // Validate identity and the complete header before permitting any repair.
+                _ = new HeaderPage(new PageBuffer(bytes, 0, 0));
+            }
+            finally
+            {
+                _dataPool.Return(stream);
+            }
+        }
+
+        private long GetAlignedLength(IStreamFactory factory, StreamPool pool, bool readOnly)
+        {
+            var length = factory.GetLength();
+            var aligned = length - length % PAGE_SIZE;
+            if (!readOnly && length != aligned)
+            {
+                var writer = pool.Writer.Value;
+                writer.SetLength(aligned);
+                writer.FlushToDisk();
+            }
+            return aligned;
+        }
+    }
+}

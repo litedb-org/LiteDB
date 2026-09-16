@@ -72,3 +72,27 @@ metadata reads; expand case-sensitive-key coverage and public XML documentation.
 A proposed tri-state password-options redesign was refuted and the reviewer
 agreed: supplied null Password explicitly removes encryption under #2824's
 retained contract. This does not assert general crash-atomicity of file swaps.
+
+## #2820 — validate files before repair
+
+Length queries no longer mutate files or caller streams. Existing database
+headers are fully validated before writable tail alignment; read-only alignment
+only limits logical reads. Factory AES opens reject partial/zero-check encrypted
+metadata instead of using the internal stream's legacy repair behavior. Header
+identity/version validation precedes decoding arbitrary creation-time bytes.
+
+Validation: corrected baseline 9 failures / 2 passing controls; final candidate
+215 passed, including plain/encrypted torn tails, caller-stream byte preservation
+and ownership, explicit v4/read-only upgrades, stream lifecycle and vector-format
+coverage. Production builds and plain/encrypted vector compatibility pass.
+
+Two expected v4 GUID literals in the frozen fixture test were demonstrably
+incorrect (one even had invalid length). A standalone NuGet LiteDB 4.1.4 program
+read the unchanged SHA-pinned encrypted fixture and returned
+`4ac8f759-248f-4114-8be6-e510ad4e140d` (Jesse) and
+`db503008-84d5-42d8-b372-d7616ea133f1` (Bob). Those exact literals were corrected;
+all hash, byte, rejection, explicit-upgrade, sentinel and reopen checks remain.
+Oracle program/output: `/tmp/litedb-2820-v4-oracle/`. Corrected tests still produce
+the same 9 baseline failures. Four Sol reviewers approved the production changes
+and independently checked the oracle correction and added coverage. No blocking
+findings remained.

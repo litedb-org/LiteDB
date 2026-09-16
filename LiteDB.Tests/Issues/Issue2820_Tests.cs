@@ -19,8 +19,8 @@ namespace LiteDB.Tests.Issues
 
         private static readonly string[] V4Ledger =
         {
-            "{\"_id\":{\"$guid\":\"4ac8f759-248f-4114-8be6-e5104d0402e9c\"},\"Name\":\"Jesse\"}",
-            "{\"_id\":{\"$guid\":\"db503008-5f15-4c8f-9b34-26b67dd1c6ed\"},\"Name\":\"Bob\"}"
+            "{\"_id\":{\"$guid\":\"4ac8f759-248f-4114-8be6-e510ad4e140d\"},\"Name\":\"Jesse\"}",
+            "{\"_id\":{\"$guid\":\"db503008-84d5-42d8-b372-d7616ea133f1\"},\"Name\":\"Bob\"}"
         };
 
         [Theory]

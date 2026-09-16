@@ -75,11 +75,11 @@ namespace LiteDB.Engine
                 }
             }
 
-            return _password == null || !_useAesStream ? (Stream)stream : new AesStream(_password, stream);
+            return _password == null || !_useAesStream ? (Stream)stream : new AesStream(_password, stream, allowRecovery: false);
         }
 
         /// <summary>
-        /// Get file length using FileInfo. Crop file length if not length % PAGE_SIZE
+        /// Get logical file length without modifying the file
         /// </summary>
         public long GetLength()
         {
@@ -89,29 +89,8 @@ namespace LiteDB.Engine
             // get physical file length from OS
             var length = new FileInfo(_filename).Length;
 
-            // if file length are not PAGE_SIZE module, maybe last save are not completed saved on disk
-            // crop file removing last uncompleted page saved
-            if (length % PAGE_SIZE != 0)
-            {
-                length = length - (length % PAGE_SIZE);
-
-                using (var fs = new FileStream(
-                    _filename,
-                    System.IO.FileMode.Open,
-                    FileAccess.Write,
-                    FileShare.None,
-                    PAGE_SIZE,
-                    FileOptions.SequentialScan))
-                {
-                    fs.SetLength(length);
-                    fs.FlushToDisk();
-                }
-            }
-
-            // if encrypted must remove salt first page (only if page contains data)
-            return length > 0 ?
-                length - (_password == null ? 0 : PAGE_SIZE) :
-                0;
+            // Length inspection must never repair or truncate an unvalidated file.
+            return length > 0 ? Math.Max(1, length - (_password == null || !_useAesStream ? 0 : PAGE_SIZE)) : 0;
         }
 
         /// <summary>

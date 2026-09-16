@@ -110,9 +110,9 @@ namespace LiteDB.Engine
         public HeaderPage(PageBuffer buffer)
             : base(buffer)
         {
-            this.CreationTime = _buffer.ReadDateTime(P_CREATION_TIME);
-
             this.LoadPage();
+
+            this.CreationTime = _buffer.ReadDateTime(P_CREATION_TIME);
         }
 
         /// <summary>

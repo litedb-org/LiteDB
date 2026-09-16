@@ -49,7 +49,7 @@ namespace LiteDB.Engine
 
         public long StreamPosition => _stream.Position;
 
-        public AesStream(string password, Stream stream)
+        public AesStream(string password, Stream stream, bool allowRecovery = true)
         {
             _stream = stream ?? throw new ArgumentNullException(nameof(stream));
             _name = _stream is FileStream fileStream ? Path.GetFileName(fileStream.Name) : null;
@@ -59,6 +59,8 @@ namespace LiteDB.Engine
 
             try
             {
+                if (!allowRecovery && _stream.Length > 0 && _stream.Length < PAGE_SIZE)
+                    throw LiteException.InvalidDatabase();
                 var isNew = _stream.Length < PAGE_SIZE;
                 _stream.Position = 0;
                 checkBuffer = _bufferPool.Rent(checkBufferSize);
@@ -119,6 +121,7 @@ namespace LiteDB.Engine
                     // check whether bytes 32 to 64 is empty. This indicates LiteDb was unable to write encrypted 1s during last attempt.
                     _stream.Read(checkBuffer, 0, checkBufferSize);
                     isNew = checkBuffer.All(x => x == 0);
+                    if (isNew && !allowRecovery) throw LiteException.InvalidDatabase();
 
                     // reset checkBuffer and stream position
                     Array.Clear(checkBuffer, 0, checkBufferSize);

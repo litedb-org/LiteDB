@@ -55,16 +55,18 @@ namespace LiteDB.Engine
                     this.Initialize(_dataPool.Writer.Value, settings.Collation, settings.InitialSize);
                 }
 
+                if (!isNew) this.ValidateExistingData();
+
                 if (settings.ReadOnly == false)
                 {
                     _ = _dataPool.Writer.Value.CanRead;
                 }
 
-                _dataLength = _dataFactory.GetLength() - PAGE_SIZE;
+                _dataLength = this.GetAlignedLength(_dataFactory, _dataPool, settings.ReadOnly) - PAGE_SIZE;
 
                 if (_logFactory.Exists())
                 {
-                    _logLength = _logFactory.GetLength() - PAGE_SIZE;
+                    _logLength = this.GetAlignedLength(_logFactory, _logPool, settings.ReadOnly) - PAGE_SIZE;
                 }
                 else
                 {
