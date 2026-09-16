@@ -46,6 +46,9 @@ namespace LiteDB
         /// </summary>
         public BsonDocument Parameters { get; internal set; }
 
+        // Query composition renames parameters; GROUP BY must still bind its key.
+        internal HashSet<string> GroupKeyAliases { get; set; }
+
         /// <summary>
         /// In predicate expressions, indicate Left side
         /// </summary>
