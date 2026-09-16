@@ -424,10 +424,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue1904_Tests.cs"
-      ]
+      ],
+      "validation": "Original baseline fails; 18 focused tests pass; full suite 1681 passed / 257 existing failures / 8 skipped, no regressions; production/net462 pass; four fresh four-Sol-high waves, final four clean."
     },
     {
       "issue": 1908,

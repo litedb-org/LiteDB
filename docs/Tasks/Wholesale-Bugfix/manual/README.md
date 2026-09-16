@@ -1023,3 +1023,28 @@ Validation: original baseline fails; five dispatch regressions and 54 combined
 mapper/dictionary cases pass. Full suite: 1674 passed, 258 existing failures,
 8 skipped, no regressions versus #1851. Production and net462 builds pass.
 Four fresh Sol high reviewers (`review_1903_w1_a` through `_d`) were clean.
+
+## #1904 — ordinary indexes and included reference payloads
+
+The planner excludes ordinary indexes whose values can change when an included
+reference is resolved. Affected predicates and sorting remain in the document
+pipeline. Structural member-path analysis retains safe sibling indexes and
+reference $id indexes through scalar, fixed/negative-position and wildcard-array
+paths. Include now preserves the stub's $id against case-insensitive payload
+collisions, making that identity-index optimization sound. Unrecognized computed
+or dynamic shapes are conservatively excluded when their fields overlap.
+
+Validation: original baseline fails; final 18 focused cases pass. Full suite:
+1681 passed, 257 existing failures, 8 skipped; no regressions versus #1903.
+Production and net462 builds pass. Four fresh four-Sol-high waves addressed safe
+sibling/identity indexes, payload identity collisions and fixed array paths.
+All final reviewers (`review_1904_w4_a` through `_d`) were clean.
+
+A transient Index_With_Like full-suite failure was absent on the final run and
+reproduced on unchanged pre-fix code under Turkish collation (3 instead of 4
+matches); `/tmp/litedb-like-turkish-baseline-probe.log`. Earlier proposals to
+expand root-Include scheduling and vector-index metric handling were scoped out:
+root-Include filters fail even without an index on the unchanged baseline, and
+the vector planner is a separate untouched path. Executed before/after controls
+are `/tmp/litedb-include-probes-root-{baseline,candidate}.log`. This fix does not
+claim to repair those inherited behaviors.
