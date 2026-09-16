@@ -39,6 +39,8 @@ namespace LiteDB
         /// </summary>
         public CreateObject CreateInstance { get; set; }
 
+        internal bool PopulateMembers { get; set; } = true;
+
         public EntityMapper(Type forType, CancellationToken initializationToken = default)
         {
             _initializationToken = initializationToken;

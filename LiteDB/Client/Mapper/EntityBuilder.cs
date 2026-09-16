@@ -73,13 +73,26 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Define which property is your document id (primary key). Define if this property supports auto-id
+        /// Construct an entity before populating its mapped members from the document.
         /// </summary>
         public EntityBuilder<T> Ctor(Func<BsonDocument, T> createInstance)
         {
             _entity.WaitForInitialization();
             _entity.CreateInstance = v => createInstance(v);
+            _entity.PopulateMembers = true;
 
+            return this;
+        }
+
+        /// <summary>
+        /// Let the factory own materialization. Return its result directly without other
+        /// instantiators or mapped-member population. Use Ctor to restore member population.
+        /// </summary>
+        public EntityBuilder<T> CtorOnly(Func<BsonDocument, T> createInstance)
+        {
+            if (createInstance == null) throw new ArgumentNullException(nameof(createInstance));
+            this.Ctor(createInstance);
+            _entity.PopulateMembers = false;
             return this;
         }
 

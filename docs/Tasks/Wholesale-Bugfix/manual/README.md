@@ -298,3 +298,18 @@ unannotated string overload. Constructor precedence and post-construction member
 population remain compatible. Baseline: one failure / eight controls. Final:
 56 net8 mapper/constructor tests pass, including raw stored-name and overload-trap
 controls; all library targets build. Four Sol reviewers approved without findings.
+
+
+## #2873 — explicit factory-owned materialization
+
+New CtorOnly(factory) returns the factory result once after actual _type validation
+and mapper initialization, without other instantiators or member/dictionary
+population. Existing Ctor(factory) retains population and resets the opt-in when
+registered later. Null factories reject; a factory's null result is returned once
+without retry, consistent with the documented direct-result contract.
+
+Original baseline: two failures / one compatibility control, including the reported
+QuantityRange/Enum model. Final: 59 net8 mapper/constructor tests pass, covering
+factory-owned invariants, exact identity, setter/instantiator suppression, legacy
+registration restoration, null contracts and the real reported persistence case.
+All library targets build; four Sol reviewers approved without findings.
