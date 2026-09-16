@@ -20,13 +20,24 @@ namespace LiteDB.Engine
         {
             if (string.IsNullOrEmpty(_settings.Filename)) return 0; // works only with os file
 
+            // Omitted options preserve encryption; an explicit null Password removes it.
+            options = options ?? new RebuildOptions
+            {
+                Password = _settings.Password
+            };
+            var collation = options.Collation ?? new Collation(this.Pragma(Pragmas.COLLATION));
+
             this.Close();
 
             // run build service
             var rebuilder = new RebuildService(_settings);
 
             // return how many bytes of diference from original/rebuild version
-            var diff = rebuilder.Rebuild(options);
+            var diff = rebuilder.Rebuild(options, collation);
+
+            // SharedEngine retains this same settings instance for subsequent opens.
+            _settings.Password = options.Password;
+            _settings.Collation = collation;
 
             // re-open engine
             this.Open();
@@ -41,10 +52,7 @@ namespace LiteDB.Engine
         /// </summary>
         public long Rebuild()
         {
-            var collation = new Collation(this.Pragma(Pragmas.COLLATION));
-            var password = _settings.Password;
-
-            return this.Rebuild(new RebuildOptions { Password = password, Collation = collation });
+            return this.Rebuild(null);
         }
 
         /// <summary>

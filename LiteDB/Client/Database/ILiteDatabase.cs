@@ -104,6 +104,7 @@ namespace LiteDB
 
         /// <summary>
         /// Rebuild all database to remove unused pages - reduce data file
+        /// Omitted options preserve encryption and collation; supplied options select the new password.
         /// </summary>
         long Rebuild(RebuildOptions options = null);
 

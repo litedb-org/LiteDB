@@ -60,10 +60,11 @@
         "priority: P1"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2824_Tests.cs"
-      ]
+      ],
+      "validation": "10 corrected baseline failures; 24 candidate passes and 1 existing skip; four final Sol approvals"
     },
     {
       "issue": 2848,

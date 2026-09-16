@@ -132,8 +132,6 @@ namespace LiteDB.Tests.Issues
                         reader.ToArray();
                     });
 
-                    failure.Should().NotBeOfType<NullReferenceException>(
-                        "the SQL parser deliberately passes null for a bare REBUILD");
                     failure.Should().BeNull("bare REBUILD must use the current engine settings");
 
                     AssertLedger(db, "11=before-alpha", "29=before-omega");

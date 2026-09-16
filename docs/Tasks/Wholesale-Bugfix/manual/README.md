@@ -48,3 +48,27 @@ WAL-index publication wording, update-only and post-safepoint flush counters,
 empty-commit behavior. Additional filename/rollback-return-specific tests were
 not added: they use the same already-covered FileStream/confirmed-header path,
 and existing recovery tests cover their distinct functional behavior.
+
+## #2824 — rebuild encryption and collation
+
+Omitted API/SQL options preserve the current password and collation. Supplied
+options select a new password (null removes encryption), while absent collation
+preserves the current one. Effective settings are propagated to the reused
+Direct/Shared settings only after installing the rebuilt file. Size metadata is
+read before file moves so it cannot fail between installation and propagation.
+Caller-owned options are not mutated.
+
+Validation: the original ten cases failed before the fix. The SQL test had a
+redundant FluentAssertions NotBeOfType assertion that itself fails on successful
+null results. Removing it retains the stronger BeNull requirement and every
+ledger/password/byte oracle. The corrected fixture still fails all ten cases on
+unchanged baseline 25ef5063. The final selection passes 24 cases with one existing
+skip, including eight new custom-collation Direct/Shared cases, ordinary rebuild
+coverage and vector-format rebuild checks. Production builds pass both targets.
+
+All four Sol reviewers re-reviewed and approved. Addressed findings: preserve
+custom collation during password-only rebuild; remove fallible post-replacement
+metadata reads; expand case-sensitive-key coverage and public XML documentation.
+A proposed tri-state password-options redesign was refuted and the reviewer
+agreed: supplied null Password explicitly removes encryption under #2824's
+retained contract. This does not assert general crash-atomicity of file swaps.

@@ -17,12 +17,12 @@ namespace LiteDB.Engine
         private string _buildId = Guid.NewGuid().ToString("d").ToLower().Substring(6);
 
         /// <summary>
-        /// Rebuild database with a new password
+        /// Rebuild database with a new password. Null removes encryption when options are supplied.
         /// </summary>
         public string Password { get; set; } = null;
 
         /// <summary>
-        /// Define a new collation when rebuild
+        /// Define a new collation when rebuilding. Null preserves the current database collation.
         /// </summary>
         public Collation Collation { get; set; } = null;
 
