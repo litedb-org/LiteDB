@@ -1155,3 +1155,17 @@ including both bounds, leading zeros, indexed/SQL matching and canonical reparse
 Full suite: 1723 passed, 245 existing failures, 8 skipped; no regressions versus
 #2113. Production and net462 builds pass. All four fresh Sol high reviewers
 (`review_2205_w1_a` through `_d`) were clean.
+
+## #2243 — missing IDs in reference collection schemas
+
+DbRef list/array serialization now reports the declared element type's missing
+_id mapping before accessing its getter, matching singular-reference diagnostics.
+Null, empty and null-only reference collections retain their existing behavior.
+
+Validation: the original interface-list reproduction fails before the fix; 10
+focused cases pass, including arrays, diagnostics, batch rollback and reuse.
+Full suite: 1726 passed, 244 existing failures, 8 skipped; no regressions versus
+#2205. Production and net462 builds pass. All four fresh Sol high reviewers
+(`review_2243_w1_a` through `_d`) were clean; removed an incidental BOM nit.
+Nullable ID values remain a separate inherited path, not part of this missing
+schema mapping fix.
