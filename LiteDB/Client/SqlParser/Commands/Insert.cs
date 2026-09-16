@@ -44,7 +44,7 @@ namespace LiteDB
 
                 var type = _tokenizer.ReadToken().Expect(TokenType.Word);
 
-                switch(type.Value.ToUpper())
+                switch(type.Value.ToUpperInvariant())
                 {
                     case "GUID": return BsonAutoId.Guid;
                     case "INT": return BsonAutoId.Int32;
