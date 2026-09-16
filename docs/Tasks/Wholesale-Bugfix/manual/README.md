@@ -604,3 +604,72 @@ composite key member access and the server key binding.
 Validation: 312 focused net8 tests pass, one existing skip; all library targets
 build. Four fresh Sol high-reasoning reviewers approved with no findings above
 nits.
+
+
+## #2367 / #1908 — bind captured indexed values and their members
+
+Closed collection indexes, LINQ element selectors, member chains and unary
+operations bind their CLR values once per translation. Captures are read again
+on each translation. This avoids applying element getters to collections and
+unsupported parameter[index] syntax. Supported row indexes retain server paths.
+
+Coverage includes mutable arrays/lists/dictionaries, custom and multidimensional
+indexers, explicit IndexExpression, quoted keys, First/Last/Single/ElementAt and
+default variants, Min/Max, predicate/Where/ToArray composition, conditional and
+coalesced receivers, custom/numeric conversions, negation and short-circuiting.
+
+Volatile clocks and GUID generation retain supported server translations;
+deterministic constants such as Guid.Empty remain captures. Unsupported runtime
+wrappers, positional indexes and mixed captured branches fail explicitly before
+reading unchosen getters. Dynamic query-row positional indexes are rejected
+instead of compiling an unbound parameter or being parsed as array filters.
+Supported runtime predicates using boolean operators remain supported. Runtime
+unary operators are limited to correctly supported boolean/identity/widening
+forms. A root-level branch check prevents eager reads bypassing the local guards.
+Row dictionary keys now use JSON escaping, with quote/backslash/newline controls.
+Empty row keys fail explicitly: MEMBER_PATH treats an empty name as the parent,
+so they cannot safely use the current path grammar. Captured empty keys still
+use CLR dictionary semantics. Review attributed the empty-key error to caching,
+but inspection confirmed the direct parent-return behavior in MEMBER_PATH.
+
+A claimed regression for Select(...Now...).First().Year was checked on the
+previous commit: it already rejects MAP(...)[0] in the BSON parser. The supported
+predicate-First variant keeps NOW(); unsupported indexing remains rejected
+instead of being silently frozen.
+
+Validation: 354 focused net8 passes, one existing skip;
+four fresh independent Sol high reviewers report no findings above nits.
+Full net10 validation has 1,392 passes,
+300 failures and eight skips, with no original baseline pass or preceding-stage
+pass regressing and no new failing test. There are 164 passing original baseline
+failures. The escaped-key change also passes the existing H50 injection audit.
+All library targets build.
+
+Full testing also exposed an intermittent failure in the added #2767 blank-page
+test: AesStream computes its zero-block sentinel from an uncleared rented buffer.
+An isolated probe that dirties the pool reproduces this deterministically. A
+separate storage follow-up is required after this fix.
+
+Closed scalar conditional/coalesce/boolean branches containing element accesses
+are evaluated atomically, including reused conditions and skipped empty arrays.
+Two review reports about ordinary, non-indexed captured-member negation and
+ordinary runtime/getter branches are existing translator limitations outside the
+#2367/#1908 element-access reproductions. They do not enter the added element
+handlers and follow unchanged legacy paths; they are not claimed as repaired.
+
+Runtime branch validation is scoped to the affected branch or runtime sequence;
+unrelated closed branches can bind independently while NOW() stays server-side.
+Resolver-miss runtime rejection is limited to element-bearing calls, preserving
+ordinary CLR method-capture behavior. Compatibility controls cover both cases.
+
+Closed array-length expressions also bind in CLR, so a captured null element
+throws rather than silently becoming LENGTH(null) = 0. Runtime-produced arrays
+retain the supported server LENGTH translation.
+
+Runtime unary validation preserves methodless unary plus, identity reference
+casts and standard numeric widening (including checked widening), while still
+rejecting narrowing and custom operators that the server cannot represent.
+
+The final review wave withdrew a claimed First-pipeline regression after checking
+that indexedSource is populated only for IsIndexAccess calls. The cited positive
+tests also pass in both focused and full runs.

@@ -426,10 +426,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue1908_Tests.cs"
-      ]
+      ],
+      "validation": "354 focused net8 passes/1 skip; full net10 1392 passes/300 known failures/8 skips, no baseline pass regressions; all library targets build; four fresh independent Sol high final approvals"
     },
     {
       "issue": 1920,
@@ -773,10 +774,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2367_Tests.cs"
-      ]
+      ],
+      "validation": "354 focused net8 passes/1 skip; full net10 1392 passes/300 known failures/8 skips, no baseline pass regressions; all library targets build; four fresh independent Sol high final approvals"
     },
     {
       "issue": 2375,
