@@ -106,8 +106,18 @@ namespace LiteDB
         /// </summary>
         public LiteFileStream<TFileId> OpenWrite(TFileId id, string filename, BsonDocument metadata = null)
         {
+            if (id == null) throw new ArgumentNullException(nameof(id));
+
             // get _id as BsonValue
             var fileId = _db.Mapper.Serialize(typeof(TFileId), id);
+            if (fileId == null || fileId.IsNull) throw new ArgumentNullException(nameof(id));
+
+            var name = Path.GetFileName(filename);
+            var mimeType = MimeTypeConverter.GetMimeType(filename);
+
+            // Caller transactions must take the same file-before-chunk locks as
+            // Upload and Delete. Update acquires a lock without creating a collection.
+            _files.Update(Enumerable.Empty<LiteFileInfo<TFileId>>());
 
             // checks if file exists
             var file = this.FindById(id);
@@ -117,8 +127,8 @@ namespace LiteDB
                 file = new LiteFileInfo<TFileId>
                 {
                     Id = id,
-                    Filename = Path.GetFileName(filename),
-                    MimeType = MimeTypeConverter.GetMimeType(filename),
+                    Filename = name,
+                    MimeType = mimeType,
                     Metadata = metadata ?? new BsonDocument()
                 };
 
@@ -128,8 +138,8 @@ namespace LiteDB
             else
             {
                 // if filename/metada was changed
-                file.Filename = Path.GetFileName(filename);
-                file.MimeType = MimeTypeConverter.GetMimeType(filename);
+                file.Filename = name;
+                file.MimeType = mimeType;
                 file.Metadata = metadata ?? file.Metadata;
             }
 
@@ -183,15 +193,24 @@ namespace LiteDB
         /// </summary>
         public bool SetMetadata(TFileId id, BsonDocument metadata)
         {
-            var file = this.FindById(id);
+            if (id == null) throw new ArgumentNullException(nameof(id));
 
-            if (file == null) return false;
+            var fileId = _db.Mapper.Serialize(typeof(TFileId), id);
+            if (fileId == null || fileId.IsNull) throw new ArgumentNullException(nameof(id));
+            if (!_files.Exists("_id = @0", fileId)) return false;
 
-            file.Metadata = metadata ?? new BsonDocument();
+            // Update enumerates after acquiring the file collection write lock.
+            // Read and map the current record inside that same transaction so
+            // serializer hooks remain intact and cannot overwrite a newer upload.
+            IEnumerable<LiteFileInfo<TFileId>> update()
+            {
+                var file = this.FindById(id);
+                if (file == null) yield break;
+                file.Metadata = metadata ?? new BsonDocument();
+                yield return file;
+            }
 
-            _files.Update(file);
-
-            return true;
+            return _files.Update(update()) > 0;
         }
 
         #endregion
@@ -239,7 +258,7 @@ namespace LiteDB
         #region Delete
 
         /// <summary>
-        /// Delete a file inside datafile and all metadata related
+        /// Delete file content and metadata together in the active write transaction.
         /// </summary>
         public bool Delete(TFileId id)
         {
@@ -247,17 +266,36 @@ namespace LiteDB
 
             // get Id as BsonValue
             var fileId = _db.Mapper.Serialize(typeof(TFileId), id);
+            if (fileId == null || fileId.IsNull) throw new ArgumentNullException(nameof(id));
 
-            // remove file reference
-            var deleted = _files.Delete(fileId);
+            // An absent record can belong to an unfinished incremental OpenWrite.
+            // Returning here preserves its chunks and does not create a collection.
+            if (!_files.Exists("_id = @0", fileId)) return false;
 
-            if (deleted)
+            return this.WriteWithFileLock(() =>
             {
-                // delete all chunks
-                _chunks.DeleteMany("_id BETWEEN { f: @0, n: 0} AND {f: @0, n: @1 }", fileId, int.MaxValue);
-            }
+                var deleted = _files.Delete(fileId);
+                if (deleted)
+                {
+                    _chunks.DeleteMany("_id BETWEEN { f: @0, n: 0} AND {f: @0, n: @1 }", fileId, int.MaxValue);
+                }
+                return deleted;
+            });
+        }
 
-            return deleted;
+        private TResult WriteWithFileLock<TResult>(Func<TResult> write)
+        {
+            var result = default(TResult);
+            IEnumerable<LiteFileInfo<TFileId>> batch()
+            {
+                // Update enumerates after acquiring its write lock and transaction.
+                // Yield no documents: nested storage writes form the atomic batch.
+                // Forwarding engines retain the normal single-pass enumeration contract.
+                result = write();
+                yield break;
+            }
+            _files.Update(batch());
+            return result;
         }
 
         #endregion

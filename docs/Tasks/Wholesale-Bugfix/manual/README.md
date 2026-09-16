@@ -949,3 +949,32 @@ mapping because TempFile uses five-character random names in a shared directory;
 all 20 AutoIdAssignment tests passed on recheck and a fresh temporary directory
 removed that unrelated collision. Four review waves used four fresh independent
 Sol high agents each; the final four reviews were clean.
+
+### #1344 — overlapping storage writes and cursor snapshot ownership
+
+The reproduced overlapping-upload bug is covered by the prior #2806 upload
+transaction. The original fixture incorrectly required every intermediate chunk
+to be full; it now checks actual chunk counts, contiguous IDs, nonempty bounded
+chunks, exact content, downloads, orphan ownership, and reopen. This corrected
+fixture still fails the original baseline with duplicate keys/wrong payloads.
+
+Delete now removes metadata and chunks in one write transaction, and SetMetadata
+reads the current record under its write lock while preserving mapper hooks.
+OpenWrite, Upload, and Delete acquire file-before-chunk locks, including caller
+transactions and initial collection creation. Empty lazy Update batches use the
+existing single-pass engine enumeration contract and never create missing
+collections; incremental writes for missing file records are preserved.
+
+Read snapshots still held by any cursor, including Include's secondary snapshots,
+retain their page leases and WAL view through write upgrades and safepoints.
+Commit, rollback, and error cleanup release them. Replacement snapshots acquire
+their lock before the old write lock is released. Reacquiring a collection later
+still sees the current transaction snapshot: an exact-baseline control proves
+this is existing read-your-writes behavior, not whole-query snapshot isolation.
+
+47 storage/transaction tests and 127 combined regression tests pass on net8.
+Production targets build and net462 tests compile. Full net10 validation
+(`p2-1344-integrated.trx`) has 1652 passed, 261 failed, and 8 skipped, with no newly
+failing tests; original #1344 plus audit guards 42/185 now pass. Nine review waves
+used four fresh independent Sol high agents each. Final three reviews were clean;
+the fourth Include-reacquisition claim was refuted by the passing 67b214cc control.

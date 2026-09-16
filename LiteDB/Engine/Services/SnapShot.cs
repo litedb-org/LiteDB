@@ -238,7 +238,7 @@ namespace LiteDB.Engine
         private T ReadPage<T>(uint pageID, out FileOrigin origin, out long position, out int walVersion, bool useLatestVersion = false)
             where T : BasePage
         {
-            var dirty = _transPages.DirtyPages.TryGetValue(pageID, out var walPosition);
+            var dirty = _transPages.DirtyPages.TryGetValue(pageID, out var walPosition) && !_retainedForCursor;
             if (dirty)
             {
                 origin = FileOrigin.Log;

@@ -201,10 +201,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue1344_Tests.cs"
-      ]
+      ],
+      "validation": "Corrected chunk-count oracle still fails original baseline; prior #2806 upload transaction plus atomic delete/metadata locking follow-up passes. 127 combined tests pass net8; 47 focused storage/transaction tests pass; full net10 1652 passed/261 failed/8 skipped, no new regressions. Production targets and net462 compile. Nine waves of four fresh Sol high reviews; final three clean, fourth Include-reacquisition finding refuted by passing exact-baseline compatibility control. Audit guards42/185 also pass."
     },
     {
       "issue": 1376,
