@@ -53,3 +53,21 @@ sorting and pagination.
 The large gain comes from replacing a full scan with two seeks. The control
 queries have unchanged plans; their small timing differences are not evidence
 of a general speedup. Focused disjunction, ordering, and shared-IR tests: 29 passed.
+
+## 2. Intersect scalar index bounds
+
+`Score >= 10000 && Score < 10010` previously scanned from 10000 through 20000,
+loading documents to test the upper bound. The optimizer now intersects bounds
+on the selected scalar index and removes the filters the bounded scan enforces.
+Inclusive/exclusive endpoints, reversed comparisons, redundant bounds, separate
+parameter documents, numeric types, and collation are preserved. ANY/ALL ranges
+are excluded because separate elements may satisfy their bounds. Backtracking
+at an inclusive range endpoint now also uses the database collation.
+
+| Complete query | Before µs | After µs | Time reduction | Before B/query | After B/query |
+|---|---:|---:|---:|---:|---:|
+| Bounded range, LINQ | 14,453.61 | 80.76 | 99.4% (179×) | 19,485,064 | 57,523 |
+| Bounded range, SQL | 14,329.03 | 73.40 | 99.5% (195×) | 19,486,400 | 58,947 |
+
+This case returns ten documents. The gain depends on how much of the original
+one-sided scan the other bound excludes. Range and disjunction tests: 14 passed.
