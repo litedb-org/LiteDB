@@ -340,6 +340,30 @@ Focused metadata tests cover parser-free ordinary reads, lazy expression reuse,
 index maintenance, and eager validation of new definitions. Full .NET 10 suite:
 1,011 passed, seven existing skips. All Release solution targets build.
 
+## 13. Fix replay addresses for index-only queries
+
+Aggregate and sort regression testing exposed an existing correctness bug:
+IndexLookup returned a data-block address, then treated that address as an index
+node during replay. It now returns the index node's position, matching its own
+reload method. Multiple aggregates, constant grouping, and computed sorting can
+therefore replay index-only values correctly.
+
+These workloads previously failed with `page type must be index page`; there is
+no valid baseline duration and no speedup claim. Each reproducer runs in an
+isolated database of 20,000 documents because the baseline error faults its engine.
+Database setup is outside timing. Successful timings pool two nine-batch processes:
+
+| Complete query | Before | After µs | After B/query |
+|---|---|---:|---:|
+| SUM plus MAX over indexed IDs | Fails | 21,273.14 | 36,514,744 |
+| Group by a constant, then Count | Fails | 32,043.04 | 36,700,584 |
+| Computed two-key sort, limit ten | Fails | 67,961.80 | 25,628,075 |
+
+Raw `13-replay-*` files preserve the three baseline errors and successful results.
+After-query checksums are verified against independently calculated expected sums,
+counts, and ordered IDs. Four focused regressions include collated/null secondary
+keys. Full .NET 8 suite: 1,015 passed, seven existing skips; all Release targets build.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -376,7 +400,7 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 1,007 passed on .NET 8 at step 11;
+- Full `LiteDB.Tests` with `tests.runsettings`: 1,015 passed on .NET 8 at step 13;
   1,011 passed on .NET 10 at step 12; four focused metadata tests also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.

@@ -26,7 +26,9 @@ namespace LiteDB.Engine
                 [_name] = node.Key,
             };
 
-            doc.RawId = node.DataBlock;
+            // Sort and aggregate replay return this address to this same lookup.
+            // It loads index nodes, so retain their positions rather than data blocks.
+            doc.RawId = node.Position;
 
             return doc;
         }

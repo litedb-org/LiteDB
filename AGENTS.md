@@ -65,4 +65,7 @@ and existing index keys. Keep new-index validation eager, and evaluate through
 the property when maintaining index keys or executing vector expressions.
 Built-in aggregate templates need independent parameter bindings because GROUP BY
 writes its key into the parameter document.
+Query replay addresses are lookup-specific: `IndexLookup` uses an index node
+position, while `DatafileLookup` uses a data block. Keep `RawId` consistent with
+the loader that receives it during sort/aggregate replay.
 Use `tools/QueryOptimizationBenchmarks` for per-optimization end-to-end comparisons.
