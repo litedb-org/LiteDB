@@ -1398,10 +1398,11 @@
         "from fork"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2827_Tests.cs"
-      ]
+      ],
+      "validation": "Original indexed rebuild failure fixed;361 net8 engine/query passes,4 skips;10k rebuild,6k uncommitted index creation,real andforged-header cycle tests;vectorcompatibility/alltargets pass;fourfinalSolapprovals"
     },
     {
       "issue": 2841,

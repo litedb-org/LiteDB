@@ -485,3 +485,21 @@ Plain/encrypted vector compatibility and all library targets pass. Four final
 Sol approvals; the unrelated BOM and buffer-range nits were fixed. Zero-count
 helper argument validation was deferred because these internal callers supply
 valid positive ranges.
+
+
+## #2827 — count unflushed transaction allocations in traversal limits
+
+Each scalar index/data traversal adds a widened allowance from the transaction's
+actual NewPages ledger to its physical data/WAL bound and captures that budget
+once. The ledger includes new and recycled pages and survives safepoints. This
+covers valid unflushed chains while retaining finite corruption detection.
+
+Review caught an early duplicate property name and a more serious proposal to
+trust header LastPageID, which corrupt files can inflate. The final implementation
+uses only the trusted allocation ledger; a forged uint.MaxValue header self-cycle
+regression proves the guard still trips within the bounded test enumeration.
+
+Final: 361 net8 engine/query tests pass, four existing skips, including 10,000-row
+indexed rebuild, 6,000-row insertion/index creation in one transaction and real
+cycle detection. Plain/encrypted vector compatibility and all library targets
+pass. Four Sol reviewers approved the final ledger-based revision.
