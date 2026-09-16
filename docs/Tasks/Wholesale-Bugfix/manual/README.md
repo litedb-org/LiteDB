@@ -924,3 +924,28 @@ final wave, three reviewers found no issues. The fourth proposed changing consum
 `_type` dictionary-entry handling; exact baseline source already retains that key
 and rejects non-string-convertible keys, so this separate pre-existing limitation
 was refuted rather than changing persisted dictionary semantics here.
+
+### #1829 — PredicateBuilder invocation binding
+
+Invoked lambda parameters are substituted before LINQ query scope analysis,
+so swapping composed predicates no longer changes root `$` references into item
+`@` references. Nested lambda binders are renamed to prevent capture and preserve
+shadowing. The old mapper fixture passed an unbound foreign parameter; it now
+constructs a valid composable expression and compares compiled behavior.
+
+Closed client-evaluated subtrees retain their atomic evaluation boundary.
+Row-dependent invocations accept parameters, constants, and document member
+paths. Captured fields/getters, calls, computed expressions, and indexed arguments
+are explicitly rejected rather than being duplicated, omitted, or reordered.
+General support for those previously unsupported invocation shapes remains outside
+this correction. Regression tests cover volatile GUID generation, omitted fields,
+closed getters, captured indexed evaluation, and nested binding collisions.
+
+The focused selection passes 97 tests; the combined mapper/LINQ selection passes
+147 on net8. All production targets build and net462 tests compile. The full
+net10 run (`p2-1829-integrated-clean.trx`) has 1611 passed, 264 failed, and 8 skipped,
+with no previously passing regressions. An earlier run hit an orphan WAL before
+mapping because TempFile uses five-character random names in a shared directory;
+all 20 AutoIdAssignment tests passed on recheck and a fresh temporary directory
+removed that unrelated collision. Four review waves used four fresh independent
+Sol high agents each; the final four reviews were clean.

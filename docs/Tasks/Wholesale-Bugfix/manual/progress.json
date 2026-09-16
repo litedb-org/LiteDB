@@ -342,10 +342,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue1829_Tests.cs"
-      ]
+      ],
+      "validation": "147 combined mapper/LINQ tests pass on net8 (97 focused on this candidate); full net10 in isolated temp directory: 1611 passed/264 failed/8 skipped, no previously passing regressions. All production targets and net462 tests compile. Four review waves; final four fresh independent Sol high reviewers all clean. Invocation substitution is capture-safe; closed client evaluation preserved; unsupported unstable row-dependent arguments rejected explicitly."
     },
     {
       "issue": 1848,
