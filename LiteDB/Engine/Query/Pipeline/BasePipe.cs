@@ -120,7 +120,8 @@ namespace LiteDB.Engine
                         value.Remove("$ref");
 
                         // copy values from refDocument into current documet (except _id - will keep $id)
-                        foreach (var element in refDoc.Where(x => x.Key != "_id"))
+                        foreach (var element in refDoc.Where(x => !StringComparer.OrdinalIgnoreCase.Equals(x.Key, "_id") &&
+                            !StringComparer.OrdinalIgnoreCase.Equals(x.Key, "$id")))
                         {
                             value[element.Key] = element.Value;
                         }
