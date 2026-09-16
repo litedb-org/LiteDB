@@ -255,7 +255,18 @@ namespace LiteDB.Engine
 
         public override long Seek(long offset, SeekOrigin origin)
         {
-            return _stream.Seek(offset + PAGE_SIZE, origin);
+            long position;
+            switch (origin)
+            {
+                case SeekOrigin.Begin: position = offset; break;
+                case SeekOrigin.Current: position = checked(this.Position + offset); break;
+                case SeekOrigin.End: position = checked(this.Length + offset); break;
+                default: throw new ArgumentException("Invalid seek origin.", nameof(origin));
+            }
+
+            if (position < 0) throw new IOException("Cannot seek before the beginning of the encrypted data.");
+
+            return _stream.Seek(checked(position + PAGE_SIZE), SeekOrigin.Begin) - PAGE_SIZE;
         }
 
         public override void SetLength(long value)
