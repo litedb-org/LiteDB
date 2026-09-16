@@ -17,6 +17,11 @@ by case, the last value enumerated wins.
 dates, and arrays/documents with equal content share a hash code. Collection
 hash codes are content-based, so they change when the collection is mutated.
 
+Comparing a double that decimal cannot hold (NaN, infinity, or a magnitude of
+2^96 and above) against an `Int32`, `Int64` or `Decimal` used to throw
+`OverflowException` from `CompareTo`/`Equals`. Such a double now orders by its
+sign (NaN and negative values first) and never compares equal.
+
 ## Stream ownership change
 
 Streams supplied through `EngineSettings.DataStream`, `LogStream`, and

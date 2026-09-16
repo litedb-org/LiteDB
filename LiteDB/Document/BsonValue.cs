@@ -554,7 +554,16 @@ namespace LiteDB
                 // it's the slowest way, but more secure
                 if (this.IsNumber && other.IsNumber)
                 {
-                    return Convert.ToDecimal(this.RawValue).CompareTo(Convert.ToDecimal(other.RawValue));
+                    if (IsDecimalConvertible(this) && IsDecimalConvertible(other))
+                    {
+                        return Convert.ToDecimal(this.RawValue).CompareTo(Convert.ToDecimal(other.RawValue));
+                    }
+
+                    // exactly one side is a double that decimal cannot hold (NaN, infinity or |x| >= 2^96).
+                    // it can never equal the other side, so only its sign decides the order
+                    return IsDecimalConvertible(this)
+                        ? -OutOfDecimalRangeSign(other.AsDouble)
+                        : OutOfDecimalRangeSign(this.AsDouble);
                 }
                 // if not, order by sort type order
                 else

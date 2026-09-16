@@ -80,17 +80,9 @@ namespace LiteDB
         {
             if (value.IsNumber)
             {
-                if (value.IsDouble)
+                if (!IsDecimalConvertible(value))
                 {
-                    var number = value.AsDouble;
-
-                    // (double)Decimal.MaxValue rounds up to 2^96, which itself overflows
-                    // Convert.ToDecimal, so the bounds must be exclusive.
-                    if (Double.IsNaN(number) || Double.IsInfinity(number) ||
-                        number >= (double)Decimal.MaxValue || number <= (double)Decimal.MinValue)
-                    {
-                        return CombineHashCodes(value.Type.GetHashCode(), number.GetHashCode());
-                    }
+                    return CombineHashCodes(value.Type.GetHashCode(), value.AsDouble.GetHashCode());
                 }
 
                 return Convert.ToDecimal(value.RawValue).GetHashCode();
@@ -155,6 +147,34 @@ namespace LiteDB
         private static int CombineHashCodes(int left, int right)
         {
             return unchecked(37 * (37 * 17 + left) + right);
+        }
+
+        #endregion
+
+        #region Numeric range helpers
+
+        /// <summary>
+        /// True when Convert.ToDecimal can hold this number. Only doubles can fail: NaN, infinity,
+        /// or a magnitude of 2^96 and above. (double)Decimal.MaxValue rounds up to exactly 2^96,
+        /// which itself overflows, so the bounds are exclusive.
+        /// </summary>
+        internal static bool IsDecimalConvertible(BsonValue value)
+        {
+            if (!value.IsDouble) return true;
+
+            var number = value.AsDouble;
+
+            return !Double.IsNaN(number) && !Double.IsInfinity(number) &&
+                number < (double)Decimal.MaxValue && number > (double)Decimal.MinValue;
+        }
+
+        /// <summary>
+        /// Sort position of a double that decimal cannot hold, relative to any decimal-convertible
+        /// number. NaN and negative values sort first, matching Double.CompareTo.
+        /// </summary>
+        private static int OutOfDecimalRangeSign(double number)
+        {
+            return number > 0 ? 1 : -1;
         }
 
         #endregion
