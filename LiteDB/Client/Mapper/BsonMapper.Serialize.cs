@@ -63,6 +63,12 @@ namespace LiteDB
             {
                 return custom(obj);
             }
+            // Preserve the virtual object-mapping hook as well as registered
+            // serializers; the base implementation declines runtime metadata.
+            else if (obj is Delegate || obj is MemberInfo)
+            {
+                return (BsonValue)this.SerializeObject(type, obj, depth) ?? BsonValue.Null;
+            }
             // test string - mapper has some special options
             else if (obj is String)
             {
@@ -132,20 +138,10 @@ namespace LiteDB
             // for dictionary
             else if (obj is IDictionary dict)
             {
-                // when you are converting Dictionary<string, object>
-                if (type == typeof(object))
-                {
-                    type = obj.GetType();
-                }
-
-                Type keyType = typeof(object);
-                Type valueType = typeof(object);
-
-                if (type.GetTypeInfo().IsGenericType) {
-                    Type[] generics = type.GetGenericArguments();
-                    keyType = generics[0];
-                    valueType = generics[1];
-                }
+                var dictionaryType = type == typeof(object) ? obj.GetType() : type;
+                // Non-generic declarations historically used object/object BSON shapes.
+                Reflection.GetDictionaryTypes(dictionaryType.GetTypeInfo().IsGenericType ? dictionaryType : typeof(IDictionary),
+                    out var keyType, out var valueType);
 
                 return SerializeDictionary(keyType, valueType, dict, depth);
             }
@@ -255,10 +251,12 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Serialize the mapped members of an object.
+        /// Serialize the mapped members of an object. The default returns null for runtime metadata and delegates.
         /// </summary>
         protected virtual BsonDocument SerializeObject(Type type, object obj, int depth)
         {
+            if (obj is Delegate || obj is MemberInfo) return null;
+
             var t = obj.GetType();
             var doc = new BsonDocument();
             var entity = this.GetEntityMapper(t);

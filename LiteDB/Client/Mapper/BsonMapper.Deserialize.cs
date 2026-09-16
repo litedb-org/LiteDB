@@ -192,6 +192,7 @@ namespace LiteDB
                 }
 
                 var doc = value.AsDocument;
+                var declaredType = type;
 
                 // test if value is object and has _type
                 if (doc.TryGetValue("_type", out var typeField) && typeField.IsString)
@@ -247,15 +248,10 @@ namespace LiteDB
 
                 if (instance is IDictionary dict)
                 {
-                    Type keyType = typeof(object);
-                    Type valueType = typeof(object);
-
-                    if (instance.GetType().GetTypeInfo().IsGenericType)
-                    {
-                        Type[] generics = type.GetGenericArguments();
-                        keyType = generics[0];
-                        valueType = generics[1];
-                    }
+                    var schemaType = Reflection.IsDictionaryInterface(declaredType)
+                        ? declaredType : !type.GetTypeInfo().IsInterface && instance.GetType().GetTypeInfo().IsGenericType &&
+                            type.GetGenericArguments().Length >= 2 ? type : instance.GetType();
+                    Reflection.GetDictionaryTypes(schemaType, out var keyType, out var valueType);
 
                     DeserializeDictionary(keyType, valueType, dict, value.AsDocument);
                 }
