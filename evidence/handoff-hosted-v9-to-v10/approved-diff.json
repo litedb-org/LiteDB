@@ -1,0 +1,143 @@
+{
+  "files": [
+    {
+      "new_blob": "3d1d864bd74317f055c63cade66a154b44b09c7c",
+      "new_mode": "100644",
+      "old_blob": "f77648ad00086eb8858c3e8ce5c5f48ffb4c68a6",
+      "old_mode": "100644",
+      "path": ".github/bugfix/storage.py",
+      "status": "M"
+    },
+    {
+      "new_blob": "5a44395b55ae2cc7191f45ca8527aa4588d598f9",
+      "new_mode": "100644",
+      "old_blob": "b41a19bc7a1ffb8dcab69b0665ebe80e1205290f",
+      "old_mode": "100644",
+      "path": ".github/bugfix/test_storage.py",
+      "status": "M"
+    },
+    {
+      "new_blob": "f7e304048d97fc53d56066154f7e34f593cd6f3f",
+      "new_mode": "100644",
+      "old_blob": "9cc4956f2c733e467ddf66e2597a3eefa6a08ffe",
+      "old_mode": "100644",
+      "path": ".github/scripts/patch_gh_aw_accounting.py",
+      "status": "M"
+    },
+    {
+      "new_blob": "33c44ac9d19c54e5de2312bcecef2d6d332640f6",
+      "new_mode": "100644",
+      "old_blob": "3ba672b21fb09687f05dad9bf91ec711f03d06ad",
+      "old_mode": "100644",
+      "path": ".github/scripts/patch_gh_aw_codex_endpoint.py",
+      "status": "M"
+    },
+    {
+      "new_blob": "c33c4685a8a19204310993523fa094bfc86e0482",
+      "new_mode": "100644",
+      "old_blob": "d6032afab2ed6b995b2a5b75da5e6de81849275c",
+      "old_mode": "100644",
+      "path": ".github/scripts/patch_gh_aw_daily_guard.py",
+      "status": "M"
+    },
+    {
+      "new_blob": "e80a97241c133f959540d34c9e559ab0fa5e7076",
+      "new_mode": "100644",
+      "old_blob": "b5ddcbebc951fa97a2bc52b1e0e1c4f3ac924e49",
+      "old_mode": "100644",
+      "path": ".github/scripts/test_gh_aw_accounting.py",
+      "status": "M"
+    },
+    {
+      "new_blob": "cee178789a89e282c1e508bac42d28b5e3eb70a6",
+      "new_mode": "100644",
+      "old_blob": "b763d7b9d2c04d37393aa9053a77d4571aa62154",
+      "old_mode": "100644",
+      "path": ".github/scripts/test_gh_aw_budget_evidence.py",
+      "status": "M"
+    },
+    {
+      "new_blob": "8363a04b7ef6ca8dc4997fa77f925be1e82ee279",
+      "new_mode": "100644",
+      "old_blob": "26977080e0a8cb57ec04ceb25726926aa617ce9e",
+      "old_mode": "100644",
+      "path": ".github/scripts/test_gh_aw_daily_guard.py",
+      "status": "M"
+    },
+    {
+      "new_blob": "8a05e1f74145a524af155d2fd3546bd7e2aeac7e",
+      "new_mode": "100644",
+      "old_blob": "f6a3c58545606cb7b2b1a2483ae3739594f7a1c0",
+      "old_mode": "100644",
+      "path": ".github/scripts/test_gh_aw_endpoint.py",
+      "status": "M"
+    },
+    {
+      "new_blob": "5cda5537bd38915ae470491e9ebe41df178b95f0",
+      "new_mode": "100644",
+      "old_blob": "0000000000000000000000000000000000000000",
+      "old_mode": "000000",
+      "path": ".github/scripts/test_gh_aw_uncapped.py",
+      "status": "A"
+    },
+    {
+      "new_blob": "505fdbc7b27e4302136dd647220636f219763623",
+      "new_mode": "100644",
+      "old_blob": "32ee813e4a44c93b2a2478fa3e86731c84a2ae42",
+      "old_mode": "100644",
+      "path": ".github/workflows/bugfix-fix.lock.yml",
+      "status": "M"
+    },
+    {
+      "new_blob": "b07bfa27169b38fb6cd0c7f3332129e6d24fc048",
+      "new_mode": "100644",
+      "old_blob": "39f7b72df67a72217e2ddad1ff459e33dbed028b",
+      "old_mode": "100644",
+      "path": ".github/workflows/bugfix-fix.md",
+      "status": "M"
+    },
+    {
+      "new_blob": "9d9edc65ae4fb6d2a262a257803da479909894b0",
+      "new_mode": "100644",
+      "old_blob": "6106e734edd9097b4017c5da5424874eab88c92a",
+      "old_mode": "100644",
+      "path": ".github/workflows/bugfix-validate.lock.yml",
+      "status": "M"
+    },
+    {
+      "new_blob": "c0f80d3acdeecde7fdb752c3c968dec0c36076dc",
+      "new_mode": "100644",
+      "old_blob": "d38289b3c5634028a03bb893d8a17500464adb33",
+      "old_mode": "100644",
+      "path": ".github/workflows/bugfix-validate.md",
+      "status": "M"
+    },
+    {
+      "new_blob": "1aaac4cf734c05a0dc50303793e13f02da4fe80e",
+      "new_mode": "100644",
+      "old_blob": "101dedea0bdb32185f9200af9c6138d7aaa94257",
+      "old_mode": "100644",
+      "path": "docs/Tasks/Wholesale-Bugfix/HANDOFF.md",
+      "status": "M"
+    },
+    {
+      "new_blob": "973ed60e124b709ee945c848b458207474ee8ecf",
+      "new_mode": "100644",
+      "old_blob": "0598a92a1ae62d331b1b0d8335fa2dacfa872e6f",
+      "old_mode": "100644",
+      "path": "docs/Tasks/Wholesale-Bugfix/HOSTED-SWEEP.md",
+      "status": "M"
+    },
+    {
+      "new_blob": "717631f8376515ab831e85512aa8a945b78ac105",
+      "new_mode": "100644",
+      "old_blob": "fddc6a09e24c0abfc927602dff8908b274bdbd53",
+      "old_mode": "100644",
+      "path": "docs/Tasks/Wholesale-Bugfix/README.md",
+      "status": "M"
+    }
+  ],
+  "new_sha": "6b9cf0507ae2f341834682da1b1d268946548931",
+  "old_sha": "167f2677ca07b2e67ccd701fb730b4ea055dc950",
+  "patch_sha256": "412033469f9d35c40204c4072b64a20bc520cde527483954ae988661c7c08ba6"
+}
