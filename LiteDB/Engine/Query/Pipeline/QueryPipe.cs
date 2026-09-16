@@ -97,7 +97,7 @@ namespace LiteDB.Engine
                 }
                 else
                 {
-                    yield return new BsonDocument { [defaultName] = value };
+                    yield return new BsonDocument { [defaultName] = value, IsProjectionValue = true };
                 }
             }
         }
@@ -129,7 +129,7 @@ namespace LiteDB.Engine
                 }
                 else
                 {
-                    yield return new BsonDocument { [defaultName] = value };
+                    yield return new BsonDocument { [defaultName] = value, IsProjectionValue = true };
                 }
             }
         }
