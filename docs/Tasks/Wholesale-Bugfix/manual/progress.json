@@ -290,10 +290,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue1545_Tests.cs"
-      ]
+      ],
+      "validation": "312 focused net8 passes / 1 existing skip; all library targets build; four fresh gpt-5.6-sol high/no-fork approvals"
     },
     {
       "issue": 1715,

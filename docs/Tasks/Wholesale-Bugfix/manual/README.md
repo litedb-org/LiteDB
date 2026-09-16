@@ -592,3 +592,15 @@ the final revision with no findings above nits.
 
 Every review wave uses four fresh gpt-5.6-sol agents at high reasoning with
 fork_turns=none, without reading prior reviews. Agents are never reused.
+
+
+## #1545 — bind captured grouping keys as values
+
+Grouping members whose expression does not depend on the query row are evaluated
+and bound as captured values. Query-dependent grouping keys retain @key. Tests
+cover original forward/reverse groups, changed captures in one reused predicate,
+composite key member access and the server key binding.
+
+Validation: 312 focused net8 tests pass, one existing skip; all library targets
+build. Four fresh Sol high-reasoning reviewers approved with no findings above
+nits.
