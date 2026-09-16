@@ -667,10 +667,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2205_Tests.cs"
-      ]
+      ],
+      "validation": "9 focused cases pass; full 1723 passed / 245 existing failures / 8 skipped, no regressions; production/net462 builds pass; four fresh Sol high approvals"
     },
     {
       "issue": 2225,

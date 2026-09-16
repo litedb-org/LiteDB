@@ -1142,3 +1142,16 @@ cases pass. Full suite: 1715 passed, 246 failed, 8 skipped. The only newly faili
 case versus #2033 is the already-known intermittent #2324 mapper race; no other
 regressions. Production and net462 builds pass. All four fresh Sol high reviewers
 (`review_2113_w1_a` through `_d`) were clean.
+
+## #2205 — integer literals outside Int64
+
+The expression parser treats an integer token outside Int64 as its complete
+string value, matching the report's requested string comparison. Quoted canonical
+source preserves its sign and leading zeros and reparses consistently. Values
+within Int32/Int64 keep their existing numeric type and behavior.
+
+Validation: the overflow reproduction fails before the fix; 9 focused cases pass
+including both bounds, leading zeros, indexed/SQL matching and canonical reparse.
+Full suite: 1723 passed, 245 existing failures, 8 skipped; no regressions versus
+#2113. Production and net462 builds pass. All four fresh Sol high reviewers
+(`review_2205_w1_a` through `_d`) were clean.

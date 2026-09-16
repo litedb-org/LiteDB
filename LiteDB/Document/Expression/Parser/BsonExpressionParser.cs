@@ -495,19 +495,19 @@ namespace LiteDB
                     };
                 }
 
-                var i64 = Int64.Parse(value, NumberStyles.Any, CultureInfo.InvariantCulture.NumberFormat);
-                var constant64 = Expression.Constant(new BsonValue(i64));
+                var isInt64 = Int64.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture.NumberFormat, out var i64);
+                var literal = isInt64 ? new BsonValue(i64) : new BsonValue(value);
 
                 return new BsonExpression
                 {
-                    Type = BsonExpressionType.Int,
+                    Type = isInt64 ? BsonExpressionType.Int : BsonExpressionType.String,
                     Parameters = parameters,
                     IsImmutable = true,
                     UseSource = false,
                     IsScalar = true,
                     Fields = new HashSet<string>(StringComparer.OrdinalIgnoreCase),
-                    Expression = constant64,
-                    Source = i64.ToString(CultureInfo.InvariantCulture.NumberFormat)
+                    Expression = Expression.Constant(literal),
+                    Source = isInt64 ? i64.ToString(CultureInfo.InvariantCulture.NumberFormat) : JsonSerializer.Serialize(literal)
                 };
             }
 
