@@ -312,6 +312,12 @@ namespace LiteDB
                     .Select(x => x[x.Keys.First()])
                     .Select(x => (T)_mapper.Deserialize(typeof(T), x));
             }
+            else if (typeof(T) == typeof(BsonDocument))
+            {
+                // Raw reads still need deserialization callbacks; ToObject returns documents unchanged.
+                return this.ToDocuments()
+                    .Select(x => (T)_mapper.Deserialize(typeof(T), x));
+            }
             else
             {
                 return this.ToDocuments()

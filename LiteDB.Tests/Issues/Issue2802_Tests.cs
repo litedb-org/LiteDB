@@ -7,6 +7,29 @@ namespace LiteDB.Tests.Issues
 {
     public class Issue2802_Tests
     {
+        [Fact]
+        public void Raw_read_returns_replacement_from_deserialization_callback_once()
+        {
+            var mapper = new BsonMapper();
+            var reads = 0;
+            var replacement = new BsonDocument { ["_id"] = 1, ["Name"] = "decoded" };
+            mapper.OnDeserialization = (sender, type, value) =>
+            {
+                type.Should().Be(typeof(BsonDocument));
+                reads++;
+                return replacement;
+            };
+
+            using var db = new LiteDatabase(":memory:", mapper);
+            var collection = db.GetCollection("rows");
+            collection.Insert(new BsonDocument { ["_id"] = 1, ["Name"] = "stored" });
+
+            ((object)collection.FindById(1)).Should().BeSameAs(replacement);
+            reads.Should().Be(1);
+            mapper.OnDeserialization = null;
+            collection.FindById(1)["Name"].AsString.Should().Be("stored");
+        }
+
         public class Row
         {
             public int Id { get; set; }
