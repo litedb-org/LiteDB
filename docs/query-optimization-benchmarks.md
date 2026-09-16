@@ -309,6 +309,37 @@ snapshot, independent grouped/concurrent bindings, and projection restoration
 after exceptions. Full .NET 8 suite: 1,007 passed, seven existing skips. All Release
 solution targets build.
 
+## 12. Parse persisted index expressions only when needed
+
+Opening a collection snapshot previously parsed every persisted index expression,
+even when the query only needed existing index keys and canonical expression
+text. The metadata reader now defers expression construction until evaluation is
+needed, retaining it on that metadata instance. New index definitions still
+validate eagerly. Writes and vector evaluation request the expression normally;
+there is no global metadata cache or stale physical-plan reuse.
+
+| Complete query | Before µs | After µs | Time reduction | Before B/query | After B/query |
+|---|---:|---:|---:|---:|---:|
+| Primary-key lookup, LINQ | 33.34 | 26.20 | 21.4% | 30,978 | 27,257 |
+| Primary-key lookup, SQL | 34.89 | 29.65 | 15.0% | 34,489 | 30,769 |
+| Combined predicate, LINQ | 44.29 | 38.61 | 12.8% | 29,242 | 25,521 |
+| Five-row projection, LINQ | 80.52 | 73.73 | 8.4% | 41,131 | 37,410 |
+| One-row Count, LINQ | 31.48 | 23.72 | 24.7% | 29,746 | 26,025 |
+| Indexed Exists, LINQ | 31.40 | 23.96 | 23.7% | 27,850 | 24,128 |
+| Update, control | 41.59 | 38.90 | 6.5% | 47,844 | 46,612 |
+| Full scan, control | 61,863.06 | 60,586.96 | 2.1% | 51,527,536 | 51,523,501 |
+
+These ordinary queries save about 3.7 KB each in a collection with three indexes.
+Both process pairs show the read-query gains; the small full-scan difference is
+inconclusive. Updates still evaluate secondary index expressions, while avoiding
+unused expression construction. Query batches contain 4,000 iterations (2,000
+for projection); the update and scan controls use 1,000 and three respectively.
+Raw samples: `12-metadata-*`. All query/update checksums match.
+
+Focused metadata tests cover parser-free ordinary reads, lazy expression reuse,
+index maintenance, and eager validation of new definitions. Full .NET 10 suite:
+1,011 passed, seven existing skips. All Release solution targets build.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -346,7 +377,7 @@ materializers remain separate work.
 
 - Release solution build with `TestingEnabled=true`: all targets build.
 - Full `LiteDB.Tests` with `tests.runsettings`: 1,007 passed on .NET 8 at step 11;
-  1,003 passed on .NET 10 at step 9. Each full
+  1,011 passed on .NET 10 at step 12; four focused metadata tests also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file

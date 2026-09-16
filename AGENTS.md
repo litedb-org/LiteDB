@@ -60,4 +60,9 @@ Propagate internal `IsVolatile` through every expression factory and binding;
 `IsImmutable` alone does not distinguish parameters from volatile functions.
 Preserve `IsANY` when copying predicate nodes; inspecting generated delegate text
 loses that distinction after logical rewrites.
+Persisted `CollectionIndex.BsonExpr` is lazy: ordinary reads use canonical text
+and existing index keys. Keep new-index validation eager, and evaluate through
+the property when maintaining index keys or executing vector expressions.
+Built-in aggregate templates need independent parameter bindings because GROUP BY
+writes its key into the parameter document.
 Use `tools/QueryOptimizationBenchmarks` for per-optimization end-to-end comparisons.

@@ -116,6 +116,14 @@ the caller's projection even after an error. EXPLAIN reports
 `indexAggregatePipe` and a `none` lookup loader. Other aggregate shapes use the
 existing document pipeline; no count, index choice, or parameter values are cached.
 
+## Persisted index expressions
+
+Collection snapshots retain canonical index text for planning. They construct a
+persisted index's expression only when an operation evaluates it, then reuse that
+expression on the metadata instance. Ordinary reads need no index-expression
+parsing; writes and vector evaluation request it when needed. New index definitions
+still validate eagerly, and subsequent snapshots observe live index metadata.
+
 ## Verification
 
 The existing LINQ expression corpus now checks canonical text, type, cardinality,
