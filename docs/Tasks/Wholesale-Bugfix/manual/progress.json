@@ -931,10 +931,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2769_Tests.cs"
-      ]
+      ],
+      "validation": "7 current-baseline failures fixed;81 focused tests pass; all library targets build; four Sol approvals"
     },
     {
       "issue": 2770,

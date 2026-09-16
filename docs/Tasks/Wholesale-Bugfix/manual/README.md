@@ -185,3 +185,15 @@ retain their value-based conversion. The original ten failures now pass; the
 complete mapper/query selection is 283 passed / one existing skip (baseline ten
 failed / 273 passed / one skip). All library targets build. Four independent Sol
 reviewers approved without findings.
+
+
+## #2769 — preserve all enum integer backing types
+
+Integer enum serialization follows scalar integer mapping: smaller types use
+Int32; UInt32/Int64 use Int64; UInt64 keeps its exact bit pattern in signed BSON
+Int64. Enum decoding now reads all 64 bits. String mode remains unchanged.
+This preserves equality and round trips; unsigned range ordering remains the
+existing signed BSON storage contract. Baseline: seven failures / eight controls.
+Candidate: 81 mapper/enum/enum-array/dictionary tests pass, including independent
+raw oracles, all eight backing types, high-bit UInt64, reopen and indexed queries.
+All library targets build. Four Sol reviewers approved without findings.

@@ -153,12 +153,12 @@ namespace LiteDB
                 return unchecked((UInt64)value.AsInt64);
             }
 
-            // enum value is an int
+            // Preserve all underlying enum bits, including UInt64 values stored as signed BSON Int64.
             else if (typeInfo.IsEnum)
             {
                 if (value.IsString) return Enum.Parse(type, value.AsString);
 
-                if (value.IsNumber) return Enum.ToObject(type, value.AsInt32);
+                if (value.IsNumber) return Enum.ToObject(type, value.AsInt64);
             }
 
             // if value is array, deserialize as array
