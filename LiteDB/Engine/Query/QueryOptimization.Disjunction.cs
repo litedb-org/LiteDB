@@ -46,7 +46,7 @@ namespace LiteDB.Engine
 
         private static bool IsStableValue(BsonExpression expression)
         {
-            return expression.IsScalar && expression.IsValue && !expression.UseSource &&
+            return expression.IsScalar && expression.IsValue && !expression.UseSource && !expression.IsVolatile &&
                 (expression.IsImmutable || expression.Type == BsonExpressionType.Parameter);
         }
     }

@@ -617,7 +617,7 @@ namespace LiteDB
             {
                 Type = BsonExpressionType.Array,
                 Parameters = item0.Parameters, // should be == item1.Parameters
-                IsImmutable = item0.IsImmutable && item1.IsImmutable,
+                IsImmutable = item0.IsImmutable && item1.IsImmutable, IsVolatile = item0.IsVolatile || item1.IsVolatile,
                 UseSource = item0.UseSource || item1.UseSource,
                 IsScalar = true,
                 Fields = new HashSet<string>(StringComparer.OrdinalIgnoreCase).AddRange(item0.Fields).AddRange(item1.Fields),

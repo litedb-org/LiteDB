@@ -187,6 +187,7 @@ namespace LiteDB.Engine
         {
             // selected expression to be used as index (from _terms)
             BsonExpression selected = null;
+            IReadOnlyCollection<BsonExpression> consumed = null;
 
             // if index are not defined yet, get index
             if (_queryPlan.Index == null)
@@ -221,6 +222,7 @@ namespace LiteDB.Engine
 
                     // get selected expression used as index
                     selected = indexCost?.Expression;
+                    consumed = indexCost?.ConsumedExpressions;
                 }
             }
             else
@@ -238,9 +240,8 @@ namespace LiteDB.Engine
             }
 
             // fill filter using all expressions (remove selected term used in Index)
-            _queryPlan.Filters.AddRange(_terms.Where(x => x != selected));
-            this.NarrowRange(selected);
-            this.PruneContradictions();
+            _queryPlan.Filters.AddRange(_terms.Where(x => x != selected && (consumed == null || !consumed.Contains(x))));
+            this.PruneContradictions(consumed);
             if (_constantFalse) this.UseEmptyInput();
         }
 

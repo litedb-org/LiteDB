@@ -17,6 +17,7 @@ namespace LiteDB
             if (filter != null)
             {
                 result.IsImmutable &= filter.IsImmutable;
+                result.IsVolatile |= filter.IsVolatile;
                 result.UseSource |= filter.UseSource;
                 result.Fields = new HashSet<string>(target.Fields, StringComparer.OrdinalIgnoreCase).AddRange(filter.Fields);
             }

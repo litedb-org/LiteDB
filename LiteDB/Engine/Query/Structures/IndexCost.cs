@@ -28,6 +28,8 @@ namespace LiteDB.Engine
         /// </summary>
         public Index Index { get; }
 
+        internal IReadOnlyCollection<BsonExpression> ConsumedExpressions { get; }
+
         public IndexCost(CollectionIndex index, BsonExpression expr, BsonExpression value, Collation collation)
         {
             this.IndexExpression = index.Expression;
@@ -66,12 +68,14 @@ namespace LiteDB.Engine
             this.Cost = this.Index.GetCost(index);
         }
 
-        internal IndexCost(CollectionIndex index, BsonExpression expression, Index scan)
+        internal IndexCost(CollectionIndex index, BsonExpression expression, Index scan,
+            IReadOnlyCollection<BsonExpression> consumedExpressions = null)
         {
             this.Expression = expression;
             this.IndexExpression = index.Expression;
             this.Index = scan;
             this.Cost = scan.GetCost(index);
+            this.ConsumedExpressions = consumedExpressions;
         }
 
         // used when full index search

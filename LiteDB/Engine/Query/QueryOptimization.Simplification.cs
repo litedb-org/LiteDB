@@ -37,7 +37,7 @@ namespace LiteDB.Engine
         private bool TryEvaluateBoolean(BsonExpression expression, out bool value)
         {
             value = false;
-            if (!expression.IsScalar || !expression.IsValue || expression.UseSource) return false;
+            if (!expression.IsScalar || !expression.IsValue || expression.UseSource || expression.IsVolatile) return false;
             if (!expression.IsImmutable && expression.Type != BsonExpressionType.Parameter &&
                 !(expression.IsPredicate && IsStableValue(expression.Left) && IsStableValue(expression.Right))) return false;
             try

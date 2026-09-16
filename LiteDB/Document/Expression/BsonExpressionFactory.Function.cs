@@ -16,16 +16,19 @@ namespace LiteDB
             var args = new List<Expression> { context.Root, context.Collation, context.Parameters, left.Expression };
             var fields = new HashSet<string>(left.Fields, StringComparer.OrdinalIgnoreCase);
             var isImmutable = left.IsImmutable;
+            var isVolatile = left.IsVolatile;
             var useSource = left.UseSource;
             if (right != null)
             {
                 args.Add(Expression.Constant(right));
                 fields.AddRange(right.Fields);
+                isVolatile |= right.IsVolatile;
             }
             foreach (var argument in arguments)
             {
                 args.Add(argument.Expression);
                 isImmutable &= argument.IsImmutable;
+                isVolatile |= argument.IsVolatile;
                 useSource |= argument.UseSource;
                 fields.AddRange(argument.Fields);
             }
@@ -39,7 +42,7 @@ namespace LiteDB
                 Type = type,
                 Left = type == BsonExpressionType.VectorSim ? left : null,
                 Right = type == BsonExpressionType.VectorSim ? arguments[0] : null,
-                Parameters = parameters, IsImmutable = isImmutable, UseSource = useSource,
+                Parameters = parameters, IsImmutable = isImmutable, UseSource = useSource, IsVolatile = isVolatile,
                 IsScalar = isScalarResult, Fields = fields,
                 Expression = Expression.Call(method, args), Source = BsonExpressionFormatter.Function(name, left, right, arguments)
             };

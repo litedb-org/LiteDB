@@ -139,7 +139,34 @@ scan. Focused simplification tests: 18 passed, including outer current paths and
 empty vector queries; expression/shared-IR checks also passed. Existing pipeline ordering already filters before sorting/projection and
 defers unnecessary includes, so no duplicate ordering rewrite was added.
 
-## Combined result and practical priority
+## 6. Intersect IN and BETWEEN constraints before selecting an index
+
+The planner now combines scalar equality, IN, range, and BETWEEN constraints
+before comparing index costs. It removes only filters enforced by the selected
+scan. Intersections use the active collation and current parameter values;
+ANY/ALL predicates remain separate. Internal volatility metadata also prevents
+hoisting changing functions nested inside MAP or array expressions.
+
+| Complete query | Before µs | After µs | Time reduction | Before B/query | After B/query |
+|---|---:|---:|---:|---:|---:|
+| IN list plus range, SQL | 858,050.25 | 488.82 | 99.9% (1,755×) | 37,896,048 | 299,358 |
+| Overlapping IN lists, SQL | 50,753.46 | 677.61 | 98.7% (75×) | 14,730,464 | 181,830 |
+| Overlapping BETWEEN ranges, SQL | 33,332.30 | 81.42 | 99.8% (409×) | 41,543,632 | 60,278 |
+| Combined Contains and range, LINQ | 976,855.58 | 966,851.26 | 1.0% | 42,244,816 | 42,244,760 |
+| Primary-key lookup, control | 34.62 | 34.12 | 1.4% | 33,274 | 33,290 |
+| Different-field predicate, control | 45.13 | 44.47 | 1.5% | 31,738 | 31,762 |
+
+The IN workloads use 1,000 candidate keys and return eleven or six documents;
+the BETWEEN workload returns ten. The combined LINQ workload exposes a separate
+miss: a Boolean wrapper hides Contains from normalization, leaving its plan
+unchanged at this step. Its small timing difference and the control differences
+are not evidence of an improvement. SQL, string expressions, and LINQ with
+separate Contains/range Where calls can use the new intersection.
+
+Raw samples: `06-constraints-*`. All checksums match. Full .NET 8 and .NET 10
+suites each pass 967 tests with seven existing skips; the Release solution builds.
+
+## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
 optimizations together. Two processes per version use the same 18-batch method;
@@ -172,10 +199,10 @@ need a cost model and purity rules; the pipeline already puts filters before
 sorting and projection. A source generator, physical-plan cache, and specialized
 materializers remain separate work.
 
-## Final validation
+## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 951 passed and seven existing skips
+- Full `LiteDB.Tests` with `tests.runsettings`: 967 passed and seven existing skips
   on each of .NET 8 and .NET 10.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file

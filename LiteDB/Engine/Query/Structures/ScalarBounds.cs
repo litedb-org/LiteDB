@@ -41,5 +41,13 @@ namespace LiteDB.Engine
             var compare = Lower.CompareTo(Upper, collation);
             return compare > 0 || (compare == 0 && !(LowerInclusive && UpperInclusive));
         }
+
+        internal bool Contains(BsonValue value, Collation collation)
+        {
+            var lower = value.CompareTo(Lower, collation);
+            var upper = value.CompareTo(Upper, collation);
+            return (lower > 0 || (lower == 0 && LowerInclusive)) &&
+                (upper < 0 || (upper == 0 && UpperInclusive));
+        }
     }
 }

@@ -81,12 +81,16 @@ separately measured automatic reuse and shared query optimizer improvements.
 
 The engine inspects the same expression nodes for LINQ and SQL. Equality ORs on
 one scalar indexed expression become ordered IN seeks. Separate scalar index
-bounds become one bounded scan, and contradictory scalar path constraints
+bounds and IN/BETWEEN constraints are intersected before index selection, with
+only the scan-enforced filters removed. Contradictory scalar path constraints
 produce an empty pipeline input, preserving aggregate behavior. Constant Boolean
 guards expose indexable predicates while respecting short circuits and volatility.
 Normalization constructs nodes directly and preserves the original reusable tree.
 
-Values, collation, and available indexes are read for each execution. Multikey
+Values, collation, and available indexes are read for each execution. Internal
+volatility metadata distinguishes changing parameters from functions such as
+RANDOM/NOW, including calls nested in MAP or array expressions; only values
+that remain stable during the execution can be intersected. Multikey
 ANY/ALL bounds are not intersected: different array elements can satisfy them.
 The existing pipeline already filters before sorting and projection, and defers
 includes that are not needed by filters; these changes do not reorder those stages.

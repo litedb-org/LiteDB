@@ -41,6 +41,10 @@ namespace LiteDB
         /// </summary>
         public bool IsImmutable { get; internal set; }
 
+        // Unlike IsImmutable, parameters do not make an expression volatile. This
+        // distinguishes stable values in one execution from NOW/RANDOM and friends.
+        internal bool IsVolatile { get; set; }
+
         /// <summary>
         /// Get/Set parameter values that will be used on expression execution
         /// </summary>

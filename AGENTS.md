@@ -56,4 +56,6 @@ closures; validate publicly mutable mapping metadata and bind current values on
 every call. Structural arguments that become part of `Source` must be included
 in the key or use the uncached translator. Optimizer rewrites must use the active
 collation and must not intersect separate ANY/ALL predicates as scalar bounds.
+Propagate internal `IsVolatile` through every expression factory and binding;
+`IsImmutable` alone does not distinguish parameters from volatile functions.
 Use `tools/QueryOptimizationBenchmarks` for per-optimization end-to-end comparisons.

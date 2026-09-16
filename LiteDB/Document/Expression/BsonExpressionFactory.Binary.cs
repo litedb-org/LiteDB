@@ -53,6 +53,7 @@ namespace LiteDB
                     Type = type,
                     Parameters = parameters,
                     IsImmutable = left.IsImmutable && right.IsImmutable,
+                    IsVolatile = left.IsVolatile || right.IsVolatile,
                     UseSource = left.UseSource || right.UseSource,
                     IsScalar = true,
                     Fields = new HashSet<string>(StringComparer.OrdinalIgnoreCase).AddRange(left.Fields).AddRange(right.Fields),

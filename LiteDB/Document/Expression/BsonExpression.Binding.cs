@@ -16,7 +16,7 @@ namespace LiteDB
             if (parameters == null) throw new ArgumentNullException(nameof(parameters));
             return new BsonExpression
             {
-                Source = Source, Type = Type, IsImmutable = IsImmutable,
+                Source = Source, Type = Type, IsImmutable = IsImmutable, IsVolatile = IsVolatile,
                 Parameters = parameters, Left = Left?.Bind(parameters), Right = Right?.Bind(parameters),
                 UseSource = UseSource, Expression = Expression, IsScalar = IsScalar,
                 Fields = new HashSet<string>(Fields, StringComparer.OrdinalIgnoreCase),

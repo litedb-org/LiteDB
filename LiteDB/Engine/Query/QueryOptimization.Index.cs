@@ -24,10 +24,13 @@ namespace LiteDB.Engine
 
             // otherwise, check for lowest index cost
             IndexCost lowest = this.ChooseDisjunctionIndex(indexes);
+            var combined = this.ChooseConstraintIndex(indexes, out var covered);
+            if (combined != null && (lowest == null || combined.Cost <= lowest.Cost)) lowest = combined;
 
             // test all possible predicates in terms
             foreach (var expr in _terms.Where(x => x.IsPredicate))
             {
+                if (covered?.Contains(expr) == true) continue;
                 ENSURE(expr.Left != null && expr.Right != null, "predicate expression must has left/right expressions");
 
                 Tuple<CollectionIndex, BsonExpression> index = null;

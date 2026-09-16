@@ -1,15 +1,17 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace LiteDB.Engine
 {
     internal partial class QueryOptimization
     {
-        private void PruneContradictions()
+        private void PruneContradictions(IReadOnlyCollection<BsonExpression> consumed)
         {
-            if (_terms.Count < 2) return;
+            if (_terms.Count - (consumed?.Count ?? 0) < 2) return;
             Dictionary<string, ScalarBounds> fields = null;
             foreach (var term in _terms)
             {
+                if (consumed?.Contains(term) == true) continue;
                 if (!TryGetScalarBound(term, out var field, out var value, out var operation) ||
                     field.Type != BsonExpressionType.Path) continue;
                 // Restrict proof to paths: a deterministic function can still throw.

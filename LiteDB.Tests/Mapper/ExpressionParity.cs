@@ -11,6 +11,7 @@ namespace LiteDB.Tests.Mapper
             actual.Type.Should().Be(expected.Type, actual.Source);
             actual.IsScalar.Should().Be(expected.IsScalar, actual.Source);
             actual.IsImmutable.Should().Be(expected.IsImmutable, actual.Source);
+            actual.IsVolatile.Should().Be(expected.IsVolatile, actual.Source);
             actual.UseSource.Should().Be(expected.UseSource, actual.Source);
             actual.Fields.Should().BeEquivalentTo(expected.Fields, actual.Source);
             if (expected.Left == null) actual.Left.Should().BeNull(actual.Source);

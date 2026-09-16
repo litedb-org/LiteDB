@@ -1,29 +1,7 @@
-using System.Collections.Generic;
-
 namespace LiteDB.Engine
 {
     internal partial class QueryOptimization
     {
-        private void NarrowRange(BsonExpression selected)
-        {
-            if (!(_queryPlan.Index is IndexRange range) ||
-                !TryGetScalarBound(selected, out var field, out _, out _)) return;
-            var bounds = new ScalarBounds(range.Start, range.End, range.StartEquals, range.EndEquals);
-            var consumed = new List<BsonExpression>();
-            foreach (var filter in _queryPlan.Filters)
-            {
-                if (!TryGetScalarBound(filter, out var other, out var value, out var operation) ||
-                    field.Source != other.Source) continue;
-                bounds.Intersect(operation, value.ExecuteScalar(_collation), _collation);
-                consumed.Add(filter);
-            }
-            // Empty intersections are handled separately; IndexRange expects a valid interval.
-            if (consumed.Count == 0 || bounds.IsEmpty(_collation)) return;
-            _queryPlan.Index = new IndexRange(range.Name, bounds.Lower, bounds.Upper,
-                bounds.LowerInclusive, bounds.UpperInclusive, range.Order);
-            foreach (var filter in consumed) _queryPlan.Filters.Remove(filter);
-        }
-
         private static bool TryGetScalarBound(BsonExpression expression, out BsonExpression field,
             out BsonExpression value, out BsonExpressionType operation)
         {
@@ -53,7 +31,7 @@ namespace LiteDB.Engine
                 }
             }
             // Two ANY predicates may be satisfied by different array elements.
-            return field.IsScalar && field.IsImmutable && !field.IsValue && IsStableValue(value);
+            return field.IsScalar && field.IsImmutable && !field.IsVolatile && !field.IsValue && IsStableValue(value);
         }
     }
 }

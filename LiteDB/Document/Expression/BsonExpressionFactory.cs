@@ -82,6 +82,7 @@ namespace LiteDB
             if (parameter != null)
             {
                 result.IsImmutable &= parameter.IsImmutable;
+                result.IsVolatile |= parameter.IsVolatile;
                 result.UseSource |= parameter.UseSource;
                 result.Fields = new HashSet<string>(target.Fields, StringComparer.OrdinalIgnoreCase).AddRange(parameter.Fields);
             }
@@ -125,6 +126,7 @@ namespace LiteDB
             {
                 Type = type, Parameters = parameters,
                 IsImmutable = children.All(x => x.IsImmutable), UseSource = children.Any(x => x.UseSource),
+                IsVolatile = children.Any(x => x.IsVolatile),
                 IsScalar = true,
                 Fields = new HashSet<string>(StringComparer.OrdinalIgnoreCase).AddRange(children.SelectMany(x => x.Fields)),
                 Expression = expression, Source = source
@@ -143,7 +145,7 @@ namespace LiteDB
             return new BsonExpression
             {
                 Type = expression.Type, Parameters = expression.Parameters,
-                IsImmutable = expression.IsImmutable, UseSource = expression.UseSource,
+                IsImmutable = expression.IsImmutable, UseSource = expression.UseSource, IsVolatile = expression.IsVolatile,
                 IsScalar = expression.IsScalar, Fields = expression.Fields,
                 Expression = expression.Expression, Left = expression.Left, Right = expression.Right,
                 Source = expression.Source

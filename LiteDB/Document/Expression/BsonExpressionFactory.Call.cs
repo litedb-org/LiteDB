@@ -15,12 +15,14 @@ namespace LiteDB
             if (method == null) throw new NotSupportedException($"Method '{name}' does not exist or contains invalid parameters");
             var source = BsonExpressionFormatter.Call(name, pars);
             var isImmutable = pars.All(x => x.IsImmutable);
+            var isVolatile = pars.Any(x => x.IsVolatile);
             var useSource = pars.Any(x => x.UseSource);
             var fields = new HashSet<string>(StringComparer.OrdinalIgnoreCase).AddRange(pars.SelectMany(x => x.Fields));
             // test if method are decorated with "Variable" (immutable = false)
             if (method.GetCustomAttribute<VolatileAttribute>() != null)
             {
                 isImmutable = false;
+                isVolatile = true;
             }
 
             // method call arguments
@@ -57,7 +59,7 @@ namespace LiteDB
             {
                 Type = BsonExpressionType.Call,
                 Parameters = parameters,
-                IsImmutable = isImmutable,
+                IsImmutable = isImmutable, IsVolatile = isVolatile,
                 UseSource = useSource,
                 IsScalar = method.ReturnType.IsEnumerable() == false,
                 Fields = fields,

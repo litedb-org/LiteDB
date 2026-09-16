@@ -28,7 +28,7 @@ namespace LiteDB
             {
                 Type = exprType,
                 Parameters = expr.Parameters,
-                IsImmutable = expr.IsImmutable,
+                IsImmutable = expr.IsImmutable, IsVolatile = expr.IsVolatile,
                 UseSource = expr.UseSource,
                 IsScalar = false,
                 Fields = expr.Fields,
@@ -46,7 +46,7 @@ namespace LiteDB
             {
                 Type = BsonExpressionType.Call,
                 Parameters = expr.Parameters,
-                IsImmutable = expr.IsImmutable,
+                IsImmutable = expr.IsImmutable, IsVolatile = expr.IsVolatile,
                 UseSource = expr.UseSource,
                 IsScalar = true,
                 Fields = expr.Fields,
@@ -79,6 +79,7 @@ namespace LiteDB
                 Type = type,
                 Parameters = left.Parameters, // should be == right.Parameters
                 IsImmutable = left.IsImmutable && right.IsImmutable,
+                IsVolatile = left.IsVolatile || right.IsVolatile,
                 UseSource = left.UseSource || right.UseSource,
                 IsScalar = left.IsScalar && right.IsScalar,
                 Fields = new HashSet<string>(StringComparer.OrdinalIgnoreCase).AddRange(left.Fields).AddRange(right.Fields),
@@ -107,6 +108,7 @@ namespace LiteDB
                 Type = BsonExpressionType.Call, // there is not specific Conditional
                 Parameters = test.Parameters, // should be == ifTrue|ifFalse parameters
                 IsImmutable = test.IsImmutable && ifTrue.IsImmutable && ifFalse.IsImmutable,
+                IsVolatile = test.IsVolatile || ifTrue.IsVolatile || ifFalse.IsVolatile,
                 UseSource = test.UseSource || ifTrue.UseSource || ifFalse.UseSource,
                 IsScalar = test.IsScalar && ifTrue.IsScalar && ifFalse.IsScalar,
                 Fields = new HashSet<string>(StringComparer.OrdinalIgnoreCase).AddRange(test.Fields).AddRange(ifTrue.Fields).AddRange(ifFalse.Fields),
