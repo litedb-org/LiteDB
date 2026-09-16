@@ -86,10 +86,7 @@ namespace LiteDB
                     else
                         break;
                 case TokenType.Int:
-                    if (Int32.TryParse(value, NumberStyles.Any, _numberFormat, out int result))
-                        return new BsonValue(result);
-                    else
-                        return new BsonValue(Int64.Parse(value, NumberStyles.Any, _numberFormat));
+                    return ParseInteger(value);
                 case TokenType.Double:
                     var parsed = Convert.ToDouble(value, _numberFormat);
                     // Older runtimes normalize parsed negative zero to positive zero.
@@ -107,6 +104,25 @@ namespace LiteDB
             }
 
             throw LiteException.UnexpectedToken(token);
+        }
+
+        /// <summary>
+        /// Read an integer lexeme into the narrowest numeric type that holds it. Beyond Int64 the value stays a
+        /// number (exact as Decimal, approximate as Double) so arithmetic and ordering never turn into string operations.
+        /// </summary>
+        internal static BsonValue ParseInteger(string value)
+        {
+            if (Int32.TryParse(value, NumberStyles.Any, _numberFormat, out var i32)) return new BsonValue(i32);
+            if (Int64.TryParse(value, NumberStyles.Any, _numberFormat, out var i64)) return new BsonValue(i64);
+            if (Decimal.TryParse(value, NumberStyles.Any, _numberFormat, out var dec)) return new BsonValue(dec);
+
+            // Runtimes disagree on whether an unrepresentable Double parses to infinity or throws.
+            if (!Double.TryParse(value, NumberStyles.Any, _numberFormat, out var dbl) || Double.IsInfinity(dbl))
+            {
+                throw new OverflowException($"Integer literal `{value}` is too large for a Double.");
+            }
+
+            return new BsonValue(dbl);
         }
 
         private BsonValue ReadObject()
