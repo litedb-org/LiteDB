@@ -3,9 +3,11 @@ import pathlib
 import subprocess
 import tempfile
 import time
+import xml.etree.ElementTree as ET
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-SHELL = ROOT / "LiteDB.Shell/bin/Release/net8.0/LiteDB.Shell.dll"
+FRAMEWORK = ET.parse(ROOT / "LiteDB.Shell/LiteDB.Shell.csproj").findtext(".//TargetFramework")
+SHELL = ROOT / "LiteDB.Shell/bin/Release" / FRAMEWORK / "LiteDB.Shell.dll"
 
 
 def run(commands, args=(), timeout=5):

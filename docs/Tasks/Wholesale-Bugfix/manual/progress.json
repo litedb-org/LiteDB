@@ -1442,8 +1442,9 @@
         "priority: P2"
       ],
       "reproduction": "reproduced-script",
-      "disposition": "pending",
-      "tests": []
+      "disposition": "fixed-four-reviews",
+      "tests": [],
+      "validation": "Real-shell baseline bounded EOF loop;final script VERIFIED_2843 including queued AutoExit, incomplete insert discard,multiline and persisteddata;Release shell build;four Sol approvals,cache cleanup nit fixed"
     },
     {
       "issue": 2845,

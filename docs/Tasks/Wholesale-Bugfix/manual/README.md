@@ -414,3 +414,18 @@ Baseline: five failures. Final: 239 net8 scalar/vector query tests pass, one ski
 all six final issue cases pass, including persisted legacy scalar/vector names,
 reopen, stable catalog entries, query results and explicit old-name removal. All
 library targets build. Four Sol reviewers approved the resolved scope/contracts.
+
+
+## #2843 — terminate shell continuation at EOF
+
+Initial and continuation EOF use the normal exit command so the database is
+disposed. Incomplete SQL is discarded before execution/history. Exhausted
+AutoExit queues return EOF instead of endlessly appending synthetic exit text.
+Complete queued and multiline commands retain normal execution.
+
+The real-shell regression reproduced the bounded infinite loop before the fix.
+Final Release shell build and runner pass (VERIFIED_2843), covering piped and
+queued EOF, nonexecution of unfinished INSERT, complete/multiline positive
+controls and committed data read through separate processes. The runner reads
+the actual framework from the project instead of assuming net8. Four Sol
+reviewers approved; their generated Python cache cleanup nit was addressed.
