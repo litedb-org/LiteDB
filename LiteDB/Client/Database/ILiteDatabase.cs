@@ -104,6 +104,7 @@ namespace LiteDB
 
         /// <summary>
         /// Rebuild all database to remove unused pages - reduce data file
+        /// Every omitted option (password, collation) keeps its current value; decrypting requires RebuildOptions.RemovePassword.
         /// </summary>
         long Rebuild(RebuildOptions options = null);
 
