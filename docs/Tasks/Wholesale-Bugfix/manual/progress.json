@@ -93,10 +93,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue1002_Tests.cs"
-      ]
+      ],
+      "validation": "40 targeted tests pass; nullable int/long/Guid null/default generation, custom setter and throwing setter atomicity; four final Sol approvals; production builds pass"
     },
     {
       "issue": 1087,
@@ -871,10 +872,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2590_Tests.cs"
-      ]
+      ],
+      "validation": "40 targeted tests pass; nullable int/long/Guid null/default generation, custom setter and throwing setter atomicity; four final Sol approvals; production builds pass"
     },
     {
       "issue": 2739,
@@ -1230,10 +1232,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2811_Tests.cs"
-      ]
+      ],
+      "validation": "40 targeted tests pass; nullable int/long/Guid null/default generation, custom setter and throwing setter atomicity; four final Sol approvals; production builds pass"
     },
     {
       "issue": 2812,

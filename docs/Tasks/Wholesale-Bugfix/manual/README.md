@@ -12,9 +12,8 @@ remain intact. Do not resume the hosted scheduler during the manual sweep.
 
 Branch: `codex/manual-wholesale-bugfix`. It merges the automation documentation
 head 7e09ef1d and accepted integration bbb0253b, preserving #2874, #2839, #2869,
-and #1506. The unfinished #1002/#2811/#2590 candidate was improved locally,
-passed 35 focused cases, and is preserved in the named local git stash
-`Preserve auto-ID co-repair for P2 after prioritizing P1 bugs`. It is not accepted.
+and #1506. The unfinished #1002/#2811/#2590 candidate was salvaged, corrected
+for custom setters and nullable ID types, and accepted below after four reviews.
 
 `progress.json` retains the PR inventory, refreshed live labels, and explicit
 current dispositions. It includes reports outside the former 24-task automation
@@ -147,3 +146,19 @@ ran 1,339 baseline and 1,380 earlier P1-candidate cases: 32 existing failures be
 passes, and no previously passing test became failing. All remaining failures
 are still visible. This was before the final Shared mutex correction/additional
 storage cases and is not a final full platform matrix.
+
+
+## #1002 / #2811 / #2590 — atomic generated-ID assignment
+
+Single and enumerable writes resume ID copy-back inside the engine transaction,
+so setter exceptions roll back automatic and caller-owned transactions. Read-only
+empty IDs and incompatible default String/ObjectId mappings fail before writing.
+Captured reflected-setter identity preserves custom ResolveMember conversions.
+Nullable int, long and Guid null/default values consistently request generation.
+
+The hosted candidate was reused and its custom-setter regression corrected.
+Baseline selection: 13 failed / 6 passed. Final selection: 40 passed, covering all
+five insert/upsert/bulk surfaces, lazy input, caller transaction rollback,
+custom/throwing setters, nullable copy-back uniqueness and reopen. Both production
+targets build. Four Sol reviewers approved after addressing the nullable long/Guid
+sibling gap identified in review; no unresolved substantive findings remain.

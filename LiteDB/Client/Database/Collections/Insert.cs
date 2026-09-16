@@ -15,19 +15,10 @@ namespace LiteDB
             if (entity == null) throw new ArgumentNullException(nameof(entity));
 
             var doc = _mapper.ToDocument(entity);
-            var removed = this.RemoveDocId(doc);
 
-            _engine.Insert(_collection, new[] { doc }, _autoId);
+            _engine.Insert(_collection, this.GetBsonDocs(entity, doc), _autoId);
 
-            var id = doc["_id"];
-
-            // checks if must update _id value in entity
-            if (removed)
-            {
-                _id.Setter(entity, id.RawValue);
-            }
-
-            return id;
+            return doc["_id"];
         }
 
         /// <summary>
@@ -73,15 +64,23 @@ namespace LiteDB
         {
             foreach (var document in documents)
             {
-                var doc = _mapper.ToDocument(document);
-                var removed = this.RemoveDocId(doc);
-
-                yield return doc;
-
-                if (removed && _id != null)
+                foreach (var doc in this.GetBsonDocs(document, _mapper.ToDocument(document)))
                 {
-                    _id.Setter(document, doc["_id"].RawValue);
+                    yield return doc;
                 }
+            }
+        }
+
+        private IEnumerable<BsonDocument> GetBsonDocs(T entity, BsonDocument doc)
+        {
+            var removed = this.RemoveDocId(doc);
+
+            yield return doc;
+
+            // The engine resumes enumeration before committing, so setter failures roll back the transaction.
+            if (removed)
+            {
+                _id.Setter(entity, doc["_id"].RawValue);
             }
         }
 
@@ -93,11 +92,24 @@ namespace LiteDB
             if (_id != null && doc.TryGetValue("_id", out var id)) 
             {
                 // check if exists _autoId and current id is "empty"
-                if ((_autoId == BsonAutoId.Int32 && (id.IsInt32 && id.AsInt32 == 0)) ||
+                if ((_autoId == BsonAutoId.Int32 && (id.IsNull || (id.IsInt32 && id.AsInt32 == 0))) ||
                     (_autoId == BsonAutoId.ObjectId && (id.IsNull || (id.IsObjectId && id.AsObjectId == ObjectId.Empty))) ||
-                    (_autoId == BsonAutoId.Guid && id.IsGuid && id.AsGuid == Guid.Empty) ||
-                    (_autoId == BsonAutoId.Int64 && id.IsInt64 && id.AsInt64 == 0))
+                    (_autoId == BsonAutoId.Guid && (id.IsNull || (id.IsGuid && id.AsGuid == Guid.Empty))) ||
+                    (_autoId == BsonAutoId.Int64 && (id.IsNull || (id.IsInt64 && id.AsInt64 == 0))))
                 {
+                    if (_id.Setter == null)
+                    {
+                        throw new LiteException(LiteException.PROPERTY_READ_WRITE,
+                            "Cannot generate an auto ID for read-only member '{0}': it has no setter.", _id.MemberName);
+                    }
+
+                    // Generated IDs are copied back as raw values, without mapper conversion.
+                    if (_autoId == BsonAutoId.ObjectId && _id.Setter == _id.DefaultSetter &&
+                        !_id.DataType.IsAssignableFrom(typeof(ObjectId)))
+                    {
+                        throw LiteException.DataTypeNotAssignable(_id.DataType.FullName, typeof(ObjectId).FullName);
+                    }
+
                     // in this cases, remove _id and set new value after
                     doc.Remove("_id");
                     return true;
