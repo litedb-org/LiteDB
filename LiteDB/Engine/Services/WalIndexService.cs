@@ -351,6 +351,8 @@ namespace LiteDB.Engine
                 }
             }
 
+            _disk.SyncLogBeforeCheckpoint();
+
             // write all log pages into data file (sync)
             _disk.WriteDataDisk(source());
 
