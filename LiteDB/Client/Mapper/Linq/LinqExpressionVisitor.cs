@@ -63,6 +63,7 @@ namespace LiteDB
 
         public BsonExpression Resolve(bool predicate)
         {
+            ValidateCapturedRuntimeBranches(_expr);
             this.Visit(_expr);
 
             ENSURE(_memberAccessNodes.Count == 0, "Member access node stack must be empty when finish expression resolve");
@@ -130,6 +131,8 @@ namespace LiteDB
 
             var member = node.Member;
 
+            if (!isParam && this.TryVisitCapturedElementMember(node)) return node;
+
             // special types contains method access: string.Length, DateTime.Day, ...
             if (TryGetResolver(member.DeclaringType, out var type))
             {
@@ -191,6 +194,7 @@ namespace LiteDB
         /// </summary>
         protected override Expression VisitMethodCall(MethodCallExpression node)
         {
+            if (IsElementAccess(node) && this.TryVisitCapturedElement(node)) return node;
             if (this.TryVisitEnumEquals(node)) return node;
             if (this.TryVisitEnumerableQuantifier(node)) return node;
             if (this.IsSpanImplicitConversion(node.Method))
@@ -207,10 +211,13 @@ namespace LiteDB
 
                 var index = this.Evaluate(idx, typeof(string), typeof(int));
 
-                if (index is string)
+                if (index is string key)
                 {
+                    if (key.Length == 0) throw new NotSupportedException("Empty row dictionary keys are not supported by BSON paths.");
                     _builder.Append(".");
-                    _builder.Append($"['{index}']");
+                    _builder.Append("[");
+                    JsonSerializer.Serialize(key, _builder);
+                    _builder.Append("]");
                 }
                 else
                 {
@@ -238,7 +245,7 @@ namespace LiteDB
             var pattern = hasResolver ? type.ResolveMethod(node.Method) : null;
             if (pattern == null)
             {
-                if (ParameterExpressionVisitor.Test(node))
+                if (ParameterExpressionVisitor.Test(node) || (ContainsServerRuntime(node) && ContainsElementAccess(node)))
                 {
                     throw new NotSupportedException($"Method {node.Method.Name} not available to convert to BsonExpression ({node.ToString()}).");
                 }
@@ -293,6 +300,7 @@ namespace LiteDB
         /// </summary>
         protected override Expression VisitUnary(UnaryExpression node)
         {
+            if (this.TryVisitCapturedUnary(node)) return node;
             if (node.NodeType == ExpressionType.Not)
             {
                 // when is only "not boolean" resolve as 'x => !x.Active' = '$.Active = false'
@@ -447,6 +455,7 @@ namespace LiteDB
         protected override Expression VisitBinary(BinaryExpression node)
         {
             var andOr = node.NodeType == ExpressionType.AndAlso || node.NodeType == ExpressionType.OrElse;
+            if ((andOr || node.NodeType == ExpressionType.Coalesce) && this.TryVisitCapturedBranch(node)) return node;
 
             // special visitors
             if (node.NodeType == ExpressionType.Coalesce) return this.VisitCoalesce(node);
@@ -483,6 +492,7 @@ namespace LiteDB
         /// </summary>
         protected override Expression VisitConditional(ConditionalExpression node)
         {
+            if (this.TryVisitCapturedBranch(node)) return node;
             _builder.Append("IIF(");
             this.Visit(node.Test);
             _builder.Append(", ");
@@ -513,6 +523,7 @@ namespace LiteDB
         /// </summary>
         private Expression VisitArrayIndex(BinaryExpression node)
         {
+            if (this.TryVisitCapturedElement(node)) return node;
             this.Visit(node.Left);
             _builder.Append("[");
             // index must be evaluated (must returns a constant)
