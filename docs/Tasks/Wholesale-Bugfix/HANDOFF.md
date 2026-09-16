@@ -24,7 +24,7 @@ local machine**. Do not replace the hosted scheduler with a local blocking queue
 One blocked issue must retain its evidence while independent approved work can
 continue. Infrastructure and usage-limit waits need durable automatic recovery.
 
-Snapshot: **2026-09-16, approximately 09:32 UTC / 11:32 Europe/Vienna**.
+Snapshot: **2026-09-16, approximately 09:40 UTC / 11:40 Europe/Vienna**.
 Re-read GitHub state before acting: this document is a snapshot, not the controller's state store.
 
 ## Current state and first action
@@ -44,10 +44,13 @@ is the active expanded repair, followed by 23 approved tasks.**
   all journals and 18 permanently passing cases. Eight audit tests and two
   independent live previews passed; commit readback verified unchanged old state.
 - [Initialization 35079743792](https://github.com/litedb-org/LiteDB/actions/runs/35079743792)
-  succeeded. [First tick 35079831747](https://github.com/litedb-org/LiteDB/actions/runs/35079831747)
-  starts the fresh baseline. Monitor the journal, consume completed requests and
-  continue the fixer, compressed CI and three reviewers. Never rerun an uncertain
-  request blindly or resume historical v9/v10 manifests.
+  and [first tick 35079831747](https://github.com/litedb-org/LiteDB/actions/runs/35079831747)
+  succeeded. [Baseline 35079889653](https://github.com/litedb-org/LiteDB/actions/runs/35079889653)
+  passed and was authenticated by [35080052281](https://github.com/litedb-org/LiteDB/actions/runs/35080052281).
+  [Fixer 35080196043](https://github.com/litedb-org/LiteDB/actions/runs/35080196043)
+  is executing after successful startup and activation. Monitor the journal,
+  consume completed requests and continue compressed CI and three reviewers.
+  Never rerun an uncertain request blindly or resume historical v9/v10 manifests.
 - [Expanded repair contract](https://github.com/litedb-org/LiteDB/blob/automation/wholesale-bugfix/docs/Tasks/Wholesale-Bugfix/COREPAIR-1002-2811-2590.md): 13 regressions and 3
   controls, hash `b4dc8542010a307c2eee3053af4cbd0dba98ee5818041c9024889f8519fdba94`.
   All former cases and review obligations remain. The new task requires exact
