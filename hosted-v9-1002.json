@@ -113,6 +113,7 @@
         "workflow": "bugfix-fix.lock.yml"
       },
       "fix-1-0-budget": {
+        "failure": "Fix worker concluded failure",
         "inputs": {
           "base_sha": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
           "feedback": "",
@@ -126,7 +127,7 @@
         "workflow": "bugfix-fix.lock.yml"
       }
     },
-    "worker_retries": 0,
+    "worker_retries": 1,
     "workflow_ref": "automation/bugfix-runtime-v9"
   },
   "passing_contract": {
