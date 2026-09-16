@@ -931,7 +931,7 @@
       "tests": [
         "LiteDB.Tests/Issues/Issue2767_Tests.cs"
       ],
-      "validation": "3 original failures fixed;59 final net8 storage/recovery/encryption tests pass,1skip;plain/encrypted WAL andrealV7fixtures;vectorcompatibility+alllibrarytargets pass;fourfinalSolapprovals"
+      "validation": "3 original failures fixed;59 final net8 storage/recovery/encryption tests pass,1skip;plain/encrypted WAL andrealV7fixtures;vectorcompatibility+alllibrarytargets pass;fourfinalSolapprovals; pooled blank-page sentinel follow-up: deterministic before-failure, 49 focused passes, standalone probe/compatibility/production pass, four fresh Sol high approvals"
     },
     {
       "issue": 2769,

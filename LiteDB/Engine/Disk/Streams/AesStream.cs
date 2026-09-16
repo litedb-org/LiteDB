@@ -151,7 +151,10 @@ namespace LiteDB.Engine
 
                 _stream.Position = PAGE_SIZE;
                 _stream.FlushToDisk();
-                using (var ms = new MemoryStream(msBuffer))
+                // Rented buffers are not zero-initialized. Derive the blank-page
+                // sentinel from exactly one zero ciphertext block.
+                Array.Clear(msBuffer, 0, 16);
+                using (var ms = new MemoryStream(msBuffer, 0, 16))
                 using (var tempStream = new CryptoStream(ms, _decryptor, CryptoStreamMode.Read))
                 {
                     tempStream.ReadRequired(_decryptedZeroes, 0, _decryptedZeroes.Length);

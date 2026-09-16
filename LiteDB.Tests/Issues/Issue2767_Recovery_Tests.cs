@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -13,6 +14,11 @@ namespace LiteDB.Tests.Issues
         [Fact]
         public void Partial_blank_encrypted_read_preserves_buffer_bytes_beyond_the_result()
         {
+            // ArrayPool buffers retain other callers' data; the zero-block sentinel
+            // must not depend on the contents of a reused encryption scratch buffer.
+            var dirty = ArrayPool<byte>.Shared.Rent(16);
+            for (var i = 0; i < dirty.Length; i++) dirty[i] = 0x7f;
+            ArrayPool<byte>.Shared.Return(dirty);
             using var backing = new MemoryStream();
             using var crypto = new AesStream("short-read-password", backing);
             backing.SetLength(16384); // Hidden header plus one unwritten encrypted page.

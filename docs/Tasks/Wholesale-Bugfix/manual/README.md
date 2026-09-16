@@ -673,3 +673,18 @@ rejecting narrowing and custom operators that the server cannot represent.
 The final review wave withdrew a claimed First-pipeline regression after checking
 that indexedSource is populated only for IsIndexAccess calls. The cited positive
 tests also pass in both focused and full runs.
+
+## #2767 follow-up — initialize the encrypted blank-page sentinel
+
+AesStream rented a scratch block without clearing it before decrypting it to
+identify unwritten ciphertext pages. Pool reuse could therefore turn blank pages
+into garbage. Clear the 16-byte block and bound the temporary stream to it.
+The existing partial-read test now dirties the shared pool first: it fails before
+the change and passes after, including its untouched destination-tail check.
+The pool reuse control relies on the current same-thread Shared implementation;
+the isolated probe independently confirms the observed failure and repair.
+
+Validation: 49 focused storage tests pass; isolated probe reports blank=True and
+tailPreserved=True; ordinary/vector compatibility (plain and encrypted) passes;
+all production targets build. Four fresh independent Sol high reviews report no
+findings above nits.
