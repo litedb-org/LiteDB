@@ -730,6 +730,8 @@ namespace LiteDB
                 throw new NotSupportedException($"BsonRefId<T> requires a DbRef collection name. Member '{memberMapper.MemberName}' is missing it (use [BsonRef] or Entity<T>().DbRef(...)).");
             }
 
+            if (this.TryVisitCapturedDbRef(node, memberMapper, isInList)) return true;
+
             switch (node)
             {
                 // Implicit convert from BsonRefId<T> to T
@@ -755,51 +757,16 @@ namespace LiteDB
                 case NewArrayExpression expr
                     when !isInList && expr.Type.IsArray && memberMapper.UnderlyingType.IsAssignableFrom(expr.Type.GetElementType()):
 
-                    _builder.Append("[ ");
-
-                    for (var i = 0; i < expr.Expressions.Count; i++)
-                    {
-                        if (i > 0)
-                        {
-                            _builder.Append(", ");
-                        }
-
-                        if (!TryVisitDbRefIdExpression(expr.Expressions[i], memberMapper, true))
-                        {
-                            throw new NotSupportedException($"Expression {expr} not supported for BsonRefId<T>.");
-                        }
-                    }
-
-                    _builder.Append(" ]");
+                    this.VisitDbRefList(expr.Expressions, memberMapper);
                     return true;
 
                 // new List<T> { new BsonRefId<T>, ... }
                 case ListInitExpression { Type: { IsConstructedGenericType: true, GenericTypeArguments.Length: 1 } } expr
                     when !isInList && expr.Type.GetGenericTypeDefinition() == typeof(List<>) && memberMapper.UnderlyingType.IsAssignableFrom(expr.Type.GetGenericArguments()[0]):
 
-                    _builder.Append("[ ");
-
-                    for (var i = 0; i < expr.Initializers.Count; i++)
-                    {
-                        if (i > 0)
-                        {
-                            _builder.Append(", ");
-                        }
-
-                        var initializer = expr.Initializers[i];
-
-                        if (initializer.Arguments.Count != 1 || initializer.AddMethod.Name != "Add")
-                        {
-                            throw new NotSupportedException($"List initializers {initializer.AddMethod.Name} not supported when convert to BsonExpression ({node}).");
-                        }
-
-                        if (!TryVisitDbRefIdExpression(initializer.Arguments[0], memberMapper, true))
-                        {
-                            throw new NotSupportedException($"Expression {expr} not supported for BsonRefId<T>.");
-                        }
-                    }
-
-                    _builder.Append(" ]");
+                    if (expr.Initializers.Any(x => x.Arguments.Count != 1 || x.AddMethod.Name != "Add"))
+                        throw new NotSupportedException($"List initializers not supported when convert to BsonExpression ({node}).");
+                    this.VisitDbRefList(expr.Initializers.Select(x => x.Arguments[0]), memberMapper);
                     return true;
 
                 default:
