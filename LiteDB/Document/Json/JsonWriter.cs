@@ -25,6 +25,20 @@ namespace LiteDB
         /// </summary>
         public bool Pretty { get; set; } = false;
 
+        /// <summary>
+        /// Shortest text that parses back to the same bits. "R" is not reliable on every
+        /// runtime, so verify it and fall back to G17 (always exact, but 0.1 => 0.10000000000000001).
+        /// </summary>
+        private static string FormatDouble(double value)
+        {
+            var text = value.ToString("R", _numberFormat);
+
+            return double.TryParse(text, NumberStyles.Float, _numberFormat, out var parsed) &&
+                BitConverter.DoubleToInt64Bits(parsed) == BitConverter.DoubleToInt64Bits(value)
+                ? text
+                : value.ToString("G17", _numberFormat);
+        }
+
         public JsonWriter(TextWriter writer)
         {
             _writer = writer;
@@ -79,7 +93,16 @@ namespace LiteDB
                     }
                     else
                     {
-                        _writer.Write(value.AsDouble.ToString("0.0########", _numberFormat));
+                        var number = d == 0 && BitConverter.DoubleToInt64Bits(d) < 0
+                            ? "-0.0"
+                            : FormatDouble(d);
+
+                        // An integer-looking token would deserialize as Int32/Int64 instead of Double.
+                        if (number.IndexOf('.') < 0 && number.IndexOf('E') < 0 && number.IndexOf('e') < 0)
+                        {
+                            number += ".0";
+                        }
+                        _writer.Write(number);
                     }
 
                     break;

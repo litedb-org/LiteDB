@@ -90,7 +90,12 @@ namespace LiteDB
                         return new BsonValue(result);
                     else
                         return new BsonValue(Int64.Parse(value, NumberStyles.Any, _numberFormat));
-                case TokenType.Double: return new BsonValue(Convert.ToDouble(value, _numberFormat));
+                case TokenType.Double:
+                    var parsed = Convert.ToDouble(value, _numberFormat);
+                    // Older runtimes normalize parsed negative zero to positive zero.
+                    return new BsonValue(parsed == 0 && value[0] == '-'
+                        ? BitConverter.Int64BitsToDouble(long.MinValue)
+                        : parsed);
                 case TokenType.Word:
                     switch (value.ToLower())
                     {
