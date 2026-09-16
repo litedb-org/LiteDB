@@ -1095,3 +1095,17 @@ validation encountered those false setup failures. Naming prefixes/extensions,
 copy semantics and cleanup remain unchanged. Four fresh Sol high reviewers
 (`review_tempfile_w1_a` through `_d`) were clean; 52 file-backed issue/reference/
 transaction/read-only tests pass. No production behavior changes.
+
+## #2052 — structured errors for invalid BSON dates
+
+Current-format BSON date decoding validates milliseconds before DateTime
+arithmetic and reports LiteException(INVALID_FORMAT) for out-of-range values.
+Existing MinValue/MaxValue sentinel encodings and valid boundary dates remain
+unchanged; input bytes are not modified. This does not reconstruct corrupt dates
+or change the deferred legacy v4 reader/tick-encoded index format.
+
+Validation: both original Int64-extreme cases fail before the fix; 23 focused
+date cases pass, including first-invalid values, exact bounds and sentinels.
+Full suite: 1700 passed, 250 existing failures, 8 skipped; no regressions versus
+#1966. Production and net462 builds pass. Four fresh Sol high reviewers
+(`review_2052_w1_a` through `_d`) were clean; removed an incidental BOM nit.

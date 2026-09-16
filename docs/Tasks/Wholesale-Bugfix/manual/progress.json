@@ -552,10 +552,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2052_Tests.cs"
-      ]
+      ],
+      "validation": "2 original failures become passing; 23 focused date tests pass; full suite 1700 passed / 250 existing failures / 8 skipped, no regressions; production/net462 pass; four fresh Sol-high reviewers clean, BOM nit removed."
     },
     {
       "issue": 2059,
