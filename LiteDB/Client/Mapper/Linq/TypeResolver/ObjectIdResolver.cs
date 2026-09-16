@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,33 +11,33 @@ namespace LiteDB
 {
     internal class ObjectIdResolver : ITypeResolver
     {
-        public string ResolveMethod(MethodInfo method)
+        public LinqExpressionBinding ResolveMethod(MethodInfo method)
         {
             switch (method.Name)
             {
                 // instance methods
-                case "ToString": return "STRING(#)";
-                case "Equals": return "# = @0";
+                case "ToString": return c => c.Call("STRING", c.Object());
+                case "Equals": return c => c.Binary("=", c.Object(), c.Argument(0));
             };
 
             return null;
         }
 
-        public string ResolveMember(MemberInfo member)
+        public LinqExpressionBinding ResolveMember(MemberInfo member)
         {
             switch (member.Name)
             {
                 // static properties
-                case "Empty": return "OBJECTID('000000000000000000000000')";
+                case "Empty": return c => c.Call("OBJECTID", c.Constant("000000000000000000000000"));
 
                 // instance properties
-                case "CreationTime": return "OID_CREATIONTIME(#)";
+                case "CreationTime": return c => c.Call("OID_CREATIONTIME", c.Object());
             }
 
             return null;
         }
 
-        public string ResolveCtor(ConstructorInfo ctor)
+        public LinqExpressionBinding ResolveCtor(ConstructorInfo ctor)
         {
             var pars = ctor.GetParameters();
 
@@ -46,7 +46,7 @@ namespace LiteDB
                 // string value
                 if (pars[0].ParameterType == typeof(string))
                 {
-                    return "OBJECTID(@0)";
+                    return c => c.Call("OBJECTID", c.Argument(0));
                 }
             }
 

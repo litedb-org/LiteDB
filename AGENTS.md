@@ -42,3 +42,12 @@ continues to rebuild v7 files before applying read-only access. Durable flushes
 must reach the underlying file through encryption and caller-stream wrappers. Run `python3 scripts/test-vector-compatibility.py`
 to verify ordinary v8 round trips and vector-file rejection by LiteDB 5.0.21,
 including encrypted files. See `docs/vector-query-compatibility.md` for semantics.
+
+## Query Frontends
+LINQ and SQL share `BsonExpressionFactory`; LINQ bindings must construct nodes
+without tokenizing templates or parsing generated text. Preserve canonical
+`Source` because persisted indexes and the compiled-delegate cache still use it.
+Nested evaluators must receive the caller's parameter document explicitly.
+Use `DirectTranslationScope` in differential tests to forbid tokenizer creation
+and bypass cached delegates. Compare production assemblies with
+`tools/QueryIrBenchmarks` (`TestingEnabled=false`); see `docs/shared-query-ir.md`.

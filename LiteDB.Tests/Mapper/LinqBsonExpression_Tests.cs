@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -621,9 +621,9 @@ namespace LiteDB.Tests.Mapper
         [DebuggerHidden]
         private BsonExpression Test<T, K>(Expression<Func<T, K>> expr, BsonExpression expect, params BsonValue[] args)
         {
+            using var verification = new DirectTranslationScope();
             var expression = _mapper.GetExpression(expr);
-
-            expression.Source.Should().Be(expect.Source);
+            ExpressionParity.AssertMetadata(expression, expect);
 
             expression.Parameters.Keys.Count.Should().Be(args.Length, "Number of parameter are different than expected");
 

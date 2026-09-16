@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,22 +11,22 @@ namespace LiteDB
 {
     internal class NullableResolver : ITypeResolver
     {
-        public string ResolveMethod(MethodInfo method)
+        public LinqExpressionBinding ResolveMethod(MethodInfo method)
         {
             return null;
         }
 
-        public string ResolveMember(MemberInfo member)
+        public LinqExpressionBinding ResolveMember(MemberInfo member)
         {
             switch (member.Name)
             {
-                case "HasValue": return "(IS_NULL(#) = false)";
-                case "Value": return "#";
+                case "HasValue": return c => c.Group(c.Binary("=", c.Call("IS_NULL", c.Object()), c.Constant(false)));
+                case "Value": return c => c.Object();
             }
 
             return null;
         }
 
-        public string ResolveCtor(ConstructorInfo ctor) => null;
+        public LinqExpressionBinding ResolveCtor(ConstructorInfo ctor) => null;
     }
 }

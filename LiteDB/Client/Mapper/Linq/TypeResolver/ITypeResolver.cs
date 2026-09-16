@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,10 +12,10 @@ namespace LiteDB
 {
     internal interface ITypeResolver
     {
-        string ResolveMethod(MethodInfo method);
+        LinqExpressionBinding ResolveMethod(MethodInfo method);
 
-        string ResolveMember(MemberInfo member);
+        LinqExpressionBinding ResolveMember(MemberInfo member);
 
-        string ResolveCtor(ConstructorInfo ctor);
+        LinqExpressionBinding ResolveCtor(ConstructorInfo ctor);
     }
 }

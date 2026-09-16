@@ -162,14 +162,14 @@ namespace LiteDB
             return new EntityBuilder<T>(this, _typeNameBinder);
         }
 
-        #region Get LinqVisitor processor
+        #region LINQ expression translation
 
         /// <summary>
         /// Resolve LINQ expression into BsonExpression
         /// </summary>
         public BsonExpression GetExpression<T, K>(Expression<Func<T, K>> predicate)
         {
-            var visitor = new LinqExpressionVisitor(this, predicate);
+            var visitor = new LinqExpressionTranslator(this, predicate);
 
             var expr = visitor.Resolve(typeof(K) == typeof(bool));
 
@@ -183,7 +183,7 @@ namespace LiteDB
         /// </summary>
         public BsonExpression GetIndexExpression<T, K>(Expression<Func<T, K>> predicate)
         {
-            var visitor = new LinqExpressionVisitor(this, predicate);
+            var visitor = new LinqExpressionTranslator(this, predicate);
 
             var expr = visitor.Resolve(false);
 

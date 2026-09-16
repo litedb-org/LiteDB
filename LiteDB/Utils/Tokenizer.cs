@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -207,7 +207,7 @@ namespace LiteDB
     /// Class to tokenize TextReader input used in JsonRead/BsonExpressions
     /// This class are not thread safe
     /// </summary>
-    internal class Tokenizer
+    internal partial class Tokenizer
     {
         private readonly TextReader _reader;
         private char _char = '\0';
@@ -235,8 +235,8 @@ namespace LiteDB
 
         public Tokenizer(TextReader reader)
         {
+            OnCreate();
             _reader = reader;
-
             this.Position = 0;
             this.ReadChar();
         }

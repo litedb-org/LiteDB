@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,34 +12,34 @@ namespace LiteDB
 {
     internal class StringResolver : ITypeResolver
     {
-        public string ResolveMethod(MethodInfo method)
+        public LinqExpressionBinding ResolveMethod(MethodInfo method)
         {
             var qtParams = method.GetParameters().Length;
 
             switch (method.Name)
             {
-                case "Count": return "LENGTH(#)";
-                case "Trim": return "TRIM(#)";
-                case "TrimStart": return "LTRIM(#)";
-                case "TrimEnd": return "RTRIM(#)";
-                case "ToUpper": return "UPPER(#)";
-                case "ToUpperInvariant": return "UPPER(#)";
-                case "ToLower": return "LOWER(#)";
-                case "ToLowerInvariant": return "LOWER(#)";
-                case "Replace": return "REPLACE(#, @0, @1)";
-                case "PadLeft": return "LPAD(#, @0, @1)";
-                case "RightLeft": return "RPAD(#, @0, @1)";
-                case "IndexOf": return qtParams == 1 ? "INDEXOF(#, @0)" : "INDEXOF(#, @0, @1)";
-                case "Substring": return qtParams == 1 ? "SUBSTRING(#, @0)" : "SUBSTRING(#, @0, @1)";
-                case "StartsWith": return "# LIKE (@0 + '%')";
-                case "Contains": return "# LIKE ('%' + @0 + '%')";
-                case "EndsWith": return "# LIKE ('%' + @0)";
-                case "ToString": return "#";
-                case "Equals": return "# = @0";
+                case "Count": return c => c.Call("LENGTH", c.Object());
+                case "Trim": return c => c.Call("TRIM", c.Object());
+                case "TrimStart": return c => c.Call("LTRIM", c.Object());
+                case "TrimEnd": return c => c.Call("RTRIM", c.Object());
+                case "ToUpper": return c => c.Call("UPPER", c.Object());
+                case "ToUpperInvariant": return c => c.Call("UPPER", c.Object());
+                case "ToLower": return c => c.Call("LOWER", c.Object());
+                case "ToLowerInvariant": return c => c.Call("LOWER", c.Object());
+                case "Replace": return c => c.Call("REPLACE", c.Object(), c.Argument(0), c.Argument(1));
+                case "PadLeft": return c => c.Call("LPAD", c.Object(), c.Argument(0), c.Argument(1));
+                case "RightLeft": return c => c.Call("RPAD", c.Object(), c.Argument(0), c.Argument(1));
+                case "IndexOf": return qtParams == 1 ? (c => c.Call("INDEXOF", c.Object(), c.Argument(0))) : (c => c.Call("INDEXOF", c.Object(), c.Argument(0), c.Argument(1)));
+                case "Substring": return qtParams == 1 ? (c => c.Call("SUBSTRING", c.Object(), c.Argument(0))) : (c => c.Call("SUBSTRING", c.Object(), c.Argument(0), c.Argument(1)));
+                case "StartsWith": return c => c.Binary("LIKE", c.Object(), c.Group(c.Binary("+", c.Argument(0), c.Constant("%"))));
+                case "Contains": return c => c.Binary("LIKE", c.Object(), c.Group(c.Binary("+", c.Binary("+", c.Constant("%"), c.Argument(0)), c.Constant("%"))));
+                case "EndsWith": return c => c.Binary("LIKE", c.Object(), c.Group(c.Binary("+", c.Constant("%"), c.Argument(0))));
+                case "ToString": return c => c.Object();
+                case "Equals": return c => c.Binary("=", c.Object(), c.Argument(0));
 
                 // static methods
-                case "IsNullOrEmpty": return "(LENGTH(@0) = 0)";
-                case "IsNullOrWhiteSpace": return "(LENGTH(TRIM(@0)) = 0)";
+                case "IsNullOrEmpty": return c => c.Group(c.Binary("=", c.Call("LENGTH", c.Argument(0)), c.Constant(0)));
+                case "IsNullOrWhiteSpace": return c => c.Group(c.Binary("=", c.Call("LENGTH", c.Call("TRIM", c.Argument(0))), c.Constant(0)));
                 case "Format": throw new NotImplementedException(); //TODO implement format
                 case "Join": throw new NotImplementedException(); //TODO implement join
             };
@@ -47,17 +47,17 @@ namespace LiteDB
             return null;
         }
 
-        public string ResolveMember(MemberInfo member)
+        public LinqExpressionBinding ResolveMember(MemberInfo member)
         {
             switch (member.Name)
             {
-                case "Length": return "LENGTH(#)";
-                case "Empty": return "''";
+                case "Length": return c => c.Call("LENGTH", c.Object());
+                case "Empty": return c => c.Constant("");
             }
 
             return null;
         }
 
-        public string ResolveCtor(ConstructorInfo ctor) => null;
+        public LinqExpressionBinding ResolveCtor(ConstructorInfo ctor) => null;
     }
 }
