@@ -7,6 +7,7 @@
       "at": 1789551005.9570467
     }
   ],
+  "infrastructure_streak": 0,
   "issues": {
     "1002": {
       "decision": {
@@ -19,6 +20,7 @@
         "phase": "baseline",
         "resume_integration": false
       },
+      "observed_infrastructure_retries": 0,
       "status": "active",
       "tick_errors": 0
     },
@@ -117,9 +119,9 @@
   },
   "kind": "hosted-bugfix-sweep",
   "last_tick": {
-    "at": 1789551067.815686,
-    "campaign": null,
-    "campaign_phase": null,
+    "at": 1789551083.482107,
+    "campaign": "hosted-v11-1002",
+    "campaign_phase": "baseline",
     "counts": {
       "accepted": 0,
       "active": 1,
