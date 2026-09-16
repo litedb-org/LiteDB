@@ -347,3 +347,17 @@ tests pass, one existing skip. Added hand-written case/type ledgers run before a
 after indexing/reopen in both directions; a Deseret supplementary-case regression
 checks the ordinal-ignore-case residual. All library targets build. Four Sol
 reviewers approved; the trailing-whitespace nit was corrected.
+
+
+## Stage regression check and #2802 follow-up
+
+The net10 behavioral suite reaches 1,200 passes, 222 failures and eight skips,
+fixing 99 baseline failures. One previously passing document-upgrade test exposed
+a raw BSON callback regression: ToObject returns BsonDocument unchanged. Raw
+document queries now retain their previous virtual Deserialize path while POCO
+queries keep virtual ToObject<T>. A replacement-identity/count regression proves
+that callbacks execute once and do not alter stored data.
+
+Follow-up validation: 314 net8 passes, one existing skip and seven audit failures
+confirmed against the full baseline. The document-upgrade test now passes. All
+library targets build; four additional Sol reviews approved without findings.

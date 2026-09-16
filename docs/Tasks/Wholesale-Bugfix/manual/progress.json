@@ -1172,7 +1172,7 @@
       "tests": [
         "LiteDB.Tests/Issues/Issue2802_Tests.cs"
       ],
-      "validation": "10 original failures fixed;283 mapper/query tests pass,1 existing skip; all library targets build; four Sol approvals"
+      "validation": "10 original failures fixed;283 mapper/query tests pass,1 existing skip; all library targets build; four Sol approvals; full-stage caught raw BSON callback regression, corrected with four additional approvals;314 focused passes,1 skip,7 confirmed baseline audit failures"
     },
     {
       "issue": 2804,
