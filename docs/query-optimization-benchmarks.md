@@ -117,3 +117,68 @@ direct path. Explicit `Bind` can avoid the structural lookup as well. This is a
 broad incremental improvement; unlike the earlier plan changes, it does not
 reduce how many documents a query reads. Full .NET 8 suite: 933 passed, seven
 existing skips.
+
+## 5. Simplify constant guards before planning
+
+An optional filter such as `!enabled || row.Score == 1234`, with `enabled = true`,
+previously hid the usable Score index behind an OR. The shared optimizer evaluates
+safe constant/parameter Boolean guards and exposes the remaining predicate.
+Both frontends benefit, and guards are evaluated again for each binding. Volatile
+expressions stay in the filter; conditional immutability now correctly requires
+all three operands to be immutable. Short circuits avoid unreachable expressions,
+and a right-hand absorbing constant does not suppress evaluation of its left.
+
+| Complete query | Before µs | After µs | Time reduction | Before B/query | After B/query |
+|---|---:|---:|---:|---:|---:|
+| Optional filter, LINQ | 29,195.13 | 38.57 | 99.9% (757×) | 40,873,992 | 32,744 |
+| Optional filter, SQL | 29,685.81 | 53.43 | 99.8% (556×) | 40,882,336 | 39,766 |
+
+This measures enabling a selective filter, which changes a full scan into one
+seek. Disabling the filter intentionally returns all rows and still requires a
+scan. Focused simplification tests: 18 passed, including outer current paths and
+empty vector queries; expression/shared-IR checks also passed. Existing pipeline ordering already filters before sorting/projection and
+defers unnecessary includes, so no duplicate ordering rewrite was added.
+
+## Combined result and practical priority
+
+A separate complete-suite comparison runs the post-IR baseline against all five
+optimizations together. Two processes per version use the same 18-batch method;
+all consumed-result checksums match. The raw `all-before-*` / `all-after-*` files
+include the execution plans and every workload, not just the strongest cases.
+
+| Complete query | Baseline µs | All changes µs | Time reduction |
+|---|---:|---:|---:|
+| Equality OR, LINQ | 29,784.99 | 49.20 | 99.8% |
+| Optional filter, LINQ | 29,871.67 | 38.90 | 99.9% |
+| Bounded range, LINQ | 14,545.73 | 69.32 | 99.5% |
+| Impossible indexed range | 14,498.15 | 28.36 | 99.8% |
+| Impossible unindexed equalities | 29,437.24 | 29.20 | 99.9% |
+| Ordinary primary-key lookup | 39.73 | 37.69 | 5.1% |
+| Ordinary combined predicate | 61.43 | 55.42 | 9.8% |
+| Ordinary indexed projection | 101.75 | 90.40 | 11.2% |
+| Full-scan control | 60,735.77 | 61,149.38 | -0.7% |
+
+The full-scan control is effectively unchanged. Timings on this shared host vary,
+so per-step percentages should not be multiplied together. The separate cache
+measurements isolate its benefit; combined measurements also include the added
+optimizer checks. Cold queries, disk-bound execution, and different selectivity
+can have very different results.
+
+The best practical return is avoiding unnecessary reads: indexed OR seeks,
+bounded ranges, and simplifying optional guards. Contradiction pruning is cheap
+but benefits impossible queries only. Automatic LINQ caching benefits repeated
+ordinary shapes more broadly, with smaller gains. Further filter ordering would
+need a cost model and purity rules; the pipeline already puts filters before
+sorting and projection. A source generator, physical-plan cache, and specialized
+materializers remain separate work.
+
+## Final validation
+
+- Release solution build with `TestingEnabled=true`: all targets build.
+- Full `LiteDB.Tests` with `tests.runsettings`: 951 passed and seven existing skips
+  on each of .NET 8 and .NET 10.
+- Reproduction-runner tests: 18 passed.
+- Vector file compatibility: ordinary v8 round trips and promoted vector-file
+  rejection by LiteDB 5.0.21 pass for plain and encrypted files.
+- C# size checks and whitespace checks pass; new C# files remain under 300 lines.
+- Each benchmark comparison checks matching consumed-result checksums.

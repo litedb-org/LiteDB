@@ -44,7 +44,9 @@ namespace LiteDB
             ExpressionContext context, BsonDocument parameters)
         {
             var fields = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            if (root || scope == DocumentScope.Source) fields.Add(field.Length == 0 ? "$" : field);
+            // At the outer scope @ is also the input document. Inside MAP/FILTER it
+            // denotes a local item instead and must not add root document fields.
+            if (root || scope != DocumentScope.Current) fields.Add(field.Length == 0 ? "$" : field);
             return new BsonExpression
             {
                 Type = BsonExpressionType.Path,

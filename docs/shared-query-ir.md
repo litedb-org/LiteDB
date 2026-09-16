@@ -77,6 +77,20 @@ remains available to callers that want to avoid even the structural cache lookup
 See [`query-optimization-benchmarks.md`](query-optimization-benchmarks.md) for
 separately measured automatic reuse and shared query optimizer improvements.
 
+## Shared predicate optimization
+
+The engine inspects the same expression nodes for LINQ and SQL. Equality ORs on
+one scalar indexed expression become ordered IN seeks. Separate scalar index
+bounds become one bounded scan, and contradictory scalar path constraints
+produce an empty pipeline input, preserving aggregate behavior. Constant Boolean
+guards expose indexable predicates while respecting short circuits and volatility.
+Normalization constructs nodes directly and preserves the original reusable tree.
+
+Values, collation, and available indexes are read for each execution. Multikey
+ANY/ALL bounds are not intersected: different array elements can satisfy them.
+The existing pipeline already filters before sorting and projection, and defers
+includes that are not needed by filters; these changes do not reorder those stages.
+
 ## Verification
 
 The existing LINQ expression corpus now checks canonical text, type, cardinality,

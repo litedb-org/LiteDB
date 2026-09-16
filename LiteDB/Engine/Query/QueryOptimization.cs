@@ -94,11 +94,16 @@ namespace LiteDB.Engine
                 }
                 else if (predicate.Type == BsonExpressionType.And)
                 {
+                    if (TryEvaluateBoolean(predicate.Right, out var right) && !right)
+                    {
+                        _terms.Add(predicate); // Preserve evaluation of the left before false.
+                        return;
+                    }
                     var left = predicate.Left;
-                    var right = predicate.Right;
+                    var rhs = predicate.Right;
 
                     add(left);
-                    add(right);
+                    add(rhs);
                 }
                 else
                 {
@@ -107,9 +112,16 @@ namespace LiteDB.Engine
             }
 
             // check all where predicate for AND operators
-            foreach(var predicate in _query.Where)
+            foreach(var original in _query.Where)
             {
-                add(predicate);
+                if (original.UseSource) { add(original); continue; }
+                var predicate = this.SimplifyPredicate(original, out var constant);
+                if (!constant.HasValue) add(predicate);
+                else if (!constant.Value)
+                {
+                    if (_terms.Count == 0) _constantFalse = true;
+                    else _terms.Add(predicate);
+                }
             }
         }
 
@@ -229,6 +241,7 @@ namespace LiteDB.Engine
             _queryPlan.Filters.AddRange(_terms.Where(x => x != selected));
             this.NarrowRange(selected);
             this.PruneContradictions();
+            if (_constantFalse) this.UseEmptyInput();
         }
 
         #endregion

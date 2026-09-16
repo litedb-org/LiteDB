@@ -22,13 +22,20 @@ namespace LiteDB.Engine
                 }
                 bounds.Intersect(operation, value.ExecuteScalar(_collation), _collation);
                 if (!bounds.IsEmpty(_collation)) continue;
-                _queryPlan.Index = new IndexEmpty();
-                _queryPlan.IndexExpression = "$._id";
-                _queryPlan.IndexCost = 0;
-                _queryPlan.IsIndexKeyOnly = false;
-                _queryPlan.Filters.Clear();
+                this.UseEmptyInput();
                 return;
             }
+        }
+
+        private void UseEmptyInput()
+        {
+            _queryPlan.Index = new IndexEmpty();
+            _queryPlan.IndexExpression = "$._id";
+            _queryPlan.IndexCost = 0;
+            _queryPlan.IsIndexKeyOnly = false;
+            _queryPlan.Filters.Clear();
+            _vectorOrderConsumed = false;
+            _vectorPrimaryOrderMatched = false;
         }
     }
 }

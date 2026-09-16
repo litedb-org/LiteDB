@@ -20,11 +20,21 @@ internal static class Program
         }));
         rows.EnsureIndex(x => x.Score);
         rows.EnsureIndex(x => x.City);
+        var enabled = true;
         var results = new List<object>();
         var plans = new Dictionary<string, string>();
         Measure("or-linq", 20, i => rows.Query().Where(x => x.Score == 1234 || x.Score == 17890)
             .ToList().Sum(x => x.Id));
         Measure("or-sql", 20, i => Read("SELECT $ FROM rows WHERE Score = 1234 OR Score = 17890"));
+        Measure("fold-linq", 20, i => rows.Query().Where(x => !enabled || x.Score == 1234).ToList().Sum(x => x.Id));
+        Measure("fold-sql", 20, i =>
+        {
+            using var reader = db.Execute("SELECT $ FROM rows WHERE @enabled = false OR Score = @score",
+                new BsonDocument { ["enabled"] = enabled, ["score"] = 1234 });
+            long sum = 0;
+            while (reader.Read()) sum += reader.Current["_id"].AsInt32;
+            return sum;
+        });
         Measure("range-linq", 10, i => rows.Query().Where(x => x.Score >= 10000 && x.Score < 10010)
             .ToList().Sum(x => x.Id));
         Measure("range-sql", 10, i => Read("SELECT $ FROM rows WHERE Score >= 10000 AND Score < 10010"));
@@ -54,6 +64,7 @@ internal static class Program
 
         plans["or"] = rows.Query().Where(x => x.Score == 1234 || x.Score == 17890).GetPlan().ToString();
         plans["range"] = rows.Query().Where(x => x.Score >= 10000 && x.Score < 10010).GetPlan().ToString();
+        plans["fold"] = rows.Query().Where(x => !enabled || x.Score == 1234).GetPlan().ToString();
         plans["contradiction"] = rows.Query().Where(x => x.Name == "Person1" && x.Name == "Person2").GetPlan().ToString();
         Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
         {

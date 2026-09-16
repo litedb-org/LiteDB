@@ -106,7 +106,7 @@ namespace LiteDB
             {
                 Type = BsonExpressionType.Call, // there is not specific Conditional
                 Parameters = test.Parameters, // should be == ifTrue|ifFalse parameters
-                IsImmutable = test.IsImmutable && ifTrue.IsImmutable || ifFalse.IsImmutable,
+                IsImmutable = test.IsImmutable && ifTrue.IsImmutable && ifFalse.IsImmutable,
                 UseSource = test.UseSource || ifTrue.UseSource || ifFalse.UseSource,
                 IsScalar = test.IsScalar && ifTrue.IsScalar && ifFalse.IsScalar,
                 Fields = new HashSet<string>(StringComparer.OrdinalIgnoreCase).AddRange(test.Fields).AddRange(ifTrue.Fields).AddRange(ifFalse.Fields),
