@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Linq;
 using FluentAssertions;
@@ -8,6 +9,38 @@ namespace LiteDB.Tests.Issues
 {
     public class Issue2764_Tests
     {
+        [Theory]
+        [InlineData(SeekOrigin.Begin, -1)]
+        [InlineData(SeekOrigin.Current, -1)]
+        [InlineData(SeekOrigin.End, -8193)]
+        public void Seek_before_logical_start_preserves_position_and_encryption_header(SeekOrigin origin, long offset)
+        {
+            using var backing = new MemoryStream();
+            using var crypto = new AesStream("regression-password", backing);
+            crypto.Write(new byte[8192], 0, 8192);
+            crypto.Position = 0;
+            var bytes = backing.ToArray();
+
+            Action seek = () => crypto.Seek(offset, origin);
+            seek.Should().Throw<IOException>();
+            crypto.Position.Should().Be(0);
+            backing.Position.Should().Be(8192);
+            backing.ToArray().Should().Equal(bytes);
+        }
+
+        [Fact]
+        public void Invalid_origin_and_overflow_do_not_move_the_stream()
+        {
+            using var backing = new MemoryStream();
+            using var crypto = new AesStream("regression-password", backing);
+            Action invalid = () => crypto.Seek(0, (SeekOrigin)123);
+            invalid.Should().Throw<ArgumentException>();
+            Action overflow = () => crypto.Seek(long.MaxValue, SeekOrigin.Begin);
+            overflow.Should().Throw<OverflowException>();
+            crypto.Position.Should().Be(0);
+            backing.Position.Should().Be(8192);
+        }
+
         [Theory]
         [InlineData(SeekOrigin.Begin, 8192, 8192)]
         [InlineData(SeekOrigin.Current, 0, 8192)]

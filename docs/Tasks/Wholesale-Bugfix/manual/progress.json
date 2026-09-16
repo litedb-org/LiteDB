@@ -907,10 +907,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2764_Tests.cs"
-      ]
+      ],
+      "validation": "5 original seek failures fixed;40 net8 encryption/durability tests pass;negative/invalid/overflow controls;plain/encrypted vector compatibility passes;all librarytargets build;four Sol approvals"
     },
     {
       "issue": 2767,

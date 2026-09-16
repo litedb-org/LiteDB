@@ -445,3 +445,19 @@ independent invariant parsing, ±0, extrema, normal/subnormal boundaries, large
 integers and nonfinite controls. All library targets compile; net462/net481 tests
 were not executed because no legacy .NET Framework runtime is available here.
 Four Sol reviewers approved the final writer/reader revision.
+
+
+## #2764 — encrypted seeks use logical positions
+
+Seek resolves Begin/Current/End against the visible stream, applies the hidden
+header offset exactly once, and returns the visible position. Checked arithmetic
+and before-start rejection prevent invalid requests from moving into the hidden
+encryption header. The backing seek always uses Begin, avoiding wrapper-specific
+relative-seek behavior.
+
+Baseline: five failures. Final: 40 net8 encryption/durability tests pass, including
+readback of distinct decrypted pages, physical/logical position ledgers and
+negative/invalid/overflow failure preservation. Plain/encrypted vector file
+compatibility and all library target builds pass. Four Sol reviewers approved;
+additional per-origin overflow tests were suggested as optional and judged
+redundant with the existing checked-arithmetic and overflow control.
