@@ -461,3 +461,27 @@ negative/invalid/overflow failure preservation. Plain/encrypted vector file
 compatibility and all library target builds pass. Four Sol reviewers approved;
 additional per-origin overflow tests were suggested as optional and judged
 redundant with the existing checked-arithmetic and overflow control.
+
+
+## #2767 — fill fixed-size reads across partial stream results
+
+Current data/WAL pages, cache reads, V7/V8 recovery readers and encryption
+metadata accumulate short reads. Required pages/metadata reject EOF; optional
+rebuild prefix probes may stop at EOF. Caller-stream factories honor raw access
+for version detection and legacy encryption. AES blank-page normalization probes
+only available bytes and modifies only the returned range.
+
+Reviews found remaining rebuild-prefix and V7 read sites; both were corrected.
+Added tests cover one-byte, 257-byte and 4095-byte current reads, encrypted/plain
+WAL replay, empty/nonempty V8 recovery, immutable plain/encrypted V7 fixtures,
+content/byte ledgers and an oversized encrypted-read buffer sentinel. Valid
+short reads from the 16 KiB format probe remain supported for an 8 KiB database.
+
+Final: 59 focused net8 passes, one existing skip. A broader rebuild selection
+also exposed 13 unchanged baseline failures in other pending reports. The full
+net10 stage before final recovery additions had 1,268 passes, 185 failures and
+eight skips, fixing 135 baseline failures with no newly failing former passes.
+Plain/encrypted vector compatibility and all library targets pass. Four final
+Sol approvals; the unrelated BOM and buffer-range nits were fixed. Zero-count
+helper argument validation was deferred because these internal callers supply
+valid positive ranges.

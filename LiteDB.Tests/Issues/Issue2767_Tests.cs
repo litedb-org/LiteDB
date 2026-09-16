@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using FluentAssertions;
+using LiteDB.Engine;
 using Xunit;
 
 namespace LiteDB.Tests.Issues
@@ -19,6 +20,44 @@ namespace LiteDB.Tests.Issues
                 if (actual > 0 && actual < count) ShortReads++;
                 return actual;
             }
+        }
+
+        [Theory]
+        [InlineData(1, false)]
+        [InlineData(257, false)]
+        [InlineData(4095, false)]
+        [InlineData(1, true)]
+        [InlineData(257, true)]
+        [InlineData(4095, true)]
+        public void Short_reads_replay_wal_and_read_encrypted_pages(int chunk, bool encrypted)
+        {
+            using var data = new MemoryStream();
+            using var log = new MemoryStream();
+            var password = encrypted ? "short-read-password" : null;
+            var payload = Enumerable.Range(0, 20000).Select(i => (byte)(i * 19)).ToArray();
+            using (var db = new LiteDatabase(new LiteEngine(new EngineSettings
+            {
+                DataStream = data, LogStream = log, Password = password
+            })))
+            {
+                db.CheckpointSize = 0;
+                db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["bytes"] = payload });
+            }
+            log.Length.Should().BeGreaterThan(encrypted ? 8192 : 0);
+            using var shortData = new ShortReadStream(data.ToArray(), chunk);
+            using var shortLog = new ShortReadStream(log.ToArray(), chunk);
+            using (var db = new LiteDatabase(new LiteEngine(new EngineSettings
+            {
+                DataStream = shortData, LogStream = shortLog, Password = password
+            })))
+            {
+                db.GetCollection("rows").FindById(1)["bytes"].AsBinary.Should().Equal(payload);
+                db.GetCollection("rows").Count().Should().Be(1);
+                shortData.ShortReads.Should().BePositive();
+                shortLog.ShortReads.Should().BePositive();
+            }
+            shortData.ToArray().Should().Equal(data.ToArray());
+            shortLog.ToArray().Should().Equal(log.ToArray());
         }
 
         [Theory]

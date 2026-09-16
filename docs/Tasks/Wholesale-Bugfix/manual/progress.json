@@ -922,10 +922,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2767_Tests.cs"
-      ]
+      ],
+      "validation": "3 original failures fixed;59 final net8 storage/recovery/encryption tests pass,1skip;plain/encrypted WAL andrealV7fixtures;vectorcompatibility+alllibrarytargets pass;fourfinalSolapprovals"
     },
     {
       "issue": 2769,

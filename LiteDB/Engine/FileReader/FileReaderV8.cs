@@ -441,7 +441,7 @@ namespace LiteDB.Engine
                 {
                     _logStream.Position = pageInfo.Position = currentPosition;
 
-                    var read = _logStream.Read(buffer.Array, buffer.Offset, PAGE_SIZE);
+                    var read = _logStream.ReadFully(buffer.Array, buffer.Offset, PAGE_SIZE);
 
                     if (buffer.IsBlank())
                     {
@@ -531,7 +531,7 @@ namespace LiteDB.Engine
 
                 stream.Position = pageInfo.Position;
 
-                read = stream.Read(pageBuffer.Array, pageBuffer.Offset, pageBuffer.Count);
+                read = stream.ReadFully(pageBuffer.Array, pageBuffer.Offset, pageBuffer.Count);
 
                 ENSURE(read == PAGE_SIZE, "Page position {0} read only than {1} bytes (instead {2})", stream.Position, read, PAGE_SIZE);
 
