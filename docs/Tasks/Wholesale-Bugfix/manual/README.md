@@ -718,3 +718,22 @@ pass; new Int32 and noninteger controls cover reverse conversions.
 
 Validation: 103 focused net8 tests pass, all production targets build, and four
 fresh independent Sol high reviewers report no findings above nits.
+
+## #1715 — isolate parameters when composing queries
+
+Query.And/Or copy each operand's bindings to distinct parameter names and rewrite
+only parameter tokens. Quoted strings/field names and standalone current-item @
+paths retain their meaning. Unbound names are renamed too, preventing accidental
+binding by the other operand. The new parameter document snapshots bindings
+without changing either input. Nested and variadic composition use the same path.
+Renamed group-key aliases remain available to GROUP BY, including composition
+after a prior execution has populated runtime key values.
+
+Coverage includes both operand orders, truth tables, repeated/case-insensitive
+names, positional parameters, nested filters, hostile quoted text, unbound names,
+input mutation controls, and repeated composed Having execution.
+Validation: 314 focused net8 passes/one existing skip; full net10 1,430 passes,
+284 remaining failures/eight skips, no pass regressions against the original
+baseline or preceding stage. There are 178 passing original baseline failures.
+All production targets build. Four fresh independent Sol high reviewers report
+no findings above nits.

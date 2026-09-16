@@ -145,6 +145,8 @@ namespace LiteDB.Engine
             if (expression?.Parameters != null)
             {
                 expression.Parameters["key"] = key;
+                if (expression.GroupKeyAliases != null)
+                    foreach (var alias in expression.GroupKeyAliases) expression.Parameters[alias] = key;
             }
         }
 
