@@ -10,7 +10,7 @@ using static LiteDB.Constants;
 
 namespace LiteDB
 {
-    internal class LinqExpressionVisitor : ExpressionVisitor
+    internal partial class LinqExpressionVisitor : ExpressionVisitor
     {
         private static readonly Dictionary<Type, ITypeResolver> _resolver = new Dictionary<Type, ITypeResolver>
         {
@@ -453,18 +453,18 @@ namespace LiteDB
             this.VisitAsPredicate(node.Left, andOr);
 
             _builder.Append(op);
-
             if (!_mapper.EnumAsInteger &&
                 node.Left.NodeType == ExpressionType.Convert &&
                 node.Left is UnaryExpression unex &&
-                unex.Operand.Type.GetTypeInfo().IsEnum &&
-                unex.Type == typeof(Int32))
+                GetConvertedEnum(unex) != null &&
+                unex.Type == typeof(Int32) &&
+                ((node.NodeType != ExpressionType.Equal && node.NodeType != ExpressionType.NotEqual) || !ParameterExpressionVisitor.Test(node.Right)))
             {
-                this.VisitAsPredicate(Expression.Constant(Enum.GetName(unex.Operand.Type, this.Evaluate(node.Right))), andOr);
+                this.VisitAsPredicate(Expression.Constant(Enum.GetName(GetConvertedEnum(unex), this.Evaluate(node.Right))), andOr);
             }
             else
             {
-                this.VisitAsPredicate(node.Right, andOr);
+                this.VisitAsPredicate(this.EnsureNameStoredEnumOperand(node), andOr);
             }
 
             _builder.Append(")");
