@@ -81,11 +81,12 @@ class DailyGuardTests(unittest.TestCase):
             result = self.replay(cache=[], runs=[11], proxyFile=str(file), legacySum=100)
             self.assertEqual('accounting_unavailable', result['outputs']['bugfix_budget_status'])
 
-    def test_actual_locks_have_dispatch_guard_and_trusted_deferral_output(self):
+    def test_current_uncapped_locks_do_not_activate_legacy_guard(self):
         for name in ('bugfix-fix.lock.yml', 'bugfix-validate.lock.yml'):
             lines = (ROOT.parent / 'workflows' / name).read_text(encoding='utf-8').splitlines()
-            self.assertEqual(lines, insert_daily_guard(Path(name), lines))
-            self.assertIn("needs.activation.outputs.bugfix_budget_status == 'accounting_unavailable'", '\n'.join(lines))
+            text = '\n'.join(lines)
+            self.assertNotIn('daily-effective-workflow-guardrail', text)
+            self.assertNotIn('bugfix_budget_status', text)
 
 
 if __name__ == '__main__':

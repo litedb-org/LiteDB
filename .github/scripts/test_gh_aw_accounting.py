@@ -19,7 +19,7 @@ class AccountingTests(unittest.TestCase):
                 source.write_text(raw if raw is not None else '\n'.join(json.dumps(record) for record in records), encoding='utf-8')
             script = ACCOUNT_SCRIPT.replace("Path('/tmp/gh-aw/sandbox/firewall/logs/api-proxy-logs/token-usage.jsonl')",
                                             f'Path({str(source)!r})')
-            env = {'BUGFIX_CREDIT_CAP': '2000', 'BUGFIX_EXECUTION_OUTCOME': outcome,
+            env = {'BUGFIX_EXECUTION_OUTCOME': outcome,
                    'GITHUB_OUTPUT': str(root / 'output'), 'GITHUB_STEP_SUMMARY': str(root / 'summary')}
             with patch.dict(os.environ, env, clear=True):
                 exec(compile(script, 'accounting', 'exec'), {})
@@ -38,16 +38,16 @@ class AccountingTests(unittest.TestCase):
     def test_never_clamps_observed_overshoot_to_limit(self):
         self.assertEqual((2100, 'proxy_total'), self.account([self.record(2100)]))
 
-    def test_missing_empty_or_invalid_usage_reserves_cap_instead_of_zero(self):
+    def test_missing_empty_or_invalid_usage_is_explicitly_unavailable(self):
         for records in (None, [], [self.record(-1)], [self.record(float('nan'))],
                         [self.record(float('inf'))], [self.record(True)], [self.record('1200')],
                         [self.record(0)], [{'event': 'token_usage'}]):
             with self.subTest(records=records):
-                self.assertEqual((2000, 'cap_reservation'), self.account(records, 'failure'))
+                self.assertEqual((0, 'accounting_unavailable'), self.account(records, 'failure'))
 
     def test_malformed_record_preserves_larger_valid_observation(self):
         raw = json.dumps(self.record(2400)) + '\nnot json\n'
-        self.assertEqual((2400, 'cap_reservation'), self.account(raw=raw))
+        self.assertEqual((2400, 'accounting_unavailable'), self.account(raw=raw))
 
     def test_execution_that_never_started_can_have_zero_cost(self):
         self.assertEqual((0, 'not_started'), self.account(outcome='skipped'))
@@ -56,7 +56,7 @@ class AccountingTests(unittest.TestCase):
     def canonical(self, amount, source='proxy_total', result='success'):
         with tempfile.TemporaryDirectory() as directory:
             script = CANONICAL_SCRIPT.replace("Path('/tmp/gh-aw')", f'Path({directory!r})')
-            env = {'BUGFIX_CREDIT_CAP': '2000', 'BUGFIX_ACCOUNTED_CREDITS': amount,
+            env = {'BUGFIX_ACCOUNTED_CREDITS': amount,
                    'BUGFIX_ACCOUNTING_SOURCE': source, 'BUGFIX_AGENT_RESULT': result,
                    'GITHUB_RUN_ID': '123', 'GITHUB_RUN_ATTEMPT': '1'}
             with patch.dict(os.environ, env, clear=True):
@@ -70,10 +70,12 @@ class AccountingTests(unittest.TestCase):
         self.assertEqual(123, report['run_id'])
         self.assertEqual(1, report['run_attempt'])
 
-    def test_missing_job_output_is_conservative_but_skipped_agent_is_free(self):
+    def test_missing_job_output_is_unknown_and_skipped_agent_is_distinct(self):
         for amount in ('', 'NaN', '-1', '0'):
             with self.subTest(amount=amount):
-                self.assertEqual(2000, self.canonical(amount, source='', result='failure')['aic'])
+                report = self.canonical(amount, source='', result='failure')
+                self.assertEqual(0, report['aic'])
+                self.assertEqual('accounting_unavailable', report['accounting_source'])
         self.assertEqual(0, self.canonical('', source='', result='skipped')['aic'])
 
     def test_generated_locks_route_daily_cache_through_canonical_record(self):
@@ -85,8 +87,7 @@ class AccountingTests(unittest.TestCase):
             text = '\n'.join(lines)
             self.assertLess(text.index('name: Publish canonical bugfix usage record'),
                             text.index('name: Collect usage artifact files'))
-            self.assertLess(text.index('name: Collect usage artifact files'),
-                            text.index('name: Write daily AIC usage cache entry'))
+            self.assertNotIn('name: Write daily AIC usage cache entry', text)
             self.assertIn("BUGFIX_ACCOUNTED_CREDITS: ${{ needs.agent.outputs.aic }}", text)
             self.assertIn('/tmp/gh-aw/usage/agent_usage.jsonl', text)
 

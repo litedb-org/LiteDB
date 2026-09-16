@@ -3,7 +3,7 @@
 from pathlib import Path
 
 
-CAPS = {'bugfix-fix.lock.yml': 2000, 'bugfix-validate.lock.yml': 1000}
+WORKERS = {'bugfix-fix.lock.yml', 'bugfix-validate.lock.yml'}
 AGENT_MARKER = '      - name: Account trusted bugfix proxy usage'
 CONCLUSION_MARKER = '      - name: Publish canonical bugfix usage record'
 ACCOUNT_SCRIPT = '''import json
@@ -12,9 +12,6 @@ import os
 from pathlib import Path
 
 env = os.environ
-cap = float(env['BUGFIX_CREDIT_CAP'])
-if not math.isfinite(cap) or cap <= 0:
-    raise SystemExit('A positive finite worker credit cap is required')
 path = Path('/tmp/gh-aw/sandbox/firewall/logs/api-proxy-logs/token-usage.jsonl')
 observed = 0.0
 uncertain = False
@@ -43,11 +40,11 @@ if observed > 0 and not uncertain:
 elif observed == 0 and env['BUGFIX_EXECUTION_OUTCOME'] == 'skipped':
     amount, source = 0.0, 'not_started'
 else:
-    amount, source = max(cap, observed), 'cap_reservation'
+    amount, source = observed, 'accounting_unavailable'
 with open(env['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
     output.write(f'aic={amount}\\nsource={source}\\n')
 with open(env['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
-    summary.write(f'\\nBugfix accounting: {amount:g} nominal credits ({source}).\\n')
+    summary.write(f'\\nBugfix observed accounting: {amount:g} nominal credits ({source}); no credit limit.\\n')
 '''
 
 CANONICAL_SCRIPT = '''import json
@@ -56,20 +53,17 @@ import os
 from pathlib import Path
 
 env = os.environ
-cap = float(env['BUGFIX_CREDIT_CAP'])
-if not math.isfinite(cap) or cap <= 0:
-    raise SystemExit('A positive finite worker credit cap is required')
 source = env['BUGFIX_ACCOUNTING_SOURCE']
 try:
     amount = float(env['BUGFIX_ACCOUNTED_CREDITS'])
     if not math.isfinite(amount) or amount < 0:
         raise ValueError('Invalid accounted credits')
 except ValueError:
-    amount, source = cap, 'cap_reservation'
+    amount, source = 0.0, 'accounting_unavailable'
 if env['BUGFIX_AGENT_RESULT'] == 'skipped':
     amount, source = 0.0, 'not_started'
 elif amount == 0 and source != 'not_started':
-    amount, source = cap, 'cap_reservation'
+    amount, source = 0.0, 'accounting_unavailable'
 record = {'aic': amount, 'accounting_source': source,
           'run_id': int(env['GITHUB_RUN_ID']), 'run_attempt': int(env['GITHUB_RUN_ATTEMPT'])}
 root = Path('/tmp/gh-aw')
@@ -86,13 +80,11 @@ def python_lines(script):
             '          PY']
 
 
-def steps(cap):
+def steps():
     agent = [AGENT_MARKER, '        id: bugfix-accounting', '        if: always()', '        env:',
-             f'          BUGFIX_CREDIT_CAP: "{cap}"',
              '          BUGFIX_EXECUTION_OUTCOME: ${{ steps.agentic_execution.outcome }}',
              '        run: |', *python_lines(ACCOUNT_SCRIPT)]
     conclusion = [CONCLUSION_MARKER, '        if: always()', '        env:',
-                  f'          BUGFIX_CREDIT_CAP: "{cap}"',
                   '          BUGFIX_ACCOUNTED_CREDITS: ${{ needs.agent.outputs.aic }}',
                   '          BUGFIX_ACCOUNTING_SOURCE: ${{ needs.agent.outputs.bugfix_accounting_source }}',
                   '          BUGFIX_AGENT_RESULT: ${{ needs.agent.result }}',
@@ -101,11 +93,10 @@ def steps(cap):
 
 
 def insert_accounting(path: Path, lines: list[str]) -> list[str]:
-    if path.name not in CAPS:
+    if path.name not in WORKERS:
         return lines
-    cap = CAPS[path.name]
-    agent, conclusion = steps(cap)
-    output = f"      aic: ${{{{ steps.bugfix-accounting.outputs.aic || '{cap}' }}}}"
+    agent, conclusion = steps()
+    output = "      aic: ${{ steps.bugfix-accounting.outputs.aic }}"
     source = '      bugfix_accounting_source: ${{ steps.bugfix-accounting.outputs.source }}'
     if AGENT_MARKER in lines:
         for block in (agent, conclusion):

@@ -13,9 +13,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from patch_gh_aw_budget_evidence import insert_budget_evidence
-from patch_gh_aw_accounting import insert_accounting
-from patch_gh_aw_daily_guard import insert_daily_guard
+from patch_gh_aw_accounting import WORKERS, insert_accounting
 
 
 CONFIG_WRITE = '> "${RUNNER_TEMP}/gh-aw/awf-config.json"'
@@ -117,7 +115,21 @@ DETECTION_REDACTION_STEP = [
 ]
 
 
-def insert_runtime_patch(lines: list[str]) -> tuple[list[str], int]:
+def endpoint_snippet(unlimited: bool = False) -> list[str]:
+    snippet = list(PATCH_SNIPPET)
+    if unlimited:
+        index = snippet.index('if not isinstance(api_proxy.get("maxAiCredits"), (int, float)) or api_proxy["maxAiCredits"] <= 0:')
+        snippet[index:index + 2] = [
+            'if "maxAiCredits" in api_proxy:',
+            '    raise SystemExit("This worker must have no AI credit limit")',
+            'if os.environ.get("GH_AW_MAX_AI_CREDITS", "").strip() not in ("", "-1"):',
+            '    raise SystemExit("This worker must not inherit an AI credit limit")',
+            'print("Bugfix AI credit policy verified: no per-run credit limit; no inherited credit limit")',
+        ]
+    return snippet
+
+
+def insert_runtime_patch(lines: list[str], unlimited: bool = False) -> tuple[list[str], int]:
     patched: list[str] = []
     insertions = 0
     for index, line in enumerate(lines):
@@ -131,7 +143,7 @@ def insert_runtime_patch(lines: list[str]) -> tuple[list[str], int]:
         indent = line[: len(line) - len(line.lstrip())]
         patched.extend(
             "" if snippet_line == "" else f"{indent}{snippet_line}"
-            for snippet_line in PATCH_SNIPPET
+            for snippet_line in endpoint_snippet(unlimited)
         )
         insertions += 1
     return patched, insertions
@@ -268,7 +280,7 @@ def patch_lockfile(path: Path) -> bool:
         return False
 
     lines = text.splitlines()
-    lines, snippet_count = insert_runtime_patch(lines)
+    lines, snippet_count = insert_runtime_patch(lines, unlimited=path.name in WORKERS)
 
     awf_patch_count = 0
     codex_patch_count = 0
@@ -284,8 +296,6 @@ def patch_lockfile(path: Path) -> bool:
     lines, reasoning_effort_count = insert_codex_reasoning_effort(lines)
     lines, detection_redaction_count = insert_detection_redaction(lines)
     lines = insert_runtime_probe(lines)
-    lines = insert_daily_guard(path, lines)
-    lines = insert_budget_evidence(path, lines)
     lines = insert_accounting(path, lines)
     lines = [line.rstrip() for line in lines]
     while lines and lines[-1] == "":

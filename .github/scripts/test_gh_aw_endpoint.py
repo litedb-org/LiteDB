@@ -10,19 +10,21 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import patch_gh_aw_codex_endpoint as patcher
 import redact_gh_aw_codex_artifacts as redactor
 
 
 class EndpointTests(unittest.TestCase):
-    def run_runtime_patch(self, endpoint: str, config: dict) -> tuple:
-        config.setdefault("apiProxy", {}).setdefault("maxAiCredits", 500)
+    def run_runtime_patch(self, endpoint: str, config: dict, unlimited: bool = False) -> tuple:
+        if not unlimited:
+            config.setdefault("apiProxy", {}).setdefault("maxAiCredits", 500)
         with tempfile.TemporaryDirectory() as temp:
             config_path = Path(temp) / "gh-aw" / "awf-config.json"
             config_path.parent.mkdir()
             config_path.write_text(json.dumps(config), encoding="utf-8")
-            script = "\n".join(patcher.PATCH_SNIPPET[2:-1])
+            script = "\n".join(patcher.endpoint_snippet(unlimited)[2:-1])
             result = subprocess.run(
                 [sys.executable, "-c", script],
                 env={**os.environ, "RUNNER_TEMP": temp, "CODEX_LB_BASE_URL": endpoint},
@@ -108,6 +110,19 @@ class EndpointTests(unittest.TestCase):
             path.write_text("# codex_harness.cjs\n", encoding="utf-8")
             with self.assertRaises(RuntimeError):
                 patcher.patch_lockfile(path)
+
+    def test_uncapped_worker_routes_without_restoring_a_default_credit_limit(self):
+        result, config = self.run_runtime_patch('https://provider.example.test', {}, unlimited=True)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertNotIn('maxAiCredits', config['apiProxy'])
+        self.assertIn('no per-run credit limit; no inherited credit limit', result.stdout)
+        for value in (0, 1000, 8000):
+            result, _ = self.run_runtime_patch('https://provider.example.test',
+                                              {'apiProxy': {'maxAiCredits': value}}, unlimited=True)
+            self.assertNotEqual(0, result.returncode)
+        with patch.dict(os.environ, {'GH_AW_MAX_AI_CREDITS': '2000'}):
+            result, _ = self.run_runtime_patch('https://provider.example.test', {}, unlimited=True)
+            self.assertNotEqual(0, result.returncode)
 
     def test_artifact_redaction_removes_endpoint_host_and_port(self):
         endpoint = "https://provider.example.test:8443/backend-api/codex"

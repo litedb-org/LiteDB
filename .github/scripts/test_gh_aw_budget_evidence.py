@@ -67,12 +67,12 @@ class BudgetEvidenceTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 insert_budget_evidence(path, broken)
 
-    def test_actual_worker_locks_emit_evidence_from_conclusion(self):
+    def test_current_uncapped_workers_do_not_emit_budget_deferrals(self):
         workflows = Path(__file__).resolve().parents[1] / 'workflows'
         for name in ('bugfix-fix.lock.yml', 'bugfix-validate.lock.yml'):
             lines = (workflows / name).read_text(encoding='utf-8').splitlines()
-            self.assertEqual(lines, insert_budget_evidence(Path(name), lines))
-            self.assertEqual(1, lines.count(MARKER))
+            self.assertNotIn(MARKER, lines)
+            self.assertNotIn('          name: bugfix-budget', lines)
 
 
 if __name__ == '__main__':

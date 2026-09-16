@@ -2,7 +2,9 @@
 
 from pathlib import Path
 
-from patch_gh_aw_accounting import CAPS
+# Retained only for replaying the former capped runtime. Current compilation
+# deliberately does not invoke this adapter after the user disabled credit caps.
+CAPS = {'bugfix-fix.lock.yml': 2000, 'bugfix-validate.lock.yml': 1000}
 
 
 MARKER = '            // Enforce daily accounting for dispatched bugfix workers.'

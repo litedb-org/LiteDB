@@ -58,7 +58,9 @@ concurrency:
   group: wholesale-bugfix-review-${{ inputs.issue }}-${{ inputs.role }}
   cancel-in-progress: false
 timeout-minutes: 30
-max-ai-credits: 1000
+# Explicitly disabled: omission would restore gh-aw's default credit budget.
+max-ai-credits: -1
+max-daily-ai-credits: -1
 max-turns: 80
 sandbox:
   agent:
