@@ -1,0 +1,189 @@
+{
+  "bootstrap_blob_sha": "29e3a758e7f7332466c90e4e235b8664cde19ac7",
+  "cooldown_until": 0,
+  "history": [
+    {
+      "action": "initialize",
+      "at": 1789547919.330688
+    }
+  ],
+  "issues": {
+    "1002": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "1159": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "1224": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "1444": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "1829": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2205": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2225": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2322": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2367": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2746": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2769": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2770": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2779": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2802": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2807": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2845": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2847": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2858": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2860": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2864": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2867": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2870": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2871": {
+      "status": "pending",
+      "tick_errors": 0
+    },
+    "2873": {
+      "status": "pending",
+      "tick_errors": 0
+    }
+  },
+  "kind": "hosted-bugfix-sweep",
+  "last_tick": {
+    "at": 1789547924.7613113,
+    "campaign": null,
+    "campaign_phase": null,
+    "counts": {
+      "accepted": 0,
+      "active": 0,
+      "deferred": 0,
+      "pending": 24
+    },
+    "issue": null,
+    "run_attempt": 1,
+    "run_id": 35074889935,
+    "run_ids": []
+  },
+  "paused": false,
+  "phase": "running",
+  "schema_version": 1,
+  "specification": {
+    "campaign_prefix": "hosted-v10",
+    "contract_sha256": {
+      "1002": "58ab3eab73e61f69a223668158261864cdab2cc6d60dbc0df27ac03b6651fd82",
+      "1159": "a972039a348832937f115575b61b3be5c552ad445e6ceae1b5a1d6c5565dfed2",
+      "1224": "1e58b345ad9c66c9431763ce6ea8e1dd2581ddc130ff269f1598293ba1736634",
+      "1444": "0b42d267f0bda20163b6bb23c28b711399ff3a10ad1558b7a0256d81c3fb91bd",
+      "1829": "6c210f455731c5815dc385fd754bb592c41b6199bad32d9e10e302d8dc4ce7af",
+      "2205": "ad55aae027b9d4cad4f119f2cb8523c339c79f2a5eb2574b37c4a1906aa323c6",
+      "2225": "9ddea7f16753649bcfb327c7b88a27d8d8afca9e1596a7a529c7988ca1620500",
+      "2322": "985ce67c21ced2b0aeddd87d4af3e01fa10f2d57a2ae181e609a85ccc2054062",
+      "2367": "a67d6686012de3bd378702d3289b9f035ff9f2338279897d77de70bd3a349513",
+      "2746": "0e9ef979ac5ae3bf573af11d4ef758b3cd60d12718915fba6b62e61e1418683e",
+      "2769": "4015d4c4533fd73eae746b10cbae443135ef46ba8d8b996eeb093c794bdad5cf",
+      "2770": "b5b62a1a9c0da7c0db06dff52dd459ab10cb9a1c4ba73807f644fe846159f5bf",
+      "2779": "2d8d6cad649f29981cb89c319a1adcc6372e997239113d5be94469d7e779b6ac",
+      "2802": "a30e92225755f3888a8f814f84b8c77030f75478328b6ffcb6f3e617efce2d7f",
+      "2807": "adaac3946525946f1126ee02b26e10071f00453e3919bc88548bd8bdba502c53",
+      "2845": "eb1049fb4a159991445c7e42468382cc039e0830dfdaf7c4b34f58c95a86163a",
+      "2847": "9f78d14ad7705877d8dec374b1aceb9c65c9af563659bcd545898699b6832474",
+      "2858": "15e08ae6c76726d9bb91f51d0763b308950777d9b331eac5ae472b932b5c47ec",
+      "2860": "b7e21bae320c76154e9ff8d9e3c3cf2753fd2eee99341c3250b2dd299416dd72",
+      "2864": "8c7cb9cab7a9f9bc78f028e2892baa7f5ac5d91ef600170060569bf738828659",
+      "2867": "cabc3ab41bc61f92fa5cf201593cadf915e14b12458963027d401f687b9c6157",
+      "2870": "a7f369ae780c6c19fe811e775ef217a8cb25ede68003d36741fe49027adeb6ef",
+      "2871": "50cfdf01f05a5eecd5a94e23832e2a2ead0dd3bc7e58f7b791cc0aad7cf65b3f",
+      "2873": "914fcebedb7e60a00367719cbb38399112eaeb22faed9ef15d79a0918e2ea2ec"
+    },
+    "issues": [
+      1002,
+      2802,
+      2770,
+      2867,
+      2845,
+      2847,
+      2779,
+      2205,
+      2871,
+      1159,
+      1224,
+      2858,
+      2864,
+      2769,
+      2225,
+      2322,
+      2873,
+      2746,
+      2807,
+      1829,
+      1444,
+      2860,
+      2870,
+      2367
+    ],
+    "max_runs": 40,
+    "scheduler_sha": "5a823c25057fa4eaffb8cdfbd546ae3f5c360f37",
+    "test_source_sha": "dd937719f7eee53c512f50ac604cab639bf42a4c",
+    "timeout_minutes": 180,
+    "workflow_ref": "automation/bugfix-runtime-v10",
+    "workflow_sha": "6b9cf0507ae2f341834682da1b1d268946548931"
+  },
+  "sweep": "hosted-v10-main"
+}
