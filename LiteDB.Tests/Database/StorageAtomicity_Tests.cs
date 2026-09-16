@@ -54,7 +54,7 @@ namespace LiteDB.Tests.Database
                 using var source = new InterruptedSource();
                 Action upload = () => storage.Upload(7, "new.bin", source, new BsonDocument { ["version"] = 2 });
                 upload.Should().Throw<IOException>().WithMessage("source interrupted");
-                db.Rollback().Should().BeFalse("a failed upload rolls back even a caller-owned transaction");
+                db.Rollback().Should().Be(callerTransaction, "a failed upload ends its own transaction but leaves a caller-owned one to the caller");
                 db.GetCollection("caller").Count().Should().Be(0);
                 using var restored = new MemoryStream();
                 storage.Download(7, restored);
