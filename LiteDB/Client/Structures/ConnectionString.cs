@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Text;
 using System.Text.RegularExpressions;
 using LiteDB.Engine;
 
@@ -94,28 +96,34 @@ namespace LiteDB
         {
             if (string.IsNullOrEmpty(connectionString)) throw new ArgumentNullException(nameof(connectionString));
 
+            var quotedValues = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
             // create a dictionary from string name=value collection
             if (LooksLikeKeyValueConnectionString(connectionString))
             {
-                _values.ParseKeyValue(connectionString);
+                _values.ParseKeyValue(connectionString, quotedValues);
             }
             else
             {
-                _values["filename"] = connectionString;
+                _values["filename"] = connectionString.Trim();
             }
 
             // setting values to properties
             this.Connection = _values.GetValue("connection", this.Connection);
-            this.Filename = _values.GetValue("filename", this.Filename).Trim();
+            this.Filename = _values.GetValue("filename", this.Filename);
 
             this.Password = _values.GetValue("password", this.Password);
 
-            if(this.Password == string.Empty)
+            // Keep the historical password= behavior while allowing an explicit
+            // password="" to preserve a programmatically assigned empty password.
+            if (this.Password == string.Empty && !quotedValues.Contains("password"))
             {
                 this.Password = null;
             }
 
-            this.InitialSize = _values.GetFileSize(@"initial size", this.InitialSize);
+            this.InitialSize = _values.ContainsKey("initialsize") ?
+                _values.GetFileSize("initialsize", this.InitialSize) :
+                _values.GetFileSize("initial size", this.InitialSize);
             if (_values.TryGetValue("memory profile", out var profile)) this.MemoryProfile = MemoryProfileDefaults.Parse(profile);
             this.CacheSize = _values.TryGetValue("cache size", out var cacheSizeText) ?
                 ParseCacheSize(cacheSizeText) : this.CacheSize;
@@ -147,6 +155,7 @@ namespace LiteDB
             return firstKey.Equals("filename", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("connection", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("password", StringComparison.OrdinalIgnoreCase) ||
+                firstKey.Equals("initialsize", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("initial size", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("readonly", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("upgrade", StringComparison.OrdinalIgnoreCase) ||
@@ -223,6 +232,157 @@ namespace LiteDB
             {
                 throw new NotImplementedException();
             }
+        }
+
+        /// <summary>
+        /// Returns a diagnostic representation of this connection string. If a
+        /// password is present, its value is redacted.
+        /// </summary>
+        public override string ToString() => BuildConnectionString(false);
+
+        /// <summary>
+        /// Returns a connection string that includes the plaintext password.
+        /// Do not log or otherwise expose the returned value.
+        /// </summary>
+        public string ToStringWithPassword() => BuildConnectionString(true);
+
+        /// <summary>
+        /// Returns a connection-string representation and optionally includes
+        /// the plaintext password.
+        /// </summary>
+        /// <param name="includePlaintextPassword">Whether to include the plaintext password.</param>
+        [Obsolete("Use ToStringWithPassword() to include the plaintext password.")]
+        public string ToString(bool includePlaintextPassword) =>
+            BuildConnectionString(includePlaintextPassword);
+
+        private string BuildConnectionString(bool includePlaintextPassword)
+        {
+            var bld = new StringBuilder();
+
+            if (!string.IsNullOrEmpty(Filename))
+            {
+                bld.Append("Filename=");
+                AppendQuotedString(bld, Filename);
+                bld.Append(';');
+            }
+
+            var fileNameLength = bld.Length;
+
+            if (Connection != ConnectionType.Direct)
+            {
+                bld.Append("Connection=")
+                    .Append(Connection)
+                    .Append(';');
+            }
+
+            if (Password != null)
+            {
+                bld.Append("Password=");
+                if (includePlaintextPassword)
+                {
+                    AppendQuotedString(bld, Password);
+                }
+                else
+                {
+                    bld.Append('*', 8);
+                }
+
+                bld.Append(';');
+            }
+
+            if (InitialSize != 0)
+            {
+                bld.Append("InitialSize=")
+                    .AppendFormat(CultureInfo.InvariantCulture, "{0:D}", InitialSize)
+                    .Append(';');
+            }
+
+            if (ReadOnly)
+            {
+                bld.Append("ReadOnly=")
+                    .Append(ReadOnly)
+                    .Append(';');
+            }
+
+            if (Collation != null)
+            {
+                bld.Append("Collation=")
+                    .Append(Collation)
+                    .Append(';');
+            }
+
+            if (Upgrade)
+            {
+                bld.Append("Upgrade=")
+                    .Append(Upgrade)
+                    .Append(';');
+            }
+
+            if (AutoRebuild)
+            {
+                bld.Append("Auto-Rebuild=")
+                    .Append(AutoRebuild)
+                    .Append(';');
+            }
+
+            if (MemoryProfile != MemoryProfile.Balanced)
+            {
+                bld.Append("Memory Profile=")
+                    .Append(MemoryProfile)
+                    .Append(';');
+            }
+
+            if (CacheSize != 0)
+            {
+                bld.Append("Cache Size=")
+                    .AppendFormat(CultureInfo.InvariantCulture, "{0:D}", CacheSize)
+                    .Append(';');
+            }
+
+            if (_transactionPageLimit.HasValue)
+            {
+                bld.Append("Transaction Pages=")
+                    .AppendFormat(CultureInfo.InvariantCulture, "{0:D}", _transactionPageLimit.Value)
+                    .Append(';');
+            }
+
+            if (bld.Length == fileNameLength &&
+                !string.IsNullOrEmpty(Filename) &&
+                Filename == Filename.Trim() &&
+                !Filename.Contains("="))
+            {
+                return Filename;
+            }
+
+            if (bld.Length > 0)
+            {
+                bld.Length--; // ;
+            }
+
+            return bld.ToString();
+        }
+
+        private static void AppendQuotedString(StringBuilder target, string str)
+        {
+            target.Append('"');
+
+            var backslashCount = 0;
+
+            foreach (var chr in str ?? string.Empty)
+            {
+                if (chr == '\\')
+                {
+                    backslashCount++;
+                    continue;
+                }
+
+                target.Append('\\', chr == '"' ? backslashCount * 2 + 1 : backslashCount);
+                target.Append(chr);
+                backslashCount = 0;
+            }
+
+            target.Append('\\', backslashCount * 2);
+            target.Append('"');
         }
     }
 }

@@ -1,5 +1,27 @@
 # Release notes: bounded memory management
 
+## `BsonValue` CLR collection compatibility
+
+`new BsonValue(object)` now supports CLR arrays, lists, and dictionaries as
+mutable BSON containers. `AsArray`, `AsDocument`, JSON conversion, comparison,
+and database persistence all use one stable BSON container for each wrapped
+value.
+
+Collection inputs are copied during construction. Later changes to the source
+list or dictionary are therefore not reflected in the `BsonValue`. Dictionary
+keys use case-insensitive BSON document semantics; when source keys differ only
+by case, the last value enumerated wins.
+
+`BsonValue.GetHashCode()` now agrees with `Equals()`: numerically equal values
+(`1`, `1L`, `1.0`, `1m`), binary values with the same bytes, UTC-equivalent
+dates, and arrays/documents with equal content share a hash code. Collection
+hash codes are content-based, so they change when the collection is mutated.
+
+Comparing a double that decimal cannot hold (NaN, infinity, or a magnitude of
+2^96 and above) against an `Int32`, `Int64` or `Decimal` used to throw
+`OverflowException` from `CompareTo`/`Equals`. Such a double now orders by its
+sign (NaN and negative values first) and never compares equal.
+
 ## Stream ownership change
 
 Streams supplied through `EngineSettings.DataStream`, `LogStream`, and
