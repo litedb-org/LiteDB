@@ -454,6 +454,31 @@ index-only aggregate replay, and discarded invalid keys. Exact vector coverage
 checks both small in-memory rankings and larger disk-spilling rankings. Full
 .NET 10 suite: 1,044 passed, seven existing skips; all Release targets build.
 
+## 17. Avoid document deduplication for the primary index
+
+Primary-index traversals have one scalar entry per document; IN seeks already
+deduplicate collated keys before seeking. They now skip the extra document-address
+set. Secondary and multikey index scans keep their existing deduplication. This
+reduces traversal overhead without changing index choice or query semantics.
+
+| Complete query | Before µs | After µs | Time reduction | Before B/query | After B/query |
+|---|---:|---:|---:|---:|---:|
+| Full primary count | 4,010.56 | 2,870.02 | 28.4% | 10,088,256 | 8,354,936 |
+| Primary range count | 2,297.02 | 1,708.56 | 25.6% | 5,198,552 | 4,360,976 |
+| Primary range, materialized documents | 30,258.55 | 30,103.57 | 0.5% | 21,027,325 | 20,189,749 |
+| Primary-key lookup | 25.50 | 25.23 | 1.1% | 27,257 | 26,985 |
+| Secondary count, control | 2,211.59 | 2,187.66 | 1.1% | 5,193,776 | 5,193,776 |
+| Primary scan with residual filter | 58,048.06 | 56,721.64 | 2.3% | 51,523,533 | 49,790,243 |
+
+The count cases expose index traversal cost, making this reduction measurable.
+Materialization dominates the document workloads; their small timing differences
+are inconclusive, though the allocation savings are consistent. Raw samples:
+`17-primary-*`. Every consumed-result checksum matches.
+
+Five focused tests cover duplicate IN/OR keys, collation, ranges, and retained
+multikey deduplication. Full .NET 8 suite: 1,049 passed, seven existing skips;
+all Release solution targets build.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -490,7 +515,7 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 1,015 passed on .NET 8 at step 13;
+- Full `LiteDB.Tests` with `tests.runsettings`: 1,049 passed on .NET 8 at step 17;
   1,044 passed on .NET 10 at step 16; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
