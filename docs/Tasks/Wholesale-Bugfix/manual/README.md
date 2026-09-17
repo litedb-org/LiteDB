@@ -1220,3 +1220,16 @@ rollback, subsequent writes and reopen pass. 28 focused date tests pass under
 America/New_York and UTC. Full suite: 1744 passed, 243 existing failures, 8 skipped;
 no regressions versus #2303. Production and net462 builds pass. All four fresh
 Sol high reviewers (`review_2357_w1_a` through `_d`) were clean.
+
+## #2549 — publish caller-owned streams on rebuild
+
+Rebuild checkpoints caller-owned streams under the existing exclusive gate before
+returning, leaving the stream and engine usable for subsequent writes. It does
+not replace or dispose caller-owned storage. Active transactions remain rejected.
+
+Validation: original reproduction fails before the fix; 32 focused cases pass,
+including repeated plain/encrypted publication, ownership and rollback. Full
+suite: 1749 passed, 241 existing failures, 8 skipped; no regressions versus #2357.
+The unrelated #2324 race happened to pass and remains pending. Production and
+net462 builds pass. All four fresh Sol high reviewers (`review_2549_w1_a`
+through `_d`) were clean.

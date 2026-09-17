@@ -866,10 +866,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2549_Tests.cs"
-      ]
+      ],
+      "validation": "32 focused cases pass; full suite 1749 passed, 241 existing failures, 8 skipped with no regressions versus #2357; production/net462 builds pass; four fresh Sol high reviews clean"
     },
     {
       "issue": 2578,
