@@ -41,7 +41,9 @@ namespace LiteDB.Engine
             if (ex is IOException ||
                 (ex is LiteException lex && lex.ErrorCode == LiteException.INVALID_DATAFILE_STATE))
             {
-                _exception = ex;
+                _exception = ex is IOException
+                    ? new IOException("Engine closed after an I/O failure. Dispose and reopen the database before retrying. " + ex.Message, ex)
+                    : ex;
 
                 _engine?.Close(ex);
 
