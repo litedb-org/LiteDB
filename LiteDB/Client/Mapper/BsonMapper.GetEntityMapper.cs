@@ -166,9 +166,22 @@ public partial class BsonMapper
             ? (BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
             : (BindingFlags.Public | BindingFlags.Instance);
 
-        members.AddRange(type.GetProperties(flags)
-            .Where(x => x.CanRead && x.GetIndexParameters().Length == 0)
-            .Select(x => x as MemberInfo));
+        // Reflection does not include inherited interface properties. Visit the
+        // most-derived contracts first so a redeclaration owns its member name.
+        var contracts = type.IsInterface
+            ? new[] { type }.Concat(type.GetInterfaces().OrderByDescending(x => x.GetInterfaces().Length)
+                .ThenBy(x => x.FullName, StringComparer.Ordinal))
+            : new[] { type };
+        var properties = contracts.SelectMany(contract => contract.GetProperties(flags))
+            .Where(x => x.CanRead && x.GetIndexParameters().Length == 0);
+        if (type.IsInterface)
+        {
+            var declared = properties.Distinct().ToArray();
+            properties = declared.Where(property => !declared.Any(other => other.Name == property.Name &&
+                other.DeclaringType != property.DeclaringType &&
+                other.DeclaringType.GetInterfaces().Contains(property.DeclaringType)));
+        }
+        members.AddRange(properties.Select(x => x as MemberInfo));
 
         var shouldIncludeFields = members.Count == 0
                                   && type.GetTypeInfo().IsValueType;
