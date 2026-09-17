@@ -26,7 +26,6 @@ namespace LiteDB.Engine
             {
                 _state.Validate();
                 if (_settings.ReadOnly) throw new LiteException(0, "Cannot rebuild a read-only database.");
-                if (string.IsNullOrEmpty(_settings.Filename)) return 0; // works only with os file
 
                 var collation = options.Collation ?? new Collation(this.Pragma(Pragmas.COLLATION));
 
@@ -41,6 +40,9 @@ namespace LiteDB.Engine
                     // Even CHECKPOINT=0 must leave a complete original data file
                     // if installation of the replacement fails or is interrupted.
                     this.Checkpoint();
+                    // Caller-owned streams cannot be replaced by a rebuilt file. Publish
+                    // committed WAL contents and keep the live engine on the same stream.
+                    if (string.IsNullOrEmpty(_settings.Filename)) return 0;
                     var errors = this.Close(releaseOwnership: false);
                     if (errors.Count > 0) throw new AggregateException("Unable to close the database before rebuild.", errors);
                 }
