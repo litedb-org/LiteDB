@@ -598,6 +598,34 @@ Eleven new tests cover source-dependent selectors, root/current references,
 rebinding, repeated enumeration, empty arrays, and collation. Full .NET 10 suite:
 1,084 passed, seven existing skips; all Release targets build.
 
+## 22. Execute scalar MAP selectors without per-element enumerators
+
+The shared IR already knows whether a MAP selector returns a single value.
+Scalar selectors now execute directly, avoiding a wrapper enumerator for each
+input element. Enumerable selectors retain their flattening behavior; arrays
+returned by scalar selectors remain single values. This benefits ordinary LINQ
+nested projections and SQL MAP without API changes.
+
+The same 4,000-document / 32-element dataset from step 21 is used, with an added
+enumerable-selector flattening control. Measurements compare against step 21.
+
+| Complete query | Before µs | After µs | Time reduction | Before B/query | After B/query |
+|---|---:|---:|---:|---:|---:|
+| LINQ nested projection | 71,084.06 | 62,413.82 | 12.2% | 50,867,114 | 34,482,658 |
+| LINQ nested filter and projection | 79,157.82 | 72,360.29 | 8.6% | 55,172,109 | 41,091,736 |
+| SQL bracket filter, control | 40,404.37 | 41,008.85 | -1.5% | 31,286,744 | 31,286,744 |
+| SQL nested sort, control | 52,361.91 | 53,124.13 | -1.5% | 33,621,632 | 33,621,632 |
+| SQL MAP with COUNT(*) in its selector | 51,501.60 | 43,030.93 | 16.4% | 54,776,240 | 38,392,312 |
+| SQL enumerable MAP, control | 93,972.74 | 94,023.08 | -0.1% | 86,746,240 | 86,746,240 |
+| Read array documents, control | 33,287.94 | 33,559.91 | -0.8% | 20,462,784 | 20,462,784 |
+
+Affected queries allocate **25.5–32.2% fewer bytes**, about 14.1–16.4 MB less per
+complete query. Controls retain identical allocation counts; their small timing
+differences are within host variation. All checksums match. Raw files: `22-map-*`.
+Nine new tests cover nulls, scalar array/document values, enumerable and nested
+flattening, source aggregates, deferred failures, and disposal after early exit.
+Full .NET 8 suite: 1,093 passed, seven existing skips; all Release targets build.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -634,7 +662,7 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 1,073 passed on .NET 8 at step 20;
+- Full `LiteDB.Tests` with `tests.runsettings`: 1,093 passed on .NET 8 at step 22;
   1,084 passed on .NET 10 at step 21; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.

@@ -15,12 +15,16 @@ namespace LiteDB
             var source = mapExpr.UseSource ? new[] { root } : Array.Empty<BsonDocument>();
             foreach (var item in input)
             {
-                // execute for each child value and except a first bool value (returns if true)
-                var values = mapExpr.Execute(source, root, item, collation, parameters);
-
-                foreach (var value in values)
+                if (mapExpr.IsScalar)
                 {
-                    yield return value;
+                    yield return mapExpr.ExecuteScalar(source, root, item, collation, parameters);
+                }
+                else
+                {
+                    foreach (var value in mapExpr.Execute(source, root, item, collation, parameters))
+                    {
+                        yield return value;
+                    }
                 }
             }
         }

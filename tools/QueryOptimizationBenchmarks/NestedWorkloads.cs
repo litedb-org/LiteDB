@@ -20,6 +20,7 @@ internal static class NestedWorkloads
         measure("nested-filter-sql", 5, i => Read("SELECT { values: ARRAY(Values[@ >= $.Offset]) } FROM arrays"));
         measure("nested-sort-sql", 5, i => Read("SELECT { values: ARRAY(SORT(Values => @)) } FROM arrays"));
         measure("nested-source-map-sql", 5, i => Read("SELECT { values: ARRAY(MAP(Values => @ + COUNT(*))) } FROM arrays"));
+        measure("nested-flatten-map-control", 5, i => Read("SELECT { values: ARRAY(MAP(Values => ITEMS([@,@ + 1]))) } FROM arrays"));
         measure("nested-array-control", 5, i => rows.Query().ToList().Sum(x => (long)x.Values.Sum()));
 
         long Read(string sql)
