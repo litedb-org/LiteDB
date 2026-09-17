@@ -12,6 +12,11 @@ internal static class Program
 
     private static void Main(string[] args)
     {
+        if (args.Length > 1 && args[1] == "textir-parallel")
+        {
+            ParsedExpressionParallel.Run(args[0]);
+            return;
+        }
         using var db = new LiteDatabase(":memory:");
         var rows = db.GetCollection<Row>("rows");
         rows.InsertBulk(Enumerable.Range(1, 20000).Select(i => new Row
@@ -50,6 +55,7 @@ internal static class Program
             LikeCharacterWorkloads.Run(db, Measure, plans, args.Length > 1 ? args[1] : null);
             LikeTerminalWorkloads.Run(Measure, args.Length > 1 ? args[1] : null);
             BooleanValueWorkloads.Run(db, Measure, plans, args.Length > 1 ? args[1] : null);
+            ParsedExpressionWorkloads.Run(db, Measure, args.Length > 1 ? args[1] : null);
             FieldCaseWorkloads.Run(db, Measure, plans);
             NodeLinkWorkloads.Run(db, Measure);
             MergeWorkloads.Run(db, Measure, plans, args.Length > 1 ? args[1] : null);

@@ -66,6 +66,11 @@ loses that distinction after logical rewrites.
 Persisted `CollectionIndex.BsonExpr` is lazy: ordinary reads use canonical text
 and existing index keys. Keep new-index validation eager, and evaluate through
 the property when maintaining index keys or executing vector expressions.
+Public text-expression reuse is process-wide and bounded by key count and length.
+Capture only unbound templates after successful parsing and EOF validation. Hits
+copy nodes/field sets and bind the current parameters; preserve explicitly null
+bindings. Tokenizer parser entry points must still consume their input. Bypass
+parsed-template reuse when tests disable compilation caching.
 SQL SELECT templates are database-local and bounded by statement count and length.
 Retain only a key on first use; promote recurring statements to unbound templates.
 Copy all SQL clauses and bind current parameters for every hit. Cache no physical

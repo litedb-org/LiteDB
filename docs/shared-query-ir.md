@@ -117,6 +117,25 @@ still parse; benefits apply to statements reused enough to remain resident.
 See step 36 in `query-optimization-benchmarks.md` for complete queries, allocation,
 and churn controls.
 
+## Automatic text-expression reuse
+
+Repeated `BsonExpression.Create(string, ...)` calls reuse parsed logical templates
+through a process-wide cache of at most 128 exact expression texts, each at most
+8,192 characters. This applies automatically to string predicates/projections and
+to helpers such as `FindById` that construct text expressions internally. First
+use keeps only the key; a repeat captures an unbound template, and later hits copy
+its nodes and field sets with the current caller's parameter document.
+
+The cache holds neither caller parameters nor physical plans or results. Binding
+preserves canonical Source, scalar/ANY metadata, volatility, and current collation.
+Explicitly null parameter documents retain their previous execution behavior.
+Malformed or oversized input follows the parser path; admission occurs only after
+successful parsing and the end-of-input check. Tokenizer-based parser entry points
+still consume their streams, and test scopes that disable compilation reuse also
+bypass this cache. The cache lock protects lookup/publication only; parsing,
+binding, and execution happen outside it. See step 40 of the benchmark report for
+hot queries, churn, and concurrent throughput measurements.
+
 ## Shared predicate optimization
 
 The engine inspects the same expression nodes for LINQ and SQL. Equality ORs on

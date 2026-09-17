@@ -1397,6 +1397,113 @@ Full .NET 8 and .NET 10 suites: **1,317 passed each**, seven existing skips each
 All Release targets build; 18 reproduction-runner tests and plain/encrypted
 vector compatibility checks pass.
 
+## 40. Reuse parsed text expressions with fresh bindings
+
+Repeated public `BsonExpression.Create(string, ...)` calls now reuse logical
+templates in a process-wide cache. This benefits ordinary string Where/Select
+calls and `FindById`, which builds a text predicate internally. The cache admits
+up to 128 exact texts of at most 8,192 characters. First use records only the key;
+a repeat captures an unbound template, and subsequent hits copy nodes and field
+sets while binding the current caller's parameters. Parsing, binding, and
+execution run outside the cache lock.
+
+Canonical Source, scalar/ANY metadata, volatility, explicitly null bindings, and
+current collation are preserved. No caller parameters, results, or physical plans
+are retained. Admission follows successful parsing and EOF validation, and the
+Tokenizer parser entry points still consume their input. Tests can bypass both
+compiled and parsed reuse for independent comparisons.
+
+These measurements compare step 39 (`68b3ebd1`) with this step using production
+assemblies and the same harness. The single-threaded run uses the standard
+20,000-row fixture, CPU 2, and before/after/after/before order with nine batches
+per process. Every query consumes its results; all paired checksums match. Raw
+samples are `40-textir-*`; run the `textir` filter to reproduce this table.
+
+| Workload | Before µs | After µs | Time reduction | Before B/op | After B/op | Allocation reduction |
+|---|---:|---:|---:|---:|---:|---:|
+| textir-find-by-id | 23.82 | 15.53 | 34.8% | 23149 | 20748 | 10.4% |
+| textir-point-named | 23.27 | 15.69 | 32.6% | 23125 | 20716 | 10.4% |
+| textir-point-positional | 24.11 | 15.46 | 35.9% | 23149 | 20748 | 10.4% |
+| textir-combined | 61.56 | 37.61 | 38.9% | 38276 | 32825 | 14.2% |
+| textir-bounded-range | 70.04 | 44.55 | 36.4% | 46453 | 41025 | 11.7% |
+| textir-projection | 118.37 | 87.74 | 25.9% | 93131 | 81159 | 12.9% |
+| textir-nested-projection | 54.76 | 16.54 | 69.8% | 35889 | 21270 | 40.7% |
+| textir-count | 54.59 | 33.26 | 39.1% | 60480 | 55048 | 9.0% |
+| textir-64-shapes | 23.55 | 16.04 | 31.9% | 23147 | 20738 | 10.4% |
+| textir-256-churn-control | 23.21 | 24.48 | -5.5% | 23147 | 23147 | 0.0% |
+| textir-literal-churn-control | 46.02 | 47.56 | -3.4% | 23410 | 23501 | -0.4% |
+| textir-long-text-control | 54.63 | 54.72 | -0.2% | 23111 | 23031 | 0.3% |
+| textir-prebound-control | 15.65 | 15.27 | 2.4% | 20716 | 20716 | 0.0% |
+| textir-linq-control | 23.36 | 21.55 | 7.7% | 21437 | 21437 | 0.0% |
+| textir-sql-control | 18.18 | 13.36 | 26.5% | 19780 | 19780 | 0.0% |
+| textir-scan-control | 50405.93 | 50680.42 | -0.5% | 36013699 | 36011144 | 0.0% |
+
+Repeated text-based database queries take **26–70% less time** in the main suite.
+`FindById` drops from **23.82 to 15.53 µs (34.8%)**. Named/positional point
+predicates improve by 33–36%, the combined predicate by 39%, the bounded range by
+36%, and the nested projection by 70%. Allocation falls by about 10% for point
+lookups and 41% for the nested projection. Reusing 64 expression texts takes 32%
+less time. The explicit prebound control is already near the resulting point
+lookup time; callers of these ordinary methods gain reuse automatically.
+
+Churn remains a tradeoff. The 256-comment working set deliberately exceeds cache
+capacity while keeping the compiled expression shape fixed; it is 5.5% slower in
+the main run with unchanged measured total allocation. The 256-literal workload
+is 3.4% slower and adds about 91 B/query. Oversized text and full-scan controls are
+effectively unchanged. The benefit requires enough reuse for templates to stay
+resident and should not be applied to one-off expressions.
+
+One SQL control process measures about 21.7 µs instead of the other before
+process's 14.1 µs, inflating its pooled apparent gain to 26.5%. This control has
+unchanged allocation and is not a claimed SQL optimization. Ordinary LINQ's
+control also varies. Longer isolated control measurements follow below; the main
+samples remain available rather than being discarded.
+
+The isolated runs use ten times as many iterations with the same fixed ID
+sequence, still in before/after/after/before order. Raw samples are
+`40-isolated-textir-*-control-*`; reproduce with the corresponding workload
+prefix and final scale argument `10`.
+
+| Workload | Before µs | After µs | Time reduction | Before B/op | After B/op | Allocation reduction |
+|---|---:|---:|---:|---:|---:|---:|
+| textir-sql-control | 13.21 | 13.47 | -1.9% | 19801 | 19801 | 0.0% |
+| textir-linq-control | 22.40 | 22.77 | -1.7% | 21457 | 21457 | 0.0% |
+| textir-256-churn-control | 22.83 | 23.91 | -4.7% | 23067 | 23147 | -0.3% |
+
+SQL and ordinary LINQ controls are within 2% in isolation, with unchanged
+allocation. Use these as the control estimates rather than the main suite's
+larger apparent gains. The churn penalty persists: 4.7% longer and 80 B/query
+more in isolation, consistent with the main run's roughly 5% latency cost.
+
+The parallel comparison uses eight workers, each with its own 20,000-row database,
+on CPUs 2,4,6,8. Every batch completes 1,024 point queries per worker. This exercises
+the process-wide cache across independent engines. The time column is wall time
+divided by all completed queries (a throughput measure), **not individual request
+latency**. Allocation uses process-wide `GC.GetTotalAllocatedBytes`, including
+worker scheduling. Each batch asserts the expected ID sum. Run `textir-parallel`;
+raw samples are `40-textir-parallel-*`.
+
+| Workload | Before µs | After µs | Time reduction | Before B/op | After B/op | Allocation reduction |
+|---|---:|---:|---:|---:|---:|---:|
+| textir-parallel-find-by-id | 8.65 | 6.18 | 28.5% | 21913 | 19592 | 10.6% |
+| textir-parallel-combined | 14.11 | 6.90 | 51.1% | 26753 | 21488 | 19.7% |
+| textir-parallel-prebound-control | 6.20 | 6.01 | 3.0% | 19560 | 19560 | 0.0% |
+
+Amortized time falls by 28.5% for FindById and 51.1% for combined predicates,
+equivalent to approximately **40% and 104% higher throughput** in this fixture.
+The prebound control changes by 3.0%. Allocations decrease by 11% and 20% for the
+two affected workloads. This run checks an eight-worker workload across four
+cores; it is not a claim about scaling to arbitrary worker or database counts.
+
+Twenty-seven tests cover admission and eviction, bounded text length, concurrent
+publication and bindings, collection of original parameter payloads and nodes,
+fresh-parser metadata/execution parity, mutable field sets and results,
+volatility, null parameters, parser and execution errors, tokenizer consumption,
+multikey predicates, live index changes/rebuilt collation, and computed-index
+maintenance. Full .NET 8 and .NET 10 suites: **1,344 passed each**, seven existing
+skips each. All Release targets build; 18 reproduction-runner tests and
+plain/encrypted vector compatibility checks pass.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -1433,8 +1540,8 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 1,317 passed on .NET 8 at step 39;
-  1,317 passed on .NET 10 at step 39; focused sort and query suites also pass on .NET 8. Each full
+- Full `LiteDB.Tests` with `tests.runsettings`: 1,344 passed on .NET 8 at step 40;
+  1,344 passed on .NET 10 at step 40; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file

@@ -23,6 +23,7 @@ namespace LiteDB
         #region Static method
 
         private static readonly CompiledExpressionCache _compiledCache = new CompiledExpressionCache(1000);
+        private static readonly ParsedExpressionCache _parsedCache = new ParsedExpressionCache();
 
         internal static int CompiledExpressionCount => _compiledCache.Count;
 
@@ -56,11 +57,20 @@ namespace LiteDB
         {
             if (string.IsNullOrWhiteSpace(expression)) throw new ArgumentNullException(nameof(expression));
 
+            var eligible = CacheEnabled && expression.Length <= ParsedExpressionCache.MaximumExpressionLength;
+            var repeated = false;
+            if (eligible && _parsedCache.TryGet(expression, out var template, out repeated))
+            {
+                return parameters == null ? template.WithoutParameters() : template.Bind(parameters);
+            }
+
             var tokenizer = new Tokenizer(expression);
 
             var expr = Create(tokenizer, BsonExpressionParserMode.Full, parameters);
 
             tokenizer.LookAhead().Expect(TokenType.EOF);
+
+            if (eligible) _parsedCache.Add(expression, expr, repeated);
 
             return expr;
         }
