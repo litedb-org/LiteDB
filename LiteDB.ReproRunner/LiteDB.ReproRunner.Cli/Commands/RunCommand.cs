@@ -86,7 +86,7 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
         var table = new Table()
             .Border(TableBorder.Rounded)
             .Expand()
-            .AddColumns("Repro", "Repro Version", "Reproduced", "Fixed", "Overall");
+            .AddColumns("Repro", "Repro Version", "Package check", "Source check", "Overall");
         var overallExitCode = 0;
         var plannedVariants = new List<RunVariantPlan>();
         var buildFailures = new List<BuildFailure>();
@@ -224,7 +224,7 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
                 var finalTable = new Table()
                     .Border(TableBorder.Rounded)
                     .Expand()
-                    .AddColumns("Repro", "Repro Version", "Reproduced", "Fixed", "Overall");
+                    .AddColumns("Repro", "Repro Version", "Package check", "Source check", "Overall");
 
                 foreach (var state in result.States.Values.OrderBy(s => s.ReproId))
                 {
@@ -468,7 +468,7 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
 
             var evaluation = _outcomeEvaluator.Evaluate(candidate.Manifest, packageResult, latestResult);
             var packageCell = FormatVariantCell(evaluation.Package);
-            var latestCell = FormatVariantCell(evaluation.Latest, false);
+            var latestCell = FormatVariantCell(evaluation.Latest);
             var overallState = ComputeOverallState(evaluation);
             var overallCell = FormatOverallCell(evaluation, overallState);
             var finalState = new ReproRowState(candidate.Manifest.Id, candidate.ReproVersionCell, packageCell, latestCell, overallCell);
@@ -586,16 +586,11 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
         };
     }
 
-    private static string FormatVariantCell(ReproVariantEvaluation evaluation, bool judgeOnMet = true)
+    internal static string FormatVariantCell(ReproVariantEvaluation evaluation)
     {
-        var symbol1 = evaluation.Result?.Reproduced switch
-        {
-            true => "[green]✅[/]",
-            false => "[red]❌[/]",
-            null => "[yellow]⚠️[/]"
-        };
-
-        return FormatVariantCell(evaluation, symbol1);
+        var symbol = evaluation.Result == null ? "[yellow]⚠️[/]" :
+            evaluation.Met ? "[green]✅[/]" : "[red]❌[/]";
+        return FormatVariantCell(evaluation, symbol);
     }
 
     private static string FormatVariantCell(ReproVariantEvaluation evaluation, string symbol)
@@ -792,7 +787,7 @@ internal sealed class RunCommand : AsyncCommand<RunCommandSettings>
                         var newTable = new Table()
                             .Border(TableBorder.Rounded)
                             .Expand()
-                            .AddColumns("Repro", "Repro Version", "Reproduced", "Fixed", "Overall");
+                            .AddColumns("Repro", "Repro Version", "Package check", "Source check", "Overall");
                         foreach (var state in refreshUpdate.RowStates.Values.OrderBy(s => s.ReproId))
                         {
                             newTable.AddRow(state.ReproId, state.ReproVersion, state.Reproduced, state.Fixed, state.Overall);

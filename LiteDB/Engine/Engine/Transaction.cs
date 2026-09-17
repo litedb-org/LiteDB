@@ -124,7 +124,7 @@ namespace LiteDB.Engine
             if (_header.Pragmas.Checkpoint > 0 &&
                 _disk.GetFileLength(FileOrigin.Log) >= (_header.Pragmas.Checkpoint * PAGE_SIZE))
             {
-                _walIndex.TryCheckpoint();
+                _walIndex.TryAutoCheckpoint();
             }
         }
 

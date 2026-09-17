@@ -58,27 +58,31 @@ namespace LiteDB.Engine
 #endif
                 this.ThrowIfDisposed();
 
-                transaction = new TransactionService(_header, _locker, _disk, _walIndex, _transactionPageLimit, this, queryOnly);
                 var enteredTransaction = false;
+                var owner = Environment.CurrentManagedThreadId;
                 try
                 {
-                    _transactions.Add(transaction);
+                    // Checkpoint can reset the WAL ID sequence only while holding
+                    // exclusive admission. Take our lease before reserving an ID.
                     _locker.EnterTransaction();
                     enteredTransaction = true;
+                    this.ThrowIfDisposed();
+                    transaction = new TransactionService(_header, _locker, _disk, _walIndex, _transactionPageLimit, this, queryOnly);
+                    _transactions.Add(transaction);
 
                     this.ThrowIfDisposed();
                     if (queryOnly == false) _slot.Value = transaction;
                 }
                 catch
                 {
-                    _transactions.Remove(transaction);
+                    if (transaction != null) _transactions.Remove(transaction);
                     try
                     {
-                        transaction.Dispose();
+                        transaction?.Dispose();
                     }
                     finally
                     {
-                        if (enteredTransaction) _locker.ExitTransaction(transaction.ThreadID);
+                        if (enteredTransaction) _locker.ExitTransaction(owner);
                     }
                     throw;
                 }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -20,6 +20,10 @@ namespace LiteDB.Engine
         private readonly TransactionGate _transaction = new TransactionGate();
         private readonly ConcurrentDictionary<string, CollectionLock> _collections = new ConcurrentDictionary<string, CollectionLock>(StringComparer.OrdinalIgnoreCase);
 
+#if TESTING
+        internal Action BeforeTransactionAdmission { get; set; }
+#endif
+
         internal LockService(EnginePragmas pragmas)
         {
             _pragmas = pragmas;
@@ -40,6 +44,9 @@ namespace LiteDB.Engine
         /// </summary>
         public void EnterTransaction()
         {
+#if TESTING
+            BeforeTransactionAdmission?.Invoke();
+#endif
             // if current thread already in exclusive mode, just exit
             if (_transaction.IsWriteLockHeld) return;
 
@@ -93,10 +100,10 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// Try enter in exclusive mode - if not possible, just exit with false (do not wait and no exceptions)
+        /// Try exclusive mode, optionally queueing briefly behind readers. Timeout returns false.
         /// If mustExit returns true, must call ExitExclusive after use
         /// </summary>
-        public bool TryEnterExclusive(out bool mustExit)
+        public bool TryEnterExclusive(out bool mustExit, bool waitForReaders = false, int milliseconds = 10)
         {
             // if already in exclusive mode return true but "enter" indicator must be false (do not exit)
             if (_transaction.IsWriteLockHeld)
@@ -106,14 +113,14 @@ namespace LiteDB.Engine
             }
 
             // if there is any open transaction, exit with false
-            if (_transaction.IsReadLockHeld || _transaction.CurrentReadCount > 0)
+            if (_transaction.IsReadLockHeld || (!waitForReaders && _transaction.CurrentReadCount > 0))
             {
                 mustExit = false;
                 return false;
             }
 
             // try enter in exclusive mode - but if not possible, just exit with false
-            if (_transaction.TryEnterWriteLock(10) == false)
+            if (_transaction.TryEnterWriteLock(milliseconds) == false)
             {
                 mustExit = false;
                 return false;
