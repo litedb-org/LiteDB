@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -37,9 +37,9 @@ namespace LiteDB.Engine
             _fileVersion = FileReaderV8.IsVersion(buffer) ? 8 : throw LiteException.InvalidDatabase();
         }
 
-        public long Rebuild(RebuildOptions options, Collation currentCollation = null, Action<FileOwnership> retainOwnership = null)
+        public long Rebuild(RebuildOptions options, Collation currentCollation = null, Action<FileOwnership> retainOwnership = null, bool replaceBackup = false)
         {
-            var backupFilename = FileHelper.GetSuffixFile(_settings.Filename, "-backup", true);
+            var backupFilename = FileHelper.GetSuffixFile(_settings.Filename, "-backup", !replaceBackup);
             var backupLogFilename = FileHelper.GetSuffixFile(FileHelper.GetLogFile(_settings.Filename), "-backup", true);
             var tempFilename = FileHelper.GetSuffixFile(_settings.Filename, "-temp", true);
 

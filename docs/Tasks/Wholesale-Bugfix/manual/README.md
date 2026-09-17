@@ -1448,3 +1448,21 @@ stamp while changing index semantics. Documentation now explicitly prohibits old
 version access to non-Ordinal nested indexes, even with identical culture/options,
 and explains the Ordinal migration path. A matching stamp does not detect that
 unsupported downgrade; no such guarantee is claimed.
+
+## #2450 — retain one current rebuild backup
+
+Explicit Rebuild replaces the canonical -backup file with the checkpointed
+pre-rebuild snapshot. Older numbered backups and unrelated files remain intact.
+Recovery and upgrade rebuilds retain their existing unique-backup behavior.
+Atomic replacement failure preserves the committed original database.
+
+Validation: both original regressions fail before the fix; 19 isolated focused
+cases and 55 integrated cases pass, including encrypted Direct/Shared rebuilds
+and failed replacement. Combined with pending #1162, the full suite has 1896
+passes, 216 existing failures and 8 skips, with no new failures versus #2859.
+Production and net462 compilation pass. File.Replace's documented existing-backup
+contract was checked; Windows runtime execution was not performed locally.
+
+Four fresh Sol-high reviewers (review_2450_w1_a through _d) found no substantive
+defects. Their test temporary-file cleanup nit was addressed and all five issue
+cases passed again.

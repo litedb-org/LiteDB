@@ -835,10 +835,11 @@
         "from fork"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2450_Tests.cs"
-      ]
+      ],
+      "validation": "19 isolated focused passes; 55 integrated focused passes; combined full suite 1896 passed / 216 existing failures / 8 skipped with no new failures; production/net462 builds pass. Four independent Sol-high reviewers clean except addressed test cleanup nit; explicit Rebuild replaces canonical backup, recovery retains unique backups."
     },
     {
       "issue": 2545,

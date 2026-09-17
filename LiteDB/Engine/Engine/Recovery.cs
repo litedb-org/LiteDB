@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -43,12 +43,12 @@ namespace LiteDB.Engine
                 _fileOwnership = FileOwnership.Acquire(_settings);
             }
         }
-        private long RebuildWithOwnership(RebuildService rebuilder, RebuildOptions options, Collation collation)
+        private long RebuildWithOwnership(RebuildService rebuilder, RebuildOptions options, Collation collation, bool replaceBackup = false)
         {
             var original = _fileOwnership;
             try
             {
-                return rebuilder.Rebuild(options, collation, replacement => _fileOwnership = replacement);
+                return rebuilder.Rebuild(options, collation, replacement => _fileOwnership = replacement, replaceBackup);
             }
             finally
             {
