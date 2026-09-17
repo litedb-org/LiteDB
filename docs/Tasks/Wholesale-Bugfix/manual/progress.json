@@ -2338,12 +2338,12 @@
         "priority: P3"
       ],
       "reproduction": "reproduced",
-      "disposition": "reproduced-pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2906_Tests.cs",
         "LiteDB.Tests/Query/VectorIndex_Tests.cs"
       ],
-      "validation": "The original pruning test failed in CI with zero matches; deterministic source regression confirms VectorIndexService still owns an unseeded private Random, so topology and the assertion remain process-dependent."
+      "validation": "Added an internal DEBUG/TESTING-only level RNG factory; production remains stochastic. Seeded pruning regression checks nonempty valid stored _id values and actual pruning. Repeated topology, visit count and results match for the same seed; another seed changes topology. VectorIndex_Tests: 24 pass, one existing skip on both net8.0 and net10.0; net481 test project builds with zero errors. Four fresh gpt-5.6-sol reviewers approved without findings."
     },
     {
       "issue": 2909,
