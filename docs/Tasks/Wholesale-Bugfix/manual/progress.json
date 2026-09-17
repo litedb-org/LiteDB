@@ -760,9 +760,9 @@
         "priority: P2"
       ],
       "reproduction": "artifact-only",
-      "disposition": "pending",
+      "disposition": "ignored-user",
       "tests": [],
-      "validation": "Pending user-provided SignPath organization/project/policy identifiers and credential secret location/name; no credential values requested."
+      "validation": "User explicitly requested ignoring #2320 on 2026-09-17; signing setup is outside this sweep."
     },
     {
       "issue": 2322,
@@ -1011,11 +1011,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "deferred-user",
       "tests": [
         "LiteDB.Tests/Issues/Issue2777_Tests.cs"
       ],
-      "validation": "Pending user choice for secure encryption format compatibility: secure new-file default, opt-in format, or defer. No dependent format change made."
+      "validation": "User requested separate feature planning for encryption-format changes on 2026-09-17; excluded from the manual bug-fix sweep."
     },
     {
       "issue": 2779,

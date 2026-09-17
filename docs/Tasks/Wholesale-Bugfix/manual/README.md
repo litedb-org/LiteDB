@@ -1762,3 +1762,8 @@ compatibility, #2093 missing-field defaults, and #2799 relaxed vs required durab
 flushes. #2796 is the requested draft PR #2911. V4 work remains deferred and its
 reviewed security candidate remains unpublished. The automated sweep is disabled
 and BUGFIX_SWEEP_ENABLED remains false.
+
+## Scope update (2026-09-17)
+
+The user requested ignoring #2320 and moving #2777 to separate feature planning.
+Only #2093 and #2799 remain pending behavior clarification in this sweep.
