@@ -1181,3 +1181,27 @@ Validation: 13 combined #2784/#2820 cases pass, including both original #2784
 fixtures. All four fresh Sol high closure reviewers (`review_2784_w1_a` through
 `_d`) confirmed the existing fix; no additional production change was needed.
 Corruption inside an otherwise valid header remains outside these two cases.
+
+## #2303 — constructor-bound members are populated once
+
+Mapped parameter constructors decode their bound members and suppress only those
+setters during subsequent base population. Unbound members still populate.
+Per-instance metadata belongs to the active construction scope, preserving full
+documents for virtual hooks and handling nested/decorated/reentrant factories.
+Cleanup covers constructor/decorator failures and object/dictionary population.
+Explicit, null, self-replacing and type-instantiator factories keep their existing
+precedence and population behavior; missing fields retain default arguments.
+
+Validation: original reproduction fails before the fix; 44 focused cases pass.
+Full suite: 1740 passed, 243 existing failures, 8 skipped; no regressions versus
+#2243. Production and net462 builds pass. Eight fresh four-Sol-high review waves
+addressed Index fallback, full-document hooks, null/missing fields, decorated
+factories, dictionary/construction cleanup, factory replacement and scope
+ownership. All final reviewers (`review_2303_w8_a` through `_d`) were clean.
+
+The proposed preservation of post-constructor member-decoder timing was refuted
+as incompatible with correct constructor arguments after removing second setters:
+DbRef/member decoders must run before construction for present bound fields. The
+virtual hook remains post-construction and retains the original full document;
+constructor and decoder side effects remain visible, as constructor side effects
+already were. No input cloning contract is introduced.
