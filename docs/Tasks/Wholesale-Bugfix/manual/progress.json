@@ -1166,10 +1166,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2798_Tests.cs"
-      ]
+      ],
+      "validation": "34 integrated mapper/constructor cases pass; full suite 1804 passed/233 existing failures/8 skipped, no regressions versus #2821; production/net462 pass; four fresh final Sol high reviews clean"
     },
     {
       "issue": 2800,

@@ -1298,3 +1298,23 @@ recovery/concurrency/WAL cases pass, including unchanged first-operation errors
 and updated subsequent-error contracts. Full suite: 1784 passed, 235 existing
 failures, 8 skipped; no regressions versus #2583. Production/net462 builds pass.
 Four fresh final Sol high reviewers (`review_2821_w2_a` through `_d`) were clean.
+
+## #2798 — resolve declared interface/abstract IDs from known schemas
+
+Query translation infers ID storage fields from successfully initialized concrete
+schemas already known to that mapper, requiring agreement. Explicit field/ID
+configuration and actual custom ID-selection overrides take precedence. Matching
+uses CLR interface/override slots, exact generic contracts before variance, and
+covariant override identity rather than hidden names. Failed/incomplete schemas
+are excluded without waiting or mutating the declared mapping.
+
+A fresh mapper must register concrete Entity<T> schemas or map concrete values
+before this inference is available; there is no assembly or persisted-schema scan.
+
+Validation: both original query/delete cases fail before the fix; 34 integrated
+mapper/constructor cases pass. Full suite: 1804 passed, 233 existing failures,
+8 skipped; no regressions versus #2821. Production/net462 builds pass. Seven
+fresh four-Sol-high review waves covered initialization, explicit provenance,
+slot identity and custom mapper policy. Final reviewers (`review_2798_w7_a`
+through `_d`) were clean. A claimed reflection ambiguity for a covariant mapper
+override was refuted by an executed net8 regression probe, retained as a test.
