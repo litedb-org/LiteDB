@@ -51,7 +51,7 @@ namespace LiteDB.Engine
             throw new NotSupportedException();
         }
 
-        public override IEnumerable<IndexNode> Run(CollectionPage col, IndexService indexer)
+        public override IEnumerable<IndexNode> Run(CollectionPage col, IndexService indexer, bool forUpdate)
         {
             _scoreAddress = PageAddress.Empty;
             var results = _limit.HasValue
