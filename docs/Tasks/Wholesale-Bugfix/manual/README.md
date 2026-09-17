@@ -1249,3 +1249,18 @@ known failures (#2822 and SQL trailing-clause validation). Full suite: 1755 pass
 varied adversely versus #2549. #1834 also passes and awaits a separate closure
 audit. Production/net462 builds pass. All four fresh Sol high reviewers
 (`review_2790_w1_a` through `_d`) were clean.
+
+## #2792 — capture a coherent snapshot publication boundary
+
+Snapshot creation reads the WAL version and collection page ID together under
+the header monitor used by commit publication. It loads the page after releasing
+that monitor. Its admitted transaction prevents checkpoint clearing meanwhile.
+
+Validation: the new controlled publication-gap regression fails on baseline;
+19 integrated focused cases pass. The dedicated reader thread must actually
+block before the paused writer can publish, avoiding a scheduling-only signal.
+Full suite: 1756 passed, 239 existing failures, 8 skipped; no regressions versus
+#2790. Production/net462 builds pass. Reviews narrowed the critical section to
+metadata and strengthened the thread handshake. Four fresh final Sol high reviews
+(`review_2792_w4_a` through `_d`) were clean; wave 4 replaced a partially failed
+review wave after reviewer service disconnections.
