@@ -51,6 +51,10 @@ namespace LiteDB.Tests.QueryTest
             collection.Count(x => scores.Contains(x["score"].AsInt32)).Should().Be(1);
             collection.Count(x => x["meta"] == meta).Should().Be(1);
 
+            // the documented way to compare against values taken from application objects
+            var wanted = new List<int> { 2, 7 };
+            collection.Count(x => wanted.Contains(x["meta"]["a"].AsInt32)).Should().Be(1);
+
             // reading a scalar member of a captured object is evaluated before serialization
             collection.Count(x => x["score"] > options.Minimum).Should().Be(1);
         }
