@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
@@ -9,15 +8,17 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace LiteDB.AotTests
+using static LiteDB.AotTests.GeneratorIncrementalityAssert;
+
+namespace LiteDB.AotTests;
+
+[TestClass]
+public sealed class GeneratorIncrementalityTests
 {
-    [TestClass]
-    public sealed class GeneratorIncrementalityTests
+    [TestMethod]
+    public void BsonSourceGenerator_EquivalentCompilation_CachesPipelineAndSourceOutput()
     {
-        [TestMethod]
-        public void BsonSourceGenerator_EquivalentCompilation_CachesPipelineAndSourceOutput()
-        {
-            const string source = """
+        const string source = """
                 using LiteDB;
 
                 namespace IncrementalConsumer;
@@ -30,36 +31,42 @@ namespace LiteDB.AotTests
                 }
                 """;
 
-            var compilation = CSharpCompilation.Create(
-                assemblyName: "IncrementalConsumer",
-                syntaxTrees: [CSharpSyntaxTree.ParseText(source, path: "IncrementalRecord.cs")],
-                references: GetMetadataReferences(),
-                options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-            var driverOptions = new GeneratorDriverOptions(
-                disabledOutputs: IncrementalGeneratorOutputKind.None,
-                trackIncrementalGeneratorSteps: true);
-            GeneratorDriver driver = CSharpGeneratorDriver.Create(
-                generators: [new BsonSourceGenerator().AsSourceGenerator()],
-                driverOptions: driverOptions);
+        var compilation = CSharpCompilation.Create(
+            assemblyName: "IncrementalConsumer",
+            syntaxTrees: [CSharpSyntaxTree.ParseText(source, path: "IncrementalRecord.cs")],
+            references: GetMetadataReferences(),
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        var driverOptions = new GeneratorDriverOptions(
+            disabledOutputs: IncrementalGeneratorOutputKind.None,
+            trackIncrementalGeneratorSteps: true);
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators: [new BsonSourceGenerator().AsSourceGenerator()],
+            driverOptions: driverOptions);
 
-            driver = driver.RunGenerators(compilation);
-            var firstResult = driver.GetRunResult().Results.Single();
+        driver = driver.RunGenerators(compilation);
+        var firstResult = driver.GetRunResult().Results.Single();
 
-            driver = driver.RunGenerators(compilation.Clone());
-            var secondResult = driver.GetRunResult().Results.Single();
+        driver = driver.RunGenerators(compilation.Clone());
+        var secondResult = driver.GetRunResult().Results.Single();
 
-            Assert.AreEqual(
-                firstResult.GeneratedSources.Single().SourceText.ToString(),
-                secondResult.GeneratedSources.Single().SourceText.ToString());
-            AssertCacheable(secondResult.TrackedSteps, "BsonSourceGenerator.Models");
-            AssertCacheable(secondResult.TrackedSteps, "BsonSourceGenerator.CollectedModels");
-            AssertCacheable(secondResult.TrackedOutputSteps, "SourceOutput");
+        Assert.AreEqual(
+            firstResult.GeneratedSources.Single().SourceText.ToString(),
+            secondResult.GeneratedSources.Single().SourceText.ToString());
+        foreach (var stepName in ModelStepNames)
+        {
+            AssertEquivalentOutputs(firstResult.TrackedSteps, secondResult.TrackedSteps, stepName);
+            AssertCacheable(secondResult.TrackedSteps, stepName);
         }
 
-        [TestMethod]
-        public void BsonSourceGenerator_ModelChange_InvalidatesPipelineAndChangesSourceOutput()
-        {
-            const string originalSource = """
+        AssertCacheable(secondResult.TrackedOutputSteps, "SourceOutput");
+        AssertNoRoslynObjects(firstResult.TrackedSteps);
+        AssertNoRoslynObjects(secondResult.TrackedSteps);
+    }
+
+    [TestMethod]
+    public void BsonSourceGenerator_ModelChange_InvalidatesPipelineAndChangesSourceOutput()
+    {
+        const string originalSource = """
                 using LiteDB;
 
                 [BsonSourceGenerated]
@@ -68,7 +75,7 @@ namespace LiteDB.AotTests
                     public int Id { get; set; }
                 }
                 """;
-            const string modifiedSource = """
+        const string modifiedSource = """
                 using LiteDB;
 
                 [BsonSourceGenerated]
@@ -79,71 +86,103 @@ namespace LiteDB.AotTests
                 }
                 """;
 
-            var originalTree = CSharpSyntaxTree.ParseText(originalSource, path: "IncrementalRecord.cs");
-            var compilation = CSharpCompilation.Create(
-                assemblyName: "IncrementalConsumer",
-                syntaxTrees: [originalTree],
-                references: GetMetadataReferences(),
-                options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-            var driverOptions = new GeneratorDriverOptions(
-                disabledOutputs: IncrementalGeneratorOutputKind.None,
-                trackIncrementalGeneratorSteps: true);
-            GeneratorDriver driver = CSharpGeneratorDriver.Create(
-                generators: [new BsonSourceGenerator().AsSourceGenerator()],
-                driverOptions: driverOptions);
+        var originalTree = CSharpSyntaxTree.ParseText(originalSource, path: "IncrementalRecord.cs");
+        var compilation = CSharpCompilation.Create(
+            assemblyName: "IncrementalConsumer",
+            syntaxTrees: [originalTree],
+            references: GetMetadataReferences(),
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        var driverOptions = new GeneratorDriverOptions(
+            disabledOutputs: IncrementalGeneratorOutputKind.None,
+            trackIncrementalGeneratorSteps: true);
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators: [new BsonSourceGenerator().AsSourceGenerator()],
+            driverOptions: driverOptions);
 
-            driver = driver.RunGenerators(compilation);
-            var originalResult = driver.GetRunResult().Results.Single();
-            var modifiedTree = CSharpSyntaxTree.ParseText(modifiedSource, path: "IncrementalRecord.cs");
+        driver = driver.RunGenerators(compilation);
+        var originalResult = driver.GetRunResult().Results.Single();
+        var modifiedTree = CSharpSyntaxTree.ParseText(modifiedSource, path: "IncrementalRecord.cs");
 
-            driver = driver.RunGenerators(compilation.ReplaceSyntaxTree(originalTree, modifiedTree));
-            var modifiedResult = driver.GetRunResult().Results.Single();
+        driver = driver.RunGenerators(compilation.ReplaceSyntaxTree(originalTree, modifiedTree));
+        var modifiedResult = driver.GetRunResult().Results.Single();
 
-            var originalGeneratedSource = originalResult.GeneratedSources.Single().SourceText.ToString();
-            var modifiedGeneratedSource = modifiedResult.GeneratedSources.Single().SourceText.ToString();
-            Assert.AreNotEqual(originalGeneratedSource, modifiedGeneratedSource);
-            StringAssert.Contains(modifiedGeneratedSource, "MemberName = \"Score\"");
-            AssertRecomputed(modifiedResult.TrackedSteps, "BsonSourceGenerator.Models");
-            AssertRecomputed(modifiedResult.TrackedSteps, "BsonSourceGenerator.CollectedModels");
-            AssertRecomputed(modifiedResult.TrackedOutputSteps, "SourceOutput");
-        }
-
-        private static void AssertCacheable(
-            IReadOnlyDictionary<string, System.Collections.Immutable.ImmutableArray<IncrementalGeneratorRunStep>> steps,
-            string name)
+        var originalGeneratedSource = originalResult.GeneratedSources.Single().SourceText.ToString();
+        var modifiedGeneratedSource = modifiedResult.GeneratedSources.Single().SourceText.ToString();
+        Assert.AreNotEqual(originalGeneratedSource, modifiedGeneratedSource);
+        StringAssert.Contains(modifiedGeneratedSource, "MemberName = \"Score\"");
+        foreach (var stepName in ModelStepNames)
         {
-            Assert.IsTrue(steps.TryGetValue(name, out var namedSteps), $"Tracked generator step '{name}' was not recorded.");
-
-            var reasons = namedSteps
-                .SelectMany(step => step.Outputs)
-                .Select(output => output.Reason)
-                .ToArray();
-
-            Assert.IsTrue(reasons.Length > 0, $"Tracked generator step '{name}' produced no outputs.");
-            Assert.IsTrue(
-                reasons.All(reason => reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged),
-                $"Tracked generator step '{name}' was recomputed: {string.Join(", ", reasons)}.");
+            AssertRecomputed(modifiedResult.TrackedSteps, stepName);
         }
 
-        private static void AssertRecomputed(
-            IReadOnlyDictionary<string, System.Collections.Immutable.ImmutableArray<IncrementalGeneratorRunStep>> steps,
-            string name)
-        {
-            Assert.IsTrue(steps.TryGetValue(name, out var namedSteps), $"Tracked generator step '{name}' was not recorded.");
-            Assert.IsTrue(
-                namedSteps.SelectMany(step => step.Outputs).Any(output => output.Reason == IncrementalStepRunReason.Modified),
-                $"Tracked generator step '{name}' did not observe the model change.");
-        }
+        AssertRecomputed(modifiedResult.TrackedOutputSteps, "SourceOutput");
+    }
 
-        private static MetadataReference[] GetMetadataReferences()
-        {
-            var trustedPlatformAssemblies = (string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!;
-            var runtimeReferences = trustedPlatformAssemblies
-                .Split(Path.PathSeparator)
-                .Select(path => MetadataReference.CreateFromFile(path));
-            var liteDbReference = MetadataReference.CreateFromFile(typeof(BsonSourceGeneratedAttribute).Assembly.Location);
+    [TestMethod]
+    public void BsonSourceGenerator_OneModelChange_ReusesUnchangedModelAnalysis()
+    {
+        const string unchangedSource = """
+            using LiteDB;
 
-            return runtimeReferences.Append(liteDbReference).ToArray();
-        }
+            [BsonSourceGenerated]
+            public sealed class UnchangedRecord
+            {
+                public int Id { get; set; }
+            }
+            """;
+        const string originalChangedSource = """
+            using LiteDB;
+
+            [BsonSourceGenerated]
+            public sealed class ChangedRecord
+            {
+                public int Id { get; set; }
+            }
+            """;
+        const string modifiedChangedSource = """
+            using LiteDB;
+
+            [BsonSourceGenerated]
+            public sealed class ChangedRecord
+            {
+                public int Id { get; set; }
+                public string Name { get; set; } = string.Empty;
+            }
+            """;
+
+        var unchangedTree = CSharpSyntaxTree.ParseText(unchangedSource, path: "UnchangedRecord.cs");
+        var changedTree = CSharpSyntaxTree.ParseText(originalChangedSource, path: "ChangedRecord.cs");
+        var compilation = CSharpCompilation.Create(
+            assemblyName: "IncrementalConsumer",
+            syntaxTrees: [unchangedTree, changedTree],
+            references: GetMetadataReferences(),
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        var driverOptions = new GeneratorDriverOptions(
+            disabledOutputs: IncrementalGeneratorOutputKind.None,
+            trackIncrementalGeneratorSteps: true);
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators: [new BsonSourceGenerator().AsSourceGenerator()],
+            driverOptions: driverOptions);
+
+        driver = driver.RunGenerators(compilation);
+        var modifiedTree = CSharpSyntaxTree.ParseText(modifiedChangedSource, path: "ChangedRecord.cs");
+        driver = driver.RunGenerators(compilation.ReplaceSyntaxTree(changedTree, modifiedTree));
+        var result = driver.GetRunResult().Results.Single();
+
+        AssertContainsStableAndModifiedOutputs(result.TrackedSteps, "BsonSourceGenerator.Models");
+        AssertContainsStableAndModifiedOutputs(result.TrackedSteps, "BsonSourceGenerator.ValidModels");
+        AssertRecomputed(result.TrackedSteps, "BsonSourceGenerator.CollectedModels");
+        AssertRecomputed(result.TrackedOutputSteps, "SourceOutput");
+    }
+
+    private static MetadataReference[] GetMetadataReferences()
+    {
+        var trustedPlatformAssemblies = (string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!;
+        var runtimeReferences = trustedPlatformAssemblies
+            .Split(Path.PathSeparator)
+            .Select(path => MetadataReference.CreateFromFile(path));
+        var liteDbReference = MetadataReference.CreateFromFile(typeof(BsonSourceGeneratedAttribute).Assembly.Location);
+
+        return runtimeReferences.Append(liteDbReference).ToArray();
     }
 }

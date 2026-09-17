@@ -8,10 +8,12 @@ using LiteDB.Generated;
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
+using static LiteDB.AotTests.SourceGeneratedMappingTestHelper;
+
 namespace LiteDB.AotTests
 {
     [TestClass]
-    public sealed partial class SourceGeneratedMappingTests
+    public sealed class SourceGeneratedMappingTests
     {
         [TestMethod]
         public void GetExpression_EvaluatesStaticMembersWithoutRuntimeCodeGeneration()

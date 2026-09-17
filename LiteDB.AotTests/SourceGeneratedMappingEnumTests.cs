@@ -5,28 +5,11 @@ using LiteDB.Generated;
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
+using static LiteDB.AotTests.SourceGeneratedMappingTestHelper;
+
 namespace LiteDB.AotTests
 {
-    public enum SignedWideState : long
-    {
-        BeyondInt32 = 5_000_000_000L
-    }
-
-    public enum UnsignedWideState : ulong
-    {
-        NearMaximum = ulong.MaxValue - 3
-    }
-
-    [BsonSourceGenerated]
-    public sealed class WideEnumRecord
-    {
-        public int Id { get; set; }
-        public SignedWideState Signed { get; set; }
-        public UnsignedWideState Unsigned { get; set; }
-        public SignedWideState? NullableSigned { get; set; }
-    }
-
-    public sealed partial class SourceGeneratedMappingTests
+    public sealed class SourceGeneratedMappingEnumTests
     {
         [TestMethod]
         public void GetGeneratedCollection_RoundTripsWideEnumsAsInt64()

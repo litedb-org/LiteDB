@@ -4,11 +4,12 @@ using System.IO;
 using System.Linq;
 
 using LiteDB.Generated;
+using static LiteDB.AotSmokeTests.SmokeAssert;
 
 #nullable enable
 namespace LiteDB.AotSmokeTests
 {
-    internal static partial class Program
+    internal static class Program
     {
         private static void Main(string[] args)
         {
@@ -246,9 +247,9 @@ namespace LiteDB.AotSmokeTests
                 "The source-generated Native AOT C1 automatic map did not persist a configured null string.");
             Console.WriteLine("        Passed: automatic execution map persisted and materialized configured BSON null.");
 
-            RunGeneratedScalarWriteScenarios(database);
-            RunGeneratedValueScenarios(database);
-            RunGeneratedBoundaryScenarios(database);
+            GeneratedScalarWriteScenarios.Run(database);
+            GeneratedValueScenarios.Run(database);
+            GeneratedBoundaryScenarios.Run(database);
         }
     }
 }

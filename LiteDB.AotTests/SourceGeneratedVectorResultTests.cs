@@ -6,9 +6,11 @@ using LiteDB.Vector;
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
+using static LiteDB.AotTests.SourceGeneratedMappingTestHelper;
+
 namespace LiteDB.AotTests
 {
-    public sealed partial class SourceGeneratedMappingTests
+    public sealed class SourceGeneratedVectorResultTests
     {
         [TestMethod]
         public void GetGeneratedCollection_VectorResults_UseGeneratedDeserializer()

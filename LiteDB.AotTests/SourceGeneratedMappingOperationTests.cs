@@ -8,9 +8,11 @@ using LiteDB.Generated;
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
+using static LiteDB.AotTests.SourceGeneratedMappingTestHelper;
+
 namespace LiteDB.AotTests
 {
-    public sealed partial class SourceGeneratedMappingTests
+    public sealed class SourceGeneratedMappingOperationTests
     {
         [TestMethod]
         public void GetGeneratedCollection_AutomaticC2ScalarMap_ExecutesExplicitIdAndBatchWritesWithoutMapperFallback()
@@ -349,84 +351,5 @@ namespace LiteDB.AotTests
             }
         }
 
-        private static void AssertCanonicalDateTimeOffsetValue(BsonValue value, DateTimeOffset expected)
-        {
-            Assert.IsTrue(value.IsDateTime);
-            Assert.AreEqual(GetCanonicalDateTimeOffsetTicks(expected), value.AsDateTime.ToUniversalTime().Ticks);
-        }
-
-        private static void AssertCanonicalDateTimeOffset(DateTimeOffset expected, DateTimeOffset actual)
-        {
-            Assert.AreEqual(GetCanonicalDateTimeOffsetTicks(expected), actual.UtcTicks);
-            Assert.AreEqual(TimeSpan.Zero, actual.Offset);
-        }
-
-        private static long GetCanonicalDateTimeOffsetTicks(DateTimeOffset value) =>
-            value == DateTimeOffset.MinValue || value == DateTimeOffset.MaxValue
-                ? DateTime.SpecifyKind(value.UtcDateTime, DateTimeKind.Unspecified).ToUniversalTime().Ticks
-                : value.UtcTicks - (value.UtcTicks % TimeSpan.TicksPerMillisecond);
-
-        private static BsonMapper CreateGeneratedMapper()
-        {
-            var mapper = new BsonMapper();
-            LiteDbGeneratedMappings.Register(mapper);
-            return mapper;
-        }
-
-        private static GeneratedEntityMap<PhaseBGeneratedRecord> CreatePhaseBExecutionMap()
-        {
-            return new GeneratedEntityMap<PhaseBGeneratedRecord>(
-                record => new BsonDocument
-                {
-                    ["_id"] = record.Id,
-                    [nameof(PhaseBGeneratedRecord.Name)] = record.Name,
-                    [nameof(PhaseBGeneratedRecord.Score)] = record.Score
-                },
-                document => new PhaseBGeneratedRecord
-                {
-                    Id = document["_id"].AsInt32,
-                    Name = document[nameof(PhaseBGeneratedRecord.Name)].AsString,
-                    Score = document[nameof(PhaseBGeneratedRecord.Score)].AsInt64
-                });
-        }
-
-        private static string GetDatabasePath()
-        {
-            return Path.Combine(Path.GetTempPath(), $"litedb-source-generated-test-{Guid.NewGuid():N}.db");
-        }
-
-        private sealed class RecordingEngine : ILiteEngine
-        {
-            public int DataAccessCount { get; private set; }
-
-            private T Access<T>()
-            {
-                DataAccessCount++;
-                throw new AssertFailedException("Generated configuration validation must run before engine access.");
-            }
-
-            public IBsonDataReader Query(string collection, Query query) => Access<IBsonDataReader>();
-            public int Insert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId) => Access<int>();
-            public int Update(string collection, IEnumerable<BsonDocument> docs) => Access<int>();
-            public int UpdateMany(string collection, BsonExpression transform, BsonExpression predicate) => Access<int>();
-            public int Upsert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId) => Access<int>();
-            public int Delete(string collection, IEnumerable<BsonValue> ids) => Access<int>();
-            public int DeleteMany(string collection, BsonExpression predicate) => Access<int>();
-            public int Checkpoint() => Access<int>();
-            public long Rebuild(RebuildOptions options) => Access<long>();
-            public bool BeginTrans() => Access<bool>();
-            public bool Commit() => Access<bool>();
-            public bool Rollback() => Access<bool>();
-            public bool DropCollection(string name) => Access<bool>();
-            public bool RenameCollection(string name, string newName) => Access<bool>();
-            public bool EnsureIndex(string collection, string name, BsonExpression expression, bool unique) => Access<bool>();
-            public bool EnsureVectorIndex(string collection, string name, BsonExpression expression, LiteDB.Vector.VectorIndexOptions options) => Access<bool>();
-            public bool DropIndex(string collection, string name) => Access<bool>();
-            public BsonValue Pragma(string name) => Access<BsonValue>();
-            public bool Pragma(string name, BsonValue value) => Access<bool>();
-            public void Dispose()
-            {
-            }
-        }
     }
 }

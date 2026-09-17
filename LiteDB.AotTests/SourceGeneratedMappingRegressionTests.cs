@@ -5,9 +5,11 @@ using LiteDB.Generated;
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
+using static LiteDB.AotTests.SourceGeneratedMappingTestHelper;
+
 namespace LiteDB.AotTests
 {
-    public sealed partial class SourceGeneratedMappingTests
+    public sealed class SourceGeneratedMappingRegressionTests
     {
         [TestMethod]
         public void GetGeneratedCollection_AssignsAutoIdsToNullableIdTypes()
@@ -69,23 +71,5 @@ namespace LiteDB.AotTests
                 File.Delete(path);
             }
         }
-    }
-
-    [BsonSourceGenerated]
-    public sealed class NullableIntIdRecord
-    {
-        public int? Id { get; set; }
-    }
-
-    [BsonSourceGenerated]
-    public sealed class NullableLongIdRecord
-    {
-        public long? Id { get; set; }
-    }
-
-    [BsonSourceGenerated]
-    public sealed class NullableGuidIdRecord
-    {
-        public Guid? Id { get; set; }
     }
 }
