@@ -1086,10 +1086,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2790_Tests.cs"
-      ]
+      ],
+      "validation": "43 focused cases pass isolated; integrated broad filter 97 pass and 2 known failures; full suite 1755 pass/239 known failures/8 skipped with only known #2324 intermittent race varying; production/net462 builds pass; four fresh Sol high final reviews clean"
     },
     {
       "issue": 2792,

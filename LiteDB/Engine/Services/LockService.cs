@@ -17,7 +17,7 @@ namespace LiteDB.Engine
     {
         private readonly EnginePragmas _pragmas;
 
-        private readonly ReaderWriterLockSlim _transaction = new ReaderWriterLockSlim(LockRecursionPolicy.NoRecursion);
+        private readonly TransactionGate _transaction = new TransactionGate();
         private readonly ConcurrentDictionary<string, CollectionLock> _collections = new ConcurrentDictionary<string, CollectionLock>(StringComparer.OrdinalIgnoreCase);
 
         internal LockService(EnginePragmas pragmas)
@@ -49,20 +49,9 @@ namespace LiteDB.Engine
         /// <summary>
         /// Exit transaction read lock
         /// </summary>
-        public void ExitTransaction()
+        public void ExitTransaction(int ownerThreadId)
         {
-            // if current thread are in reserved mode, do not exit transaction (will be exit from ExitExclusive)
-            if (_transaction.IsWriteLockHeld) return;
-            
-            //This can be called when a lock has either been released by the slim or somewhere else therefore there is no lock to release from ExitReadLock()
-            if (_transaction.IsReadLockHeld)
-            {
-                try
-                {
-                    _transaction.ExitReadLock();
-                }
-                catch { }
-            }
+            _transaction.ExitReadLock(ownerThreadId);
         }
 
         /// <summary>

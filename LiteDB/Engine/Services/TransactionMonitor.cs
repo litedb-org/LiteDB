@@ -57,17 +57,13 @@ namespace LiteDB.Engine
 #endif
                 this.ThrowIfDisposed();
 
-                var alreadyLock = _transactions.FindForThread(Environment.CurrentManagedThreadId) != null;
                 transaction = new TransactionService(_header, _locker, _disk, _walIndex, _transactionPageLimit, this, queryOnly);
                 var enteredTransaction = false;
                 try
                 {
                     _transactions.Add(transaction);
-                    if (alreadyLock == false)
-                    {
-                        _locker.EnterTransaction();
-                        enteredTransaction = true;
-                    }
+                    _locker.EnterTransaction();
+                    enteredTransaction = true;
 
                     this.ThrowIfDisposed();
                     if (queryOnly == false) _slot.Value = transaction;
@@ -81,7 +77,7 @@ namespace LiteDB.Engine
                     }
                     finally
                     {
-                        if (enteredTransaction) _locker.ExitTransaction();
+                        if (enteredTransaction) _locker.ExitTransaction(transaction.ThreadID);
                     }
                     throw;
                 }
@@ -98,15 +94,16 @@ namespace LiteDB.Engine
         /// Dispose and remove transaction from monitor
         /// without releasing thread lock
         /// </summary>
-        private void RemoveTransaction(TransactionService transaction)
+        private void RemoveTransaction(TransactionService transaction, out bool removed)
         {
+            removed = false;
             try
             {
                 transaction.Dispose();
             }
             finally
             {
-                _transactions.Remove(transaction);
+                removed = _transactions.Remove(transaction);
             }
         }
 
@@ -115,17 +112,14 @@ namespace LiteDB.Engine
         /// </summary>
         public void ReleaseTransaction(TransactionService transaction)
         {
+            var removed = false;
             try
             {
-                this.RemoveTransaction(transaction);
+                this.RemoveTransaction(transaction, out removed);
             }
             finally
             {
-                // Removal must precede this check, including when disposal fails.
-                if (_transactions.FindForThread(Environment.CurrentManagedThreadId) == null)
-                {
-                    _locker.ExitTransaction();
-                }
+                if (removed) _locker.ExitTransaction(transaction.ThreadID);
                 if (!transaction.QueryOnly)
                 {
                     ENSURE(_slot.Value == transaction, "current thread must contains transaction parameter");

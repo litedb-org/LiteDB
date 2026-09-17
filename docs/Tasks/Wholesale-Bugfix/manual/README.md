@@ -1233,3 +1233,19 @@ suite: 1749 passed, 241 existing failures, 8 skipped; no regressions versus #235
 The unrelated #2324 race happened to pass and remains pending. Production and
 net462 builds pass. All four fresh Sol high reviewers (`review_2549_w1_a`
 through `_d`) were clean.
+
+## #2790 — release query leases after thread handoff
+
+Each transaction owns a counted read lease that cursor cleanup can release on
+another thread. Removing its registry entry releases that lease exactly once;
+other readers and foreign explicit transactions retain their own leases.
+Exclusive operations retain thread ownership and writer preference.
+
+Validation: original reproduction fails before the fix; 43 focused cases pass,
+including foreign disposal/completion, duplicate disposal, await and Parallel
+query handoffs. The integrated broad transaction filter passes 97 tests with two
+known failures (#2822 and SQL trailing-clause validation). Full suite: 1755 passed,
+239 existing failures, 8 skipped; only the known intermittent #2324 outcome
+varied adversely versus #2549. #1834 also passes and awaits a separate closure
+audit. Production/net462 builds pass. All four fresh Sol high reviewers
+(`review_2790_w1_a` through `_d`) were clean.
