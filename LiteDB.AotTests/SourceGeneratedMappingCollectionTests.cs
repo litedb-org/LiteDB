@@ -12,6 +12,7 @@ using static LiteDB.AotTests.SourceGeneratedMappingTestHelper;
 
 namespace LiteDB.AotTests
 {
+    [TestClass]
     public sealed class SourceGeneratedMappingCollectionTests
     {
         [TestMethod]
