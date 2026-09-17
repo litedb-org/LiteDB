@@ -10,8 +10,6 @@
 # runtime-mapper                Reflection-based entity mapping constructs closed generic collection types, or
 #                               System.Index, at run time. These APIs carry RequiresDynamicCode and are outside the
 #                               Native AOT contract (docs/AOT.md); source-generated collections replace them.
-# file-storage                  LiteStorage maps LiteFileInfo<TFileId> through the runtime mapper. Annotated with
-#                               RequiresUnreferencedCode and RequiresDynamicCode; not usable as Native AOT today.
 assertion-library	LiteDB.Tests.BsonValue_Types.BsonVector_Tests.VectorSim_TopK_ReturnsCorrectOrder
 assertion-library	LiteDB.Tests.Issues.Issue2376_Tests.Byte_enum_array_round_trips_through_database
 assertion-library	LiteDB.Tests.Issues.Issue2376_Tests.Byte_enum_array_serializes_with_enum_as_integer
@@ -28,11 +26,7 @@ assertion-library	LiteDB.Tests.QueryTest.Issue2881_VectorPredicate_Tests.Scalar_
 assertion-library	LiteDB.Tests.QueryTest.Issue2881_VectorPredicate_Tests.Scalar_filter_and_api_threshold_both_apply[1]
 assertion-library	LiteDB.Tests.QueryTest.VectorIndex_Tests.VectorIndex_PersistsNodes_WhenDocumentsChange
 assertion-library	LiteDB.Tests.VectorSearchResult_Tests.BsonScalarProjection_PreservesOrdinaryDocumentShape
-file-storage	LiteDB.Tests.Database.Storage_Tests.Storage_Upload_Download
-file-storage	LiteDB.Tests.Issues.Issue2458_Tests.NegativeSeekFails
-file-storage	LiteDB.Tests.Issues.Issue2458_Tests.SeekPastFileSucceds
-file-storage	LiteDB.Tests.Issues.Issue2458_Tests.SeekShortChunks
-file-storage	LiteDB.Tests.Issues.Issue2506_Tests.Test
+runtime-mapper	LiteDB.Tests.Database.Storage_Mapping_Tests.Stored_File_Document_Matches_The_Reflection_Mapper
 runtime-mapper	LiteDB.Tests.Issues.Issue1929_Tests.Deserialize_Should_Handle_System_Index_With_Lower_Case_Delimiter
 runtime-mapper	LiteDB.Tests.Issues.Issue1929_Tests.Deserialize_Should_Handle_System_Index_With_Object_Type_Discriminator
 runtime-mapper	LiteDB.Tests.Issues.Issue1929_Tests.FindById_Should_Deserialize_System_Index_Property

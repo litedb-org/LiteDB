@@ -26,6 +26,7 @@ namespace LiteDB.AotSmokeTests
             WithDatabaseFile(RunConcurrentWriters);
             RunVectorSearch();
             RunDocumentLinq();
+            RunFileStorage();
         }
 
         private static void RunPersistenceAndTransactions(string path)
@@ -211,6 +212,40 @@ namespace LiteDB.AotSmokeTests
                 "A document collection mapped a captured application object at run time.");
 
             Console.WriteLine("        Passed: document LINQ with captured variables, and rejection of a captured application object.");
+        }
+
+        private static void RunFileStorage()
+        {
+            Console.WriteLine("  [4.9] Upload, query, download, and delete files through file storage.");
+            using var stream = new MemoryStream();
+            using var database = new LiteDatabase(stream);
+
+            // More than one chunk, so reading has to stitch chunks back together.
+            var payload = Enumerable.Range(0, 600_000).Select(i => (byte)(i % 251)).ToArray();
+            var storage = database.FileStorage;
+            storage.Upload("reports/2024.bin", "2024.bin", new MemoryStream(payload), new BsonDocument { ["year"] = 2024 });
+            storage.Upload("notes/readme.txt", "readme.txt", new MemoryStream(new byte[] { 1, 2, 3 }));
+
+            var report = storage.FindById("reports/2024.bin");
+            using var downloaded = new MemoryStream();
+            storage.Download("reports/2024.bin", downloaded);
+
+            var minimumLength = 1000L;
+            Report("file info", $"{report.Filename} {report.MimeType} length={report.Length} chunks={report.Chunks} year={report.Metadata["year"].AsInt32}");
+            Report("download is identical", downloaded.ToArray().SequenceEqual(payload));
+            Report("files by typed predicate", storage.Find(x => x.Length > minimumLength && x.Filename.EndsWith(".bin")).Select(x => x.Id).ToArray());
+            Report("files by metadata", storage.Find(x => x.Metadata["year"] == 2024).Select(x => x.Id).ToArray());
+            Report("all files", storage.FindAll().Select(x => x.Id).OrderBy(x => x, StringComparer.Ordinal).ToArray());
+
+            var numbered = database.GetStorage<int>("numberedFiles", "numberedChunks");
+            numbered.Upload(7, "seven.txt", new MemoryStream(new byte[] { 7 }));
+            Report("integer file id exists", numbered.Exists(7));
+
+            Require(storage.Delete("reports/2024.bin") && storage.Exists("reports/2024.bin") == false, "File storage did not delete the file.");
+            Report("chunks left after delete", database.GetCollection("_chunks").Count());
+            Require(downloaded.ToArray().SequenceEqual(payload) && report.Chunks > 1, "File storage did not round-trip a multi-chunk file.");
+
+            Console.WriteLine("        Passed: file storage upload, typed and metadata queries, download, custom id type, and delete.");
         }
 
         private static void WithDatabaseFile(Action<string> scenario)

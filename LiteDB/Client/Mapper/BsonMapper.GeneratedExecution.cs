@@ -47,6 +47,46 @@ namespace LiteDB
             return map;
         }
 
+        /// <summary>
+        /// Registers a mapping for one of LiteDB's own models. Unlike the public registration methods this is
+        /// idempotent, because every storage instance on the same mapper asks for it.
+        /// </summary>
+        internal void TryRegisterGeneratedMapping<T>(EntityMapper entity, GeneratedEntityMap<T> map)
+        {
+            _generatedEntities.TryAdd(typeof(T), entity);
+            _generatedExecutionMaps.TryAdd(typeof(T), map);
+        }
+
+        /// <summary>
+        /// Converts a file storage id without runtime model mapping.
+        /// </summary>
+        internal BsonValue SerializeFileId(object id)
+        {
+            try
+            {
+                return this.SerializeGeneratedConstant(id);
+            }
+            catch (NotSupportedException)
+            {
+                throw UnsupportedFileId(id.GetType());
+            }
+        }
+
+        /// <summary>
+        /// Converts a stored file storage id back without runtime model mapping.
+        /// </summary>
+        internal T DeserializeFileId<T>(BsonValue value)
+        {
+            if (_customDeserializer.TryGetValue(typeof(T), out var custom)) return (T)custom(value);
+            if (GeneratedScalarConverter.CanConvert(typeof(T))) return GeneratedScalarConverter.Convert<T>(value);
+
+            throw UnsupportedFileId(typeof(T));
+        }
+
+        private static NotSupportedException UnsupportedFileId(Type type) => new NotSupportedException(
+            $"File storage cannot use '{type.FullName}' as its file id. File storage never maps application types at runtime: " +
+            "use a BSON-native id type or an enum, or register a converter with BsonMapper.RegisterType.");
+
         internal bool TryGetGeneratedExecutionMap<T>(out GeneratedEntityMap<T> map)
         {
             if (_generatedExecutionMaps.TryGetValue(typeof(T), out var registeredMap) && registeredMap is GeneratedEntityMap<T> typedMap)
@@ -139,7 +179,28 @@ namespace LiteDB
                 return ((IGeneratedEntityMap)map).Serialize(value, options);
             }
 
-            if (value is IEnumerable items && value is not IDictionary)
+            if (value is IDictionary dictionary)
+            {
+                // The ordinary mapper converts keys through TypeDescriptor, which is not trimming safe. String
+                // keys need no conversion and are what a BSON document has anyway.
+                var document = new BsonDocument();
+
+                foreach (DictionaryEntry entry in dictionary)
+                {
+                    if (entry.Key is not string key)
+                    {
+                        throw new NotSupportedException(
+                            $"A LINQ expression captured a dictionary with keys of type '{entry.Key.GetType().FullName}'. " +
+                            "Source-generated and BsonDocument collections convert dictionaries with string keys only.");
+                    }
+
+                    document[key] = this.SerializeGeneratedConstant(entry.Value, depth);
+                }
+
+                return document;
+            }
+
+            if (value is IEnumerable items)
             {
                 var array = new BsonArray();
 
@@ -160,6 +221,11 @@ namespace LiteDB
         internal GeneratedExecutionOptions ValidateGeneratedExecutionConfiguration<T>(GeneratedEntityMap<T> map)
         {
             if (map == null) throw new ArgumentNullException(nameof(map));
+
+            if (map.IsConfigurationIndependent)
+            {
+                return new GeneratedExecutionOptions(SerializeNullValues, TrimWhitespace, EmptyStringToNull, EnumAsInteger);
+            }
 
             if (((SerializeNullValues ||
                     TrimWhitespace == false ||

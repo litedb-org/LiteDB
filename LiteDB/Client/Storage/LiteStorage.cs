@@ -10,8 +10,6 @@ namespace LiteDB
     /// <summary>
     /// Storage is a special collection to store files and streams.
     /// </summary>
-    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
-    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
     public class LiteStorage<TFileId> : ILiteStorage<TFileId>
     {
         private readonly ILiteDatabase _db;
@@ -21,7 +19,11 @@ namespace LiteDB
         public LiteStorage(ILiteDatabase db, string filesCollection, string chunksCollection)
         {
             _db = db;
-            _files = db.GetCollection<LiteFileInfo<TFileId>>(filesCollection);
+
+            // LiteFileInfo is LiteDB's own model and has a hand-written mapping, so file storage needs no runtime
+            // member discovery and works trimmed and as Native AOT.
+            LiteFileInfoMapping<TFileId>.EnsureRegistered(db.Mapper);
+            _files = db.GetGeneratedCollection<LiteFileInfo<TFileId>>(filesCollection);
             _chunks = db.GetCollection(chunksCollection);
         }
 
@@ -34,7 +36,7 @@ namespace LiteDB
         {
             if (id == null) throw new ArgumentNullException(nameof(id));
 
-            var fileId = _db.Mapper.Serialize(typeof(TFileId), id);
+            var fileId = _db.Mapper.SerializeFileId(id);
 
             var file = _files.FindById(fileId);
 
@@ -59,7 +61,7 @@ namespace LiteDB
 
             foreach (var file in query.ToEnumerable())
             {
-                var fileId = _db.Mapper.Serialize(typeof(TFileId), file.Id);
+                var fileId = _db.Mapper.SerializeFileId(file.Id);
 
                 file.SetReference(fileId, _files, _chunks);
 
@@ -80,7 +82,7 @@ namespace LiteDB
         /// <summary>
         /// Find all files that match with predicate expression.
         /// </summary>
-        public IEnumerable<LiteFileInfo<TFileId>> Find(Expression<Func<LiteFileInfo<TFileId>, bool>> predicate) => this.Find(_db.Mapper.GetExpression(predicate));
+        public IEnumerable<LiteFileInfo<TFileId>> Find(Expression<Func<LiteFileInfo<TFileId>, bool>> predicate) => this.Find(_db.Mapper.GetGeneratedExpression(predicate));
 
         /// <summary>
         /// Find all files inside file collections
@@ -94,7 +96,7 @@ namespace LiteDB
         {
             if (id == null) throw new ArgumentNullException(nameof(id));
 
-            var fileId = _db.Mapper.Serialize(typeof(TFileId), id);
+            var fileId = _db.Mapper.SerializeFileId(id);
 
             return _files.Exists("_id = @0", fileId);
         }
@@ -109,7 +111,7 @@ namespace LiteDB
         public LiteFileStream<TFileId> OpenWrite(TFileId id, string filename, BsonDocument metadata = null)
         {
             // get _id as BsonValue
-            var fileId = _db.Mapper.Serialize(typeof(TFileId), id);
+            var fileId = _db.Mapper.SerializeFileId(id);
 
             // checks if file exists
             var file = this.FindById(id);
@@ -232,7 +234,7 @@ namespace LiteDB
             if (id == null) throw new ArgumentNullException(nameof(id));
 
             // get Id as BsonValue
-            var fileId = _db.Mapper.Serialize(typeof(TFileId), id);
+            var fileId = _db.Mapper.SerializeFileId(id);
 
             // remove file reference
             var deleted = _files.Delete(fileId);

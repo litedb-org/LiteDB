@@ -82,6 +82,24 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
+        public void GeneratedLinq_SerializesCapturedStringKeyedDictionaries()
+        {
+            var mapper = new NoRuntimeMappingMapper();
+            LiteDbGeneratedMappings.Register(mapper);
+
+            using var database = new LiteDatabase(new MemoryStream(), mapper);
+            var collection = database.GetGeneratedCollection<DynamicDictionaryRecord>("captured_dictionary");
+            collection.Insert(new DynamicDictionaryRecord { Fields = new Dictionary<string, object?> { ["kind"] = "a", ["level"] = 2 } });
+            collection.Insert(new DynamicDictionaryRecord { Fields = new Dictionary<string, object?> { ["kind"] = "b" } });
+
+            var wanted = new Dictionary<string, object?> { ["kind"] = "a", ["level"] = 2 };
+            var nonStringKeys = new Dictionary<int, string> { [1] = "a" };
+
+            Assert.AreEqual(1, collection.Count(x => x.Fields == wanted));
+            Assert.ThrowsException<NotSupportedException>(() => collection.Count(x => x.Fields.Equals(nonStringKeys)));
+        }
+
+        [TestMethod]
         public void GeneratedLinq_RejectsACapturedApplicationObject()
         {
             using var database = new LiteDatabase(new MemoryStream(), SourceGeneratedMappingTestHelper.CreateGeneratedMapper());

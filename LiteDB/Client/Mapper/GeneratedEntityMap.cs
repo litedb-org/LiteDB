@@ -47,6 +47,12 @@ namespace LiteDB
         }
 
         /// <summary>
+        /// Set for LiteDB's own models, whose maps fix every field name and therefore do not depend on naming
+        /// conventions, member callbacks, or type registrations of the mapper they are registered with.
+        /// </summary>
+        internal bool IsConfigurationIndependent { get; set; }
+
+        /// <summary>
         /// Gets whether this map supports the generated execution scalar option vector.
         /// </summary>
         public bool SupportsScalarOptions { get; }
