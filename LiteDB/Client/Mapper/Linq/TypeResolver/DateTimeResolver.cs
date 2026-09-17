@@ -29,6 +29,7 @@ namespace LiteDB
                     break;
 
                 case "ToUniversalTime": return c => c.Call("TO_UTC", c.Object());
+                case "ToLocalTime": return c => c.Call("TO_LOCAL", c.Object());
                 // static methods
                 case "Parse": return c => c.Call("DATETIME", c.Argument(0));
                 case "Equals": return c => c.Binary("=", c.Object(), c.Argument(0));
@@ -54,8 +55,6 @@ namespace LiteDB
                 case "Minute": return c => c.Call("MINUTE", c.Object());
                 case "Second": return c => c.Call("SECOND", c.Object());
                 case "Date": return c => c.Call("DATETIME", c.Call("YEAR", c.Object()), c.Call("MONTH", c.Object()), c.Call("DAY", c.Object()));
-                case "ToLocalTime": return c => c.Call("TO_LOCAL", c.Object());
-                case "ToUniversalTime": return c => c.Call("TO_UTC", c.Object());
             }
 
             return null;

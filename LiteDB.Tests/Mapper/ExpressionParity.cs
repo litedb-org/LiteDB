@@ -5,6 +5,15 @@ namespace LiteDB.Tests.Mapper
 {
     internal static class ExpressionParity
     {
+        internal static BsonExpression WithSelectorDependency(BsonExpression expected)
+        {
+            // Explicit SQL MAP/FILTER retains its historical input-only metadata.
+            // These LINQ cases must additionally account for selector parameters.
+            expected.IsImmutable.Should().BeTrue();
+            expected.IsImmutable = false;
+            return expected;
+        }
+
         internal static void AssertMetadata(BsonExpression actual, BsonExpression expected)
         {
             actual.Source.Should().Be(expected.Source);

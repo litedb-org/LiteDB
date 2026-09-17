@@ -48,6 +48,8 @@ LINQ and SQL share `BsonExpressionFactory`; LINQ bindings must construct nodes
 without tokenizing templates or parsing generated text. Preserve canonical
 `Source` because persisted indexes and the compiled-delegate cache still use it.
 Nested evaluators must receive the caller's parameter document explicitly.
+LINQ MAP/FILTER nodes must also propagate selector immutability and source usage;
+explicit SQL MAP/FILTER retains its historical input-only metadata for those flags.
 Embed unbound nested templates in compiled delegates so caches cannot retain a
 previous caller's parameter document or large serialized values.
 Use `DirectTranslationScope` in differential tests to forbid tokenizer creation

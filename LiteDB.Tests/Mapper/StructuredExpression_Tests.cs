@@ -16,6 +16,9 @@ namespace LiteDB.Tests.Mapper
             var minimum = 21;
             var prefix = "Al";
             var ids = new[] { 1, 3 };
+            Expression<Func<Person, object>> mapped = p => p.Ages.Select(a => a + minimum).ToArray();
+            Expression<Func<Person, object>> filtered = p => p.Ages.Where(a => a >= minimum).ToArray();
+            Expression<Func<Person, object>> projected = p => new { p.Id, p.Name, Ages = p.Ages.Where(a => a >= minimum).ToArray() };
             var expressions = new Expression<Func<Person, object>>[]
             {
                 p => p.Age >= minimum && p.Name.StartsWith(prefix),
@@ -25,15 +28,15 @@ namespace LiteDB.Tests.Mapper
                 p => p.Age + p.Id * 2,
                 p => !p.Active,
                 p => p.Active && p.Age > minimum,
-                p => p.Ages.Select(a => a + minimum).ToArray(),
-                p => p.Ages.Where(a => a >= minimum).ToArray(),
+                mapped,
+                filtered,
                 p => p.Ages.Where(a => a > p.Age).Count(),
                 p => p.Ages.Any(a => a >= minimum),
                 p => p.Ages.All(a => a < minimum),
                 p => p.Ages.ElementAt(1),
                 p => p.Ages.ElementAt(minimum + 1),
                 p => p.Ages.ElementAt(p.Id),
-                p => new { p.Id, p.Name, Ages = p.Ages.Where(a => a >= minimum).ToArray() },
+                projected,
                 p => new Person { Id = p.Id, Name = p.Name, Ages = new[] { p.Age, minimum } },
                 p => p.CreatedOn.Year,
                 p => new DateTime(p.CreatedOn.Year, 1, 1),
@@ -55,6 +58,8 @@ namespace LiteDB.Tests.Mapper
                 BsonExpression.DisableCompilationCache = true;
                 try { parsed = BsonExpression.Create(direct.Source, direct.Parameters); }
                 finally { BsonExpression.DisableCompilationCache = false; }
+                if (expression == mapped || expression == filtered || expression == projected)
+                    parsed = ExpressionParity.WithSelectorDependency(parsed);
                 ExpressionParity.AssertMetadata(direct, parsed);
                 for (var i = 0; i < 40; i++)
                 {

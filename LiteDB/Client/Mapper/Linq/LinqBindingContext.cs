@@ -63,8 +63,12 @@ namespace LiteDB
                     _translator._context = context;
                     _translator._scope = scope;
                 }
-                return BsonExpressionFactory.Function(name, name == "MAP" ? BsonExpressionType.Map : BsonExpressionType.Filter,
+                var result = BsonExpressionFactory.Function(name, name == "MAP" ? BsonExpressionType.Map : BsonExpressionType.Filter,
                     left, right, new BsonExpression[0], context, _translator._parameters);
+                // LINQ selectors carry their own parameter and grouping dependencies.
+                result.IsImmutable &= right.IsImmutable;
+                result.UseSource |= right.UseSource;
+                return result;
             }
 
             internal BsonExpression Quantifier(string quantifier, BsonExpression left, int lambdaIndex)

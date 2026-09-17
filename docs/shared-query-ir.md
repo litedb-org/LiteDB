@@ -48,6 +48,10 @@ LINQ parameters retain their current `p0`, `p1`, ... naming and mapper
 serialization behavior. SQL templates use their supplied parameter names.
 Nested MAP/FILTER/SORT and array-index expressions receive the current execution's
 parameters explicitly, so cached delegates cannot reuse another binding's values.
+LINQ MAP/FILTER nodes also retain the selector's immutability and source-dependency
+flags. Parameters and volatile calls inside a selector therefore prevent immutable
+classification. Explicit SQL MAP/FILTER keeps its historical input-only handling
+of immutability and source usage; both frontends propagate nested volatility.
 Embedded nested templates hold no parameter documents, preventing retained first-use
 parameter payloads in compiled delegates and automatically cached LINQ shapes.
 Collation is likewise supplied at execution time. There is no global translation
