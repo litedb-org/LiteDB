@@ -75,3 +75,13 @@ older nonzero stamps are rejected before queries or writes. Export records with
 the original engine and import them with this engine to reconstruct affected
 indexes. Zero-stamp legacy files retain the full index-order validation described
 above. The BSON representation and ordinary v8 file format are unchanged.
+
+Mixed numeric comparisons now compare the exact represented binary or decimal
+values. For example, binary64 `0.1` is slightly greater than decimal `0.1`, and
+`double.Epsilon` is greater than zero. Exactly representable values such as
+`0.5`, integers, and signed zero still compare equally across numeric types.
+NaN remains below other numbers, with infinities ordered at their usual ends.
+This revision also updates every collation stamp: older nonzero stamps require
+export/import with the original/new engines, while zero-stamp files are checked
+against the new ordering. Numeric hashes use reduced exact fractions to preserve
+cross-type equality without collapsing high-precision decimals to binary64.

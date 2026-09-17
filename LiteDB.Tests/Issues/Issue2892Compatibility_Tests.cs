@@ -11,8 +11,10 @@ namespace LiteDB.Tests.Issues
 {
     public class Issue2892Compatibility_Tests
     {
-        [Fact]
-        public void Previous_document_ordering_stamp_is_rejected_without_modifying_the_file()
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Previous_comparer_stamps_are_rejected_without_modifying_the_file(bool canonicalDocuments)
         {
             using var file = new TempFile();
             using (var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, Collation = Collation.Binary }))
@@ -22,6 +24,7 @@ namespace LiteDB.Tests.Issues
             {
                 writer.Write("LiteDB collation v1");
                 writer.Write("unsigned ObjectId ordering v1");
+                if (canonicalDocuments) writer.Write("canonical document ordering v1");
                 writer.Write((int)CompareOptions.Ordinal);
             }
             using var sha = SHA256.Create();

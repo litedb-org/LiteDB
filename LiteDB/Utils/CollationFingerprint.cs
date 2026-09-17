@@ -18,6 +18,7 @@ namespace LiteDB
                 // This affects every collation, including Ordinal.
                 writer.Write("unsigned ObjectId ordering v1");
                 writer.Write("canonical document ordering v1");
+                writer.Write("exact mixed numeric ordering v1");
                 writer.Write((int)collation.SortOptions);
                 // Ordinal comparison is independent of runtime sort tables/culture.
                 if (collation.SortOptions != CompareOptions.Ordinal)
