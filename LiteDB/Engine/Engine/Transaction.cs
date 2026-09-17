@@ -10,16 +10,16 @@ namespace LiteDB.Engine
     {
         /// <summary>
         /// Initialize a new transaction. Transaction are created "per-thread". There is only one single transaction per thread.
-        /// Return true if transaction was created or false if current thread already in a transaction.
+        /// Return true when created; false joins the current thread transaction. Keep the block synchronous, with no await.
         /// </summary>
         public bool BeginTrans()
         {
             var monitor = this.CaptureTransactionMonitor(out _);
             var transacion = monitor.GetTransaction(true, false, out var isNew);
 
-            transacion.ExplicitTransaction = true;
-
             if (transacion.OpenCursors.Count > 0) throw new LiteException(0, "This thread contains an open cursors/query. Close cursors before Begin()");
+
+            if (isNew) transacion.ExplicitTransaction = true;
 
             LOG(isNew, $"begin trans", "COMMAND");
 
@@ -33,7 +33,7 @@ namespace LiteDB.Engine
         {
             _state.Validate();
 
-            var transaction = _monitor.GetTransaction(false, false, out _);
+            var transaction = this.GetTransactionForCompletion();
 
             if (transaction != null)
             {
@@ -58,7 +58,7 @@ namespace LiteDB.Engine
         {
             _state.Validate();
 
-            var transaction = _monitor.GetTransaction(false, false, out _);
+            var transaction = this.GetTransactionForCompletion();
 
             if (transaction != null && transaction.State == TransactionState.Active)
             {

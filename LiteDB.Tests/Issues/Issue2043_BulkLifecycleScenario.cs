@@ -138,6 +138,7 @@ namespace LiteDB.Tests.Issues
                 var cutoff = observed - _seedCount / 2;
                 var records = _database.GetCollection("records");
                 _database.BeginTrans().Should().BeTrue();
+                var committed = false;
                 try
                 {
                     var before = SnapshotSequences(records);
@@ -155,7 +156,7 @@ namespace LiteDB.Tests.Issues
                         VerifyRow(victim, sequence);
                         records.Delete(31000L + sequence).Should().BeTrue();
                     }
-                    _database.Commit().Should().BeTrue();
+                    (committed = _database.Commit()).Should().BeTrue();
                     foreach (var victim in victims)
                     {
                         _deleted.TryAdd(victim["seq"].AsInt32, 0).Should().BeTrue();
@@ -163,7 +164,7 @@ namespace LiteDB.Tests.Issues
                     Interlocked.Increment(ref _cleanupCommits);
                     Volatile.Write(ref _cleanupThrough, observed);
                 }
-                finally { _database.Rollback(); }
+                finally { if (!committed) _database.Rollback(); }
             }
             finally
             {

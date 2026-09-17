@@ -1335,3 +1335,23 @@ all targets and net462 builds pass. Four fresh Sol high reviewers
 (`review_2847_w1_a` through `_d`) found only valid coverage nits, now addressed,
 and a false claim that enum relational operators do not compile. Actual successful
 production/net462 builds and executed mode tests refute that claim.
+
+## #2822 — reject completion on the wrong transaction thread
+
+Commit/Rollback diagnose an active explicit transaction owned by another thread
+instead of silently returning false. Explicit ownership is published only for a
+successful new BeginTrans; false joins to automatic transactions remain automatic.
+Shared completion holds the named mutex through cleanup, preserves live foreign
+owners, and discards abandoned uncommitted state with a diagnostic even when
+another instance consumed the abandonment signal. Public disposal then works.
+The API remains synchronous and thread-bound; await and logical-task identity
+require a separate transaction-handle design. Nested false joins are not savepoints.
+
+Validation: original reproduction failed before the fix; 59 focused concurrency,
+storage, abandonment and bulk-lifecycle cases pass. Existing test cleanup now
+rolls back only its still-owned transaction, not an already committed transaction
+while a worker owns another. Full suite: 1831 passed, 228 existing failures,
+8 skipped; no new failures versus #2847. Production/net462 builds pass. Eight
+fresh four-Sol-high review waves addressed shared recursion, publication,
+abandonment and false automatic joins. Final reviewers (`review_2822_w8_a`
+through `_d`) were clean.
