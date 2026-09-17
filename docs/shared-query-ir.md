@@ -57,7 +57,9 @@ index choice; creating or dropping an index still changes subsequent planning.
 
 Ordinary `Where`, `Select`, and other mapper-translated LINQ calls now reuse
 logical templates automatically. Each mapper owns a bounded 256-entry shape
-cache. Its keys contain expression structure, CLR types, members, methods, and
+cache, arranged as 64 buckets of up to four entries. Bucket selection mixes all
+hash bits to reduce patterned collisions; atomic publication keeps reads lock-free
+and avoids duplicate concurrent insertions. Its keys contain expression structure, CLR types, members, methods, and
 lambda parameter identity, excluding captured objects and constant values.
 Hash collisions are checked against the full structural key.
 

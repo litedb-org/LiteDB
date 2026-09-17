@@ -6,7 +6,9 @@ namespace LiteDB
 {
     internal sealed class LinqExpressionCache
     {
-        private readonly Entry[] _entries = new Entry[256];
+        // Four templates per bucket reduce collision churn at the same 256-entry
+        // bound. Published buckets are immutable, and hits allocate no cache state.
+        private readonly Entry[][] _buckets = new Entry[64][];
         private int _count;
         internal int Count => Volatile.Read(ref _count);
 
@@ -27,14 +29,18 @@ namespace LiteDB
         private BsonExpression Resolve(BsonMapper mapper, LambdaExpression expression, bool predicate, LinqQueryShape shape)
         {
             if (!shape.Supported) return new LinqExpressionTranslator(mapper, expression).Resolve(predicate);
-            var bucket = (int)((uint)shape.Hash % (uint)_entries.Length);
-            var cached = Volatile.Read(ref _entries[bucket]);
-            if (cached != null && cached.Matches(shape, mapper.EnumAsInteger, predicate))
+            var bucket = GetBucket(shape.Hash);
+            var entries = Volatile.Read(ref _buckets[bucket]);
+            if (entries != null)
             {
-                try { return cached.Bind(mapper, shape); }
-                catch (Exception exception)
+                foreach (var cached in entries)
                 {
-                    throw new NotSupportedException($"Invalid BsonExpression when converted from Linq expression: {expression} - {exception.Message}", exception);
+                    if (!cached.Matches(shape, mapper.EnumAsInteger, predicate)) continue;
+                    try { return cached.Bind(mapper, shape); }
+                    catch (Exception exception)
+                    {
+                        throw new NotSupportedException($"Invalid BsonExpression when converted from Linq expression: {expression} - {exception.Message}", exception);
+                    }
                 }
             }
             var translator = new LinqExpressionTranslator(mapper, expression, true);
@@ -49,8 +55,38 @@ namespace LiteDB
             }
             var entry = new Entry(shape.Tokens.ToArray(), slots, translator.MemberGuards.ToArray(),
                 result.Bind(new BsonDocument()), mapper.EnumAsInteger, predicate);
-            if (Interlocked.Exchange(ref _entries[bucket], entry) == null) Interlocked.Increment(ref _count);
+            Publish(bucket, entry, shape, mapper.EnumAsInteger, predicate);
             return result;
+        }
+
+        internal static int GetBucket(int hash)
+        {
+            // Polynomial shape hashes have patterned low bits for repeated nodes.
+            // Mix all bits before selecting a power-of-two bucket.
+            var value = unchecked((uint)hash);
+            value ^= value >> 16;
+            value = unchecked(value * 0x7feb352dU);
+            value ^= value >> 15;
+            return (int)(value & 63);
+        }
+
+        private void Publish(int bucket, Entry entry, LinqQueryShape shape, bool enumAsInteger, bool predicate)
+        {
+            while (true)
+            {
+                var current = Volatile.Read(ref _buckets[bucket]);
+                // A concurrent caller may already have published this translation.
+                if (current != null)
+                    foreach (var cached in current)
+                        if (cached.Matches(shape, enumAsInteger, predicate)) return;
+                var length = current?.Length ?? 0;
+                var replacement = new Entry[Math.Min(4, length + 1)];
+                replacement[0] = entry;
+                if (length != 0) Array.Copy(current, 0, replacement, 1, replacement.Length - 1);
+                if (!ReferenceEquals(Interlocked.CompareExchange(ref _buckets[bucket], replacement, current), current)) continue;
+                if (length < 4) Interlocked.Increment(ref _count);
+                return;
+            }
         }
 
         private sealed class Entry

@@ -390,6 +390,40 @@ Eleven focused tests cover parameter rebinding, reversed operands, collation,
 ordering/pagination, short circuits, includes, and fallback limits. Full .NET 10
 suite: 1,026 passed, seven existing skips. All Release solution targets build.
 
+## 15. Reduce automatic LINQ cache collision churn
+
+The mapper-local 256-template cache now uses 64 buckets with up to four entries
+each. Bucket selection mixes all shape-hash bits: repeated expression nodes
+otherwise produce patterned low bits. Structural equality and mapper guards
+still validate every hit. Immutable bucket arrays are published atomically;
+concurrent publication avoids duplicate shapes, and full buckets evict an older
+entry without growing the bound or retaining closures.
+
+| Complete query | Before µs | After µs | Time reduction | Before B/query | After B/query |
+|---|---:|---:|---:|---:|---:|
+| Cycle through 128 LINQ shapes | 79.60 | 44.69 | 43.9% | 61,744 | 41,514 |
+| Single shape, primary-key control | 25.94 | 26.80 | -3.3% | 27,257 | 27,257 |
+| Single shape, combined control | 36.89 | 36.70 | 0.5% | 25,521 | 25,521 |
+
+The workload cycles through 128 fixed generated Boolean shapes, all selecting
+the same indexed row with ordinary Where calls. It models generated-query churn;
+it does not imply a 44% gain for applications using only a few stable shapes.
+Metadata hashes vary across processes, so the raw report also records retained
+cache entries. Both final process pairs improve the many-shape workload while
+allocations fall 33%. Single-shape control differences remain small relative to
+observed host variation, and their allocations are unchanged.
+
+An initial four-entry-bucket version without hash mixing did **not** help
+(77.47 → 81.43 µs, 5.1% slower). Its raw `15-initial-buckets-*` samples are retained;
+that intermediate implementation is not included in the commit. Final samples
+are `15-cache-*`; each comparison has matching consumed-result checksums.
+
+Twelve focused cache tests pass, including collisions, bounded eviction, and
+concurrent duplicate publication. The pre-mixing full .NET 8 run passed 1,029
+tests with seven existing skips; the final mixing change passes the cache suite
+and all Release solution targets build. Existing mutable-mapper, binding,
+reentrancy, concurrency, and closure-lifetime tests remain covered.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
