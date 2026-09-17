@@ -79,14 +79,13 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// Get logical file length without modifying the file
+        /// Get the logical file length without modifying the file.
         /// </summary>
         public long GetLength()
         {
             // if not file do not exists, returns 0
             if (!this.Exists()) return 0;
 
-            // get physical file length from OS
             var length = new FileInfo(_filename).Length;
 
             // Length inspection must never repair or truncate an unvalidated file.

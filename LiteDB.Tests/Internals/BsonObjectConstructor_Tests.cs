@@ -9,19 +9,27 @@ namespace LiteDB.Tests.Internals
     public class BsonObjectConstructor_Tests
     {
         [Fact]
-        public void Collections_fail_at_construction_with_conversion_guidance()
+        public void Collections_construct_usable_arrays_and_documents()
         {
-            object[] collections =
+            object[] arrays =
             {
-                new BsonArray(1, 2), new BsonDocument { ["a"] = 1 },
-                new[] { 1, 2 }, new List<int> { 1, 2 }, new Hashtable { ["a"] = 1 },
-                Enumerate(), new Dictionary<string, object> { ["a"] = 1 }
+                new BsonArray(1, 2), new[] { 1, 2 }, new List<int> { 1, 2 }, Enumerate()
             };
-            foreach (var collection in collections)
+
+            object[] documents =
             {
-                Action construct = () => new BsonValue(collection);
-                construct.Should().Throw<ArgumentException>().WithParameterName("value")
-                    .WithMessage("*BsonArray*BsonDocument*BsonMapper*");
+                new BsonDocument { ["a"] = 1 }, new Hashtable { ["a"] = 1 },
+                new Dictionary<string, object> { ["a"] = 1 }
+            };
+
+            foreach (var collection in arrays)
+            {
+                ((object)new BsonValue(collection).AsArray).Should().NotBeNull();
+            }
+
+            foreach (var collection in documents)
+            {
+                ((object)new BsonValue(collection).AsDocument).Should().NotBeNull();
             }
         }
 
@@ -56,7 +64,7 @@ namespace LiteDB.Tests.Internals
         private static IEnumerable<int> Enumerate()
         {
             yield return 1;
-            throw new InvalidOperationException("Rejected collections must not be enumerated.");
+            yield return 2;
         }
     }
 }

@@ -15,8 +15,8 @@ namespace LiteDB.Engine
                 var dataFactory = _settings.CreateDataFactory();
                 var logFactory = _settings.CreateLogFactory();
 
-                // get maxPageID based on both file length
-                _maxPageID = (uint)((dataFactory.GetLength() + logFactory.GetLength()) / PAGE_SIZE);
+                // Floor each source independently so partial tails cannot form a page.
+                _maxPageID = (uint)(dataFactory.GetLength() / PAGE_SIZE + logFactory.GetLength() / PAGE_SIZE);
 
                 _dataStream = dataFactory.GetStream(true, false);
 

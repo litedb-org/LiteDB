@@ -110,15 +110,13 @@ namespace LiteDB.Engine
         public HeaderPage(PageBuffer buffer)
             : base(buffer)
         {
-            this.LoadPage();
-
-            this.CreationTime = _buffer.ReadDateTime(P_CREATION_TIME);
+            this.CreationTime = this.LoadPage();
         }
 
         /// <summary>
         /// Load page content based on page buffer
         /// </summary>
-        private void LoadPage()
+        private DateTime LoadPage()
         {
             // check database file format
             var info = _buffer.ReadString(P_HEADER_INFO, HEADER_INFO.Length);
@@ -133,6 +131,7 @@ namespace LiteDB.Engine
             _fileVersion = Math.Max(_fileVersion, ver); // Loading must not mutate a readable page.
 
             // CreateTime is readonly
+            var creationTime = _buffer.ReadDateTime(P_CREATION_TIME);
             this.FreeEmptyPageList = _buffer.ReadUInt32(P_FREE_EMPTY_PAGE_ID);
             this.LastPageID = _buffer.ReadUInt32(P_LAST_PAGE_ID);
 
@@ -148,6 +147,8 @@ namespace LiteDB.Engine
             }
 
             _isCollectionsChanged = false;
+
+            return creationTime;
         }
 
         public override PageBuffer UpdateBuffer()

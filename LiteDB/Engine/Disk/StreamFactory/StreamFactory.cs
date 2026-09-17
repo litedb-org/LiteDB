@@ -50,14 +50,17 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// Get file length using _stream.Length
+        /// Get the logical stream length without modifying the stream.
         /// </summary>
         public long GetLength()
         {
-            var length = _stream.Length;
+            lock (_stream)
+            {
+                var length = _stream.Length;
 
-            // Format validation owns any later repair, never a length query.
-            return length > 0 ? Math.Max(1, length - (_password == null ? 0 : PAGE_SIZE)) : 0;
+                // Format validation owns any later repair, never a length query.
+                return length > 0 ? Math.Max(1, length - (_password == null ? 0 : PAGE_SIZE)) : 0;
+            }
         }
 
         /// <summary>

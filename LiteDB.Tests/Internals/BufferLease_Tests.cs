@@ -17,7 +17,7 @@ namespace LiteDB.Internals
         [InlineData("objectId")]
         [InlineData("string")]
         [InlineData("cstring")]
-        public void Reader_Failure_ReturnsRentedArray(string operation)
+        public void Reader_Failure_DoesNotLeakBuffers(string operation)
         {
             var pool = new TrackingPool();
             var bytes = new byte[operation == "cstring" ? 600 : 1];
@@ -35,7 +35,8 @@ namespace LiteDB.Internals
             };
             read.Should().Throw<IOException>();
             // CString uses MemoryStream on .NET Framework instead of ArrayPool.
-            if (operation != "cstring") pool.Rented.Should().BeGreaterThan(0);
+            if (operation == "objectId") pool.Rented.Should().Be(0, "this value uses stack storage");
+            else if (operation != "cstring") pool.Rented.Should().BeGreaterThan(0);
             pool.Outstanding.Should().BeEmpty();
         }
 
@@ -44,7 +45,7 @@ namespace LiteDB.Internals
         [InlineData("objectId")]
         [InlineData("string")]
         [InlineData("cstring")]
-        public void Writer_Failure_ReturnsRentedArray(string operation)
+        public void Writer_Failure_DoesNotLeakBuffers(string operation)
         {
             var pool = new TrackingPool();
             using var writer = new BufferWriter(FailingSource(new byte[1]), pool);
@@ -59,7 +60,8 @@ namespace LiteDB.Internals
                 }
             };
             write.Should().Throw<IOException>();
-            pool.Rented.Should().BeGreaterThan(0);
+            if (operation == "objectId") pool.Rented.Should().Be(0, "this value uses stack storage");
+            else pool.Rented.Should().BeGreaterThan(0);
             pool.Outstanding.Should().BeEmpty();
         }
 
