@@ -134,6 +134,8 @@ namespace LiteDB.Engine
                     _disk.FileVersion = _header.FileVersion;
                 }
 
+                this.ValidateCollationStamp();
+
                 // test for same collation
                 if (_settings.Collation != null && _settings.Collation.ToString() != _header.Pragmas.Collation.ToString())
                 {
@@ -152,11 +154,15 @@ namespace LiteDB.Engine
                     _walIndex.RestoreIndex(ref _header);
                 }
 
+                this.ValidateCollationStamp();
+
                 // initialize sort temp disk
                 _sortDisk = new SortDisk(_settings.CreateTempFactory(), CONTAINER_SORT_SIZE, _header.Pragmas);
 
                 // initialize transaction monitor as last service
                 _monitor = new TransactionMonitor(_header, _locker, _disk, _walIndex, _settings.TransactionPageLimit);
+
+                this.ValidateLegacyCollation();
 
                 // register system collections
                 this.InitializeSystemCollections();
