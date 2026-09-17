@@ -5,8 +5,9 @@ namespace LiteDB.Engine
     public partial class LiteEngine
     {
         private static LiteException CollationMismatch() => new LiteException(0,
-            "Database collation sort/globalization differs from this runtime. Rebuild in the original " +
-            "environment using an Ordinal collation before moving the file, or export there and import here.");
+            "Database index ordering/collation differs from this comparer or runtime. Export records in the " +
+            "original compatible environment and import here. For culture-only changes, an Ordinal rebuild " +
+            "in the original environment can also prepare the file.");
 
         private void ValidateCollationStamp()
         {

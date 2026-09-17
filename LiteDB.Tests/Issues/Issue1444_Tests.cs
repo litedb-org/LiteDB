@@ -58,6 +58,16 @@ namespace LiteDB.Tests.Issues
             };
         }
 
+        [Fact]
+        public void Same_timestamp_order_preserves_unsigned_pid_bytes()
+        {
+            var earlier = new ObjectId("800000001122337fff667788");
+            var later = new ObjectId("800000001122338000667788");
+            AssertOrdered(earlier, later);
+            earlier.ToByteArray().Should().Equal(new byte[] { 128, 0, 0, 0, 17, 34, 51, 127, 255, 102, 119, 136 });
+            later.ToByteArray().Should().Equal(new byte[] { 128, 0, 0, 0, 17, 34, 51, 128, 0, 102, 119, 136 });
+        }
+
         [Theory]
         [MemberData(nameof(UnsignedTimestampCases))]
         public void Timestamp_bits_round_trip_and_creation_time_uses_unsigned_seconds(

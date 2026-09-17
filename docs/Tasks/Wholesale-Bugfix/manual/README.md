@@ -1551,3 +1551,27 @@ failures. Production and net462 builds and plain/encrypted vector compatibility
 pass. Four fresh independent Sol-high reviewers found no actionable issues.
 
 Final reviewers: review_2849_w1_a through _d, all clean.
+
+## #1444 — unsigned ObjectId timestamps and wire ordering
+
+CreationTime interprets all 32 timestamp bits as unsigned Unix seconds. Comparison
+also treats timestamps and PID bytes as unsigned, matching valid 12-byte wire
+order. Public signed component properties and raw serialization stay compatible.
+The comparer fingerprint advances for all collations, including Ordinal; legacy
+zero-stamp files retain actual index-order validation. Rejected files require
+logical export/import from their original compatible environment.
+
+Validation: 59 focused tests pass. The integrated full suite passes 1917 tests,
+with 212 existing failures and 8 skipped; all four original #1444 failures resolve
+and no new failures appear. Production/net462 builds and plain/encrypted vector
+compatibility pass. Separate processes using the actual previous and new DLLs
+verify rejection without data-file changes for both old-stamped and zero-stamp
+incompatible indexes, followed by successful logical export/import and exact
+unsigned-order/payload checks.
+
+Four fresh Sol-high reviewers (review_1444_w1_a through _d): three clean;
+reviewer a raised invalid out-of-range machine/increment constructor components.
+That independent pre-existing input-validation issue is outside #1444's valid
+wire-value contract. Actual old/new DLL probes both report the identical
+machine=-1 comparison and ffffff serialization, demonstrating no regression.
+The request to expand this fix into constructor normalization was declined.

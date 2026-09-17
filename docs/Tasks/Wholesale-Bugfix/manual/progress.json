@@ -1723,10 +1723,11 @@
         "priority: P3"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue1444_Tests.cs"
-      ]
+      ],
+      "validation": "59 focused pass; integrated full 1917 passed/212 existing failures/8 skipped, resolves four original cases without new failures; production/net462 builds and vector compatibility pass. Actual previous-version files rejected byte-preserving; export/import verified. Four fresh Sol-high reviews, three clean and one unrelated invalid-component finding refuted with before/after execution."
     },
     {
       "issue": 1513,
