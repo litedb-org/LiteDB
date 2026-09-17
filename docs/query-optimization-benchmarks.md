@@ -746,6 +746,42 @@ keys, scalar ordering, multikey fallback, scalar array keys, and conservative
 preferred-field handling. Full .NET 8 suite: 1,120 passed, seven existing skips;
 all Release targets build.
 
+## 26. Match literal field indexes using canonical escaped paths
+
+The planner constructed preferred-field and covered-lookup identities with raw
+`"$." + fieldName`. A literal field such as `Tags[*]`, `Nested.Value`, or `Score+1`
+could match an unrelated multikey, nested, or computed index and return its keys
+as the requested field's values. Both lookups now use the shared path formatter.
+Whole-document field markers remain excluded from field-index matching.
+
+Six regression cases fail before the change; the tests also cover correctly
+escaped indexes, quotes, backslashes, numeric/Unicode names, and whole-document
+reads. Those wrong-result cases are correctness evidence, **not speedup claims**.
+
+Separate performance probes use 20,000 documents with a literal `Score.Value`
+field and a 200-character payload. Only the correct literal index exists, so both
+versions return the same results; the change enables preferred and covered use
+of that index. All checksums match.
+
+| Complete query | Before µs | After µs | Time reduction | Before B/query | After B/query |
+|---|---:|---:|---:|---:|---:|
+| Full literal-field projection | 84,387.10 | 64,269.95 | 23.8% | 46,928,248 | 33,012,555 |
+| Filtered literal-field projection | 42,563.47 | 32,667.61 | 23.2% | 23,661,819 | 16,003,848 |
+| Count of the literal field | 2,783.09 | 3,889.35 | -39.7% | 8,365,584 | 9,770,232 |
+| Ordinary indexed projection, control | 65.45 | 65.21 | 0.4% | 35,586 | 35,642 |
+| Primary lookup, control | 23.67 | 22.64 | 4.3% | 25,753 | 25,809 |
+
+The count regression is real: recognizing the preferred non-unique index switches
+from the primary scan to a preferred scan that still tracks duplicate document
+addresses at this step. Its scalar-path proof is handled separately from the
+field-identity correction. Control differences do not establish general gains.
+Raw files: `26-escaped-*`. Initial samples (`26-initial-escaped-*`) used a different
+constant-array count control; the final table uses the corrected literal-field
+reference `COUNT(*.@.["Score.Value"])`, with its plan verified as a row aggregate.
+
+Twelve new cases plus the existing scalar-index tests pass. Full .NET 10 suite:
+1,132 passed, seven existing skips; all Release targets build.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -783,7 +819,7 @@ materializers remain separate work.
 
 - Release solution build with `TestingEnabled=true`: all targets build.
 - Full `LiteDB.Tests` with `tests.runsettings`: 1,120 passed on .NET 8 at step 25;
-  1,111 passed on .NET 10 at step 24; focused sort and query suites also pass on .NET 8. Each full
+  1,132 passed on .NET 10 at step 26; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file

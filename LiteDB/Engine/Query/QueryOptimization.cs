@@ -235,7 +235,7 @@ namespace LiteDB.Engine
             }
 
             // if is only 1 field to deserialize and this field are same as index, use IndexKeyOnly = rue
-            if (!(_queryPlan.Index is VectorIndexQuery) && _queryPlan.Fields.Count == 1 && _queryPlan.IndexExpression == "$." + _queryPlan.Fields.First())
+            if (!(_queryPlan.Index is VectorIndexQuery) && _queryPlan.Fields.Count == 1 && IsFieldIndex(_queryPlan.IndexExpression, _queryPlan.Fields.First()))
             {
                 // best choice - no need lookup for document (use only index)
                 _queryPlan.IsIndexKeyOnly = true;

@@ -65,8 +65,8 @@ namespace LiteDB.Tests.QueryTest
             rows.Insert(new BsonDocument { ["Tags"] = new BsonArray(2, 3), ["Tags[*]"] = 8 });
             rows.EnsureIndex("tags", "Tags[*]");
             var query = rows.Query().Select(x => new { Value = x["Tags[*]"] });
-            query.GetPlan()["index"]["name"].AsString.Should().Be("tags");
-            query.ToArray().Length.Should().Be(2);
+            query.GetPlan()["index"]["name"].AsString.Should().Be("_id");
+            query.ToArray().Select(x => x.Value.AsInt32).Should().BeEquivalentTo(new[] { 7, 8 });
         }
 
         [Fact]

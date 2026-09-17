@@ -20,7 +20,7 @@ namespace LiteDB.Engine
             var indexes = _snapshot.CollectionPage.GetCollectionIndexes().Where(x => x.IndexType == 0).ToArray();
 
             // if query contains a single field used, give preferred if this index exists
-            var preferred = fields.Count == 1 ? "$." + fields.First() : null;
+            var preferred = fields.Count == 1 ? GetFieldIndexExpression(fields.First()) : null;
 
             // otherwise, check for lowest index cost
             IndexCost lowest = this.ChooseDisjunctionIndex(indexes);
@@ -79,6 +79,12 @@ namespace LiteDB.Engine
                     if (index.Expression == expression.Right.Source) { value = expression.Left; return index; }
             return null;
         }
+
+        private static string GetFieldIndexExpression(string field) =>
+            field == "$" ? null : "$." + BsonExpressionFormatter.PathField(field);
+
+        private static bool IsFieldIndex(string expression, string field) =>
+            expression != null && expression == GetFieldIndexExpression(field);
 
     }
 }
