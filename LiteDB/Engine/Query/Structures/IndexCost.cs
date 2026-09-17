@@ -60,7 +60,8 @@ namespace LiteDB.Engine
             }
 
             // create index instance
-            this.Index = value.Execute(collation).Select(x => this.CreateIndex(exprType, index.Name, x)).FirstOrDefault();
+            this.Index = value.IsScalar ? this.CreateIndex(exprType, index.Name, value.ExecuteScalar(collation)) :
+                value.Execute(collation).Select(x => this.CreateIndex(exprType, index.Name, x)).FirstOrDefault();
 
             ENSURE(this.Index != null, "index must be not null");
 
@@ -81,7 +82,8 @@ namespace LiteDB.Engine
         // used when full index search
         public IndexCost(CollectionIndex index)
         {
-            this.Expression = BsonExpression.Create(index.Expression);
+            // A preferred full scan consumes no WHERE predicate and needs no parsed node.
+            this.Expression = null;
             this.Index = new IndexAll(index.Name, Query.Ascending);
             this.Cost = this.Index.GetCost(index);
             this.IndexExpression = index.Expression;

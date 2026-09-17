@@ -28,43 +28,16 @@ namespace LiteDB.Engine
             if (combined != null && (lowest == null || combined.Cost <= lowest.Cost)) lowest = combined;
 
             // test all possible predicates in terms
-            foreach (var expr in _terms.Where(x => x.IsPredicate))
+            foreach (var expr in _terms)
             {
+                if (!expr.IsPredicate) continue;
                 if (covered?.Contains(expr) == true) continue;
                 ENSURE(expr.Left != null && expr.Right != null, "predicate expression must has left/right expressions");
-
-                Tuple<CollectionIndex, BsonExpression> index = null;
-
-                // check if expression is ANY
-                if (expr.Left.IsScalar == false && expr.Right.IsScalar == true)
-                {
-                    // ANY expression support only LEFT (Enum) -> RIGHT (Scalar)
-                    if (expr.IsANY)
-                    {
-                        index = indexes
-                            .Where(x => x.Expression == expr.Left.Source && expr.Right.IsValue)
-                            .Select(x => Tuple.Create(x, expr.Right))
-                            .FirstOrDefault();
-                    }
-                    // ALL are not supported in index
-                }
-                else
-                {
-                    index = indexes
-                        .Where(x => x.Expression == expr.Left.Source && expr.Right.IsValue)
-                        .Select(x => Tuple.Create(x, expr.Right))
-                        .Union(indexes
-                            .Where(x => x.Expression == expr.Right.Source && expr.Left.IsValue)
-                            .Select(x => Tuple.Create(x, expr.Left))
-                        ).FirstOrDefault();
-                }
-
-                // get index that match with expression left/right side
-
+                var index = FindPredicateIndex(indexes, expr, out var value);
                 if (index == null) continue;
 
                 // calculate index score and store highest score
-                var current = new IndexCost(index.Item1, expr, index.Item2, _collation);
+                var current = new IndexCost(index, expr, value, _collation);
 
                 if (lowest == null || current.Cost < lowest.Cost)
                 {
@@ -88,6 +61,21 @@ namespace LiteDB.Engine
             }
 
             return lowest;
+        }
+
+        private static CollectionIndex FindPredicateIndex(CollectionIndex[] indexes, BsonExpression expression, out BsonExpression value)
+        {
+            value = null;
+            var enumerable = !expression.Left.IsScalar && expression.Right.IsScalar;
+            if (enumerable && !expression.IsANY) return null;
+            // Preserve the previous left-side preference across all candidate indexes.
+            if (expression.Right.IsValue)
+                foreach (var index in indexes)
+                    if (index.Expression == expression.Left.Source) { value = expression.Right; return index; }
+            if (!enumerable && expression.Left.IsValue)
+                foreach (var index in indexes)
+                    if (index.Expression == expression.Right.Source) { value = expression.Left; return index; }
+            return null;
         }
 
     }

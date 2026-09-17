@@ -479,6 +479,30 @@ Five focused tests cover duplicate IN/OR keys, collation, ranges, and retained
 multikey deduplication. Full .NET 8 suite: 1,049 passed, seven existing skips;
 all Release solution targets build.
 
+## 18. Remove unnecessary work during index selection
+
+Index matching now searches candidate metadata directly, preserving the previous
+left-operand preference and ANY/ALL rules. Scalar bounds are evaluated directly
+instead of through enumerable adapters. Preferred full scans no longer parse an
+index expression into a node that cannot consume any WHERE predicate. These
+changes reduce planning allocations without changing selected plans.
+
+| Complete query | Before µs | After µs | Time reduction | Before B/query | After B/query |
+|---|---:|---:|---:|---:|---:|
+| Primary-key lookup, LINQ | 25.59 | 22.83 | 10.8% | 26,985 | 25,809 |
+| Combined predicate, LINQ | 36.83 | 31.70 | 14.0% | 25,521 | 23,240 |
+| Reversed primary equality, SQL | 28.97 | 26.17 | 9.6% | 30,497 | 29,321 |
+| Index-provided order, first ten | 45.53 | 43.45 | 4.6% | 30,337 | 29,016 |
+| Full primary count, control | 3,008.16 | 3,054.41 | -1.5% | 8,354,936 | 8,353,328 |
+| Full scan, control | 58,352.16 | 58,688.56 | -0.6% | 49,790,243 | 49,789,568 |
+
+Point and combined queries allocate roughly 1.2–2.3 KB less per execution.
+The scan/count controls are effectively unchanged; their per-query planning
+cost is small relative to traversal. All checksums match. Raw measurements:
+`18-planning-*`. Full .NET 10 suite: 1,049 passed, seven existing skips; all Release
+solution targets build. Existing index, ANY/ALL, expression, and plan parity tests
+cover the preserved selection behavior.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -516,7 +540,7 @@ materializers remain separate work.
 
 - Release solution build with `TestingEnabled=true`: all targets build.
 - Full `LiteDB.Tests` with `tests.runsettings`: 1,049 passed on .NET 8 at step 17;
-  1,044 passed on .NET 10 at step 16; focused sort and query suites also pass on .NET 8. Each full
+  1,049 passed on .NET 10 at step 18; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file
