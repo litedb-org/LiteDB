@@ -129,6 +129,16 @@ expression on the metadata instance. Ordinary reads need no index-expression
 parsing; writes and vector evaluation request it when needed. New index definitions
 still validate eagerly, and subsequent snapshots observe live index metadata.
 
+## Limited sorting
+
+For residual ORDER BY with a positive limit and `offset + limit <= 1024`, a
+bounded maximum heap retains only the best requested keys and reload addresses.
+Comparison uses the active collation, each segment's direction, and input order
+to break ties. Every input key is still evaluated and checked against the sort-key
+size limit. Larger or unbounded requests retain the disk-capable sort path.
+Includes and aggregate replay continue to use the normal lookup pipeline, and
+small exact vector rankings can use the same bounded sorter.
+
 ## Verification
 
 The existing LINQ expression corpus now checks canonical text, type, cardinality,

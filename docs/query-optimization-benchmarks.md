@@ -424,6 +424,36 @@ tests with seven existing skips; the final mixing change passes the cache suite
 and all Release solution targets build. Existing mutable-mapper, binding,
 reentrancy, concurrency, and closure-lifetime tests remain covered.
 
+## 16. Retain only the requested keys for small sorted pages
+
+Residual ORDER BY queries with a positive limit and `offset + limit <= 1024`
+now use a bounded maximum heap. It retains the best requested keys and reload
+addresses, then sorts only those retained entries. Every input key is still
+evaluated and size-checked; this does not skip the input scan. Comparisons preserve
+collation, mixed directions, and input-order ties. Larger/unbounded requests keep
+the existing sorter with disk spilling.
+
+| Complete query | Before µs | After µs | Time reduction | Before B/query | After B/query |
+|---|---:|---:|---:|---:|---:|
+| Sort by unindexed Name, first ten | 60,094.65 | 30,080.69 | 49.9% | 39,632,048 | 37,522,392 |
+| City/Score mixed sort, page of ten, LINQ | 91,930.56 | 42,540.81 | 53.7% | 46,051,304 | 42,810,848 |
+| Same mixed sort, SQL | 92,210.80 | 42,181.95 | 54.3% | 46,052,387 | 42,811,968 |
+| Computed index-only sort, first ten | 66,256.61 | 25,196.45 | 62.0% | 25,179,889 | 21,945,984 |
+| Index-provided ordering, control | 47.26 | 49.18 | -4.1% | 30,337 | 30,337 |
+| Primary-key lookup, control | 26.62 | 26.83 | -0.8% | 27,257 | 27,257 |
+
+These queries inspect 20,000 input rows and return ten; allocation remains
+substantial because document/key evaluation still happens for each input.
+Index-provided ordering bypasses sorting entirely, so that control's timing
+variation is inconclusive and its allocations are unchanged. All consumed-result
+checksums match. Raw measurements: `16-topn-*`.
+
+Tests compare full and bounded sorting, randomized predicates, pagination around
+the capacity boundary, mixed directions, null/collated keys, stable ties, includes,
+index-only aggregate replay, and discarded invalid keys. Exact vector coverage
+checks both small in-memory rankings and larger disk-spilling rankings. Full
+.NET 10 suite: 1,044 passed, seven existing skips; all Release targets build.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -461,7 +491,7 @@ materializers remain separate work.
 
 - Release solution build with `TestingEnabled=true`: all targets build.
 - Full `LiteDB.Tests` with `tests.runsettings`: 1,015 passed on .NET 8 at step 13;
-  1,026 passed on .NET 10 at step 14; eleven focused common-guard tests also pass on .NET 8. Each full
+  1,044 passed on .NET 10 at step 16; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file
