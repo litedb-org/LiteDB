@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.ComponentModel;
 using System.Globalization;
@@ -144,6 +144,10 @@ namespace LiteDB
                     out var keyType, out var valueType);
 
                 return SerializeDictionary(keyType, valueType, dict, depth);
+            }
+            else if (obj is System.Dynamic.ExpandoObject expando && (type == typeof(object) || Reflection.IsDictionary(type)))
+            {
+                return SerializeExpando(expando, depth);
             }
             // check if is a list or array
             else if (obj is IEnumerable)

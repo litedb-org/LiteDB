@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Dynamic;
 using System.Linq;
 using FluentAssertions;
 using Xunit;
@@ -22,13 +21,15 @@ namespace LiteDB.Tests.Issues
         }
 
         [Fact]
-        public void ContainsKey_rejects_dictionary_implementations_stored_as_arrays()
+        public void ContainsKey_rejects_legacy_dictionary_values_stored_as_arrays()
         {
-            IDictionary<string, object> data = new ExpandoObject();
-            data["key"] = null;
             using var db = new LiteDatabase(":memory:");
             var col = db.GetCollection<InterfaceRow>();
-            col.Insert(new InterfaceRow { Id = 1, Data = data });
+            db.GetCollection(col.Name).Insert(new BsonDocument
+            {
+                ["_id"] = 1,
+                ["Data"] = new BsonArray { new BsonDocument { ["Key"] = "key", ["Value"] = BsonValue.Null } }
+            });
             db.GetCollection(col.Name).FindById(1)["Data"].IsArray.Should().BeTrue();
             Action query = () => col.Find(x => x.Data.ContainsKey("key")).ToArray();
             query.Should().Throw<NotSupportedException>().WithMessage("*BSON document*");
