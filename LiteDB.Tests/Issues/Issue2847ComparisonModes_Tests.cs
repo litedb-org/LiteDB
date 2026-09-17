@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Linq;
 using System.Linq.Expressions;
 using FluentAssertions;
+using FluentAssertions.Execution;
 using Xunit;
 
 namespace LiteDB.Tests.Issues
@@ -58,15 +59,87 @@ namespace LiteDB.Tests.Issues
         }
 
         [Fact]
-        public void Static_null_equality_and_instance_null_failure_follow_CLR()
+        public void Static_null_equality_follows_CLR_and_a_null_instance_receiver_does_not_match()
         {
             using var db = new LiteDatabase(":memory:");
             var rows = db.GetCollection<Row>();
             rows.Insert(new[] { new Row { Id = 1 }, new Row { Id = 2, Name = "x" } });
             rows.Find(row => string.Equals(row.Name, null, StringComparison.Ordinal)).Select(row => row.Id).Should().Equal(1);
-            Action query = () => rows.Find(row => row.Name.Equals(null, StringComparison.Ordinal)).ToArray();
-            query.Should().Throw<NullReferenceException>();
+            rows.Find(row => row.Name.Equals(null, StringComparison.Ordinal)).Should().BeEmpty();
             rows.Count().Should().Be(2);
         }
+
+        [Theory]
+        [InlineData(StringComparison.Ordinal)]
+        [InlineData(StringComparison.OrdinalIgnoreCase)]
+        public void Prefix_and_suffix_comparisons_honor_the_explicit_mode(StringComparison mode)
+        {
+            var source = new[]
+            {
+                new Row { Id = 1, Name = "Alpha" },
+                new Row { Id = 2, Name = "alpha" },
+                new Row { Id = 3, Name = "ALPHA" },
+                new Row { Id = 4, Name = "beta" }
+            };
+            using var db = new LiteDatabase(new ConnectionString
+            {
+                Filename = ":memory:",
+                Collation = new Collation("en-US/IgnoreCase")
+            });
+            var rows = db.GetCollection<Row>();
+            rows.Insert(source);
+
+            Expression<Func<Row, bool>> starts = row => row.Name.StartsWith("alpha", mode);
+            Expression<Func<Row, bool>> ends = row => row.Name.EndsWith("ALPHA", mode);
+
+            using var scope = new AssertionScope();
+            rows.Find(starts).Select(row => row.Id).OrderBy(id => id).Should()
+                .Equal(source.Where(starts.Compile()).Select(row => row.Id));
+            rows.Find(ends).Select(row => row.Id).OrderBy(id => id).Should()
+                .Equal(source.Where(ends.Compile()).Select(row => row.Id));
+        }
+
+        [Theory]
+        [InlineData(StringComparison.Ordinal)]
+        [InlineData(StringComparison.OrdinalIgnoreCase)]
+        public void IndexOf_honors_StringComparison_instead_of_treating_it_as_a_start_index(StringComparison mode)
+        {
+            var source = new[]
+            {
+                new Row { Id = 1, Name = "Alpha" },
+                new Row { Id = 2, Name = "xxalpha" },
+                new Row { Id = 3, Name = "xxALPHA" },
+                new Row { Id = 4, Name = "none" }
+            };
+            using var db = new LiteDatabase(":memory:");
+            var rows = db.GetCollection<Row>();
+            rows.Insert(source);
+            Expression<Func<Row, bool>> predicate = row => row.Name.IndexOf("alpha", mode) >= 0;
+
+            rows.Find(predicate).Select(row => row.Id).OrderBy(id => id).Should()
+                .Equal(source.Where(predicate.Compile()).Select(row => row.Id));
+        }
+
+#if !NETFRAMEWORK
+        [Theory]
+        [InlineData(StringComparison.Ordinal)]
+        [InlineData(StringComparison.OrdinalIgnoreCase)]
+        public void Contains_honors_the_explicit_mode(StringComparison mode)
+        {
+            var source = new[]
+            {
+                new Row { Id = 1, Name = "xxAlpha" },
+                new Row { Id = 2, Name = "xxalpha" },
+                new Row { Id = 3, Name = "none" }
+            };
+            using var db = new LiteDatabase(":memory:");
+            var rows = db.GetCollection<Row>();
+            rows.Insert(source);
+            Expression<Func<Row, bool>> predicate = row => row.Name.Contains("alpha", mode);
+
+            rows.Find(predicate).Select(row => row.Id).OrderBy(id => id).Should()
+                .Equal(source.Where(predicate.Compile()).Select(row => row.Id));
+        }
+#endif
     }
 }
