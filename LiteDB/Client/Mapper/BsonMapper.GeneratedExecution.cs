@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Reflection;
 using System.Threading;
@@ -79,6 +80,80 @@ namespace LiteDB
             }
 
             throw new InvalidOperationException($"No source-generated entity mapper is registered for '{type.FullName}'.");
+        }
+
+        /// <summary>
+        /// Serializes a value captured by a LINQ expression on a generated collection without runtime
+        /// member discovery. Produces what <see cref="Serialize(Type, object, int)"/> produces when it is given
+        /// the value's runtime type, which is how the runtime-mapping visitor serializes constants as well, and
+        /// rejects anything that the ordinary mapper would hand to reflection-based object mapping.
+        /// </summary>
+        internal BsonValue SerializeGeneratedConstant(object value)
+        {
+            return this.SerializeGeneratedConstant(value, 0);
+        }
+
+        private BsonValue SerializeGeneratedConstant(object value, int depth)
+        {
+            if (++depth > MaxDepth) throw LiteException.DocumentMaxDepth(MaxDepth, value?.GetType());
+
+            switch (value)
+            {
+                case null: return BsonValue.Null;
+                case BsonValue bson: return bson;
+                case string text:
+                    var trimmed = TrimWhitespace ? text.Trim() : text;
+                    return EmptyStringToNull && trimmed.Length == 0 ? BsonValue.Null : new BsonValue(trimmed);
+                case int number: return new BsonValue(number);
+                case long number: return new BsonValue(number);
+                case double number: return new BsonValue(number);
+                case decimal number: return new BsonValue(number);
+                case bool flag: return new BsonValue(flag);
+                case DateTime date: return new BsonValue(date);
+                case Guid guid: return new BsonValue(guid);
+                case ObjectId objectId: return new BsonValue(objectId);
+                case byte[] bytes when value.GetType() == typeof(byte[]): return new BsonValue(bytes);
+                case short or ushort or byte or sbyte: return new BsonValue(Convert.ToInt32(value));
+                case uint number: return new BsonValue((long)number);
+                case ulong number: return new BsonValue(unchecked((long)number));
+                case float number: return new BsonValue((double)number);
+                case char character: return new BsonValue(character.ToString());
+                case Enum enumeration:
+                    return EnumAsInteger ? new BsonValue(Convert.ToInt32(enumeration)) : new BsonValue(enumeration.ToString());
+            }
+
+            var type = value.GetType();
+
+            // Built-in converters (Uri, DateTimeOffset, TimeSpan, Regex) are plain delegates. User
+            // registrations never get here: they are rejected by ValidateGeneratedExecutionConfiguration.
+            if (_customSerializer.TryGetValue(type, out var custom))
+            {
+                return custom(value);
+            }
+
+            if (_generatedExecutionMaps.TryGetValue(type, out var map))
+            {
+                var options = new GeneratedExecutionOptions(SerializeNullValues, TrimWhitespace, EmptyStringToNull, EnumAsInteger);
+
+                return ((IGeneratedEntityMap)map).Serialize(value, options);
+            }
+
+            if (value is IEnumerable items && value is not IDictionary)
+            {
+                var array = new BsonArray();
+
+                foreach (var item in items)
+                {
+                    array.Add(this.SerializeGeneratedConstant(item, depth));
+                }
+
+                return array;
+            }
+
+            throw new NotSupportedException(
+                $"A LINQ expression on a source-generated collection captured a value of type '{type.FullName}'. " +
+                "Generated collections never map application types at runtime: capture a BSON-native value, an enum, " +
+                "a collection of those, or an instance of a [BsonSourceGenerated] type.");
         }
 
         internal GeneratedExecutionOptions ValidateGeneratedExecutionConfiguration<T>(GeneratedEntityMap<T> map)

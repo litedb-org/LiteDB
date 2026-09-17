@@ -180,6 +180,8 @@ namespace LiteDB
 
         private IEnumerable<VectorSearchResult<T>> ReadVectorResults(Query query)
         {
+            if (_deserialize is null) this.EnsureRuntimeMappingAllowed();
+
             using (var reader = _engine.Query(_collection, query))
             {
                 while (reader.Read())

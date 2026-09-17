@@ -10,6 +10,7 @@ namespace LiteDB
     /// <summary>
     /// Helper class to modify your entity mapping to document. Can be used instead attribute decorates
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
     public class EntityBuilder<T>
     {
         private readonly BsonMapper _mapper;

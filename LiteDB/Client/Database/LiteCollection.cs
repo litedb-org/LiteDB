@@ -5,8 +5,8 @@ using static LiteDB.Constants;
 
 namespace LiteDB
 {
-    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = AotCompatibility.RuntimeModelMapping)]
-    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050", Justification = AotCompatibility.RuntimeTypeConstruction)]
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
     public sealed partial class LiteCollection<T> : ILiteCollection<T>
     {
         private readonly string _collection;

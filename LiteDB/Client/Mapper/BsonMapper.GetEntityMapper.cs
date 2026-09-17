@@ -46,6 +46,7 @@ public partial class BsonMapper
     /// <summary>
     /// Get property mapper between typed .NET class and BsonDocument - Cache results
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
     internal EntityMapper GetEntityMapper(Type type)
     {
         if (_entities.TryGetValue(type, out EntityMapper mapper))
@@ -85,6 +86,7 @@ public partial class BsonMapper
     /// Use this method to override how your class can be, by default, mapped from entity to Bson document.
     /// Returns an EntityMapper from each requested Type
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
     protected void BuildEntityMapper(EntityMapper mapper)
     {
         var idAttr = typeof(BsonIdAttribute);
@@ -186,6 +188,7 @@ public partial class BsonMapper
     /// <summary>
     /// Returns all member that will be have mapper between POCO class to document
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
     protected virtual IEnumerable<MemberInfo> GetTypeMembers(Type type)
     {
         var members = new List<MemberInfo>();
@@ -216,6 +219,8 @@ public partial class BsonMapper
     /// - Look for parameterless ctor
     /// - Look for first contructor with parameter and use BsonDocument to send RawValue
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
     protected virtual CreateObject GetTypeCtor(EntityMapper mapper)
     {
         Type type = mapper.ForType;

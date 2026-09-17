@@ -43,6 +43,18 @@ namespace LiteDB
             _useGeneratedMappers = useGeneratedMappers;
         }
 
+        /// <summary>
+        /// A query created by a generated collection must always carry its statically registered deserializer.
+        /// Failing here keeps a missing one from silently degrading into runtime model mapping.
+        /// </summary>
+        private void EnsureRuntimeMappingAllowed()
+        {
+            if (_useGeneratedMappers)
+            {
+                throw new InvalidOperationException($"A source-generated query over '{typeof(T).FullName}' has no generated deserializer and must not fall back to runtime model mapping.");
+            }
+        }
+
         private BsonExpression GetExpression<K>(Expression<Func<T, K>> expression) =>
             _useGeneratedMappers ? _mapper.GetGeneratedExpression(expression) : _mapper.GetExpression(expression);
 
@@ -368,6 +380,8 @@ namespace LiteDB
             {
                 return this.ToDocuments().Select(_deserialize);
             }
+
+            this.EnsureRuntimeMappingAllowed();
 
             if (_isSimpleType)
             {

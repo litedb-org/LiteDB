@@ -3,10 +3,18 @@ using System;
 namespace LiteDB
 {
     /// <summary>
+    /// Type-erased view of a generated execution map, for callers that only hold a runtime instance.
+    /// </summary>
+    internal interface IGeneratedEntityMap
+    {
+        BsonDocument Serialize(object entity, GeneratedExecutionOptions options);
+    }
+
+    /// <summary>
     /// Provides statically authored document conversion for one source-generated entity type.
     /// </summary>
     /// <typeparam name="T">The exact entity type handled by this map.</typeparam>
-    public sealed class GeneratedEntityMap<T>
+    public sealed class GeneratedEntityMap<T> : IGeneratedEntityMap
     {
         private readonly Func<T, BsonDocument> _serialize;
         private readonly Func<BsonDocument, T> _deserialize;
@@ -42,6 +50,9 @@ namespace LiteDB
         /// Gets whether this map supports the generated execution scalar option vector.
         /// </summary>
         public bool SupportsScalarOptions { get; }
+
+        BsonDocument IGeneratedEntityMap.Serialize(object entity, GeneratedExecutionOptions options) =>
+            this.Serialize((T)entity, options);
 
         internal BsonDocument Serialize(T entity, GeneratedExecutionOptions options) =>
             _serializeWithOptions is null ? _serialize(entity) : _serializeWithOptions(entity, options);

@@ -47,7 +47,23 @@ namespace LiteDB
         private readonly StringBuilder _builder = new StringBuilder();
         private readonly Stack<MemberExpression> _memberAccessNodes = new();
 
-        public LinqExpressionVisitor(BsonMapper mapper, Expression expr, bool useGeneratedMappers = false)
+        /// <summary>
+        /// Creates a visitor that resolves members and captured values through runtime model mapping.
+        /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+        public static LinqExpressionVisitor ForRuntimeMapping(BsonMapper mapper, Expression expr) =>
+            new LinqExpressionVisitor(mapper, expr, false);
+
+        /// <summary>
+        /// Creates a visitor that resolves members only through registered source-generated maps and never
+        /// discovers members or serializes application model types at runtime.
+        /// </summary>
+        public static LinqExpressionVisitor ForGeneratedMapping(BsonMapper mapper, Expression expr) =>
+            new LinqExpressionVisitor(mapper, expr, true);
+
+        // Private so the mapping mode is always chosen through one of the factories above; the
+        // runtime-mapping helpers below rely on ForRuntimeMapping having surfaced the trim warning.
+        private LinqExpressionVisitor(BsonMapper mapper, Expression expr, bool useGeneratedMappers)
         {
             _mapper = mapper;
             _expr = expr;
@@ -251,7 +267,6 @@ namespace LiteDB
         /// <summary>
         /// Visit :: x => x.Age + `10` (will create parameter:  `p0`, `p1`, ...)
         /// </summary>
-        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = AotCompatibility.RuntimeModelMapping)]
         protected override Expression VisitConstant(ConstantExpression node)
         {
             var value = node.Value;
@@ -278,7 +293,8 @@ namespace LiteDB
             // if type is string, use direct BsonValue(string) to avoid rules like TrimWhitespace/EmptyStringToNull in mapper
             var arg = type == null ? BsonValue.Null :
                 type == typeof(string) ? new BsonValue((string)value) :
-                _mapper.Serialize(value.GetType(), value);
+                _useGeneratedMappers ? _mapper.SerializeGeneratedConstant(value) :
+                this.SerializeRuntimeConstant(value);
 
             _parameters[parameter] = arg;
 

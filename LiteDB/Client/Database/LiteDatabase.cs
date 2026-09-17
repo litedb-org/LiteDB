@@ -103,6 +103,12 @@ namespace LiteDB
 
         #region Collections
 
+        private const string DocumentCollectionJustification =
+            "LiteCollection<BsonDocument> never discovers model members: its constructor skips entity mapping for BsonDocument, " +
+            "ToDocument returns a BsonDocument unchanged, and Deserialize returns the stored document for typeof(BsonDocument). " +
+            "The only runtime mapping left is a LINQ predicate that captures an application object, which the AOT documentation rules out. " +
+            "The document scenarios of LiteDB.AotSmokeTests run this path trimmed and as Native AOT.";
+
         /// <summary>
         /// Get a collection using an entity class as strong typed document. If collection does not exist, create a new one.
         /// </summary>
@@ -111,11 +117,6 @@ namespace LiteDB
         [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
         public ILiteCollection<T> GetCollection<T>(string name, BsonAutoId autoId = BsonAutoId.ObjectId)
-        {
-            return this.GetCollectionCore<T>(name, autoId);
-        }
-
-        internal ILiteCollection<T> GetCollectionCore<T>(string name, BsonAutoId autoId)
         {
             return new LiteCollection<T>(name, autoId, _engine, Mapper);
         }
@@ -179,6 +180,8 @@ namespace LiteDB
         /// </summary>
         /// <param name="name">Collection name (case insensitive)</param>
         /// <param name="autoId">Define autoId data type (when document contains no _id field)</param>
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = DocumentCollectionJustification)]
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050", Justification = DocumentCollectionJustification)]
         public ILiteCollection<BsonDocument> GetCollection(string name, BsonAutoId autoId = BsonAutoId.ObjectId)
         {
             if (name.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(name));

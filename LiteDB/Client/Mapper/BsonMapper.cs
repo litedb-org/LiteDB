@@ -20,11 +20,6 @@ namespace LiteDB
     ///     - IList, Array supports
     ///     - IDictionary supports (Key must be a simple datatype - converted by ChangeType)
     /// </summary>
-    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = AotCompatibility.RuntimeModelMapping)]
-    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2070", Justification = AotCompatibility.RuntimeModelMapping)]
-    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2072", Justification = AotCompatibility.RuntimeModelMapping)]
-    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2075", Justification = AotCompatibility.RuntimeModelMapping)]
-    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050", Justification = AotCompatibility.RuntimeTypeConstruction)]
     public partial class BsonMapper
     {
         #region Properties
@@ -121,7 +116,7 @@ namespace LiteDB
             this.EnumAsInteger = false;
             this.ResolveFieldName = ResolveFieldNameDefault;
             this.ResolveMember = ResolveMemberDefault;
-            _resolveCollectionName = ResolveCollectionNameDefault;
+            _resolveCollectionName = GetDefaultCollectionNameResolver();
             this.IncludeFields = false;
             this.MaxDepth = 20;
 
@@ -165,6 +160,10 @@ namespace LiteDB
                 new TimeSpan(document["Offset"].AsInt64));
         }
 
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026",
+            Justification = "Only a delegate is created here; nothing is invoked. The resolver can be read or invoked solely through ResolveCollectionName and GetCollectionName, which both carry RequiresUnreferencedCode.")]
+        private static Func<Type, string> GetDefaultCollectionNameResolver() => ResolveCollectionNameDefault;
+
         [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeCollectionNameResolution)]
         private static string ResolveCollectionNameDefault(Type type)
         {
@@ -204,6 +203,7 @@ namespace LiteDB
         /// <summary>
         /// Map your entity class to BsonDocument using fluent API
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         public EntityBuilder<T> Entity<T>()
         {
             return new EntityBuilder<T>(this, _typeNameBinder);
@@ -214,9 +214,10 @@ namespace LiteDB
         /// <summary>
         /// Resolve LINQ expression into BsonExpression
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         public BsonExpression GetExpression<T, K>(Expression<Func<T, K>> predicate)
         {
-            var visitor = new LinqExpressionVisitor(this, predicate);
+            var visitor = LinqExpressionVisitor.ForRuntimeMapping(this, predicate);
 
             var expr = visitor.Resolve(typeof(K) == typeof(bool));
 
@@ -228,9 +229,10 @@ namespace LiteDB
         /// <summary>
         /// Resolve LINQ expression into BsonExpression (for index only)
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         public BsonExpression GetIndexExpression<T, K>(Expression<Func<T, K>> predicate)
         {
-            var visitor = new LinqExpressionVisitor(this, predicate);
+            var visitor = LinqExpressionVisitor.ForRuntimeMapping(this, predicate);
 
             var expr = visitor.Resolve(false);
 
@@ -253,7 +255,7 @@ namespace LiteDB
         {
             if (expression == null) throw new ArgumentNullException(nameof(expression));
 
-            var visitor = new LinqExpressionVisitor(this, expression, useGeneratedMappers: true);
+            var visitor = LinqExpressionVisitor.ForGeneratedMapping(this, expression);
 
             return visitor.Resolve(ensurePredicate);
         }
@@ -288,9 +290,14 @@ namespace LiteDB
 
         #region Register DbRef
 
+        private const string DbRefDeserializeJustification =
+            "Registration only stores the member.Deserialize delegate; no type is constructed while building the mapper. " +
+            "The delegate runs solely from DeserializeObject, which carries RequiresDynamicCode, so the requirement is already surfaced to every caller that can execute it.";
+
         /// <summary>
         /// Register a property mapper as DbRef to serialize/deserialize only document reference _id
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         internal static void RegisterDbRef(BsonMapper mapper, MemberMapper member, ITypeNameBinder typeNameBinder, string collection)
         {
             member.DbRefCollectionName = collection;
@@ -308,6 +315,8 @@ namespace LiteDB
         /// <summary>
         /// Register a property as a DbRef - implement a custom Serialize/Deserialize actions to convert entity to $id, $ref only
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050", Justification = DbRefDeserializeJustification)]
         private static void RegisterDbRefItem(BsonMapper mapper, MemberMapper member, ITypeNameBinder typeNameBinder)
         {
             // get entity
@@ -377,6 +386,8 @@ namespace LiteDB
         /// <summary>
         /// Register a property as a DbRefList - implement a custom Serialize/Deserialize actions to convert entity to $id, $ref only
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050", Justification = DbRefDeserializeJustification)]
         private static void RegisterDbRefList(BsonMapper mapper, MemberMapper member, ITypeNameBinder typeNameBinder)
         {
             // get entity from list item type
