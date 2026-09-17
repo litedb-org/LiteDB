@@ -2306,11 +2306,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "reproduced-pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2902_Tests.cs"
       ],
-      "validation": "Both focused contracts fail: adjacent unequal doubles both equal decimal 0.1, and double.Epsilon equals decimal zero after Convert.ToDecimal rounding."
+      "validation": "Exact rational mixed comparison and reduced-fraction hashes restore transitivity without collapsing decimal hash diversity. Comparer stamps reject older stamped indexes with documented export/import migration. All 167 Issue2902/2892/2456/2812/1224 tests pass on net8.0. Four fresh gpt-5.6-sol reviewers approved round two after the first-round hash-performance finding was fixed. Persisted lookup uses typed parameters; legacy literal Query.EQ formatting/cache precision remains outside this fix (use the existing Query.Parameterized API)."
     },
     {
       "issue": 2904,

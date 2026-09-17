@@ -266,13 +266,10 @@ public class Issue2456_HashContract_Tests
                 return NumericVariant(random, value.AsDecimal);
 
             case BsonType.Double:
-                // cross-type comparison goes through decimal, which rounds to 28 digits, while
-                // double-to-double comparison is exact. Only offer other representations when the
-                // decimal round trip is lossless, so the variant is equal under both rules.
+                // Only generated quarter fractions have binary-exact numeric variants.
                 var number = value.AsDouble;
-                if (double.IsNaN(number) || double.IsInfinity(number) || Math.Abs(number) >= 7.9e28) return new BsonValue(number);
-                if ((double)(decimal)number != number) return new BsonValue(number);
-                return NumericVariant(random, (decimal)number);
+                return number >= -5 && number <= 5 && number * 4 == Math.Truncate(number * 4)
+                    ? NumericVariant(random, (decimal)number) : new BsonValue(number);
 
             case BsonType.Binary:
                 return new BsonValue((byte[])value.AsBinary.Clone());

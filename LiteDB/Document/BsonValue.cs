@@ -563,8 +563,7 @@ namespace LiteDB
             // first, test if types are different
             if (this.Type != other.Type)
             {
-                // if both values are number, convert them to Decimal (128 bits) to compare
-                // it's the slowest way, but more secure
+                // Compare mixed numeric types without rounding either operand.
                 if (this.IsNumber && other.IsNumber)
                 {
                     return BsonNumberComparison.Compare(this, other);
