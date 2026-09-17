@@ -4,8 +4,8 @@ Source: https://github.com/litedb-org/LiteDB/issues/2846
 
 The regression entry point is **`python3 scripts/regressions/issue_2846.py`**.
 It runs the ReproRunner measurement fixture against NuGet 5.0.9 and dev, requires
-all persistence controls to pass, and fails when dev's median exceeds twice the
-5.0.9 median. The child manifest checks measurement validity only; its green
+all persistence controls to pass, and fails when dev's **completed-write** median
+exceeds twice the 5.0.9 completed-write median. API-return latency is also reported. The child manifest checks measurement validity only; its green
 summary is not the performance verdict. Always run the comparison script.
 
 Each variant takes three samples on 100,000 documents with 2 KB payloads and two
@@ -23,3 +23,41 @@ Timing is host-sensitive. Run on a quiet machine. Set `LITEDB_REPRO_ROWS=1000000
 for the original report's scale; increase the child manifest timeout for three
 multi-minute samples. The small run already reproduces a slowdown, but does not
 claim the exact 101-second measurement from the report.
+
+## Completion-boundary correction (2026-09-17)
+
+The historical measurements above stop when DropCollection returns. In package
+5.0.9, TransactionService.Commit calls DiskService.WriteAsync and confirms the
+transaction without waiting for DiskWriterQueue. The writer drains and performs
+FileStream.Flush(true) later. Current code completes that flush before returning,
+as required by the acknowledged-commit durability fix (#2818). The measured API
+return slowdown remains real; those timings compare different amounts of work.
+
+The fixture now reports both return and completed-write medians. A version-checked
+5.0.9 adapter joins DiskWriterQueue.Wait and explicitly flushes its FileStream
+durably because the legacy worker suppresses IOExceptions. Source requires the
+synchronous writer shape and uses its normal return boundary. No checkpoint or rebuild enters the
+timed interval. A copy of data plus WAL taken before Dispose must independently
+recover the dropped state and sentinel, so shutdown cannot conceal unfinished
+writes. Original reopen and collection-reuse controls remain.
+
+On the manual branch, 100,000-row measurements before adding the snapshot control:
+5.0.9 returned at 157.183 ms with up to 34,985 pages still queued, and completed at
+500.509 ms. Source returned/completed at 487.410/487.412 ms. Return ratio: 3.101;
+completed-write ratio: 0.974. An independent preceding completion run measured
+0.919. This does not establish timings at the report's 2.7 GB scale; use the same
+completion boundary when increasing the row count. No engine performance change
+is needed to meet the retained 100,000-row completed-work threshold.
+
+Return ratios are diagnostic telemetry, not a second assertion against 5.0.9's
+early acknowledgment. The completed-work threshold also bounds current return
+latency because current return includes completed writes. Queue-length diagnostics
+used during investigation have been removed from the timed fixture. The final
+legacy barrier repeats Flush(true) observably after Wait, preventing the legacy
+worker's swallowed I/O errors from being mistaken for successful durability.
+
+Final integrated three-sample validation, with those safeguards: 5.0.9 return /
+complete medians 162.288 / 510.868 ms; source 507.102 / 507.180 ms. Return ratio
+3.125, completed ratio 0.993. Every pre-disposal snapshot, reopen and collection
+reuse control passes. Four independent final Sol-high reviews accepted the
+corrected comparison.

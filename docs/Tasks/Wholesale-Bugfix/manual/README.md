@@ -1486,3 +1486,32 @@ its rejection oracle after Expando's serialization shape was corrected.
 
 Four fresh review waves addressed key collisions, declared collection contracts
 and typed _type payloads. Final reviewers review_1162_w4_a through _d were clean.
+
+## #2846 — correct asynchronous versus completed-write comparison
+
+The return-latency difference reproduces, but the compared boundaries differ:
+5.0.9 commits enqueue background WAL writes and return before their durable
+flush, while current commits finish that work before acknowledgment (#2818).
+Actual old-source inspection and a probe finding about 35,000 still-queued pages
+at return establish the difference. Restoring early acknowledgment would undo
+the durability fix.
+
+The benchmark retains return medians as telemetry and compares completed writes.
+A version-checked legacy adapter waits for the writer and performs an observable
+Flush(true), because that worker suppresses IOExceptions. No queue diagnostic
+work remains inside timing. A data/WAL copy taken before Dispose must recover the
+drop and sentinel independently; original reopen and collection-reuse controls
+remain intact.
+
+Final integrated three-sample comparison at 100,000 rows: package return/complete
+162.288/510.868 ms; source 507.102/507.180 ms. Return ratio 3.125; completed ratio
+0.993. Earlier independent completed ratios were 0.919, 0.974 and 1.058. This does
+not establish the original 2.7 GB timing. No engine patch was retained. The
+completed-work slowdown is not currently reproduced at the retained scale.
+
+Two fresh four-Sol-high waves audited the measurement correction. Observable
+legacy flush failures and removing asymmetric diagnostic overhead were addressed.
+A request to retain the old mismatched return-ratio assertion was declined:
+current synchronous return is already bounded by the completed-work threshold,
+and its raw return ratio is explicitly telemetry. Final reviewers
+review_2846_w2_a through _d were clean.

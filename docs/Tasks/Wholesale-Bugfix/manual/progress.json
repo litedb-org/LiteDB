@@ -1542,8 +1542,9 @@
         "priority: P2"
       ],
       "reproduction": "reproduced-script",
-      "disposition": "pending",
-      "tests": []
+      "disposition": "not-currently-reproduced",
+      "tests": [],
+      "validation": "Four fresh final Sol-high reviews approve completion-boundary correction. 5.0.9 acknowledges before background WAL writes/fsync complete; current return includes durability. Final package/source 100000-row comparison: return ratio 3.125 retained as telemetry; completed-write ratio 0.993, all pre-disposal snapshot/reopen/reuse controls pass. No engine performance patch; no 2.7GB timing claim."
     },
     {
       "issue": 2847,

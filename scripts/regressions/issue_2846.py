@@ -1,5 +1,6 @@
 """Compare measured dev drops with 5.0.9; runner success alone is not this regression check."""
 import json
+import math
 import pathlib
 import subprocess
 import tempfile
@@ -18,8 +19,13 @@ with tempfile.TemporaryDirectory(prefix="litedb-2846-report-") as directory:
                    for line in outcome["Output"] if line["Text"].startswith("MEASURED_2846 ")]
         assert len(metrics) == 1, "missing or duplicate measurement"
         measurements.append(metrics[0])
+    for metric in measurements:
+        assert math.isfinite(metric["medianMilliseconds"]) and metric["medianMilliseconds"] > 0
+        assert math.isfinite(metric["medianCompletedMilliseconds"])
+        assert metric["medianCompletedMilliseconds"] >= metric["medianMilliseconds"]
     old, new = measurements
     assert old["rows"] == new["rows"] and old["rows"] >= 100000
-    ratio = new["medianMilliseconds"] / old["medianMilliseconds"]
-    print(json.dumps({"package": old, "dev": new, "ratio": ratio}, indent=2))
-    assert ratio <= 2, "dev drop is over twice as slow as 5.0.9 at the same size"
+    return_ratio = new["medianMilliseconds"] / old["medianMilliseconds"]
+    ratio = new["medianCompletedMilliseconds"] / old["medianCompletedMilliseconds"]
+    print(json.dumps({"package": old, "dev": new, "returnRatio": return_ratio, "completedRatio": ratio}, indent=2))
+    assert ratio <= 2, "dev completed drop is over twice as slow as 5.0.9 at the same size"
