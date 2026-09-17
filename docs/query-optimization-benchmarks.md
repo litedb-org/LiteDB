@@ -815,6 +815,47 @@ row counts, and scalar array keys; existing multikey and ambiguous-field coverag
 also passes. Full .NET 8 and .NET 10 suites: 1,136 passed each, seven existing
 skips each; all Release targets build.
 
+## 28. Seek past excluded index keys
+
+Indexed `!=` queries now scan in index order and seek beyond an equal-key run,
+using skip-list levels to avoid visiting every excluded entry. The scan retains
+its prior cost estimate, document deduplication rules, loop detection, and page
+release safety. It also uses the active database collation: the previous binary
+comparison returned incorrect results for case/accent-insensitive exclusions.
+Those correctness failures are tested separately and are not speedup baselines.
+
+A separate 20,000-row collection has 19,980 zero scores and twenty scores of
+minus or plus one. `Score != 0` returns twenty full documents or their row count.
+Controls exclude a rare value or a missing value and therefore still traverse
+nearly/all 20,000 entries. Comparisons are against step 27; checksums match.
+
+| Workload | Before µs | After µs | Time reduction | Before B/op | After B/op | Allocation reduction |
+|---|---:|---:|---:|---:|---:|---:|
+| exclusion-rare-results-linq | 3372.07 | 89.89 | 97.3% | 8398024 | 88931 | 98.9% |
+| exclusion-rare-results-sql | 3452.81 | 73.66 | 97.9% | 8397480 | 88230 | 98.9% |
+| exclusion-rare-results-count | 3433.18 | 33.72 | 99.0% | 8363206 | 51570 | 99.4% |
+| exclusion-rare-results-descending | 3490.01 | 91.92 | 97.4% | 8399384 | 85611 | 99.0% |
+| exclusion-most-results-control | 3663.69 | 3493.43 | 4.6% | 8363200 | 8373008 | -0.1% |
+| exclusion-all-results-control | 3625.20 | 3548.04 | 2.1% | 8363200 | 8363040 | 0.0% |
+| exclusion-id-control | 22.57 | 23.24 | -3.0% | 25753 | 25729 | 0.1% |
+
+Complete LINQ retrieval is 37.5× faster and count 101.8× faster in this selective
+case, with about 99% fewer allocated bytes. Broad-result controls show small
+2–5% time differences and unchanged allocations; no broad speedup is claimed.
+The primary lookup difference is consistent with shared-host noise.
+
+Raw `28-exclusion-final-*` files measure the final implementation including its
+traversal loop guard. Earlier `28-exclusion-before-*` / `28-exclusion-after-*`
+files retain the initial experiment; its missing traversal guard was restored
+before final measurement. The smaller initial broad-scan allocation is not a
+result of the final change.
+
+Twelve tests cover collation, ascending/descending pagination, repeated and mixed
+numeric keys, null/extreme bounds, scalar arrays, multikey deduplication, empty
+indexes, index maintenance, primary keys, and forced page release. Full .NET 8:
+1,148 passed, seven existing skips; the final guard adjustment passes all twelve
+focused tests. All Release targets build.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -851,7 +892,7 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 1,136 passed on .NET 8 at step 27;
+- Full `LiteDB.Tests` with `tests.runsettings`: 1,148 passed on .NET 8 at step 28;
   1,136 passed on .NET 10 at step 27; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.

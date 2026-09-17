@@ -148,6 +148,10 @@ indexes avoid redundant address sets. Multikey scans retain document deduplicati
 Preferred and covered field matching use the same escaping as expression factories,
 so literal field names cannot be confused with nested, multikey, or computed paths.
 
+Indexed not-equal predicates scan in index order and use an exclusive skip-list
+seek to jump past equal keys. Comparison uses the database collation, and multikey
+results retain one output per document. Their cost estimate remains unchanged.
+
 ## Limited sorting
 
 For residual ORDER BY with a positive limit and `offset + limit <= 1024`, a
