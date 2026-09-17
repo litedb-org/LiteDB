@@ -1,10 +1,8 @@
 ﻿using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Diagnosers;
-using BenchmarkDotNet.Environments;
 using BenchmarkDotNet.Exporters;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Running;
-using BenchmarkDotNet.Toolchains.CsProj;
 
 namespace LiteDB.Benchmarks
 {
@@ -12,12 +10,10 @@ namespace LiteDB.Benchmarks
     {
         static void Main(string[] args)
         {
-            BenchmarkRunner.Run(typeof(Program).Assembly, DefaultConfig.Instance
+            BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args, DefaultConfig.Instance
                 //.With(new BenchmarkDotNet.Filters.AnyCategoriesFilter(new[] { Benchmarks.Constants.Categories.GENERAL }))
                 //.AddFilter(new BenchmarkDotNet.Filters.AnyCategoriesFilter([Benchmarks.Constants.Categories.GENERAL]))
-                .AddJob(Job.Default.WithRuntime(CoreRuntime.Core80)
-                    .WithJit(Jit.RyuJit)
-                    .WithToolchain(CsProjCoreToolchain.NetCoreApp80)
+                .AddJob(Job.Default
                     .WithGcForce(true))
                 /*.With(Job.Default.With(MonoRuntime.Default)
                     .With(Jit.Llvm)
