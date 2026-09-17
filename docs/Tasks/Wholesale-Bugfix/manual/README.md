@@ -1716,11 +1716,12 @@ scope, meaningful short-circuit coverage and discarded-tree retention. The weak
 reference regression fails with the earlier cached-factory implementation and
 passes the final candidate. Final review_1644_w3_a through _d were clean.
 
-## #2796 — reviewed website correction awaiting publication
+## #2796 — reviewed website correction in draft PR
 
 The defect is in the separate gh-pages website branch. Candidate ed1248568 on
 `codex/manual-2796-docs` corrects source, rendered page, landing and RSS summaries.
 The root BSON size/embedded-document/DbRef runtime control passes; RSS XML parses,
 and no obsolete 1MB claim remains in the candidate. Two fresh review waves
 updated stale generated summaries; final review_2796_w2_a through _d were clean.
-Live publication is pending the user's explicit decision.
+At the user's request, draft PR [#2911](https://github.com/litedb-org/LiteDB/pull/2911)
+targets gh-pages. The live website remains unchanged.
