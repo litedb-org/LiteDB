@@ -48,19 +48,19 @@ namespace LiteDB.Engine
             // if no index found, try use same index in orderby/groupby/preferred
             if (lowest == null && (_query.OrderBy.Count > 0 || _query.GroupBy != null || preferred != null))
             {
-                var orderByExpr = _query.OrderBy.Count > 0 ? _query.OrderBy[0].Expression.Source : null;
+                var orderByExpr = _query.OrderBy.Count > 0 ? _query.OrderBy[0].Expression : null;
                 var index =
-                    indexes.FirstOrDefault(x => x.Expression == _query.GroupBy?.Source) ??
-                    indexes.FirstOrDefault(x => x.Expression == orderByExpr) ??
-                    indexes.FirstOrDefault(x => x.Expression == preferred);
+                    indexes.FirstOrDefault(x => IndexExpressionIdentity.Matches(x.Expression, _query.GroupBy)) ??
+                    indexes.FirstOrDefault(x => IndexExpressionIdentity.Matches(x.Expression, orderByExpr)) ??
+                    indexes.FirstOrDefault(x => preferred != null && string.Equals(x.Expression, preferred, StringComparison.OrdinalIgnoreCase));
 
                 if (index != null)
                 {
-                    var keyExpression = index.Expression == _query.GroupBy?.Source ? _query.GroupBy :
-                        index.Expression == orderByExpr ? _query.OrderBy[0].Expression : null;
+                    var keyExpression = IndexExpressionIdentity.Matches(index.Expression, _query.GroupBy) ? _query.GroupBy :
+                        IndexExpressionIdentity.Matches(index.Expression, orderByExpr) ? orderByExpr : null;
                     // The preferred expression is now a canonical, escaped root
                     // field path; it cannot denote a multikey or computed expression.
-                    lowest = new IndexCost(index, keyExpression, scalarKeys: preferred != null && index.Expression == preferred);
+                    lowest = new IndexCost(index, keyExpression, scalarKeys: preferred != null && string.Equals(index.Expression, preferred, StringComparison.OrdinalIgnoreCase));
                 }
             }
 
@@ -75,18 +75,18 @@ namespace LiteDB.Engine
             // Preserve the previous left-side preference across all candidate indexes.
             if (expression.Right.IsValue)
                 foreach (var index in indexes)
-                    if (index.Expression == expression.Left.Source) { value = expression.Right; return index; }
+                    if (IndexExpressionIdentity.Matches(index.Expression, expression.Left)) { value = expression.Right; return index; }
             if (!enumerable && expression.Left.IsValue)
                 foreach (var index in indexes)
-                    if (index.Expression == expression.Right.Source) { value = expression.Left; return index; }
+                    if (IndexExpressionIdentity.Matches(index.Expression, expression.Right)) { value = expression.Left; return index; }
             return null;
         }
 
         private static string GetFieldIndexExpression(string field) =>
-            field == "$" ? null : "$." + BsonExpressionFormatter.PathField(field);
+            IndexExpressionIdentity.RootFieldSource(field);
 
         private static bool IsFieldIndex(string expression, string field) =>
-            expression != null && expression == GetFieldIndexExpression(field);
+            expression != null && string.Equals(expression, GetFieldIndexExpression(field), StringComparison.OrdinalIgnoreCase);
 
     }
 }

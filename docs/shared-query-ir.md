@@ -147,6 +147,10 @@ Those scans, primary indexes, unique indexes, and canonical preferred root-field
 indexes avoid redundant address sets. Multikey scans retain document deduplication.
 Preferred and covered field matching use the same escaping as expression factories,
 so literal field names cannot be confused with nested, multikey, or computed paths.
+Proven scalar root-field identities ignore field-name casing, just as BSON lookup
+does. That identity applies to predicate matching, range/OR combinations, covered
+projections, ordering, and grouping. Other expression text still matches exactly,
+so case-sensitive literals in computed indexes remain distinct.
 
 Indexed not-equal predicates scan in index order and use an exclusive skip-list
 seek to jump past equal keys. Comparison uses the database collation, and multikey

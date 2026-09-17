@@ -1067,6 +1067,57 @@ and .NET 10 suites: 1,211 passed each, seven existing skips each. All Release
 targets, 18 reproduction-runner tests, and plain/encrypted file compatibility
 checks pass.
 
+## 35. Match scalar root-field indexes independent of field-name casing
+
+BSON document lookup uses ordinal case-insensitive field names, but the planner
+previously compared expression text exactly. A query on `score` therefore missed
+an index on `Score`, even though both expressions read the same field. The shared
+matcher now recognizes this equivalence after proving a canonical scalar root
+field. It also applies to bounds, equality ORs, shared OR guards, covered field
+projections, ordering, and grouping. Escaped literal field names keep their
+identity. Arbitrary computed expressions, string literals, nested paths, and
+multikey paths retain exact matching; canonical `Source` and persisted metadata
+are unchanged, and stored index expressions need no parsing.
+
+The 20,000-row fixture is compared with step 34. The SQL point workload executes
+a complete `SELECT` statement through `LiteDatabase.Execute`; the LINQ point
+workload uses an ordinary `BsonDocument` indexer lambda. The other mixed-case
+predicates and ordering/grouping use the query builder's expression overloads.
+Every query is fully consumed, with matching checksums. Final raw files are
+`35-fieldcase-*`. Earlier `35-initial-fieldcase-*` samples remain available; their
+SQL-labeled point case used a query-builder predicate instead of a full statement
+and is superseded by this table.
+
+| Workload | Before µs | After µs | Time reduction | Before B/op | After B/op | Allocation reduction |
+|---|---:|---:|---:|---:|---:|---:|
+| fieldcase-point-sql | 25146.63 | 25.60 | 99.9% | 34829040 | 24688 | 99.9% |
+| fieldcase-point-linq | 26462.14 | 28.07 | 99.9% | 34827264 | 22988 | 99.9% |
+| fieldcase-bounded-range | 26991.48 | 69.55 | 99.7% | 35396704 | 46078 | 99.9% |
+| fieldcase-disjunction | 27551.62 | 57.31 | 99.8% | 37074400 | 43150 | 99.9% |
+| fieldcase-common-guard | 30898.22 | 142.50 | 99.5% | 39328952 | 88654 | 99.8% |
+| fieldcase-covered-order | 85958.54 | 32598.48 | 62.1% | 56832669 | 18978019 | 66.6% |
+| fieldcase-group-count | 88716.64 | 30173.09 | 66.0% | 65250467 | 35315056 | 45.9% |
+| fieldcase-exact-id-control | 21.91 | 20.10 | 8.2% | 21896 | 21896 | 0.0% |
+| fieldcase-exact-projection-control | 67.19 | 66.17 | 1.5% | 33377 | 33514 | -0.4% |
+
+The SQL and LINQ point queries improve by about 982× and 943× respectively because
+they stop scanning all 20,000 rows. The bounded range improves by about 388×,
+the OR by 481×, and the shared guard by 217×. Covered ordering takes 62% less time
+and grouping takes 66% less. These gains require a previously missed index due
+to field-name casing; exact-case queries already used their indexes.
+
+Exact-case controls show no clear regression. One before process has a noisy
+primary-key batch distribution; the initial comparison had that control within
+2%, in the opposite direction. No improvement is attributed to those controls.
+Their allocation is unchanged apart from small fixture-dependent index-layout
+variation in the projection case.
+
+Sixteen tests compare indexed results with scans, check plans and sort removal,
+exercise escaped field names, verify negative computed-literal matching, and
+cover updates/deletes and primary-key aliases under ordinal and Turkish
+collations. Full .NET 8 and .NET 10 suites: 1,227 passed each, seven existing
+skips each. The Release solution builds across all targets.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -1103,8 +1154,8 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 1,211 passed on .NET 8 at step 34;
-  1,211 passed on .NET 10 at step 34; focused sort and query suites also pass on .NET 8. Each full
+- Full `LiteDB.Tests` with `tests.runsettings`: 1,227 passed on .NET 8 at step 35;
+  1,227 passed on .NET 10 at step 35; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file

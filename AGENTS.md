@@ -75,6 +75,9 @@ Only set `Index.SingleKeyPerDocument` after matching a scalar IR expression or a
 canonically escaped scalar root-field path to the stored index definition. Raw
 field names can resemble multikey/computed paths; use the shared path formatter.
 Multikey and unproven scans still need document address deduplication.
+Case-insensitive index identity requires a canonical scalar root-field proof.
+Never compare arbitrary expression text ignoring case: string literals inside
+computed expressions can be case-sensitive even though BSON field lookup is not.
 Index-node links must remain owned by the node across transaction safepoints.
 Keep their compact copied representation independent of released page buffers;
 update both the page and the owned copy when changing links.

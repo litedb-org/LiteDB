@@ -280,7 +280,7 @@ namespace LiteDB.Engine
             var orderBy = new OrderBy(segments);
 
             // if index expression are same as primary OrderBy segment, use index order configuration
-            if (!(_queryPlan.Index is VectorIndexQuery) && orderBy.PrimaryExpression.Source == _queryPlan.IndexExpression)
+            if (!(_queryPlan.Index is VectorIndexQuery) && IndexExpressionIdentity.Matches(_queryPlan.IndexExpression, orderBy.PrimaryExpression))
             {
                 _queryPlan.Index.Order = orderBy.PrimaryOrder;
 
@@ -309,7 +309,7 @@ namespace LiteDB.Engine
             var groupOrderBy = (OrderBy)null;
 
             // if groupBy use same expression in index, no additional ordering is required before grouping
-            if (!(_queryPlan.Index is VectorIndexQuery) && expression.Source == _queryPlan.IndexExpression)
+            if (!(_queryPlan.Index is VectorIndexQuery) && IndexExpressionIdentity.Matches(_queryPlan.IndexExpression, expression))
             {
                 // index already provides grouped ordering
             }

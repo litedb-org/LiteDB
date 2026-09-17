@@ -12,14 +12,14 @@ namespace LiteDB.Engine
             {
                 if (term.Type != BsonExpressionType.Or) continue;
                 var values = new List<BsonExpression>();
-                string source = null;
-                if (!CollectEqualities(term, ref source, values))
+                BsonExpression keyExpression = null;
+                if (!CollectEqualities(term, ref keyExpression, values))
                 {
                     var guard = ChooseCommonDisjunctionIndex(term, indexes);
                     if (guard != null && (best == null || guard.Cost < best.Cost)) best = guard;
                     continue;
                 }
-                var index = indexes.FirstOrDefault(x => x.Expression == source);
+                var index = indexes.FirstOrDefault(x => IndexExpressionIdentity.Matches(x.Expression, keyExpression));
                 if (index == null) continue;
 
                 // Values belong to the current query invocation. Never cache a physical
@@ -31,20 +31,20 @@ namespace LiteDB.Engine
             return best;
         }
 
-        private static bool CollectEqualities(BsonExpression expression, ref string source, List<BsonExpression> values)
+        private static bool CollectEqualities(BsonExpression expression, ref BsonExpression keyExpression, List<BsonExpression> values)
         {
             if (expression.Type == BsonExpressionType.Or)
             {
-                return CollectEqualities(expression.Left, ref source, values) &&
-                    CollectEqualities(expression.Right, ref source, values);
+                return CollectEqualities(expression.Left, ref keyExpression, values) &&
+                    CollectEqualities(expression.Right, ref keyExpression, values);
             }
             if (expression.Type != BsonExpressionType.Equal) return false;
             var field = expression.Left;
             var value = expression.Right;
             if (field.IsValue) { field = expression.Right; value = expression.Left; }
             if (!field.IsScalar || !field.IsImmutable || field.IsValue || !IsStableValue(value)) return false;
-            if (source != null && source != field.Source) return false;
-            source = field.Source;
+            if (keyExpression != null && !IndexExpressionIdentity.Matches(keyExpression.Source, field)) return false;
+            keyExpression = field;
             values.Add(value);
             return true;
         }

@@ -65,7 +65,7 @@ namespace LiteDB.Engine
 
             ENSURE(this.Index != null, "index must be not null");
             var field = ReferenceEquals(value, expr.Right) ? expr.Left : expr.Right;
-            this.Index.SingleKeyPerDocument = field.IsScalar && field.Source == index.Expression;
+            this.Index.SingleKeyPerDocument = field.IsScalar && IndexExpressionIdentity.Matches(index.Expression, field);
 
             // calcs index cost
             this.Cost = this.Index.GetCost(index);
@@ -88,7 +88,7 @@ namespace LiteDB.Engine
             // A preferred full scan consumes no WHERE predicate and needs no parsed node.
             this.Expression = null;
             this.Index = new IndexAll(index.Name, Query.Ascending);
-            this.Index.SingleKeyPerDocument = scalarKeys || (keyExpression?.IsScalar == true && keyExpression.Source == index.Expression);
+            this.Index.SingleKeyPerDocument = scalarKeys || (keyExpression?.IsScalar == true && IndexExpressionIdentity.Matches(index.Expression, keyExpression));
             this.Cost = this.Index.GetCost(index);
             this.IndexExpression = index.Expression;
         }
