@@ -64,6 +64,70 @@ public sealed class GeneratorIncrementalityTests
     }
 
     [TestMethod]
+    public void BsonSourceGenerator_TriviaOnlyChange_ReusesSemanticModelAndSourceOutput()
+    {
+        const string originalSource = """
+            using LiteDB;
+
+            namespace IncrementalConsumer;
+
+            [BsonSourceGenerated]
+            public sealed class IncrementalRecord
+            {
+                public int Id { get; set; }
+                public string Name { get; set; } = string.Empty;
+            }
+            """;
+        const string modifiedSource = """
+            // This shifts every source location without changing the generated mapping.
+
+            using LiteDB;
+
+            namespace IncrementalConsumer;
+
+            [BsonSourceGenerated]
+            public sealed class IncrementalRecord
+            {
+                public int Id { get; set; }
+
+                public string Name { get; set; } = string.Empty; // trivia only
+            }
+            """;
+
+        var originalTree = CSharpSyntaxTree.ParseText(originalSource, path: "IncrementalRecord.cs");
+        var compilation = CSharpCompilation.Create(
+            assemblyName: "IncrementalConsumer",
+            syntaxTrees: [originalTree],
+            references: GetMetadataReferences(),
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        var driverOptions = new GeneratorDriverOptions(
+            disabledOutputs: IncrementalGeneratorOutputKind.None,
+            trackIncrementalGeneratorSteps: true);
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators: [new BsonSourceGenerator().AsSourceGenerator()],
+            driverOptions: driverOptions);
+
+        driver = driver.RunGenerators(compilation);
+        var firstResult = driver.GetRunResult().Results.Single();
+        var modifiedTree = CSharpSyntaxTree.ParseText(modifiedSource, path: "IncrementalRecord.cs");
+
+        driver = driver.RunGenerators(compilation.ReplaceSyntaxTree(originalTree, modifiedTree));
+        var secondResult = driver.GetRunResult().Results.Single();
+
+        Assert.AreEqual(
+            firstResult.GeneratedSources.Single().SourceText.ToString(),
+            secondResult.GeneratedSources.Single().SourceText.ToString());
+        foreach (var stepName in ModelStepNames)
+        {
+            AssertEquivalentOutputs(firstResult.TrackedSteps, secondResult.TrackedSteps, stepName);
+            AssertCacheable(secondResult.TrackedSteps, stepName);
+        }
+
+        AssertCacheable(secondResult.TrackedOutputSteps, "SourceOutput");
+        AssertNoRoslynObjects(secondResult.TrackedSteps);
+    }
+
+    [TestMethod]
     public void BsonSourceGenerator_ModelChange_InvalidatesPipelineAndChangesSourceOutput()
     {
         const string originalSource = """
@@ -170,7 +234,6 @@ public sealed class GeneratorIncrementalityTests
         var result = driver.GetRunResult().Results.Single();
 
         AssertContainsStableAndModifiedOutputs(result.TrackedSteps, "BsonSourceGenerator.Models");
-        AssertContainsStableAndModifiedOutputs(result.TrackedSteps, "BsonSourceGenerator.ValidModels");
         AssertRecomputed(result.TrackedSteps, "BsonSourceGenerator.CollectedModels");
         AssertRecomputed(result.TrackedOutputSteps, "SourceOutput");
     }

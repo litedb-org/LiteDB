@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Immutable;
 
 using LiteDB.SourceGenerator.Models;
 
@@ -31,6 +32,9 @@ internal static class GeneratorDiagnostics
         category: "LiteDB.SourceGenerator",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    public static ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
+        ImmutableArray.Create(InvalidModel, InvalidProperty, MappingConflict);
 
     public static DiagnosticDescriptor GetDescriptor(DiagnosticKind kind) => kind switch
     {

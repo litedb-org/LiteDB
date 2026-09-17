@@ -4,7 +4,6 @@ using System.Text;
 
 using LiteDB.SourceGenerator.Analysis;
 using LiteDB.SourceGenerator.Emission;
-using LiteDB.SourceGenerator.Models;
 
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -15,37 +14,19 @@ namespace LiteDB.SourceGenerator;
 [Generator(LanguageNames.CSharp)]
 public sealed class BsonSourceGenerator : IIncrementalGenerator
 {
-    private const string SourceGeneratedAttributeName = "LiteDB.BsonSourceGeneratedAttribute";
     private const string GeneratedMappingsHintName = "LiteDbGeneratedMappings.v2.g.cs";
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        var results = context.SyntaxProvider.ForAttributeWithMetadataName(
-                fullyQualifiedMetadataName: SourceGeneratedAttributeName,
+        var models = context.SyntaxProvider.ForAttributeWithMetadataName(
+                fullyQualifiedMetadataName: BsonSourceGenerationMetadataNames.Attribute,
                 predicate: static (node, _) => node is ClassDeclarationSyntax or RecordDeclarationSyntax,
-                transform: static (attributeContext, cancellationToken) => BsonModelAnalyzer.Describe(
+                transform: static (attributeContext, cancellationToken) => BsonModelAnalyzer.TryDescribe(
                     (INamedTypeSymbol)attributeContext.TargetSymbol,
-                    DiagnosticLocationDescriptor.From(attributeContext.TargetNode),
                     cancellationToken))
+            .Where(static model => model is not null)
+            .Select(static (model, _) => model!)
             .WithTrackingName(GeneratorTrackingNames.Models);
-
-        var diagnostics = results
-            .Where(static result => !result.IsSupported)
-            .WithTrackingName(GeneratorTrackingNames.Diagnostics);
-
-        context.RegisterSourceOutput(diagnostics, static (productionContext, result) =>
-        {
-            productionContext.ReportDiagnostic(Diagnostic.Create(
-                GeneratorDiagnostics.GetDescriptor(result.DiagnosticKind),
-                result.DiagnosticLocation!.ToLocation(),
-                result.TypeName,
-                result.Error));
-        });
-
-        var models = results
-            .Where(static result => result.IsSupported)
-            .Select(static (result, _) => result.Model!)
-            .WithTrackingName(GeneratorTrackingNames.ValidModels);
 
         var collectedModels = models.Collect()
             .WithTrackingName(GeneratorTrackingNames.CollectedModels);

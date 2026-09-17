@@ -15,7 +15,6 @@ internal static class GeneratorIncrementalityAssert
     public static readonly string[] ModelStepNames =
     [
         "BsonSourceGenerator.Models",
-        "BsonSourceGenerator.ValidModels",
         "BsonSourceGenerator.CollectedModels"
     ];
 

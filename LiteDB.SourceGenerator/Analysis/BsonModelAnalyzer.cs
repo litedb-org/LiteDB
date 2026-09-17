@@ -16,34 +16,34 @@ internal static class BsonModelAnalyzer
     private const string BsonFieldAttributeName = "LiteDB.BsonFieldAttribute";
     private const string BsonIgnoreAttributeName = "LiteDB.BsonIgnoreAttribute";
 
-    public static ModelResult Describe(
-        INamedTypeSymbol type,
-        DiagnosticLocationDescriptor diagnosticLocation,
-        CancellationToken cancellationToken)
+    public static ModelDescriptor? TryDescribe(INamedTypeSymbol type, CancellationToken cancellationToken) =>
+        Analyze(type, cancellationToken).Model;
+
+    public static ModelAnalysisResult Analyze(INamedTypeSymbol type, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var typeName = SymbolNameFormatter.GetTypeName(type);
 
         if (type.TypeKind != TypeKind.Class || type.IsAbstract || type.IsGenericType || type.ContainingType is not null)
         {
-            return ModelResult.InvalidModel(typeName, diagnosticLocation, "it must be a non-abstract, non-generic, top-level class");
+            return ModelAnalysisResult.InvalidModel("it must be a non-abstract, non-generic, top-level class");
         }
 
         if (!type.IsSealed)
         {
-            return ModelResult.InvalidModel(typeName, diagnosticLocation, "it must be sealed because generated collections do not support derived runtime types");
+            return ModelAnalysisResult.InvalidModel("it must be sealed because generated collections do not support derived runtime types");
         }
 
         if (type.DeclaredAccessibility is not Accessibility.Public and not Accessibility.Internal)
         {
-            return ModelResult.InvalidModel(typeName, diagnosticLocation, "it must be public or internal");
+            return ModelAnalysisResult.InvalidModel("it must be public or internal");
         }
 
         if (!type.InstanceConstructors.Any(static constructor =>
                 constructor.Parameters.Length == 0 &&
                 constructor.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal))
         {
-            return ModelResult.InvalidModel(typeName, diagnosticLocation, "an accessible parameterless constructor is required");
+            return ModelAnalysisResult.InvalidModel("an accessible parameterless constructor is required");
         }
 
         var hierarchy = new List<INamedTypeSymbol>();
@@ -53,12 +53,12 @@ internal static class BsonModelAnalyzer
 
             if (current.TypeKind != TypeKind.Class || current.IsGenericType || current.ContainingType is not null)
             {
-                return ModelResult.InvalidModel(typeName, diagnosticLocation, "all base classes must be non-generic, top-level classes");
+                return ModelAnalysisResult.InvalidModel("all base classes must be non-generic, top-level classes");
             }
 
             if (current.DeclaredAccessibility is not Accessibility.Public and not Accessibility.Internal)
             {
-                return ModelResult.InvalidModel(typeName, diagnosticLocation, "all base classes must be public or internal");
+                return ModelAnalysisResult.InvalidModel("all base classes must be public or internal");
             }
 
             hierarchy.Add(current);
@@ -79,7 +79,7 @@ internal static class BsonModelAnalyzer
 
             if (property.IsStatic || property.IsIndexer)
             {
-                return ModelResult.InvalidProperty(typeName, diagnosticLocation, $"property '{property.Name}' must be a non-static, non-indexed property");
+                return ModelAnalysisResult.InvalidProperty($"property '{property.Name}' must be a non-static, non-indexed property");
             }
 
             if (IsComputedProperty(property, type))
@@ -92,18 +92,18 @@ internal static class BsonModelAnalyzer
                 property.SetMethod is null || property.SetMethod.DeclaredAccessibility is not Accessibility.Public ||
                 property.SetMethod.IsInitOnly)
             {
-                return ModelResult.InvalidProperty(typeName, diagnosticLocation, $"property '{property.Name}' must have public non-init getter and setter accessors");
+                return ModelAnalysisResult.InvalidProperty($"property '{property.Name}' must have public non-init getter and setter accessors");
             }
 
             if (!memberNames.Add(property.Name))
             {
-                return ModelResult.MappingConflict(typeName, diagnosticLocation, $"multiple mapped properties are named '{property.Name}' across the inheritance hierarchy");
+                return ModelAnalysisResult.MappingConflict($"multiple mapped properties are named '{property.Name}' across the inheritance hierarchy");
             }
 
             var kind = PropertyTypeAnalyzer.GetPropertyKind(property.Type);
             if (kind == PropertyKind.Unsupported)
             {
-                return ModelResult.InvalidProperty(typeName, diagnosticLocation, $"property '{property.Name}' has an unsupported type '{property.Type.ToDisplayString()}'");
+                return ModelAnalysisResult.InvalidProperty($"property '{property.Name}' has an unsupported type '{property.Type.ToDisplayString()}'");
             }
 
             var scalarKind = PropertyTypeAnalyzer.GetScalarConversionKind(property.Type, out var isNullableScalar);
@@ -125,13 +125,13 @@ internal static class BsonModelAnalyzer
 
         if (properties.Count == 0)
         {
-            return ModelResult.InvalidModel(typeName, diagnosticLocation, "at least one supported property is required");
+            return ModelAnalysisResult.InvalidModel("at least one supported property is required");
         }
 
         var explicitIds = properties.Where(static property => property.HasBsonId).ToArray();
         if (explicitIds.Length > 1)
         {
-            return ModelResult.MappingConflict(typeName, diagnosticLocation, "multiple properties are marked with BsonId");
+            return ModelAnalysisResult.MappingConflict("multiple properties are marked with BsonId");
         }
 
         PropertyDescriptor? id = null;
@@ -147,7 +147,7 @@ internal static class BsonModelAnalyzer
 
             if (conventionalIds.Length > 1)
             {
-                return ModelResult.MappingConflict(typeName, diagnosticLocation, "multiple properties match generated ID conventions across the inheritance hierarchy");
+                return ModelAnalysisResult.MappingConflict("multiple properties match generated ID conventions across the inheritance hierarchy");
             }
 
             if (conventionalIds.Length == 1)
@@ -173,11 +173,11 @@ internal static class BsonModelAnalyzer
         {
             if (!fieldNames.Add(property.FieldName))
             {
-                return ModelResult.MappingConflict(typeName, diagnosticLocation, $"multiple mapped properties use BSON field name '{property.FieldName}' across the inheritance hierarchy");
+                return ModelAnalysisResult.MappingConflict($"multiple mapped properties use BSON field name '{property.FieldName}' across the inheritance hierarchy");
             }
         }
 
-        return ModelResult.Supported(new ModelDescriptor(
+        return ModelAnalysisResult.Supported(new ModelDescriptor(
             typeName,
             new EquatableArray<PropertyDescriptor>(properties),
             PropertyTypeAnalyzer.CanEmitExecutionMap(properties)));

@@ -1,9 +1,13 @@
 using System;
+using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
+
 using LiteDB.SourceGenerator;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace LiteDB.AotTests
@@ -12,7 +16,7 @@ namespace LiteDB.AotTests
     public sealed class GeneratorDiagnosticTests
     {
         [TestMethod]
-        public void BsonSourceGenerator_AbstractModel_ReportsLdbsg001OnAnnotatedClassIdentifier()
+        public void BsonSourceGenerationAnalyzer_AbstractModel_ReportsLdbsg001OnAnnotatedClassIdentifier()
         {
             const string source = """
                 using LiteDB;
@@ -35,7 +39,7 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
-        public void BsonSourceGenerator_UnsealedModel_ReportsLdbsg001OnAnnotatedClassIdentifier()
+        public void BsonSourceGenerationAnalyzer_UnsealedModel_ReportsLdbsg001OnAnnotatedClassIdentifier()
         {
             const string source = """
                 using LiteDB;
@@ -58,7 +62,7 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
-        public void BsonSourceGenerator_RecordClassWithInitOnlyProperty_ReportsLdbsg002OnRecordIdentifier()
+        public void BsonSourceGenerationAnalyzer_RecordClassWithInitOnlyProperty_ReportsLdbsg002OnRecordIdentifier()
         {
             const string source = """
                 using LiteDB;
@@ -81,7 +85,7 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
-        public void BsonSourceGenerator_HiddenMappedProperty_ReportsLdbsg003OnAnnotatedClassIdentifier()
+        public void BsonSourceGenerationAnalyzer_HiddenMappedProperty_ReportsLdbsg003OnAnnotatedClassIdentifier()
         {
             const string source = """
                 using LiteDB;
@@ -109,7 +113,7 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
-        public void BsonSourceGenerator_UnsupportedDirectProperty_ReportsLdbsg002OnAnnotatedClassIdentifier()
+        public void BsonSourceGenerationAnalyzer_UnsupportedDirectProperty_ReportsLdbsg002OnAnnotatedClassIdentifier()
         {
             const string source = """
                 using LiteDB;
@@ -133,7 +137,7 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
-        public void BsonSourceGenerator_UnsupportedInheritedProperty_ReportsLdbsg002OnAnnotatedClassIdentifier()
+        public void BsonSourceGenerationAnalyzer_UnsupportedInheritedProperty_ReportsLdbsg002OnAnnotatedClassIdentifier()
         {
             const string source = """
                 using LiteDB;
@@ -161,7 +165,7 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
-        public void BsonSourceGenerator_PersistedGetterOnlyProperty_ReportsLdbsg002OnAnnotatedClassIdentifier()
+        public void BsonSourceGenerationAnalyzer_PersistedGetterOnlyProperty_ReportsLdbsg002OnAnnotatedClassIdentifier()
         {
             const string source = """
                 using LiteDB;
@@ -187,7 +191,7 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
-        public void BsonSourceGenerator_DuplicateBsonFieldNames_ReportsLdbsg003OnAnnotatedClassIdentifier()
+        public void BsonSourceGenerationAnalyzer_DuplicateBsonFieldNames_ReportsLdbsg003OnAnnotatedClassIdentifier()
         {
             const string source = """
                 using LiteDB;
@@ -215,6 +219,34 @@ namespace LiteDB.AotTests
                 "BSON field name");
         }
 
+        [TestMethod]
+        public void BsonSourceGenerator_InvalidModel_DoesNotReportAnalyzerDiagnostics()
+        {
+            const string source = """
+                using LiteDB;
+
+                [BsonSourceGenerated]
+                public abstract class InvalidDiagnosticRecord
+                {
+                    public int Id { get; set; }
+                }
+                """;
+
+            var sourceTree = CSharpSyntaxTree.ParseText(source, path: "InvalidDiagnosticRecord.cs");
+            var compilation = CSharpCompilation.Create(
+                assemblyName: "ExternalConsumer",
+                syntaxTrees: [sourceTree],
+                references: GetMetadataReferences(),
+                options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+            GeneratorDriver driver = CSharpGeneratorDriver.Create(new BsonSourceGenerator().AsSourceGenerator());
+
+            driver = driver.RunGenerators(compilation);
+
+            var result = driver.GetRunResult().Results.Single();
+            Assert.AreEqual(0, result.GeneratedSources.Length);
+            Assert.IsFalse(result.Diagnostics.Any(static diagnostic => diagnostic.Id.StartsWith("LDBSG", StringComparison.Ordinal)));
+        }
+
         private static void AssertDiagnostic(
             string source,
             string sourcePath,
@@ -228,11 +260,8 @@ namespace LiteDB.AotTests
                 syntaxTrees: [sourceTree],
                 references: GetMetadataReferences(),
                 options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-            GeneratorDriver driver = CSharpGeneratorDriver.Create(new BsonSourceGenerator().AsSourceGenerator());
-
-            driver = driver.RunGenerators(compilation);
-
-            var diagnostics = driver.GetRunResult().Results.Single().Diagnostics;
+            var analyzers = ImmutableArray.Create<DiagnosticAnalyzer>(new BsonSourceGenerationAnalyzer());
+            var diagnostics = compilation.WithAnalyzers(analyzers).GetAnalyzerDiagnosticsAsync().GetAwaiter().GetResult();
             var diagnostic = diagnostics.Single(item => item.Id == expectedDiagnosticId);
             var expectedStart = source.IndexOf(expectedIdentifier, StringComparison.Ordinal);
 
