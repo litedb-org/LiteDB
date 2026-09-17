@@ -24,6 +24,10 @@ namespace LiteDB.Engine
         // index definition. No catalog parsing or persistent format flag is needed.
         internal bool SingleKeyPerDocument { get; set; }
 
+        // Updates can move a document into a later part of the same secondary
+        // scan, even when its index definition permits only one key at a time.
+        internal bool ForUpdate { get; set; }
+
         internal Index(string name, int order)
         {
             this.Name = name;
@@ -57,7 +61,8 @@ namespace LiteDB.Engine
             // creation rejects unique multikey expressions. A matched scalar IR
             // expression proves the same guarantee. IN already deduplicates seek
             // values; other scans retain their multikey address filtering.
-            return index.Slot == 0 || index.Unique || SingleKeyPerDocument ? nodes : nodes.DistinctBy(x => x.DataBlock, null);
+            return index.Slot == 0 || (!ForUpdate && (index.Unique || SingleKeyPerDocument))
+                ? nodes : nodes.DistinctBy(x => x.DataBlock, null);
         }
 
         #endregion

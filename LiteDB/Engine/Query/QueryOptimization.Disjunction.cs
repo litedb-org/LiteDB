@@ -7,10 +7,11 @@ namespace LiteDB.Engine
     {
         private IndexCost ChooseDisjunctionIndex(CollectionIndex[] indexes)
         {
-            IndexCost best = null;
+            IndexCost best = ChooseBooleanIntersectionIndex(indexes);
             foreach (var term in _terms)
             {
                 if (term.Type != BsonExpressionType.Or) continue;
+                if (_booleanCoveredTerms?.Contains(term) == true) continue;
                 var values = new List<BsonExpression>();
                 BsonExpression keyExpression = null;
                 if (!CollectEqualities(term, ref keyExpression, values))

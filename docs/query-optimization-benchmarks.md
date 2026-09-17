@@ -1649,6 +1649,123 @@ and rebuilt collation with an existing bound template. Full .NET 8 and .NET 10
 suites pass **1,426 tests each**, with seven existing skips each. All Release
 targets build; 18 reproduction-runner tests and vector compatibility checks pass.
 
+## 43. Compose nested Boolean predicates as scalar interval sets
+
+A nested OR inside an AND, or compatible OR terms split across WHERE clauses,
+could still leave a broad scan after steps 41–42. For example,
+`(Score >= low && Score < high && (Score < cut || Score >= tail)) || Score == point`
+now becomes ordered disjoint intervals. Separate ordinary LINQ `Where` calls
+participate in the same intersection, including normalized `Contains` clauses
+whose original structural proof and parameter bindings are retained locally.
+
+Union and intersection walk ordered interval sets rather than distributing the
+Boolean tree into conjunctions. Direct AND bounds still prefilter membership
+lists; open endpoints retain their gaps, and empty intersections use the existing
+empty scan and aggregate behavior. The 64-node proof budget, current collation,
+live index definitions, and value/short-circuit rules remain in force. Only the
+selected candidate removes its covered filters. Weaker partial scans of the same
+key cannot displace a candidate that already enforces more of those predicates;
+other indexes still compete.
+
+A write regression test exposed duplicate updates when changing a secondary key
+moved a document into a later scan interval. Queries opened for update now retain
+document-address filtering on secondary indexes, including scalar and unique
+indexes. Read queries retain their existing allocation shortcut; primary-key
+scans still avoid tracking because UpdateMany preserves IDs. This also protects
+existing range and point-union update scans. The write controls below measure
+the tracking cost on correct before/after results: updates change a non-indexed
+field; updates and deletes include rollback and a result check in each operation.
+Incorrect repeated updates are regression tests, never speedup baselines.
+
+Measurements compare `9131e0a1` with this change using identical production
+harnesses, 20,000 documents, CPU 2, disabled tiered compilation, and sequential
+before/after/after/before processes. Each version contributes eighteen batches
+per workload. No builds or tests run during timing. Production SHA-256 values are
+`09206086ed3e19aae576544d98a52c60eb51bbcab4bf0b94c1fbbf5e205d435d`
+(before) and
+`c416d02a78be133868d895aaf14cb5c4bebe85adfb764980920bc9e034ada8e0`
+(after). Use the `boolrange` and `boolwrite` filters; raw samples and plans are
+`43-boolrange-*` and `43-boolwrite-*`.
+
+| Workload | Before µs | After µs | Time reduction | Before B/op | After B/op | Allocation reduction |
+|---|---:|---:|---:|---:|---:|---:|
+| boolrange-nested-linq | 35216.06 | 107.53 | 99.7% | 34500428 | 92519 | 99.7% |
+| boolrange-nested-sql | 35486.44 | 62.92 | 99.8% | 37227616 | 85288 | 99.8% |
+| boolrange-combined-linq | 21743.32 | 106.48 | 99.5% | 25315880 | 90920 | 99.6% |
+| boolrange-separate-where | 20058.45 | 99.22 | 99.5% | 23648416 | 77216 | 99.7% |
+| boolrange-nested-membership | 1041910.23 | 712.77 | 99.9% | 37978856 | 475760 | 98.7% |
+| boolrange-separate-membership | 1392780.37 | 660.63 | 99.95% | 352203024 | 438592 | 99.9% |
+| boolrange-nested-count | 33419.54 | 35.28 | 99.9% | 31478728 | 56856 | 99.8% |
+| boolrange-descending-page | 33881.07 | 70.01 | 99.8% | 35366864 | 78232 | 99.8% |
+| boolrange-contradiction | 19701.48 | 18.90 | 99.9% | 20992256 | 16720 | 99.9% |
+| boolrange-range-union-control | 93.13 | 94.38 | -1.3% | 75017 | 75033 | -0.0% |
+| boolrange-set-union-control | 385.01 | 402.32 | -4.5% | 349382 | 349342 | 0.0% |
+| boolrange-cheaper-id-control | 34.29 | 35.92 | -4.7% | 28449 | 28529 | -0.3% |
+| boolrange-point-control | 15.67 | 15.63 | 0.2% | 21328 | 21344 | -0.1% |
+
+The nested ordinary LINQ query returns 21 documents and is **328× faster**; SQL
+is **564× faster**. Separate WHERE clauses with a 1,000-key Contains list now
+intersect down to twelve matching keys before execution: **2,108× faster**, with
+allocation falling from **352.2 MB to 0.44 MB per complete query**. The nested
+membership query returns 22 documents and is **1,462× faster**. These improvements
+apply automatically to ordinary LINQ, SQL, and text predicates. They are specific
+to formerly missed access paths and residual work, not a universal speedup or a
+disk-throughput measurement. The separate-membership percentage uses two decimal
+places to avoid rounding its reduction to 100%.
+
+The following complete write operations include rollback and result validation:
+
+| Workload | Before µs | After µs | Time reduction | Before B/op | After B/op | Allocation reduction |
+|---|---:|---:|---:|---:|---:|---:|
+| boolwrite-secondary-range-control | 1148.52 | 1170.73 | -1.9% | 1899768 | 1908032 | -0.4% |
+| boolwrite-unique-range-control | 1095.39 | 1076.31 | 1.7% | 1787152 | 1795704 | -0.5% |
+| boolwrite-primary-range-control | 1207.05 | 1182.37 | 2.0% | 1899048 | 1899120 | -0.0% |
+| boolwrite-nested | 34678.17 | 349.81 | 99.0% | 37641808 | 507376 | 98.7% |
+| boolwrite-secondary-delete-control | 955.59 | 965.56 | -1.0% | 2026536 | 2034800 | -0.4% |
+| boolwrite-primary-delete-control | 846.86 | 877.07 | -3.6% | 1948200 | 1948272 | -0.0% |
+
+The nested update improves **99×**, with 98.7% fewer allocated bytes. Tracking
+adds approximately 8.3 KB to the 100-document secondary-index update/delete
+controls and 8.6 KB to the unique-index update (under 0.5% of total allocation).
+Primary-index write controls add 72 bytes per operation. Write
+control times vary from 2.0% faster to 3.6% slower; the primary-delete control also
+slows without added address tracking, so these small timing differences do not
+establish a general write-latency regression or improvement.
+
+The main read controls show a 4.5% slowdown for the existing set union and a
+4.7% slowdown for an already selective `_id` seek with a nested Boolean residual.
+Longer isolated comparisons repeat each control with ten times the iterations,
+again in before/after/after/before order (`43-cheaper-id-*`, `43-point-*`, and
+`43-set-control-*` raw samples):
+
+| Workload | Before µs | After µs | Time reduction | Before B/op | After B/op | Allocation reduction |
+|---|---:|---:|---:|---:|---:|---:|
+| boolrange-cheaper-id-control | 34.46 | 39.24 | -13.9% | 28449 | 28585 | -0.5% |
+| boolrange-point-control | 16.77 | 16.49 | 1.7% | 21328 | 21344 | -0.1% |
+| boolrange-set-union-control | 388.10 | 383.13 | 1.3% | 349308 | 349324 | -0.0% |
+
+The set-union and point controls are within 2% in isolation. The cheaper-ID case
+is **13.9% slower** (34.46 → 39.24 µs), although it retains the same `_id` seek and
+residual filter. This observed regression is retained alongside the gains; the
+change does not make every ordinary query faster. That case allocates 80 extra
+bytes in the main suite and 136 extra bytes in the pooled isolated samples. Point
+and isolated set-union controls add 16 bytes per query.
+All consumed-result checksums match in every comparison, including write controls.
+
+Forty-two new tests cover nested interval endpoints, intersections across WHERE
+bindings, ordinary LINQ and Contains, competing index groups, changes to indexes,
+pagination, aggregates, grouping, and 100 randomized mixed-BSON predicates under
+each of two collations. An eight-group Boolean case verifies composition without
+expanding 256 conjunctions; larger trees retain the bounded fallback. Short
+circuits, errors, includes, multikey predicates, live bindings, rollback, reopen,
+encrypted files, one-page transaction budgets, and rebuilt collation are covered.
+Key-moving updates are checked with scalar, unique, and duplicate-key indexes,
+including movement into later ranges/point seeks and page release.
+
+Full .NET 8 and .NET 10 suites pass **1,467 tests each**, with seven existing skips
+each. All Release targets build; 18 reproduction-runner tests and vector
+compatibility checks pass.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -1685,8 +1802,8 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 1,426 passed on .NET 8 at step 42;
-  1,426 passed on .NET 10 at step 42; focused sort and query suites also pass on .NET 8. Each full
+- Full `LiteDB.Tests` with `tests.runsettings`: 1,467 passed on .NET 8 at step 43;
+  1,467 passed on .NET 10 at step 43; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file

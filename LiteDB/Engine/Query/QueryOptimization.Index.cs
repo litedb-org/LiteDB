@@ -32,6 +32,7 @@ namespace LiteDB.Engine
             {
                 if (!expr.IsPredicate) continue;
                 if (covered?.Contains(expr) == true) continue;
+                if (_booleanCoveredTerms?.Contains(expr) == true) continue;
                 ENSURE(expr.Left != null && expr.Right != null, "predicate expression must has left/right expressions");
                 var index = FindPredicateIndex(indexes, expr, out var value);
                 if (index == null) continue;

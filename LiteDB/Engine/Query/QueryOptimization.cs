@@ -144,7 +144,7 @@ namespace LiteDB.Engine
                     term.Type == BsonExpressionType.Equal &&
                     term.Right?.Type == BsonExpressionType.Path)
                 {
-                    _terms[i] = BsonExpressionFactory.NormalizeContains(term);
+                    _terms[i] = this.NormalizeContainsTerm(term);
                 }
             }
         }

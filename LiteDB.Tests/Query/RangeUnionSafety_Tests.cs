@@ -13,12 +13,10 @@ namespace LiteDB.Tests.QueryTest
         [InlineData("(Score < 2 AND Name = 'row') OR Score > 8")]
         [InlineData("(Values[*] ANY > 8 AND Values[*] ANY < 3) OR Values[*] ANY = 5")]
         [InlineData("Values[*] ALL < 3 OR Values[*] ALL > 8")]
-        [InlineData("(Score < 2 OR Score > 8) AND (Score > 0 OR Score < 10)")]
         public void Unsupported_or_volatile_branches_retain_the_original_filter(string predicate)
         {
             using var db = CreateDatabase();
             var rows = db.GetCollection("rows");
-            // The top-level AND can still use an eligible arm, retaining the other.
             rows.Query().Where(predicate).GetPlan().ContainsKey("filters").Should().BeTrue();
             if (!predicate.Contains("RANDOM"))
             {

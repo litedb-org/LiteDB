@@ -14,7 +14,7 @@ namespace LiteDB.Engine
             var branches = new List<List<BsonExpression>>();
             BsonExpression field = null;
             var budget = 64;
-            if (!CollectRangeBranches(expression, branches, ref field, ref budget)) return null;
+            if (!CollectRangeBranches(expression, branches, ref field, ref budget)) return ChooseNestedBooleanIndex(expression, indexes);
             var index = indexes.FirstOrDefault(x => IndexExpressionIdentity.Matches(x.Expression, field));
             if (index == null) return null;
             if (_terms.Count > 1 && branches.Any(branch => branch.Any(term => term.Type == BsonExpressionType.In || term.IsANY)) &&

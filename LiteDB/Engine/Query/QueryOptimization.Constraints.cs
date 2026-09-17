@@ -24,6 +24,14 @@ namespace LiteDB.Engine
                     }
                 }
                 if (terms == null) continue;
+                // A Boolean intersection already enforces these bounds on this
+                // index. A cheaper-looking partial scan would restore residual work.
+                if (_booleanCoveredTerms != null && terms.TrueForAll(_booleanCoveredTerms.Contains))
+                {
+                    if (covered == null) covered = new HashSet<BsonExpression>();
+                    covered.UnionWith(terms);
+                    continue;
+                }
                 var constraint = new ScalarIndexConstraint(_collation);
                 var valid = true;
                 foreach (var term in terms)

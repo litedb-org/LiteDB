@@ -156,11 +156,30 @@ recognized `ITEMS(values) ANY = field` form keeps its sequence semantics: binary
 values enumerate bytes, while scalar `field IN binary` compares the whole binary
 value. Field-based ANY/ALL predicates retain their multikey semantics.
 
+Nested AND/OR expressions on one scalar key use interval union and intersection,
+and compatible conditions from separate WHERE clauses are intersected too. These
+operations walk ordered disjoint sets without distributing the Boolean tree into
+conjunctions. Direct AND bounds still prefilter IN lists before producing point
+intervals. The same purity proof and 64-node analysis budget apply before any
+bound is evaluated.
+
+The planner retains each combined candidate's predicate coverage so a weaker
+scan of that key cannot displace it merely because it has fewer seeks. Candidates
+on other indexes still compete by cost; predicates disappear from the residual
+filter only when the selected scan enforces them. For ordinary Contains clauses,
+query-local references to the expression before normalization preserve its
+structural proof and its own parameter bindings. No physical plan is cached.
+
+Secondary-index queries opened for update retain document-address filtering even
+for scalar or unique indexes: updating a key can move a document into a later
+range of the same scan. Read queries retain the one-key-per-document shortcut.
+Primary-key scans need no additional tracking because UpdateMany preserves IDs.
+
 This analysis has a 64-node budget and requires a matching scalar index. Includes,
 computed keys, array selectors, mixed fields, and volatile or unrecognized function-call bounds
 keep their existing plans. Arithmetic failures preserve the original filter and
 its execution-time errors and short circuits. If another predicate selects a
-cheaper index, the OR remains a filter. See steps 41–42 in the benchmark report.
+cheaper index, the OR remains a filter. See steps 41–43 in the benchmark report.
 
 The engine inspects the same expression nodes for LINQ and SQL. Equality ORs on
 one scalar indexed expression become ordered IN seeks. OR branches with equivalent

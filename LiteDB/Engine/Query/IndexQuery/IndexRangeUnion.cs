@@ -15,32 +15,13 @@ namespace LiteDB.Engine
         internal static Index Create(string name, List<ScalarBounds> ranges, Collation collation)
         {
             if (ranges.Count == 0) return new IndexEmpty();
-            ranges.Sort((a, b) =>
-            {
-                var lower = a.Lower.CompareTo(b.Lower, collation);
-                // Process a covered boundary first, so a point bridging two open
-                // ranges also collapses them into one scan regardless of OR order.
-                return lower != 0 ? lower : b.LowerInclusive.CompareTo(a.LowerInclusive);
-            });
-            var merged = new List<ScalarBounds>();
-            var previous = ranges[0];
-            for (var i = 1; i < ranges.Count; i++)
-            {
-                var next = ranges[i];
-                var gap = next.Lower.CompareTo(previous.Upper, collation);
-                if (gap > 0 || (gap == 0 && !next.LowerInclusive && !previous.UpperInclusive))
-                {
-                    merged.Add(previous);
-                    previous = next;
-                    continue;
-                }
-                var upper = next.Upper.CompareTo(previous.Upper, collation);
-                previous = new ScalarBounds(previous.Lower, upper > 0 ? next.Upper : previous.Upper,
-                    previous.LowerInclusive || (next.LowerInclusive && next.Lower.CompareTo(previous.Lower, collation) == 0),
-                    upper > 0 ? next.UpperInclusive : previous.UpperInclusive || (upper == 0 && next.UpperInclusive));
-            }
-            merged.Add(previous);
-            return merged.Count == 1 ? (Index)Scan(name, merged[0], Query.Ascending) : new IndexRangeUnion(name, merged);
+            return FromNormalized(name, ScalarIntervals.Normalize(ranges, collation));
+        }
+
+        internal static Index FromNormalized(string name, List<ScalarBounds> ranges)
+        {
+            if (ranges.Count == 0) return new IndexEmpty();
+            return ranges.Count == 1 ? (Index)Scan(name, ranges[0], Query.Ascending) : new IndexRangeUnion(name, ranges);
         }
 
         public override uint GetCost(CollectionIndex index) => (uint)_ranges.Count * 20;
@@ -48,7 +29,7 @@ namespace LiteDB.Engine
         public override IEnumerable<IndexNode> Execute(IndexService indexer, CollectionIndex index)
         {
             // Merged intervals are disjoint and the planner proved one scalar key
-            // per document. No address set is needed, and ORDER BY can use this order.
+            // per document. Read queries need no address set; ORDER BY can use this order.
             for (var i = 0; i < _ranges.Count; i++)
             {
                 var range = _ranges[Order == Query.Ascending ? i : _ranges.Count - i - 1];
