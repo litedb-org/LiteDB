@@ -188,6 +188,17 @@ checks while creating diagnostic argument arrays only on failure. Loaded index
 nodes hold one compact owned copy of their link bytes; link access remains safe
 after page release, and writes preserve the existing on-disk representation.
 
+## LIKE character evaluation
+
+LIKE compares individual UTF-16 code units using the execution collation. Its
+comparison helper reads one-character ranges of the existing strings instead
+of allocating two temporary strings at each comparison. SQL LIKE and ordinary
+LINQ Contains/StartsWith/EndsWith use this path, including residual predicates
+and full index LIKE scans. The matcher retains its current wildcard transitions
+and sentinel behavior; this allocation change does not redefine matching or
+index-prefix semantics. Differential tests compare the helper with isolated
+character strings across every UTF-16 code unit and multiple collations.
+
 ## Limited sorting
 
 For residual ORDER BY with a positive limit and `offset + limit <= 1024`, a

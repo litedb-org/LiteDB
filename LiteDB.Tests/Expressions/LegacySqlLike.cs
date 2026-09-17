@@ -1,49 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Runtime.CompilerServices;
-using System.Security.Cryptography;
-using System.Text;
-
-using static LiteDB.Constants;
-
-namespace LiteDB
+namespace LiteDB.Tests.Expressions
 {
-    internal static class StringExtensions
+    // Frozen pre-optimization matcher: differential oracle for allocation changes.
+    internal static class LegacySqlLike
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool IsNullOrWhiteSpace(this string str)
+        internal static bool? Match(string str, string pattern, Collation collation)
         {
-            return string.IsNullOrWhiteSpace(str);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool IsNullOrEmpty(this string str)
-        {
-            return string.IsNullOrEmpty(str);
-        }
-
-        /// <summary>
-        /// Test if string is simple word pattern ([a-Z$_])
-        /// </summary>
-        public static bool IsWord(this string str)
-        {
-            if (string.IsNullOrWhiteSpace(str)) return false;
-
-            for (var i = 0; i < str.Length; i++)
-            {
-                if (!Tokenizer.IsWordChar(str[i], i == 0)) return false;
-            }
-
-            return true;
-        }
-
-        /// <summary>
-        /// Implement SqlLike in C# string - based on
-        /// https://stackoverflow.com/a/8583383/3286260
-        /// I remove support for [ and ] to avoid missing close brackets
-        /// </summary>
-        public static bool SqlLike(this string str, string pattern, Collation collation)
-        {
+            // The historical matcher can revisit states without making progress.
+            // Bound this test oracle; comparison equivalence covers those code units
+            // separately without asking either matcher to finish that old loop.
+            var budget = 10000;
             var isMatch = true;
             var isWildCardOn = false;
             var isCharWildCardOn = false;
@@ -53,18 +18,17 @@ namespace LiteDB
             var lastWildCard = -1;
             var patternIndex = 0;
             var p = '\0';
-            // Keep p's origin even when the existing matcher retains that character
-            // after patternIndex reaches the end. -1 represents the NUL sentinel.
-            var pIndex = -1;
 
             for (var i = 0; i < str.Length; i++)
             {
+                if (--budget == 0) return null;
+                var c = str[i];
+
                 endOfPattern = (patternIndex >= pattern.Length);
 
                 if (!endOfPattern)
                 {
                     p = pattern[patternIndex];
-                    pIndex = patternIndex;
 
                     if (!isWildCardOn && p == '%')
                     {
@@ -79,12 +43,10 @@ namespace LiteDB
                         if (patternIndex >= pattern.Length)
                         {
                             p = '\0';
-                            pIndex = -1;
                         }
                         else
                         {
                             p = pattern[patternIndex];
-                            pIndex = patternIndex;
                         }
                     }
                     else if (p == '_')
@@ -96,7 +58,7 @@ namespace LiteDB
 
                 if (isWildCardOn)
                 {
-                    if (collation.EqualsCharacter(str, i, pIndex < 0 ? "\0" : pattern, pIndex < 0 ? 0 : pIndex))
+                    if (collation.Compare(c.ToString(), p.ToString()) == 0)
                     {
                         isWildCardOn = false;
                         patternIndex++;
@@ -128,7 +90,7 @@ namespace LiteDB
                 }
                 else
                 {
-                    if (collation.EqualsCharacter(str, i, pIndex < 0 ? "\0" : pattern, pIndex < 0 ? 0 : pIndex))
+                    if (collation.Compare(c.ToString(), p.ToString()) == 0)
                     {
                         patternIndex++;
                     }
@@ -170,30 +132,5 @@ namespace LiteDB
             return isMatch && endOfPattern;
         }
 
-        /// <summary>
-        /// Get first string before any `%` or `_` ... used to index startswith - out if has more string pattern after found wildcard
-        /// </summary>
-        public static string SqlLikeStartsWith(this string str, out bool hasMore)
-        {
-            var i = 0;
-            var len = str.Length;
-            var c = '\0';
-
-            while (i < len)
-            {
-                c = str[i];
-
-                if (c == '%' || c == '_')
-                {
-                    break;
-                }
-
-                i++;
-            }
-
-            hasMore = !(i == len || i == len - 1);
-
-            return str.Substring(0, i);
-        }
     }
 }

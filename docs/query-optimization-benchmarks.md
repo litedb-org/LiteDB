@@ -1192,6 +1192,65 @@ filter that reads the caller's `@key`. Full .NET 8 and .NET 10 suites: **1,254
 passed each**, seven existing skips each. Release builds across all targets,
 18 reproduction-runner tests, and plain/encrypted vector compatibility checks pass.
 
+## 37. Compare LIKE characters without temporary strings
+
+LIKE previously allocated two one-character strings for every character
+comparison. It now compares one-code-unit ranges of the existing strings using
+the same execution collation. The matcher retains its existing pattern cursor,
+backtracking, and NUL-sentinel state. SQL LIKE and ordinary LINQ Contains,
+StartsWith, and EndsWith benefit automatically, including residual filters and
+index scans that evaluate LIKE. Index-prefix-only checks keep their existing path.
+
+The main fixture has 20,000 rows. Additional 20,000-row fixtures use accented and
+decomposed names with linguistic and ordinal collations. Queries consume complete
+results, including Boolean projection values; all before/after checksums match.
+The final suffix workloads also assert expected IDs independently of the matcher.
+The comparison is against step 36. Raw final samples are `37-likechars-*`.
+
+| Workload | Before µs | After µs | Time reduction | Before B/op | After B/op | Allocation reduction |
+|---|---:|---:|---:|---:|---:|---:|
+| likechars-contains-linq | 39167.70 | 36963.14 | 5.6% | 48254400 | 37415816 | 22.5% |
+| likechars-prefix-linq | 57070.14 | 54927.55 | 3.8% | 47366406 | 38572414 | 18.6% |
+| likechars-suffix-linq | 38944.42 | 36390.84 | 6.6% | 46429200 | 36105944 | 22.2% |
+| likechars-contains-sql | 40902.51 | 38935.42 | 4.8% | 41709464 | 30870824 | 26.0% |
+| likechars-projected-sql | 51616.97 | 48039.39 | 6.9% | 48383672 | 37545032 | 22.4% |
+| likechars-residual-linq | 95.79 | 97.62 | -1.9% | 81244 | 70738 | 12.9% |
+| likechars-id-control | 21.55 | 20.93 | 2.9% | 21896 | 21896 | 0.0% |
+| likechars-numeric-scan-control | 45386.06 | 44276.38 | 2.4% | 38050608 | 38050608 | 0.0% |
+| likechars-full-index-count | 15437.01 | 12799.20 | 17.1% | 18244856 | 7406272 | 59.4% |
+| likechars-prefix-remainder-index | 7787.78 | 6575.31 | 15.6% | 10098288 | 4132608 | 59.1% |
+| likechars-prefix-index-control | 309.13 | 307.95 | 0.4% | 236696 | 236788 | -0.0% |
+| likechars-unicode-linguistic | 59415.44 | 56672.71 | 4.6% | 42074816 | 33247950 | 21.0% |
+| likechars-unicode-ordinal | 41892.43 | 33677.03 | 19.6% | 39861040 | 31274184 | 21.5% |
+
+The full index count and prefix-plus-remainder scan take 16–17% less time and
+allocate about 59% fewer bytes. Contains saves roughly **10.8 MB per complete
+20,000-row query**: 22.5% fewer allocated bytes with LINQ and 26% fewer with SQL.
+Other string-filter scans/projections save about 19–22% in allocation. Their
+latency improvement is smaller, generally 4–7% here, while the selective residual
+case is effectively unchanged. The non-LIKE controls vary by up to 3%, so small
+timing differences should not be overinterpreted.
+
+One before process has a slow ordinal Unicode batch distribution, inflating that
+row's main-suite time reduction. A longer isolated before/after comparison,
+`37-ordinal-*`, measures **34,614.41 → 33,211.39 µs (4.1% less time)** with the same
+21.5% allocation reduction. Use that result for the ordinal latency estimate,
+rather than the main table's 19.6%.
+
+`37-legacy-shapes-*` retains the initial diagnostic run. Its shorter suffixes
+exercise an existing matcher defect that can return extra rows after the pattern
+ends; those variants are excluded from the final performance claims. This step
+preserves matcher behavior rather than repairing that separate defect. The final
+suffixes are `2345` and `Person1%3456`, with independently checked expected rows.
+
+Twenty tests cover all UTF-16 code units (including isolated surrogates) in seven
+collations, fixed and randomized wildcard cases, and complete LINQ/SQL/full-index
+queries with changing parameters. The frozen old matcher is a bounded test oracle:
+known non-progressing paths do not run indefinitely, and each collation still
+checks over 6,300 terminating match cases. Character comparison equivalence is
+checked independently across all code units. Full .NET 8 and .NET 10 suites:
+**1,274 passed each**, seven existing skips each. All Release targets build.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -1228,8 +1287,8 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 1,254 passed on .NET 8 at step 36;
-  1,254 passed on .NET 10 at step 36; focused sort and query suites also pass on .NET 8. Each full
+- Full `LiteDB.Tests` with `tests.runsettings`: 1,274 passed on .NET 8 at step 37;
+  1,274 passed on .NET 10 at step 37; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file

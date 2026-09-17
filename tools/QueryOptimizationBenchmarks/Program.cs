@@ -47,6 +47,7 @@ internal static class Program
             UniqueWorkloads.Run(db, Measure, plans, args.Length > 1 ? args[1] : null);
             ScalarIndexWorkloads.Run(db, Measure, plans, args.Length > 1 ? args[1] : null);
             SqlCacheWorkloads.Run(db, Measure, args.Length > 1 ? args[1] : null);
+            LikeCharacterWorkloads.Run(db, Measure, plans, args.Length > 1 ? args[1] : null);
             FieldCaseWorkloads.Run(db, Measure, plans);
             NodeLinkWorkloads.Run(db, Measure);
             MergeWorkloads.Run(db, Measure, plans, args.Length > 1 ? args[1] : null);
