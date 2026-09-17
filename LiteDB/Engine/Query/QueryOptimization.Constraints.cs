@@ -32,7 +32,7 @@ namespace LiteDB.Engine
                     if (!constraint.Intersect(operation, value.ExecuteScalar(_collation))) { valid = false; break; }
                 }
                 if (!valid) continue;
-                var candidate = new IndexCost(index, first, constraint.CreateIndex(index.Name), terms);
+                var candidate = new IndexCost(index, first, constraint.CreateIndex(index.Name), terms, scalarKeys: true);
                 if (covered == null) covered = new HashSet<BsonExpression>();
                 covered.UnionWith(terms);
                 if (best == null || candidate.Cost < best.Cost) best = candidate;

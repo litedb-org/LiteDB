@@ -64,27 +64,31 @@ namespace LiteDB.Engine
                 value.Execute(collation).Select(x => this.CreateIndex(exprType, index.Name, x)).FirstOrDefault();
 
             ENSURE(this.Index != null, "index must be not null");
+            var field = ReferenceEquals(value, expr.Right) ? expr.Left : expr.Right;
+            this.Index.SingleKeyPerDocument = field.IsScalar && field.Source == index.Expression;
 
             // calcs index cost
             this.Cost = this.Index.GetCost(index);
         }
 
         internal IndexCost(CollectionIndex index, BsonExpression expression, Index scan,
-            IReadOnlyCollection<BsonExpression> consumedExpressions = null)
+            IReadOnlyCollection<BsonExpression> consumedExpressions = null, bool scalarKeys = false)
         {
             this.Expression = expression;
             this.IndexExpression = index.Expression;
             this.Index = scan;
+            scan.SingleKeyPerDocument = scalarKeys;
             this.Cost = scan.GetCost(index);
             this.ConsumedExpressions = consumedExpressions;
         }
 
         // used when full index search
-        public IndexCost(CollectionIndex index)
+        public IndexCost(CollectionIndex index, BsonExpression keyExpression = null)
         {
             // A preferred full scan consumes no WHERE predicate and needs no parsed node.
             this.Expression = null;
             this.Index = new IndexAll(index.Name, Query.Ascending);
+            this.Index.SingleKeyPerDocument = keyExpression?.IsScalar == true && keyExpression.Source == index.Expression;
             this.Cost = this.Index.GetCost(index);
             this.IndexExpression = index.Expression;
         }

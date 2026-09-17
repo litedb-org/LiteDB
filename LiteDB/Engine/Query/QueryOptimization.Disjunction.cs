@@ -25,7 +25,7 @@ namespace LiteDB.Engine
                 // Values belong to the current query invocation. Never cache a physical
                 // plan or mutate the reusable expression tree while normalizing it.
                 var keys = new BsonArray(values.Select(x => x.ExecuteScalar(_collation)));
-                var candidate = new IndexCost(index, term, new IndexIn(index.Name, keys, Query.Ascending));
+                var candidate = new IndexCost(index, term, new IndexIn(index.Name, keys, Query.Ascending), scalarKeys: true);
                 if (best == null || candidate.Cost < best.Cost) best = candidate;
             }
             return best;

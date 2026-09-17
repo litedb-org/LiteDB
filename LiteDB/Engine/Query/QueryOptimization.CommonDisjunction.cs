@@ -16,7 +16,7 @@ namespace LiteDB.Engine
             var index = indexes.FirstOrDefault(x => x.Expression == source);
             // This seek enforces a necessary guard, not the entire OR. Retain the
             // original disjunction as a residual filter, with its own bindings.
-            return index == null ? null : new IndexCost(index, null, new IndexEquals(index.Name, key));
+            return index == null ? null : new IndexCost(index, null, new IndexEquals(index.Name, key), scalarKeys: true);
         }
 
         private bool TryCommonLeadingEquality(BsonExpression expression, ref string source, ref BsonValue key, ref int budget)

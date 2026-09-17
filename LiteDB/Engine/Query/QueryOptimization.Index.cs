@@ -56,7 +56,9 @@ namespace LiteDB.Engine
 
                 if (index != null)
                 {
-                    lowest = new IndexCost(index);
+                    var keyExpression = index.Expression == _query.GroupBy?.Source ? _query.GroupBy :
+                        index.Expression == orderByExpr ? _query.OrderBy[0].Expression : null;
+                    lowest = new IndexCost(index, keyExpression);
                 }
             }
 

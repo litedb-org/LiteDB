@@ -710,6 +710,42 @@ keys, rejection of unique multikey indexes, persisted metadata, updates, and
 removal. Existing multikey deduplication tests also pass. Full .NET 10 suite:
 1,111 passed, seven existing skips; all Release targets build.
 
+## 25. Use scalar IR metadata to avoid redundant index deduplication
+
+A scalar expression matching the stored index definition proves one key per
+document even when the index is non-unique. The planner now carries that proof
+into predicate, combined-constraint, disjunction, and explicit ordering/grouping
+scans. It does not parse catalog expressions or add a persistent format flag.
+Multikey expressions and preferred-field fallbacks without that proof keep
+address deduplication. Repeated keys belonging to different documents still all
+produce results.
+
+The normal 20,000-row dataset has non-unique Score and City indexes. A separate
+20,000-row control collection has two Tags per document and a Tags[*] index.
+Comparisons are against step 24, with complete consumption and matching checksums.
+
+| Complete query | Before µs | After µs | Time reduction | Before B/query | After B/query |
+|---|---:|---:|---:|---:|---:|
+| Non-unique scalar range count | 2,056.56 | 1,589.12 | 22.7% | 5,192,576 | 4,355,056 |
+| Non-unique scalar full count | 4,167.03 | 3,373.04 | 19.1% | 10,422,232 | 8,688,984 |
+| Covered scalar ordering | 19,534.21 | 18,042.57 | 7.6% | 21,876,480 | 20,143,176 |
+| Count twenty documents sharing a City key | 30.94 | 29.69 | 4.0% | 32,288 | 30,640 |
+| Primary lookup, short control | 21.97 | 23.36 | -6.3% | 25,753 | 25,753 |
+| Multikey count, control | 8,506.57 | 8,450.38 | 0.7% | 19,723,672 | 19,723,672 |
+| Full scan, control | 56,326.97 | 55,924.53 | 0.7% | 48,794,016 | 48,794,071 |
+
+The short primary control prompted a separate comparison with ten times as many
+iterations: **23.31 → 22.30 µs**, with identical 25,752 B/query. This reversal is
+not evidence of a primary-lookup gain; neither run establishes a stable change
+there. Both measurements are retained (`25-scalar-*` and `25-control-*`). Counts
+and covered ordering show consistent improvements and remove the expected address
+set allocations; multikey and scan controls remain effectively unchanged.
+
+Nine new tests cover repeated keys, IN/OR/ranges and reversed operands, computed
+keys, scalar ordering, multikey fallback, scalar array keys, and conservative
+preferred-field handling. Full .NET 8 suite: 1,120 passed, seven existing skips;
+all Release targets build.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -746,7 +782,7 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 1,105 passed on .NET 8 at step 23;
+- Full `LiteDB.Tests` with `tests.runsettings`: 1,120 passed on .NET 8 at step 25;
   1,111 passed on .NET 10 at step 24; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
