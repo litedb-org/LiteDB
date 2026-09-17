@@ -1626,3 +1626,16 @@ Two fresh four-Sol-high review waves added a collation-equivalent IN guard and
 updated the regression manifest. Final review_2775_w2_a through _d found only a
 stale documentation verdict, now corrected. They also audited #2849's manifest
 correction against its committed million-row evidence (09bb753d).
+
+## #2807 — opt-in parameterized query helpers
+
+Query.Parameterized and Query.Parameterized.Any() reuse expression sources while
+snapshotting independent values. Query.And/Or preserve those snapshots during
+composition. Existing Query/QueryAny helpers retain self-contained literal Source,
+string and ToSQL behavior. The user explicitly selected this opt-in API; callers
+using it must carry Parameters alongside Source.
+
+54 focused and 17 integrated tests pass. Full isolated suite: 1937 passed, 200
+existing failures, 8 skipped, no new failures. Production/net462 builds pass.
+Three fresh four-Sol-high waves addressed mutable composition and compatibility.
+Final review_2807_w3_a through _d found only two documentation nits, corrected.

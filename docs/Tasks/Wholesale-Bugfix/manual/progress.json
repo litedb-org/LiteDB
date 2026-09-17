@@ -2035,10 +2035,11 @@
         "priority: P3"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2807_Tests.cs"
-      ]
+      ],
+      "validation": "User-approved opt-in Query.Parameterized API; 54 focused / 17 integrated pass; full 1937 pass, 200 existing failures, 8 skipped, no new failures; production/net462 builds pass; four fresh Sol-high w3 reviews clean after two doc nits."
     },
     {
       "issue": 2814,

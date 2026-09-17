@@ -950,9 +950,9 @@ The memory fix and a compatibility decision, kept apart:
    - The existing `Query.*` helpers keep producing literal text. With the
      cap in place they cost a parse and compile per distinct value, not
      memory.
-   - A parallel entry point (working name `Query.Parameterized`, same
+   - The opt-in entry point (`Query.Parameterized`, comparison
      method set: `EQ, GT, GTE, LT, LTE, Not, Between, StartsWith, EndsWith,
-     Contains, In`, the `QueryAny` variants, `And`, `Or`) produces
+     Contains, In`, and `Any()` variants) produces
      `BsonExpression.Create($"{field} = @0", value)`; the source text is
      constant per field and operator. The LINQ visitor already emits
      parameters and needs nothing. Migration guidance: switch when the value
@@ -960,7 +960,7 @@ The memory fix and a compatibility decision, kept apart:
      implicit string conversion inline parameter values would rescue the
      string round-trip but not direct `Source` readers, and would give
      `Source` two meanings; rejected.
-   - `And`/`Or` in the parameterized set merge operands with a
+   - `Query.And`/`Query.Or` used with parameterized expressions merge operands with a
      collision-free renaming, not an offset. Parameters may be sparse (`@1`
      alone), named (`@value` on both sides with different values,
      `BsonExpressionParser.cs:817`), repeated within one operand, and

@@ -45,17 +45,17 @@ namespace LiteDB.Tests.Issues
         {
             switch (op)
             {
-                case "EQ": return Query.EQ("value", value);
-                case "LT": return Query.LT("value", value);
-                case "LTE": return Query.LTE("value", value);
-                case "GT": return Query.GT("value", value);
-                case "GTE": return Query.GTE("value", value);
-                case "Between": return Query.Between("value", value, value + "z");
-                case "StartsWith": return Query.StartsWith("value", value);
-                case "EndsWith": return Query.EndsWith("value", value);
-                case "Contains": return Query.Contains("value", value);
-                case "Not": return Query.Not("value", value);
-                case "In": return Query.In("value", value, value + "a");
+                case "EQ": return Query.Parameterized.EQ("value", value);
+                case "LT": return Query.Parameterized.LT("value", value);
+                case "LTE": return Query.Parameterized.LTE("value", value);
+                case "GT": return Query.Parameterized.GT("value", value);
+                case "GTE": return Query.Parameterized.GTE("value", value);
+                case "Between": return Query.Parameterized.Between("value", value, value + "z");
+                case "StartsWith": return Query.Parameterized.StartsWith("value", value);
+                case "EndsWith": return Query.Parameterized.EndsWith("value", value);
+                case "Contains": return Query.Parameterized.Contains("value", value);
+                case "Not": return Query.Parameterized.Not("value", value);
+                case "In": return Query.Parameterized.In("value", value, value + "a");
                 default: throw new ArgumentException(op);
             }
         }
