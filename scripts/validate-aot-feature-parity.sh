@@ -4,10 +4,38 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 project="$repo_root/LiteDB.AotSmokeTests/LiteDB.AotSmokeTests.csproj"
 runtime_identifier="${RUNTIME_IDENTIFIER:-linux-x64}"
-output_root="${AOT_PARITY_OUTPUT_ROOT:-$repo_root/artifacts/aot-feature-parity}"
+default_output_root="$repo_root/artifacts/aot-feature-parity"
+output_root="${AOT_PARITY_OUTPUT_ROOT:-$default_output_root}"
+workspace_marker=".litedb-aot-feature-parity-workspace"
 
-rm -rf "$output_root"
-mkdir -p "$output_root"
+if [[ "$output_root" == "$default_output_root" ]]; then
+    rm -rf -- "$output_root"
+    mkdir -p "$output_root"
+else
+    if [[ -L "$output_root" || (-e "$output_root" && ! -d "$output_root") ]]; then
+        printf '[AOT-PARITY] Refusing unsafe output root: %s must be a directory, not a file or symbolic link.\n' "$output_root" >&2
+        exit 1
+    fi
+
+    if [[ -d "$output_root" && ! -f "$output_root/$workspace_marker" ]]; then
+        unexpected_entry="$(find "$output_root" -mindepth 1 -maxdepth 1 \
+            ! -name "$workspace_marker" \
+            ! -name regular ! -name regular.log \
+            ! -name trimmed ! -name trimmed.log \
+            ! -name native-aot ! -name native-aot.log \
+            -print -quit)"
+        if [[ -n "$unexpected_entry" ]]; then
+            printf '[AOT-PARITY] Refusing non-dedicated output root %s because it contains %s.\n' "$output_root" "$unexpected_entry" >&2
+            exit 1
+        fi
+    fi
+
+    mkdir -p "$output_root"
+fi
+
+: > "$output_root/$workspace_marker"
+rm -rf -- "$output_root/regular" "$output_root/trimmed" "$output_root/native-aot"
+rm -f -- "$output_root/regular.log" "$output_root/trimmed.log" "$output_root/native-aot.log"
 
 publish_and_run() {
     local mode="$1"

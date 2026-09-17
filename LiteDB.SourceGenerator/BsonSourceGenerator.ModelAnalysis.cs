@@ -232,21 +232,8 @@ public sealed partial class BsonSourceGenerator
 
         if (type is IArrayTypeSymbol { Rank: 1, ElementType.SpecialType: SpecialType.System_Byte }) return ScalarConversionKind.ByteArray;
 
-        var specialType = type.SpecialType;
-        if (specialType == SpecialType.System_Boolean) return ScalarConversionKind.Boolean;
-        if (specialType == SpecialType.System_Byte) return ScalarConversionKind.Byte;
-        if (specialType == SpecialType.System_SByte) return ScalarConversionKind.SByte;
-        if (specialType == SpecialType.System_Char) return ScalarConversionKind.Char;
-        if (specialType == SpecialType.System_Int16) return ScalarConversionKind.Int16;
-        if (specialType == SpecialType.System_UInt16) return ScalarConversionKind.UInt16;
-        if (specialType == SpecialType.System_Int32) return ScalarConversionKind.Int32;
-        if (specialType == SpecialType.System_UInt32) return ScalarConversionKind.UInt32;
-        if (specialType == SpecialType.System_Int64) return ScalarConversionKind.Int64;
-        if (specialType == SpecialType.System_UInt64) return ScalarConversionKind.UInt64;
-        if (specialType == SpecialType.System_Single) return ScalarConversionKind.Single;
-        if (specialType == SpecialType.System_Double) return ScalarConversionKind.Double;
-        if (specialType == SpecialType.System_Decimal) return ScalarConversionKind.Decimal;
-        if (specialType == SpecialType.System_String) return ScalarConversionKind.String;
+        var specialKind = GetSpecialTypeConversionKind(type.SpecialType);
+        if (specialKind != ScalarConversionKind.None) return specialKind;
 
         return type.WithNullableAnnotation(NullableAnnotation.None).ToDisplayString() switch
         {
@@ -257,6 +244,37 @@ public sealed partial class BsonSourceGenerator
             _ => ScalarConversionKind.None
         };
     }
+
+    private static ScalarConversionKind GetEnumUnderlyingConversionKind(ITypeSymbol type)
+    {
+        if (type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T, TypeArguments.Length: 1 } nullableType)
+        {
+            type = nullableType.TypeArguments[0];
+        }
+
+        return type is INamedTypeSymbol { TypeKind: TypeKind.Enum, EnumUnderlyingType: { } underlyingType }
+            ? GetSpecialTypeConversionKind(underlyingType.SpecialType)
+            : ScalarConversionKind.None;
+    }
+
+    private static ScalarConversionKind GetSpecialTypeConversionKind(SpecialType specialType) => specialType switch
+    {
+        SpecialType.System_Boolean => ScalarConversionKind.Boolean,
+        SpecialType.System_Byte => ScalarConversionKind.Byte,
+        SpecialType.System_SByte => ScalarConversionKind.SByte,
+        SpecialType.System_Char => ScalarConversionKind.Char,
+        SpecialType.System_Int16 => ScalarConversionKind.Int16,
+        SpecialType.System_UInt16 => ScalarConversionKind.UInt16,
+        SpecialType.System_Int32 => ScalarConversionKind.Int32,
+        SpecialType.System_UInt32 => ScalarConversionKind.UInt32,
+        SpecialType.System_Int64 => ScalarConversionKind.Int64,
+        SpecialType.System_UInt64 => ScalarConversionKind.UInt64,
+        SpecialType.System_Single => ScalarConversionKind.Single,
+        SpecialType.System_Double => ScalarConversionKind.Double,
+        SpecialType.System_Decimal => ScalarConversionKind.Decimal,
+        SpecialType.System_String => ScalarConversionKind.String,
+        _ => ScalarConversionKind.None
+    };
 
     private static bool CanEmitExecutionMap(IReadOnlyList<PropertyDescriptor> properties)
     {

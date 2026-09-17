@@ -205,7 +205,7 @@ public sealed partial class BsonSourceGenerator
             ScalarConversionKind.DateTimeOffset => "SerializeDateTimeOffset(" + value + ")",
             ScalarConversionKind.Guid => "new global::LiteDB.BsonValue(" + value + ")",
             ScalarConversionKind.ObjectId => "new global::LiteDB.BsonValue(" + value + ")",
-            ScalarConversionKind.Enum => "options.EnumAsInteger ? new global::LiteDB.BsonValue((int)" + value + ") : new global::LiteDB.BsonValue(" + value + ".ToString())",
+            ScalarConversionKind.Enum => GetSerializeEnumExpression(property, value),
             _ => throw new InvalidOperationException("Unsupported generated execution scalar conversion.")
         };
     }
@@ -233,9 +233,43 @@ public sealed partial class BsonSourceGenerator
             ScalarConversionKind.DateTimeOffset => "(global::System.DateTimeOffset)DeserializeDateTimeOffset(" + value + ")",
             ScalarConversionKind.Guid => value + ".AsGuid",
             ScalarConversionKind.ObjectId => value + ".AsObjectId",
-            ScalarConversionKind.Enum => value + ".IsInt32 ? (" + property.ScalarTypeName + ")" + value + ".AsInt32 : global::System.Enum.Parse<" + property.ScalarTypeName + ">(" + value + ".AsString)",
+            ScalarConversionKind.Enum => GetDeserializeEnumExpression(property, value),
             _ => throw new InvalidOperationException("Unsupported generated execution scalar conversion.")
         };
+    }
+
+    private static string GetSerializeEnumExpression(PropertyDescriptor property, string value)
+    {
+        var integerExpression = property.EnumUnderlyingKind switch
+        {
+            ScalarConversionKind.UInt32 or ScalarConversionKind.Int64 =>
+                "new global::LiteDB.BsonValue((long)" + value + ")",
+            ScalarConversionKind.UInt64 =>
+                "new global::LiteDB.BsonValue(unchecked((long)" + value + "))",
+            ScalarConversionKind.Byte or ScalarConversionKind.SByte or ScalarConversionKind.Int16 or
+                ScalarConversionKind.UInt16 or ScalarConversionKind.Int32 =>
+                "new global::LiteDB.BsonValue((int)" + value + ")",
+            _ => throw new InvalidOperationException("Unsupported generated enum underlying type.")
+        };
+
+        return "options.EnumAsInteger ? " + integerExpression +
+            " : new global::LiteDB.BsonValue(" + value + ".ToString())";
+    }
+
+    private static string GetDeserializeEnumExpression(PropertyDescriptor property, string value)
+    {
+        var integerExpression = property.EnumUnderlyingKind switch
+        {
+            ScalarConversionKind.UInt32 or ScalarConversionKind.Int64 or ScalarConversionKind.UInt64 =>
+                "unchecked((" + property.ScalarTypeName + ")" + value + ".AsInt64)",
+            ScalarConversionKind.Byte or ScalarConversionKind.SByte or ScalarConversionKind.Int16 or
+                ScalarConversionKind.UInt16 or ScalarConversionKind.Int32 =>
+                "(" + property.ScalarTypeName + ")" + value + ".AsInt32",
+            _ => throw new InvalidOperationException("Unsupported generated enum underlying type.")
+        };
+
+        return value + ".IsString ? global::System.Enum.Parse<" + property.ScalarTypeName + ">(" + value +
+            ".AsString) : " + integerExpression;
     }
 
     private static string EscapeIdentifier(string identifier)

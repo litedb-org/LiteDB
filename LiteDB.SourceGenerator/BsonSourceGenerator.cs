@@ -189,6 +189,7 @@ public sealed partial class BsonSourceGenerator : IIncrementalGenerator
                 FieldName: fieldName,
                 Kind: kind,
                 ScalarKind: scalarKind,
+                EnumUnderlyingKind: GetEnumUnderlyingConversionKind(property.Type),
                 ScalarTypeName: GetScalarTypeName(property.Type),
                 IsNullableScalar: isNullableScalar,
                 HasBsonId: idAttribute is not null,

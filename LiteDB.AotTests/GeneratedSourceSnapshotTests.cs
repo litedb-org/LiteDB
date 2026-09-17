@@ -330,7 +330,7 @@ namespace LiteDB.AotTests
                 "if (entity.NullableState is null)",
                 "document[\"NullableState\"] = options.EnumAsInteger ? new global::LiteDB.BsonValue((int)entity.NullableState.Value) : new global::LiteDB.BsonValue(entity.NullableState.Value.ToString());",
                 "if (entity.NullableObjectId is null)",
-                "entity.NullableState = value3.IsInt32 ? (global::SnapshotConsumer.ScalarState)value3.AsInt32 : global::System.Enum.Parse<global::SnapshotConsumer.ScalarState>(value3.AsString);",
+                "entity.NullableState = value3.IsString ? global::System.Enum.Parse<global::SnapshotConsumer.ScalarState>(value3.AsString) : (global::SnapshotConsumer.ScalarState)value3.AsInt32;",
                 "entity.NullableObjectId = value4.AsObjectId;");
         }
 

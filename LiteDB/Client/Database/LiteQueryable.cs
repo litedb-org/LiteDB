@@ -203,9 +203,11 @@ namespace LiteDB
 
             if (_useGeneratedMappers)
             {
+                var deserializeKey = this.CreateGeneratedGroupingKeyDeserializer<K>();
+
                 IGrouping<K, T> DeserializeGrouping(BsonDocument document)
                 {
-                    var key = GeneratedScalarConverter.Convert<K>(document[LiteGroupingFieldNames.Key]);
+                    var key = deserializeKey(document[LiteGroupingFieldNames.Key]);
                     var items = document[LiteGroupingFieldNames.Items].AsArray
                         .Select(item => _deserialize(item.AsDocument))
                         .ToList();

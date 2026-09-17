@@ -97,6 +97,7 @@ public sealed partial class BsonSourceGenerator
         string FieldName,
         PropertyKind Kind,
         ScalarConversionKind ScalarKind,
+        ScalarConversionKind EnumUnderlyingKind,
         string ScalarTypeName,
         bool IsNullableScalar,
         bool HasBsonId,
