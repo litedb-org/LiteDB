@@ -194,10 +194,16 @@ LIKE compares individual UTF-16 code units using the execution collation. Its
 comparison helper reads one-character ranges of the existing strings instead
 of allocating two temporary strings at each comparison. SQL LIKE and ordinary
 LINQ Contains/StartsWith/EndsWith use this path, including residual predicates
-and full index LIKE scans. The matcher retains its current wildcard transitions
-and sentinel behavior; this allocation change does not redefine matching or
-index-prefix semantics. Differential tests compare the helper with isolated
-character strings across every UTF-16 code unit and multiple collations.
+and full index LIKE scans. A terminal `%` accepts the remaining value immediately.
+Otherwise the matcher consumes the entire value: `%` accepts zero or more UTF-16
+units, `_` accepts exactly one, and literal NUL is distinct from pattern exhaustion.
+Retries advance the input start after the most recent `%`, ensuring finite
+progress without recursive calls or scratch allocations. Difficult patterns can
+still require repeated suffix comparisons; this is not a linear-time guarantee.
+Differential tests compare the character helper with isolated strings across every
+UTF-16 code unit and compare wildcard results with an independent dynamic-programming
+reference in multiple collations. Indexed prefix candidate selection is a separate
+path and retains its existing behavior.
 
 ## Limited sorting
 

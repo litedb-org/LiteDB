@@ -25,13 +25,13 @@ namespace LiteDB.Tests.QueryTest
             foreach (var current in new[] { needle, "plain", needle })
             {
                 var pattern = "%" + current + "%";
-                var expected = data.Where(x => LegacySqlLike.Match(x.Name, pattern, collation) == true).Select(x => x.Id).ToArray();
+                var expected = data.Where(x => SqlLikeReference.Match(x.Name, pattern, collation)).Select(x => x.Id).ToArray();
                 rows.Find(x => x.Name.Contains(current)).Select(x => x.Id).Should().BeEquivalentTo(expected);
                 using var reader = db.Execute("SELECT _id FROM rows WHERE Name LIKE @pattern", new BsonDocument { ["pattern"] = pattern });
                 reader.ToArray().Select(x => x["_id"].AsInt32).Should().BeEquivalentTo(expected);
             }
             var contains = "%" + needle + "%";
-            var matches = data.Where(x => LegacySqlLike.Match(x.Name, contains, collation) == true).Select(x => x.Id).ToArray();
+            var matches = data.Where(x => SqlLikeReference.Match(x.Name, contains, collation)).Select(x => x.Id).ToArray();
             rows.EnsureIndex(x => x.Name);
             var indexed = rows.Query().Where(x => x.Name.Contains(needle));
             indexed.GetPlan()["index"]["name"].AsString.Should().Be("Name");

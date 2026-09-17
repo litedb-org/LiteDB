@@ -89,7 +89,10 @@ Keep their compact copied representation independent of released page buffers;
 update both the page and the owned copy when changing links.
 LIKE character comparisons use one-code-unit ranges with the execution collation.
 Do not replace them with ordinal comparisons or absorb adjacent surrogate/combining
-characters. Preserve pattern cursor and sentinel state independently of allocation changes.
+characters. LIKE must consume the whole value, distinguish literal NUL from pattern
+exhaustion, and make input progress on wildcard retries. A terminal percent accepts
+the remaining input immediately. Check wildcard changes against the independent
+test reference, including underscore after percent and repeated trailing characters.
 Temporary sort keys use the same extended string/binary length headers as index
 pages. Decode them with `ExtendedLengthHelper`; lengths describe UTF-8 bytes,
 not characters, and valid key payloads can exceed 255 bytes. Preserve full

@@ -1251,6 +1251,88 @@ checks over 6,300 terminating match cases. Character comparison equivalence is
 checked independently across all code units. Full .NET 8 and .NET 10 suites:
 **1,274 passed each**, seven existing skips each. All Release targets build.
 
+## 38. Finish LIKE at a terminal wildcard and advance wildcard retries
+
+The matcher now returns immediately when the remaining pattern is only `%`.
+Previously it compared every remaining character with a NUL sentinel. Explicit
+value/pattern positions also repair existing wildcard defects: matching must
+consume the whole value, `_` after `%` still consumes one UTF-16 unit, and literal
+NUL is not pattern exhaustion. Retrying a suffix advances its input start, so
+matching makes finite progress without recursive calls or scratch allocations.
+Literal comparisons retain the active collation and one-code-unit behavior from
+step 37. Difficult patterns can still require repeated suffix comparisons; there
+is no linear-time complexity claim.
+
+The before assembly is step 37 (`eac3a095`). The same harness runs on both sides
+in before/after/after/before order, with nine batches per process and all query
+results consumed. Raw samples are `38-likechars-*` and `38-liketail-*`. The short
+name workloads reuse step 37's fixture and independently validated suffixes:
+
+| Workload | Before µs | After µs | Time reduction | Before B/op | After B/op | Allocation reduction |
+|---|---:|---:|---:|---:|---:|---:|
+| likechars-contains-linq | 37695.26 | 36653.15 | 2.8% | 37415760 | 37415760 | 0.0% |
+| likechars-prefix-linq | 56950.27 | 53275.38 | 6.5% | 38572330 | 38572330 | 0.0% |
+| likechars-suffix-linq | 36640.75 | 36156.56 | 1.3% | 36105888 | 36105888 | 0.0% |
+| likechars-contains-sql | 38520.19 | 38107.01 | 1.1% | 30870824 | 30870824 | 0.0% |
+| likechars-projected-sql | 48411.22 | 49222.73 | -1.7% | 37545032 | 37545032 | 0.0% |
+| likechars-residual-linq | 95.65 | 95.69 | -0.0% | 70682 | 70682 | 0.0% |
+| likechars-id-control | 21.33 | 21.65 | -1.5% | 21896 | 21896 | 0.0% |
+| likechars-numeric-scan-control | 45955.88 | 45821.30 | 0.3% | 38050608 | 38050608 | 0.0% |
+| likechars-full-index-count | 12702.52 | 12095.11 | 4.8% | 7406216 | 7406216 | 0.0% |
+| likechars-prefix-remainder-index | 6651.23 | 5917.52 | 11.0% | 4132608 | 4132608 | 0.0% |
+| likechars-prefix-index-control | 317.44 | 313.71 | 1.2% | 236696 | 236696 | 0.0% |
+| likechars-unicode-linguistic | 56759.13 | 51919.01 | 8.5% | 33247891 | 33247891 | 0.0% |
+| likechars-unicode-ordinal | 33991.61 | 33019.07 | 2.9% | 31274128 | 31274128 | 0.0% |
+
+The short-name prefix scan takes 6.5% less time, the full-index count 4.8% less,
+and the prefix-plus-remainder index scan 11.0% less. The linguistic Unicode case
+takes 8.5% less time. Most other short-string cases change by about 0–3%, with
+controls varying by up to 1.5%; small differences are inconclusive. Allocation is
+unchanged throughout this comparison.
+
+The additional fixture has 20,000 documents, each with a 270–274-character
+name: `Record-<id>-` followed by 256 `x` characters and `-Tail`. It has only the
+primary index. These are complete queries that parse records and consume every
+returned ID. Prefix/early-contains patterns match all rows; late-match and
+nonmatch controls still inspect most characters. Every query checks its expected
+ID checksum against the fixed fixture.
+
+| Workload | Before µs | After µs | Time reduction | Before B/op | After B/op | Allocation reduction |
+|---|---:|---:|---:|---:|---:|---:|
+| liketail-long-prefix-linq | 286788.56 | 51356.70 | 82.1% | 49045272 | 49045216 | 0.0% |
+| liketail-long-contains-linq | 289426.24 | 50417.57 | 82.6% | 50485576 | 50485520 | 0.0% |
+| liketail-long-prefix-sql | 280856.14 | 42304.48 | 84.9% | 47340608 | 47340608 | 0.0% |
+| liketail-all-strings-sql | 284011.16 | 39047.04 | 86.3% | 47340608 | 47340608 | 0.0% |
+| liketail-late-match-control | 263371.10 | 249264.20 | 5.4% | 50325576 | 50325520 | 0.0% |
+| liketail-nonmatch-control | 251661.53 | 234718.71 | 6.7% | 43823072 | 43823016 | 0.0% |
+
+These early-match queries take **82–86% less time (5.6–7.3× faster)**. For example,
+ordinary LINQ StartsWith falls from **286.79 to 51.36 ms**, and SQL prefix matching
+from **280.86 to 42.30 ms**. This is a substantial improvement when a short pattern
+accepts a long remaining value. Late matches and nonmatches gain a much smaller
+5–7%; the shortcut cannot skip their search. Allocations remain effectively
+unchanged. These results are specific to the stated warm, in-memory fixtures.
+
+Incorrect legacy results are covered as correctness regressions, not speedup
+baselines. Fixed tests include rejecting `Person12344 LIKE '%234'`, underscore
+following percent, repeated wildcard retries, empty strings, literal NUL,
+surrogates, and literal brackets. An independent dynamic-programming reference
+replaces the frozen legacy matcher for all fixed and randomized cases in seven
+collations; no cases are skipped for non-progress. The exhaustive character
+comparison tests remain. End-to-end SQL and ordinary LINQ suffix queries check
+exact expected IDs before and after indexing and with changing parameters.
+
+This step changes existing incorrect wildcard results. It preserves the query
+frontends' current translation into LIKE, including their existing treatment of
+`%` and `_` in LINQ string-method arguments. Indexed prefix candidate selection
+still has a separate comparison path; changing its collation/type handling is a
+separate follow-up. These wildcard tests exercise scalar/residual evaluation and
+full index matching.
+
+Full .NET 8 and .NET 10 suites: **1,297 passed each**, seven existing skips each.
+All Release targets build; 18 reproduction-runner tests and plain/encrypted
+vector compatibility checks pass.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -1287,8 +1369,8 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 1,274 passed on .NET 8 at step 37;
-  1,274 passed on .NET 10 at step 37; focused sort and query suites also pass on .NET 8. Each full
+- Full `LiteDB.Tests` with `tests.runsettings`: 1,297 passed on .NET 8 at step 38;
+  1,297 passed on .NET 10 at step 38; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file

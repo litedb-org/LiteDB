@@ -39,14 +39,13 @@ namespace LiteDB.Tests.Expressions
         [InlineData("en-US/OrdinalIgnoreCase")]
         [InlineData("tr-TR/IgnoreCase")]
         [InlineData("ja-JP/IgnoreKanaType, IgnoreWidth")]
-        public void Wildcards_and_backtracking_preserve_the_previous_matcher(string culture)
+        public void Wildcards_match_the_independent_prefix_reachability_specification(string culture)
         {
             var collation = new Collation(culture);
             var strings = new[] { "", "a", "aa", "aaa", "aababa", "ab", "AB", "a\0b", "\0", "\0\0", "abc\0",
                 "æae", "äa\u0308", "Iİiı", "カｶか", "\ud83d\ude00x", "\ud83d", "\ude00", "a\u00adb" };
             var patterns = new[] { "", "%", "%%", "_", "__", "a", "aa", "a%", "%a", "%a%", "a%a", "%ab%a", "a_b",
                 "a%%b", "%_a%", "\0", "%\0", "a\0%", "a%\0b", "\ud83d%", "%\ude00", "İ%", "%ｶ%", "%\u0308%" };
-            var checkedCases = 0;
             foreach (var value in strings)
                 foreach (var pattern in patterns)
                     Check(value, pattern);
@@ -60,14 +59,9 @@ namespace LiteDB.Tests.Expressions
                 var pattern = Word(random.Next(12));
                 Check(value, pattern);
             }
-            Assert.True(checkedCases > 6300);
-
             void Check(string value, string pattern)
             {
-                var expected = LegacySqlLike.Match(value, pattern, collation);
-                if (!expected.HasValue) return;
-                Assert.Equal(expected.Value, value.SqlLike(pattern, collation));
-                checkedCases++;
+                Assert.Equal(SqlLikeReference.Match(value, pattern, collation), value.SqlLike(pattern, collation));
             }
         }
     }
