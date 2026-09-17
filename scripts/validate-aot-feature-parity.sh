@@ -6,7 +6,7 @@
 # analyses every method of the library and not only the code the smoke scenarios reach.
 #
 #   TARGET_FRAMEWORK     net8.0 (default) or net10.0
-#   RUNTIME_IDENTIFIER   defaults to the host: linux-x64, linux-arm64, osx-arm64, osx-x64, win-x64, ...
+#   RUNTIME_IDENTIFIER   defaults to the host: linux-x64, linux-arm64, linux-musl-x64, osx-arm64, win-x64, ...
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -15,7 +15,13 @@ target_framework="${TARGET_FRAMEWORK:-net8.0}"
 executable="LiteDB.AotSmokeTests"
 
 case "$(uname -s)" in
-    Linux*) host_os="linux" ;;
+    Linux*)
+        host_os="linux"
+        # Alpine and other musl distributions need their own runtime identifier.
+        if [ -f /etc/alpine-release ] || (ldd --version 2>&1 || true) | grep -qi musl; then
+            host_os="linux-musl"
+        fi
+        ;;
     Darwin*) host_os="osx" ;;
     MINGW* | MSYS* | CYGWIN*)
         host_os="win"
@@ -82,7 +88,7 @@ publish native-aot-whole-library -p:IlcParallelism=1 -p:LiteDbAnalyzeWholeLibrar
 run native-aot-whole-library
 
 for mode in trimmed native-aot native-aot-whole-library; do
-    if ! diff --unified "$output_root/regular.log" "$output_root/$mode.log"; then
+    if ! diff -u "$output_root/regular.log" "$output_root/$mode.log"; then
         printf '[AOT-PARITY] FAILED: %s behavior differs from the regular build.\n' "$mode" >&2
         exit 1
     fi

@@ -160,7 +160,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-latest]
         tfm: [net8.0, net10.0]
         exclude:
           - os: ubuntu-latest
@@ -182,6 +182,34 @@ jobs:
       - name: Install Native AOT prerequisites
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev libicu-dev
+
+      - name: Compare regular, trimmed, and Native AOT feature coverage
+        shell: bash
+        env:
+          TARGET_FRAMEWORK: ${{ matrix.tfm }}
+        run: ./scripts/validate-aot-feature-parity.sh
+
+  # musl is a separate runtime identifier with its own native toolchain and libc, and Alpine is the usual base
+  # image for small Native AOT containers.
+  aot-parity-alpine:
+    name: Native AOT parity (alpine, ${{ matrix.tfm }})
+    runs-on: ubuntu-latest
+    container: mcr.microsoft.com/dotnet/sdk:10.0-alpine
+    timeout-minutes: 45
+
+    strategy:
+      fail-fast: false
+      matrix:
+        tfm: [net8.0, net10.0]
+
+    steps:
+      - name: Install Native AOT prerequisites
+        run: apk add --no-cache bash clang build-base zlib-dev icu-libs icu-data-full
+
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Compare regular, trimmed, and Native AOT feature coverage
         shell: bash
