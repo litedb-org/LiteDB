@@ -76,9 +76,10 @@ namespace LiteDB.Tests.Issues
 
             var exception = serialize.Should().Throw<LiteException>().Which;
             exception.ErrorCode.Should().Be(LiteException.DOCUMENT_MAX_DEPTH);
-            exception.Message.Should().Be(
+            exception.Message.Should().Contain(
                 $"Document has more than 1 nested documents in '{nestedType.FullName}'. " +
                 "Check for circular references (use DbRef).");
+            exception.Message.Should().Contain("Error serializing");
         }
 
         private static void AssertUri(Uri actual, string text, bool isAbsolute)

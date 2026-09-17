@@ -78,9 +78,17 @@ namespace LiteDB
             return entity.CreateInstance?.Target is DefaultConstructor ? null : new ConstructorScope(this);
         }
 
-        private object DeserializeMember(MemberMapper member, BsonValue value)
+        private object DeserializeMember(Type entity, MemberMapper member, BsonValue value, bool isStored = true)
         {
-            return member.Deserialize != null ? member.Deserialize(value, this) : this.Deserialize(member.DataType, value);
+            try
+            {
+                // a member deserializer only ever sees a stored field; a missing constructor argument maps from Null
+                return member.Deserialize != null && isStored ? member.Deserialize(value, this) : this.Deserialize(member.DataType, value);
+            }
+            catch (Exception error)
+            {
+                throw MemberFailure(DeserializeAction, entity, member, error, value);
+            }
         }
 
         private sealed class DefaultConstructor
@@ -111,9 +119,7 @@ namespace LiteDB
             public object Create(BsonDocument document)
             {
                 var arguments = Parameters.Select(member =>
-                    member.Deserialize != null && document.TryGetValue(member.FieldName, out var value)
-                        ? member.Deserialize(value, _mapper)
-                        : _mapper.Deserialize(member.DataType, document[member.FieldName])).ToArray();
+                    _mapper.DeserializeMember(_constructor.DeclaringType, member, document[member.FieldName], document.ContainsKey(member.FieldName))).ToArray();
                 var instance = _constructor.Invoke(arguments);
                 _mapper._constructorScope.Value?.Register(instance, document, Parameters, arguments);
                 return instance;

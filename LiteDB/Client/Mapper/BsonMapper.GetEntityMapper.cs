@@ -40,7 +40,8 @@ public partial class BsonMapper
                 catch (Exception ex)
                 {
                     _entities.TryRemove(type, out _);
-                    throw new LiteException(LiteException.MAPPING_ERROR, $"Error in '{type.Name}' mapping: {ex.Message}", ex);
+                    throw new LiteException(LiteException.MAPPING_ERROR, ex,
+                        "Error in '{0}' mapping: {1}", type.FullName, ex.Message);
                 }
             }
         }
@@ -206,6 +207,7 @@ public partial class BsonMapper
         Type type = mapper.ForType;
         List<CreateObject> Mappings = new List<CreateObject>();
         bool returnZeroParamNull = false;
+        bool missingParameterNames = false;
         foreach (ConstructorInfo ctor in type.GetConstructors())
         {
             ParameterInfo[] pars = ctor.GetParameters();
@@ -217,6 +219,13 @@ public partial class BsonMapper
             }
 
             var paramMap = new MemberMapper[pars.Length];
+            if (pars.Any(parameter => string.IsNullOrEmpty(parameter.Name)))
+            {
+                if (ctor.GetCustomAttribute<BsonCtorAttribute>() != null)
+                    throw MissingConstructorParameterNames(type);
+                missingParameterNames = true;
+                continue;
+            }
             int i;
             for (i = 0; i < pars.Length; i++)
             {
@@ -255,6 +264,8 @@ public partial class BsonMapper
             return null;
         }
 
+        if (Mappings.Count == 0 && missingParameterNames)
+            throw MissingConstructorParameterNames(type);
         return Mappings.FirstOrDefault();
     }
 }
