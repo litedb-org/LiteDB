@@ -1676,3 +1676,16 @@ Filename property, preserving spaces and punctuation. Explicit connection string
 keep the existing parser. The retained real-shell script passes both isolated
 and integrated, including byte preservation and absence of unwanted files.
 Four fresh reviewers review_1166_w1_a through _d were clean.
+
+## #2795 — skip index nodes before loading page payloads
+
+Plans whose index already supplies membership and ordering paginate before
+loading documents. Residual filters, pre-filter includes and remaining sorts
+retain document-level pagination. Skipped index nodes still run safepoints.
+The original oracle verifies only seven payloads load at offset 2,000; additional
+controls cover filtering, sorting, includes and aggregation. Offset remains
+linear in index entries, so keyset pagination is still preferable for long scans.
+
+37 focused/integrated tests pass. Full isolated suite: 1965 passed, 196 existing
+failures, 8 skipped, no new failures. Production/net462 builds pass. Four fresh
+reviewers review_2795_w1_a through _d were clean.

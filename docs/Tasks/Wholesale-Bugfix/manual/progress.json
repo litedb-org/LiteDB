@@ -1971,11 +1971,12 @@
         "priority: P3"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2795_PipelineGuards_Tests.cs",
         "LiteDB.Tests/Issues/Issue2795_Tests.cs"
-      ]
+      ],
+      "validation": "37 focused/integrated tests pass incl exact page payload/load counts and filter/order/include/aggregate controls; full1965 pass196 existing failures8skips no new; production/net462 builds pass; four fresh Sol-high reviews CLEAN."
     },
     {
       "issue": 2796,
