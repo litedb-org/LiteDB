@@ -188,6 +188,15 @@ checks while creating diagnostic argument arrays only on failure. Loaded index
 nodes hold one compact owned copy of their link bytes; link access remains safe
 after page release, and writes preserve the existing on-disk representation.
 
+## Boolean predicate results
+
+Scalar comparisons, IN/LIKE/BETWEEN, their ANY/ALL variants, and AND/OR expressions
+reuse two internal immutable Boolean values. This avoids allocating a BSON wrapper
+and boxed Boolean for each predicate result. The computation still uses the active
+collation, current parameters, and the existing short-circuit order. Only plain
+Boolean results are shared; projected documents and arrays remain independently
+owned, and public BsonValue constructors and conversions retain their behavior.
+
 ## LIKE character evaluation
 
 LIKE compares individual UTF-16 code units using the execution collation. Its

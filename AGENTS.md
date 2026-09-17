@@ -87,6 +87,9 @@ computed expressions can be case-sensitive even though BSON field lookup is not.
 Index-node links must remain owned by the node across transaction safepoints.
 Keep their compact copied representation independent of released page buffers;
 update both the page and the owned copy when changing links.
+Boolean predicate results share only plain immutable Boolean BsonValues. Keep
+projected containers and current parameter documents independent; retain short
+circuits and required type errors when changing Boolean evaluation.
 LIKE character comparisons use one-code-unit ranges with the execution collation.
 Do not replace them with ordinal comparisons or absorb adjacent surrogate/combining
 characters. LIKE must consume the whole value, distinguish literal NUL from pattern

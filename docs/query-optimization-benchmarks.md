@@ -1333,6 +1333,70 @@ Full .NET 8 and .NET 10 suites: **1,297 passed each**, seven existing skips each
 All Release targets build; 18 reproduction-runner tests and plain/encrypted
 vector compatibility checks pass.
 
+## 39. Reuse immutable Boolean predicate results
+
+Comparisons and logical expressions previously allocated a BSON Boolean wrapper
+and boxed Boolean for each result. Scalar comparisons, IN/LIKE/BETWEEN, their
+ANY/ALL variants, and AND/OR now return one of two internal immutable values.
+Nested predicates therefore avoid the same allocation for each visited array
+element. Computation, active collation, short circuits, and parameter reads remain
+unchanged. Projected documents and arrays stay independent; public BsonValue
+constructors and implicit conversions retain their behavior.
+
+The comparison is against step 38 (`f9c95f4c`), using the same production harness
+for both versions in before/after/after/before order. There are nine batches per
+process, with complete result consumption and matching checksums. Raw samples
+are `39-boolvalue-*`. The filter is `boolvalue`; subprefixes select individual cases.
+
+Ordinary filters and projections use the standard 20,000-row fixture. The nested
+fixture has 4,000 rows containing 32 integers and 32 string labels each. Boolean
+MAP projects all flags with changing range parameters. ANY LIKE finds the final
+label, and ALL BETWEEN visits all 32 values. Point lookups, covered counts, and
+plain array projections serve as controls. Each measured predicate/projection
+query checks its expected fixture checksum.
+
+| Workload | Before µs | After µs | Time reduction | Before B/op | After B/op | Allocation reduction |
+|---|---:|---:|---:|---:|---:|---:|
+| boolvalue-compound-linq | 49460.68 | 47482.67 | 4.0% | 46084152 | 42164272 | 8.5% |
+| boolvalue-compound-sql | 42817.93 | 43157.73 | -0.8% | 45949736 | 42029736 | 8.5% |
+| boolvalue-projected-linq | 117416.43 | 116350.33 | 0.9% | 73514618 | 66234470 | 9.9% |
+| boolvalue-projected-sql | 59789.08 | 56123.43 | 6.1% | 57863560 | 51143560 | 11.6% |
+| boolvalue-residual-linq | 121.60 | 115.87 | 4.7% | 82550 | 76150 | 7.8% |
+| boolvalue-id-control | 25.95 | 24.62 | 5.1% | 25555 | 25555 | 0.0% |
+| boolvalue-covered-count-control | 40.81 | 39.63 | 2.9% | 55961 | 55961 | 0.0% |
+| boolvalue-nested-map-linq | 70910.35 | 67663.37 | 4.6% | 47327187 | 26942701 | 43.1% |
+| boolvalue-nested-map-sql | 48372.87 | 45283.66 | 6.4% | 44504808 | 24120808 | 45.8% |
+| boolvalue-nested-any-like | 59854.75 | 58321.46 | 2.6% | 30777544 | 23385544 | 24.0% |
+| boolvalue-nested-all-between | 35699.65 | 34873.10 | 2.3% | 29273544 | 21881544 | 25.3% |
+| boolvalue-nested-array-control | 41751.29 | 42206.12 | -1.1% | 23644856 | 23644856 | 0.0% |
+
+The strongest improvement is allocation: nested Boolean projections save roughly
+**20.4 MB per complete query**, reducing allocation by **43.1% with ordinary LINQ**
+and **45.8% with SQL**. Nested ANY LIKE and ALL BETWEEN each save **7.4 MB**, or
+**24–25%**. Compound filters save about **3.9 MB (8.5%)**; Boolean projections save
+**6.7–7.3 MB (10–12%)**. The selective residual query saves **6.4 KB (7.8%)**.
+Control allocations are unchanged. Measured Gen0 collections for nested Boolean
+projections fall from about 5.33 to 3.00 per LINQ query and 5.00 to 2.67 per SQL
+query under this harness.
+
+Timing improvements are modest and less conclusive. The pooled measurements show
+4.6–6.4% less time for nested Boolean projections and 6.1% less for the SQL Boolean
+projection. However, the unchanged point-lookup control also improves by 5.1%,
+and the covered-count control by 2.9%, while the plain-array control is 1.1% slower.
+Several affected workloads are within this variation. Treat this step as a
+substantial reduction in allocation for predicate-heavy arrays, with limited
+evidence for a general latency improvement on this shared host. These incremental
+percentages must not be multiplied by earlier steps.
+
+Twenty tests cover all nine empty ANY/ALL predicate families, required type errors
+and short circuits, changing bound parameters and active collation, BSON/JSON
+round trips, concurrent nested projections, ordinary LINQ/SQL Boolean arrays,
+and independent persisted Boolean fields during index updates. Tests verify
+results and mutable-container independence rather than singleton identity.
+Full .NET 8 and .NET 10 suites: **1,317 passed each**, seven existing skips each.
+All Release targets build; 18 reproduction-runner tests and plain/encrypted
+vector compatibility checks pass.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -1369,8 +1433,8 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 1,297 passed on .NET 8 at step 38;
-  1,297 passed on .NET 10 at step 38; focused sort and query suites also pass on .NET 8. Each full
+- Full `LiteDB.Tests` with `tests.runsettings`: 1,317 passed on .NET 8 at step 39;
+  1,317 passed on .NET 10 at step 39; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file

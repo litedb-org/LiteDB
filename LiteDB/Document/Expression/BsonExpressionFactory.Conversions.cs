@@ -10,6 +10,9 @@ namespace LiteDB
     // The semantic construction boundary shared by the text and LINQ frontends.
     internal static partial class BsonExpressionFactory
     {
+        private static readonly MethodInfo _booleanValueMethod =
+            typeof(BsonExpressionBoolean).GetMethod(nameof(BsonExpressionBoolean.FromBoolean));
+
         /// <summary>
         /// Convert scalar expression into enumerable expression using ITEMS(...) method
         /// Append [*] to path or ITEMS(..) in all others
@@ -68,11 +71,6 @@ namespace LiteDB
                 Expression.AndAlso(boolLeft, boolRight) :
                 Expression.OrElse(boolLeft, boolRight);
 
-            // and convert back Boolean to BsonValue
-            var ctor = typeof(BsonValue)
-                .GetConstructors()
-                .First(x => x.GetParameters().FirstOrDefault()?.ParameterType == typeof(bool));
-
             // create new binary expression based in 2 other expressions
             var result = new BsonExpression
             {
@@ -83,7 +81,7 @@ namespace LiteDB
                 UseSource = left.UseSource || right.UseSource,
                 IsScalar = left.IsScalar && right.IsScalar,
                 Fields = new HashSet<string>(StringComparer.OrdinalIgnoreCase).AddRange(left.Fields).AddRange(right.Fields),
-                Expression = Expression.New(ctor, expr),
+                Expression = Expression.Call(_booleanValueMethod, expr),
                 Left = left,
                 Right = right,
                 Source = BsonExpressionFormatter.Binary(" " + type.ToString().ToUpperInvariant() + " ", left, right)
