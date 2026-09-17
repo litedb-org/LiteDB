@@ -205,7 +205,12 @@ namespace LiteDB.AotSmokeTests
             Report("ids above captured minimum", matches);
             Require(matches.SequenceEqual(new[] { 3, 4, 5 }), "The document LINQ predicate with captured values failed.");
 
-            Console.WriteLine("        Passed: document LINQ with captured variables.");
+            var captured = new object[] { new UnmappedCapturedValue { Threshold = 1 } };
+            RequireThrows<NotSupportedException>(
+                () => items.Count(x => captured.Contains(x["name"])),
+                "A document collection mapped a captured application object at run time.");
+
+            Console.WriteLine("        Passed: document LINQ with captured variables, and rejection of a captured application object.");
         }
 
         private static void WithDatabaseFile(Action<string> scenario)

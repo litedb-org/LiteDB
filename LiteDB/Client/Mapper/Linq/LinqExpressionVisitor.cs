@@ -293,7 +293,9 @@ namespace LiteDB
             // if type is string, use direct BsonValue(string) to avoid rules like TrimWhitespace/EmptyStringToNull in mapper
             var arg = type == null ? BsonValue.Null :
                 type == typeof(string) ? new BsonValue((string)value) :
-                _useGeneratedMappers ? _mapper.SerializeGeneratedConstant(value) :
+                // A BsonDocument collection is reachable without a trimming annotation (GetCollection(string)),
+                // so its captured values take the same mapping-free route as a generated collection.
+                _useGeneratedMappers || _rootParameter.Type == typeof(BsonDocument) ? _mapper.SerializeGeneratedConstant(value) :
                 this.SerializeRuntimeConstant(value);
 
             _parameters[parameter] = arg;

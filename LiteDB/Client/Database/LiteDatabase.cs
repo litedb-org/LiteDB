@@ -106,7 +106,9 @@ namespace LiteDB
         private const string DocumentCollectionJustification =
             "LiteCollection<BsonDocument> never discovers model members: its constructor skips entity mapping for BsonDocument, " +
             "ToDocument returns a BsonDocument unchanged, and Deserialize returns the stored document for typeof(BsonDocument). " +
-            "The only runtime mapping left is a LINQ predicate that captures an application object, which the AOT documentation rules out. " +
+            "LINQ on it serializes captured values without model mapping and rejects application objects. The only lambdas that still " +
+            "reach runtime mapping are object initializers and anonymous types, and for those the C# compiler's own Expression.Bind and " +
+            "Expression.New calls already report IL2026 at the consumer's call site. " +
             "The document scenarios of LiteDB.AotSmokeTests run this path trimmed and as Native AOT.";
 
         /// <summary>

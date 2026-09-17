@@ -83,8 +83,8 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Serializes a value captured by a LINQ expression on a generated collection without runtime
-        /// member discovery. Produces what <see cref="Serialize(Type, object, int)"/> produces when it is given
+        /// Serializes a value captured by a LINQ expression on a generated or BsonDocument collection without
+        /// runtime member discovery. Produces what <see cref="Serialize(Type, object, int)"/> produces when it is given
         /// the value's runtime type, which is how the runtime-mapping visitor serializes constants as well, and
         /// rejects anything that the ordinary mapper would hand to reflection-based object mapping.
         /// </summary>
@@ -124,8 +124,9 @@ namespace LiteDB
 
             var type = value.GetType();
 
-            // Built-in converters (Uri, DateTimeOffset, TimeSpan, Regex) are plain delegates. User
-            // registrations never get here: they are rejected by ValidateGeneratedExecutionConfiguration.
+            // Registered converters (built in: Uri, DateTimeOffset, TimeSpan, Regex) are plain delegates, so they
+            // are safe to call. A generated collection rejects a mapper with user registrations before it gets
+            // here; a BsonDocument collection may use them.
             if (_customSerializer.TryGetValue(type, out var custom))
             {
                 return custom(value);
@@ -151,9 +152,9 @@ namespace LiteDB
             }
 
             throw new NotSupportedException(
-                $"A LINQ expression on a source-generated collection captured a value of type '{type.FullName}'. " +
-                "Generated collections never map application types at runtime: capture a BSON-native value, an enum, " +
-                "a collection of those, or an instance of a [BsonSourceGenerated] type.");
+                $"A LINQ expression captured a value of type '{type.FullName}'. Source-generated and BsonDocument " +
+                "collections never map application types at runtime: capture a BSON-native value, an enum, a type with a " +
+                "registered converter, a collection of those, or an instance of a [BsonSourceGenerated] type.");
         }
 
         internal GeneratedExecutionOptions ValidateGeneratedExecutionConfiguration<T>(GeneratedEntityMap<T> map)
