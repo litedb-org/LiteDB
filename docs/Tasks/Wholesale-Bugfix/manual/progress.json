@@ -1035,10 +1035,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2784_Tests.cs"
-      ]
+      ],
+      "validation": "Co-fixed by #2820 (4cfed472);13 header-validation cases pass including both original fixtures and byte preservation; four fresh Sol high closure reviews"
     },
     {
       "issue": 2785,

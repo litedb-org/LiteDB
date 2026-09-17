@@ -1169,3 +1169,15 @@ Full suite: 1726 passed, 244 existing failures, 8 skipped; no regressions versus
 (`review_2243_w1_a` through `_d`) were clean; removed an incidental BOM nit.
 Nullable ID values remain a separate inherited path, not part of this missing
 schema mapping fix.
+
+## #2784 — foreign header validation before date decoding
+
+The existing #2820 fix (`4cfed472`) also repairs both reproduced #2784 cases:
+HeaderPage validates signature/version before decoding CreationTime, and the disk
+service validates the header before any tail repair. Random and SQLite headers
+with out-of-range ticks now report INVALID_DATABASE without changing input bytes.
+
+Validation: 13 combined #2784/#2820 cases pass, including both original #2784
+fixtures. All four fresh Sol high closure reviewers (`review_2784_w1_a` through
+`_d`) confirmed the existing fix; no additional production change was needed.
+Corruption inside an otherwise valid header remains outside these two cases.
