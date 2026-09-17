@@ -2256,11 +2256,11 @@
         "priority: P3"
       ],
       "reproduction": "reproduced",
-      "disposition": "reproduced-pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2896_Tests.cs"
       ],
-      "validation": "Missing random temp path throws raw FileNotFoundException instead of contextual LiteException; control confirms no file is created."
+      "validation": "Contextual missing read-only file/path errors preserve original exceptions, including native Unix errors and ownership/length deletion races. Empty encrypted/plain files and caller streams reject initialization without mutation. All 50 Issue2896/2815/2820/2163 tests pass on net8.0. Findings from two review rounds fixed; four fresh gpt-5.6-sol reviewers approved round three without actionable findings."
     },
     {
       "issue": 2897,

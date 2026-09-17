@@ -19,6 +19,9 @@ namespace LiteDB.Engine
         private readonly bool _hidden;
         private readonly bool _useAesStream;
         private readonly Action<string> _setHiddenAttribute;
+#if DEBUG || TESTING
+        internal Action BeforeReadLength;
+#endif
 
         public FileStreamFactory(
             string filename,
@@ -55,12 +58,18 @@ namespace LiteDB.Engine
 
             var isNewFile = write && this.Exists() == false;
 
-            var stream = FileOwnership.OpenFile(_filename,
-                fileMode,
-                fileAccess,
-                fileShare,
-                PAGE_SIZE,
-                fileOptions);
+            FileStream stream;
+            try
+            {
+                stream = FileOwnership.OpenFile(_filename, fileMode, fileAccess,
+                    fileShare, PAGE_SIZE, fileOptions);
+            }
+            catch (IOException ex) when (_readonly &&
+                (ex is FileNotFoundException || ex is DirectoryNotFoundException))
+            {
+                throw new LiteException(LiteException.FILE_NOT_FOUND, ex,
+                    "File '{0}' does not exist and cannot be created in read-only mode.", _filename);
+            }
 
             if (isNewFile && _hidden)
             {
@@ -86,7 +95,20 @@ namespace LiteDB.Engine
             // if not file do not exists, returns 0
             if (!this.Exists()) return 0;
 
-            var length = new FileInfo(_filename).Length;
+            long length;
+            try
+            {
+#if DEBUG || TESTING
+                BeforeReadLength?.Invoke();
+#endif
+                length = new FileInfo(_filename).Length;
+            }
+            catch (IOException ex) when (_readonly &&
+                (ex is FileNotFoundException || ex is DirectoryNotFoundException))
+            {
+                throw new LiteException(LiteException.FILE_NOT_FOUND, ex,
+                    "File '{0}' does not exist and cannot be created in read-only mode.", _filename);
+            }
 
             // Length inspection must never repair or truncate an unvalidated file.
             return length > 0 ? Math.Max(1, length - (_password == null || !_useAesStream ? 0 : PAGE_SIZE)) : 0;

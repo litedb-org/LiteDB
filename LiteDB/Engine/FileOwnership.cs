@@ -28,10 +28,20 @@ namespace LiteDB.Engine
             if (!windows && !IsLinux && !IsDarwin && !RuntimeInformation.IsOSPlatform(OSPlatform.Create("FREEBSD")))
                 throw new PlatformNotSupportedException("Native file ownership is unavailable on this platform. Use a caller-owned DataStream.");
             var exclusive = !settings.ReadOnly || forceExclusive;
-            var stream = OpenFile(settings.Filename,
-                settings.ReadOnly ? FileMode.Open : FileMode.OpenOrCreate,
-                exclusive && !windows ? FileAccess.ReadWrite : FileAccess.Read,
-                FileShare.ReadWrite | FileShare.Delete, 4096, FileOptions.None);
+            FileStream stream;
+            try
+            {
+                stream = OpenFile(settings.Filename,
+                    settings.ReadOnly ? FileMode.Open : FileMode.OpenOrCreate,
+                    exclusive && !windows ? FileAccess.ReadWrite : FileAccess.Read,
+                    FileShare.ReadWrite | FileShare.Delete, 4096, FileOptions.None);
+            }
+            catch (IOException ex) when (settings.ReadOnly &&
+                (ex is FileNotFoundException || ex is DirectoryNotFoundException))
+            {
+                throw new LiteException(LiteException.FILE_NOT_FOUND, ex,
+                    "File '{0}' does not exist and cannot be created in read-only mode.", settings.Filename);
+            }
             try
             {
 #if DEBUG || TESTING
@@ -82,6 +92,13 @@ namespace LiteDB.Engine
                 }
                 VerifyPath(stream, settings.Filename);
                 return new FileOwnership(stream);
+            }
+            catch (IOException ex) when (settings.ReadOnly &&
+                (ex is FileNotFoundException || ex is DirectoryNotFoundException))
+            {
+                stream.Dispose();
+                throw new LiteException(LiteException.FILE_NOT_FOUND, ex,
+                    "File '{0}' does not exist and cannot be created in read-only mode.", settings.Filename);
             }
             catch
             {

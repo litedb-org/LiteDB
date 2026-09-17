@@ -43,7 +43,7 @@ namespace LiteDB.Engine
             // between open and a later fcntl(F_SETFD).
             var closeOnExec = IsLinux ? 0x80000 : 0x00100000; // Linux / FreeBSD
             var descriptor = UnixOpen(path, (access == FileAccess.Read ? 0 : 2) | closeOnExec);
-            if (descriptor < 0) throw NativeError("Unable to open database file.");
+            if (descriptor < 0) throw CreateOpenError(path, Marshal.GetLastWin32Error());
             var handle = new SafeFileHandle((IntPtr)descriptor, true);
             try
             {
@@ -54,6 +54,14 @@ namespace LiteDB.Engine
                 handle.Dispose();
                 throw;
             }
+        }
+
+        internal static IOException CreateOpenError(string path, int error)
+        {
+            var native = new Win32Exception(error);
+            if (error == 2) return new FileNotFoundException("Database file not found.", path, native);
+            if (error == 20) return new DirectoryNotFoundException("Invalid database directory: " + path, native);
+            return new IOException("Unable to open database file: " + path, native);
         }
 
         private static IOException NativeError(string message) =>
