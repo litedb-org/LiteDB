@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -72,7 +72,7 @@ namespace LiteDB.Engine
                     var rebuilder = new RebuildService(_settings);
 
                     // return how many bytes of diference from original/rebuild version
-                    var diff = this.RebuildWithOwnership(rebuilder, options, collation);
+                    var diff = this.RebuildWithOwnership(rebuilder, options, collation, replaceBackup: true);
 
                     // SharedEngine retains this same settings instance for subsequent opens.
                     _settings.Password = password;
