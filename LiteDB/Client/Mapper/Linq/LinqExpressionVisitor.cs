@@ -202,6 +202,7 @@ namespace LiteDB
         {
             if (IsElementAccess(node) && this.TryVisitCapturedElement(node)) return node;
             if (this.TryVisitEnumEquals(node)) return node;
+            if (this.TryVisitOrdinalStringEquals(node)) return node;
             if (this.TryVisitEnumerableQuantifier(node)) return node;
             if (this.IsSpanImplicitConversion(node.Method))
             {
@@ -260,7 +261,7 @@ namespace LiteDB
             }
 
             // run pattern using object as # and args as @n
-            this.ResolvePattern(pattern, node.Object, node.Arguments);
+            this.ResolvePattern(GuardRowSuppliedText(node, pattern), node.Object, node.Arguments);
 
             return node;
         }
@@ -670,7 +671,8 @@ namespace LiteDB
         private void VisitAsPredicate(Expression expr, bool ensurePredicate)
         {
             // apppend `= true` only if expression is path (MemberAccess), method call or constant
-            ensurePredicate = ensurePredicate &&
+            // (ordinal string equality already resolves to predicates that the optimizer must see as AND terms)
+            ensurePredicate = ensurePredicate && !this.IsOrdinalStringEquals(expr) &&
                 (expr.NodeType == ExpressionType.MemberAccess || expr.NodeType == ExpressionType.Call || expr.NodeType == ExpressionType.Invoke || expr.NodeType == ExpressionType.Constant);
 
             if (ensurePredicate)

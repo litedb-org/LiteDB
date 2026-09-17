@@ -15,6 +15,17 @@ namespace LiteDB
         public string ResolveMethod(MethodInfo method)
         {
             var qtParams = method.GetParameters().Length;
+            if (qtParams > 0 && method.GetParameters().Last().ParameterType == typeof(StringComparison))
+            {
+                switch (method.Name)
+                {
+                    case "StartsWith": return "STRING_STARTSWITH(#, @0, @1)";
+                    case "EndsWith": return "STRING_ENDSWITH(#, @0, @1)";
+                    case "Contains": return "STRING_CONTAINS(#, @0, @1)";
+                    case "IndexOf":
+                        return "STRING_INDEXOF(#, " + string.Join(", ", Enumerable.Range(0, qtParams).Select(i => "@" + i)) + ")";
+                }
+            }
 
             switch (method.Name)
             {
