@@ -24,7 +24,7 @@ namespace LiteDB
     /// <summary>
     /// Compile and execute string expressions using BsonDocuments. Used in all document manipulation (transform, filter, indexes, updates). See https://github.com/mbdavid/LiteDB/wiki/Expressions
     /// </summary>
-    public sealed class BsonExpression
+    public sealed partial class BsonExpression
     {
         /// <summary>
         /// Get formatted expression
@@ -48,6 +48,10 @@ namespace LiteDB
 
         // Query composition renames parameters; GROUP BY must still bind its key.
         internal HashSet<string> GroupKeyAliases { get; set; }
+
+        internal List<KeyValuePair<string, BsonExpression>> SelectAliases { get; set; }
+        internal ExpressionContext SelectContext { get; set; }
+        internal bool RequiresExactSort { get; set; }
 
         /// <summary>
         /// In predicate expressions, indicate Left side
@@ -350,7 +354,8 @@ namespace LiteDB
                 mode == BsonExpressionParserMode.SelectDocument ? BsonExpressionParser.ParseSelectDocumentBuilder(tokenizer, context, parameters) :
                 BsonExpressionParser.ParseUpdateDocumentBuilder(tokenizer, context, parameters);
 
-            // compile linq expression (with left+right expressions)
+            // Retain original parameter nodes for lazy SQL alias compilation.
+            expr.SelectContext = context;
             Compile(expr, context);
 
             return expr;
