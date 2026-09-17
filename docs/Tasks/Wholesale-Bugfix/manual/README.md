@@ -1646,3 +1646,11 @@ Both encrypted-header guards return INVALID_PASSWORD for a missing password.
 File bytes and caller-owned stream lifetime remain intact after rejection.
 14 focused/integrated tests pass, including successful reopening with the correct
 password. Four fresh reviewers review_2765_w1_a through _d were clean.
+
+## #2864 — include the actual page type in diagnostics
+
+CollectionPage and IndexPage use the existing formatter only on validation
+failure, reporting both expected and actual types without allocating diagnostic
+strings for valid pages. All 14 retained/integrated cases pass. Two fresh
+four-Sol-high waves removed eager interpolation; final review_2864_w2_a through
+_d were clean.

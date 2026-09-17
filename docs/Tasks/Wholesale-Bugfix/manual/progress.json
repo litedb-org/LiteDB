@@ -2113,10 +2113,11 @@
         "from fork"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2864_Tests.cs"
-      ]
+      ],
+      "validation": "14 original and integrated page type cases pass; four fresh Sol-high w2 reviews CLEAN; failure-only formatting avoids successful page allocation."
     },
     {
       "issue": 2870,
