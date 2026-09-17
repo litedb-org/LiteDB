@@ -59,6 +59,9 @@ every call. Cached CLR evaluators must read all constants from the current shape
 preserve reflection exception semantics, and defer compilation until reuse. Structural arguments that become part of `Source` must be included
 in the key or use the uncached translator. Optimizer rewrites must use the active
 collation and must not intersect separate ANY/ALL predicates as scalar bounds.
+Validate the complete pure Boolean shape before pushing bounds into membership
+branches. Empty allowed intervals must still validate subsequent bound values,
+so throwing arithmetic and invalid bindings preserve filter fallback.
 Propagate internal `IsVolatile` through every expression factory and binding;
 `IsImmutable` alone does not distinguish parameters from volatile functions.
 Preserve `IsANY` when copying predicate nodes; inspecting generated delegate text

@@ -6,6 +6,26 @@ namespace LiteDB.Engine
     // an expression into a potentially exponential number of conjunctions.
     internal static class ScalarIntervals
     {
+        internal static bool IsUniversal(List<ScalarBounds> ranges) => ranges.Count == 1 &&
+            ranges[0].Lower.IsMinValue && ranges[0].Upper.IsMaxValue && ranges[0].LowerInclusive && ranges[0].UpperInclusive;
+
+        internal static bool Contains(List<ScalarBounds> ranges, BsonValue value, Collation collation)
+        {
+            var low = 0;
+            var high = ranges.Count - 1;
+            while (low <= high)
+            {
+                var middle = low + (high - low) / 2;
+                var range = ranges[middle];
+                var lower = value.CompareTo(range.Lower, collation);
+                if (lower < 0) { high = middle - 1; continue; }
+                var upper = value.CompareTo(range.Upper, collation);
+                if (upper > 0) { low = middle + 1; continue; }
+                return (lower != 0 || range.LowerInclusive) && (upper != 0 || range.UpperInclusive);
+            }
+            return false;
+        }
+
         internal static List<ScalarBounds> Normalize(List<ScalarBounds> ranges, Collation collation)
         {
             ranges.Sort((a, b) => CompareLower(a, b, collation));

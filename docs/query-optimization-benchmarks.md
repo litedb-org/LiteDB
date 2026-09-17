@@ -1766,6 +1766,91 @@ Full .NET 8 and .NET 10 suites pass **1,467 tests each**, with seven existing sk
 each. All Release targets build; 18 reproduction-runner tests and vector
 compatibility checks pass.
 
+## 44. Apply Boolean bounds before expanding membership sets
+
+Step 43 selected efficient index scans for nested membership predicates, but
+planning still sorted whole parameter lists and allocated a point interval for
+every surviving set value before intersecting the surrounding Boolean bounds.
+A 10,000-key list could therefore create thousands of temporary intervals to
+return only a handful of documents. This change reduces that planning work;
+queries continue to use the same shared IR and live index metadata.
+
+Conjunctions gather direct bounds and membership constraints across their WHERE
+clauses. They evaluate sibling predicates without membership first and pass the
+resulting intervals into nested OR branches. Input keys are filtered against
+those intervals before ordered-set and point construction. The entire Boolean
+shape is validated before reading values. Even an empty context evaluates later
+bounds, preserving fallback for throwing arithmetic and invalid bindings.
+Current parameters, collation, open endpoints, duplicate keys, independent WHERE
+bindings, and scalar versus sequence membership keep their existing semantics.
+
+A broad-query control exposed excess work when each input key was searched
+through another large membership-derived interval set. Small contexts now use
+binary filtering; larger contexts estimate binary-search work against an ordered
+merge. When merging is cheaper, the engine filters already sorted keys in one
+pass. An unrestricted interval skips filtering entirely. This retains the
+benefit on selective predicates without forcing the same strategy on broad sets.
+
+Measurements compare `5220c51e` with this change using identical production
+harnesses, 20,000 documents, CPU 2, disabled tiered compilation, and sequential
+before/after/after/before processes. Each version contributes eighteen batches
+per workload. No builds or tests run during these final timing processes. SHA-256
+values are
+`c416d02a78be133868d895aaf14cb5c4bebe85adfb764980920bc9e034ada8e0`
+(before) and
+`a530a1d7658cbfb3cc071e91da869b7694f08b6ea910a302300bce124840bb2e`
+(after). Use the `boolprefilter` filter; final raw samples and plans are
+`44-boolprefilter-*`.
+
+| Workload | Before µs | After µs | Time reduction | Before B/op | After B/op | Allocation reduction |
+|---|---:|---:|---:|---:|---:|---:|
+| boolprefilter-nested-1000 | 741.74 | 448.45 | 39.5% | 474796 | 316136 | 33.4% |
+| boolprefilter-separate-1000 | 685.44 | 381.68 | 44.3% | 438381 | 279491 | 36.2% |
+| boolprefilter-parent-10000 | 10598.47 | 3523.20 | 66.8% | 2915501 | 1430384 | 50.9% |
+| boolprefilter-siblings-10000 | 10535.90 | 4359.07 | 58.6% | 3476938 | 1513795 | 56.5% |
+| boolprefilter-two-sets | 13714.77 | 5775.50 | 57.9% | 4451383 | 2766433 | 37.9% |
+| boolprefilter-sql-parent | 6849.71 | 468.73 | 93.2% | 1581325 | 96626 | 93.9% |
+| boolprefilter-sql-empty | 6971.59 | 15.93 | 99.8% | 1981286 | 15368 | 99.2% |
+| boolprefilter-broad-control | 5058.63 | 4860.02 | 3.9% | 10666688 | 10514576 | 1.4% |
+| boolprefilter-broad-sibling-page-control | 21546.82 | 20779.88 | 3.6% | 6316729 | 5654992 | 10.5% |
+| boolprefilter-flat-control | 389.47 | 385.81 | 0.9% | 349342 | 349382 | -0.0% |
+| boolprefilter-cheaper-id-control | 35.90 | 36.04 | -0.4% | 28569 | 28529 | 0.1% |
+| boolprefilter-point-control | 16.36 | 15.71 | 4.0% | 21344 | 21344 | 0.0% |
+
+Ordinary LINQ with 1,000-key membership takes **40–44% less time** and allocates
+**33–36% fewer bytes**. With 10,000 keys, inherited parent bounds take **67% less
+time** (3× faster), sibling bounds **59% less**, and two intersected lists **58%
+less**. These calls still serialize the current CLR arrays on every invocation;
+this change removes interval/set work after binding.
+
+SQL uses a reusable caller-owned BSON parameter array and changes the lower bound
+on every call. Its parent-bound query is **14.6× faster**, allocating about
+**97 KB instead of 1.58 MB**. The contradictory SQL count is **438× faster** because
+planning validates the expressions without building the excluded membership
+points; it still returns the expected empty aggregate. These are complete queries,
+not isolated planner timings. All consumed-result checksums match, and the recorded
+parent/sibling execution plans are identical between versions.
+
+The broad intersection's first-page query allocates **10.5% fewer bytes**. Its
+3.6% timing improvement and the broad count's 3.9% improvement are similar to the
+4.0% point-control variation, so the report does not claim a broad latency win.
+The flat-union and cheaper-ID controls remain within 1%. Flat-union allocation
+varies by 40 bytes in pooled samples; the point control is unchanged. Large gains
+apply to selective membership planning, not to every query or disk throughput.
+
+Seventeen new regression cases cover 10,000-key arrays, parent and sibling
+bounds in both orders, separate Contains bindings, caller-array preservation,
+rebinding, global order and pagination, mixed BSON values, case-sensitive and
+case-insensitive collation, dense contexts with both large and small input sets,
+throwing/skipped branches, empty inputs, and key-moving updates with rollback.
+The existing randomized Boolean, multikey fallback, aggregate, persistence,
+encryption, and page-release tests also pass.
+
+Full .NET 8 and .NET 10 suites pass **1,484 tests each**, with seven existing skips
+each. All Release targets build; 18 reproduction-runner tests and vector
+compatibility checks pass. The step-43 selective-ID regression is retained in
+its report; this change does not claim to repair it.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -1802,8 +1887,8 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 1,467 passed on .NET 8 at step 43;
-  1,467 passed on .NET 10 at step 43; focused sort and query suites also pass on .NET 8. Each full
+- Full `LiteDB.Tests` with `tests.runsettings`: 1,484 passed on .NET 8 at step 44;
+  1,484 passed on .NET 10 at step 44; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file

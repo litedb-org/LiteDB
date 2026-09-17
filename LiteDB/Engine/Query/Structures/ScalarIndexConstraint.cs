@@ -61,7 +61,59 @@ namespace LiteDB.Engine
             }
         }
 
-        private SortedSet<BsonValue> IntersectSets()
+        internal List<ScalarBounds> BoundRanges(List<ScalarBounds> context)
+        {
+            if (_bounds.IsEmpty(_collation)) return new List<ScalarBounds>();
+            if (context != null && ScalarIntervals.IsUniversal(context)) context = null;
+            if (!_hasBounds && context != null) return context;
+            var bounds = new List<ScalarBounds> { _bounds };
+            return context == null ? bounds : ScalarIntervals.Intersect(bounds, context, _collation);
+        }
+
+        internal List<ScalarBounds> IntersectRanges(List<ScalarBounds> ranges)
+        {
+            if (_sets == null || ranges.Count == 0) return ranges;
+            var result = new List<ScalarBounds>();
+            var allowed = ScalarIntervals.IsUniversal(ranges) ? null : ranges;
+            var filterFirst = allowed == null || PreferRangeFilter(allowed.Count);
+            IEnumerable<BsonValue> keys = IntersectSets(filterFirst ? allowed : null);
+            if (!filterFirst) keys = FilterSortedRanges(keys, allowed);
+            foreach (var key in keys) result.Add(new ScalarBounds(key, key, true, true));
+            return result;
+        }
+
+        private bool PreferRangeFilter(int rangeCount)
+        {
+            // Small Boolean interval sets can discard most input before sorting.
+            // Larger contexts come from expanded memberships. Prefer a linear
+            // merge there unless a few input keys make binary search cheaper.
+            if (rangeCount <= 64) return true;
+            long inputs = 0;
+            foreach (var set in _sets) inputs += set.Count;
+            var levels = 0;
+            for (var count = rangeCount; count != 0; count >>= 1) levels++;
+            return inputs * levels < inputs + rangeCount;
+        }
+
+        private IEnumerable<BsonValue> FilterSortedRanges(IEnumerable<BsonValue> values, List<ScalarBounds> ranges)
+        {
+            var position = 0;
+            foreach (var value in values)
+            {
+                while (position < ranges.Count)
+                {
+                    var range = ranges[position];
+                    var upper = value.CompareTo(range.Upper, _collation);
+                    if (upper > 0 || (upper == 0 && !range.UpperInclusive)) { position++; continue; }
+                    var lower = value.CompareTo(range.Lower, _collation);
+                    if (lower > 0 || (lower == 0 && range.LowerInclusive)) yield return value;
+                    break;
+                }
+                if (position == ranges.Count) yield break;
+            }
+        }
+
+        private SortedSet<BsonValue> IntersectSets(List<ScalarBounds> allowed = null)
         {
             // Bounds are complete now. Discard excluded values before constructing
             // ordered sets, and seed from the shortest IN list to keep intersections small.
@@ -73,11 +125,18 @@ namespace LiteDB.Engine
             {
                 var set = _sets[i == 0 ? smallest : i == smallest ? 0 : i];
                 var values = _hasBounds ? set.Where(x => _bounds.Contains(x, _collation)) : (IEnumerable<BsonValue>)set;
+                if (allowed != null) values = FilterRanges(values, allowed);
                 if (intersection == null) intersection = new SortedSet<BsonValue>(values, _collation);
                 else intersection.IntersectWith(values);
                 if (intersection.Count == 0) break;
             }
             return intersection;
+        }
+
+        private IEnumerable<BsonValue> FilterRanges(IEnumerable<BsonValue> values, List<ScalarBounds> allowed)
+        {
+            foreach (var value in values)
+                if (ScalarIntervals.Contains(allowed, value, _collation)) yield return value;
         }
     }
 }

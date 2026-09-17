@@ -163,6 +163,16 @@ conjunctions. Direct AND bounds still prefilter IN lists before producing point
 intervals. The same purity proof and 64-node analysis budget apply before any
 bound is evaluated.
 
+Conjunctions collect direct bounds across WHERE clauses, then pass the allowed
+intervals into nested branches before expanding membership values. Sibling ORs
+without membership run first, so their bounds can discard keys before sorting
+or allocating point intervals. Empty contexts still validate subsequent values:
+throwing arithmetic or invalid bindings must retain the original filter fallback.
+Small interval sets use binary membership checks before building ordered sets.
+Larger contexts compare binary-search work against an ordered merge; broad
+membership intersections filter sorted keys without searching every input key
+through another large interval set. The all-values interval skips filtering.
+
 The planner retains each combined candidate's predicate coverage so a weaker
 scan of that key cannot displace it merely because it has fewer seeks. Candidates
 on other indexes still compete by cost; predicates disappear from the residual
@@ -179,7 +189,7 @@ This analysis has a 64-node budget and requires a matching scalar index. Include
 computed keys, array selectors, mixed fields, and volatile or unrecognized function-call bounds
 keep their existing plans. Arithmetic failures preserve the original filter and
 its execution-time errors and short circuits. If another predicate selects a
-cheaper index, the OR remains a filter. See steps 41–43 in the benchmark report.
+cheaper index, the OR remains a filter. See steps 41–44 in the benchmark report.
 
 The engine inspects the same expression nodes for LINQ and SQL. Equality ORs on
 one scalar indexed expression become ordered IN seeks. OR branches with equivalent

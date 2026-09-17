@@ -65,13 +65,14 @@ namespace LiteDB.Engine
         {
             try
             {
-                List<ScalarBounds> ranges = null;
+                var constraint = new ScalarIndexConstraint(_collation);
+                List<BsonExpression> nested = null;
                 foreach (var expression in expressions)
                 {
-                    var current = EvaluateBooleanRanges(BooleanSource(expression));
-                    if (current == null) return null;
-                    ranges = ranges == null ? current : ScalarIntervals.Intersect(ranges, current, _collation);
+                    if (!CollectBooleanConjunction(BooleanSource(expression), constraint, ref nested)) return null;
                 }
+                var ranges = FinishBooleanConjunction(constraint, nested, null);
+                if (ranges == null) return null;
                 return new IndexCost(index, expressions[0], IndexRangeUnion.FromNormalized(index.Name, ranges), expressions, scalarKeys: true);
             }
             catch (Exception)
@@ -82,32 +83,47 @@ namespace LiteDB.Engine
             }
         }
 
-        private List<ScalarBounds> EvaluateBooleanRanges(BsonExpression expression)
+        private List<ScalarBounds> EvaluateBooleanRanges(BsonExpression expression, List<ScalarBounds> context)
         {
             if (expression.Type == BsonExpressionType.Or)
             {
-                var left = EvaluateBooleanRanges(expression.Left);
-                var right = EvaluateBooleanRanges(expression.Right);
+                var left = EvaluateBooleanRanges(expression.Left, context);
+                var right = EvaluateBooleanRanges(expression.Right, context);
                 return left == null || right == null ? null : ScalarIntervals.Union(left, right, _collation);
             }
             var constraint = new ScalarIndexConstraint(_collation);
             List<BsonExpression> nested = null;
             if (!CollectBooleanConjunction(expression, constraint, ref nested)) return null;
-            var ranges = new List<ScalarBounds>();
-            constraint.AppendRanges(ranges);
-            // Keep direct AND bounds together: a large IN list is filtered by its
-            // bounds before producing points, as in the existing constraint path.
+            return FinishBooleanConjunction(constraint, nested, context);
+        }
+
+        private List<ScalarBounds> FinishBooleanConjunction(ScalarIndexConstraint constraint,
+            List<BsonExpression> nested, List<ScalarBounds> context)
+        {
+            var ranges = constraint.BoundRanges(context);
+            // Apply scalar bounds and sibling conditions before expanding IN
+            // values. The whole shape was proven pure before reading bindings.
             if (nested != null)
             {
-                foreach (var item in nested)
+                for (var pass = 0; pass < 2; pass++)
                 {
-                    var current = EvaluateBooleanRanges(item);
-                    if (current == null) return null;
-                    ranges = ScalarIntervals.Intersect(ranges, current, _collation);
+                    foreach (var item in nested)
+                    {
+                        if (HasBooleanMembership(item) != (pass == 1)) continue;
+                        ranges = EvaluateBooleanRanges(item, ranges);
+                        if (ranges == null) return null;
+                        // Even an empty context must evaluate subsequent bounds:
+                        // invalid/throwing bindings still require filter fallback.
+                    }
                 }
             }
-            return ranges;
+            return constraint.IntersectRanges(ranges);
         }
+
+        private static bool HasBooleanMembership(BsonExpression expression) =>
+            expression.Type == BsonExpressionType.And || expression.Type == BsonExpressionType.Or
+                ? HasBooleanMembership(expression.Left) || HasBooleanMembership(expression.Right)
+                : expression.Type == BsonExpressionType.In || expression.IsANY;
 
         private bool CollectBooleanConjunction(BsonExpression expression, ScalarIndexConstraint constraint, ref List<BsonExpression> nested)
         {
