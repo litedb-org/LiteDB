@@ -1990,10 +1990,11 @@
         "priority: P3"
       ],
       "reproduction": "reproduced-documentation",
-      "disposition": "pending",
+      "disposition": "reviewed-awaiting-publication",
       "tests": [
         "LiteDB.Tests/Issues/Issue2796_Tests.cs"
-      ]
+      ],
+      "validation": "ed1248568 on codex/manual-2796-docs based gh-pages: Markdown/rendered page/landing/RSS corrected; runtime controls pass; four fresh Sol-high w2 CLEAN. Live website unchanged pending user publication decision."
     },
     {
       "issue": 2799,
