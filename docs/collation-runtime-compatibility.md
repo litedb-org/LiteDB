@@ -40,3 +40,21 @@ different comparer; their writes cannot update this metadata. Damaged indexes or
 arbitrary modifications are outside this signature's guarantee. Cross-process
 validation covers ICU versus invariant globalization in both directions, with
 read-only byte preservation and duplicate-sensitive upsert controls.
+
+Nested document and array values now recursively use the configured collation.
+Legacy files with nested index keys are checked by the same ordering/uniqueness
+scan. Incompatible files require rebuilding under their original version with
+Ordinal collation before opening here, or export/import. Non-Ordinal stamps from
+the first stamped implementation are rejected conservatively because they do
+not describe this recursive comparison behavior. Ordinal stamps stay unchanged.
+Parameterless BSON comparisons retain binary semantics.
+
+The recursive comparer is a compatibility boundary even when the culture and
+sort options have identical names. Older releases must not read or write these
+non-Ordinal nested indexes: their binary nested comparer can return wrong results
+or create incompatible ordering/uniqueness. An older writer can preserve the new
+stamp unchanged; a matching stamp does not detect that downgrade. This reserved
+v8 metadata cannot enforce exclusion of old software. Use an Ordinal rebuild in
+the original version before sharing writable files across this boundary, or keep
+the file exclusively on the new version. This limitation is not repaired by a
+successful subsequent open on the new version.
