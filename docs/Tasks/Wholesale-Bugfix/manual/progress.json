@@ -2193,11 +2193,12 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "reproduced-pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
-        "LiteDB.Tests/Issues/Issue2892_Tests.cs"
+        "LiteDB.Tests/Issues/Issue2892_Tests.cs",
+        "LiteDB.Tests/Issues/Issue2892Compatibility_Tests.cs"
       ],
-      "validation": "Two deterministic cases fail: disjoint-key documents compare greater in both directions, and different null-valued keys compare equal."
+      "validation": "Canonical case-insensitive field-name/value comparison fixes document ordering and null-key equality; hash and randomized document coverage updated. Comparer stamp revision safely rejects older stamped indexes with documented export/import migration. All 129 Issue2892/2456/2812 tests pass on net8.0, including persisted index/reopen and no-write compatibility rejection. Four fresh gpt-5.6-sol reviewers approved without findings."
     },
     {
       "issue": 2893,

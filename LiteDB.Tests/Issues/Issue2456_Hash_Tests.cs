@@ -8,24 +8,19 @@ namespace LiteDB.Tests.Issues;
 public class Issue2456_Hash_Tests
 {
     [Fact]
-    public void Documents_that_differ_only_in_null_valued_keys_should_share_hash_codes()
+    public void Documents_that_differ_in_null_valued_keys_are_distinct()
     {
-        // BsonDocument.CompareTo looks up each left key in the right document and reads a
-        // missing key as Null, so these pairs are equal and must hash alike.
         var first = new BsonDocument { ["a"] = BsonValue.Null };
         var second = new BsonDocument { ["b"] = BsonValue.Null };
         var third = new BsonDocument { ["a"] = BsonValue.Null, ["x"] = 1 };
         var fourth = new BsonDocument { ["x"] = 1, ["c"] = BsonValue.Null };
         var wrapped = new BsonValue(new Dictionary<string, object> { ["zzz"] = null, ["X"] = 1L });
 
-        first.Equals(second).Should().BeTrue();
-        first.GetHashCode().Should().Be(second.GetHashCode());
-        third.Equals(fourth).Should().BeTrue();
-        third.GetHashCode().Should().Be(fourth.GetHashCode());
-        wrapped.Equals(third).Should().BeTrue();
-        wrapped.GetHashCode().Should().Be(third.GetHashCode());
-        new HashSet<BsonValue> { first }.Should().Contain(second);
-        new HashSet<BsonValue> { third }.Should().Contain(fourth);
+        first.Equals(second).Should().BeFalse();
+        third.Equals(fourth).Should().BeFalse();
+        wrapped.Equals(third).Should().BeFalse();
+        new HashSet<BsonValue> { first }.Should().NotContain(second);
+        new HashSet<BsonValue> { third }.Should().NotContain(fourth);
         new HashSet<BsonValue> { new BsonDocument() }.Should().NotContain(first);
         new HashSet<BsonValue> { new BsonDocument { ["a"] = 1 } }.Should().NotContain(new BsonDocument { ["b"] = 1 });
     }

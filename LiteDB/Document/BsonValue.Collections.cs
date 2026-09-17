@@ -121,10 +121,6 @@ namespace LiteDB
 
             foreach (var element in document)
             {
-                // BsonDocument.CompareTo reads a missing key as Null, so { a: null } equals
-                // { b: null }. Null-valued elements must not contribute their key to the hash.
-                if (element.Value.IsNull) continue;
-
                 var elementHash = CombineHashCodes(
                     StringComparer.OrdinalIgnoreCase.GetHashCode(element.Key),
                     GetEqualityHashCode(element.Value));
