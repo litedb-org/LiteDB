@@ -25,7 +25,10 @@ namespace LiteDB.Engine
             var counter = 0u;
             while (!next.IsEmpty)
             {
-                ENSURE(counter++ < indexer.MaxItemsCount, "Detected loop in exclusion scan({0})", this.Name);
+                if (counter++ >= indexer.MaxItemsCount)
+                {
+                    ENSURE(false, "Detected loop in exclusion scan({0})", this.Name);
+                }
                 var node = indexer.GetNode(next);
                 if (node.Key.IsMinValue || node.Key.IsMaxValue) yield break;
 

@@ -928,6 +928,40 @@ after it, covering SQL/LINQ before and after indexing, forced primary-key plans
 with residual comparisons, ordinal/case/accent collations, and repeated bindings
 with changing execution collations. Full .NET 8: 1,176 passed, seven existing skips.
 
+## 31. Allocate traversal diagnostics only on failure
+
+Index seeks, full scans, and exclusion scans still check their traversal counters
+on every visited node. They now construct the diagnostic argument arrays only
+when a guard fails. Previously even a successful check allocated a `params`
+array, and seeks also populated its key/name arguments. The counter limits,
+exception type, and formatted errors are unchanged.
+
+These complete queries use the main 20,000-row collection and compare against
+step 30. The primary lookup changes its captured ID on every invocation. All
+checksums match; raw files are `31-guard-*`.
+
+| Workload | Before µs | After µs | Time reduction | Before B/op | After B/op | Allocation reduction |
+|---|---:|---:|---:|---:|---:|---:|
+| guard-primary-count | 2932.60 | 2621.87 | 10.6% | 8353328 | 7713296 | 7.7% |
+| guard-scalar-field-count | 2924.78 | 2765.08 | 5.5% | 8365880 | 7725798 | 7.7% |
+| guard-exclusion-count | 3788.59 | 3408.05 | 10.0% | 8373896 | 7732880 | 7.7% |
+| guard-indexed-range-count | 1710.98 | 1668.86 | 2.5% | 4354976 | 4354136 | 0.0% |
+| guard-ordinary-id | 26.74 | 24.54 | 8.2% | 28099 | 27002 | 3.9% |
+| guard-ordinary-projection | 68.74 | 67.62 | 1.6% | 35562 | 35082 | 1.3% |
+| guard-scan-control | 57808.53 | 57174.29 | 1.1% | 48794014 | 48153997 | 1.3% |
+
+Full counts improve 5–11% and allocate about 640 KB less per 20,000-row traversal.
+The ordinary changing-ID lookup improves 8%, with about 1.1 KB fewer allocated
+bytes. The filtered range count already bypasses the full-scan loop, so it only
+saves its initial seek diagnostics. Projection and scan timing differences are
+small; their lower allocation is measurable without a broad latency claim.
+
+Six tests force exhausted traversal budgets in both directions and verify that
+seeks, full scans, and exclusions still throw the formatted guard error. Full
+.NET 8 and .NET 10 suites: 1,182 passed each, seven existing skips each; all
+Release targets build. Reproduction-runner tests and plain/encrypted vector file
+compatibility checks also pass through this step.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -964,8 +998,8 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 1,176 passed on .NET 8 at step 30;
-  1,160 passed on .NET 10 at step 29; focused sort and query suites also pass on .NET 8. Each full
+- Full `LiteDB.Tests` with `tests.runsettings`: 1,182 passed on .NET 8 at step 31;
+  1,182 passed on .NET 10 at step 31; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file

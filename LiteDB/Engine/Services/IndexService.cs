@@ -351,7 +351,10 @@ namespace LiteDB.Engine
 
             while (!next.IsEmpty)
             {
-                ENSURE(counter++ < _maxItemsCount, "Detected loop in FindAll({0})", index.Name);
+                if (counter++ >= _maxItemsCount)
+                {
+                    ENSURE(false, "Detected loop in FindAll({0})", index.Name);
+                }
 
                 cur = this.GetNode(next);
 
@@ -381,7 +384,10 @@ namespace LiteDB.Engine
 
                 while (right.IsEmpty == false)
                 {
-                    ENSURE(counter++ < _maxItemsCount, "Detected loop in Find({0}, {1})", index.Name, value);
+                    if (counter++ >= _maxItemsCount)
+                    {
+                        ENSURE(false, "Detected loop in Find({0}, {1})", index.Name, value);
+                    }
 
                     var rightNode = this.GetNode(right);
 

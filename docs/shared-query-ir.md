@@ -154,7 +154,8 @@ results retain one output per document. Their cost estimate remains unchanged.
 Exclusive range starts use the same seek to skip duplicate boundary keys; inclusive
 range endpoints retain their existing traversal. Scalar range evaluation also uses
 the execution collation, keeping unindexed and residual comparisons consistent
-with indexed ranges and ANY/ALL predicates.
+with indexed ranges and ANY/ALL predicates. Traversal loop guards retain their
+checks while creating diagnostic argument arrays only on failure.
 
 ## Limited sorting
 
