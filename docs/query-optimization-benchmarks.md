@@ -856,6 +856,44 @@ indexes, index maintenance, primary keys, and forced page release. Full .NET 8:
 1,148 passed, seven existing skips; the final guard adjustment passes all twelve
 focused tests. All Release targets build.
 
+## 29. Skip duplicate keys at exclusive range starts
+
+Range scans now request an exclusive skip-list seek when their starting bound is
+exclusive. Previously an ordinary seek could land anywhere in the boundary's
+equal-key run, then walk its remaining entries individually. Inclusive bounds
+keep their existing traversal. Both ascending lower bounds and descending upper
+bounds use the new seek.
+
+The separate 20,000-row dataset from step 28 is recreated: 19,980 zero scores,
+fourteen positive and six negative scores. Complete queries and counts consume
+all matching results. This comparison uses step 28 as its baseline; all checksums
+match. Raw files: `29-exclusive-*`.
+
+| Workload | Before µs | After µs | Time reduction | Before B/op | After B/op | Allocation reduction |
+|---|---:|---:|---:|---:|---:|---:|
+| exclusive-greater-linq | 2991.56 | 73.00 | 97.6% | 7500278 | 73858 | 99.0% |
+| exclusive-bounded-sql | 3026.87 | 80.84 | 97.3% | 7507312 | 79244 | 98.9% |
+| exclusive-greater-count | 3010.02 | 33.09 | 98.9% | 7476110 | 47146 | 99.4% |
+| exclusive-less-descending | 137.53 | 50.49 | 63.3% | 271558 | 48242 | 82.2% |
+| exclusive-inclusive-control | 3530.84 | 3519.15 | 0.3% | 7721872 | 7721872 | 0.0% |
+| exclusive-end-bound-control | 15.33 | 15.83 | -3.2% | 12624 | 12624 | 0.0% |
+| exclusive-unique-keys-control | 40.05 | 39.41 | 1.6% | 33577 | 34073 | -1.5% |
+| exclusive-id-control | 23.40 | 23.48 | -0.3% | 25729 | 25729 | 0.0% |
+
+The positive range retrieves full LINQ results 41.0× faster and counts 91.0×
+faster. The descending negative range improves 2.7×. The old seek can land at
+different positions within a duplicate run, so direction and randomized index
+layout affect the amount of work avoided. Inclusive scans and other controls
+show no convincing latency change. The unique-key range allocates about 0.5 KB
+more because an exclusive seek can visit additional skip-list levels.
+
+Twelve additional tests cover inclusive/exclusive endpoints, both orders,
+pagination, absent boundaries, collation-equivalent strings, mixed numbers,
+nulls, arrays, and sentinel bounds. Indexed string expectations use the database
+collation directly: investigation also found an existing binary-comparison bug
+in unindexed scalar ranges, which is tracked separately from these measurements.
+Full .NET 10 suite: 1,160 passed, seven existing skips; all Release targets build.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -893,7 +931,7 @@ materializers remain separate work.
 
 - Release solution build with `TestingEnabled=true`: all targets build.
 - Full `LiteDB.Tests` with `tests.runsettings`: 1,148 passed on .NET 8 at step 28;
-  1,136 passed on .NET 10 at step 27; focused sort and query suites also pass on .NET 8. Each full
+  1,160 passed on .NET 10 at step 29; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file

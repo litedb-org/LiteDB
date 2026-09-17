@@ -46,6 +46,7 @@ internal static class Program
             NestedWorkloads.Run(db, Measure, args.Length > 1 ? args[1] : null);
             UniqueWorkloads.Run(db, Measure, plans, args.Length > 1 ? args[1] : null);
             ScalarIndexWorkloads.Run(db, Measure, plans, args.Length > 1 ? args[1] : null);
+            ExclusiveRangeWorkloads.Run(db, Measure, plans, args.Length > 1 ? args[1] : null);
             ExclusionWorkloads.Run(db, Measure, plans, args.Length > 1 ? args[1] : null);
             EscapedFieldWorkloads.Run(db, Measure, plans, args.Length > 1 ? args[1] : null);
             Measure("or-linq", 20, i => rows.Query().Where(x => x.Score == 1234 || x.Score == 17890)

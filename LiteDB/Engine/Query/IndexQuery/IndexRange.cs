@@ -49,7 +49,7 @@ namespace LiteDB.Engine
             var first = 
                 start.Type == BsonType.MinValue ? indexer.GetNode(index.Head) :
                 start.Type == BsonType.MaxValue ? indexer.GetNode(index.Tail) :
-                indexer.Find(index, start, true, this.Order);
+                indexer.Find(index, start, true, this.Order, skipEqual: !startEquals);
 
             var node = first;
 
