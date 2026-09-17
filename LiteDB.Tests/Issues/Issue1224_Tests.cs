@@ -175,8 +175,9 @@ namespace LiteDB.Tests.Issues
         [InlineData(0UL)]
         [InlineData(1UL)]
         [InlineData(9007199254740993UL)]
+        [InlineData(9223372036854775807UL)]
+        [InlineData(9223372036854775808UL)]
         [InlineData(UInt64.MaxValue)]
-        [Trait("Category", "PendingBug")]
         public void Boxed_UInt64_matches_the_implicit_BsonValue_conversion(ulong value)
         {
             BsonValue implicitValue = value;
@@ -191,7 +192,6 @@ namespace LiteDB.Tests.Issues
         [InlineData(0U)]
         [InlineData(1U)]
         [InlineData(UInt32.MaxValue)]
-        [Trait("Category", "PendingBug")]
         public void Boxed_UInt32_matches_the_widened_BsonValue_conversion(uint value)
         {
             BsonValue widenedValue = (long)value;

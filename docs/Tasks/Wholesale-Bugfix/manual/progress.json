@@ -2287,11 +2287,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "reproduced-pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue1224_Tests.cs"
       ],
-      "validation": "The original #1224 implicit UInt64 conversion remains fixed. Seven added boxed UInt32/UInt64 cases all throw InvalidCastException instead of matching the lossless Int64 representation."
+      "validation": "Fixed boxed UInt32 widening and UInt64 unchecked Int64 bit preservation. All 31 Issue1224 tests pass on net8.0, including signed-boundary cases. Four independent fresh gpt-5.6-sol reviewers approved without actionable findings."
     },
     {
       "issue": 2902,

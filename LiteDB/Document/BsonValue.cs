@@ -135,6 +135,16 @@ namespace LiteDB
             if (value == null) this.Type = BsonType.Null;
             else if (value is Int32) this.Type = BsonType.Int32;
             else if (value is Int64) this.Type = BsonType.Int64;
+            else if (value is UInt32 unsigned32)
+            {
+                this.Type = BsonType.Int64;
+                this.RawValue = (long)unsigned32;
+            }
+            else if (value is UInt64 unsigned64)
+            {
+                this.Type = BsonType.Int64;
+                this.RawValue = unchecked((long)unsigned64);
+            }
             else if (value is Double) this.Type = BsonType.Double;
             else if (value is Decimal) this.Type = BsonType.Decimal;
             else if (value is String) this.Type = BsonType.String;
