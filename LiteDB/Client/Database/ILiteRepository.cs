@@ -4,7 +4,7 @@ using System.Linq.Expressions;
 
 namespace LiteDB
 {
-    public interface ILiteRepository : IDisposable
+    public partial interface ILiteRepository : IDisposable
     {
         /// <summary>
         /// Get database instance
