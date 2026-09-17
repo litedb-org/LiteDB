@@ -1,0 +1,82 @@
+# Tests of LiteDB.Tests that pass under the JIT but fail when the suite runs as a Native AOT binary.
+# scripts/validate-aot-test-suite.sh fails on any such test that is not listed here.
+# Format: category<TAB>test name. Theory rows are numbered in declaration order.
+#
+# assertion-library             FluentAssertions or xunit builds generic code at run time (BeEquivalentTo, collection
+#                               trackers, comparers). The assertion fails to run; LiteDB is not involved.
+# test-uses-dynamic-code        The test itself emits a type with Reflection.Emit.
+# test-uses-private-reflection  The test reflects over private LiteDB members that trimming removes, or closes a
+#                               generic LiteDB method over a type by reflection.
+# runtime-mapper                Reflection-based entity mapping constructs closed generic collection types, or
+#                               System.Index, at run time. These APIs carry RequiresDynamicCode and are outside the
+#                               Native AOT contract (docs/AOT.md); source-generated collections replace them.
+# file-storage                  LiteStorage maps LiteFileInfo<TFileId> through the runtime mapper. Annotated with
+#                               RequiresUnreferencedCode and RequiresDynamicCode; not usable as Native AOT today.
+assertion-library	LiteDB.Tests.BsonValue_Types.BsonVector_Tests.VectorSim_TopK_ReturnsCorrectOrder
+assertion-library	LiteDB.Tests.Issues.Issue2376_Tests.Byte_enum_array_round_trips_through_database
+assertion-library	LiteDB.Tests.Issues.Issue2376_Tests.Byte_enum_array_serializes_with_enum_as_integer
+assertion-library	LiteDB.Tests.Issues.Issue2376_Tests.Legacy_binary_stored_byte_enum_array_still_deserializes
+assertion-library	LiteDB.Tests.Issues.Issue2376_Tests.Non_generic_collection_with_byte_enum_array_should_round_trip
+assertion-library	LiteDB.Tests.Issues.Issue2456_Database_Tests.Indexes_should_work_on_wrapped_array_and_document_fields
+assertion-library	LiteDB.Tests.Issues.Issue2570_Tests.Issue2570_Tuples
+assertion-library	LiteDB.Tests.QueryTest.Issue2881_VectorPredicate_Tests.Scalar_cosine_filter_does_not_replace_the_api_metric_threshold[0]
+assertion-library	LiteDB.Tests.QueryTest.Issue2881_VectorPredicate_Tests.Scalar_cosine_filter_does_not_replace_the_api_metric_threshold[1]
+assertion-library	LiteDB.Tests.QueryTest.Issue2881_VectorPredicate_Tests.Scalar_cosine_filter_does_not_replace_the_api_metric_threshold[2]
+assertion-library	LiteDB.Tests.QueryTest.Issue2881_VectorPredicate_Tests.Scalar_cosine_filter_does_not_replace_the_api_metric_threshold[3]
+assertion-library	LiteDB.Tests.QueryTest.Issue2881_VectorPredicate_Tests.Scalar_cosine_filter_does_not_replace_the_api_metric_threshold[4]
+assertion-library	LiteDB.Tests.QueryTest.Issue2881_VectorPredicate_Tests.Scalar_filter_and_api_threshold_both_apply[0]
+assertion-library	LiteDB.Tests.QueryTest.Issue2881_VectorPredicate_Tests.Scalar_filter_and_api_threshold_both_apply[1]
+assertion-library	LiteDB.Tests.QueryTest.VectorIndex_Tests.VectorIndex_PersistsNodes_WhenDocumentsChange
+assertion-library	LiteDB.Tests.VectorSearchResult_Tests.BsonScalarProjection_PreservesOrdinaryDocumentShape
+file-storage	LiteDB.Tests.Database.Storage_Tests.Storage_Upload_Download
+file-storage	LiteDB.Tests.Issues.Issue2458_Tests.NegativeSeekFails
+file-storage	LiteDB.Tests.Issues.Issue2458_Tests.SeekPastFileSucceds
+file-storage	LiteDB.Tests.Issues.Issue2458_Tests.SeekShortChunks
+file-storage	LiteDB.Tests.Issues.Issue2506_Tests.Test
+runtime-mapper	LiteDB.Tests.Issues.Issue1929_Tests.Deserialize_Should_Handle_System_Index_With_Lower_Case_Delimiter
+runtime-mapper	LiteDB.Tests.Issues.Issue1929_Tests.Deserialize_Should_Handle_System_Index_With_Object_Type_Discriminator
+runtime-mapper	LiteDB.Tests.Issues.Issue1929_Tests.FindById_Should_Deserialize_System_Index_Property
+runtime-mapper	LiteDB.Tests.Issues.Issue2255_Compatibility_Tests.Comma_and_dot_string_keys_remain_distinct_after_reopening_and_updating[0]
+runtime-mapper	LiteDB.Tests.Issues.Issue2255_Compatibility_Tests.Comma_and_dot_string_keys_remain_distinct_after_reopening_and_updating[1]
+runtime-mapper	LiteDB.Tests.Issues.Issue2255_Compatibility_Tests.Comma_and_dot_string_keys_remain_distinct_after_reopening_and_updating[2]
+runtime-mapper	LiteDB.Tests.Issues.Issue2255_Compatibility_Tests.Decimal_keys_can_be_saved_reopened_and_updated[0]
+runtime-mapper	LiteDB.Tests.Issues.Issue2255_Compatibility_Tests.Decimal_keys_can_be_saved_reopened_and_updated[1]
+runtime-mapper	LiteDB.Tests.Issues.Issue2255_Compatibility_Tests.Decimal_keys_can_be_saved_reopened_and_updated[2]
+runtime-mapper	LiteDB.Tests.Issues.Issue2255_Compatibility_Tests.Default_enum_key_can_be_saved_reopened_and_updated[0]
+runtime-mapper	LiteDB.Tests.Issues.Issue2255_Compatibility_Tests.Default_enum_key_can_be_saved_reopened_and_updated[1]
+runtime-mapper	LiteDB.Tests.Issues.Issue2255_Compatibility_Tests.Default_enum_key_can_be_saved_reopened_and_updated[2]
+runtime-mapper	LiteDB.Tests.Issues.Issue2255_Compatibility_Tests.Existing_enum_dictionary_allows_updating_an_unrelated_field[0]
+runtime-mapper	LiteDB.Tests.Issues.Issue2255_Compatibility_Tests.Existing_enum_dictionary_allows_updating_an_unrelated_field[1]
+runtime-mapper	LiteDB.Tests.Issues.Issue2255_Compatibility_Tests.Existing_enum_dictionary_allows_updating_an_unrelated_field[2]
+runtime-mapper	LiteDB.Tests.Issues.Issue2255_Compatibility_Tests.Existing_nullable_enum_dictionary_allows_updating_an_unrelated_field[0]
+runtime-mapper	LiteDB.Tests.Issues.Issue2255_Compatibility_Tests.Existing_nullable_enum_dictionary_allows_updating_an_unrelated_field[1]
+runtime-mapper	LiteDB.Tests.Issues.Issue2255_Compatibility_Tests.Existing_nullable_enum_dictionary_allows_updating_an_unrelated_field[2]
+runtime-mapper	LiteDB.Tests.Issues.Issue2255_Compatibility_Tests.Named_enum_keys_can_be_saved_reopened_and_updated[0]
+runtime-mapper	LiteDB.Tests.Issues.Issue2255_Compatibility_Tests.Named_enum_keys_can_be_saved_reopened_and_updated[1]
+runtime-mapper	LiteDB.Tests.Issues.Issue2255_Compatibility_Tests.Named_enum_keys_can_be_saved_reopened_and_updated[2]
+runtime-mapper	LiteDB.Tests.Issues.Issue2255_Compatibility_Tests.Nullable_enum_key_can_be_saved_reopened_and_updated[0]
+runtime-mapper	LiteDB.Tests.Issues.Issue2255_Compatibility_Tests.Nullable_enum_key_can_be_saved_reopened_and_updated[1]
+runtime-mapper	LiteDB.Tests.Issues.Issue2255_Compatibility_Tests.Nullable_enum_key_can_be_saved_reopened_and_updated[2]
+runtime-mapper	LiteDB.Tests.Issues.Issue2255_Compatibility_Tests.Unnamed_http_status_key_can_be_saved_reopened_and_updated[0]
+runtime-mapper	LiteDB.Tests.Issues.Issue2255_Compatibility_Tests.Unnamed_http_status_key_can_be_saved_reopened_and_updated[1]
+runtime-mapper	LiteDB.Tests.Issues.Issue2255_Compatibility_Tests.Unnamed_http_status_key_can_be_saved_reopened_and_updated[2]
+runtime-mapper	LiteDB.Tests.Issues.Issue2255_EnumConverter_Tests.Custom_enum_converter_controls_persisted_keys
+runtime-mapper	LiteDB.Tests.Issues.Issue2255_EnumConverter_Tests.Custom_nullable_converter_controls_persisted_keys
+runtime-mapper	LiteDB.Tests.Issues.Issue2255_EnumConverter_Tests.Nullable_enum_uses_custom_underlying_converter
+runtime-mapper	LiteDB.Tests.Issues.Issue2255_Tests.Double_dictionary_keys_round_trip_through_database_under_comma_decimal_culture
+runtime-mapper	LiteDB.Tests.Issues.Issue2255_Tests.Double_dictionary_keys_round_trip_under_comma_decimal_culture
+runtime-mapper	LiteDB.Tests.Issues.Issue2255_Tests.Resaving_a_dictionary_should_keep_its_existing_field_name
+runtime-mapper	LiteDB.Tests.Issues.Issue2456_Mapper_Tests.Deserialize_should_map_wrapped_arrays_to_clr_collections
+runtime-mapper	LiteDB.Tests.Issues.Issue2456_Mapper_Tests.Deserialize_should_map_wrapped_documents_to_clr_types
+runtime-mapper	LiteDB.Tests.Issues.Issue2456_Mapper_Tests.ToObject_should_read_entities_whose_fields_hold_wrapped_values
+runtime-mapper	LiteDB.Tests.Issues.Issue2471_Test.TestFragmentDB_FindByIDException
+runtime-mapper	LiteDB.Tests.Issues.Issue546_Tests.Test
+runtime-mapper	LiteDB.Tests.Mapper.Dictionary_Tests.Deserialize_Hashtable
+runtime-mapper	LiteDB.Tests.Mapper.Dictionary_Tests.Deserialize_Object
+runtime-mapper	LiteDB.Tests.Mapper.Dictionary_Tests.Deserialize_Uri
+runtime-mapper	LiteDB.Tests.Mapper.Dictionary_Tests.Dictionary_Map
+test-uses-dynamic-code	LiteDB.Tests.Issues.Issue1929_Tests.A_User_Type_Merely_Named_System_Index_Should_Map_Normally
+test-uses-private-reflection	LiteDB.Tests.Engine.DropCollection_Tests.DropCollection_WithVectorIndex_ReclaimsTrackedPages
+test-uses-private-reflection	LiteDB.Tests.Engine.Transactions_Tests.Test_Transaction_ReleaseWhenFailToStart
+test-uses-private-reflection	LiteDB.Tests.Engine.Transactions_Tests.Transaction_Write_Lock_Timeout
+test-uses-private-reflection	LiteDB.Tests.QueryTest.VectorIndex_Tests.VectorIndex_Search_Prunes_Node_Visits

@@ -202,6 +202,14 @@ dotnet publish LiteDB.AotSmokeTests/LiteDB.AotSmokeTests.csproj -c Release -r li
 ./artifacts/aot-smoke-trimmed/LiteDB.AotSmokeTests
 ```
 
+Run the existing test suite as a Native AOT binary with:
+
+```bash
+./scripts/validate-aot-test-suite.sh
+```
+
+`LiteDB.AotTestHost` compiles the sources of `LiteDB.Tests` into a console application with a small reflection-based xunit runner, because no test framework runs xunit v2 tests under Native AOT. The script runs the suite as a regular JIT application and as a Native AOT binary and compares the outcome of every test. A test that passes under the JIT and fails as Native AOT must be listed in `LiteDB.AotTestHost/known-aot-differences.tsv` with its category; any other such test fails the gate. At the time of writing 929 of 997 tests pass as Native AOT. None of the 68 differences is in the engine, the document API, SQL, or the expression engine: 42 are the reflection-based entity mapper constructing closed generic collection types at run time (the behaviour `RequiresDynamicCode` warns about), 5 are file storage, which uses that mapper, and 21 are the assertion libraries or the tests themselves using dynamic code or private reflection.
+
 Run the package-boundary Native AOT validation with:
 
 ```bash

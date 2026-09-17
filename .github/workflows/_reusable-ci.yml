@@ -189,6 +189,12 @@ jobs:
           TARGET_FRAMEWORK: ${{ matrix.tfm }}
         run: ./scripts/validate-aot-feature-parity.sh
 
+      - name: Run the LiteDB test suite as a Native AOT binary
+        shell: bash
+        env:
+          TARGET_FRAMEWORK: ${{ matrix.tfm }}
+        run: ./scripts/validate-aot-test-suite.sh
+
   # musl is a separate runtime identifier with its own native toolchain and libc, and Alpine is the usual base
   # image for small Native AOT containers.
   aot-parity-alpine:
@@ -216,6 +222,12 @@ jobs:
         env:
           TARGET_FRAMEWORK: ${{ matrix.tfm }}
         run: ./scripts/validate-aot-feature-parity.sh
+
+      - name: Run the LiteDB test suite as a Native AOT binary
+        shell: bash
+        env:
+          TARGET_FRAMEWORK: ${{ matrix.tfm }}
+        run: ./scripts/validate-aot-test-suite.sh
 
   build-macos:
     name: Build (macOS)
