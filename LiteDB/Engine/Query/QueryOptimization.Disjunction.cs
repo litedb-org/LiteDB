@@ -15,7 +15,7 @@ namespace LiteDB.Engine
                 BsonExpression keyExpression = null;
                 if (!CollectEqualities(term, ref keyExpression, values))
                 {
-                    var guard = ChooseCommonDisjunctionIndex(term, indexes);
+                    var guard = ChooseRangeDisjunctionIndex(term, indexes) ?? ChooseCommonDisjunctionIndex(term, indexes);
                     if (guard != null && (best == null || guard.Cost < best.Cost)) best = guard;
                     continue;
                 }

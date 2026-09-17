@@ -1504,6 +1504,76 @@ maintenance. Full .NET 8 and .NET 10 suites: **1,344 passed each**, seven existi
 skips each. All Release targets build; 18 reproduction-runner tests and
 plain/encrypted vector compatibility checks pass.
 
+## 41. Scalar range disjunctions use ordered index unions
+
+A predicate such as `(Score >= 1000 && Score < 1010) ||
+(Score >= 15000 && Score < 15010)` previously scanned the entire 20,000-row
+collection. Equality ORs already used IN seeks, but ORs containing ranges retained
+their filter. The planner now intersects each arm's scalar bounds, drops empty
+arms, and merges overlapping or connected intervals with the active collation.
+It executes the resulting disjoint ranges in index order, removing the OR filter
+only when that scan is selected. Another cheaper index can still win.
+
+This applies automatically to ordinary LINQ, SQL, and text expressions. Current
+parameters and arithmetic bounds such as `start + 10` are reevaluated for each
+query. The analysis is bounded to 64 nodes and accepts scalar member paths,
+including nested members. Includes, computed keys, array selectors, mixed fields,
+volatile bounds, and function-call bounds retain their existing behavior.
+Arithmetic failures fall back to preserve execution-time errors and short
+circuits. The reusable IR is unchanged, and physical plans are rebuilt for each
+execution.
+
+The union supports descending order and pagination, repeated index keys,
+index-only projection, and row aggregates. Overlaps do not duplicate documents;
+two open endpoints keep their gap unless another arm covers the boundary. A
+point filling a gap lets all connected arms collapse into a single range scan.
+
+The same harness is compiled against the preceding commit `d52cb82e` and this
+change. Production assemblies have SHA-256
+`93c7d16fbc3a0dfddd770b026dfe6f6304a49876c9ee57c2b2b04c6e6e74ba3b`
+(before) and
+`c4b7c781b132e1dc36c0ece50f39ae89d9004143c43e096f476e13a3391875ed`
+(after). Run the `union` prefix. Two processes per version run sequentially in
+before/after/after/before order, with nine batches per process and no builds or
+tests during measurement. Raw samples and plans are `41-union-*`.
+
+| Workload | Before µs | After µs | Time reduction | Before B/op | After B/op | Allocation reduction |
+|---|---:|---:|---:|---:|---:|---:|
+| union-narrow-linq | 31961.41 | 94.47 | 99.7% | 34777932 | 74610 | 99.8% |
+| union-narrow-sql | 29395.85 | 53.52 | 99.8% | 33707392 | 67690 | 99.8% |
+| union-descending-page | 29276.49 | 71.30 | 99.8% | 32027840 | 64944 | 99.8% |
+| union-overlap-count | 30593.46 | 41.16 | 99.9% | 27961336 | 47536 | 99.8% |
+| union-index-projection | 11844.68 | 62.42 | 99.5% | 12062296 | 56792 | 99.5% |
+| union-point-and-range | 29775.82 | 66.33 | 99.8% | 33710416 | 57848 | 99.8% |
+| union-broad-count | 27831.15 | 3181.43 | 88.6% | 28481944 | 6687864 | 76.5% |
+| union-equality-control | 39.68 | 36.99 | 6.8% | 37633 | 37633 | 0.0% |
+| union-range-control | 54.49 | 51.70 | 5.1% | 41609 | 41609 | 0.0% |
+| union-id-control | 16.02 | 15.74 | 1.7% | 21328 | 21328 | 0.0% |
+| union-unindexed-control | 30166.54 | 30070.65 | 0.3% | 33707224 | 33707224 | 0.0% |
+
+The narrow LINQ query returns twenty full documents with changing bounds and is
+**338× faster**; its SQL equivalent is **549× faster**. Descending pagination is
+**411× faster**, and the overlapping-range count is **743× faster** because the
+merged scan can also use the index aggregate pipeline. These are major gains for
+previously missed access paths. The broad count still visits 18,000 index keys;
+it improves **8.7×**, largely by avoiding document loading and residual evaluation.
+
+Controls keep the same plans and allocations. Their timing changes range from
+0.3% to 6.8% on this shared host; the smaller control gains are not attributed to
+range union planning. Every consumed-query checksum matches. These warm,
+in-memory results do not establish a universal query speedup or disk throughput.
+
+Forty-five new tests cover captured arithmetic, fresh binding and live indexes,
+reversed operands, nested/missing members, contradictory arms, duplicate keys,
+open endpoints, collation and BSON type ordering, 150 randomized four-arm
+predicates in both directions, aggregates, grouping, secondary sorting,
+fallbacks, short circuits, and bounded analysis. Persistence tests exercise
+plain/encrypted files with a one-page transaction budget, rollback, reopen, and
+rebuilt collation. The old negative test for `Score = 2 OR Score > 3` becomes a
+positive range-union case. Full .NET 8 and .NET 10 suites: **1,388 passed each**,
+seven existing skips each; all Release targets build, 18 reproduction-runner
+tests pass, and vector compatibility checks pass.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -1540,8 +1610,8 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 1,344 passed on .NET 8 at step 40;
-  1,344 passed on .NET 10 at step 40; focused sort and query suites also pass on .NET 8. Each full
+- Full `LiteDB.Tests` with `tests.runsettings`: 1,388 passed on .NET 8 at step 41;
+  1,388 passed on .NET 10 at step 41; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file

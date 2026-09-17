@@ -56,6 +56,7 @@ internal static class Program
             LikeTerminalWorkloads.Run(Measure, args.Length > 1 ? args[1] : null);
             BooleanValueWorkloads.Run(db, Measure, plans, args.Length > 1 ? args[1] : null);
             ParsedExpressionWorkloads.Run(db, Measure, args.Length > 1 ? args[1] : null);
+            RangeUnionWorkloads.Run(db, Measure, plans, args.Length > 1 ? args[1] : null);
             FieldCaseWorkloads.Run(db, Measure, plans);
             NodeLinkWorkloads.Run(db, Measure);
             MergeWorkloads.Run(db, Measure, plans, args.Length > 1 ? args[1] : null);

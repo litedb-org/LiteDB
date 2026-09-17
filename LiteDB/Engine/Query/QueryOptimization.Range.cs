@@ -3,7 +3,7 @@ namespace LiteDB.Engine
     internal partial class QueryOptimization
     {
         private static bool TryGetScalarBound(BsonExpression expression, out BsonExpression field,
-            out BsonExpression value, out BsonExpressionType operation)
+            out BsonExpression value, out BsonExpressionType operation, bool allowComputedValue = false)
         {
             field = expression?.Left;
             value = expression?.Right;
@@ -31,7 +31,8 @@ namespace LiteDB.Engine
                 }
             }
             // Two ANY predicates may be satisfied by different array elements.
-            return field.IsScalar && field.IsImmutable && !field.IsVolatile && !field.IsValue && IsStableValue(value);
+            return field.IsScalar && field.IsImmutable && !field.IsVolatile && !field.IsValue &&
+                (IsStableValue(value) || (allowComputedValue && value.IsScalar && value.IsValue && !value.UseSource && !value.IsVolatile));
         }
     }
 }

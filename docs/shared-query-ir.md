@@ -138,6 +138,20 @@ hot queries, churn, and concurrent throughput measurements.
 
 ## Shared predicate optimization
 
+ORs of scalar member-path bounds can use an ordered union of index ranges. Each
+arm may intersect `<`, `<=`, `>`, `>=`, and equality constraints on the same key.
+The planner reads current parameters, including arithmetic bounds, discards empty
+arms, and merges overlapping or connected ranges using the active collation.
+Open endpoints remain open when neither arm covers the boundary. The resulting
+disjoint scans support ascending/descending order, pagination, covered projections,
+and row aggregates without duplicate documents or residual OR evaluation.
+
+This analysis has a 64-node budget and requires a matching scalar index. Includes,
+computed keys, array selectors, mixed fields, and volatile/function-call bounds
+keep their existing plans. Arithmetic failures preserve the original filter and
+its execution-time errors and short circuits. If another predicate selects a
+cheaper index, the OR remains a filter. See step 41 in the benchmark report.
+
 The engine inspects the same expression nodes for LINQ and SQL. Equality ORs on
 one scalar indexed expression become ordered IN seeks. OR branches with equivalent
 leading scalar equalities can use that shared indexed guard while retaining the

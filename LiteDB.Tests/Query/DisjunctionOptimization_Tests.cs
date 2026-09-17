@@ -45,7 +45,6 @@ namespace LiteDB.Tests.QueryTest
 
         [Theory]
         [InlineData("Score = 2 OR _id = 3")]
-        [InlineData("Score = 2 OR Score > 3")]
         [InlineData("Scores ANY = 2 OR Scores ANY = 3")]
         public void Incompatible_or_multikey_disjunctions_keep_the_filter(string predicate)
         {
