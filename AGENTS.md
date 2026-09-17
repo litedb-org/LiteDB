@@ -62,6 +62,10 @@ collation and must not intersect separate ANY/ALL predicates as scalar bounds.
 Validate the complete pure Boolean shape before pushing bounds into membership
 branches. Empty allowed intervals must still validate subsequent bound values,
 so throwing arithmetic and invalid bindings preserve filter fallback.
+Keep OR shape validation separate from value evaluation and preserve leaf order
+and bindings. Avoid temporary branch lists for rejected shapes. Cache only fixed
+query-local metadata, never bound values; do not bypass flat empty ranges merely
+because a primary-key candidate exists, since that can change residual errors.
 Propagate internal `IsVolatile` through every expression factory and binding;
 `IsImmutable` alone does not distinguish parameters from volatile functions.
 Preserve `IsANY` when copying predicate nodes; inspecting generated delegate text

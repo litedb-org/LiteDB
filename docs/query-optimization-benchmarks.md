@@ -2054,6 +2054,116 @@ reopening. Full .NET 8 and .NET 10 suites each pass **1,558 tests**, with seven
 existing skips each. All Release targets build, 18 reproduction tests pass, and
 ordinary/promoted vector-file compatibility checks pass for both file modes.
 
+## 47. Reduce temporary allocations when analyzing OR candidates
+
+Equality and flat range OR analysis now prove the complete shape before allocating
+key or interval buffers. Accepted values are evaluated in a second, left-to-right
+traversal with each leaf's own bindings. Failed flat shapes no longer leave behind
+partially populated branch lists before falling back to nested Boolean analysis.
+Direct index lookup also removes captured lookup/evaluation delegates, and the
+presence of a cheaper scalar equality is memoized within the current optimizer.
+Normalized terms and the index snapshot are fixed for that optimizer instance;
+values, results, and physical plans are never cached by this change.
+
+Candidate costs, the structural budget, and evaluation/error behavior are unchanged.
+An empty flat range still beats a primary-key seek; unique-key unions and shared
+leading guards can still beat a nonunique equality. This preserves cases where an
+empty scan prevents a later throwing residual from executing. Membership and nested
+Boolean candidates retain their existing cheaper-equality bypass policy.
+
+The main comparison uses production `9b7d7c09` versus this change, the same harness,
+20,000 ordinary documents, and the step-46 20,000-document/1,000-reference fixture
+for INCLUDE controls. SHA-256 values are
+`7b4b8318e0d936ad27226d7701c3f2a34f75e095cb0bd72076e8d69cd7c725d6`
+(before) and
+`d8826021b0c163123058f68daf2ad8655847f2de37d2e94ca676bdd5274c4ff5`
+(after). Use the explicit `orplan` filter. Two processes per version run serially
+before/after/after/before, pinned to CPU 2 with tiered compilation disabled; each
+records nine batches. Task builds and tests finished before timing. All twelve
+recorded plans and consumed-result checksums match between versions.
+
+The builder cases reuse parsed predicates but execute and consume the full database
+query each time. Their 64 equality keys and eight bounded ranges are outside the
+stored data, exposing planning and seek costs without document materialization.
+Ordinary LINQ cases still construct their queries on every call. Fixture setup,
+parsing of the reused builder predicates, and plan inspection are outside timing.
+Raw samples are `47-orplan-{before,after}-{1,2}.json`.
+
+| Workload | Before µs | After µs | Time reduction | Before B/op | After B/op | Allocation reduction |
+|---|---:|---:|---:|---:|---:|---:|
+| orplan-id-linq | 36.95 | 36.30 | 1.7% | 28473 | 28201 | 1.0% |
+| orplan-id-two-residuals | 48.70 | 48.44 | 0.5% | 34609 | 34097 | 1.5% |
+| orplan-city-linq | 94.01 | 92.74 | 1.4% | 67865 | 67593 | 0.4% |
+| orplan-equality-linq | 39.35 | 44.11 | -12.1% | 37657 | 37305 | 0.9% |
+| orplan-equality-64-builder | 206.50 | 208.94 | -1.2% | 486232 | 484824 | 0.3% |
+| orplan-range-linq | 94.79 | 95.71 | -1.0% | 74921 | 74593 | 0.4% |
+| orplan-range-8-builder | 38.21 | 38.88 | -1.8% | 75376 | 74432 | 1.3% |
+| orplan-common-guard | 95.29 | 91.00 | 4.5% | 66529 | 66289 | 0.4% |
+| orplan-empty-with-id | 27.07 | 25.74 | 4.9% | 15032 | 14552 | 3.2% |
+| orplan-point-control | 17.86 | 15.83 | 11.4% | 21352 | 21320 | 0.1% |
+| orplan-include-point-control | 49.28 | 44.96 | 8.8% | 40921 | 40889 | 0.1% |
+| orplan-include-id | 63.78 | 61.17 | 4.1% | 49345 | 49073 | 0.6% |
+
+Allocated bytes fall in every case, by **32–1,408 B/query**. The eight-range builder
+saves **944 B (1.3%)**, the two-residual LINQ query **512 B (1.5%)**, and the empty
+range with a primary-key condition **480 B (3.2%)**. This is a small planning cleanup,
+with the same database work and selected indexes.
+
+Main-run timing is mixed and noisy: the point controls improve **8.8–11.4%**, while
+the equality LINQ query is **12.1% slower**. One after-process equality median is
+60.21 µs versus 39.67 µs in the other; one before-process primary-key median is
+48.51 µs versus 35.07 µs in the other. These process differences prevent a general
+latency claim. The raw samples and negative results are retained.
+
+Longer isolated comparisons run 20,000 iterations per batch (40,000 for the plain
+point controls), with two processes per version and nine batches per process.
+The original `boolrange` and `includebool` operations check the earlier regressions;
+`orplan-equality-linq` and its point control investigate the main equality slowdown.
+Each current before/after comparison keeps before/after/after/before order.
+Raw samples are `47-isolated-<workload>-{before,after}-{1,2}.json`.
+
+| Workload | Before µs | After µs | Time reduction | Before B/op | After B/op | Allocation reduction |
+|---|---:|---:|---:|---:|---:|---:|
+| boolrange-cheaper-id-control | 37.56 | 36.30 | 3.4% | 28473 | 28241 | 0.8% |
+| boolrange-point-control | 15.83 | 16.07 | -1.5% | 21352 | 21320 | 0.1% |
+| includebool-cheaper-id-control | 60.48 | 58.34 | 3.5% | 49345 | 49073 | 0.6% |
+| includebool-point-control | 43.86 | 45.84 | -4.5% | 40921 | 40889 | 0.1% |
+| orplan-equality-linq | 41.02 | 38.72 | 5.6% | 37657 | 37305 | 0.9% |
+| orplan-point-control | 17.14 | 16.21 | 5.4% | 21352 | 21320 | 0.1% |
+
+The isolated nested primary-key queries take **3.4%** and **3.5%** less time than
+step 46 in these samples, with **232 B** and **272 B** fewer allocations. Their point
+controls are **1.5%** and **4.5% slower**. The isolated equality result reverses the
+main slowdown, but its **5.6%** improvement is close to its control's **5.4%** change.
+Both comparisons are reported; the dependable benefit is reduced allocation, and
+these measurements do not establish a broad latency improvement.
+
+A fresh historical comparison also runs the exact step-43 primary-key and point
+operations against the step-42 production assembly (`9131e0a1`, SHA-256
+`09206086ed3e19aae576544d98a52c60eb51bbcab4bf0b94c1fbbf5e205d435d`).
+For each workload, two historical processes surround the four current comparison
+processes: historical/before/after/after/before/historical. All result checksums
+match. The additional raw files use the `historical` version label.
+
+| Workload | Step 42 µs | Step 46 µs | Step 47 µs |
+|---|---:|---:|---:|
+| Nested residual with primary-key seek | 35.72 | 37.56 | 36.30 |
+| Plain point control | 15.92 | 15.83 | 16.07 |
+
+The nested query remains **1.6% slower** than that fresh historical baseline, while
+the point control is **0.9% slower**. The old step-43 regression remains documented;
+this change does not claim full recovery. It also does not compare step 45 freshly,
+so the step-46 regression is not declared repaired using timings from different
+runs. These are warm, memory-resident measurements on a shared host.
+
+Thirteen new regression cases pass against both the previous production assembly
+and the new implementation. They cover competing candidates, empty scans and
+throwing residuals, validation before value evaluation, planning-time versus
+execution-time errors, current leaf bindings, and current index/INCLUDE metadata.
+The focused Boolean/range/set suite passes 228 tests. Full .NET 8 and .NET 10 suites
+each pass **1,571 tests**, with seven existing skips; all Release targets build,
+18 reproduction tests pass, and plain/encrypted vector-file compatibility passes.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -2090,8 +2200,8 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 1,558 passed on .NET 8 at step 46;
-  1,558 passed on .NET 10 at step 46; focused sort and query suites also pass on .NET 8. Each full
+- Full `LiteDB.Tests` with `tests.runsettings`: 1,571 passed on .NET 8 at step 47;
+  1,571 passed on .NET 10 at step 47; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file

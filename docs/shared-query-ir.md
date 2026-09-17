@@ -151,6 +151,15 @@ sets, and the union merges matching keys into the ranges that already cover them
 Parameter lists can exceed the structural node budget. An existing indexed scalar
 equality avoids expanding a list into a more expensive candidate.
 
+Equality and flat range OR analysis validate the complete shape before allocating
+key or interval buffers. A second traversal reads accepted values in their original
+left-to-right order, using each leaf's own bindings. Rejected flat shapes can fall
+back to nested Boolean analysis without temporary branch lists. The presence of
+a cheaper scalar equality is memoized only within the current optimizer instance,
+whose normalized terms and index snapshot are fixed. Candidate costs and selection
+remain unchanged: an empty flat range can still beat a primary-key seek, and a
+unique-key union or common guard can beat a nonunique equality.
+
 Literal arrays, parameters, and arithmetic values are checked structurally. The
 recognized `ITEMS(values) ANY = field` form keeps its sequence semantics: binary
 values enumerate bytes, while scalar `field IN binary` compares the whole binary

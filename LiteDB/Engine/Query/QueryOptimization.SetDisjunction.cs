@@ -52,16 +52,25 @@ namespace LiteDB.Engine
             return true;
         }
 
+        private bool? _hasCheaperScalarEquality;
+
         private bool HasCheaperScalarEquality(CollectionIndex[] indexes)
         {
             // A nonempty range costs at least 20; equality seeks cost at most 10.
             // Avoid expanding IN parameters for a more expensive candidate. Even
             // proving an empty set can cost more than the existing equality seek.
+            if (_hasCheaperScalarEquality.HasValue) return _hasCheaperScalarEquality.Value;
+            // Terms and index metadata are fixed for this QueryOptimization instance.
+            _hasCheaperScalarEquality = false;
             if (_terms.Count < 2) return false;
             foreach (var term in _terms)
             {
                 if (term.Type == BsonExpressionType.Equal && term.Left.IsScalar && term.Right.IsScalar &&
-                    FindPredicateIndex(indexes, term, out _) != null) return true;
+                    FindPredicateIndex(indexes, term, out _) != null)
+                {
+                    _hasCheaperScalarEquality = true;
+                    return true;
+                }
             }
             return false;
         }

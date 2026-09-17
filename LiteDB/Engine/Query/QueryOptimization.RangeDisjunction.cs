@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Linq.Expressions;
 
 namespace LiteDB.Engine
@@ -9,31 +8,21 @@ namespace LiteDB.Engine
     {
         private IndexCost ChooseRangeDisjunctionIndex(BsonExpression expression, CollectionIndex[] indexes)
         {
-            var branches = new List<List<BsonExpression>>();
             BsonExpression field = null;
             var budget = 64;
-            if (!CollectRangeBranches(expression, branches, ref field, ref budget)) return ChooseNestedBooleanIndex(expression, indexes);
+            var branches = 0;
+            var membership = false;
+            if (!ValidateRangeBranches(expression, ref field, ref budget, ref branches, ref membership)) return ChooseNestedBooleanIndex(expression, indexes);
             var index = FindStoredIndex(indexes, field);
             if (index == null) return null;
-            if (_terms.Count > 1 && branches.Any(branch => branch.Any(term => term.Type == BsonExpressionType.In || term.IsANY)) &&
-                HasCheaperScalarEquality(indexes)) return null;
+            if (membership && HasCheaperScalarEquality(indexes)) return null;
 
             // Validate the entire shape before reading any values. Bindings belong
             // to this invocation; the reusable IR and its parameters stay unchanged.
             try
             {
-                var ranges = new List<ScalarBounds>(branches.Count);
-                foreach (var branch in branches)
-                {
-                    var constraint = new ScalarIndexConstraint(_collation);
-                    foreach (var term in branch)
-                    {
-                        TryGetUnionConstraint(term, out _, out var value, out var operation);
-                        var current = value.IsScalar ? value.ExecuteScalar(_collation) : new BsonArray(value.Execute(_collation));
-                        if (!constraint.Intersect(operation, current)) return null;
-                    }
-                    constraint.AppendRanges(ranges);
-                }
+                var ranges = new List<ScalarBounds>(branches);
+                if (!AppendRangeBranches(expression, ranges)) return null;
                 return new IndexCost(index, expression, IndexRangeUnion.Create(index.Name, ranges, _collation), scalarKeys: true);
             }
             catch (Exception)
@@ -44,35 +33,53 @@ namespace LiteDB.Engine
             }
         }
 
-        private static bool CollectRangeBranches(BsonExpression expression, List<List<BsonExpression>> branches,
-            ref BsonExpression field, ref int budget)
+        private static bool ValidateRangeBranches(BsonExpression expression, ref BsonExpression field,
+            ref int budget, ref int branches, ref bool membership)
         {
             if (expression.Type == BsonExpressionType.Or)
             {
                 if (--budget < 0) return false;
-                return CollectRangeBranches(expression.Left, branches, ref field, ref budget) &&
-                    CollectRangeBranches(expression.Right, branches, ref field, ref budget);
+                return ValidateRangeBranches(expression.Left, ref field, ref budget, ref branches, ref membership) &&
+                    ValidateRangeBranches(expression.Right, ref field, ref budget, ref branches, ref membership);
             }
-            var branch = new List<BsonExpression>();
-            branches.Add(branch);
-            return CollectRangeConjunction(expression, branch, ref field, ref budget);
+            branches++;
+            return ValidateRangeConjunction(expression, ref field, ref budget, ref membership);
         }
 
-        private static bool CollectRangeConjunction(BsonExpression expression, List<BsonExpression> branch,
-            ref BsonExpression field, ref int budget)
+        private static bool ValidateRangeConjunction(BsonExpression expression,
+            ref BsonExpression field, ref int budget, ref bool membership)
         {
             if (--budget < 0) return false;
             if (expression.Type == BsonExpressionType.And)
             {
-                return CollectRangeConjunction(expression.Left, branch, ref field, ref budget) &&
-                    CollectRangeConjunction(expression.Right, branch, ref field, ref budget);
+                return ValidateRangeConjunction(expression.Left, ref field, ref budget, ref membership) &&
+                    ValidateRangeConjunction(expression.Right, ref field, ref budget, ref membership);
             }
             if (!TryGetUnionConstraint(expression, out var current, out var value, out _) ||
                 !IndexExpressionIdentity.IsMemberPath(current) || !IsRangeValue(value, ref budget)) return false;
             if (field != null && !IndexExpressionIdentity.Matches(field.Source, current)) return false;
             field = current;
-            branch.Add(expression);
+            membership |= expression.Type == BsonExpressionType.In || expression.IsANY;
             return true;
+        }
+
+        private bool AppendRangeBranches(BsonExpression expression, List<ScalarBounds> ranges)
+        {
+            if (expression.Type == BsonExpressionType.Or)
+                return AppendRangeBranches(expression.Left, ranges) && AppendRangeBranches(expression.Right, ranges);
+            var constraint = new ScalarIndexConstraint(_collation);
+            if (!IntersectRangeConjunction(expression, constraint)) return false;
+            constraint.AppendRanges(ranges);
+            return true;
+        }
+
+        private bool IntersectRangeConjunction(BsonExpression expression, ScalarIndexConstraint constraint)
+        {
+            if (expression.Type == BsonExpressionType.And)
+                return IntersectRangeConjunction(expression.Left, constraint) && IntersectRangeConjunction(expression.Right, constraint);
+            TryGetUnionConstraint(expression, out _, out var value, out var operation);
+            var current = value.IsScalar ? value.ExecuteScalar(_collation) : new BsonArray(value.Execute(_collation));
+            return constraint.Intersect(operation, current);
         }
 
         private static bool IsRangeValue(BsonExpression value, ref int budget)
