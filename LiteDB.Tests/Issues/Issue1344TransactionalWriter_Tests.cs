@@ -35,6 +35,7 @@ namespace LiteDB.Tests.Issues
                 catch (Exception error) { failure = error; }
             }) { IsBackground = true };
             worker.Start();
+            var committed = false;
             try
             {
                 Assert.True(started.Wait(TimeSpan.FromSeconds(5)));
@@ -42,12 +43,12 @@ namespace LiteDB.Tests.Issues
                     TimeSpan.FromSeconds(5)));
                 writer.WriteByte(3);
                 writer.Dispose();
-                Assert.True(db.Commit());
+                Assert.True(committed = db.Commit());
             }
             finally
             {
-                db.Rollback();
-                Assert.True(worker.Join(TimeSpan.FromSeconds(10)));
+                try { if (!committed) db.Rollback(); }
+                finally { Assert.True(worker.Join(TimeSpan.FromSeconds(10))); }
             }
             Assert.Null(failure);
             using var result = new MemoryStream();

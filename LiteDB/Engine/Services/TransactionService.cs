@@ -53,7 +53,7 @@ namespace LiteDB.Engine
         /// <summary>
         /// Get/Set if this transaction was opened by BeginTrans() method (not by AutoTransaction/Cursor)
         /// </summary>
-        public bool ExplicitTransaction { get; set; } = false;
+        public volatile bool ExplicitTransaction = false;
 
         public TransactionService(HeaderPage header, LockService locker, DiskService disk, WalIndexService walIndex, int maxTransactionSize, TransactionMonitor monitor, bool queryOnly)
         {

@@ -14,6 +14,7 @@ namespace LiteDB.Engine
     {
         private readonly TransactionRegistry _transactions = new TransactionRegistry();
         private readonly ThreadLocal<TransactionService> _slot = new ThreadLocal<TransactionService>();
+        private readonly ThreadLocal<bool> _explicitAborted = new ThreadLocal<bool>();
 
         private readonly HeaderPage _header;
         private readonly LockService _locker;
@@ -130,6 +131,39 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
+        /// Remember that a failed operation rolled back this thread's explicit transaction, so that
+        /// the caller's pending Commit is not mistaken for a completion from a foreign thread.
+        /// </summary>
+        public void MarkExplicitAbort()
+        {
+            // Dispose on another thread may already have released the slot; a closing engine has nothing left to complete.
+            try
+            {
+                _explicitAborted.Value = true;
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+        }
+
+        /// <summary>
+        /// Read and clear the mark left by <see cref="MarkExplicitAbort"/> on the current thread.
+        /// </summary>
+        public bool ConsumeExplicitAbort()
+        {
+            try
+            {
+                var aborted = _explicitAborted.Value;
+                if (aborted) _explicitAborted.Value = false;
+                return aborted;
+            }
+            catch (ObjectDisposedException)
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Get transaction from current thread (from thread slot or from queryOnly) - do not created new transaction
         /// Used only in SystemCollections to get running query transaction
         /// </summary>
@@ -160,6 +194,7 @@ namespace LiteDB.Engine
             }
 
             cleanup.Catch(_slot.Dispose);
+            cleanup.Catch(_explicitAborted.Dispose);
             if (cleanup.Exceptions.Count > 0) throw new AggregateException(cleanup.Exceptions);
         }
 

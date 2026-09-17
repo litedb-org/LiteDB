@@ -69,18 +69,19 @@ namespace LiteDB.Tests.Issues
                 catch (Exception error) { uploadFailure = error; }
             }) { IsBackground = true };
             upload.Start();
+            var committed = false;
             try
             {
                 Assert.True(started.Wait(TimeSpan.FromSeconds(5)));
                 Assert.True(SpinWait.SpinUntil(() => (upload.ThreadState & ThreadState.WaitSleepJoin) != 0,
                     TimeSpan.FromSeconds(5)), "Upload did not wait for the caller's metadata lock");
                 Assert.True(db.FileStorage.Delete("target"));
-                Assert.True(db.Commit());
+                Assert.True(committed = db.Commit());
             }
             finally
             {
-                db.Rollback();
-                Assert.True(upload.Join(TimeSpan.FromSeconds(15)));
+                try { if (!committed) db.Rollback(); }
+                finally { Assert.True(upload.Join(TimeSpan.FromSeconds(15))); }
             }
             Assert.Null(uploadFailure);
             using var downloaded = new MemoryStream();
