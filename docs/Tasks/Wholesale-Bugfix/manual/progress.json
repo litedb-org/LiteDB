@@ -1710,8 +1710,9 @@
         "priority: P3"
       ],
       "reproduction": "reproduced-script",
-      "disposition": "pending",
-      "tests": []
+      "disposition": "fixed-four-reviews",
+      "tests": [],
+      "validation": "Retained real-shell script passes in isolated and integrated worktrees, checking seeded payload/file identity/no siblings; shell builds pass; four fresh Sol-high reviews CLEAN."
     },
     {
       "issue": 1444,

@@ -1668,3 +1668,11 @@ The diagnostic now explains the initial-digit restriction, permitted characters
 and reserved initial dollar sign. The accepted grammar and error code remain
 unchanged. Four retained/integrated tests pass; final review_2746_w1_a through
 _d found only an unrelated BOM nit, removed before commit.
+
+## #1166 — open quoted shell filenames
+
+The open command unwraps matching quotes around bare filenames and assigns the
+Filename property, preserving spaces and punctuation. Explicit connection strings
+keep the existing parser. The retained real-shell script passes both isolated
+and integrated, including byte preservation and absence of unwanted files.
+Four fresh reviewers review_1166_w1_a through _d were clean.

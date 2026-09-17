@@ -23,7 +23,14 @@ namespace LiteDB.Shell.Commands
 
         public void Execute(StringScanner s, Env env)
         {
-            var connectionString = new ConnectionString(s.Scan(@".+").TrimToNull());
+            var text = s.Scan(@".+").TrimToNull();
+            // Quotes delimit a bare shell filename, not part of its disk name.
+            // Explicit connection strings keep their own quoting rules.
+            var quotedFilename = text != null && text.Length >= 2 &&
+                (text[0] == '"' || text[0] == '\'') && text[text.Length - 1] == text[0];
+            var connectionString = quotedFilename
+                ? new ConnectionString { Filename = text.Substring(1, text.Length - 2) }
+                : new ConnectionString(text);
 
             if (env.Database != null)
             {
