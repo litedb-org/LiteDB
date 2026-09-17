@@ -21,7 +21,7 @@ namespace LiteDB
         #region Properties
 
         /// <summary>
-        /// Get timestamp
+        /// Gets unsigned Unix seconds stored as raw signed bits for API compatibility.
         /// </summary>
         public int Timestamp { get; }
 
@@ -45,7 +45,7 @@ namespace LiteDB
         /// </summary>
         public DateTime CreationTime
         {
-            get { return BsonValue.UnixEpoch.AddSeconds(this.Timestamp); }
+            get { return BsonValue.UnixEpoch.AddSeconds(unchecked((uint)this.Timestamp)); }
         }
 
         #endregion
@@ -193,13 +193,13 @@ namespace LiteDB
         /// </summary>
         public int CompareTo(ObjectId other)
         {
-            var r = this.Timestamp.CompareTo(other.Timestamp);
+            var r = unchecked((uint)this.Timestamp).CompareTo(unchecked((uint)other.Timestamp));
             if (r != 0) return r;
 
             r = this.Machine.CompareTo(other.Machine);
             if (r != 0) return r;
 
-            r = this.Pid.CompareTo(other.Pid);
+            r = unchecked((ushort)this.Pid).CompareTo(unchecked((ushort)other.Pid));
             if (r != 0) return r < 0 ? -1 : 1;
 
             return this.Increment.CompareTo(other.Increment);
@@ -427,7 +427,7 @@ namespace LiteDB
             var timestamp = (long)Math.Floor((DateTime.UtcNow - BsonValue.UnixEpoch).TotalSeconds);
             var inc = Interlocked.Increment(ref _increment) & 0x00ffffff;
 
-            return new ObjectId((int)timestamp, _machine, _pid, inc);
+            return new ObjectId(unchecked((int)timestamp), _machine, _pid, inc);
         }
 
         #endregion

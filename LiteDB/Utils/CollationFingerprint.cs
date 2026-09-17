@@ -14,6 +14,9 @@ namespace LiteDB
             using (var writer = new BinaryWriter(data, Encoding.UTF8, true))
             {
                 writer.Write("LiteDB collation v1");
+                // BSON ObjectId timestamps and PID bytes compare as unsigned values.
+                // This affects every collation, including Ordinal.
+                writer.Write("unsigned ObjectId ordering v1");
                 writer.Write((int)collation.SortOptions);
                 // Ordinal comparison is independent of runtime sort tables/culture.
                 if (collation.SortOptions != CompareOptions.Ordinal)
