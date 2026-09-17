@@ -147,13 +147,57 @@ Two C# constructs make the *compiler* emit trim-unsafe `System.Linq.Expressions`
 
 ### What is not part of the Native AOT contract
 
-`GetCollection<T>`, `LiteRepository`, `BsonMapper.Entity<T>()`, `BsonMapper.GetExpression`, and `BsonMapper.ToDocument`/`ToObject`/`Serialize`/`Deserialize` use runtime model mapping. They carry `RequiresUnreferencedCode` (and `RequiresDynamicCode` where types are constructed at runtime), so calling them from a trimmed or Native AOT application produces a diagnostic at the call site. `GetCollection(string)` (the `BsonDocument` API), SQL through `Execute`, file storage (`FileStorage`, `GetStorage<TFileId>`), and the engine features (transactions, encryption, shared mode, rebuild, pragmas, vector search) involve no model mapping and are validated published. File storage maps its own `LiteFileInfo<TFileId>` model with hand-written code; `TFileId` has to be a BSON-native type, an enum, or a type with a converter registered through `BsonMapper.RegisterType`. A LINQ expression on a `BsonDocument` collection follows the same rule as one on a generated collection: captured values must be BSON-native (or have a registered converter), and a captured application object throws `NotSupportedException` instead of being mapped through reflection. This applies in every runtime, not only when published.
+`GetCollection<T>`, `LiteRepository`, `BsonMapper.Entity<T>()`, `BsonMapper.GetExpression`, and `BsonMapper.ToDocument`/`ToObject`/`Serialize`/`Deserialize` use runtime model mapping. They carry `RequiresUnreferencedCode` (and `RequiresDynamicCode` where types are constructed at runtime), so calling them from a trimmed or Native AOT application produces a diagnostic at the call site. `GetCollection(string)` (the `BsonDocument` API), SQL through `Execute`, file storage (`FileStorage`, `GetStorage<TFileId>`), and the engine features (transactions, encryption, shared mode, rebuild, pragmas, vector search) involve no model mapping and are validated published. File storage maps its own `LiteFileInfo<TFileId>` model with hand-written code. A `TFileId` that is a BSON-native type, an enum, or a type with a converter registered through `BsonMapper.RegisterType` needs no reflection at all. A class as `TFileId` still works everywhere, as it always has: the type parameter is annotated so that the trimmer keeps the members of that class (see the limit under "By design" below). A LINQ expression on a `BsonDocument` collection follows the same rule as one on a generated collection: captured values must be BSON-native (or have a registered converter), and a captured application object throws `NotSupportedException` instead of being mapped through reflection. This applies in every runtime, not only when published.
 
 | Diagnostic | Meaning | Typical remediation |
 | --- | --- | --- |
 | `LDBSG001` | Invalid source-generated model or inheritance hierarchy | Use a top-level, sealed, public/internal concrete class with an accessible parameterless constructor and supported base classes. |
 | `LDBSG002` | Invalid source-generated property | Change, ignore, or remove an unsupported, inaccessible, indexed/static, or persisted getter-only property. |
 | `LDBSG003` | Conflicting source-generated mapping | Remove duplicate mapped member names, IDs, conventional IDs, or effective BSON field names across the hierarchy. |
+
+## By design: known limits when trimmed or published as Native AOT
+
+None of these affect an ordinary application that runs on a JIT without trimming. They are the places where a trimmed or Native AOT application behaves differently, and each is a deliberate trade-off, not a bug.
+
+**1. A class nested inside a file storage id loses its members.** A class used as file id is kept intact by the trimmer. A class *inside* that class is not, and the loss is silent:
+
+```csharp
+class FileKey { public int Tenant { get; set; } public Address Home { get; set; } }
+class Address { public string City { get; set; } }
+
+// normal app : {"Tenant":1,"Home":{"City":"Vienna"}}
+// trimmed app: {"Tenant":1,"Home":{}}        <- two different ids can become the same id
+```
+
+Keep file ids flat (`int`, `string`, `Guid`, enums, or a class with only such members), or register a converter, which removes reflection from the id completely:
+
+```csharp
+mapper.RegisterType<FileKey>(
+    key  => new BsonDocument { ["Tenant"] = key.Tenant, ["City"] = key.Home.City },
+    bson => new FileKey { Tenant = bson["Tenant"].AsInt32, Home = new Address { City = bson["City"].AsString } });
+```
+
+**2. A query on a `BsonDocument` or generated collection does not accept your own objects as values.** This one applies to every application. Convert them first; the query itself stays the same:
+
+```csharp
+object[] owners = { new Person { Name = "Ada" } };
+col.Find(x => owners.Contains(x["owner"]));                 // NotSupportedException
+
+var docs = owners.Cast<Person>().Select(p => new BsonDocument { ["Name"] = p.Name }).ToArray();
+col.Find(x => docs.Contains(x["owner"]));                   // works
+```
+
+The typed API is not affected: `db.GetCollection<Car>().Find(x => owners.Contains(x.Owner))` works as before.
+
+**3. The typed reflection API is not part of the contract.** `GetCollection<T>`, `LiteRepository`, `BsonMapper.ToDocument`/`ToObject` and friends report a trim or AOT warning where you call them. Simple classes usually still work published; members that are collections of value types (`Dictionary<string, int>`, `HashSet<int>`, ...) often do not, because their code has to be built at run time. Use `[BsonSourceGenerated]` models or the `BsonDocument` API instead.
+
+**4. Object initializers and anonymous types in lambdas warn in your code.** `x => new Customer { Name = x.Name }` and `x => new { x.Name }` make the C# compiler emit calls that the trimmer flags with `IL2026` at your call site. The object-initializer form works at run time for generated types; anonymous projections are not supported on generated collections.
+
+**5. `InvariantGlobalization=true` cannot open a data file with a culture collation** such as `en-US/IgnoreCase`. It throws `CultureNotFoundException`.
+
+**6. Queries that evaluate an expression for every document are slower**, roughly 1.2 to 2 times once warm, because expressions are interpreted instead of compiled. Index seeks are not affected. See "Performance".
+
+**7. iOS and Unity are not verified on a device.** See the next section.
 
 ## Mono full AOT (iOS, Mac Catalyst, tvOS)
 

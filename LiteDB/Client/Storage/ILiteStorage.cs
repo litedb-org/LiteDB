@@ -5,7 +5,7 @@ using System.Linq.Expressions;
 
 namespace LiteDB
 {
-    public interface ILiteStorage<TFileId>
+    public interface ILiteStorage<[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(AotCompatibility.FileIdMembers)] TFileId>
     {
         /// <summary>
         /// Find a file inside datafile and returns LiteFileInfo instance. Returns null if not found

@@ -241,6 +241,16 @@ namespace LiteDB.AotSmokeTests
             numbered.Upload(7, "seven.txt", new MemoryStream(new byte[] { 7 }));
             Report("integer file id exists", numbered.Exists(7));
 
+            // An application class as file id is the one place file storage still maps by reflection. The file id type
+            // parameter is annotated, so the trimmer has to keep the members of AotFileKey without any hint here.
+            var keyed = database.GetStorage<AotFileKey>("keyedFiles", "keyedChunks");
+            keyed.Upload(new AotFileKey { Tenant = 3, Name = "invoice" }, "invoice.pdf", new MemoryStream(new byte[] { 9, 8, 7 }));
+            var keyedFile = keyed.FindById(new AotFileKey { Tenant = 3, Name = "invoice" });
+            using var keyedContent = new MemoryStream();
+            keyed.Download(new AotFileKey { Tenant = 3, Name = "invoice" }, keyedContent);
+            Report("class file id as stored", JsonSerializer.Serialize(database.GetCollection("keyedFiles").FindAll().Single()["_id"]));
+            Report("class file id read back", $"{keyedFile.Id.Tenant}/{keyedFile.Id.Name} {keyedFile.Filename} bytes={string.Join(",", keyedContent.ToArray())}");
+
             Require(storage.Delete("reports/2024.bin") && storage.Exists("reports/2024.bin") == false, "File storage did not delete the file.");
             Report("chunks left after delete", database.GetCollection("_chunks").Count());
             Require(downloaded.ToArray().SequenceEqual(payload) && report.Chunks > 1, "File storage did not round-trip a multi-chunk file.");

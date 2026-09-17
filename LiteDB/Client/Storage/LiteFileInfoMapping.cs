@@ -7,7 +7,7 @@ namespace LiteDB
     /// does not need runtime member discovery: this keeps file storage usable when trimmed and as Native AOT.
     /// Field names and order match what the reflection mapper produces from the attributes on LiteFileInfo.
     /// </summary>
-    internal static class LiteFileInfoMapping<TFileId>
+    internal static class LiteFileInfoMapping<[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(AotCompatibility.FileIdMembers)] TFileId>
     {
         /// <summary>
         /// Registers the mapping once per mapper. The entity mapper serves LINQ member resolution, the execution

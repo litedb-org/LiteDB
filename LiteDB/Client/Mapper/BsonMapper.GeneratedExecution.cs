@@ -60,32 +60,38 @@ namespace LiteDB
         /// <summary>
         /// Converts a file storage id without runtime model mapping.
         /// </summary>
-        internal BsonValue SerializeFileId(object id)
+        private const string FileIdJustification =
+            "Reached only for an application type used as file id. Every declaration of the file id type parameter carries " +
+            "DynamicallyAccessedMembers(AotCompatibility.FileIdMembers), so the trimmer keeps the properties, fields and " +
+            "constructors the mapper reads from that type. A member whose own type needs runtime type construction fails " +
+            "with a LiteException that names it; it is not mapped silently or partially.";
+
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = FileIdJustification)]
+        internal BsonValue SerializeFileId<[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(AotCompatibility.FileIdMembers)] T>(T id)
         {
-            try
-            {
-                return this.SerializeGeneratedConstant(id);
-            }
-            catch (NotSupportedException)
-            {
-                throw UnsupportedFileId(id.GetType());
-            }
+            return IsMappingFreeFileId(typeof(T)) ? this.SerializeGeneratedConstant(id) : this.Serialize(typeof(T), id);
+        }
+
+        /// <summary>
+        /// BSON-native types, enums and types with a registered converter need no model mapping.
+        /// </summary>
+        private bool IsMappingFreeFileId(Type type)
+        {
+            return GeneratedScalarConverter.CanConvert(type) || _customSerializer.ContainsKey(type);
         }
 
         /// <summary>
         /// Converts a stored file storage id back without runtime model mapping.
         /// </summary>
-        internal T DeserializeFileId<T>(BsonValue value)
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = FileIdJustification)]
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050", Justification = FileIdJustification)]
+        internal T DeserializeFileId<[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(AotCompatibility.FileIdMembers)] T>(BsonValue value)
         {
             if (_customDeserializer.TryGetValue(typeof(T), out var custom)) return (T)custom(value);
             if (GeneratedScalarConverter.CanConvert(typeof(T))) return GeneratedScalarConverter.Convert<T>(value);
 
-            throw UnsupportedFileId(typeof(T));
+            return (T)this.Deserialize(typeof(T), value);
         }
-
-        private static NotSupportedException UnsupportedFileId(Type type) => new NotSupportedException(
-            $"File storage cannot use '{type.FullName}' as its file id. File storage never maps application types at runtime: " +
-            "use a BSON-native id type or an enum, or register a converter with BsonMapper.RegisterType.");
 
         internal bool TryGetGeneratedExecutionMap<T>(out GeneratedEntityMap<T> map)
         {

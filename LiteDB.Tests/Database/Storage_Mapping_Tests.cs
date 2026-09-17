@@ -150,14 +150,27 @@ namespace LiteDB.Tests.Database
         }
 
         [Fact]
-        public void An_Application_Type_As_File_Id_Is_Rejected_With_Guidance()
+        public void An_Application_Type_As_File_Id_Is_Mapped_Member_By_Member_As_Before()
         {
             using var db = new LiteDatabase(new MemoryStream());
             var storage = db.GetStorage<CompositeId>();
+            var key = new CompositeId { Tenant = 1, Name = "a" };
 
-            Action upload = () => storage.Upload(new CompositeId { Tenant = 1, Name = "a" }, "a.txt", Content("a"));
+            storage.Upload(key, "a.txt", Content("abc"));
 
-            upload.Should().Throw<NotSupportedException>().WithMessage("*CompositeId*RegisterType*");
+            // the id document is what the reflection mapper has always written for this class
+            var stored = db.GetCollection("_files").FindAll().Single();
+            JsonSerializer.Serialize(stored["_id"]).Should().Be("{\"Tenant\":1,\"Name\":\"a\"}");
+
+            var file = storage.FindById(new CompositeId { Tenant = 1, Name = "a" });
+            file.Id.Tenant.Should().Be(1);
+            file.Id.Name.Should().Be("a");
+
+            using var target = new MemoryStream();
+            storage.Download(key, target);
+            Encoding.UTF8.GetString(target.ToArray()).Should().Be("abc");
+            storage.Delete(key).Should().BeTrue();
+            db.GetCollection("_chunks").Count().Should().Be(0);
         }
     }
 }
