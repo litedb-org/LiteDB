@@ -7,7 +7,8 @@ internal static class NestedWorkloads
 {
     internal static void Run(LiteDatabase db, Action<string, int, Func<int, long>> measure, string filter)
     {
-        if (filter != null && !"nested".StartsWith(filter, StringComparison.Ordinal)) return;
+        if (filter != null && !"nested".StartsWith(filter, StringComparison.Ordinal) &&
+            !filter.StartsWith("nested", StringComparison.Ordinal)) return;
         var rows = db.GetCollection<ArrayRow>("arrays");
         rows.InsertBulk(Enumerable.Range(1, 4000).Select(i => new ArrayRow
         {

@@ -7,7 +7,8 @@ internal static class UniqueWorkloads
 {
     internal static void Run(LiteDatabase db, Action<string, int, Func<int, long>> measure, Dictionary<string, string> plans, string filter)
     {
-        if (filter != null && !"unique".StartsWith(filter, StringComparison.Ordinal)) return;
+        if (filter != null && !"unique".StartsWith(filter, StringComparison.Ordinal) &&
+            !filter.StartsWith("unique", StringComparison.Ordinal)) return;
         var rows = db.GetCollection<Program.Row>("unique_rows");
         rows.InsertBulk(Enumerable.Range(1, 20000).Select(i => new Program.Row
         {

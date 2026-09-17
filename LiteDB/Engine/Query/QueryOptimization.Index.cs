@@ -58,7 +58,9 @@ namespace LiteDB.Engine
                 {
                     var keyExpression = index.Expression == _query.GroupBy?.Source ? _query.GroupBy :
                         index.Expression == orderByExpr ? _query.OrderBy[0].Expression : null;
-                    lowest = new IndexCost(index, keyExpression);
+                    // The preferred expression is now a canonical, escaped root
+                    // field path; it cannot denote a multikey or computed expression.
+                    lowest = new IndexCost(index, keyExpression, scalarKeys: preferred != null && index.Expression == preferred);
                 }
             }
 

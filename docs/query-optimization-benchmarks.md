@@ -782,6 +782,39 @@ reference `COUNT(*.@.["Score.Value"])`, with its plan verified as a row aggregat
 Twelve new cases plus the existing scalar-index tests pass. Full .NET 10 suite:
 1,132 passed, seven existing skips; all Release targets build.
 
+## 27. Carry scalar field proofs into preferred index scans
+
+After canonical escaping distinguishes literal fields from executable paths, a
+preferred root-field index is also known to produce one key per document. Its
+full scan now carries the same scalar proof as explicit predicates and ordering.
+This avoids the address set for ordinary preferred projections/counts and repairs
+the count slowdown exposed by step 26. Field markers and multikey paths remain
+excluded from this proof.
+
+The literal-field dataset and controls from step 26 are reused, with two added
+ordinary preferred-field workloads on the main 20,000-row collection. Comparisons
+are against step 26; every result is consumed and all checksums match.
+
+| Complete query | Before µs | After µs | Time reduction | Before B/query | After B/query |
+|---|---:|---:|---:|---:|---:|
+| Full literal-field projection | 66,072.03 | 62,223.59 | 5.8% | 33,012,555 | 31,612,259 |
+| Filtered literal projection, control | 31,907.69 | 31,786.06 | 0.4% | 16,004,010 | 16,003,848 |
+| Count of the literal field | 3,845.87 | 2,765.64 | 28.1% | 9,770,232 | 8,369,976 |
+| Ordinary preferred-field count | 3,961.14 | 2,742.71 | 30.8% | 10,099,184 | 8,365,880 |
+| Ordinary preferred-field projection | 19,721.22 | 18,081.07 | 8.3% | 21,875,216 | 20,141,912 |
+| Ordinary indexed projection, control | 65.60 | 64.55 | 1.6% | 35,586 | 35,662 |
+| Primary lookup, control | 23.14 | 23.11 | 0.1% | 25,753 | 25,753 |
+
+The literal-field count returns to essentially its pre-step-26 time (2,783.09 µs),
+while retaining correct field identity and the covered projection improvements.
+Counts allocate 14–17% less in this incremental comparison. Controls are effectively
+unchanged. Raw files: `27-preferred-*`.
+
+Four additional tests cover preferred ordinary/escaped fields with repeated keys,
+row counts, and scalar array keys; existing multikey and ambiguous-field coverage
+also passes. Full .NET 8 and .NET 10 suites: 1,136 passed each, seven existing
+skips each; all Release targets build.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -818,8 +851,8 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 1,120 passed on .NET 8 at step 25;
-  1,132 passed on .NET 10 at step 26; focused sort and query suites also pass on .NET 8. Each full
+- Full `LiteDB.Tests` with `tests.runsettings`: 1,136 passed on .NET 8 at step 27;
+  1,136 passed on .NET 10 at step 27; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file

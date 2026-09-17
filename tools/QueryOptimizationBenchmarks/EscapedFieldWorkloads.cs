@@ -21,6 +21,8 @@ internal static class EscapedFieldWorkloads
             .Select(x => new { Value = x["Score.Value"] }).ToList().Sum(x => x.Value.AsInt32));
         measure("escaped-literal-count", 20, i => rows.Query().Select("{ n: COUNT(*.@.[\"Score.Value\"]) }").ToList().Single()["n"].AsInt32);
         var ordinary = db.GetCollection<Program.Row>("rows");
+        measure("escaped-ordinary-preferred-count", 20, i => ordinary.Query().Select("{ n: COUNT(*.Score) }").ToList().Single()["n"].AsInt32);
+        measure("escaped-ordinary-preferred-projection", 5, i => ordinary.Query().Select(x => x.Score).ToList().Sum());
         measure("escaped-ordinary-projection-control", 2000, i => ordinary.Query().Where(x => x.City == "City234")
             .Select(x => new { x.Id, x.Name }).Limit(5).ToList().Sum(x => x.Id));
         measure("escaped-id-control", 4000, i => ordinary.Query().Where(x => x.Id == 1234).FirstOrDefault().Id);

@@ -142,6 +142,12 @@ expression on the metadata instance. Ordinary reads need no index-expression
 parsing; writes and vector evaluation request it when needed. New index definitions
 still validate eagerly, and subsequent snapshots observe live index metadata.
 
+Scalar IR metadata also identifies scans with one index entry per document.
+Those scans, primary indexes, unique indexes, and canonical preferred root-field
+indexes avoid redundant address sets. Multikey scans retain document deduplication.
+Preferred and covered field matching use the same escaping as expression factories,
+so literal field names cannot be confused with nested, multikey, or computed paths.
+
 ## Limited sorting
 
 For residual ORDER BY with a positive limit and `offset + limit <= 1024`, a

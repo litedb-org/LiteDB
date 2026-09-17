@@ -83,12 +83,12 @@ namespace LiteDB.Engine
         }
 
         // used when full index search
-        public IndexCost(CollectionIndex index, BsonExpression keyExpression = null)
+        public IndexCost(CollectionIndex index, BsonExpression keyExpression = null, bool scalarKeys = false)
         {
             // A preferred full scan consumes no WHERE predicate and needs no parsed node.
             this.Expression = null;
             this.Index = new IndexAll(index.Name, Query.Ascending);
-            this.Index.SingleKeyPerDocument = keyExpression?.IsScalar == true && keyExpression.Source == index.Expression;
+            this.Index.SingleKeyPerDocument = scalarKeys || (keyExpression?.IsScalar == true && keyExpression.Source == index.Expression);
             this.Cost = this.Index.GetCost(index);
             this.IndexExpression = index.Expression;
         }

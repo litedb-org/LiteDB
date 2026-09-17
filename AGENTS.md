@@ -71,7 +71,8 @@ writes its key into the parameter document.
 Query replay addresses are lookup-specific: `IndexLookup` uses an index node
 position, while `DatafileLookup` uses a data block. Keep `RawId` consistent with
 the loader that receives it during sort/aggregate replay.
-Only set `Index.SingleKeyPerDocument` after matching a scalar IR expression to
-the stored index definition; multikey and unproven preferred scans still need
-document address deduplication.
+Only set `Index.SingleKeyPerDocument` after matching a scalar IR expression or a
+canonically escaped scalar root-field path to the stored index definition. Raw
+field names can resemble multikey/computed paths; use the shared path formatter.
+Multikey and unproven scans still need document address deduplication.
 Use `tools/QueryOptimizationBenchmarks` for per-optimization end-to-end comparisons.
