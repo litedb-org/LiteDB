@@ -22,14 +22,15 @@ namespace LiteDB.AotSmokeTests
 
             try
             {
-                RunScenario("1/4 Document and expression operations", () =>
+                RunScenario("1/5 Document and expression operations", () =>
                 {
                     using var database = new LiteDatabase(databasePath);
                     RunDocumentAndExpressionScenarios(database);
                 });
-                RunScenario("2/4 Stream-backed database round trip", RunStreamBackedScenario);
-                RunScenario("3/4 Source-generated typed mappings", () => RunGeneratedTypedMappingScenario(databasePath));
-                RunScenario("4/4 Engine features through the document API", EngineScenarios.Run);
+                RunScenario("2/5 Stream-backed database round trip", RunStreamBackedScenario);
+                RunScenario("3/5 Source-generated typed mappings", () => RunGeneratedTypedMappingScenario(databasePath));
+                RunScenario("4/5 Engine features through the document API", EngineScenarios.Run);
+                RunScenario("5/5 Expression engine sweep", ExpressionSweepScenarios.Run);
 
                 Console.WriteLine("[RESULT] All Native AOT smoke scenarios passed.");
                 Console.WriteLine("The executable successfully exercised LiteDB persistence, querying, stream storage, and generated typed mappings.");
