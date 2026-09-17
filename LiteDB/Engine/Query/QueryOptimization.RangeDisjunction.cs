@@ -9,13 +9,11 @@ namespace LiteDB.Engine
     {
         private IndexCost ChooseRangeDisjunctionIndex(BsonExpression expression, CollectionIndex[] indexes)
         {
-            // Included documents can change the field values before filtering.
-            if (_query.Includes.Count != 0) return null;
             var branches = new List<List<BsonExpression>>();
             BsonExpression field = null;
             var budget = 64;
             if (!CollectRangeBranches(expression, branches, ref field, ref budget)) return ChooseNestedBooleanIndex(expression, indexes);
-            var index = indexes.FirstOrDefault(x => IndexExpressionIdentity.Matches(x.Expression, field));
+            var index = FindStoredIndex(indexes, field);
             if (index == null) return null;
             if (_terms.Count > 1 && branches.Any(branch => branch.Any(term => term.Type == BsonExpressionType.In || term.IsANY)) &&
                 HasCheaperScalarEquality(indexes)) return null;

@@ -101,6 +101,9 @@ computed expressions can be case-sensitive even though BSON field lookup is not.
 INCLUDE can replace stored members, including reference metadata supplied by a
 referenced document. Do not consume filters or sorting with indexes on affected
 paths; retain index use for proven disjoint member paths.
+Use the same INCLUDE dependency check for Boolean range and common-guard index
+candidates. A shared leading guard is only necessary, so retain the original OR
+filter when it still reads resolved reference members.
 Index-node links must remain owned by the node across transaction safepoints.
 Keep their compact copied representation independent of released page buffers;
 update both the page and the owned copy when changing links.

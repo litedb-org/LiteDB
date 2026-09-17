@@ -259,6 +259,14 @@ them with stored index keys. Proven disjoint paths remain indexed: including
 root-field dependencies conservatively. Even reference metadata can be supplied
 by an included document, so it is not assumed immutable.
 
+Range unions, nested Boolean intersections, and common leading OR guards use the
+same per-path INCLUDE dependency check. An unrelated include does not disable
+these candidates. A common guard narrows the stored rows while its residual OR
+still evaluates resolved members. When a complete range predicate disappears,
+the existing pipeline can also defer an unrelated sibling include until after
+filtering and pagination. Candidate lookup and root-dependency checks use direct
+loops to avoid captured predicates and boxed set enumerators.
+
 Indexed not-equal predicates scan in index order and use an exclusive skip-list
 seek to jump past equal keys. Comparison uses the database collation, and multikey
 results retain one output per document. Their cost estimate remains unchanged.

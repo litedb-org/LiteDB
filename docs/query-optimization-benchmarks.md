@@ -1941,6 +1941,119 @@ reopening, and rebuilt collation. The full suites pass **1,528 tests each** on
 18 reproduction tests pass, and ordinary/promoted vector-file compatibility checks
 pass for plain and encrypted files.
 
+## 46. Keep Boolean index plans with unrelated INCLUDE paths
+
+An INCLUDE clause previously disabled range unions, nested Boolean intersections,
+and shared leading OR guards, even when the included reference could not change
+the indexed field. The planner now applies the existing per-path dependency proof
+to each candidate. Including `Ref` preserves a stored `Score` key; including
+`Owner.Manager` preserves its sibling `Owner.Score`. Every include must preserve
+the candidate path. A parent include or an affected computed/array dependency
+still prevents the stored key from replacing resolved values.
+
+Complete range predicates can disappear from the residual filter. The existing
+pipeline can then move an unrelated sibling include after filtering and pagination,
+avoiding reference lookups for discarded rows too. Common leading guards narrow
+candidates while retaining the original OR, including predicates on resolved
+reference values. The scalar/multikey distinction, bounded purity proof, current
+bindings, collation, and error fallback remain in force.
+
+Candidate lookup uses a direct loop instead of a captured predicate. Root-field
+dependency checks enumerate their concrete field sets directly, avoiding a boxed
+enumerator. No index definition, public API, database format, or cached physical
+plan changes.
+
+The comparison uses the preceding commit `9204e8fd` and identical new harnesses
+on separately built production assemblies. It seeds 20,000 rows and 1,000 referenced
+people, with root/nested scalar indexes and an index on an affected reference
+member. Complete LINQ and SQL queries consume rows and reference values. The broad
+count still resolves references for its 18,000 rows; the affected-INCLUDE control
+keeps its original scan/filter behavior. Construction, indexing, and warmup are
+outside timing. Use the `includebool` workload filter.
+
+Four sequential before/after/after/before processes run on CPU 2 with tiered
+compilation disabled; each version contributes eighteen timed batches. This task
+launches no builds or tests during timing, and the host is shared. Raw batches,
+allocations, checksums, and representative plans are `46-includebool-*`.
+
+Production DLL SHA-256 values are
+`44c90a8e331de85a13f183dea6cd455be6a08d078c8d1784dfba336e002567f9`
+(before) and
+`7b4b8318e0d936ad27226d7701c3f2a34f75e095cb0bd72076e8d69cd7c725d6`
+(after).
+
+| Workload | Before µs | After µs | Time reduction | Before B/op | After B/op | Allocation reduction |
+|---|---:|---:|---:|---:|---:|---:|
+| includebool-root-range-linq | 54898.82 | 254.46 | 99.5% | 58616328 | 267840 | 99.5% |
+| includebool-sibling-range-linq | 158234.14 | 268.78 | 99.8% | 261869984 | 274288 | 99.9% |
+| includebool-nested-sql | 160107.45 | 272.65 | 99.8% | 265516456 | 440089 | 99.8% |
+| includebool-separate-where | 36872.94 | 267.22 | 99.3% | 41140504 | 269416 | 99.3% |
+| includebool-separate-membership | 7282.57 | 511.54 | 93.0% | 13053480 | 419928 | 96.8% |
+| includebool-common-guard | 155459.52 | 295.75 | 99.8% | 261869872 | 330824 | 99.9% |
+| includebool-sibling-common-guard | 155013.90 | 66.42 | >99.9% | 261843632 | 48704 | >99.9% |
+| includebool-descending-page | 148425.40 | 122.31 | 99.9% | 248699840 | 129936 | 99.9% |
+| includebool-replayed-aggregate | 153304.59 | 412.97 | 99.7% | 262230912 | 635304 | 99.8% |
+| includebool-broad-count | 138701.37 | 132405.33 | 4.5% | 226762848 | 223338920 | 1.5% |
+| includebool-affected-control | 347.04 | 339.86 | 2.1% | 431096 | 431312 | -0.1% |
+| includebool-point-control | 45.45 | 46.21 | -1.7% | 40961 | 40921 | 0.1% |
+| includebool-cheaper-id-control | 59.16 | 61.88 | -4.6% | 49257 | 49385 | -0.3% |
+| includebool-without-include-control | 160.56 | 161.39 | -0.5% | 127688 | 127568 | 0.1% |
+
+The ordinary LINQ root-range query improves from **54.90 ms to 254.46 µs**,
+about **216×**. The sibling-range query improves from **158.23 ms to 268.78 µs**,
+about **589×**, and allocates **274 KB instead of 261.9 MB** per complete query.
+Its recorded plan changes from a full scan with INCLUDE before filtering to
+bounded index scans with INCLUDE after filtering. The nested SQL query improves
+about **587×** and retains current parameter values and both reference expansions.
+
+The separate-WHERE and separate-membership queries already used the `Score` index.
+Combining their predicates removes residual filtering and narrows the seeks:
+**138×** and **14.2×** faster, respectively. Shared leading guards now narrow reads
+and reference resolution while preserving the original filter. The root guard
+improves about **526×**, and the one-row sibling guard about **2,334×**.
+
+Descending pagination improves from **148.43 ms to 122.31 µs**: its old plan already
+used the nested index for order, but scanned and resolved references for discarded
+candidates. The new plan seeks matching ranges and expands references after the
+page is selected. Replayed reference aggregates improve from **153.30 ms to
+412.97 µs**, about **371×**. All consumed-result checksums match.
+
+The broad count retains substantial document/reference work: **138.70 ms to
+132.41 ms**, a **4.5%** time reduction with **1.5% fewer allocated bytes**. That is
+a modest result compared with the selective cases. The affected-INCLUDE, indexed
+point, and query without INCLUDE controls remain within **2.1%** in the main run,
+with identical recorded plans. Small analysis allocation changes are reported.
+
+The existing primary-key seek with a nested residual is **4.6% slower** in the
+main suite (**59.16 → 61.88 µs**, +128 B/query). A longer isolated comparison uses
+20,000 iterations per batch and two processes per version for each of the key
+and point controls, again alternating before/after/after/before. Raw samples are
+`46-isolated-cheaper-id-control-*` and `46-isolated-point-control-*`:
+
+| Workload | Before µs | After µs | Time reduction | Before B/op | After B/op | Allocation reduction |
+|---|---:|---:|---:|---:|---:|---:|
+| includebool-cheaper-id-control | 58.04 | 60.04 | -3.4% | 49257 | 49345 | -0.2% |
+| includebool-point-control | 44.76 | 44.41 | 0.8% | 40961 | 40921 | 0.1% |
+
+The isolated primary-key case remains **3.4% slower** (**58.04 → 60.04 µs**,
++88 B/query); the point control is within **1%**. This regression is retained in
+the report. Enabling the previously skipped analysis adds planning work to this
+already selective query; reducing that work remains a follow-up. The step-43
+regression is also still documented separately, and this change does not claim
+to repair it. Large gains here apply to previously blocked index plans and
+reference work, not to every query or disk throughput.
+
+Thirty new regression cases cover unrelated roots and siblings, every INCLUDE
+dependency, nested AND/OR and membership, separate WHERE bindings, ordinary LINQ
+with two DBRefs, current reference values after SQL template reuse, residual
+filters on resolved fields, collation, missing references, multikey/array and
+volatile/error fallback, aggregate replay, and pagination. Key-moving ForUpdate
+queries cover unique and non-unique indexes; 2,000-row tests exercise one-page
+transaction limits, a 64 KB cache, reference lookups, rollback, and plain/encrypted
+reopening. Full .NET 8 and .NET 10 suites each pass **1,558 tests**, with seven
+existing skips each. All Release targets build, 18 reproduction tests pass, and
+ordinary/promoted vector-file compatibility checks pass for both file modes.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -1977,8 +2090,8 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 1,528 passed on .NET 8 at step 45;
-  1,528 passed on .NET 10 at step 45; focused sort and query suites also pass on .NET 8. Each full
+- Full `LiteDB.Tests` with `tests.runsettings`: 1,558 passed on .NET 8 at step 46;
+  1,558 passed on .NET 10 at step 46; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file

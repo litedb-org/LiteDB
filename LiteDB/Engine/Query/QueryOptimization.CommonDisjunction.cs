@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 
 namespace LiteDB.Engine
 {
@@ -7,13 +6,11 @@ namespace LiteDB.Engine
     {
         private IndexCost ChooseCommonDisjunctionIndex(BsonExpression expression, CollectionIndex[] indexes)
         {
-            // Includes can replace stored reference fields before the OR is evaluated.
-            if (_query.Includes.Count != 0) return null;
             BsonExpression keyExpression = null;
             BsonValue key = null;
             var budget = 64;
             if (!TryCommonLeadingEquality(expression, ref keyExpression, ref key, ref budget)) return null;
-            var index = indexes.FirstOrDefault(x => IndexExpressionIdentity.Matches(x.Expression, keyExpression));
+            var index = FindStoredIndex(indexes, keyExpression);
             // This seek enforces a necessary guard, not the entire OR. Retain the
             // original disjunction as a residual filter, with its own bindings.
             return index == null ? null : new IndexCost(index, null, new IndexEquals(index.Name, key), scalarKeys: true);

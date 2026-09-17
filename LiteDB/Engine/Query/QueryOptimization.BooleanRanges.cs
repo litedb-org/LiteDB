@@ -14,14 +14,14 @@ namespace LiteDB.Engine
             BsonExpression field = null;
             var budget = 64;
             if (!ValidateBooleanRanges(expression, ref field, ref budget)) return null;
-            var index = indexes.FirstOrDefault(x => IndexExpressionIdentity.Matches(x.Expression, field));
+            var index = FindStoredIndex(indexes, field);
             if (index == null) return null;
             return TryBooleanRangeIndex(index, new List<BsonExpression> { expression });
         }
 
         private IndexCost ChooseBooleanIntersectionIndex(CollectionIndex[] indexes)
         {
-            if (_query.Includes.Count != 0 || _terms.Count < 2 || _terms.Count > 64 ||
+            if (_terms.Count < 2 || _terms.Count > 64 ||
                 !_terms.Any(x => x.Type == BsonExpressionType.Or) || HasCheaperScalarEquality(indexes)) return null;
             var groups = new Dictionary<CollectionIndex, List<BsonExpression>>();
             var budget = 64;
@@ -31,7 +31,7 @@ namespace LiteDB.Engine
                 var valid = ValidateBooleanRanges(BooleanSource(term), ref field, ref budget);
                 if (budget < 0) return null;
                 if (!valid) continue;
-                var index = indexes.FirstOrDefault(x => IndexExpressionIdentity.Matches(x.Expression, field));
+                var index = FindStoredIndex(indexes, field);
                 if (index == null) continue;
                 if (!groups.TryGetValue(index, out var expressions)) groups.Add(index, expressions = new List<BsonExpression>());
                 expressions.Add(term);

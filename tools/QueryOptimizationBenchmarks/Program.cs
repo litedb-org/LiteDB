@@ -63,6 +63,7 @@ internal static class Program
             BooleanWriteWorkloads.Run(db, Measure, args.Length > 1 ? args[1] : null);
             FieldCaseWorkloads.Run(db, Measure, plans);
             NestedFieldCaseWorkloads.Run(db, Measure, plans, args.Length > 1 ? args[1] : null);
+            IncludedBooleanWorkloads.Run(db, Measure, plans, args.Length > 1 ? args[1] : null);
             NodeLinkWorkloads.Run(db, Measure);
             MergeWorkloads.Run(db, Measure, plans, args.Length > 1 ? args[1] : null);
             TraversalGuardWorkloads.Run(db, Measure);
