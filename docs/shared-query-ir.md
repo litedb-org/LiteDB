@@ -152,7 +152,9 @@ Indexed not-equal predicates scan in index order and use an exclusive skip-list
 seek to jump past equal keys. Comparison uses the database collation, and multikey
 results retain one output per document. Their cost estimate remains unchanged.
 Exclusive range starts use the same seek to skip duplicate boundary keys; inclusive
-range endpoints retain their existing traversal.
+range endpoints retain their existing traversal. Scalar range evaluation also uses
+the execution collation, keeping unindexed and residual comparisons consistent
+with indexed ranges and ANY/ALL predicates.
 
 ## Limited sorting
 

@@ -46,6 +46,7 @@ internal static class Program
             NestedWorkloads.Run(db, Measure, args.Length > 1 ? args[1] : null);
             UniqueWorkloads.Run(db, Measure, plans, args.Length > 1 ? args[1] : null);
             ScalarIndexWorkloads.Run(db, Measure, plans, args.Length > 1 ? args[1] : null);
+            CollationWorkloads.Run(db, Measure);
             ExclusiveRangeWorkloads.Run(db, Measure, plans, args.Length > 1 ? args[1] : null);
             ExclusionWorkloads.Run(db, Measure, plans, args.Length > 1 ? args[1] : null);
             EscapedFieldWorkloads.Run(db, Measure, plans, args.Length > 1 ? args[1] : null);

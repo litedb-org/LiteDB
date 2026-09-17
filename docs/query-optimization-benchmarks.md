@@ -891,8 +891,42 @@ Twelve additional tests cover inclusive/exclusive endpoints, both orders,
 pagination, absent boundaries, collation-equivalent strings, mixed numbers,
 nulls, arrays, and sentinel bounds. Indexed string expectations use the database
 collation directly: investigation also found an existing binary-comparison bug
-in unindexed scalar ranges, which is tracked separately from these measurements.
+in unindexed scalar ranges, which is corrected separately in step 30.
 Full .NET 10 suite: 1,160 passed, seven existing skips; all Release targets build.
+
+## 30. Keep scalar range evaluation consistent with index collation
+
+The preceding range tests exposed a pre-existing inconsistency: scalar `>`,
+`>=`, `<`, and `<=` evaluated with binary comparison, while indexed scans,
+BETWEEN, and ANY/ALL comparisons used the database collation. Scalar evaluation
+now receives the current execution collation through the shared expression
+factory. This fixes unindexed queries, residual filters, and reused templates;
+adding an index no longer changes those case/accent-sensitive results.
+
+This is a correctness correction, not a claimed optimization. The measurements
+below use the main 20,000-row collection with same-case ASCII names and numeric
+scores, so old and new consumed-result checksums agree. The mixed-case/accent
+failures have separate tests and are not benchmark baselines. Raw files:
+`30-collation-*`.
+
+| Workload | Before µs | After µs | Time reduction | Before B/op | After B/op | Allocation reduction |
+|---|---:|---:|---:|---:|---:|---:|
+| collation-string-scan | 34107.54 | 37151.46 | -8.9% | 37407184 | 37407208 | -0.0% |
+| collation-numeric-scan | 45809.69 | 45792.15 | 0.0% | 39478205 | 39478234 | -0.0% |
+| collation-residual-string-range | 90.86 | 92.52 | -1.8% | 73346 | 73370 | -0.0% |
+| collation-indexed-count-control | 1677.09 | 1655.35 | 1.3% | 4354976 | 4354976 | 0.0% |
+| collation-id-control | 23.43 | 22.65 | 3.3% | 25729 | 25729 | 0.0% |
+
+The full string scan takes 8.9% longer when performing the configured linguistic
+comparison instead of the old binary comparison. Numeric scans and allocations
+are unchanged; residual-string timing is within 2%, and indexed controls show
+small host variation. The string-scan cost is retained in the report rather than
+hidden behind the separate index optimizations.
+
+Seven regression cases fail before the correction. All sixteen new cases pass
+after it, covering SQL/LINQ before and after indexing, forced primary-key plans
+with residual comparisons, ordinal/case/accent collations, and repeated bindings
+with changing execution collations. Full .NET 8: 1,176 passed, seven existing skips.
 
 ## Combined result and practical priority (steps 1–5)
 
@@ -930,7 +964,7 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 1,148 passed on .NET 8 at step 28;
+- Full `LiteDB.Tests` with `tests.runsettings`: 1,176 passed on .NET 8 at step 30;
   1,160 passed on .NET 10 at step 29; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
