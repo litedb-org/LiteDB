@@ -4,9 +4,9 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -573,7 +573,7 @@ namespace LiteDB.Engine
                 // Código de erros HResult do IOException
                 // https://learn.microsoft.com/pt-br/windows/win32/debug/system-error-codes--0-499-
 
-                throw ex;
+                ExceptionDispatchInfo.Capture(ex).Throw();
             }
         }
 
