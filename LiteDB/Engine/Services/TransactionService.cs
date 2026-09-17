@@ -268,14 +268,14 @@ namespace LiteDB.Engine
             {
                 lock (_header)
                 {
-                    // persist all dirty page as commit mode (mark last page as IsConfirm)
-                    var count = this.PersistDirtyPages(true);
-
-                    // update wal-index (if any page was added into log disk)
-                    if (count > 0)
+                    // Header callbacks republish the collection map, so only those commits keep new
+                    // snapshots out until the WAL index confirms them. No other commit may make
+                    // readers wait for the durable log flush.
+                    if (_transPages.HasCommitCallbacks)
                     {
-                        _walIndex.ConfirmTransaction(_transactionID, _transPages.DirtyPages.Values);
+                        lock (_header.PublicationLock) this.PersistAndConfirm();
                     }
+                    else this.PersistAndConfirm();
                 }
             }
 
@@ -286,6 +286,18 @@ namespace LiteDB.Engine
             }
 
             _state = TransactionState.Committed;
+        }
+
+        private void PersistAndConfirm()
+        {
+            // persist all dirty page as commit mode (mark last page as IsConfirm)
+            var count = this.PersistDirtyPages(true);
+
+            // update wal-index (if any page was added into log disk)
+            if (count > 0)
+            {
+                _walIndex.ConfirmTransaction(_transactionID, _transPages.DirtyPages.Values);
+            }
         }
 
         /// <summary>

@@ -11,7 +11,7 @@ namespace LiteDB.Tests.Issues
 {
     public class Issue2818_Tests
     {
-        private sealed class GatedDurableFile : FileStream
+        internal sealed class GatedDurableFile : FileStream
         {
             private readonly object _snapshotLock = new object();
             private readonly ManualResetEventSlim _releaseDurableFlush = new ManualResetEventSlim(false);
