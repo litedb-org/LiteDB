@@ -28,7 +28,7 @@ namespace LiteDB.Engine
         public static void CheckName(string name, HeaderPage header)
         {
             if (Encoding.UTF8.GetByteCount(name) > header.GetAvailableCollectionSpace()) throw LiteException.InvalidCollectionName(name, "There is no space in header this collection name");
-            if (!name.IsWord()) throw LiteException.InvalidCollectionName(name, "Use only [a-Z$_]");
+            if (!name.IsWord()) throw LiteException.InvalidCollectionName(name, "Names cannot start with a digit; use letters, digits, underscores or dollar signs (initial dollar signs are reserved)");
             if (name.StartsWith("$")) throw LiteException.InvalidCollectionName(name, "Collection can't starts with `$` (reserved for system collections)");
         }
 

@@ -1661,3 +1661,10 @@ Active query/data-reader catches use bare rethrows. FileReaderV8 and IO helper
 parameter forwarding uses ExceptionDispatchInfo. Identity, error ledger and
 lock-error handling stay intact. 23 focused/integrated tests pass; four fresh
 reviewers review_2870_w1_a through _d were clean.
+
+## #2746 — explain initial-digit collection-name rejection
+
+The diagnostic now explains the initial-digit restriction, permitted characters
+and reserved initial dollar sign. The accepted grammar and error code remain
+unchanged. Four retained/integrated tests pass; final review_2746_w1_a through
+_d found only an unrelated BOM nit, removed before commit.

@@ -1910,10 +1910,11 @@
         "priority: P3"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2746_Tests.cs"
-      ]
+      ],
+      "validation": "Four retained and integrated tests pass; four fresh Sol-high reviews no semantic findings, encoding nit removed; diagnostic-only collection-name correction."
     },
     {
       "issue": 2765,
