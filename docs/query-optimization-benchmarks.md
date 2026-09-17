@@ -1118,6 +1118,80 @@ cover updates/deletes and primary-key aliases under ordinal and Turkish
 collations. Full .NET 8 and .NET 10 suites: 1,227 passed each, seven existing
 skips each. The Release solution builds across all targets.
 
+## 36. Reuse recurring SQL SELECT templates automatically
+
+`LiteDatabase.Execute(string, ...)` now reuses parsed SELECT/EXPLAIN definitions.
+The cache is local to the database, uses exact ordinal command text, and holds
+at most 128 keys of at most 8,192 characters. The first call retains only its key;
+a repeat while resident captures an unbound logical template, and later hits
+bind fresh expressions and clause lists to the current parameter document. A
+stream of one-off statements therefore does not construct retained templates.
+TextReader input, other commands, and oversized statements use the normal parser.
+
+Templates contain no caller parameter values, physical plans, results, or engine
+state. Includes, HAVING, grouping, multiple order segments, pagination, SELECT
+INTO, FOR UPDATE, EXPLAIN, volatile expressions, system collections, and current
+collation still execute normally. Root grouping recognizes the expression's
+metadata and keeps its key state separate from caller predicate parameters;
+sharing that state could otherwise truncate a streaming residual filter.
+
+The comparison is against step 35 using complete, consumed SQL queries on the
+20,000-row fixture. Parameters change on every call. The nested projection sums
+both IDs and projected array values; grouped results checksum counts and totals.
+The standalone no-FROM case measures SQL expression execution without database
+reads and is identified separately. All checksums match. Main raw samples are
+`36-sqlcache-*`.
+
+| Workload | Before µs | After µs | Time reduction | Before B/op | After B/op | Allocation reduction |
+|---|---:|---:|---:|---:|---:|---:|
+| sqlcache-point | 25.34 | 15.59 | 38.5% | 27283 | 23058 | 15.5% |
+| sqlcache-combined | 49.75 | 20.58 | 58.6% | 31017 | 22809 | 26.5% |
+| sqlcache-projection | 102.13 | 76.63 | 25.0% | 78938 | 69879 | 11.5% |
+| sqlcache-bounded-range | 57.94 | 33.10 | 42.9% | 46701 | 38857 | 16.8% |
+| sqlcache-nested-projection | 51.72 | 15.70 | 69.6% | 36145 | 20606 | 43.0% |
+| sqlcache-grouped-page | 364.84 | 223.21 | 38.8% | 975036 | 955562 | 2.0% |
+| sqlcache-count | 73.53 | 31.80 | 56.8% | 66106 | 54824 | 17.1% |
+| sqlcache-scalar-no-from | 10.89 | 3.02 | 72.3% | 6633 | 1904 | 71.3% |
+| sqlcache-64-statements | 31.91 | 13.71 | 57.0% | 27329 | 19818 | 27.5% |
+| sqlcache-256-churn-control | 32.23 | 33.95 | -5.3% | 27378 | 27457 | -0.3% |
+| sqlcache-tagged-churn-control | 23.06 | 27.01 | -17.1% | 24819 | 24915 | -0.4% |
+| sqlcache-textreader-control | 24.37 | 24.61 | -1.0% | 27283 | 27299 | -0.1% |
+| sqlcache-linq-control | 23.40 | 23.91 | -2.2% | 23923 | 23923 | 0.0% |
+| sqlcache-scan-control | 38149.53 | 38639.58 | -1.3% | 43622792 | 43618336 | 0.0% |
+
+Repeated database queries take 25–70% less time in these cases: the point lookup
+saves 39%, the combined predicate 59%, the bounded range 43%, and the nested
+projection 70%. Reusing 64 statements takes 57% less time. Allocation falls by
+12–43% for the point/combined/projected cases. The no-FROM expression takes 72%
+less time, but that is not a storage-query speedup.
+
+Cold/churn results need separate interpretation. The 256-literal sequence takes
+5.3% longer in the main comparison. The tagged control cycles through 256 SQL
+comments while keeping the same parsed expression; it takes 17.1% longer in the
+mixed suite. A longer isolated comparison with the same 1,024 IDs and ten times
+as many iterations measures **24.36 → 24.34 µs** (effectively unchanged), with
+**24,819 → 24,915 B/query**. Both results are retained (`36-tagged-*` for the
+isolated run). The difference between mixed and isolated runs limits conclusions
+about cold latency; cache bookkeeping and its extra allocation remain real costs.
+Ordinary LINQ, TextReader, and full-scan controls are within about 2% in the main
+comparison. The hot-query gains should not be applied to one-off SQL workloads.
+
+Earlier samples remain available: `36-initial-sqlcache-*` captured templates on
+first use; `36-admission-sqlcache-*` added admission but precede the final root-key
+binding guard. `36-wide-tagged-*` is a diagnostic isolated run spanning 10,240 IDs;
+it is not the fixed-ID comparison quoted above. The final harness keeps the churn
+controls' ID distribution fixed when scaling iterations. The first-use admission
+change reduced the literal-churn allocation penalty from about 5% to below 1%.
+
+Twenty-seven tests cover fresh-parser parity, changing/nested parameters,
+concurrent and interleaved readers, cache admission/eviction and size bounds,
+parameter-payload collection, tokenization avoidance, mutable results, volatility,
+errors and recovery, index changes, includes/system collections, transaction
+rollback, and collation after rebuild. Root grouping is checked with a streaming
+filter that reads the caller's `@key`. Full .NET 8 and .NET 10 suites: **1,254
+passed each**, seven existing skips each. Release builds across all targets,
+18 reproduction-runner tests, and plain/encrypted vector compatibility checks pass.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -1154,8 +1228,8 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 1,227 passed on .NET 8 at step 35;
-  1,227 passed on .NET 10 at step 35; focused sort and query suites also pass on .NET 8. Each full
+- Full `LiteDB.Tests` with `tests.runsettings`: 1,254 passed on .NET 8 at step 36;
+  1,254 passed on .NET 10 at step 36; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file

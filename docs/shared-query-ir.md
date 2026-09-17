@@ -92,6 +92,31 @@ remains available to callers that want to avoid even the structural cache lookup
 See [`query-optimization-benchmarks.md`](query-optimization-benchmarks.md) for
 separately measured automatic reuse and shared query optimizer improvements.
 
+## Automatic SQL reuse
+
+Repeated `LiteDatabase.Execute(string, ...)` SELECT and EXPLAIN statements reuse
+parsed logical templates automatically. A database-local least-recently-used
+cache holds at most 128 statement keys, each at most 8,192 characters. The first
+execution retains only its key; a repeat within that window captures an unbound
+template, and later hits bind new expressions and clause lists to the current
+parameter document. This admission rule avoids constructing templates for a
+stream of one-off statements. Keys use exact ordinal SQL text, preserving string
+literals and grammar; no parameter values enter the key or retained template.
+
+Includes, grouping, HAVING, multiple order segments, pagination, SELECT INTO,
+FOR UPDATE, and EXPLAIN retain their ordinary execution paths. SELECT without
+FROM reevaluates expressions with the current engine collation, including volatile
+functions. System collections create fresh inputs on each call. Bound `$`
+projections keep root-grouping behavior with isolated key state, preserving caller
+parameters used by residual filters. Creating/dropping indexes, changing data, or rebuilding collation still
+changes subsequent executions because physical plans and results are never cached.
+
+The TextReader overload, other SQL commands, and longer statements keep their
+parser paths. Parsing failures do not populate the cache. The first two calls
+still parse; benefits apply to statements reused enough to remain resident.
+See step 36 in `query-optimization-benchmarks.md` for complete queries, allocation,
+and churn controls.
+
 ## Shared predicate optimization
 
 The engine inspects the same expression nodes for LINQ and SQL. Equality ORs on

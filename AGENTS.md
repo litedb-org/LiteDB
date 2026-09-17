@@ -66,6 +66,12 @@ loses that distinction after logical rewrites.
 Persisted `CollectionIndex.BsonExpr` is lazy: ordinary reads use canonical text
 and existing index keys. Keep new-index validation eager, and evaluate through
 the property when maintaining index keys or executing vector expressions.
+SQL SELECT templates are database-local and bounded by statement count and length.
+Retain only a key on first use; promote recurring statements to unbound templates.
+Copy all SQL clauses and bind current parameters for every hit. Cache no physical
+plans, result data, engine state, or caller parameter documents. TextReader input
+keeps its streaming parser path. Bound root projections must preserve GROUP BY
+semantics without requiring singleton identity or overwriting caller predicate parameters.
 Built-in aggregate templates need independent parameter bindings because GROUP BY
 writes its key into the parameter document.
 Query replay addresses are lookup-specific: `IndexLookup` uses an index node
