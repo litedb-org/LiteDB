@@ -570,6 +570,34 @@ unused and compiled evaluator inputs. Ambiguous reused binding nodes and nested
 member/list initializer bindings retain uncached translation. The full .NET 8
 suite passes 1,073 tests with seven existing skips; all Release targets build.
 
+## 21. Reuse nested-expression source arrays across elements
+
+MAP, FILTER, SORT, and bracket filters previously allocated a singleton source
+array for each input element. They now create one per enumeration when the nested
+expression uses its source, or use the shared empty array otherwise. Parameterized
+array indexing also skips its unused source allocation. Root, current element,
+parameters, deferred execution, and collation are preserved.
+
+These complete queries use **4,000 documents with 32 integer array elements each**,
+plus an Offset field. The ordinary 20,000-row collection is present but unused by
+these workloads. Setup is outside timing, and every query consumes all results.
+
+| Complete query | Before µs | After µs | Time reduction | Before B/query | After B/query |
+|---|---:|---:|---:|---:|---:|
+| LINQ nested projection | 71,619.27 | 71,407.91 | 0.3% | 54,931,157 | 50,867,074 |
+| LINQ nested filter and projection | 82,114.79 | 80,506.99 | 2.0% | 62,724,353 | 55,172,069 |
+| SQL bracket filter | 41,909.06 | 41,245.63 | 1.6% | 35,350,744 | 31,286,840 |
+| SQL nested sort | 53,387.86 | 52,182.77 | 2.3% | 37,685,632 | 33,621,632 |
+| SQL MAP with COUNT(*) in its selector | 51,459.83 | 50,961.76 | 1.0% | 58,712,240 | 54,776,240 |
+| Read array documents, control | 33,582.01 | 33,390.47 | 0.6% | 20,462,784 | 20,462,784 |
+
+The clear benefit is **6.7–12.0% fewer allocated bytes**, about 3.9–7.6 MB per
+complete query. The small timing changes are not strong evidence of a latency
+gain on this shared host. All checksums match; raw files are `21-nested-*`.
+Eleven new tests cover source-dependent selectors, root/current references,
+rebinding, repeated enumeration, empty arrays, and collation. Full .NET 10 suite:
+1,084 passed, seven existing skips; all Release targets build.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -607,7 +635,7 @@ materializers remain separate work.
 
 - Release solution build with `TestingEnabled=true`: all targets build.
 - Full `LiteDB.Tests` with `tests.runsettings`: 1,073 passed on .NET 8 at step 20;
-  1,072 passed on .NET 10 at step 20 before the final nested-initializer fallback test; focused sort and query suites also pass on .NET 8. Each full
+  1,084 passed on .NET 10 at step 21; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file

@@ -285,7 +285,8 @@ namespace LiteDB
             if (expr.Type == BsonExpressionType.Parameter)
             {
                 // get fixed position based on parameter value (must return int value)
-                var indexValue = expr.ExecuteScalar(new BsonDocument[] { root }, root, root, collation, parameters);
+                var source = expr.UseSource ? new[] { root } : Array.Empty<BsonDocument>();
+                var indexValue = expr.ExecuteScalar(source, root, root, collation, parameters);
 
                 if (!indexValue.IsNumber) throw new LiteException(0, "Parameter expression must return number when called inside an array");
 
@@ -322,10 +323,11 @@ namespace LiteDB
             // [<expr>] - index are an expression
             else
             {
+                var source = filterExpr.UseSource ? new[] { root } : Array.Empty<BsonDocument>();
                 foreach (var item in arr)
                 {
                     // execute for each child value and except a first bool value (returns if true)
-                    var c = filterExpr.ExecuteScalar(new BsonDocument[] { root }, root, item, collation, parameters);
+                    var c = filterExpr.ExecuteScalar(source, root, item, collation, parameters);
 
                     if (c.IsBoolean && c.AsBoolean == true)
                     {
