@@ -1318,3 +1318,20 @@ fresh four-Sol-high review waves covered initialization, explicit provenance,
 slot identity and custom mapper policy. Final reviewers (`review_2798_w7_a`
 through `_d`) were clean. A claimed reflection ambiguity for a covariant mapper
 override was refuted by an executed net8 regression probe, retained as a test.
+
+## #2847 — honor explicit CLR string comparison modes
+
+LINQ string.Equals overloads with StringComparison use dedicated BSON functions
+for all six CLR comparison modes, with both enum encodings and correct static/
+instance null behavior. Culture-sensitive expressions cannot become persistent
+indexes. Plain field indexes do not replace explicit comparison semantics.
+The static no-mode overload now translates its actual two operands.
+
+Validation: original Ordinal cases fail before the fix; 32 integrated focused
+cases pass, including Turkish-culture CLR oracles, index presence, null behavior,
+static no-mode calls and expression-index rejection. Full suite: 1812 passed,
+231 existing failures, 8 skipped; no regressions versus #2798. Production across
+all targets and net462 builds pass. Four fresh Sol high reviewers
+(`review_2847_w1_a` through `_d`) found only valid coverage nits, now addressed,
+and a false claim that enum relational operators do not compile. Actual successful
+production/net462 builds and executed mode tests refute that claim.

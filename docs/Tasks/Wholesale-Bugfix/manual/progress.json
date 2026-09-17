@@ -1538,10 +1538,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2847_Tests.cs"
-      ]
+      ],
+      "validation": "32 integrated focused cases pass; full suite 1812 passed/231 existing failures/8 skipped, no regressions versus #2798; production/net462 pass; four fresh Sol high reviews, valid nits covered and false compile claim refuted by builds"
     },
     {
       "issue": 2849,

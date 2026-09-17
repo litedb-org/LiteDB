@@ -35,7 +35,10 @@ namespace LiteDB
                 case "Contains": return "# LIKE ('%' + @0 + '%')";
                 case "EndsWith": return "# LIKE ('%' + @0)";
                 case "ToString": return "#";
-                case "Equals": return "# = @0";
+                case "Equals":
+                    if (method.GetParameters().Last().ParameterType == typeof(StringComparison))
+                        return method.IsStatic ? "STRING_EQUALS(@0, @1, @2)" : "STRING_EQUALS_INSTANCE(#, @0, @1)";
+                    return method.IsStatic ? "@0 = @1" : "# = @0";
 
                 // static methods
                 case "IsNullOrEmpty": return "(LENGTH(@0) = 0)";
