@@ -619,7 +619,7 @@ namespace LiteDB
             entity.WaitForInitialization();
 
             // get mapped field from entity
-            var field = entity.Members.FirstOrDefault(x => x.MemberName == name);
+            var field = entity.FindMember(member);
 
             memberMapper = field ?? throw new NotSupportedException($"Member {name} not found on BsonMapper for type {mappedType}.");
 
