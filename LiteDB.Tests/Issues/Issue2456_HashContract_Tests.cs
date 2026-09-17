@@ -41,11 +41,8 @@ public class Issue2456_HashContract_Tests
 
         for (var i = 0; i < Iterations; i++)
         {
-            // BsonDocument.CompareTo only walks the left-hand keys, so two documents with
-            // disjoint keys both compare greater than each other. That ordering quirk predates
-            // this change and is outside its scope, so documents are excluded here.
-            var left = RandomValue(random, depth: 0, allowDocuments: false);
-            var right = RandomValue(random, depth: 0, allowDocuments: false);
+            var left = RandomValue(random, depth: 0);
+            var right = RandomValue(random, depth: 0);
 
             var forward = Math.Sign(left.CompareTo(right));
             var backward = Math.Sign(right.CompareTo(left));

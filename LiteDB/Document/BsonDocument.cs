@@ -79,11 +79,11 @@ namespace LiteDB
             // if types are different, returns sort type order
             if (other.Type != BsonType.Document) return base.CompareTo(other, collation);
 
-            var thisKeys = this.Keys.ToArray();
+            var thisKeys = this.Keys.OrderBy(key => key, StringComparer.OrdinalIgnoreCase).ToArray();
             var thisLength = thisKeys.Length;
 
             var otherDoc = other.AsDocument;
-            var otherKeys = otherDoc.Keys.ToArray();
+            var otherKeys = otherDoc.Keys.OrderBy(key => key, StringComparer.OrdinalIgnoreCase).ToArray();
             var otherLength = otherKeys.Length;
 
             var result = 0;
@@ -91,7 +91,10 @@ namespace LiteDB
             var stop = Math.Min(thisLength, otherLength);
 
             for (; 0 == result && i < stop; i++)
-                result = this[thisKeys[i]].CompareTo(otherDoc[thisKeys[i]], collation);
+            {
+                result = Math.Sign(StringComparer.OrdinalIgnoreCase.Compare(thisKeys[i], otherKeys[i]));
+                if (result == 0) result = this[thisKeys[i]].CompareTo(otherDoc[otherKeys[i]], collation);
+            }
 
             // are different
             if (result != 0) return result;
