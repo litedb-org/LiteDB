@@ -49,10 +49,10 @@ namespace LiteDB.Engine
             if (index == null) throw LiteException.IndexNotFound(this.Name);
 
             var nodes = this.Execute(indexer, index);
-            // The primary index has one scalar key/node per document. Its scans
-            // and ordered IN seeks cannot repeat a document, so no address set is
-            // needed. Secondary indexes retain their existing multikey handling.
-            return index.Slot == 0 ? nodes : nodes.DistinctBy(x => x.DataBlock, null);
+            // Primary and unique indexes have one key/node per document: index
+            // creation rejects unique multikey expressions. IN already deduplicates
+            // seek values. Other indexes retain their multikey address filtering.
+            return index.Slot == 0 || index.Unique ? nodes : nodes.DistinctBy(x => x.DataBlock, null);
         }
 
         #endregion

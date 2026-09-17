@@ -683,6 +683,33 @@ first serialized LINQ array, current bindings, and null-parameter errors. Full
 .NET 8 and .NET 10 suites: 1,105 passed each, seven existing skips; all Release
 targets build.
 
+## 24. Skip redundant document deduplication for unique secondary indexes
+
+Unique secondary indexes, like the primary index, have one key/node per document:
+index creation rejects unique multikey expressions. Their scans can bypass the
+per-query address set, while IN continues to deduplicate seek values using the
+active collation. Non-unique secondary indexes retain their existing behavior.
+
+This comparison uses another 20,000-document collection with the same Row data,
+a unique Score index, and a non-unique City index. Complete queries compare step
+23 with this change; setup and index creation are outside timing.
+
+| Complete query | Before µs | After µs | Time reduction | Before B/query | After B/query |
+|---|---:|---:|---:|---:|---:|
+| Unique-index range count | 2,094.99 | 1,608.22 | 23.2% | 5,209,768 | 4,372,264 |
+| Unique-index full count | 4,231.92 | 3,396.26 | 19.7% | 10,426,632 | 8,693,952 |
+| Covered range projection | 10,276.52 | 9,433.50 | 8.2% | 11,102,720 | 10,265,224 |
+| Materialized document range | 29,530.68 | 28,363.14 | 4.0% | 20,718,650 | 19,881,150 |
+| Non-unique index, control | 31.24 | 31.32 | -0.3% | 32,200 | 32,256 |
+| Primary-index count, control | 2,864.28 | 2,861.32 | 0.1% | 8,357,872 | 8,357,872 |
+
+Counts allocate about 16% fewer bytes. All checksums match; controls are effectively
+unchanged. Raw files are `24-unique-*`, with representative count/projection plans.
+Six tests cover duplicate IN/OR values, order/pagination, collation, scalar array
+keys, rejection of unique multikey indexes, persisted metadata, updates, and
+removal. Existing multikey deduplication tests also pass. Full .NET 10 suite:
+1,111 passed, seven existing skips; all Release targets build.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -720,7 +747,7 @@ materializers remain separate work.
 
 - Release solution build with `TestingEnabled=true`: all targets build.
 - Full `LiteDB.Tests` with `tests.runsettings`: 1,105 passed on .NET 8 at step 23;
-  1,105 passed on .NET 10 at step 23; focused sort and query suites also pass on .NET 8. Each full
+  1,111 passed on .NET 10 at step 24; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file
