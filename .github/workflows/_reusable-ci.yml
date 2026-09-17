@@ -229,6 +229,8 @@ jobs:
     name: Test (Windows ${{ matrix.os }} - ${{ matrix.arch }} - ${{ matrix.item.display }})
     runs-on: ${{ matrix.os }}
     needs: build-windows
+    env:
+      LITEDB_TEST_ARCH: ${{ matrix.arch }}
     strategy:
       fail-fast: false
       matrix:
@@ -248,6 +250,11 @@ jobs:
           dotnet-version: ${{ matrix.item.sdk }}
           include-prerelease: ${{ matrix.item.includePrerelease }}
 
+      - name: Install x86 test runtime
+        if: matrix.arch == 'x86'
+        shell: pwsh
+        run: ./.github/scripts/install-x86-test-runtime.ps1 -Framework '${{ matrix.item.framework }}'
+
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
@@ -259,7 +266,9 @@ jobs:
           dotnet build LiteDB.Tests/LiteDB.Tests.csproj
           --configuration Release
           --framework ${{ matrix.item.framework }}
+          --arch ${{ matrix.arch }} -p:AppendRuntimeIdentifierToOutputPath=false
           --no-dependencies
+          -p:TestingEnabled=true
           ${{ matrix.item.msbuildProps }}
 
       - name: Run tests (${{ matrix.arch }})
@@ -269,6 +278,7 @@ jobs:
           --configuration Release
           --no-build
           --framework ${{ matrix.item.framework }}
+          --arch ${{ matrix.arch }} -p:AppendRuntimeIdentifierToOutputPath=false
           --verbosity normal
           --settings tests.runsettings
           --logger "trx;LogFileName=TestResults-${{ matrix.arch }}.trx"
@@ -330,6 +340,8 @@ jobs:
     name: Cross-Process Tests (Windows ${{ matrix.os }} - ${{ matrix.arch }} - ${{ matrix.item.display }})
     runs-on: ${{ matrix.os }}
     needs: build-windows
+    env:
+      LITEDB_TEST_ARCH: ${{ matrix.arch }}
     strategy:
       fail-fast: false
       matrix:
@@ -349,6 +361,11 @@ jobs:
           dotnet-version: ${{ matrix.item.sdk }}
           include-prerelease: ${{ matrix.item.includePrerelease }}
 
+      - name: Install x86 test runtime
+        if: matrix.arch == 'x86'
+        shell: pwsh
+        run: ./.github/scripts/install-x86-test-runtime.ps1 -Framework '${{ matrix.item.framework }}'
+
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
@@ -360,7 +377,9 @@ jobs:
           dotnet build LiteDB.Tests/LiteDB.Tests.csproj
           --configuration Release
           --framework ${{ matrix.item.framework }}
+          --arch ${{ matrix.arch }} -p:AppendRuntimeIdentifierToOutputPath=false
           --no-dependencies
+          -p:TestingEnabled=true
           ${{ matrix.item.msbuildProps }}
 
       - name: Run cross-process shared mode tests (${{ matrix.arch }})
@@ -370,7 +389,8 @@ jobs:
           --configuration Release
           --no-build
           --framework ${{ matrix.item.framework }}
-          --filter "FullyQualifiedName~CrossProcess_Shared_Tests"
+          --arch ${{ matrix.arch }} -p:AppendRuntimeIdentifierToOutputPath=false
+          --filter "FullyQualifiedName~CrossProcess_Shared_Tests|FullyQualifiedName~Issue2904_Tests.Actual_test_host_matches_requested_architecture"
           --verbosity normal
           --logger "trx;LogFileName=CrossProcessTestResults-${{ matrix.arch }}.trx"
           --logger "console;verbosity=detailed"

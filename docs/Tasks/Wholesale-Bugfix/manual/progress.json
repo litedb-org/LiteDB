@@ -2322,11 +2322,11 @@
         "priority: P3"
       ],
       "reproduction": "reproduced",
-      "disposition": "reproduced-pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2904_Tests.cs"
       ],
-      "validation": "Repository workflow guard confirms neither Windows matrix test host receives --arch ${{ matrix.arch }}; the x86 rows therefore duplicate x64."
+      "validation": "Both CI workflows install TFM-specific x86 runtimes while retaining the x64 SDK on PATH, select architecture for build/discovery/test, preserve artifact paths, and assert actual test-host architecture (including cross-process filters). Four Issue2904 tests pass with expected x64, and the guard intentionally fails when x86 is requested on this x64 host. YAML and PowerShell syntax checks pass; win-x86 test build and full Release solution build succeed. Four fresh gpt-5.6-sol reviewers approved with at most nits. Actual Windows execution awaits GitHub runners."
     },
     {
       "issue": 2906,

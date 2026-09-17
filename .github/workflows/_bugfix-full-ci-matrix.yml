@@ -210,6 +210,8 @@ jobs:
     name: ${{ format(matrix.platform.job_name, matrix.item.display) }}
     runs-on: ${{ matrix.platform.runner }}
     needs: build
+    env:
+      LITEDB_TEST_ARCH: ${{ matrix.platform.arch }}
     strategy:
       fail-fast: false
       matrix:
@@ -247,6 +249,11 @@ jobs:
           dotnet-version: ${{ matrix.item.sdk }}
           include-prerelease: ${{ matrix.item.includePrerelease }}
 
+      - name: Install x86 test runtime
+        if: matrix.platform.arch == 'x86'
+        shell: pwsh
+        run: ./.github/scripts/install-x86-test-runtime.ps1 -Framework '${{ matrix.item.framework }}'
+
       - name: Download test build
         uses: actions/download-artifact@v4
         with:
@@ -263,7 +270,9 @@ jobs:
           dotnet build LiteDB.Tests/LiteDB.Tests.csproj
           --configuration Release
           --framework ${{ matrix.item.framework }}
+          ${{ matrix.platform.arch && format('--arch {0} -p:AppendRuntimeIdentifierToOutputPath=false', matrix.platform.arch) || '' }}
           --no-dependencies
+          -p:TestingEnabled=true
           ${{ matrix.item.msbuildProps }}
 
       - name: Discover exact test inventory
@@ -273,6 +282,7 @@ jobs:
           mkdir -p full-ci-evidence
           dotnet test LiteDB.Tests/LiteDB.Tests.csproj \
             --configuration Release --no-build --framework ${{ matrix.item.framework }} \
+            ${{ matrix.platform.arch && format('--arch {0} -p:AppendRuntimeIdentifierToOutputPath=false', matrix.platform.arch) || '' }} \
             --settings tests.runsettings --list-tests ${{ matrix.item.msbuildProps }} \
             | tee full-ci-evidence/discovery.txt
 
@@ -283,6 +293,7 @@ jobs:
           --configuration Release
           --no-build
           --framework ${{ matrix.item.framework }}
+          ${{ matrix.platform.arch && format('--arch {0} -p:AppendRuntimeIdentifierToOutputPath=false', matrix.platform.arch) || '' }}
           --verbosity normal
           --settings tests.runsettings
           --diag full-ci-evidence/vstest-diag.txt
@@ -356,6 +367,8 @@ jobs:
     name: Cross-Process Tests (Windows ${{ matrix.platform.runner }} - ${{ matrix.platform.arch }} - ${{ matrix.item.display }})
     runs-on: ${{ matrix.platform.runner }}
     needs: build
+    env:
+      LITEDB_TEST_ARCH: ${{ matrix.platform.arch }}
     strategy:
       fail-fast: false
       matrix:
@@ -384,6 +397,11 @@ jobs:
           dotnet-version: ${{ matrix.item.sdk }}
           include-prerelease: ${{ matrix.item.includePrerelease }}
 
+      - name: Install x86 test runtime
+        if: matrix.platform.arch == 'x86'
+        shell: pwsh
+        run: ./.github/scripts/install-x86-test-runtime.ps1 -Framework '${{ matrix.item.framework }}'
+
       - name: Download test build
         uses: actions/download-artifact@v4
         with:
@@ -395,7 +413,9 @@ jobs:
           dotnet build LiteDB.Tests/LiteDB.Tests.csproj
           --configuration Release
           --framework ${{ matrix.item.framework }}
+          --arch ${{ matrix.platform.arch }} -p:AppendRuntimeIdentifierToOutputPath=false
           --no-dependencies
+          -p:TestingEnabled=true
           ${{ matrix.item.msbuildProps }}
 
       - name: Discover exact cross-process inventory
@@ -405,7 +425,8 @@ jobs:
           mkdir -p full-ci-evidence
           dotnet test LiteDB.Tests/LiteDB.Tests.csproj \
             --configuration Release --no-build --framework ${{ matrix.item.framework }} \
-            --settings tests.runsettings --filter "FullyQualifiedName~CrossProcess_Shared_Tests" \
+            --arch ${{ matrix.platform.arch }} -p:AppendRuntimeIdentifierToOutputPath=false \
+            --settings tests.runsettings --filter "FullyQualifiedName~CrossProcess_Shared_Tests|FullyQualifiedName~Issue2904_Tests.Actual_test_host_matches_requested_architecture" \
             --list-tests ${{ matrix.item.msbuildProps }} | tee full-ci-evidence/discovery.txt
 
       - name: Run cross-process shared mode tests (${{ matrix.platform.arch }})
@@ -415,7 +436,8 @@ jobs:
           --configuration Release
           --no-build
           --framework ${{ matrix.item.framework }}
-          --filter "FullyQualifiedName~CrossProcess_Shared_Tests"
+          --arch ${{ matrix.platform.arch }} -p:AppendRuntimeIdentifierToOutputPath=false
+          --filter "FullyQualifiedName~CrossProcess_Shared_Tests|FullyQualifiedName~Issue2904_Tests.Actual_test_host_matches_requested_architecture"
           --verbosity normal
           --logger "trx;LogFileName=CrossProcessTestResults-${{ matrix.platform.arch }}.trx"
           --logger "console;verbosity=detailed"
