@@ -73,6 +73,11 @@ namespace LiteDB
         public int ErrorCode { get; private set; }
         public long Position { get; private set; }
 
+        // Mapper member failures: an outer entity extends the path instead of wrapping the exception again.
+        internal string MappingAction { get; set; }
+        internal string[] MappingPath { get; set; }
+        internal string MappingSource { get; set; }
+
         public LiteException(int code, string message)
             : base(message)
         {

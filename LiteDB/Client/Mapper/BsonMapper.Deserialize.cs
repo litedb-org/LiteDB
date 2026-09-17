@@ -390,10 +390,10 @@ namespace LiteDB
                 }
                 else
                 {
-                    item = DeserializeMember(member, val);
+                    item = DeserializeMember(type, member, val);
                 }
 
-                member.Setter(obj, item);
+                this.SetMember(type, member, obj, item, val);
             }
         }
 
