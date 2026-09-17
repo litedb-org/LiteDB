@@ -221,7 +221,7 @@ namespace LiteDB
             var members = new List<KeyValuePair<string, BsonExpression>>();
             while (!tokenizer.CheckEOF())
             {
-                var key = ReadKey(tokenizer, new StringBuilder());
+                var key = ReadKey(tokenizer);
                 tokenizer.ReadToken().Expect(TokenType.Equals);
                 var value = ParseFullExpression(tokenizer, context, parameters, DocumentScope.Root);
                 members.Add(new KeyValuePair<string, BsonExpression>(key, value));
@@ -363,7 +363,7 @@ namespace LiteDB
             {
                 while (!tokenizer.CheckEOF())
                 {
-                    var key = ReadKey(tokenizer, new StringBuilder());
+                    var key = ReadKey(tokenizer);
                     tokenizer.ReadToken();
                     BsonExpression value;
                     if (tokenizer.Current.Type == TokenType.Colon)
@@ -643,20 +643,15 @@ namespace LiteDB
         /// <summary>
         /// Read key in document definition with single word or "comp-lex"
         /// </summary>
-        public static string ReadKey(Tokenizer tokenizer, StringBuilder source)
+        public static string ReadKey(Tokenizer tokenizer)
         {
             var token = tokenizer.ReadToken();
-            var key = "";
+            return token.Type == TokenType.String ? token.Value : token.Expect(TokenType.Word, TokenType.Int).Value;
+        }
 
-            if (token.Type == TokenType.String)
-            {
-                key = token.Value;
-            }
-            else
-            {
-                key = token.Expect(TokenType.Word, TokenType.Int).Value;
-            }
-
+        public static string ReadKey(Tokenizer tokenizer, StringBuilder source)
+        {
+            var key = ReadKey(tokenizer);
             if (key.IsWord())
             {
                 source.Append(key);

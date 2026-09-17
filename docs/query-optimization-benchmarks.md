@@ -2164,6 +2164,62 @@ The focused Boolean/range/set suite passes 228 tests. Full .NET 8 and .NET 10 su
 each pass **1,571 tests**, with seven existing skips; all Release targets build,
 18 reproduction tests pass, and plain/encrypted vector-file compatibility passes.
 
+## 48. Avoid discarded key-formatting buffers during SQL parsing
+
+CodeRabbit identified that both document-builder callers of `ReadKey` constructed
+a `StringBuilder` and discarded the formatted key. The parser now reads the key
+without formatting it at those call sites. The existing overload that appends
+canonical key text remains available and delegates to the same token reader.
+Document formatting still happens once at the shared expression formatter.
+Token validation, quoted/escaped keys, and canonical expression text are unchanged.
+
+This comparison starts at `19cfdfe0`, after the CodeRabbit correctness fixes, and
+isolates the parser allocation cleanup. Production SHA-256 values are
+`83242ef0d7527053da02a6276269763519e4943a146d71b0ffb2b740580ae0a7`
+(before) and
+`5c5360f1e230462051e02469da42255853b0539acf88b5f8e2ba8200b24aab9c`
+(after). Identical harnesses run the explicit `keyparse` filter against a separate
+20,000-document collection. Each parsed document or UPDATE assignment list has
+eight keys, including ordinary, quoted, numeric-looking, dotted, and Unicode names.
+
+The SELECT stream case uses a fresh `StringReader` to exercise real SQL parsing on
+every query; the cached SELECT uses the same query and checks its warm template
+path. Both consume all projected values. Each UPDATE parses and executes its
+statement, consumes the affected-row count, then reads back and checksums every
+updated field. The point control reads stored documents. SQL strings and fixture
+setup are outside timing; the UPDATE readback is included in timing.
+
+Two processes per version run serially before/after/after/before, pinned to CPU 2
+with tiered compilation disabled. Each records nine batches, using 2,000 SELECT,
+1,000 UPDATE, or 4,000 point operations per batch. All task builds and tests finish
+before timing. All consumed-result checksums match. Raw data is
+`48-keyparse-{before,after}-{1,2}.json`.
+
+| Workload | Before µs | After µs | Time reduction | Before B/op | After B/op | Allocation reduction |
+|---|---:|---:|---:|---:|---:|---:|
+| keyparse-select-stream | 84.37 | 65.48 | 22.4% | 51179 | 49939 | 2.4% |
+| keyparse-select-cached-control | 21.82 | 17.84 | 18.3% | 23249 | 23249 | 0.0% |
+| keyparse-update-assignments | 148.61 | 135.59 | 8.8% | 126358 | 125118 | 1.0% |
+| keyparse-update-document | 131.63 | 134.51 | -2.2% | 124190 | 122950 | 1.0% |
+| keyparse-point-control | 17.70 | 18.28 | -3.3% | 23262 | 23262 | 0.0% |
+
+The dependable improvement is **1,240 fewer allocated bytes per complete query**
+when the eight keys are parsed: **2.4%** for the streamed SELECT and about **1%** for
+each UPDATE/readback. Warm cached SELECT and point allocations are unchanged.
+Timing is mixed: the cached SELECT control itself changes by **18.3%**, while the
+point control is **3.3% slower** and the document UPDATE is **2.2% slower**. Those
+control movements prevent attributing the larger SELECT/assignment timing changes
+to this small allocation cleanup. No general latency improvement is claimed.
+
+Twelve new cases cover both key-reader overloads, token consumption, canonical key
+formatting, invalid-token errors, escaped SQL UPDATE assignments, and document
+projections. The accompanying review fixes add 21 cases for LINQ selector metadata,
+DateTime conversions, operand diagnostics, and conditional metadata; eleven of
+those cases reproduce the pre-fix bugs. Full .NET 8 and .NET 10 suites each pass
+**1,604 tests**, with seven existing skips each. All Release targets build, 18
+reproduction tests pass, and plain/encrypted vector compatibility passes. DateTime
+conversion tests additionally pass under `TZ=Europe/Vienna`.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -2200,8 +2256,8 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 1,571 passed on .NET 8 at step 47;
-  1,571 passed on .NET 10 at step 47; focused sort and query suites also pass on .NET 8. Each full
+- Full `LiteDB.Tests` with `tests.runsettings`: 1,604 passed on .NET 8 at step 48;
+  1,604 passed on .NET 10 at step 48; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file
