@@ -11,6 +11,35 @@ namespace LiteDB.Tests.Issues
         public class Row { public int Key { get; set; } public string Value { get; set; } }
 
         [Fact]
+        public void Reapplying_id_keeps_its_name_and_does_not_rerun_the_field_resolver()
+        {
+            var mapper = new BsonMapper();
+            mapper.Entity<Row>().Id(x => x.Key, false);
+            mapper.ResolveFieldName = name => throw new InvalidOperationException("resolver must not run for the existing ID");
+            mapper.Entity<Row>().Id(x => x.Key, true);
+            mapper.Entity<Row>().Id(x => x.Key, false);
+            var raw = mapper.ToDocument(new Row { Key = 42, Value = "unchanged" });
+            raw["_id"].AsInt32.Should().Be(42);
+            raw.ContainsKey("Key").Should().BeFalse();
+            mapper.ToObject<Row>(raw).Key.Should().Be(42);
+        }
+
+        [Fact]
+        public void Selecting_another_id_restores_the_previous_members_resolved_name()
+        {
+            var mapper = new BsonMapper { ResolveFieldName = name => "mapped_" + name };
+            mapper.Entity<Row>().Id(x => x.Key, false);
+            mapper.Entity<Row>().Id(x => x.Value, false);
+            var raw = mapper.ToDocument(new Row { Key = 42, Value = "new ID" });
+            raw["mapped_Key"].AsInt32.Should().Be(42);
+            raw["_id"].AsString.Should().Be("new ID");
+            raw.ContainsKey("mapped_Value").Should().BeFalse();
+            var restored = mapper.ToObject<Row>(raw);
+            restored.Key.Should().Be(42);
+            restored.Value.Should().Be("new ID");
+        }
+
+        [Fact]
         public void Reapplying_same_id_mapping_during_serialization_never_exposes_partial_mapping()
         {
             var mapper = new BsonMapper();

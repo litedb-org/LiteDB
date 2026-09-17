@@ -1814,10 +1814,11 @@
         "priority: P3"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2324_Tests.cs"
-      ]
+      ],
+      "validation": "Original race and deterministic repeated-ID resolver guard fail before fix; all 57 mapper/ID focused tests pass after integration. Production/net462 builds pass; four fresh Sol-high reviewers clean. Arbitrary concurrent schema changes remain configure-before-use."
     },
     {
       "issue": 2328,

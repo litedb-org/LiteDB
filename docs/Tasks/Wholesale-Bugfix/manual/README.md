@@ -1575,3 +1575,16 @@ That independent pre-existing input-validation issue is outside #1444's valid
 wire-value contract. Actual old/new DLL probes both report the identical
 machine=-1 comparison and ffffff serialization, demonstrating no regression.
 The request to expand this fix into constructor normalization was declined.
+
+## #2324 — preserve repeated ID mapping during serialization
+
+EntityBuilder.Id skips resetting the previous mapping when it is the same
+MemberMapper instance. Repeated configuration therefore never exposes a temporary
+ordinary field name or resets AutoId first. Selecting another member retains the
+existing resolver-based restoration; arbitrary schema changes still belong before
+concurrent use.
+
+The original stress race and new deterministic resolver guard both fail with the
+old implementation. All 57 mapper/ID focused tests pass after integration;
+production/net462 builds pass. Four fresh Sol-high reviewers
+review_2324_w1_a through _d were clean.

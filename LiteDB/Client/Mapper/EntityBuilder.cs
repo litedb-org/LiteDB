@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -61,7 +61,9 @@ namespace LiteDB
                 // if contains another _id, remove-it
                 var oldId = _entity.Members.FirstOrDefault(x => x.FieldName == "_id");
         
-                if (oldId != null)
+                // Reapplying the same ID must not expose its ordinary field name
+                // to concurrent serialization or invoke the field-name resolver again.
+                if (oldId != null && !ReferenceEquals(oldId, p))
                 {
                     oldId.FieldName = _mapper.ResolveFieldName(oldId.MemberName);
                     oldId.AutoId = false;
