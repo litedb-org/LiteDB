@@ -35,6 +35,7 @@ public partial class BsonMapper
                 try
                 {
                     this.BuildEntityMapper(mapper);
+                    mapper.IsInitialized = true;
                 }
                 catch (Exception ex)
                 {
@@ -65,13 +66,13 @@ public partial class BsonMapper
 
         var members = this.GetTypeMembers(mapper.ForType);
         var id = this.GetIdMember(members);
+        mapper.UsesCustomIdSelection = HasCustomIdSelection(GetType());
 
         foreach (var memberInfo in members)
         {
             // checks [BsonIgnore]
             if (CustomAttributeExtensions.IsDefined(memberInfo, ignoreAttr, true)) continue;
 
-            // checks field name conversion
             var name = this.ResolveFieldName(memberInfo.Name);
 
             // check if property has [BsonField]
@@ -98,19 +99,18 @@ public partial class BsonMapper
             var autoId = (BsonIdAttribute)CustomAttributeExtensions.GetCustomAttributes(memberInfo, idAttr, true)
                 .FirstOrDefault();
 
-            // get data type
             var dataType = memberInfo is PropertyInfo
                 ? (memberInfo as PropertyInfo).PropertyType
                 : (memberInfo as FieldInfo).FieldType;
 
-            // check if datatype is list/array
             var isEnumerable = Reflection.IsEnumerable(dataType);
 
-            // create a property mapper
             var member = new MemberMapper
             {
                 AutoId = autoId == null ? true : autoId.AutoId,
                 FieldName = name,
+                HasExplicitFieldName = autoId != null || field?.Name != null,
+                ReflectedMember = memberInfo,
                 MemberName = memberInfo.Name,
                 DataType = dataType,
                 IsEnumerable = isEnumerable,

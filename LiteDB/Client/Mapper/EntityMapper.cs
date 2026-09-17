@@ -45,6 +45,7 @@ namespace LiteDB
         {
             _initializationToken = initializationToken;
             this.ForType = forType;
+            IsInitialized = !initializationToken.CanBeCanceled;
         }
 
         /// <summary>
@@ -54,6 +55,9 @@ namespace LiteDB
         {
             return this.Members.FirstOrDefault(x => x.MemberName == expr.GetPath());
         }
+
+        internal volatile bool IsInitialized;
+        internal bool UsesCustomIdSelection;
 
         public void WaitForInitialization()
         {

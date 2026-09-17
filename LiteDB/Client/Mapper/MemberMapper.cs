@@ -27,7 +27,15 @@ namespace LiteDB
         /// <summary>
         /// Converted document field name
         /// </summary>
-        public string FieldName { get; set; }
+        public string FieldName
+        {
+            get => _fieldName;
+            set { _fieldName = value; HasExplicitFieldName = true; }
+        }
+
+        private string _fieldName;
+        internal bool HasExplicitFieldName { get; set; }
+        internal MemberInfo ReflectedMember { get; set; }
 
         /// <summary>
         /// Delegate method to get value from entity instance
