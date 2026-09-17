@@ -28,7 +28,7 @@ namespace LiteDB
                 {
                     var name = "q" + index++;
                     names[parameter.Key] = name;
-                    parameters[name] = parameter.Value;
+                    parameters[name] = SnapshotQueryValue(parameter.Value);
                 }
             }
 

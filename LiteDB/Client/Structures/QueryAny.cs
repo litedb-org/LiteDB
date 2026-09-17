@@ -1,4 +1,4 @@
-﻿using LiteDB.Engine;
+using LiteDB.Engine;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -8,6 +8,13 @@ namespace LiteDB
 {
     public class QueryAny
     {
+        private readonly bool _parameterized;
+
+        /// <summary>Creates the original literal-based ANY helpers.</summary>
+        public QueryAny() { }
+
+        internal QueryAny(bool parameterized) { _parameterized = parameterized; }
+
         /// <summary>
         /// Returns all documents for which at least one value in arrayFields is equal to value
         /// </summary>
@@ -15,6 +22,7 @@ namespace LiteDB
         {
             if (arrayField.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(arrayField));
 
+            if (_parameterized) return Query.CreateValueQuery(arrayField, "ANY = {0}", value);
             return BsonExpression.Create($"{arrayField} ANY = {value ?? BsonValue.Null}");
         }
 
@@ -25,6 +33,7 @@ namespace LiteDB
         {
             if (arrayField.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(arrayField));
 
+            if (_parameterized) return Query.CreateValueQuery(arrayField, "ANY < {0}", value);
             return BsonExpression.Create($"{arrayField} ANY < {value ?? BsonValue.Null}");
         }
 
@@ -35,6 +44,7 @@ namespace LiteDB
         {
             if (arrayField.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(arrayField));
 
+            if (_parameterized) return Query.CreateValueQuery(arrayField, "ANY <= {0}", value);
             return BsonExpression.Create($"{arrayField} ANY <= {value ?? BsonValue.Null}");
         }
 
@@ -45,6 +55,7 @@ namespace LiteDB
         {
             if (arrayField.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(arrayField));
 
+            if (_parameterized) return Query.CreateValueQuery(arrayField, "ANY > {0}", value);
             return BsonExpression.Create($"{arrayField} ANY > {value ?? BsonValue.Null}");
 
         }
@@ -56,6 +67,7 @@ namespace LiteDB
         {
             if (arrayField.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(arrayField));
 
+            if (_parameterized) return Query.CreateValueQuery(arrayField, "ANY >= {0}", value);
             return BsonExpression.Create($"{arrayField} ANY >= {value ?? BsonValue.Null}");
         }
 
@@ -66,6 +78,7 @@ namespace LiteDB
         {
             if (arrayField.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(arrayField));
 
+            if (_parameterized) return Query.CreateValueQuery(arrayField, "ANY BETWEEN {0} AND {1}", start, end);
             return BsonExpression.Create($"{arrayField} ANY BETWEEN {start ?? BsonValue.Null} AND {end ?? BsonValue.Null}");
         }
 
@@ -77,6 +90,7 @@ namespace LiteDB
             if (arrayField.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(arrayField));
             if (value.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(value));
 
+            if (_parameterized) return Query.CreateValueQuery(arrayField, "ANY LIKE {0}", new BsonValue(value + "%"));
             return BsonExpression.Create($"{arrayField} ANY LIKE {new BsonValue(value + "%")}");
         }
         
@@ -88,6 +102,7 @@ namespace LiteDB
             if (arrayField.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(arrayField));
             if (value.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(value));
 
+            if (_parameterized) return Query.CreateValueQuery(arrayField, "ANY LIKE {0}", new BsonValue("%" + value));
             return BsonExpression.Create($"{arrayField} ANY LIKE {new BsonValue("%" + value)}");
         }
 
@@ -99,6 +114,7 @@ namespace LiteDB
             if (arrayField.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(arrayField));
             if (value.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(value));
 
+            if (_parameterized) return Query.CreateValueQuery(arrayField, "ANY LIKE {0}", new BsonValue("%" + value + "%"));
             return BsonExpression.Create($"{arrayField} ANY LIKE {new BsonValue("%" + value + "%")}");
         }
         
@@ -109,6 +125,7 @@ namespace LiteDB
         {
             if (arrayField.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(arrayField));
 
+            if (_parameterized) return Query.CreateValueQuery(arrayField, "ANY != {0}", value);
             return BsonExpression.Create($"{arrayField} ANY != {value ?? BsonValue.Null}");
         }
     }
