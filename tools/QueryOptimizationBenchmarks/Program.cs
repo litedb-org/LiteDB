@@ -23,62 +23,69 @@ internal static class Program
         var enabled = true;
         var results = new List<object>();
         var plans = new Dictionary<string, string>();
-        ConstraintWorkloads.Run(db, Measure, plans);
-        BooleanWorkloads.Run(db, Measure, plans);
-        DiagnosticsWorkloads.Run(db, Measure, plans);
-        AggregateWorkloads.Run(db, Measure, plans);
-        HelperWorkloads.Run(db, Measure, plans);
-        MetadataWorkloads.Run(db, Measure, plans);
-        ReplayWorkloads.Run(Measure, plans, args.Length > 1 ? args[1] : null);
-        CommonWorkloads.Run(db, Measure, plans);
-        CacheWorkloads.Run(db, Measure, plans);
-        TopNWorkloads.Run(db, Measure, plans);
-        PrimaryWorkloads.Run(db, Measure, plans);
-        PlanningWorkloads.Run(db, Measure, plans);
-        SourceWorkloads.Run(db, Measure, plans);
-        Measure("or-linq", 20, i => rows.Query().Where(x => x.Score == 1234 || x.Score == 17890)
-            .ToList().Sum(x => x.Id));
-        Measure("or-sql", 20, i => Read("SELECT $ FROM rows WHERE Score = 1234 OR Score = 17890"));
-        Measure("fold-linq", 20, i => rows.Query().Where(x => !enabled || x.Score == 1234).ToList().Sum(x => x.Id));
-        Measure("fold-sql", 20, i =>
+        if (args.Length > 1 && args[1] == "overall")
         {
-            using var reader = db.Execute("SELECT $ FROM rows WHERE @enabled = false OR Score = @score",
-                new BsonDocument { ["enabled"] = enabled, ["score"] = 1234 });
-            long sum = 0;
-            while (reader.Read()) sum += reader.Current["_id"].AsInt32;
-            return sum;
-        });
-        Measure("range-linq", 10, i => rows.Query().Where(x => x.Score >= 10000 && x.Score < 10010)
-            .ToList().Sum(x => x.Id));
-        Measure("range-sql", 10, i => Read("SELECT $ FROM rows WHERE Score >= 10000 AND Score < 10010"));
-        Measure("contradiction-linq", 10, i => rows.Query().Where(x => x.Score > 10010 && x.Score < 10000)
-            .ToList().Sum(x => x.Id));
-        Measure("contradiction-unindexed", 10, i => rows.Query().Where(x => x.Name == "Person1" && x.Name == "Person2")
-            .ToList().Sum(x => x.Id));
-        Measure("ordinary-id", 1000, i =>
+            OverallWorkloads.Run(db, Measure, plans);
+        }
+        else
         {
-            var id = i % 20000 + 1;
-            return rows.Query().Where(x => x.Id == id).FirstOrDefault().Id;
-        });
-        Measure("ordinary-combined", 500, i =>
-        {
-            var city = "City" + i % 1000;
-            var minimum = i % 500;
-            return rows.Query().Where(x => x.City == city && x.Score >= minimum).FirstOrDefault()?.Id ?? 0;
-        });
-        Measure("ordinary-projection", 500, i =>
-        {
-            var city = "City" + i % 1000;
-            return rows.Query().Where(x => x.City == city).Select(x => new { x.Id, x.Name })
-                .Limit(5).ToList().Sum(x => x.Id);
-        });
-        Measure("scan-control", 3, i => rows.Query().Where(x => x.Name.StartsWith("Person1"))
-            .ToList().Sum(x => x.Id));
+            ConstraintWorkloads.Run(db, Measure, plans);
+            BooleanWorkloads.Run(db, Measure, plans);
+            DiagnosticsWorkloads.Run(db, Measure, plans);
+            AggregateWorkloads.Run(db, Measure, plans);
+            HelperWorkloads.Run(db, Measure, plans);
+            MetadataWorkloads.Run(db, Measure, plans);
+            ReplayWorkloads.Run(Measure, plans, args.Length > 1 ? args[1] : null);
+            CommonWorkloads.Run(db, Measure, plans);
+            CacheWorkloads.Run(db, Measure, plans);
+            TopNWorkloads.Run(db, Measure, plans);
+            PrimaryWorkloads.Run(db, Measure, plans);
+            PlanningWorkloads.Run(db, Measure, plans);
+            SourceWorkloads.Run(db, Measure, plans);
+            Measure("or-linq", 20, i => rows.Query().Where(x => x.Score == 1234 || x.Score == 17890)
+                .ToList().Sum(x => x.Id));
+            Measure("or-sql", 20, i => Read("SELECT $ FROM rows WHERE Score = 1234 OR Score = 17890"));
+            Measure("fold-linq", 20, i => rows.Query().Where(x => !enabled || x.Score == 1234).ToList().Sum(x => x.Id));
+            Measure("fold-sql", 20, i =>
+            {
+                using var reader = db.Execute("SELECT $ FROM rows WHERE @enabled = false OR Score = @score",
+                    new BsonDocument { ["enabled"] = enabled, ["score"] = 1234 });
+                long sum = 0;
+                while (reader.Read()) sum += reader.Current["_id"].AsInt32;
+                return sum;
+            });
+            Measure("range-linq", 10, i => rows.Query().Where(x => x.Score >= 10000 && x.Score < 10010)
+                .ToList().Sum(x => x.Id));
+            Measure("range-sql", 10, i => Read("SELECT $ FROM rows WHERE Score >= 10000 AND Score < 10010"));
+            Measure("contradiction-linq", 10, i => rows.Query().Where(x => x.Score > 10010 && x.Score < 10000)
+                .ToList().Sum(x => x.Id));
+            Measure("contradiction-unindexed", 10, i => rows.Query().Where(x => x.Name == "Person1" && x.Name == "Person2")
+                .ToList().Sum(x => x.Id));
+            Measure("ordinary-id", 1000, i =>
+            {
+                var id = i % 20000 + 1;
+                return rows.Query().Where(x => x.Id == id).FirstOrDefault().Id;
+            });
+            Measure("ordinary-combined", 500, i =>
+            {
+                var city = "City" + i % 1000;
+                var minimum = i % 500;
+                return rows.Query().Where(x => x.City == city && x.Score >= minimum).FirstOrDefault()?.Id ?? 0;
+            });
+            Measure("ordinary-projection", 500, i =>
+            {
+                var city = "City" + i % 1000;
+                return rows.Query().Where(x => x.City == city).Select(x => new { x.Id, x.Name })
+                    .Limit(5).ToList().Sum(x => x.Id);
+            });
+            Measure("scan-control", 3, i => rows.Query().Where(x => x.Name.StartsWith("Person1"))
+                .ToList().Sum(x => x.Id));
 
-        plans["or"] = rows.Query().Where(x => x.Score == 1234 || x.Score == 17890).GetPlan().ToString();
-        plans["range"] = rows.Query().Where(x => x.Score >= 10000 && x.Score < 10010).GetPlan().ToString();
-        plans["fold"] = rows.Query().Where(x => !enabled || x.Score == 1234).GetPlan().ToString();
-        plans["contradiction"] = rows.Query().Where(x => x.Name == "Person1" && x.Name == "Person2").GetPlan().ToString();
+            plans["or"] = rows.Query().Where(x => x.Score == 1234 || x.Score == 17890).GetPlan().ToString();
+            plans["range"] = rows.Query().Where(x => x.Score >= 10000 && x.Score < 10010).GetPlan().ToString();
+            plans["fold"] = rows.Query().Where(x => !enabled || x.Score == 1234).GetPlan().ToString();
+            plans["contradiction"] = rows.Query().Where(x => x.Name == "Person1" && x.Name == "Person2").GetPlan().ToString();
+        }
         Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
         {
             label = args.FirstOrDefault() ?? "current", runtime = RuntimeInformation.FrameworkDescription,

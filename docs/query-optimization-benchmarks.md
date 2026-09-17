@@ -5,6 +5,9 @@ its own commit, correctness tests, and before/after measurements against the
 immediately preceding implementation. Ordinary LINQ and SQL use the query
 optimizations automatically.
 
+See the [fresh cumulative comparison through step 19](query-optimization-overall.md)
+for the combined effect, including ordinary queries and scan controls.
+
 ## Method
 
 `tools/QueryOptimizationBenchmarks` runs complete queries on an in-memory database
@@ -568,7 +571,7 @@ materializers remain separate work.
 
 - Release solution build with `TestingEnabled=true`: all targets build.
 - Full `LiteDB.Tests` with `tests.runsettings`: 1,059 passed on .NET 8 at step 19;
-  1,049 passed on .NET 10 at step 18; focused sort and query suites also pass on .NET 8. Each full
+  1,059 passed on .NET 10 at step 19; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file
