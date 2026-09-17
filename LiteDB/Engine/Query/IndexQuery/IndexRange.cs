@@ -26,6 +26,28 @@ namespace LiteDB.Engine
             _endEquals = endEquals;
         }
 
+        internal bool HasCloserStart(IndexRange other, int order, Collation collation)
+        {
+            var start = order == Query.Ascending ? _start : _end;
+            var previous = order == Query.Ascending ? other._start : other._end;
+            var comparison = start.CompareTo(previous, collation);
+            if (comparison != 0) return order == Query.Ascending ? comparison > 0 : comparison < 0;
+            var inclusive = order == Query.Ascending ? _startEquals : _endEquals;
+            var previousInclusive = order == Query.Ascending ? other._startEquals : other._endEquals;
+            return !inclusive && previousInclusive;
+        }
+
+        /// <summary>
+        /// Both ranges constrain the same scalar key, so the tighter start and the tighter end enforce them all
+        /// </summary>
+        internal IndexRange Intersect(IndexRange other, Collation collation)
+        {
+            var lower = this.HasCloserStart(other, Query.Ascending, collation) ? this : other;
+            var upper = this.HasCloserStart(other, Query.Descending, collation) ? this : other;
+
+            return new IndexRange(this.Name, lower._start, upper._end, lower._startEquals, upper._endEquals, this.Order);
+        }
+
         public override uint GetCost(CollectionIndex index)
         {
             return 20;
@@ -39,6 +61,11 @@ namespace LiteDB.Engine
 
             var startEquals = this.Order == Query.Ascending ? _startEquals : _endEquals;
             var endEquals = this.Order == Query.Ascending ? _endEquals : _startEquals;
+
+            // the start loop below yields keys equal to start without looking at end
+            var bounds = _start.CompareTo(_end, indexer.Collation);
+
+            if (bounds > 0 || (bounds == 0 && !(_startEquals && _endEquals))) yield break;
 
             // find first indexNode (or get from head/tail if Min/Max value)
             var first = 
@@ -118,9 +145,14 @@ namespace LiteDB.Engine
             {
                 return string.Format("INDEX SCAN({0} >= {1})", this.Name, _start);
             }
-            else
+            else if (_startEquals && _endEquals)
             {
                 return string.Format("INDEX RANGE SCAN({0} BETWEEN {1} AND {2})", this.Name, _start, _end);
+            }
+            else
+            {
+                return string.Format("INDEX RANGE SCAN({0} {1} {2} AND {0} {3} {4})",
+                    this.Name, _startEquals ? ">=" : ">", _start, _endEquals ? "<=" : "<", _end);
             }
         }
     }

@@ -66,6 +66,15 @@ namespace LiteDB.Engine
             this.Cost = this.Index.GetCost(index);
         }
 
+        // used when one range enforces several terms over the index of the selected term
+        public IndexCost(IndexCost selected, IndexRange range)
+        {
+            this.Expression = selected.Expression;
+            this.IndexExpression = selected.IndexExpression;
+            this.Index = range;
+            this.Cost = selected.Cost;
+        }
+
         // used when full index search
         public IndexCost(CollectionIndex index)
         {
