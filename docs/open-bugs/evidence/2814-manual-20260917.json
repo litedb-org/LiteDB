@@ -1,0 +1,38 @@
+{
+  "issue": 2814,
+  "date": "2026-09-17",
+  "parentCommit": "2e84c7a36de013aadbacbdeca2ce6d24fd691c89",
+  "patchSha256": "d0ff34c2dfcf2d5e13859aff7fae9c06b5ff9b649f017a7832b61d812c1a9c5a",
+  "engineFocusedPassed": 64,
+  "runnerTestsPassed": 51,
+  "transactionIdOrderingBefore": {
+    "failed": 1,
+    "passedControl": 1
+  },
+  "endToEnd": {
+    "failed": false,
+    "warned": false,
+    "package": {
+      "ExitCode": 0,
+      "Met": true,
+      "DurationSeconds": 5.8486335,
+      "UseProjectReference": false,
+      "summary": [
+        "REPEATS_2814: attempts=10, reportedFailures=5",
+        "BUG_2814_CONFIRMED"
+      ]
+    },
+    "latest": {
+      "ExitCode": 10,
+      "Met": true,
+      "DurationSeconds": 63.610721,
+      "UseProjectReference": true,
+      "summary": [
+        "REPEATS_2814: attempts=10, reportedFailures=0",
+        "VERIFIED_2814"
+      ]
+    }
+  },
+  "scope": "Continuous short query readers; explicit/writing/retained transactions may time out and later commits retry. No hard WAL cap.",
+  "patchScope": "Library, engine tests, repro runner and runner tests; documentation excluded"
+}

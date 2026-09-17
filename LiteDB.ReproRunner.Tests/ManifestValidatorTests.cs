@@ -102,8 +102,10 @@ public sealed class ManifestValidatorTests
         Assert.Equal(ReproOutcomeKind.NoRepro, manifest.ExpectedOutcomes.Latest!.Kind);
     }
 
-    [Fact]
-    public void Validate_FailsWhenLatestHardFailDeclared()
+    [Theory]
+    [InlineData("hardFail")]
+    [InlineData("intermittent")]
+    public void Validate_FailsWhenLatestPackageOnlyKindDeclared(string kind)
     {
         const string json = """
         {
@@ -121,7 +123,7 @@ public sealed class ManifestValidatorTests
         }
         """;
 
-        using var document = JsonDocument.Parse(json);
+        using var document = JsonDocument.Parse(json.Replace("hardFail", kind));
         var validation = new ManifestValidationResult();
         var validator = new ManifestValidator();
 

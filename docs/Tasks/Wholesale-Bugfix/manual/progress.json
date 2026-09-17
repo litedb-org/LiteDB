@@ -761,7 +761,8 @@
       ],
       "reproduction": "artifact-only",
       "disposition": "pending",
-      "tests": []
+      "tests": [],
+      "validation": "Pending user-provided SignPath organization/project/policy identifiers and credential secret location/name; no credential values requested."
     },
     {
       "issue": 2322,
@@ -1013,7 +1014,8 @@
       "disposition": "pending",
       "tests": [
         "LiteDB.Tests/Issues/Issue2777_Tests.cs"
-      ]
+      ],
+      "validation": "Pending user choice for secure encryption format compatibility: secure new-file default, opt-in format, or defer. No dependent format change made."
     },
     {
       "issue": 2779,
@@ -1807,7 +1809,8 @@
       "disposition": "pending",
       "tests": [
         "LiteDB.Tests/Issues/Issue2093_Tests.cs"
-      ]
+      ],
+      "validation": "Pending user choice: document explicit missing-field predicates/migration or design opt-in mapped defaults; global false substitution breaks constructor-initialized defaults."
     },
     {
       "issue": 2324,
@@ -2011,7 +2014,8 @@
       "disposition": "pending",
       "tests": [
         "LiteDB.Tests/Issues/Issue2799_Tests.cs"
-      ]
+      ],
+      "validation": "Pending user choice: retain required durable flushes/document unsupported storage, or explicit opt-in relaxed durability. Silent fallback conflicts with completed WAL durability fixes."
     },
     {
       "issue": 2803,
@@ -2058,10 +2062,11 @@
         "priority: P3"
       ],
       "reproduction": "intermittent",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2814_Tests.cs"
-      ]
+      ],
+      "validation": "64 focused/integrated engine and51runner tests pass; actual production runner package5/10repro,source10/10verified; full1994pass179existingfail8skip no new; production/net462/vectorcompat pass. Four fresh Sol-high w6 CLEAN. Read admission precedes WAL ID allocation; explicit/writing transactions remain soft-budget retries."
     },
     {
       "issue": 2839,

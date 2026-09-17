@@ -7,21 +7,20 @@
   "timeoutSeconds": 180,
   "requiresParallel": false,
   "defaultInstances": 1,
-  "state": "flaky",
+  "state": "green",
   "tags": [
     "regression",
     "historical"
   ],
   "expectedOutcomes": {
     "package": {
-      "kind": "reproduce",
-      "exitCode": 0,
-      "logContains": "BUG_2814_CONFIRMED"
+      "kind": "intermittent",
+      "logContains": "REPEATS_2814:"
     },
     "latest": {
-      "kind": "reproduce",
-      "exitCode": 0,
-      "logContains": "BUG_2814_CONFIRMED"
+      "kind": "noRepro",
+      "exitCode": 10,
+      "logContains": "VERIFIED_2814"
     }
   }
 }

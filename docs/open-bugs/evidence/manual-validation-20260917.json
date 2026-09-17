@@ -1,0 +1,62 @@
+{
+  "date": "2026-09-17",
+  "suite": "LiteDB.Tests Release net10.0 TestingEnabled=true",
+  "results": {
+    "passed": 1994,
+    "failed": 179,
+    "skipped": 8
+  },
+  "baseline": "p3-1444-integrated.trx",
+  "newFailures": [],
+  "resolvedFailures": [
+    "LiteDB.Tests.Audit2026.AuditFindingSourceGuard_Tests.Audited_source_context_must_be_replaced(id: 41, file: \"LiteDB/Document/BsonValue.cs\", line: 563, title: \"Cross-type numeric CompareTo throws OverflowExcept\"\u00b7\u00b7\u00b7, context: \"                {\\n                    return Conv\"\u00b7\u00b7\u00b7)",
+    "LiteDB.Tests.Issues.Issue1706_Tests.Flipping_range_conjuncts_keeps_same_scan_strategy_and_exact_top_results",
+    "LiteDB.Tests.Issues.Issue2324_Tests.Reapplying_same_id_mapping_during_serialization_never_exposes_partial_mapping",
+    "LiteDB.Tests.Issues.Issue2746_Tests.Initial_digit_error_explains_the_position_rule_and_preserves_committed_data",
+    "LiteDB.Tests.Issues.Issue2765_Tests.Missing_and_wrong_passwords_report_structured_errors_without_altering_data(password: null)",
+    "LiteDB.Tests.Issues.Issue2795_Tests.Offset_skips_index_nodes_without_loading_skipped_documents",
+    "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"Between\")",
+    "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"Contains\")",
+    "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"EQ\")",
+    "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"EndsWith\")",
+    "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"GT\")",
+    "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"GTE\")",
+    "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"In\")",
+    "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"LT\")",
+    "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"LTE\")",
+    "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"Not\")",
+    "LiteDB.Tests.Issues.Issue2807_Tests.Helper_reuses_source_but_keeps_independent_parameter_values(operation: \"StartsWith\")",
+    "LiteDB.Tests.Issues.Issue2864_Tests.Collection_page_mismatch_reports_the_type_stored_in_the_page(rawType: 0, typeName: \"Empty\")",
+    "LiteDB.Tests.Issues.Issue2864_Tests.Collection_page_mismatch_reports_the_type_stored_in_the_page(rawType: 1, typeName: \"Header\")",
+    "LiteDB.Tests.Issues.Issue2864_Tests.Collection_page_mismatch_reports_the_type_stored_in_the_page(rawType: 127, typeName: \"127\")",
+    "LiteDB.Tests.Issues.Issue2864_Tests.Collection_page_mismatch_reports_the_type_stored_in_the_page(rawType: 3, typeName: \"Index\")",
+    "LiteDB.Tests.Issues.Issue2864_Tests.Collection_page_mismatch_reports_the_type_stored_in_the_page(rawType: 4, typeName: \"Data\")",
+    "LiteDB.Tests.Issues.Issue2864_Tests.Collection_page_mismatch_reports_the_type_stored_in_the_page(rawType: 5, typeName: \"VectorIndex\")",
+    "LiteDB.Tests.Issues.Issue2864_Tests.Index_page_mismatch_reports_the_type_stored_in_the_page(rawType: 0, typeName: \"Empty\")",
+    "LiteDB.Tests.Issues.Issue2864_Tests.Index_page_mismatch_reports_the_type_stored_in_the_page(rawType: 1, typeName: \"Header\")",
+    "LiteDB.Tests.Issues.Issue2864_Tests.Index_page_mismatch_reports_the_type_stored_in_the_page(rawType: 127, typeName: \"127\")",
+    "LiteDB.Tests.Issues.Issue2864_Tests.Index_page_mismatch_reports_the_type_stored_in_the_page(rawType: 2, typeName: \"Collection\")",
+    "LiteDB.Tests.Issues.Issue2864_Tests.Index_page_mismatch_reports_the_type_stored_in_the_page(rawType: 4, typeName: \"Data\")",
+    "LiteDB.Tests.Issues.Issue2864_Tests.Index_page_mismatch_reports_the_type_stored_in_the_page(rawType: 5, typeName: \"VectorIndex\")",
+    "LiteDB.Tests.Issues.Issue2870_Tests.FileReaderV8_preserves_the_original_stream_failure_frame",
+    "LiteDB.Tests.Issues.Issue2870_Tests.Query_preserves_the_original_frame_when_a_later_source_read_throws",
+    "LiteDB.Tests.Issues.Issue2870_Tests.Query_preserves_the_original_frame_when_the_first_source_read_throws",
+    "LiteDB.Tests.Issues.Issue2870_Tests.WaitIfLocked_preserves_the_original_frame_for_non_lock_errors"
+  ],
+  "productionBuild": "passed all library target frameworks",
+  "net462": "compile passed; no Windows execution claim",
+  "vectorCompatibility": "passed ordinary v8 and promoted vectors, plain and encrypted",
+  "runnerUnitTests": 51,
+  "shellRegressions": {
+    "1166": "passed real shell",
+    "2774": "passed real shell on Linux"
+  },
+  "pendingUserDecisions": [
+    2320,
+    2777,
+    2093,
+    2799
+  ],
+  "websiteDraftPR": "https://github.com/litedb-org/LiteDB/pull/2911",
+  "v4": "deferred; reviewed security candidate unpublished"
+}

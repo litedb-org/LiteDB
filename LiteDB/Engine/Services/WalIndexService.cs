@@ -291,14 +291,14 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// Run checkpoint only if there is no open transactions
+        /// Briefly queue behind existing transactions so new readers cannot starve checkpoint.
         /// </summary>
         public int TryCheckpoint()
         {
             // no log file or no confirmed transaction, just exit
             if (_disk.GetFileLength(FileOrigin.Log) == 0 || _confirmTransactions.Count == 0) return 0;
 
-            if (_locker.TryEnterExclusive(out var mustExit) == false) return 0;
+            if (_locker.TryEnterExclusive(out var mustExit, waitForReaders: true) == false) return 0;
 
             try
             {

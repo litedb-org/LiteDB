@@ -1725,3 +1725,40 @@ and no obsolete 1MB claim remains in the candidate. Two fresh review waves
 updated stale generated summaries; final review_2796_w2_a through _d were clean.
 At the user's request, draft PR [#2911](https://github.com/litedb-org/LiteDB/pull/2911)
 targets gh-pages. The live website remains unchanged.
+
+## #2814 — admit checkpoints under continuous query readers
+
+Automatic checkpoint queues behind readers for up to 10 ms using existing writer
+preference. Same-thread upgrade stays forbidden; Rebuild remains nonwaiting.
+Transaction admission now precedes WAL ID reservation, preventing checkpoint
+from resetting IDs underneath a waiting new transaction. Construction failures
+release admission. Explicit/writing/retained transactions may still make an
+attempt time out; a later commit retries after they release. The executed
+lifecycle control verifies that retry, without claiming a hard WAL cap.
+
+The historical package is an intermittent control; current source must strictly
+verify. Runner checks now distinguish handshake validity from arbitrary child
+exit codes, prioritize errors and reproductions across instances, and display
+expectation results consistently.
+
+64 focused/integrated engine and 51 runner tests pass. The actual integrated
+production runner reproduces on 5.0.11 in 5/10 attempts and verifies current
+source in 10/10, including persisted payloads. The deterministic ID regression
+fails the previous ordering and passes the fix. Six fresh four-Sol-high waves
+addressed admission coverage, runner reliability and the ID race; final
+review_2814_w6_a through _d were clean.
+
+## Combined validation and remaining decisions (2026-09-17)
+
+The integrated net10 suite passes 1994 cases, with 179 existing failures and
+8 skips. No new failures appear against the saved baseline; 33 baseline failures
+resolve. Production builds, net462 compile coverage, and ordinary/vector file
+compatibility (plain/encrypted) pass. See
+[validation evidence](../../../open-bugs/evidence/manual-validation-20260917.json)
+and [#2814 runner evidence](../../../open-bugs/evidence/2814-manual-20260917.json).
+
+The user has pending choices for #2320 signing setup, #2777 encryption-format
+compatibility, #2093 missing-field defaults, and #2799 relaxed vs required durable
+flushes. #2796 is the requested draft PR #2911. V4 work remains deferred and its
+reviewed security candidate remains unpublished. The automated sweep is disabled
+and BUGFIX_SWEEP_ENABLED remains false.
