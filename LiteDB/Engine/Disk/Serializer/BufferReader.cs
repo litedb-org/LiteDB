@@ -353,7 +353,11 @@ namespace LiteDB.Engine
         /// </summary>
         public BsonValue ReadIndexKey()
         {
-            var type = (BsonType)this.ReadByte();
+            // String/binary lengths share their high bits with the type byte.
+            // Preserve the full type byte for other types, including vectors.
+            var typeByte = this.ReadByte();
+            ExtendedLengthHelper.ReadLength(typeByte, 0, out var shortType, out var extraLength);
+            var type = shortType == BsonType.String || shortType == BsonType.Binary ? shortType : (BsonType)typeByte;
 
             switch (type)
             {
@@ -364,14 +368,12 @@ namespace LiteDB.Engine
                 case BsonType.Double: return this.ReadDouble();
                 case BsonType.Decimal: return this.ReadDecimal();
 
-                // Use +1 byte only for length
-                case BsonType.String: return this.ReadString(this.ReadByte());
+                case BsonType.String: return this.ReadString(extraLength | this.ReadByte());
 
                 case BsonType.Document: return this.ReadDocument(null).GetValue();
                 case BsonType.Array: return this.ReadArray().GetValue();
 
-                // Use +1 byte only for length
-                case BsonType.Binary: return this.ReadBytes(this.ReadByte());
+                case BsonType.Binary: return this.ReadBytes(extraLength | this.ReadByte());
                 case BsonType.ObjectId: return this.ReadObjectId();
                 case BsonType.Guid: return this.ReadGuid();
 

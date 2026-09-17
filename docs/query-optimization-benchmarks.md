@@ -962,6 +962,28 @@ seeks, full scans, and exclusions still throw the formatted guard error. Full
 Release targets build. Reproduction-runner tests and plain/encrypted vector file
 compatibility checks also pass through this step.
 
+## 32. Decode extended keys in temporary sort streams
+
+The larger-sort benchmark exposed a pre-existing decoder mismatch. Sort keys
+can occupy up to 1,023 bytes, and the writer encodes string/binary lengths across
+the type byte and the following length byte. The streaming reader treated the
+whole first byte as a BSON type, so keys longer than 255 bytes failed with
+`NotImplementedException`, even though their encoded size was valid.
+
+The sort reader now uses the same extended-length decoder as persisted index
+pages and consumes the following length byte only for strings/binary values.
+The writer and file format are unchanged. This is a correctness fix: the failing
+wide-key queries are not counted as speedup baselines. Subsequent merge timings
+must include this reader correction in both versions.
+
+Nine new cases fail before the fix; the two 255-byte controls already pass.
+The eleven cases cover string and binary lengths across extension boundaries
+through 1,021 payload bytes, multibyte UTF-8, ascending full results, descending
+pages, and correct reload addresses after each key. Fixtures exercise both single
+and multiple default-size sort blocks. Full .NET 8: 1,193 passed, seven existing
+skips. The eleven cases plus eight vector-planning cases pass on .NET 10; all
+Release targets build. Non-length type codes, including vectors, remain intact.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -998,7 +1020,7 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 1,182 passed on .NET 8 at step 31;
+- Full `LiteDB.Tests` with `tests.runsettings`: 1,193 passed on .NET 8 at step 32;
   1,182 passed on .NET 10 at step 31; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
