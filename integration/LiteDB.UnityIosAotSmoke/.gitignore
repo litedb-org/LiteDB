@@ -1,0 +1,13 @@
+/Assets/GeneratedSmoke.unity
+/Assets/GeneratedSmoke.unity.meta
+/Assets/Plugins/*.dll
+/Assets/Plugins/*.dll.meta
+/Build/
+/Library/
+/Logs/
+/obj/
+/Packages/packages-lock.json
+/ProjectSettings/*
+!/ProjectSettings/ProjectVersion.txt
+/Temp/
+/UserSettings/

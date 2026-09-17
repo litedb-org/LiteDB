@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-ios</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">iossimulator-arm64</RuntimeIdentifier>
+    <ApplicationId>org.litedb.iosaotsmoke</ApplicationId>
+    <ApplicationTitle>LiteDB iOS AOT Smoke</ApplicationTitle>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+    <SupportedOSPlatformVersion>15.0</SupportedOSPlatformVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseInterpreter>false</UseInterpreter>
+    <PublishAot Condition="'$(IosAotMode)' == 'nativeaot'">true</PublishAot>
+    <PublishAot Condition="'$(IosAotMode)' != 'nativeaot'">false</PublishAot>
+    <TrimMode Condition="'$(IosAotMode)' != 'nativeaot'">full</TrimMode>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../LiteDB/LiteDB.csproj" AdditionalProperties="PublishAot=false" />
+    <ProjectReference Include="../../LiteDB.SourceGenerator/LiteDB.SourceGenerator.csproj"
+                      AdditionalProperties="PublishAot=false"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="../../LiteDB.AotSmokeTests/*.cs"
+             Exclude="../../LiteDB.AotSmokeTests/Program.cs"
+             Link="Smoke/%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

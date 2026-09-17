@@ -197,7 +197,9 @@ The typed API is not affected: `db.GetCollection<Car>().Find(x => owners.Contain
 
 **6. Queries that evaluate an expression for every document are slower**, roughly 1.2 to 2 times once warm, because expressions are interpreted instead of compiled. Index seeks are not affected. See "Performance".
 
-**7. iOS and Unity are not verified on a device.** See the next section.
+**7. .NET iOS Mono AOT, .NET iOS NativeAOT, and Unity IL2CPP are verified on a
+physical iPhone.** See the next section and the
+[iOS AOT validation report](ios-aot-validation.md).
 
 ## Mono full AOT (iOS, Mac Catalyst, tvOS)
 
@@ -209,8 +211,26 @@ What is verified, and what is not:
 
 - `ExpressionsWithoutDynamicCode_Tests` reads the interpreter's own count of emitted thunks. A control test shows that interpreting a five-parameter delegate emits one; with the one-parameter path LiteDB emits none. This proves the mechanism behind #2804 no longer applies.
 - Under Native AOT the one-parameter path is the only path, so the whole Native AOT gate (expression sweep, SQL sweep, the test suite) runs on it.
-- **It has not been run on an iOS device.** CI has no full-AOT Mono target: the iOS simulator and Android both keep a JIT or interpreter available and would pass regardless. If you ship LiteDB on iOS, please report the result on #2804. Until then, `<MtouchInterpreter>-all,LiteDB</MtouchInterpreter>` remains the known-good fallback.
-- Unity IL2CPP is a third runtime with its own `System.Linq.Expressions` and has not been tested either.
+- A .NET 10 `iossimulator-arm64` application was built with Mono full AOT and full trimming, installed, and run in an ARM64 iOS Simulator. The runtime reported both dynamic-code flags as `false`, automatically selected the one-parameter path, and passed the document, generated-mapping, engine, expression, SQL, vector, and file-storage smoke scenarios.
+- A signed .NET 10 `ios-arm64` Release application was installed and run on an iPhone 13 Pro Max with iOS 26.7 using Mono full AOT, `UseInterpreter=false`, and no `MtouchInterpreter` fallback. Its bundle contained 24 Mono AOT-data files, including LiteDB, both dynamic-code flags were `false`, and the complete smoke workload passed with exit code 0.
+- A clean `ios-arm64` NativeAOT build of the same application contained no managed DLLs or Mono AOT-data files. It passed the same complete workload on the physical iPhone with both dynamic-code flags `false` and exit code 0.
+- A Unity 6 ARM64 iOS Simulator player was built with IL2CPP and High managed stripping, installed, and run. Its document, index, expression, SQL, and persistence workload passed with IL2CPP's default delegate path and with LiteDB's one-parameter path forced on. Unity did not expose `RuntimeFeature.IsDynamicCodeSupported`, so the one-parameter path was not selected automatically.
+- The same forced-path Unity player was exported for iPhoneOS, signed, installed, and run on an iPhone 13 Pro Max with iOS 26.7. Its Release IL2CPP workload passed on the physical device.
+- The reproducible mobile runs used Xcode 27. The .NET physical-device builds disabled workload version validation because the installed workload expects Xcode 26.6. The original #2804 reproducer and a controlled PR-base comparison remain open; the complete current-commit smoke suite is verified without an interpreter fallback.
+
+The complete setup, observed output, limitations, and next steps are recorded in the
+[iOS AOT validation report](ios-aot-validation.md).
+
+The checked-in mobile fixtures can be rerun with:
+
+```bash
+./scripts/validate-ios-aot.sh simulator
+./scripts/validate-unity-ios-aot.sh simulator-all
+```
+
+Physical-device modes require the device and signing environment variables documented
+in the validation report. Both wrappers retain their logs and generated output under
+`artifacts/` and fail unless the installed application emits its runtime PASS marker.
 
 ## Performance
 
