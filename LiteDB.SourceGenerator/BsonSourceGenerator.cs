@@ -51,9 +51,13 @@ public sealed partial class BsonSourceGenerator : IIncrementalGenerator
             predicate: static (node, _) => node is ClassDeclarationSyntax or RecordDeclarationSyntax,
             transform: static (attributeContext, _) => DescribeModel(
                 (INamedTypeSymbol)attributeContext.TargetSymbol,
-                GetDiagnosticLocation(attributeContext.TargetNode)));
+                GetDiagnosticLocation(attributeContext.TargetNode)))
+            .WithTrackingName("BsonSourceGenerator.Models");
 
-        context.RegisterSourceOutput(models.Collect(), static (productionContext, results) =>
+        var collectedModels = models.Collect()
+            .WithTrackingName("BsonSourceGenerator.CollectedModels");
+
+        context.RegisterSourceOutput(collectedModels, static (productionContext, results) =>
         {
             var validModels = new List<ModelDescriptor>();
 

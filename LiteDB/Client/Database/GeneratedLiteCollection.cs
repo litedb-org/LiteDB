@@ -431,8 +431,8 @@ namespace LiteDB
         private BsonValue ExecuteExtreme(BsonExpression keySelector, int order)
         {
             if (keySelector == null) throw new ArgumentNullException(nameof(keySelector));
-            var document = this.Query().OrderBy(keySelector, order).Select(keySelector).Limit(1).ToDocuments().First();
-            return document[document.Keys.First()];
+            var document = this.Query().OrderBy(keySelector, order).Select(keySelector).Limit(1).ToDocuments().FirstOrDefault();
+            return document is null ? BsonValue.Null : document[document.Keys.First()];
         }
     }
 }

@@ -211,6 +211,30 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
+        public void GetGeneratedCollection_MinAndMax_ReturnNullOrDefaultForEmptyCollection()
+        {
+            var path = GetDatabasePath();
+
+            try
+            {
+                var mapper = new ThrowingConversionMapper();
+                LiteDbGeneratedMappings.Register(mapper);
+
+                using var database = new LiteDatabase(path, mapper);
+                var collection = database.GetGeneratedCollection<PhaseCScalarRecord>("phaseCEmptyAggregates");
+
+                Assert.IsTrue(collection.Min(BsonExpression.Create("Score")).IsNull);
+                Assert.IsTrue(collection.Max(BsonExpression.Create("Score")).IsNull);
+                Assert.AreEqual(default, collection.Min(record => record.Score));
+                Assert.AreEqual(default, collection.Max(record => record.Score));
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [TestMethod]
         public void GetGeneratedCollection_Query_UsesGeneratedDeserializer()
         {
             var path = GetDatabasePath();

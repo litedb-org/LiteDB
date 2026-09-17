@@ -45,10 +45,50 @@ public sealed partial class BsonSourceGenerator
         public Location Create() => Location.Create(FilePath, SourceSpan, LineSpan);
     }
 
-    private sealed record ModelDescriptor(
-        string TypeName,
-        ImmutableArray<PropertyDescriptor> Properties,
-        bool CanEmitExecutionMap);
+    private sealed class ModelDescriptor : IEquatable<ModelDescriptor>
+    {
+        public ModelDescriptor(
+            string typeName,
+            ImmutableArray<PropertyDescriptor> properties,
+            bool canEmitExecutionMap)
+        {
+            TypeName = typeName;
+            Properties = properties;
+            CanEmitExecutionMap = canEmitExecutionMap;
+        }
+
+        public string TypeName { get; }
+
+        public ImmutableArray<PropertyDescriptor> Properties { get; }
+
+        public bool CanEmitExecutionMap { get; }
+
+        public bool Equals(ModelDescriptor? other)
+        {
+            return ReferenceEquals(this, other) ||
+                other is not null &&
+                string.Equals(TypeName, other.TypeName, StringComparison.Ordinal) &&
+                CanEmitExecutionMap == other.CanEmitExecutionMap &&
+                Properties.SequenceEqual(other.Properties);
+        }
+
+        public override bool Equals(object? obj) => Equals(obj as ModelDescriptor);
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                var hash = StringComparer.Ordinal.GetHashCode(TypeName);
+                hash = (hash * 397) ^ CanEmitExecutionMap.GetHashCode();
+                foreach (var property in Properties)
+                {
+                    hash = (hash * 397) ^ property.GetHashCode();
+                }
+
+                return hash;
+            }
+        }
+    }
 
     private sealed record PropertyDescriptor(
         string Name,
