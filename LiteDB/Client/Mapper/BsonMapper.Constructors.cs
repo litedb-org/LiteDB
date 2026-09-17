@@ -26,6 +26,11 @@ namespace LiteDB
 
                     DeserializeDictionary(keyType, valueType, dict, doc);
                 }
+                else if (instance is System.Dynamic.ExpandoObject expando)
+                {
+                    var values = (System.Collections.Generic.IDictionary<string, object>)expando;
+                    foreach (var element in doc.GetElements()) values[element.Key] = Deserialize(typeof(object), element.Value);
+                }
                 else
                 {
                     DeserializeObject(type, instance, doc);

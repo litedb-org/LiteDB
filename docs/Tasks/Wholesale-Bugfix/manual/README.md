@@ -1466,3 +1466,23 @@ contract was checked; Windows runtime execution was not performed locally.
 Four fresh Sol-high reviewers (review_2450_w1_a through _d) found no substantive
 defects. Their test temporary-file cleanup nit was addressed and all five issue
 cases passed again.
+
+## #1162 — map ExpandoObject dictionaries as documents
+
+Expando values declared as object, Expando or dictionaries now serialize their
+key/value fields into BSON documents; typed Expando reads populate those fields.
+Explicit IEnumerable/ICollection of pairs retains its existing array contract.
+Custom handlers and depth limits retain priority; case-insensitive BSON key
+collisions reject input instead of losing values. A sealed typed Expando treats
+_type as data. Untyped object values retain the existing mapper discriminator
+convention used by ordinary dictionaries; this is not an arbitrary-JSON decoder.
+
+Validation: original reproduction and added collision, enumerable-contract and
+typed _type cases fail before their corresponding fixes. Final focused selection
+passes 50 cases. Full suite: 1898 passed, 216 existing failures, 8 skipped, with no
+new failures versus #2450's combined validation. Production/net462 builds pass.
+The #1376 legacy-array guard now inserts the legacy raw array directly, preserving
+its rejection oracle after Expando's serialization shape was corrected.
+
+Four fresh review waves addressed key collisions, declared collection contracts
+and typed _type payloads. Final reviewers review_1162_w4_a through _d were clean.

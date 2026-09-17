@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
@@ -191,8 +191,10 @@ namespace LiteDB
                 var doc = value.AsDocument;
                 var declaredType = type;
 
-                // test if value is object and has _type
-                if (doc.TryGetValue("_type", out var typeField) && typeField.IsString)
+                // A known sealed Expando contract treats field names as data. Untyped
+                // object values retain the mapper's existing _type discriminator convention.
+                if (type != typeof(System.Dynamic.ExpandoObject) &&
+                    doc.TryGetValue("_type", out var typeField) && typeField.IsString)
                 {
                     var actualType = _typeNameBinder.GetType(typeField.AsString);
 

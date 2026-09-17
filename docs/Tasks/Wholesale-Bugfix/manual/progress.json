@@ -140,10 +140,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue1162_Tests.cs"
-      ]
+      ],
+      "validation": "50 final focused passes; full suite 1898 passed / 216 existing failures / 8 skipped, no new failures; production/net462 builds pass. Four fresh Sol-high final reviews clean after declaration routing, collision and typed _type fixes."
     },
     {
       "issue": 1192,
