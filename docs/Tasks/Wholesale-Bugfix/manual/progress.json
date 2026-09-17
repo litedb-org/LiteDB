@@ -1777,10 +1777,11 @@
         "priority: P3"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue1834_Tests.cs"
-      ]
+      ],
+      "validation": "Retained cross-thread deferred-cursor handoff case cofixed by 90a5f363 (#2790); passes current full suite p2-1162-w4-integrated.trx. Four fresh Sol-high closure reviews clean (review_1834_w1_a..d). No claim to establish incomplete original Xamarin/iOS trigger; platform diagnosis still needs report details."
     },
     {
       "issue": 2093,

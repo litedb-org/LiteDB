@@ -1515,3 +1515,15 @@ A request to retain the old mismatched return-ratio assertion was declined:
 current synchronous return is already bounded by the completed-work threshold,
 and its raw return ratio is explicitly telemetry. Final reviewers
 review_2846_w2_a through _d were clean.
+
+## #1834 — shared fix for deferred-query thread handoff
+
+The retained candidate reproduction is cofixed by #2790 (90a5f363): foreign
+cursor disposal releases the transaction creator's counted read lease exactly
+once. The owner can query again and an exclusive checkpoint can proceed. The
+unchanged Issue1834 test passes in the current full suite, including its independent
+LINQ and exact-row oracles. Four fresh Sol-high closure reviewers
+review_1834_w1_a through _d were clean. No new engine patch is needed.
+
+This resolves the reproduced handoff defect, not the incomplete Xamarin/iOS
+report's unknown trigger. No device execution or platform-specific fix is claimed.
