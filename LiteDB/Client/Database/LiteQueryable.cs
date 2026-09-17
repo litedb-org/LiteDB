@@ -393,9 +393,11 @@ namespace LiteDB
         public int Count()
         {
             var oldSelect = _query.Select;
+            var oldAggregate = _query.Aggregate;
 
             try
             {
+                _query.Aggregate = QueryAggregate.Count;
                 this.Select($"{{ count: COUNT(*._id) }}");
                 var ret = this.ToDocuments().Single()["count"].AsInt32;
 
@@ -404,6 +406,7 @@ namespace LiteDB
             finally
             {
                 _query.Select = oldSelect;
+                _query.Aggregate = oldAggregate;
             }
         }
 
@@ -413,9 +416,11 @@ namespace LiteDB
         public long LongCount()
         {
             var oldSelect = _query.Select;
+            var oldAggregate = _query.Aggregate;
 
             try
             {
+                _query.Aggregate = QueryAggregate.Count;
                 this.Select($"{{ count: COUNT(*._id) }}");
                 var ret = this.ToDocuments().Single()["count"].AsInt64;
 
@@ -424,6 +429,7 @@ namespace LiteDB
             finally
             {
                 _query.Select = oldSelect;
+                _query.Aggregate = oldAggregate;
             }
         }
 
@@ -433,9 +439,11 @@ namespace LiteDB
         public bool Exists()
         {
             var oldSelect = _query.Select;
+            var oldAggregate = _query.Aggregate;
 
             try
             {
+                _query.Aggregate = QueryAggregate.Exists;
                 this.Select($"{{ exists: ANY(*._id) }}");
                 var ret = this.ToDocuments().Single()["exists"].AsBoolean;
 
@@ -444,6 +452,7 @@ namespace LiteDB
             finally
             {
                 _query.Select = oldSelect;
+                _query.Aggregate = oldAggregate;
             }
         }
 

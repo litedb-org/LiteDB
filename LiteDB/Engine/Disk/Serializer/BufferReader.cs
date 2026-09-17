@@ -2,6 +2,7 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.InteropServices;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -12,7 +13,11 @@ namespace LiteDB.Engine
     internal partial class BufferReader : IDisposable
     {
         private IEnumerator<BufferSlice> _source;
+        private readonly DataService _dataSource;
         private readonly bool _utcDate;
+
+        private PageAddress _nextAddress;
+        private uint _dataBlockCount;
 
         private BufferSlice _current;
         private int _currentPosition = 0; // position in _current
@@ -40,6 +45,7 @@ namespace LiteDB.Engine
         public BufferReader(BufferSlice buffer, bool utcDate = false)
         {
             _source = null;
+            _dataSource = null;
             _utcDate = utcDate;
 
             _current = buffer;
@@ -47,6 +53,7 @@ namespace LiteDB.Engine
 
         public BufferReader(IEnumerable<BufferSlice> source, bool utcDate = false, ArrayPool<byte> bufferPool = null)
         {
+            _dataSource = null;
             _bufferPool = bufferPool ?? ArrayPool<byte>.Shared;
             _source = source.GetEnumerator();
             _utcDate = utcDate;
@@ -61,6 +68,26 @@ namespace LiteDB.Engine
                 _source.Dispose();
                 throw;
             }
+        }
+
+        internal BufferReader(DataService source, bool utcDate)
+        {
+            _source = null;
+            _dataSource = source;
+            _utcDate = utcDate;
+            _current = null;
+            _isEOF = true;
+        }
+
+        internal void Reset(PageAddress address)
+        {
+            ENSURE(_dataSource != null, "only a data-service reader can be reset");
+
+            _nextAddress = address;
+            _dataBlockCount = 0;
+            _currentPosition = 0;
+            _position = 0;
+            _isEOF = !_dataSource.TryRead(ref _nextAddress, ref _dataBlockCount, out _current);
         }
 
         #region Basic Read
@@ -82,14 +109,19 @@ namespace LiteDB.Engine
             // request new source array if _current all consumed
             if (_currentPosition == _current.Count)
             {
-                if (_source == null || _source.MoveNext() == false)
-                {
-                    _isEOF = true;
-                }
-                else
+                if (_source != null && _source.MoveNext())
                 {
                     _current = _source.Current;
                     _currentPosition = 0;
+                }
+                else if (_dataSource != null &&
+                    _dataSource.TryRead(ref _nextAddress, ref _dataBlockCount, out _current))
+                {
+                    _currentPosition = 0;
+                }
+                else
+                {
+                    _isEOF = true;
                 }
 
                 return true;
@@ -184,41 +216,28 @@ namespace LiteDB.Engine
 
         #region Read Numbers
         
-        private T ReadNumber<T>(Func<byte[], int, T> convert, int size)
+        private T ReadNumber<T>(int size) where T : struct
         {
-            T value;
-
-            // if fits in current segment, use inner array - otherwise copy from multiples segments
-            if (_currentPosition + size <= _current.Count)
+            if (this.TryGetContiguousSpan(size, out var source))
             {
-                value = convert(_current.Array, _current.Offset + _currentPosition);
-
+                var value = MemoryMarshal.Read<T>(source);
                 this.MoveForward(size);
-            }
-            else
-            {
-                var buffer = _bufferPool.Rent(size);
-                try
-                {
-                    this.Read(buffer, 0, size);
-
-                    value = convert(buffer, 0);
-                }
-                finally
-                {
-                    _bufferPool.Return(buffer, true);
-                }
+                return value;
             }
 
-            return value;
+            Span<byte> scratch = stackalloc byte[8];
+            var valueBytes = scratch.Slice(0, size);
+            this.Read(valueBytes);
+
+            return MemoryMarshal.Read<T>(valueBytes);
         }
 
-        public Int32 ReadInt32() => this.ReadNumber(BitConverter.ToInt32, 4);
-        public Int64 ReadInt64() => this.ReadNumber(BitConverter.ToInt64, 8);
-        public UInt16 ReadUInt16() => this.ReadNumber(BitConverter.ToUInt16, 2);
-        public UInt32 ReadUInt32() => this.ReadNumber(BitConverter.ToUInt32, 4);
-        public Single ReadSingle() => this.ReadNumber(BitConverter.ToSingle, 4);
-        public Double ReadDouble() => this.ReadNumber(BitConverter.ToDouble, 8);
+        public Int32 ReadInt32() => this.ReadNumber<Int32>(4);
+        public Int64 ReadInt64() => this.ReadNumber<Int64>(8);
+        public UInt16 ReadUInt16() => this.ReadNumber<UInt16>(2);
+        public UInt32 ReadUInt32() => this.ReadNumber<UInt32>(4);
+        public Single ReadSingle() => this.ReadNumber<Single>(4);
+        public Double ReadDouble() => this.ReadNumber<Double>(8);
 
         public Decimal ReadDecimal()
         {
@@ -226,7 +245,14 @@ namespace LiteDB.Engine
             var b = this.ReadInt32();
             var c = this.ReadInt32();
             var d = this.ReadInt32();
-            return new Decimal(new int[] { a, b, c, d });
+            var scale = (byte)((d >> 16) & 0xFF);
+
+            if ((d & 0x7F00FFFF) != 0 || scale > 28)
+            {
+                throw new ArgumentException("Invalid decimal flags in BSON value.");
+            }
+
+            return new Decimal(a, b, c, (d & unchecked((int)0x80000000)) != 0, scale);
         }
 
         #endregion

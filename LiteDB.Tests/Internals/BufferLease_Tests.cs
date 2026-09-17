@@ -35,7 +35,8 @@ namespace LiteDB.Internals
             };
             read.Should().Throw<IOException>();
             // CString uses MemoryStream on .NET Framework instead of ArrayPool.
-            if (operation == "objectId") pool.Rented.Should().Be(0, "this value uses stack storage");
+            if (operation == "objectId" || operation == "number")
+                pool.Rented.Should().Be(0, "this value uses stack storage");
             else if (operation != "cstring") pool.Rented.Should().BeGreaterThan(0);
             pool.Outstanding.Should().BeEmpty();
         }

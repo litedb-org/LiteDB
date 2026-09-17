@@ -28,33 +28,94 @@ namespace LiteDB.Engine
         /// </summary>
         public override IEnumerable<BsonDocument> Pipe(IEnumerable<IndexNode> nodes, QueryPlan query)
         {
-            // starts pipe loading document
-            var source = this.LoadDocument(nodes);
+            var nodeSource = nodes;
+            var borrowed = false;
+            var datafile = _lookup as DatafileLookup;
 
-            // do includes in result before filter
-            foreach (var path in query.IncludeBefore)
+            // Includes before filtering mutate documents, so only plans without
+            // them can move residual predicates ahead of materialization.
+            if (datafile != null && query.BorrowedFilter != null)
             {
-                source = this.Include(source, path);
+                nodeSource = this.FilterBorrowed(nodeSource, datafile,
+                    query.BorrowedFilter, query.Filters);
+                borrowed = true;
             }
 
-            // filter results according expressions
-            foreach (var expr in query.Filters)
+            // Count and Exists need no owning source document. Ordering cannot
+            // change their result, while offset and limit still can.
+            if (query.Aggregate != QueryAggregate.None &&
+                query.IncludeBefore.Count == 0 && query.IncludeAfter.Count == 0 &&
+                (query.Filters.Count == 0 || borrowed))
             {
-                source = this.Filter(source, expr);
+                if (query.Offset > 0) nodeSource = nodeSource.Skip(query.Offset);
+                if (query.Limit < int.MaxValue) nodeSource = nodeSource.Take(query.Limit);
+
+                return this.AggregateNodes(nodeSource, query.Aggregate,
+                    query.AggregateFieldName);
             }
 
-            if (query.OrderBy != null)
+            // A direct-field projection owns only its result container and
+            // selected values; no source BsonDocument is needed.
+            if (query.OrderBy == null && query.IncludeBefore.Count == 0 &&
+                query.IncludeAfter.Count == 0 && query.VectorScore == null &&
+                !query.Select.All && (query.Filters.Count == 0 || borrowed) &&
+                datafile != null && query.BorrowedProjection != null)
             {
-                // pipe: orderby with offset+limit
-                source = this.OrderBy(source, query.OrderBy, query.Offset, query.Limit);
+                if (query.Offset > 0) nodeSource = nodeSource.Skip(query.Offset);
+                if (query.Limit < int.MaxValue) nodeSource = nodeSource.Take(query.Limit);
+
+                return this.ProjectBorrowed(nodeSource, datafile, query.BorrowedProjection,
+                    query.Select.Expression);
+            }
+
+            IEnumerable<BsonDocument> source;
+
+            // Scalar sort keys are the only owning values retained during the
+            // sort; source documents are loaded after the final window is known.
+            if (query.OrderBy != null && query.IncludeBefore.Count == 0 &&
+                (query.Filters.Count == 0 || borrowed) && datafile != null &&
+                query.BorrowedOrderBy != null)
+            {
+                source = this.OrderByBorrowed(nodeSource, datafile, query.OrderBy,
+                    query.BorrowedOrderBy, query.Offset, query.Limit);
             }
             else
             {
-                // pipe: apply offset (no orderby)
-                if (query.Offset > 0) source = source.Skip(query.Offset);
+                // Pagination can run over surviving addresses before an owning
+                // document is created when no sort changes their order.
+                if (borrowed && query.OrderBy == null)
+                {
+                    if (query.Offset > 0) nodeSource = nodeSource.Skip(query.Offset);
+                    if (query.Limit < int.MaxValue) nodeSource = nodeSource.Take(query.Limit);
+                }
 
-                // pipe: apply limit (no orderby)
-                if (query.Limit < int.MaxValue) source = source.Take(query.Limit);
+                source = this.LoadDocument(nodeSource);
+
+                // do includes in result before filter
+                foreach (var path in query.IncludeBefore)
+                {
+                    source = this.Include(source, path);
+                }
+
+                // filter results according expressions
+                foreach (var expr in borrowed ? Enumerable.Empty<BsonExpression>() : query.Filters)
+                {
+                    source = this.Filter(source, expr);
+                }
+
+                if (query.OrderBy != null)
+                {
+                    // pipe: orderby with offset+limit
+                    source = this.OrderBy(source, query.OrderBy, query.Offset, query.Limit);
+                }
+                else
+                {
+                    // pipe: apply offset (no orderby)
+                    if (!borrowed && query.Offset > 0) source = source.Skip(query.Offset);
+
+                    // pipe: apply limit (no orderby)
+                    if (!borrowed && query.Limit < int.MaxValue) source = source.Take(query.Limit);
+                }
             }
 
             // do includes in result after filter
@@ -78,6 +139,30 @@ namespace LiteDB.Engine
             {
                 return this.Select(source, query.Select.Expression);
             }
+        }
+
+        private IEnumerable<BsonDocument> AggregateNodes(IEnumerable<IndexNode> source,
+            QueryAggregate aggregate, string fieldName)
+        {
+            if (aggregate == QueryAggregate.Exists)
+            {
+                using (var enumerator = source.GetEnumerator())
+                {
+                    yield return new BsonDocument { [fieldName] = enumerator.MoveNext() };
+                }
+
+                yield break;
+            }
+
+            var count = 0;
+
+            foreach (var _ in source)
+            {
+                count = checked(count + 1);
+                _transaction.Safepoint();
+            }
+
+            yield return new BsonDocument { [fieldName] = count };
         }
 
         /// <summary>

@@ -26,6 +26,14 @@ namespace LiteDB.Engine
             _query = query;
             _collation = collation;
 
+            var aggregate = query.Aggregate;
+            var aggregateFieldName = aggregate == QueryAggregate.Count ? "count" : "exists";
+
+            if (aggregate == QueryAggregate.None)
+            {
+                BorrowedAggregateDetector.TryDetect(query.Select, out aggregate, out aggregateFieldName);
+            }
+
             _queryPlan = new QueryPlan(snapshot.CollectionName)
             {
                 // define index only if source are external collection
@@ -34,7 +42,9 @@ namespace LiteDB.Engine
                 ForUpdate = query.ForUpdate,
                 Limit = query.Limit,
                 Offset = query.Offset,
-                VectorScore = query.VectorScore
+                VectorScore = query.VectorScore,
+                Aggregate = aggregate,
+                AggregateFieldName = aggregateFieldName
             };
         }
 
@@ -68,6 +78,9 @@ namespace LiteDB.Engine
 
             // define IncludeBefore + IncludeAfter
             this.DefineIncludes();
+
+            // make the ownership boundary explicit in the physical plan
+            this.DefineBorrowedExecution();
 
             return _queryPlan;
         }
