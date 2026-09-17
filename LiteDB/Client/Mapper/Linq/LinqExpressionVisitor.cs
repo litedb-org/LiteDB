@@ -627,7 +627,8 @@ namespace LiteDB
             _dbRefType = field.IsDbRef ? field.UnderlyingType : null;
 
             // if parent call is DbRef and are calling _id field, rename to $id
-            return "." + (isParentDbRef && field.FieldName == "_id" ? "$id" : field.FieldName);
+            var fieldName = _mapper.ResolveAbstractIdField(entity, field);
+            return "." + (isParentDbRef && fieldName == "_id" ? "$id" : fieldName);
         }
 
         /// <summary>
