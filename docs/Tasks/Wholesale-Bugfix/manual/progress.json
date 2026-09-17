@@ -1411,10 +1411,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "deferred-user",
       "tests": [
         "LiteDB.Tests/Issues/Issue2823_Tests.cs"
-      ]
+      ],
+      "validation": "User explicitly requested skipping v4 work; legacy v3/v4 upgrade changes are deferred. Reviewed v4 security candidate remains unpublished."
     },
     {
       "issue": 2825,
@@ -1441,8 +1442,9 @@
         "priority: P2"
       ],
       "reproduction": "reproduced-ci",
-      "disposition": "pending",
-      "tests": []
+      "disposition": "deferred-user",
+      "tests": [],
+      "validation": "User explicitly requested skipping v4 work; legacy v3/v4 upgrade changes are deferred. Reviewed v4 security candidate remains unpublished."
     },
     {
       "issue": 2827,
@@ -2068,10 +2070,11 @@
         "from fork"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "deferred-user",
       "tests": [
         "LiteDB.Tests/Issues/Issue2855_Tests.cs"
-      ]
+      ],
+      "validation": "User explicitly requested skipping v4 work; legacy v3/v4 upgrade changes are deferred. Reviewed v4 security candidate remains unpublished."
     },
     {
       "issue": 2864,

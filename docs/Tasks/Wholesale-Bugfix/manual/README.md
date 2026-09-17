@@ -1378,3 +1378,10 @@ failures against #2822. Production/net462 builds, ordinary/encrypted v8 compatib
 and both package/source process variants pass their controls. The source rejects
 both incompatible process directions while preserving the complete ledger.
 Four fresh final Sol high reviewers (`review_2812_w3_a` through `_d`) were clean.
+
+## User-directed v4 deferrals
+
+The user requested skipping v4 work and keeping reviewed candidate a13746f5
+unpublished. In addition to #2808, legacy upgrade reports #2823, #2826 and #2855
+are deferred. No v4 fast-forward, stable tag, NuGet publication or advisory change
+is authorized by this sweep.
