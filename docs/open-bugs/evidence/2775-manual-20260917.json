@@ -1,0 +1,116 @@
+{
+  "platform": "Linux x64/net8.0/Release/TestingEnabled=false",
+  "rows": 1000000,
+  "cacheBytes": 8388608,
+  "transactionPageLimit": 100,
+  "warmupRows": 100000,
+  "sampling": "GC.GetTotalMemory(true), separate task, 5ms between samples; one fresh process per query/version",
+  "aggregates": {
+    "before": {
+      "count": {
+        "result": 1000000,
+        "peakAdditionalBytes": 44195072
+      },
+      "sql": {
+        "result": 1000000,
+        "peakAdditionalBytes": 44194392
+      },
+      "filtered": {
+        "result": 1000000,
+        "peakAdditionalBytes": 44202792
+      },
+      "sum": {
+        "result": 3500003500000,
+        "peakAdditionalBytes": 47087376
+      }
+    },
+    "after": {
+      "count": {
+        "result": 1000000,
+        "peakAdditionalBytes": 30920
+      },
+      "sql": {
+        "result": 1000000,
+        "peakAdditionalBytes": 36368
+      },
+      "filtered": {
+        "result": 1000000,
+        "peakAdditionalBytes": 45856
+      },
+      "sum": {
+        "result": 3500003500000,
+        "peakAdditionalBytes": 40936
+      }
+    }
+  },
+  "integratedScanRunner": {
+    "GeneratedAt": "2026-09-17T11:23:22.9634831+00:00",
+    "Root": "/home/jonas/.codex/worktrees/34db/LiteDB/LiteDB.ReproRunner",
+    "Repros": [
+      {
+        "Id": "Issue_2775_ScanRetention",
+        "State": 1,
+        "Failed": false,
+        "Warned": false,
+        "Package": {
+          "Expected": 0,
+          "ExpectedExitCode": 0,
+          "ExpectedLogContains": "BUG_2775_CONFIRMED",
+          "Actual": 0,
+          "Met": true,
+          "ExitCode": 0,
+          "DurationSeconds": 3.3998332,
+          "UseProjectReference": false,
+          "FailureReason": null,
+          "Output": [
+            {
+              "Stream": "stdout",
+              "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-17T11:23:26.8554001+00:00\",\"payload\":{\"useProjectReference\":false,\"liteDBPackageVersion\":\"5.0.21\"}}"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "SETTINGS boundedCache=False, boundedTransaction=False"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "MEASUREMENT rows=360000, additionalRetainedBytes=35730704"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "BUG_2775_CONFIRMED: a scalar-key scan retained more than 4 MiB of additional state after its first third"
+            }
+          ]
+        },
+        "Latest": {
+          "Expected": 1,
+          "ExpectedExitCode": 10,
+          "ExpectedLogContains": "VERIFIED_2775",
+          "Actual": 1,
+          "Met": true,
+          "ExitCode": 10,
+          "DurationSeconds": 3.4121477,
+          "UseProjectReference": true,
+          "FailureReason": null,
+          "Output": [
+            {
+              "Stream": "stdout",
+              "Text": "{\"type\":\"configuration\",\"timestamp\":\"2026-09-17T11:23:30.2416672+00:00\",\"payload\":{\"useProjectReference\":true,\"liteDBPackageVersion\":\"5.0.21\"}}"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "SETTINGS boundedCache=True, boundedTransaction=True"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "MEASUREMENT rows=360000, additionalRetainedBytes=-3328"
+            },
+            {
+              "Stream": "stdout",
+              "Text": "VERIFIED_2775: scan contents and bounded retention passed at the measured size"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

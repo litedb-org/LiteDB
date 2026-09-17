@@ -22,10 +22,17 @@ BUG_2775_CONFIRMED: a scalar-key scan retained more than 4 MiB of additional sta
 ```
 
 Run `dotnet run --project LiteDB.ReproRunner/LiteDB.ReproRunner.Cli -c Release -- run Issue_2775_ScanRetention`.
-The manifest expects the known failure (exit 0 + BUG_2775_CONFIRMED). A green
-runner summary means reproduction matched, not that the bug was fixed. A repair
-must produce exit 10 + VERIFIED_2775 and retain all row/checksum checks.
+The package retains its known-failure expectation (exit 0 + BUG_2775_CONFIRMED).
+The fixed source must produce exit 10 + VERIFIED_2775 and retain all row/checksum checks.
 
 Scope: this catches the common index-address retention; it does not separately
 bound the aggregate pipeline's additional address cache. Increase
 `LITEDB_REPRO_ROWS` to investigate larger workloads in a fresh process.
+
+The manual fix measures -3,328 bytes of additional retained heap at the unchanged
+360,000-row scale, versus 10,324,472 bytes on the preceding source. Four separate
+million-row aggregate processes also verify exact COUNT, SQL COUNT, filtered COUNT
+and SUM results: peak additional managed heap falls from about 44–47 MB to
+31–46 KB. These are Linux x64/net8.0 production observations with an 8 MiB cache
+and 100-page transaction budget, sampled after warming the first 100,000 rows.
+Multiple-aggregate and grouped replay remain outside this streaming optimization.

@@ -1953,8 +1953,11 @@
         "priority: P3"
       ],
       "reproduction": "reproduced-ci",
-      "disposition": "pending",
-      "tests": []
+      "disposition": "fixed-four-reviews",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2775_Tests.cs"
+      ],
+      "validation": "360k-row production runner package +35,730,704 bytes/reproduced; fixed source -3,328 bytes/verified, all row/checksum controls pass. Million-row COUNT/SQL COUNT/filtered COUNT/SUM exact, peak extra heap 31-46KB vs 44-47MB. 46 focused/integrated tests; isolated full 1926 passed/211 existing failures/8 skipped; production/net462 builds pass. Two fresh four-Sol-high waves, final documentation nit addressed."
     },
     {
       "issue": 2795,

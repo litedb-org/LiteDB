@@ -1605,3 +1605,24 @@ missed the active scan endpoint, and order-dependent fallback. Final reviewers
 review_1706_w3_a through _d found only a documentation-filter nit, now addressed.
 The strengthened overflow regression failed all three inputs with the unsafe
 comparison before the final fix.
+
+## #2775 — stream scalar scans and simple aggregates
+
+Scalar index scans that visit each node once no longer retain a set of every
+row address. IN and enumerable/multikey indexes keep deduplication. A conservative
+expression-tree check lets simple single-source aggregates avoid replay caching;
+multiple aggregates, unknown expressions and grouped replay retain the cache.
+
+The integrated unchanged 360,000-row process runner passes both expectations:
+5.0.21 reproduces at +35,730,704 retained bytes; source verifies at -3,328 bytes,
+with every ID/payload/checksum intact. Isolated million-row count, SQL count,
+filtered count and sum processes return exact values while peak additional heap
+falls from 44–47 MB to 31–46 KB. 46 focused/integrated tests pass; isolated full
+suite: 1926 passed, 211 existing failures, 8 skipped, no new failures. Production
+and net462 builds pass. Multiple-aggregate/grouped memory remains outside this
+single-pass optimization.
+
+Two fresh four-Sol-high review waves added a collation-equivalent IN guard and
+updated the regression manifest. Final review_2775_w2_a through _d found only a
+stale documentation verdict, now corrected. They also audited #2849's manifest
+correction against its committed million-row evidence (09bb753d).

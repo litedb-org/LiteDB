@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using static LiteDB.Constants;
@@ -48,9 +48,15 @@ namespace LiteDB.Engine
 
             if (index == null) throw LiteException.IndexNotFound(this.Name);
 
-            // execute query to get all IndexNodes
-            return this.Execute(indexer, index)
-                .DistinctBy(x => x.DataBlock, null);
+            var nodes = this.Execute(indexer, index);
+            // Scalar expressions publish one key per document. These scans visit
+            // each node once, so retaining every document address is unnecessary.
+            // IN can revisit collation-equivalent keys; enumerable indexes can
+            // have several keys per document. Both still require deduplication.
+            if (index.BsonExpr.IsScalar &&
+                (this is IndexAll || this is IndexEquals || this is IndexRange ||
+                 this is IndexScan || this is IndexLike)) return nodes;
+            return nodes.DistinctBy(x => x.DataBlock, null);
         }
 
         #endregion
