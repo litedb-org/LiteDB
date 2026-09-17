@@ -226,7 +226,7 @@ namespace LiteDB.Engine
             }
 
             // fill filter using all expressions (remove selected term used in Index)
-            _queryPlan.Filters.AddRange(_terms.Where(x => x != selected));
+            _queryPlan.Filters.AddRange(_terms.Where(x => x != selected && !_fusedTerms.Contains(x)));
         }
 
         /// <summary>
@@ -251,6 +251,7 @@ namespace LiteDB.Engine
 
             // otherwise, check for lowest index cost
             IndexCost lowest = null;
+            var ranges = new List<IndexCost>();
 
             // test all possible predicates in terms
             foreach (var expr in _terms.Where(x => x.IsPredicate))
@@ -290,10 +291,7 @@ namespace LiteDB.Engine
                 // calculate index score and store highest score
                 var current = new IndexCost(index.Item1, expr, index.Item2, _collation);
 
-                if (lowest == null || current.Cost < lowest.Cost)
-                {
-                    lowest = current;
-                }
+                lowest = this.SelectLowest(lowest, current, ranges);
             }
 
             // if no index found, try use same index in orderby/groupby/preferred
@@ -311,7 +309,7 @@ namespace LiteDB.Engine
                 }
             }
 
-            return lowest;
+            return this.FuseRanges(lowest, ranges);
         }
 
         #endregion
