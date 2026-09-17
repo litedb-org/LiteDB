@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -236,23 +236,24 @@ namespace LiteDB
         /// </summary>
         public static BsonExpression ParseSelectDocumentBuilder(Tokenizer tokenizer, ExpressionContext context, BsonDocument parameters)
         {
-            // creating unique field names
             var fields = new List<KeyValuePair<string, BsonExpression>>();
-            var names = new HashSet<string>();
+            var aliases = new List<KeyValuePair<string, BsonExpression>>();
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var counter = 1;
 
-            // define when next token means finish reading document builder
             bool stop(Token t) => t.Is("FROM") || t.Is("INTO") || t.Type == TokenType.EOF || t.Type == TokenType.SemiColon;
 
-            void Add(string alias, BsonExpression expr)
+            void Add(string alias, BsonExpression expr, bool explicitAlias = false)
             {
-                if (names.Contains(alias)) alias += counter++;
+                var baseAlias = alias;
+                while (names.Contains(alias)) alias = baseAlias + counter++;
 
                 names.Add(alias);
 
                 if (!expr.IsScalar) expr = ConvertToArray(expr);
 
                 fields.Add(new KeyValuePair<string, BsonExpression>(alias, expr));
+                if (explicitAlias) aliases.Add(fields.Last());
             };
 
             while (true)
@@ -261,7 +262,6 @@ namespace LiteDB
 
                 var next = tokenizer.LookAhead();
 
-                // finish reading
                 if (stop(next))
                 {
                     Add(expr.DefaultFieldName(), expr);
@@ -285,7 +285,7 @@ namespace LiteDB
 
                     var alias = tokenizer.ReadToken().Expect(TokenType.Word);
 
-                    Add(alias.Value, expr);
+                    Add(alias.Value, expr, true);
 
                     // go ahead to next token to see if last field
                     next = tokenizer.LookAhead();
@@ -302,7 +302,7 @@ namespace LiteDB
 
             var first = fields[0].Value;
 
-            if (fields.Count == 1)
+            if (fields.Count == 1 && aliases.Count == 0)
             {
                 // if just $ return empty BsonExpression
                 if (first.Type == BsonExpressionType.Path && first.Source == "$") return BsonExpression.Root;
@@ -319,7 +319,7 @@ namespace LiteDB
 
             return new BsonExpression
             {
-                Type = BsonExpressionType.Document,
+                Type = BsonExpressionType.Document, SelectAliases = aliases,
                 Parameters = parameters,
                 IsImmutable = fields.All(x => x.Value.IsImmutable),
                 UseSource = fields.Any(x => x.Value.UseSource),

@@ -1264,3 +1264,22 @@ Full suite: 1756 passed, 239 existing failures, 8 skipped; no regressions versus
 metadata and strengthened the thread handshake. Four fresh final Sol high reviews
 (`review_2792_w4_a` through `_d`) were clean; wave 4 replaced a partially failed
 review wave after reviewer service disconnections.
+
+## #2583 — order by explicit SQL projection aliases
+
+Standalone deterministic explicit aliases resolve to their retained projection
+expressions, including document and literal-word aliases. Explicit source paths,
+inferred names, groups, source aggregates and volatile aliases retain their
+existing interpretation. Names are unique under the document's case-insensitive
+comparison. Computed aliases use exact parsed constants through nested expression
+delegates and retain a sorter when a display expression could collide with an
+index; plain paths retain cache and index-streaming optimizations.
+
+Validation: both original ordering reproductions fail before the fix; 32 integrated
+focused cases pass, covering precision/cache collisions, nested MAP, parameters,
+multiple columns, emitted names and index plans. Full suite: 1783 passed, 236
+existing failures, 8 skipped; no regressions versus #2792. Production/net462 builds
+pass. Nine fresh review waves addressed precision, naming, index streaming and
+compilation cost. All four final Sol high reviewers (`review_2583_w9_a` through
+`_d`) were clean. Computed alias compilation deliberately avoids the lossy display
+Source cache; nested instances compile exactly once per parsed expression.
