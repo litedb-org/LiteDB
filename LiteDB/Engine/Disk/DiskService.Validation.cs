@@ -21,7 +21,7 @@ namespace LiteDB.Engine
                 }
 
                 if (bytes[0] == 1)
-                    throw new LiteException(0, "This data file is encrypted and needs a password to open");
+                    throw new LiteException(LiteException.INVALID_PASSWORD, "This data file is encrypted and needs a password to open");
 
                 // Validate identity and the complete header before permitting any repair.
                 var header = new PageBuffer(bytes, 0, 0);

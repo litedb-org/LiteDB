@@ -1925,10 +1925,11 @@
         "priority: P3"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2765_Tests.cs"
-      ]
+      ],
+      "validation": "14 focused and integrated password/non-destructive-open tests pass; four independent Sol-high w1 reviews CLEAN; both header guards classify missing password as INVALID_PASSWORD."
     },
     {
       "issue": 2774,

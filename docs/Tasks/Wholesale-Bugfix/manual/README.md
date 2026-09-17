@@ -1639,3 +1639,10 @@ using it must carry Parameters alongside Source.
 existing failures, 8 skipped, no new failures. Production/net462 builds pass.
 Three fresh four-Sol-high waves addressed mutable composition and compatibility.
 Final review_2807_w3_a through _d found only two documentation nits, corrected.
+
+## #2765 — classify missing encryption passwords
+
+Both encrypted-header guards return INVALID_PASSWORD for a missing password.
+File bytes and caller-owned stream lifetime remain intact after rejection.
+14 focused/integrated tests pass, including successful reopening with the correct
+password. Four fresh reviewers review_2765_w1_a through _d were clean.
