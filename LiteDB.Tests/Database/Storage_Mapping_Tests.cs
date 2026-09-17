@@ -111,6 +111,45 @@ namespace LiteDB.Tests.Database
         }
 
         [Fact]
+        public void A_Registered_Converter_Keeps_Existing_Files_With_An_Application_Type_Id_Readable()
+        {
+            var mapper = new BsonMapper();
+            mapper.RegisterType<CompositeId>(
+                id => new BsonDocument { ["Tenant"] = id.Tenant, ["Name"] = id.Name },
+                bson => new CompositeId { Tenant = bson["Tenant"].AsInt32, Name = bson["Name"].AsString });
+
+            using var db = new LiteDatabase(new MemoryStream(), mapper);
+
+            // what earlier versions stored for GetStorage<CompositeId>(): the id mapped member by member
+            var storedId = new BsonDocument { ["Tenant"] = 1, ["Name"] = "a" };
+            db.GetCollection("_files").Insert(new BsonDocument
+            {
+                ["_id"] = storedId,
+                ["filename"] = "a.txt",
+                ["mimeType"] = "text/plain",
+                ["length"] = 2L,
+                ["chunks"] = 1,
+                ["uploadDate"] = DateTime.UtcNow,
+                ["metadata"] = new BsonDocument()
+            });
+            db.GetCollection("_chunks").Insert(new BsonDocument
+            {
+                ["_id"] = new BsonDocument { ["f"] = storedId, ["n"] = 0 },
+                ["data"] = new byte[] { 4, 2 }
+            });
+
+            var storage = db.GetStorage<CompositeId>();
+            var key = new CompositeId { Tenant = 1, Name = "a" };
+
+            using var existing = new MemoryStream();
+            storage.Download(key, existing);
+            existing.ToArray().Should().Equal(4, 2);
+
+            storage.Upload(new CompositeId { Tenant = 2, Name = "b" }, "b.txt", Content("new"));
+            storage.FindAll().Select(x => x.Id.Tenant).OrderBy(x => x).Should().Equal(1, 2);
+        }
+
+        [Fact]
         public void An_Application_Type_As_File_Id_Is_Rejected_With_Guidance()
         {
             using var db = new LiteDatabase(new MemoryStream());
