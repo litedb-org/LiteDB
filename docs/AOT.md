@@ -51,10 +51,14 @@ For Native AOT, configure the executable project as follows. The runtime identif
 <PropertyGroup>
   <TargetFramework>net8.0</TargetFramework>
   <PublishAot>true</PublishAot>
-  <InvariantGlobalization>true</InvariantGlobalization>
   <ILLinkTreatWarningsAsErrors>true</ILLinkTreatWarningsAsErrors>
+  <WarningsAsErrors>$(WarningsAsErrors);IL2026;IL2046;IL2057;IL2067;IL2070;IL2072;IL2075;IL3050;IL3051</WarningsAsErrors>
 </PropertyGroup>
 ```
+
+`ILLinkTreatWarningsAsErrors` only covers a trimmed, non-AOT publish. The Native AOT compiler has no equivalent switch and reports trim and AOT diagnostics as ordinary warnings, so list the codes in `WarningsAsErrors` (or enable `TreatWarningsAsErrors`) if a diagnostic should stop the publish.
+
+Do not set `InvariantGlobalization` unless every data file the application opens uses the invariant collation. LiteDB stores a culture-specific collation in each data file and recreates that culture when the file is opened; invariant globalization mode cannot create cultures such as `en-US`.
 
 Publish, for example, with:
 
@@ -129,7 +133,21 @@ A nullable scalar value type is supported when its underlying value type is supp
 
 With the default mapper setting, a null dictionary member follows LiteDB's normal omission behavior. When `BsonMapper.SerializeNullValues` is enabled, a null dictionary is persisted as BSON Null and deserializes as `null`. Arbitrary CLR objects, including `DateTimeOffset` values inside the dictionary, are intentionally rejected with `InvalidOperationException`. Typed dictionaries, dictionary interfaces, custom dictionary types, and arbitrary nested entity graphs remain unsupported by the generated path.
 
-Unsupported annotated shapes produce a fail-closed **error** diagnostic; the generated path never falls back to runtime member discovery. Use the existing runtime-mapped LiteDB APIs for models outside the supported generated subset.
+Unsupported annotated shapes produce an **error** diagnostic; the generated path never falls back to runtime member discovery. Use the existing runtime-mapped LiteDB APIs for models outside the supported generated subset.
+
+### LINQ on generated collections
+
+Lambda overloads (`Find`, `Count`, `Query().Where`, `OrderBy`, `Select`, `EnsureIndex`, `UpdateMany`, ...) are translated without runtime model mapping:
+
+- A member is resolved only through a registered generated map. A member of any other type throws `InvalidOperationException` instead of being discovered through reflection.
+- A captured value must be BSON-native (including enums, `DateTimeOffset`, `TimeSpan`, and `Uri`), a collection of such values, or an instance of a `[BsonSourceGenerated]` type. Reading a scalar member of a captured object (`x => x.Age > options.Minimum`) is fine; capturing the object itself as a value throws `NotSupportedException`.
+- `Include` throws `NotSupportedException`, and a projection must produce a scalar or a `[BsonSourceGenerated]` type.
+
+Two C# constructs make the *compiler* emit trim-unsafe `System.Linq.Expressions` calls into your own assembly, so the publish reports `IL2026` at your call site: object initializers (`x => new Customer { Name = x.Name }`, which is the only way to call the typed `UpdateMany`) and anonymous types (`x => new { x.Name }`). The object-initializer form works at runtime for a generated type because the generator keeps its accessors reachable; suppress the warning at that call site, or use the `BsonExpression` overloads. Anonymous-type projections are not supported on generated collections.
+
+### What is not part of the Native AOT contract
+
+`GetCollection<T>`, `LiteRepository`, `BsonMapper.Entity<T>()`, `BsonMapper.GetExpression`, `BsonMapper.ToDocument`/`ToObject`/`Serialize`/`Deserialize`, and file storage (`FileStorage`, `GetStorage<T>`) use runtime model mapping. They carry `RequiresUnreferencedCode` (and `RequiresDynamicCode` where types are constructed at runtime), so calling them from a trimmed or Native AOT application produces a diagnostic at the call site. `GetCollection(string)` (the `BsonDocument` API), SQL through `Execute`, and the engine features (transactions, encryption, shared mode, rebuild, pragmas, vector search) involve no model mapping and are validated published. A LINQ predicate on a `BsonDocument` collection may capture BSON-native values only.
 
 | Diagnostic | Meaning | Typical remediation |
 | --- | --- | --- |
@@ -141,7 +159,20 @@ Unsupported annotated shapes produce a fail-closed **error** diagnostic; the gen
 
 `LiteDB.AotTests` exercises generated registration, C2 direct scalar conversion with option-sensitive BSON golden documents and ordinary/direct cross-reads, mutable record classes, IDs, field and ignore attributes, `DateTimeOffset` values and cross-path reads, inherited and overridden properties, computed projections, `List<string>`, `string[]`, and dynamic-dictionary round trips. `LiteDB.AotSmokeTests` exercises an automatic C2 scalar execution checkpoint alongside generated scalar, nullable scalar, list, string-array, DateTimeOffset, inherited-property, computed-projection, and dynamic-dictionary workflows plus document, query, and stream scenarios.
 
-The smoke project is also the feature-parity contract between publish modes. The parity script publishes it as an ordinary untrimmed application, a trimmed managed single-file application, and a Native AOT application; it runs all three and requires their complete scenario transcripts to match byte for byte. A new smoke scenario therefore expands the regular, trimmed, and Native AOT gates together rather than relying on three independently maintained test lists. This verifies reachable behavior, not every public LiteDB API: reflection-based ordinary typed mapping remains intentionally outside the trimming-safe generated mapping contract described above.
+The smoke project is also the feature-parity contract between publish modes. The parity script publishes it four times and runs every result:
+
+| Mode | Purpose |
+| --- | --- |
+| `regular` | Untrimmed reference behavior. |
+| `trimmed` | Trimmed managed single-file application. |
+| `native-aot` | Native AOT, compiling only what the scenarios reach, as a real application would. |
+| `native-aot-whole-library` | Native AOT with the whole LiteDB assembly rooted, so the compiler analyses every method of the library and not only the code a scenario happens to call. |
+
+The gate fails when any publish log contains a trim or AOT diagnostic (`ILxxxx`), whatever its code, and when any transcript differs from the regular one. Scenarios write the values they observe into the transcript (`SmokeAssert.Report`), so the comparison covers results and not only the absence of exceptions. A new smoke scenario therefore expands all four gates together rather than relying on independently maintained test lists.
+
+Besides generated mappings, the scenarios cover the engine through the document API: explicit transactions and durability across reopen, password encryption, checkpoint, pragmas and rebuild, a culture-specific collation, shared-mode connections, parallel writers, vector search, and LINQ over `BsonDocument`. Generated-collection scenarios run on a mapper whose runtime-mapping hooks all throw, so a silent fallback into reflection stops the run in every mode. CI runs the gate on Linux, Windows, and macOS for `net8.0` and `net10.0`.
+
+Inside LiteDB itself, `IsAotCompatible` and the IL diagnostics-as-errors are enabled for the .NET targets, and the library contains no type-level trim or AOT suppressions: a member either carries `RequiresUnreferencedCode`/`RequiresDynamicCode`, or has a member-level suppression whose justification states the invariant that makes it safe.
 
 Run the focused tests with:
 
@@ -162,7 +193,7 @@ Run the complete regular-versus-published feature-parity gate with:
 ./scripts/validate-aot-feature-parity.sh
 ```
 
-The script needs the Native AOT toolchain (`clang` and the platform development libraries). Set `RUNTIME_IDENTIFIER` to test a different runtime identifier or `AOT_PARITY_OUTPUT_ROOT` to retain the three publish trees and transcripts in another location.
+The script needs the Native AOT toolchain (`clang` and `zlib1g-dev` on Linux, the Xcode command-line tools on macOS, the MSVC build tools on Windows, where it runs from Git Bash). The runtime identifier defaults to the host; set `RUNTIME_IDENTIFIER` to override it and `TARGET_FRAMEWORK=net10.0` to validate the other runtime. Publish trees, publish logs, and transcripts are kept under `artifacts/aot-feature-parity/<framework>-<runtime>/`.
 
 Run the separate trimmed, non-AOT gate with:
 

@@ -236,6 +236,20 @@ internal static class Program
                 legacyRead.OccurredAt.Offset == TimeSpan.Zero,
             "The packaged generated DateTimeOffset mapping did not read the legacy BSON DateTime representation.");
 
+        // The packaged LiteDB.dll is compiled by the AOT compiler only where this program reaches it, so the
+        // LINQ translator has to be exercised here as well, not just in the project-reference smoke tests.
+        var minimumAttempt = 2;
+        collection.Insert(new PackagedGeneratedRecord { Id = 19, Attempt = 3, Tags = ["packaged-linq"] });
+        collection.Insert(new PackagedGeneratedRecord { Id = 20, Attempt = 1, Tags = ["packaged-linq"] });
+        collection.EnsureIndex(record => record.Attempt);
+        var linqIds = collection.Query()
+            .Where(record => record.Attempt >= minimumAttempt && record.Tags.Contains("packaged-linq"))
+            .OrderBy(record => record.Id)
+            .Select(record => record.Id)
+            .ToArray();
+        Require(linqIds.SequenceEqual(new[] { 19 }),
+            "The packaged generated LINQ translation with a captured local failed.");
+
         Console.WriteLine("[PASS] Packaged LiteDB.SourceGenerator restore, generation, registration, Native AOT publish, and real LiteDB round trip succeeded.");
         return 0;
     }

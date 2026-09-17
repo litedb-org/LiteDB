@@ -11,6 +11,16 @@ readonly GENERATED_DIRECTORY="$CONSUMER_DIRECTORY/obj/generated"
 readonly PUBLISH_DIRECTORY="$ROOT_DIRECTORY/artifacts/source-generator-package-consumer-native-aot"
 readonly TRIMMED_DIRECTORY="$ROOT_DIRECTORY/artifacts/source-generator-package-consumer-trimmed"
 
+# Fails on any trim or AOT diagnostic in a publish log, whatever its code: the ILCompiler targets have no
+# warnings-as-errors switch, and the consumer csproj can only promote the codes it lists. Under pipefail the
+# pipeline fails when grep matches nothing, so the branch runs only when diagnostics exist.
+fail_on_il_diagnostics() {
+  if grep -E '(warning|error) IL[0-9]{4}' "$1" | sort -u; then
+    printf '%s\n' "[PACKAGE-CONSUMER] FAILED: $1 contains trim or AOT diagnostics." >&2
+    exit 1
+  fi
+}
+
 printf '%s\n' '[PACKAGE-CONSUMER] Preparing a clean local package feed and NuGet cache.'
 rm -rf "$FEED_DIRECTORY" "$PACKAGE_CACHE_DIRECTORY" "$GENERATED_DIRECTORY" "$PUBLISH_DIRECTORY" "$TRIMMED_DIRECTORY" "$CONSUMER_DIRECTORY/bin" "$CONSUMER_DIRECTORY/obj"
 mkdir -p "$FEED_DIRECTORY" "$PACKAGE_CACHE_DIRECTORY"
@@ -68,7 +78,8 @@ dotnet publish "$CONSUMER_PROJECT" \
   -p:GitVersionEnabled=false \
   -p:PublishAot=false \
   -p:PublishTrimmed=true \
-  --output "$TRIMMED_DIRECTORY"
+  --output "$TRIMMED_DIRECTORY" 2>&1 | tee "$TRIMMED_DIRECTORY.publish.log"
+fail_on_il_diagnostics "$TRIMMED_DIRECTORY.publish.log"
 "$TRIMMED_DIRECTORY/LiteDB.SourceGenerator.PackageConsumer"
 
 printf '%s\n' '[PACKAGE-CONSUMER] Publishing and running the restored consumer as self-contained Native AOT.'
@@ -80,7 +91,8 @@ dotnet publish "$CONSUMER_PROJECT" \
   --nologo \
   -p:GitVersionEnabled=false \
   /p:IlcParallelism=1 \
-  --output "$PUBLISH_DIRECTORY"
+  --output "$PUBLISH_DIRECTORY" 2>&1 | tee "$PUBLISH_DIRECTORY.publish.log"
+fail_on_il_diagnostics "$PUBLISH_DIRECTORY.publish.log"
 "$PUBLISH_DIRECTORY/LiteDB.SourceGenerator.PackageConsumer"
 
 printf '%s\n' '[PACKAGE-CONSUMER] Passed: local-feed package restore, analyzer discovery, generated mapping, and Native AOT execution.'

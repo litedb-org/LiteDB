@@ -22,13 +22,14 @@ namespace LiteDB.AotSmokeTests
 
             try
             {
-                RunScenario("1/3 Document and expression operations", () =>
+                RunScenario("1/4 Document and expression operations", () =>
                 {
                     using var database = new LiteDatabase(databasePath);
                     RunDocumentAndExpressionScenarios(database);
                 });
-                RunScenario("2/3 Stream-backed database round trip", RunStreamBackedScenario);
-                RunScenario("3/3 Source-generated typed mappings", () => RunGeneratedTypedMappingScenario(databasePath));
+                RunScenario("2/4 Stream-backed database round trip", RunStreamBackedScenario);
+                RunScenario("3/4 Source-generated typed mappings", () => RunGeneratedTypedMappingScenario(databasePath));
+                RunScenario("4/4 Engine features through the document API", EngineScenarios.Run);
 
                 Console.WriteLine("[RESULT] All Native AOT smoke scenarios passed.");
                 Console.WriteLine("The executable successfully exercised LiteDB persistence, querying, stream storage, and generated typed mappings.");
@@ -216,14 +217,8 @@ namespace LiteDB.AotSmokeTests
             Console.WriteLine("        Passed: automatic execution-map registration and direct scalar CRUD without manual registration.");
 
             Console.WriteLine("  [3.1b] Evaluate a static-member LINQ expression through the generated mapper.");
-            var staticMemberExpression = mapper.GetExpression<AotSimpleRecord, bool>(record => record.Score < DateTime.Today.Day + 1);
-            var staticMemberResults = staticMemberExpression.Execute(new BsonDocument
-            {
-                ["_id"] = 2,
-                ["Name"] = "interpreter",
-                ["Score"] = 0
-            }).ToArray();
-            Require(staticMemberResults.Length == 1 && staticMemberResults[0].AsBoolean,
+            // DateTime.Today is a static member the visitor has to evaluate itself, not translate.
+            Require(simple.Count(record => record.Score < DateTime.Today.Year) == 1,
                 "The source-generated Native AOT static-member LINQ expression evaluation failed.");
             Console.WriteLine("        Passed: static-member LINQ expression evaluation without runtime code generation.");
 
@@ -250,6 +245,7 @@ namespace LiteDB.AotSmokeTests
             GeneratedScalarWriteScenarios.Run(database);
             GeneratedValueScenarios.Run(database);
             GeneratedBoundaryScenarios.Run(database);
+            GeneratedLinqScenarios.Run(database);
         }
     }
 }

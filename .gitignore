@@ -225,3 +225,6 @@ FakesAssemblies/
 #!**/packages/repositories.config
 /LiteDB.BadJsonTest
 repro-summary.json
+
+# Output of scripts/validate-*.sh
+artifacts/

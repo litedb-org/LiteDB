@@ -58,6 +58,26 @@ namespace LiteDB.AotSmokeTests
             Console.WriteLine($"        Passed: {field}.");
         }
 
+        /// <summary>
+        /// Writes an observed value into the transcript. The parity gate diffs the transcripts of every
+        /// publish mode, so a reported value has to be identical regular, trimmed, and as Native AOT.
+        /// </summary>
+        internal static void Report(string label, object? value)
+        {
+            Console.WriteLine($"        = {label}: {Format(value)}");
+        }
+
+        private static string Format(object? value) => value switch
+        {
+            null => "<null>",
+            string text => $"\"{text}\"",
+            // LiteDB hands dates back in local time; the transcript must not depend on the machine's time zone.
+            DateTime date => date.ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+            IFormattable formattable => formattable.ToString(null, System.Globalization.CultureInfo.InvariantCulture),
+            System.Collections.IEnumerable items => "[" + string.Join(", ", items.Cast<object?>().Select(Format)) + "]",
+            _ => value.ToString() ?? "<null>"
+        };
+
         internal static void Require(bool condition, string message)
         {
             if (!condition)

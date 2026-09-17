@@ -130,7 +130,7 @@ jobs:
           dotnet-version: 8.0.x
 
       - name: Install Native AOT prerequisites
-        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
+        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev libicu-dev
 
       - name: Compile source-generator external consumer
         run: >-
@@ -147,6 +147,46 @@ jobs:
         run: ./scripts/validate-source-generator-package-consumer.sh
 
       - name: Compare regular, trimmed, and Native AOT feature coverage
+        run: ./scripts/validate-aot-feature-parity.sh
+
+  # The Linux job above covers net8.0 on linux-x64. Native AOT links against platform libraries and LiteDB has
+  # platform-specific code (shared-mode mutexes, file locking, crypto back ends), so the same gate also has to
+  # pass on the other operating systems and on every runtime LiteDB targets.
+  aot-parity:
+    name: Native AOT parity (${{ matrix.os }}, ${{ matrix.tfm }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        tfm: [net8.0, net10.0]
+        exclude:
+          - os: ubuntu-latest
+            tfm: net8.0
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET SDKs
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Install Native AOT prerequisites
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev libicu-dev
+
+      - name: Compare regular, trimmed, and Native AOT feature coverage
+        shell: bash
+        env:
+          TARGET_FRAMEWORK: ${{ matrix.tfm }}
         run: ./scripts/validate-aot-feature-parity.sh
 
   build-macos:
