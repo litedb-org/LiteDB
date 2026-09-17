@@ -1,6 +1,6 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 
@@ -45,49 +45,53 @@ public sealed partial class BsonSourceGenerator
         public Location Create() => Location.Create(FilePath, SourceSpan, LineSpan);
     }
 
-    private sealed class ModelDescriptor : IEquatable<ModelDescriptor>
+    private sealed record ModelDescriptor(
+        string TypeName,
+        EquatableArray<PropertyDescriptor> Properties,
+        bool CanEmitExecutionMap);
+
+    private readonly struct EquatableArray<T> : IReadOnlyList<T>, IEquatable<EquatableArray<T>>
     {
-        public ModelDescriptor(
-            string typeName,
-            ImmutableArray<PropertyDescriptor> properties,
-            bool canEmitExecutionMap)
+        private readonly T[]? _items;
+
+        public EquatableArray(IEnumerable<T> items)
         {
-            TypeName = typeName;
-            Properties = properties;
-            CanEmitExecutionMap = canEmitExecutionMap;
+            _items = items.ToArray();
         }
 
-        public string TypeName { get; }
+        public int Count => Items.Length;
 
-        public ImmutableArray<PropertyDescriptor> Properties { get; }
+        public T this[int index] => Items[index];
 
-        public bool CanEmitExecutionMap { get; }
-
-        public bool Equals(ModelDescriptor? other)
+        public bool Equals(EquatableArray<T> other)
         {
-            return ReferenceEquals(this, other) ||
-                other is not null &&
-                string.Equals(TypeName, other.TypeName, StringComparison.Ordinal) &&
-                CanEmitExecutionMap == other.CanEmitExecutionMap &&
-                Properties.SequenceEqual(other.Properties);
+            var items = Items;
+            var otherItems = other.Items;
+            return items.Length == otherItems.Length && items.SequenceEqual(otherItems);
         }
 
-        public override bool Equals(object? obj) => Equals(obj as ModelDescriptor);
+        public override bool Equals(object? obj) => obj is EquatableArray<T> other && Equals(other);
 
         public override int GetHashCode()
         {
             unchecked
             {
-                var hash = StringComparer.Ordinal.GetHashCode(TypeName);
-                hash = (hash * 397) ^ CanEmitExecutionMap.GetHashCode();
-                foreach (var property in Properties)
+                var comparer = EqualityComparer<T>.Default;
+                var hash = 17;
+                foreach (var item in Items)
                 {
-                    hash = (hash * 397) ^ property.GetHashCode();
+                    hash = (hash * 31) ^ (item is null ? 0 : comparer.GetHashCode(item));
                 }
 
                 return hash;
             }
         }
+
+        public IEnumerator<T> GetEnumerator() => ((IEnumerable<T>)Items).GetEnumerator();
+
+        IEnumerator IEnumerable.GetEnumerator() => Items.GetEnumerator();
+
+        private T[] Items => _items ?? Array.Empty<T>();
     }
 
     private sealed record PropertyDescriptor(

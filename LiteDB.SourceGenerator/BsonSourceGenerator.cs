@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 
@@ -253,7 +252,7 @@ public sealed partial class BsonSourceGenerator : IIncrementalGenerator
 
         return ModelResult.Supported(new ModelDescriptor(
             typeName,
-            properties.ToImmutableArray(),
+            new EquatableArray<PropertyDescriptor>(properties),
             CanEmitExecutionMap(properties)));
     }
 }

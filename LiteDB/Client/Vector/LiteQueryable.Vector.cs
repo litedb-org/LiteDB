@@ -187,7 +187,9 @@ namespace LiteDB
                     var result = reader.Current.AsDocument;
                     var projected = result["Document"].AsDocument;
                     var value = _isSimpleType ? projected[projected.Keys.First()] : projected;
-                    var document = (T)_mapper.Deserialize(typeof(T), value);
+                    var document = _deserialize is not null
+                        ? _deserialize(projected)
+                        : (T)_mapper.Deserialize(typeof(T), value);
                     yield return new VectorSearchResult<T>(document,
                         result["Score"].IsNull ? (double?)null : result["Score"].AsDouble,
                         (VectorDistanceMetric)result["Metric"].AsInt32);

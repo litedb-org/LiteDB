@@ -37,7 +37,7 @@ public sealed partial class BsonSourceGenerator
         source.AppendLine("        {");
         source.Append("            var entity = new ").Append(model.TypeName).AppendLine("();");
 
-        for (var propertyIndex = 0; propertyIndex < model.Properties.Length; propertyIndex++)
+        for (var propertyIndex = 0; propertyIndex < model.Properties.Count; propertyIndex++)
         {
             var property = model.Properties[propertyIndex];
             AppendDeserializeExecutionProperty(source, property, SymbolDisplay.FormatLiteral(property.FieldName, true), propertyIndex);
