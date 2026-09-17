@@ -59,7 +59,16 @@ publish_and_run() {
         "$@" > "$output_root/$mode.publish.log" 2>&1 || { tail -n 40 "$output_root/$mode.publish.log" >&2; exit 1; }
 
     printf '[AOT-TESTS] Running %s mode.\n' "$mode"
-    "$output_root/$mode/$executable" "$output_root/$mode.tsv" | tail -n 3
+    # Not piped: a pipeline would report the status of its last command and hide a crash or a timeout.
+    local status=0
+    "$output_root/$mode/$executable" "$output_root/$mode.tsv" > "$output_root/$mode.run.log" 2>&1 || status=$?
+    tail -n 3 "$output_root/$mode.run.log"
+
+    if [ "$status" -ne 0 ] || [ ! -s "$output_root/$mode.tsv" ]; then
+        printf '[AOT-TESTS] FAILED: the %s run ended with exit code %s before completing the suite.\n' "$mode" "$status" >&2
+        grep -E '^(TIMEOUT|Unhandled)' "$output_root/$mode.run.log" >&2 || tail -n 20 "$output_root/$mode.run.log" >&2
+        exit 1
+    fi
 }
 
 # Test names with the given outcome, sorted for comm.
@@ -86,7 +95,7 @@ comm -13 "$output_root/aot-only.names" "$output_root/known.names" > "$output_roo
 : > "$output_root/confirmed.names"
 while IFS= read -r name; do
     [ -n "$name" ] || continue
-    "$output_root/native-aot/$executable" "$output_root/retry.tsv" "$name" > /dev/null
+    "$output_root/native-aot/$executable" "$output_root/retry.tsv" "$name" > /dev/null || true
     if awk -F '\t' -v name="$name" '$2 == name && $1 == "Fail" { found = 1 } END { exit !found }' "$output_root/retry.tsv"; then
         printf '%s\n' "$name" >> "$output_root/confirmed.names"
     else

@@ -39,6 +39,17 @@ namespace LiteDB.AotTestHost
             foreach (var test in Discover().Where(test => filter == null || test.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)))
             {
                 var result = Run(test);
+
+                if (result.Outcome == Outcome.Timeout)
+                {
+                    // A hung test cannot be aborted, so the run ends here. Keep what was measured, record the
+                    // test as failed, and exit non-zero so the validation script reports it by name.
+                    results.Add(result with { Outcome = Outcome.Fail });
+                    WriteResults(resultsPath, results);
+                    Console.WriteLine($"TIMEOUT {result.Name}: {result.Detail}");
+                    Environment.Exit(3);
+                }
+
                 results.Add(result);
 
                 if (result.Outcome == Outcome.Fail)
@@ -47,9 +58,7 @@ namespace LiteDB.AotTestHost
                 }
             }
 
-            File.WriteAllLines(resultsPath, results
-                .OrderBy(result => result.Name, StringComparer.Ordinal)
-                .Select(result => $"{result.Outcome}\t{result.Name}\t{result.Detail}"));
+            WriteResults(resultsPath, results);
 
             Console.WriteLine();
             foreach (var group in results.GroupBy(result => result.Area).OrderBy(group => group.Key, StringComparer.Ordinal))
@@ -62,6 +71,13 @@ namespace LiteDB.AotTestHost
 
             // The exit code only reports that the run completed; outcomes are compared by the validation script.
             return 0;
+        }
+
+        private static void WriteResults(string path, IEnumerable<TestResult> results)
+        {
+            File.WriteAllLines(path, results
+                .OrderBy(result => result.Name, StringComparer.Ordinal)
+                .Select(result => $"{result.Outcome}\t{result.Name}\t{result.Detail}"));
         }
 
         private static IEnumerable<TestCase> Discover()
@@ -142,9 +158,7 @@ namespace LiteDB.AotTestHost
 
             if (worker.Join(TestTimeout) == false)
             {
-                // A hung test cannot be aborted; stop the run instead of blocking CI until the job times out.
-                Console.WriteLine($"TIMEOUT {test.Name} exceeded {TestTimeout.TotalMinutes:F0} minutes.");
-                Environment.Exit(3);
+                return new TestResult(test.Name, Outcome.Timeout, $"exceeded {TestTimeout.TotalMinutes:F0} minutes");
             }
 
             return failure == null
@@ -242,7 +256,8 @@ namespace LiteDB.AotTestHost
         {
             Pass,
             Fail,
-            Skip
+            Skip,
+            Timeout
         }
 
         private sealed record TestCase(Type Type, MethodInfo Method, object[] Arguments, string Name, string Skip, string DiscoveryError);

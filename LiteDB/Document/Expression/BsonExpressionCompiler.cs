@@ -58,11 +58,21 @@ namespace LiteDB
 #if NETSTANDARD2_0
             // RuntimeFeature.IsDynamicCodeSupported is not part of netstandard2.0, but the runtimes that load this
             // build (Unity, Xamarin, Mono) are the ones that need the answer.
-            var property = typeof(object).Assembly
-                .GetType("System.Runtime.CompilerServices.RuntimeFeature")
-                ?.GetProperty("IsDynamicCodeSupported");
+            // This runs in a type initializer, where an exception would be cached and fail every later
+            // expression. Stripped or partial reflection metadata is plausible on exactly these runtimes, so
+            // any failure falls back to the behaviour before this probe existed.
+            try
+            {
+                var property = typeof(object).Assembly
+                    .GetType("System.Runtime.CompilerServices.RuntimeFeature")
+                    ?.GetProperty("IsDynamicCodeSupported");
 
-            return property == null || (bool)property.GetValue(null);
+                return property == null || (bool)property.GetValue(null);
+            }
+            catch (Exception)
+            {
+                return true;
+            }
 #else
             return System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported;
 #endif

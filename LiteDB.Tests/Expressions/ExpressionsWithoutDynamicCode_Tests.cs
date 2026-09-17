@@ -15,7 +15,13 @@ namespace LiteDB.Tests.Expressions
     /// System.Linq.Expressions interpreter. The interpreter has prebuilt thunks for delegates with at most two
     /// parameters; for anything larger it emits a DynamicMethod, which is exactly what such a runtime cannot do.
     /// </summary>
-    [Collection("BsonExpressionCompiler")]
+    [CollectionDefinition(nameof(ExpressionsWithoutDynamicCode_Tests), DisableParallelization = true)]
+    public class ExpressionsWithoutDynamicCodeCollection
+    {
+    }
+
+    // Flips a process-wide switch, so it may not run while other tests compile expressions.
+    [Collection(nameof(ExpressionsWithoutDynamicCode_Tests))]
     public class ExpressionsWithoutDynamicCode_Tests
     {
         private delegate BsonValue FiveParameters(IEnumerable<BsonDocument> source, BsonDocument root, BsonValue current, Collation collation, BsonDocument parameters);
@@ -49,6 +55,22 @@ namespace LiteDB.Tests.Expressions
             Expression.Lambda<FiveParameters>(parameters[2], parameters).Compile(preferInterpretation: true);
 
             EmittedThunks().Should().BeGreaterThan(before.Value);
+        }
+
+        private static int Double(int value) => value * 2;
+
+        [Fact]
+        public void Linq_Values_Are_Evaluated_Without_Reflection_Emit()
+        {
+            // A method call the LINQ translator cannot express is evaluated through an interpreted Func<object>,
+            // which has no parameters and therefore a prebuilt thunk.
+            var before = EmittedThunks();
+            var seed = 21;
+
+            var expression = new BsonMapper().GetExpression<BsonDocument, bool>(x => x["a"] == Double(seed));
+
+            expression.Execute(new BsonDocument { ["a"] = 42 }).Single().AsBoolean.Should().BeTrue();
+            EmittedThunks().Should().Be(before);
         }
 
         [Fact]
