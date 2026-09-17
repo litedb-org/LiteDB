@@ -79,14 +79,19 @@ namespace LiteDB.Engine
                 _locker.EnterLock(_collectionName);
             }
 
-            // get lastest read version from wal-index
-            _readVersion = _walIndex.CurrentReadVersion;
-
             var srv = new CollectionService(_header, _disk, this, _transPages);
 
             try
             {
-                srv.Get(_collectionName, addIfNotExists, ref _collectionPage);
+                uint collectionPageID;
+                lock (_header.PublicationLock)
+                {
+                    // Collection identity and WAL visibility must describe the same committed
+                    // state. A commit that changes the map holds this lock through confirmation.
+                    _readVersion = _walIndex.CurrentReadVersion;
+                    collectionPageID = _header.GetCollectionPageID(_collectionName);
+                }
+                srv.Get(_collectionName, collectionPageID, addIfNotExists, ref _collectionPage);
                 if (_collectionPage != null) _localPages.Remove(_collectionPage.PageID);
             }
             catch
