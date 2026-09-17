@@ -80,7 +80,10 @@ separately measured automatic reuse and shared query optimizer improvements.
 ## Shared predicate optimization
 
 The engine inspects the same expression nodes for LINQ and SQL. Equality ORs on
-one scalar indexed expression become ordered IN seeks. Separate scalar index
+one scalar indexed expression become ordered IN seeks. OR branches with equivalent
+leading scalar equalities can use that shared indexed guard while retaining the
+entire OR as a residual filter. Guard extraction is bounded and skips includes;
+it does not move later conditions ahead of throwing or volatile expressions. Separate scalar index
 bounds and IN/BETWEEN constraints are intersected before index selection, with
 only the scan-enforced filters removed. Contradictory scalar path constraints
 produce an empty pipeline input, preserving aggregate behavior. Constant Boolean

@@ -13,7 +13,12 @@ namespace LiteDB.Engine
                 if (term.Type != BsonExpressionType.Or) continue;
                 var values = new List<BsonExpression>();
                 string source = null;
-                if (!CollectEqualities(term, ref source, values)) continue;
+                if (!CollectEqualities(term, ref source, values))
+                {
+                    var guard = ChooseCommonDisjunctionIndex(term, indexes);
+                    if (guard != null && (best == null || guard.Cost < best.Cost)) best = guard;
+                    continue;
+                }
                 var index = indexes.FirstOrDefault(x => x.Expression == source);
                 if (index == null) continue;
 

@@ -364,6 +364,32 @@ After-query checksums are verified against independently calculated expected sum
 counts, and ordered IDs. Four focused regressions include collated/null secondary
 keys. Full .NET 8 suite: 1,015 passed, seven existing skips; all Release targets build.
 
+## 14. Use a shared leading guard across OR branches
+
+For `(City = @a AND ...) OR (City = @b AND ...)`, matching leading equalities
+can provide an indexed seek when their current values are equal under the active
+collation. The full original OR remains a residual filter. Extraction is limited
+to the first condition of every branch, preserving short circuits around throwing
+or volatile expressions. Includes, multikey guards, and oversized analyses fall
+back to the existing plan.
+
+| Complete query | Before µs | After µs | Time reduction | Before B/query | After B/query |
+|---|---:|---:|---:|---:|---:|
+| Shared city guard, LINQ | 33,415.05 | 128.84 | 99.6% (259×) | 43,132,160 | 96,339 |
+| Shared city guard, SQL | 33,610.87 | 136.88 | 99.6% (246×) | 43,138,056 | 102,259 |
+| Primary-key lookup, control | 26.74 | 24.94 | 6.7% | 27,257 | 27,257 |
+| Different-field predicate, control | 36.71 | 36.85 | -0.4% | 25,617 | 25,677 |
+
+The OR branches combine the same City equality with different Name/Score filters.
+The seek narrows 20,000 candidate documents to twenty, then evaluates the original
+OR. Separate LINQ parameter slots are compared by their current values. The small
+control differences do not establish a general gain. Raw samples: `14-common-*`;
+all checksums match.
+
+Eleven focused tests cover parameter rebinding, reversed operands, collation,
+ordering/pagination, short circuits, includes, and fallback limits. Full .NET 10
+suite: 1,026 passed, seven existing skips. All Release solution targets build.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -401,7 +427,7 @@ materializers remain separate work.
 
 - Release solution build with `TestingEnabled=true`: all targets build.
 - Full `LiteDB.Tests` with `tests.runsettings`: 1,015 passed on .NET 8 at step 13;
-  1,011 passed on .NET 10 at step 12; four focused metadata tests also pass on .NET 8. Each full
+  1,026 passed on .NET 10 at step 14; eleven focused common-guard tests also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file
