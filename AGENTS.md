@@ -93,9 +93,14 @@ Secondary-index queries opened for update also need that tracking: changing a
 scalar or unique key can move the same document into a later scan interval.
 When adding index access paths, test key-moving UpdateMany operations as well as
 read order, duplicate keys, page release, and rollback.
-Case-insensitive index identity requires a canonical scalar root-field proof.
+Case-insensitive index identity requires a proven scalar MEMBER_PATH chain rooted
+in the document, with literal member names and bounded depth. Root-only index
+lookups still require a canonically escaped root-field path.
 Never compare arbitrary expression text ignoring case: string literals inside
 computed expressions can be case-sensitive even though BSON field lookup is not.
+INCLUDE can replace stored members, including reference metadata supplied by a
+referenced document. Do not consume filters or sorting with indexes on affected
+paths; retain index use for proven disjoint member paths.
 Index-node links must remain owned by the node across transaction safepoints.
 Keep their compact copied representation independent of released page buffers;
 update both the page and the owned copy when changing links.

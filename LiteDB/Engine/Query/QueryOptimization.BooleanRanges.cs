@@ -55,7 +55,7 @@ namespace LiteDB.Engine
             if (expression.Type == BsonExpressionType.And || expression.Type == BsonExpressionType.Or)
                 return ValidateBooleanRanges(expression.Left, ref field, ref budget) && ValidateBooleanRanges(expression.Right, ref field, ref budget);
             if (!TryGetUnionConstraint(expression, out var current, out var value, out _) ||
-                !IsRangeMemberPath(current) || !IsRangeValue(value, ref budget)) return false;
+                !IndexExpressionIdentity.IsMemberPath(current) || !IsRangeValue(value, ref budget)) return false;
             if (field != null && !IndexExpressionIdentity.Matches(field.Source, current)) return false;
             field = current;
             return true;

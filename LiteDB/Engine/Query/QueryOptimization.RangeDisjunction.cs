@@ -70,7 +70,7 @@ namespace LiteDB.Engine
                     CollectRangeConjunction(expression.Right, branch, ref field, ref budget);
             }
             if (!TryGetUnionConstraint(expression, out var current, out var value, out _) ||
-                !IsRangeMemberPath(current) || !IsRangeValue(value, ref budget)) return false;
+                !IndexExpressionIdentity.IsMemberPath(current) || !IsRangeValue(value, ref budget)) return false;
             if (field != null && !IndexExpressionIdentity.Matches(field.Source, current)) return false;
             field = current;
             branch.Add(expression);
@@ -93,21 +93,5 @@ namespace LiteDB.Engine
             }
         }
 
-        private static bool IsRangeMemberPath(BsonExpression field)
-        {
-            // Member reads are total even for missing/non-document values. Computed
-            // keys, array selectors and bound calls may throw in a skipped OR arm.
-            if (field.Type != BsonExpressionType.Path) return false;
-            var expression = field.Expression;
-            var members = 0;
-            while (expression is MethodCallExpression member && member.Method == BsonExpressionFactory._memberPathMethod &&
-                member.Arguments[1] is ConstantExpression)
-            {
-                if (++members > 64) return false;
-                expression = member.Arguments[0];
-            }
-            return members != 0 && expression is ParameterExpression parameter &&
-                (parameter.Type == typeof(BsonDocument) || parameter.Type == typeof(BsonValue));
-        }
     }
 }

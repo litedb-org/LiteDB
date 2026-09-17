@@ -280,7 +280,7 @@ namespace LiteDB.Engine
             var orderBy = new OrderBy(segments);
 
             // if index expression are same as primary OrderBy segment, use index order configuration
-            if (!(_queryPlan.Index is VectorIndexQuery) && IndexExpressionIdentity.Matches(_queryPlan.IndexExpression, orderBy.PrimaryExpression))
+            if (!(_queryPlan.Index is VectorIndexQuery) && MatchesStoredIndex(_queryPlan.IndexExpression, orderBy.PrimaryExpression))
             {
                 _queryPlan.Index.Order = orderBy.PrimaryOrder;
 

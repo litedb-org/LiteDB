@@ -20,7 +20,7 @@ namespace LiteDB.Engine
             var indexes = _snapshot.CollectionPage.GetCollectionIndexes().Where(x => x.IndexType == 0).ToArray();
 
             // if query contains a single field used, give preferred if this index exists
-            var preferred = fields.Count == 1 ? GetFieldIndexExpression(fields.First()) : null;
+            var preferred = fields.Count == 1 && !IsIncludedRootField(fields.First()) ? GetFieldIndexExpression(fields.First()) : null;
 
             // otherwise, check for lowest index cost
             IndexCost lowest = this.ChooseDisjunctionIndex(indexes);
@@ -51,8 +51,8 @@ namespace LiteDB.Engine
             {
                 var orderByExpr = _query.OrderBy.Count > 0 ? _query.OrderBy[0].Expression : null;
                 var index =
-                    indexes.FirstOrDefault(x => IndexExpressionIdentity.Matches(x.Expression, _query.GroupBy)) ??
-                    indexes.FirstOrDefault(x => IndexExpressionIdentity.Matches(x.Expression, orderByExpr)) ??
+                    indexes.FirstOrDefault(x => MatchesStoredIndex(x.Expression, _query.GroupBy)) ??
+                    indexes.FirstOrDefault(x => MatchesStoredIndex(x.Expression, orderByExpr)) ??
                     indexes.FirstOrDefault(x => preferred != null && string.Equals(x.Expression, preferred, StringComparison.OrdinalIgnoreCase));
 
                 if (index != null)
@@ -68,7 +68,7 @@ namespace LiteDB.Engine
             return lowest;
         }
 
-        private static CollectionIndex FindPredicateIndex(CollectionIndex[] indexes, BsonExpression expression, out BsonExpression value)
+        private CollectionIndex FindPredicateIndex(CollectionIndex[] indexes, BsonExpression expression, out BsonExpression value)
         {
             value = null;
             var enumerable = !expression.Left.IsScalar && expression.Right.IsScalar;
@@ -76,10 +76,10 @@ namespace LiteDB.Engine
             // Preserve the previous left-side preference across all candidate indexes.
             if (expression.Right.IsValue)
                 foreach (var index in indexes)
-                    if (IndexExpressionIdentity.Matches(index.Expression, expression.Left)) { value = expression.Right; return index; }
+                    if (MatchesStoredIndex(index.Expression, expression.Left)) { value = expression.Right; return index; }
             if (!enumerable && expression.Left.IsValue)
                 foreach (var index in indexes)
-                    if (IndexExpressionIdentity.Matches(index.Expression, expression.Right)) { value = expression.Left; return index; }
+                    if (MatchesStoredIndex(index.Expression, expression.Right)) { value = expression.Left; return index; }
             return null;
         }
 

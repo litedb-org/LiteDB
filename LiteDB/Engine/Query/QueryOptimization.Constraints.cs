@@ -15,7 +15,7 @@ namespace LiteDB.Engine
                 List<BsonExpression> terms = null;
                 foreach (var term in _terms)
                 {
-                    if (!TryGetConstraint(term, out var field, out _, out _) || !IndexExpressionIdentity.Matches(index.Expression, field)) continue;
+                    if (!TryGetConstraint(term, out var field, out _, out _) || !MatchesStoredIndex(index.Expression, field)) continue;
                     if (first == null) first = term;
                     else
                     {

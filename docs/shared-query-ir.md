@@ -244,10 +244,20 @@ Those scans, primary indexes, unique indexes, and canonical preferred root-field
 indexes avoid redundant address sets. Multikey scans retain document deduplication.
 Preferred and covered field matching use the same escaping as expression factories,
 so literal field names cannot be confused with nested, multikey, or computed paths.
-Proven scalar root-field identities ignore field-name casing, just as BSON lookup
-does. That identity applies to predicate matching, range/OR combinations, covered
-projections, ordering, and grouping. Other expression text still matches exactly,
-so case-sensitive literals in computed indexes remain distinct.
+Proven scalar member paths ignore field-name casing, just as BSON lookup does.
+The shared IR proof accepts up to 64 literal MEMBER_PATH accesses rooted in the
+document, without parsing stored index definitions. This identity applies to
+predicate matching, range/OR combinations, ordering, and grouping. Nested paths
+still load documents for projections; the index-only loader retains its canonical
+root-field proof. Other expression text still matches exactly, so case-sensitive
+literals in computed indexes and array selectors remain distinct.
+
+INCLUDE can replace stored reference members with values from another collection.
+The planner keeps filters and sorting for affected paths instead of consuming
+them with stored index keys. Proven disjoint paths remain indexed: including
+`Owner.Manager` does not change `Owner.Score`. Computed and array paths use their
+root-field dependencies conservatively. Even reference metadata can be supplied
+by an included document, so it is not assumed immutable.
 
 Indexed not-equal predicates scan in index order and use an exclusive skip-list
 seek to jump past equal keys. Comparison uses the database collation, and multikey

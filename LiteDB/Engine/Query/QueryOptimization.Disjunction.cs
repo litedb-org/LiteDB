@@ -20,7 +20,7 @@ namespace LiteDB.Engine
                     if (guard != null && (best == null || guard.Cost < best.Cost)) best = guard;
                     continue;
                 }
-                var index = indexes.FirstOrDefault(x => IndexExpressionIdentity.Matches(x.Expression, keyExpression));
+                var index = indexes.FirstOrDefault(x => MatchesStoredIndex(x.Expression, keyExpression));
                 if (index == null) continue;
 
                 // Values belong to the current query invocation. Never cache a physical

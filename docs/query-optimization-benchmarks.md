@@ -1851,6 +1851,96 @@ each. All Release targets build; 18 reproduction-runner tests and vector
 compatibility checks pass. The step-43 selective-ID regression is retained in
 its report; this change does not claim to repair it.
 
+## 45. Match nested scalar member paths across field-name casing
+
+BSON member lookup ignores case, but an index defined as `owner.score` did not
+match an ordinary LINQ predicate on `x.Owner.Score`. Only root-field aliases were
+recognized. The planner now proves a bounded chain of literal member accesses in
+the shared IR and applies the same field-name identity at each level. The original
+canonical index text is unchanged, and persisted index expressions remain lazy.
+
+The proof excludes computed expressions and array selectors. Their text still
+matches exactly, protecting case-sensitive literals and multikey semantics.
+Nested predicates, range intersections, equality/range/membership ORs, ordering,
+and grouping can use existing indexes automatically. Nested projections continue
+to load documents; they are not reconstructed by the root-only index loader.
+
+A related dependency check prevents stored indexes from consuming filters or
+sorting on values replaced by INCLUDE. Tests compare these queries with unindexed
+execution, including existing exact-case cases. Disjoint paths stay indexed:
+including `Owner.Manager` does not change `Owner.Score`. Computed and array paths
+conservatively retain their root-field dependencies. Reference metadata is not
+assumed immutable because an included document can supply it too.
+
+The comparison uses the preceding commit `70d94483` and the same new harness on
+both production assemblies. It seeds 20,000 documents with nested owners and
+indexes on `owner.score` and `owner.city`; selective LINQ and SQL query paths use
+different member-name casing. It also measures grouping, pagination, already
+matching nested indexes, an unaffected sibling INCLUDE, primary-key lookups,
+root-field aliases, and an unindexed scan. Queries consume and checksum results;
+construction, insertion, indexing, and warmup remain outside timing.
+
+CPU 2, disabled tiered compilation, and sequential before/after/after/before
+processes provide eighteen batches per version. This task launches no builds or
+tests during timing; the machine is shared. Use the `nestedcase` workload filter.
+Production DLL SHA-256 values are
+`a530a1d7658cbfb3cc071e91da869b7694f08b6ea910a302300bce124840bb2e`
+(before) and
+`44c90a8e331de85a13f183dea6cd455be6a08d078c8d1784dfba336e002567f9`
+(after). Raw samples and representative plans are `45-nestedcase-*`.
+
+| Workload | Before µs | After µs | Time reduction | Before B/op | After B/op | Allocation reduction |
+|---|---:|---:|---:|---:|---:|---:|
+| nestedcase-point-sql | 37347.62 | 16.40 | >99.9% | 44332592 | 22280 | 99.9% |
+| nestedcase-point-linq | 38383.95 | 26.92 | 99.9% | 44334048 | 23584 | 99.9% |
+| nestedcase-range-linq | 41841.57 | 68.30 | 99.8% | 44339808 | 49882 | 99.9% |
+| nestedcase-or-linq | 42269.98 | 44.11 | 99.9% | 44335912 | 46240 | 99.9% |
+| nestedcase-boolean | 41161.99 | 103.25 | 99.7% | 44344504 | 89120 | 99.8% |
+| nestedcase-membership-linq | 48915.95 | 85.55 | 99.8% | 48502176 | 88238 | 99.8% |
+| nestedcase-count-linq | 46071.36 | 28.43 | 99.9% | 46265536 | 32312 | 99.9% |
+| nestedcase-exists-linq | 45288.57 | 21.45 | >99.9% | 46259864 | 27640 | 99.9% |
+| nestedcase-page | 48986.32 | 81.24 | 99.8% | 45187432 | 83392 | 99.8% |
+| nestedcase-group-count | 113728.48 | 42974.69 | 62.2% | 86432128 | 45934720 | 46.9% |
+| nestedcase-exact-nested-control | 18.25 | 17.93 | 1.8% | 22504 | 22512 | -0.0% |
+| nestedcase-sibling-include-control | 24.83 | 24.85 | -0.1% | 27360 | 27408 | -0.2% |
+| nestedcase-id-control | 18.83 | 18.29 | 2.9% | 23240 | 23248 | -0.0% |
+| nestedcase-root-case-control | 16.99 | 17.02 | -0.2% | 20640 | 20488 | 0.7% |
+| nestedcase-scan-control | 81995.27 | 82534.25 | -0.7% | 49591469 | 49591487 | -0.0% |
+
+The ordinary LINQ point query improves from **38.38 ms to 26.92 µs** (about
+**1,426×**), the bounded range from **41.84 ms to 68.30 µs** (about **613×**),
+and SQL point lookup from **37.35 ms to 16.40 µs** (about **2,277×**). Previously
+these queries loaded and filtered the full collection. Their recorded plans now
+seek the nested index and remove the consumed predicates. The count/Exists paths
+can avoid document loading too. Point-query allocation falls from about **44.3 MB**
+to **22–24 KB** per invocation.
+
+Descending pagination improves from **48.99 ms to 81.24 µs**, with sorting removed
+and only the requested index segment read. Grouping still visits all rows, but
+reusing index order removes its sort: **113.73 ms to 42.97 ms**, **62.2% less time**
+and **46.9% fewer allocated bytes**. All consumed-result checksums match.
+
+The existing-index, sibling-INCLUDE, primary-key, root-alias, and full-scan controls
+are within **3%**. Existing nested seek and INCLUDE plans are identical. Small
+allocation costs remain: **8 B/query** for exact nested and primary-key controls,
+**48 B/query** for the INCLUDE control; root aliases allocate **152 B less**.
+Control timings do not establish a general latency improvement. These large
+speedups apply to nested index definitions whose member-name casing differs from
+the query, not to all nested queries or disk throughput. No new user API is needed.
+INCLUDE correctness repairs use separate regression cases, not incorrect-result
+performance baselines.
+
+Forty-four new tests cover ordinary LINQ and text predicates, reversed predicates,
+range/OR/membership combinations, missing and non-document parents, escaped literal
+member names, computed-literal and array-selector fallbacks, bounded analysis depth,
+parameter rebinding, index creation/removal, sorting, grouping, and INCLUDE
+dependencies. They also cover unique/non-unique key-moving updates, page release
+with a 64 KB cache and one-page transaction limit, rollback, plain/encrypted file
+reopening, and rebuilt collation. The full suites pass **1,528 tests each** on
+.NET 8 and .NET 10, with seven existing skips each. All Release targets build,
+18 reproduction tests pass, and ordinary/promoted vector-file compatibility checks
+pass for plain and encrypted files.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -1887,8 +1977,8 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 1,484 passed on .NET 8 at step 44;
-  1,484 passed on .NET 10 at step 44; focused sort and query suites also pass on .NET 8. Each full
+- Full `LiteDB.Tests` with `tests.runsettings`: 1,528 passed on .NET 8 at step 45;
+  1,528 passed on .NET 10 at step 45; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file
