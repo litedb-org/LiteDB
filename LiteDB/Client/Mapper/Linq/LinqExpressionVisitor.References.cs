@@ -54,7 +54,7 @@ namespace LiteDB
                 }
                 var entity = _mapper.GetEntityMapper(owner.Type);
                 entity.WaitForInitialization();
-                var field = entity.Members.FirstOrDefault(candidate => candidate.MemberName == member.Member.Name);
+                var field = entity.FindMember(member.Member);
                 return field?.IsDbRef == true ? field.UnderlyingType : null;
             }
             if (source is MethodCallExpression method && method.Method.DeclaringType == typeof(Enumerable))

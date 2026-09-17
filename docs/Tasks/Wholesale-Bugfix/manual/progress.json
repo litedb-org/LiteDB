@@ -2208,11 +2208,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "reproduced-pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2893_Tests.cs"
       ],
-      "validation": "List<IChild> where IChild inherits IBase.Id fails with the #2243 guard message because GetTypeMembers does not collect base-interface properties. The original #2243 no-id diagnostic remains fixed."
+      "validation": "Inherited interface IDs now map through DbRef insert/include and typed queries. Diamond inheritance, derived redeclarations and distinct sibling properties retain their intended accessors and query/fluent mappings. All 29 Issue2893/2243/2798 tests pass on net8.0. Two rounds found sibling mapping/resolution gaps, fixed; four fresh gpt-5.6-sol reviewers approved round three without actionable findings."
     },
     {
       "issue": 2894,
