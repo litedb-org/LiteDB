@@ -155,6 +155,35 @@ Two C# constructs make the *compiler* emit trim-unsafe `System.Linq.Expressions`
 | `LDBSG002` | Invalid source-generated property | Change, ignore, or remove an unsupported, inaccessible, indexed/static, or persisted getter-only property. |
 | `LDBSG003` | Conflicting source-generated mapping | Remove duplicate mapped member names, IDs, conventional IDs, or effective BSON field names across the hierarchy. |
 
+## Performance
+
+LiteDB compiles every `BsonExpression` (filters, projections, index expressions, LINQ translations) to a delegate. A Native AOT application has no JIT, so these expressions run through the `System.Linq.Expressions` interpreter instead. `LiteDB.AotBenchmark` runs the same workloads as a JIT application and as a Native AOT binary:
+
+```bash
+dotnet publish LiteDB.AotBenchmark/LiteDB.AotBenchmark.csproj -c Release -r win-x64 --self-contained true -p:PublishAot=false -o artifacts/aot-benchmark/jit
+dotnet publish LiteDB.AotBenchmark/LiteDB.AotBenchmark.csproj -c Release -r win-x64 --self-contained true -o artifacts/aot-benchmark/native-aot
+```
+
+Indicative figures, from one machine (win-x64, .NET 8.0.30, 100,000 documents, median of five runs, milliseconds). "Cold" is the first execution in the process, which for the JIT build includes JIT compilation; "warm" is the best of three further executions.
+
+| Workload | JIT | Native AOT | AOT / JIT |
+| --- | ---: | ---: | ---: |
+| Insert 100,000 documents | 1338 | 791 | 0.59 |
+| Create an index | 557 | 877 | 1.57 |
+| Index seek, 100 queries (cold / warm) | 208 / 185 | 122 / 114 | 0.59 / 0.62 |
+| Full scan, simple predicate (cold / warm) | 201 / 100 | 127 / 117 | 0.63 / 1.17 |
+| Full scan, compound predicate (cold / warm) | 167 / 123 | 157 / 153 | 0.94 / 1.24 |
+| Full scan, array predicate (cold / warm) | 147 / 126 | 199 / 195 | 1.35 / 1.55 |
+| Projection over all documents (cold / warm) | 166 / 121 | 257 / 240 | 1.55 / 1.98 |
+| `GROUP BY` with aggregates | 268 | 344 | 1.28 |
+| `UpdateMany` with an expression | 279 | 327 | 1.17 |
+| Create 5,000 distinct expressions | 2342 | 55 | 0.02 |
+| Generated collection, insert 100,000 | 480 | 849 | 1.77 |
+| Generated collection, read all (cold / warm) | 96 / 84 | 136 / 125 | 1.42 / 1.49 |
+| Generated collection, LINQ scan (cold / warm) | 133 / 120 | 217 / 211 | 1.63 / 1.76 |
+
+In short: once warm, a query that evaluates an expression for every document is roughly 1.2 to 2 times slower as Native AOT, because the expression is interpreted. Index seeks are unaffected, and anything dominated by first use (start-up, the first execution of a query, building many distinct expressions) is faster, because nothing has to be compiled at run time. Prefer indexed predicates in Native AOT applications for the same reason as everywhere else, just more so.
+
 ## Contributor validation
 
 `LiteDB.AotTests` exercises generated registration, C2 direct scalar conversion with option-sensitive BSON golden documents and ordinary/direct cross-reads, mutable record classes, IDs, field and ignore attributes, `DateTimeOffset` values and cross-path reads, inherited and overridden properties, computed projections, `List<string>`, `string[]`, and dynamic-dictionary round trips. `LiteDB.AotSmokeTests` exercises an automatic C2 scalar execution checkpoint alongside generated scalar, nullable scalar, list, string-array, DateTimeOffset, inherited-property, computed-projection, and dynamic-dictionary workflows plus document, query, and stream scenarios.
