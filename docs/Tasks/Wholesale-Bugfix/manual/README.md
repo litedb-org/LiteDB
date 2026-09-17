@@ -1527,3 +1527,27 @@ review_1834_w1_a through _d were clean. No new engine patch is needed.
 
 This resolves the reproduced handoff defect, not the incomplete Xamarin/iOS
 report's unknown trigger. No device execution or platform-specific fix is claimed.
+
+## #2849 — reuse idle cache frames for writes
+
+A write now takes ownership of an idle cached page instead of allocating and
+copying another frame. The cache removes its readable entry and shared-read hint
+under the cache lock, updates accounting, and advances the frame generation.
+Pinned readers retain their original page and force a copy. New concurrent
+readers load the committed disk version. Transaction page budgets, safepoint
+frequency and durable WAL ordering are unchanged.
+
+The retained parameterized million-row production benchmark, run without other
+builds or benchmarks, passes all three alternating sample pairs and all six
+complete data checks. Insert medians are 32,103/17,518 ms (default/large budget),
+ratio **1.833**; delete medians are 25,559/15,470 ms, ratio **1.652**. The preceding
+unmodified source measured 2.813/2.303. These are Linux x64/net8.0 measurements;
+no post-fix Windows performance result is claimed.
+
+Ownership, stale shared hints, pinned readers, commit/rollback, encryption and
+pre-disposal WAL recovery are covered. Validation: 82 focused tests; 49 integrated
+checks; full suite 1905 passed, 216 existing failures, 8 skipped, with no new
+failures. Production and net462 builds and plain/encrypted vector compatibility
+pass. Four fresh independent Sol-high reviewers found no actionable issues.
+
+Final reviewers: review_2849_w1_a through _d, all clean.

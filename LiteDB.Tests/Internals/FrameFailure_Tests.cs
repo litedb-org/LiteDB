@@ -14,7 +14,7 @@ namespace LiteDB.Internals
         public void WritableCopy_TestHookThrows_ReturnsFrameAndSourcePin()
         {
             using var cache = new MemoryCache(new[] { 2 }, PAGE_SIZE * 4L);
-            cache.GetReadablePage(PAGE_SIZE, FileOrigin.Data, (_, buffer) => buffer.Write(1, 0)).Release();
+            var source = cache.GetReadablePage(PAGE_SIZE, FileOrigin.Data, (_, buffer) => buffer.Write(1, 0));
             cache.BeforeWritableCopy = () => throw new IOException("copy failed");
 
             Action copy = () => cache.GetWritablePage(
@@ -24,6 +24,7 @@ namespace LiteDB.Internals
 
             copy.Should().Throw<IOException>().WithMessage("copy failed");
             cache.WritablePages.Should().Be(0);
+            source.Release();
             cache.PinnedPages.Should().Be(0);
             cache.LostFrames.Should().Be(0);
         }
@@ -55,7 +56,6 @@ namespace LiteDB.Internals
         {
             using var cache = new MemoryCache(new[] { 2 }, PAGE_SIZE * 2L);
             var source = cache.GetReadablePage(0, FileOrigin.Data, (_, buffer) => buffer.Write(42, 0));
-            source.Release();
             cache.BeforeWritableCopy = () => throw new IOException("copy failed");
 
             for (var attempt = 0; attempt < 20; attempt++)
@@ -63,10 +63,12 @@ namespace LiteDB.Internals
                 Action copy = () => cache.GetWritablePage(0, FileOrigin.Data, (_, __) => { });
                 copy.Should().Throw<IOException>().WithMessage("copy failed");
                 cache.WritablePages.Should().Be(0);
-                cache.PinnedPages.Should().Be(0);
+                cache.PinnedPages.Should().Be(1);
                 cache.FreePages.Should().Be(1);
                 cache.LostFrames.Should().Be(0);
             }
+            source.Release();
+            cache.PinnedPages.Should().Be(0);
         }
 
         [Fact]

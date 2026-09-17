@@ -224,7 +224,6 @@ namespace LiteDB.Internals
             using var copyStarted = new ManualResetEventSlim();
             using var finishCopy = new ManualResetEventSlim();
 
-            source.Release();
             cache.BeforeWritableCopy = () =>
             {
                 copyStarted.Set();
@@ -247,6 +246,7 @@ namespace LiteDB.Internals
             await competitor;
             writable.ReadInt32(0).Should().Be(1);
 
+            source.Release();
             cache.DiscardPage(writable);
             AssertAccounting(cache);
         }

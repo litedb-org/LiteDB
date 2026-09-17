@@ -11,7 +11,7 @@ namespace LiteDB.Engine
     /// index, idle/busy transitions, free lists, and segment liveness. Readers
     /// share existing pins atomically; disk reads run outside the lock.
     /// </summary>
-    internal sealed class MemoryCache : IDisposable
+    internal sealed partial class MemoryCache : IDisposable
     {
         internal const int DEFAULT_EVICT_SCAN_BUDGET = 256;
 
@@ -152,57 +152,6 @@ namespace LiteDB.Engine
             return origin == FileOrigin.Data ? position : position == 0 ? long.MinValue : -position;
         }
 
-        public PageBuffer GetWritablePage(long position, FileOrigin origin, Action<long, BufferSlice> factory)
-        {
-            if (factory == null) throw new ArgumentNullException(nameof(factory));
-
-            var key = this.GetReadableKey(position, origin);
-            PageBuffer writable = null;
-            PageBuffer readable = null;
-            try
-            {
-                lock (_sync)
-                {
-                    this.ThrowIfDisposedLocked();
-                    while (_index.TryGetValue(key, out var loading) && loading.State == FrameState.Loading)
-                    {
-                        Monitor.Wait(_sync);
-                        this.ThrowIfDisposedLocked();
-                    }
-                    if (_index.TryGetValue(key, out readable))
-                    {
-                        // This pin protects the source during eviction and copying.
-                        this.PinLocked(readable);
-                        Interlocked.Increment(ref _hits);
-                    }
-                    else _misses++;
-                    writable = this.AcquireWritableLocked(position, origin);
-                }
-                if (readable != null)
-                {
-#if TESTING
-                    BeforeWritableCopy?.Invoke();
-#endif
-                    Buffer.BlockCopy(readable.Array, readable.Offset, writable.Array, writable.Offset, PAGE_SIZE);
-                }
-                else
-                {
-                    writable.Clear();
-                    factory(position, writable);
-                }
-                return writable;
-            }
-            catch
-            {
-                if (writable != null) this.DiscardPage(writable);
-                throw;
-            }
-            finally
-            {
-                readable?.Release();
-            }
-        }
-
         public PageBuffer NewPage()
         {
             PageBuffer page;
@@ -213,19 +162,6 @@ namespace LiteDB.Engine
             }
             // Writable ownership keeps the frame out of eviction/reclamation.
             page.Clear();
-            return page;
-        }
-
-        private PageBuffer AcquireWritableLocked(long position, FileOrigin origin)
-        {
-            var page = _reclaimer.AcquireFrameLocked();
-            page.Position = position;
-            page.Origin = origin;
-            page.State = FrameState.Writable;
-            page.ShareCounter = BUFFER_WRITABLE;
-            page.Referenced = 0;
-            _pool.ChangeBusyLocked(page.Segment, 1);
-            _writablePages++;
             return page;
         }
 

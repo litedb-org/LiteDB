@@ -1573,8 +1573,12 @@
         "from fork"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
-      "tests": []
+      "disposition": "fixed-four-reviews",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2849CacheWrite_Tests.cs",
+        "LiteDB.Tests/Internals/MemoryCacheWritableOwnership_Tests.cs"
+      ],
+      "validation": "Million-row production benchmark: insert ratio 1.833, delete ratio 1.652, all six data controls pass; 82 focused tests and 49 integrated tests pass; full suite 1905 passed/216 existing failures/8 skipped, no new failures; production/net462 builds and plain/encrypted vector compatibility pass; four fresh Sol-high reviewers clean."
     },
     {
       "issue": 2858,
