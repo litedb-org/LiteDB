@@ -155,6 +155,19 @@ Two C# constructs make the *compiler* emit trim-unsafe `System.Linq.Expressions`
 | `LDBSG002` | Invalid source-generated property | Change, ignore, or remove an unsupported, inaccessible, indexed/static, or persisted getter-only property. |
 | `LDBSG003` | Conflicting source-generated mapping | Remove duplicate mapped member names, IDs, conventional IDs, or effective BSON field names across the hierarchy. |
 
+## Mono full AOT (iOS, Mac Catalyst, tvOS)
+
+Native AOT and Mono full AOT are different runtimes. Both lack dynamic code, so both run LiteDB's expression trees through the `System.Linq.Expressions` interpreter, but they differ in how the interpreter hands back a delegate. The interpreter has prebuilt thunks only for delegates with at most two parameters and builds every other delegate with `Reflection.Emit`. Native AOT replaces that step with a runtime service; Mono full AOT does not, so a delegate with more parameters fails with `Attempting to JIT compile method ... while running in aot-only mode` ([#2804](https://github.com/litedb-org/LiteDB/issues/2804)). Every `BsonExpression` used a five-parameter delegate, which is why LiteDB failed on iOS on first use.
+
+When `RuntimeFeature.IsDynamicCodeSupported` is `false`, LiteDB therefore compiles each expression to a one-parameter delegate over reference types and adapts it to the five-parameter form in ordinary code. The entity mapper's getter, setter, and constructor delegates already have at most two parameters. On a runtime with a JIT nothing changes.
+
+What is verified, and what is not:
+
+- `ExpressionsWithoutDynamicCode_Tests` reads the interpreter's own count of emitted thunks. A control test shows that interpreting a five-parameter delegate emits one; with the one-parameter path LiteDB emits none. This proves the mechanism behind #2804 no longer applies.
+- Under Native AOT the one-parameter path is the only path, so the whole Native AOT gate (expression sweep, SQL sweep, the test suite) runs on it.
+- **It has not been run on an iOS device.** CI has no full-AOT Mono target: the iOS simulator and Android both keep a JIT or interpreter available and would pass regardless. If you ship LiteDB on iOS, please report the result on #2804. Until then, `<MtouchInterpreter>-all,LiteDB</MtouchInterpreter>` remains the known-good fallback.
+- Unity IL2CPP is a third runtime with its own `System.Linq.Expressions` and has not been tested either.
+
 ## Performance
 
 LiteDB compiles every `BsonExpression` (filters, projections, index expressions, LINQ translations) to a delegate. A Native AOT application has no JIT, so these expressions run through the `System.Linq.Expressions` interpreter instead. `LiteDB.AotBenchmark` runs the same workloads as a JIT application and as a Native AOT binary:
