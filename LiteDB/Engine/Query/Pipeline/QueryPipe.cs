@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using static LiteDB.Constants;
@@ -107,17 +107,21 @@ namespace LiteDB.Engine
         /// </summary>
         private IEnumerable<BsonDocument> SelectAll(IEnumerable<BsonDocument> source, QueryPlan query)
         {
-            using var cached = new DocumentCacheEnumerable(source, _lookup, _transaction.Safepoint, drainOnDispose: false);
+            var select = query.Select.Expression;
+            using var cached = select.CanStreamAggregateSource ? null :
+                new DocumentCacheEnumerable(source, _lookup, _transaction.Safepoint, drainOnDispose: false);
 
             // Aggregate expressions replay documents by address. Expand references again
             // on each enumeration because reloaded BSON contains the original DBRefs.
-            source = cached;
-            foreach (var path in query.IncludeBefore.Concat(query.IncludeAfter).Distinct())
+            if (cached != null)
             {
-                source = this.Include(source, path);
+                source = cached;
+                foreach (var path in query.IncludeBefore.Concat(query.IncludeAfter).Distinct())
+                {
+                    source = this.Include(source, path);
+                }
             }
 
-            var select = query.Select.Expression;
             var defaultName = select.DefaultFieldName();
             var result = select.Execute(source, _pragmas.Collation);
 

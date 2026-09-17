@@ -117,7 +117,7 @@ namespace LiteDB.Engine
                 }
 
                 // get node list from query - distinct by dataBlock (avoid duplicate)
-                var nodes = queryPlan.Index.Run(snapshot.CollectionPage, new IndexService(snapshot, _pragmas.Collation, _disk.MAX_ITEMS_COUNT));
+                var nodes = queryPlan.Index.Run(snapshot.CollectionPage, new IndexService(snapshot, _pragmas.Collation, _disk.MAX_ITEMS_COUNT), _query.ForUpdate);
 
                 // get current query pipe: normal or groupby pipe
                 var pipe = queryPlan.GetPipe(transaction, snapshot, _sortDisk, _pragmas, _disk.MAX_ITEMS_COUNT);

@@ -225,7 +225,7 @@ namespace LiteDB.Tests.Issues
                 var plan = new QueryOptimization(snapshot, query, null, pragmas.Collation).ProcessQuery();
                 var indexer = new IndexService(snapshot, pragmas.Collation, 1_000_000);
 
-                return plan.Index.Run(snapshot.CollectionPage, indexer).Count();
+                return plan.Index.Run(snapshot.CollectionPage, indexer, query.ForUpdate).Count();
             }
             finally
             {
