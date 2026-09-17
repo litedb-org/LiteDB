@@ -981,8 +981,51 @@ The eleven cases cover string and binary lengths across extension boundaries
 through 1,021 payload bytes, multibyte UTF-8, ascending full results, descending
 pages, and correct reload addresses after each key. Fixtures exercise both single
 and multiple default-size sort blocks. Full .NET 8: 1,193 passed, seven existing
-skips. The eleven cases plus eight vector-planning cases pass on .NET 10; all
+skips. All 42 targeted extended-key and vector-planning cases pass on .NET 10; all
 Release targets build. Non-length type codes, including vectors, remain intact.
+
+## 33. Merge sorted blocks with a heap
+
+Multi-block sorts now keep the next keys in a heap instead of scanning every
+remaining block for each output. Comparisons use the active collation and each
+ordering segment's direction. The active block retains priority on tied keys;
+other ties retain original block order. The shortcut for identical consecutive
+keys, single-block sorting, and bounded top-N sorting are preserved. Exhausted
+blocks are excluded from subsequent enumeration, and early disposal releases
+all temporary readers and positions through the existing owner.
+
+A separate 20,000-row fixture uses 497-character ASCII titles with a shared
+492-character prefix and a permuted unique suffix. These keys create multiple
+default 800-KiB temporary sort blocks. Mixed ordering sorts by score ascending
+and title descending; the page skips 5,000 rows and returns 2,000. The repeated-key
+control sorts the common prefix. Short titles on the main collection fit in one
+block; a ten-row limit uses the existing bounded heap. Temporary storage is a
+memory stream, so these are not physical-disk throughput measurements.
+
+Both versions include the extended-key reader correction from step 32. Every
+query is fully consumed and its checksum includes output order. All checksums
+match; raw files are `33-merge-*`.
+
+| Workload | Before µs | After µs | Time reduction | Before B/op | After B/op | Allocation reduction |
+|---|---:|---:|---:|---:|---:|---:|
+| merge-wide-full | 316384.49 | 269291.86 | 14.9% | 132192568 | 129950864 | 1.7% |
+| merge-wide-mixed | 305736.26 | 251600.10 | 17.7% | 144460228 | 142220192 | 1.6% |
+| merge-wide-page | 156267.65 | 139148.00 | 11.0% | 69569584 | 68785436 | 1.1% |
+| merge-repeated-keys-control | 180630.69 | 183968.02 | -1.8% | 148441480 | 148441304 | 0.0% |
+| merge-single-container-control | 113359.39 | 113381.52 | -0.0% | 69109160 | 69109152 | 0.0% |
+| merge-topn-control | 38877.46 | 38951.74 | -0.2% | 54310760 | 54310760 | 0.0% |
+
+Full multi-block sorts take 15–18% less time and allocate about 2.2 MB less; the
+larger page takes 11% less time. Single-block and top-N controls are unchanged.
+The repeated-key control is within 2% with unchanged allocation. Gains depend on
+block count, key comparison costs, and how much output is requested.
+
+Eleven tests cover many blocks, both directions, mixed ordering, collation ties,
+exact agreement with the previous tie policy, empty/single-block paths, exhausted
+blocks, and early disposal. The earlier extended-key and existing sort suites
+also pass. Full .NET 8 and .NET 10 suites: 1,204 passed each, seven existing
+skips each. All Release targets, 18 reproduction-runner tests, and plain/encrypted
+vector file compatibility checks pass through this step.
 
 ## Combined result and practical priority (steps 1–5)
 
@@ -1020,8 +1063,8 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 1,193 passed on .NET 8 at step 32;
-  1,182 passed on .NET 10 at step 31; focused sort and query suites also pass on .NET 8. Each full
+- Full `LiteDB.Tests` with `tests.runsettings`: 1,204 passed on .NET 8 at step 33;
+  1,204 passed on .NET 10 at step 33; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file

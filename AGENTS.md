@@ -77,5 +77,7 @@ field names can resemble multikey/computed paths; use the shared path formatter.
 Multikey and unproven scans still need document address deduplication.
 Temporary sort keys use the same extended string/binary length headers as index
 pages. Decode them with `ExtendedLengthHelper`; lengths describe UTF-8 bytes,
-not characters, and valid key payloads can exceed 255 bytes.
+not characters, and valid key payloads can exceed 255 bytes. Preserve full
+non-length type codes, including vectors. Multi-block merge ties retain the active
+block first, then original block order; keep this policy when changing sorting.
 Use `tools/QueryOptimizationBenchmarks` for per-optimization end-to-end comparisons.

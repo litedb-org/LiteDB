@@ -164,6 +164,10 @@ bounded maximum heap retains only the best requested keys and reload addresses.
 Comparison uses the active collation, each segment's direction, and input order
 to break ties. Every input key is still evaluated and checked against the sort-key
 size limit. Larger or unbounded requests retain the disk-capable sort path.
+When that path produces multiple sorted blocks, a heap merges their next keys.
+It retains the active block on collation ties and uses original block order for
+other ties, preserving the previous output order. Identical-key runs and the
+single-block path keep their shortcuts.
 The temporary-stream reader decodes extended string/binary key lengths using the
 same header rules as index pages, including UTF-8 payloads above 255 bytes.
 Includes and aggregate replay continue to use the normal lookup pipeline, and
