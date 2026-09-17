@@ -170,9 +170,9 @@ namespace LiteDB.Internals
                 cache.LostFrames.Should().Be(0);
                 AssertValues(test.Recover("docs", checkpoint: false), 0);
                 Action rollback = () => test.Database.Rollback();
-                rollback.Should().Throw<IOException>().WithMessage("injected confirmation failure");
+                rollback.Should().Throw<IOException>().WithMessage("*closed*reopen*injected confirmation failure");
                 Action nextWrite = () => test.Update("docs", 2);
-                nextWrite.Should().Throw<IOException>().WithMessage("injected confirmation failure");
+                nextWrite.Should().Throw<IOException>().WithMessage("*closed*reopen*injected confirmation failure");
             }
             finally
             {

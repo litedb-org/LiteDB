@@ -56,7 +56,10 @@ namespace LiteDB.Engine
         internal void Stop(Exception ex)
         {
             // A later completion/cleanup race must not replace the causal failure.
-            if (Interlocked.CompareExchange(ref _exception, ex, null) != null) return;
+            var subsequent = ex is IOException
+                ? new IOException("Engine closed after an I/O failure. Dispose and reopen the database before retrying. " + ex.Message, ex)
+                : ex;
+            if (Interlocked.CompareExchange(ref _exception, subsequent, null) != null) return;
             _engine?.Close(ex, this);
             this.Disposed = true;
         }

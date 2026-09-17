@@ -56,7 +56,7 @@ namespace LiteDB.Tests.Issues
                 writes.Should().Be(successfulWrites + 1);
                 engine.SimulateDataWriteFail = null;
                 Record.Exception(() => db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 2 }))
-                    .Should().BeSameAs(failure, "clearing the storage fault must not revive a partially checkpointed engine");
+                    .InnerException.Should().BeSameAs(failure, "clearing the storage fault must not revive a partially checkpointed engine");
             }
             using (var reopened = new LiteDatabase(file.Filename))
             {

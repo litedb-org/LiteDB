@@ -1370,10 +1370,11 @@
         "from fork"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2821_Tests.cs"
-      ]
+      ],
+      "validation": "130 focused recovery cases pass; full suite 1784 passed/235 existing failures/8 skipped, no regressions versus #2583; production/net462 pass; four final fresh Sol high reviews clean"
     },
     {
       "issue": 2822,

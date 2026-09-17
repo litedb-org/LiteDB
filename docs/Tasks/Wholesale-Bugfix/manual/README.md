@@ -1283,3 +1283,18 @@ pass. Nine fresh review waves addressed precision, naming, index streaming and
 compilation cost. All four final Sol high reviewers (`review_2583_w9_a` through
 `_d`) were clean. Computed alias compilation deliberately avoids the lossy display
 Source cache; nested instances compile exactly once per parsed expression.
+
+## #2821 — explain closed-engine recovery after I/O failure
+
+The operation encountering an I/O failure retains its original exception.
+Subsequent operations report that the engine is closed and must be disposed and
+reopened, with the original cause retained as InnerException. First-cause atomic
+publication and non-I/O failure identity remain unchanged. Existing lifecycle
+fixes already repair the reproduced initialization-handle leak and recovery path.
+WAL files remain intact; the message never instructs callers to delete them.
+
+Validation: the original diagnostic case fails before the fix; 130 focused
+recovery/concurrency/WAL cases pass, including unchanged first-operation errors
+and updated subsequent-error contracts. Full suite: 1784 passed, 235 existing
+failures, 8 skipped; no regressions versus #2583. Production/net462 builds pass.
+Four fresh final Sol high reviewers (`review_2821_w2_a` through `_d`) were clean.

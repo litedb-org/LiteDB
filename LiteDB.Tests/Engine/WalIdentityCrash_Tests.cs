@@ -94,7 +94,8 @@ namespace LiteDB.Tests.Engine
                 Action checkpoint = () => db.Checkpoint();
                 checkpoint.Should().Throw<IOException>().WithMessage("injected checkpoint interruption");
                 Action laterWrite = () => db.GetCollection("rows").Insert(Row(99));
-                laterWrite.Should().Throw<IOException>().WithMessage("injected checkpoint interruption");
+                laterWrite.Should().Throw<IOException>().WithMessage("*closed*reopen*injected checkpoint interruption")
+                    .Which.InnerException.Should().BeOfType<IOException>();
             }
 
             // Only flushed bytes survive this simulated power loss. Read-only
@@ -176,7 +177,8 @@ namespace LiteDB.Tests.Engine
                 Action commit = () => db.Commit();
                 commit.Should().Throw<IOException>().WithMessage("injected checkpoint interruption");
                 Action laterWrite = () => db.GetCollection("rows").Insert(Row(99));
-                laterWrite.Should().Throw<IOException>().WithMessage("injected checkpoint interruption");
+                laterWrite.Should().Throw<IOException>().WithMessage("*closed*reopen*injected checkpoint interruption")
+                    .Which.InnerException.Should().BeOfType<IOException>();
             }
             using var recoveredData = Copy(data.Durable);
             using var recoveredLog = Copy(log.Durable);
@@ -202,7 +204,7 @@ namespace LiteDB.Tests.Engine
                 var failure = checkpoint.Should().Throw<IOException>().Which;
                 failure.InnerException.Should().BeOfType<NotSupportedException>();
                 Action laterWrite = () => db.GetCollection("rows").Insert(Row(99));
-                laterWrite.Should().Throw<IOException>().Which.Should().BeSameAs(failure);
+                laterWrite.Should().Throw<IOException>().Which.InnerException.Should().BeSameAs(failure);
             }
             using var recoveredData = Copy(data.Durable);
             using var recoveredLog = Copy(log.Durable);
@@ -226,7 +228,7 @@ namespace LiteDB.Tests.Engine
                 var failure = checkpoint.Should().Throw<IOException>().Which;
                 failure.InnerException.Should().BeOfType<UnauthorizedAccessException>();
                 Action laterWrite = () => db.GetCollection("rows").Insert(Row(99));
-                laterWrite.Should().Throw<IOException>().Which.Should().BeSameAs(failure);
+                laterWrite.Should().Throw<IOException>().Which.InnerException.Should().BeSameAs(failure);
             }
             using var recoveredData = Copy(data.Durable);
             using var recoveredLog = Copy(log.Durable);

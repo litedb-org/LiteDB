@@ -21,7 +21,7 @@ namespace LiteDB.Tests.Internals
                 later[i] = Task.Run(() => state.Stop(new ObjectDisposedException("secondary")));
             await Task.WhenAll(later);
             Action validate = state.Validate;
-            validate.Should().Throw<IOException>().Which.Should().BeSameAs(first);
+            validate.Should().Throw<IOException>().Which.InnerException.Should().BeSameAs(first);
         }
 
         [Theory]
