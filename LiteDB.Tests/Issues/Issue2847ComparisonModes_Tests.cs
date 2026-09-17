@@ -73,7 +73,6 @@ namespace LiteDB.Tests.Issues
         [Theory]
         [InlineData(StringComparison.Ordinal)]
         [InlineData(StringComparison.OrdinalIgnoreCase)]
-        [Trait("Category", "PendingBug")]
         public void Prefix_and_suffix_comparisons_honor_the_explicit_mode(StringComparison mode)
         {
             var source = new[]
@@ -104,7 +103,6 @@ namespace LiteDB.Tests.Issues
         [Theory]
         [InlineData(StringComparison.Ordinal)]
         [InlineData(StringComparison.OrdinalIgnoreCase)]
-        [Trait("Category", "PendingBug")]
         public void IndexOf_honors_StringComparison_instead_of_treating_it_as_a_start_index(StringComparison mode)
         {
             var source = new[]
@@ -127,7 +125,6 @@ namespace LiteDB.Tests.Issues
         [Theory]
         [InlineData(StringComparison.Ordinal)]
         [InlineData(StringComparison.OrdinalIgnoreCase)]
-        [Trait("Category", "PendingBug")]
         public void Contains_honors_the_explicit_mode(StringComparison mode)
         {
             var source = new[]

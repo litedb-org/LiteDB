@@ -1558,12 +1558,13 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "reproduced-pending-expanded-scope",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2847_Tests.cs",
-        "LiteDB.Tests/Issues/Issue2847ComparisonModes_Tests.cs"
+        "LiteDB.Tests/Issues/Issue2847ComparisonModes_Tests.cs",
+        "LiteDB.Tests/Issues/Issue2847StringSearch_Tests.cs"
       ],
-      "validation": "Original instance/static Equals(StringComparison) scope remains fixed. The post-cutoff title expansion is reproduced: Ordinal StartsWith/EndsWith and Contains disagree with CLR under collation, and both IndexOf comparison modes return the wrong set; OrdinalIgnoreCase controls pass. The expanded tracker is pending again."
+      "validation": "Expanded StartsWith/EndsWith/Contains and all StringComparison IndexOf overloads now delegate to CLR semantics through volatile expression functions. All 47 focused string/LINQ tests pass on net8.0, including six modes, enum encodings, index presence, Turkish culture, literal wildcards, nulls and range validation. Original Equals scope remains passing. Four fresh gpt-5.6-sol reviewers approved without actionable findings."
     },
     {
       "issue": 2849,
