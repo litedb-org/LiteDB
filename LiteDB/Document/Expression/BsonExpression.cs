@@ -166,7 +166,7 @@ namespace LiteDB
         public IEnumerable<BsonValue> Execute(Collation collation = null)
         {
             var root = new BsonDocument();
-            var source = new BsonDocument[] { root };
+            var source = this.UseSource ? new[] { root } : System.Array.Empty<BsonDocument>();
 
             return this.Execute(source, root, root, collation);
         }
@@ -178,7 +178,7 @@ namespace LiteDB
         {
             if (root == null) throw new ArgumentNullException(nameof(root));
 
-            var source = new BsonDocument[] { root };
+            var source = this.UseSource ? new[] { root } : System.Array.Empty<BsonDocument>();
 
             return this.Execute(source, root, root, collation);
         }
@@ -234,7 +234,7 @@ namespace LiteDB
         public BsonValue ExecuteScalar(Collation collation = null)
         {
             var root = new BsonDocument();
-            var source = new BsonDocument[] { };
+            var source = System.Array.Empty<BsonDocument>();
 
             return this.ExecuteScalar(source, root, root, collation);
         }
@@ -246,7 +246,7 @@ namespace LiteDB
         {
             if (root == null) throw new ArgumentNullException(nameof(root));
 
-            var source = new BsonDocument[] { root };
+            var source = this.UseSource ? new[] { root } : System.Array.Empty<BsonDocument>();
 
             return this.ExecuteScalar(source, root, root, collation);
         }

@@ -503,6 +503,34 @@ cost is small relative to traversal. All checksums match. Raw measurements:
 solution targets build. Existing index, ANY/ALL, expression, and plan parity tests
 cover the preserved selection behavior.
 
+## 19. Avoid unused source arrays during expression evaluation
+
+Single-document expression execution now creates a singleton source array only
+when the expression uses the source stream. The root/current document arguments
+are unchanged. Source-dependent expressions retain their singleton, and the
+no-root scalar overload retains its historical empty-input semantics. This removes
+small per-row allocations from ordinary filters, projections, and sort expressions.
+
+| Complete query | Before µs | After µs | Time reduction | Before B/query | After B/query |
+|---|---:|---:|---:|---:|---:|
+| Filtered document scan | 58,023.44 | 58,454.80 | -0.7% | 49,789,570 | 48,794,014 |
+| Computed projection over all rows | 65,801.74 | 65,647.91 | 0.2% | 35,099,138 | 34,459,085 |
+| Computed two-key top-N | 39,040.77 | 37,730.65 | 3.4% | 41,872,080 | 40,591,760 |
+| Count with residual expression | 28,286.01 | 28,380.58 | -0.3% | 34,129,184 | 33,489,184 |
+| Index-only count, control | 2,143.77 | 2,346.07 | -9.4% | 5,192,600 | 5,192,576 |
+| Primary lookup, control | 23.93 | 24.58 | -2.7% | 25,809 | 25,753 |
+
+The demonstrated benefit here is allocation reduction, **not a proven latency
+improvement**: 0.64–1.28 MB less per complete scan/projection/sort query (1.8–3.1%).
+Host variation affected controls too, particularly one after process's index-only
+count, whose per-row execution does not evaluate expressions. Timing differences
+in this comparison are inconclusive. Raw samples: `19-source-*`; all checksums
+match.
+
+Ten differential tests compare implicit/explicit singleton sources, including
+nested MAP/FILTER/SORT, aggregates, rebinding, and no-root/null overload semantics.
+Full .NET 8 suite: 1,059 passed, seven existing skips; all Release targets build.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -539,7 +567,7 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 1,049 passed on .NET 8 at step 17;
+- Full `LiteDB.Tests` with `tests.runsettings`: 1,059 passed on .NET 8 at step 19;
   1,049 passed on .NET 10 at step 18; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
