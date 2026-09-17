@@ -58,13 +58,13 @@ namespace LiteDB
         {
             if (field == null) throw new ArgumentNullException(nameof(field));
 
-            var fieldExpr = _mapper.GetExpression(field);
+            var fieldExpr = this.GetExpression(field);
             return this.VectorWhereNear(fieldExpr, target, maxDistance);
         }
 
         internal ILiteQueryableResult<T> VectorTopKNear<K>(Expression<Func<T, K>> field, float[] target, int k)
         {
-            var fieldExpr = _mapper.GetExpression(field);
+            var fieldExpr = this.GetExpression(field);
             return this.VectorTopKNear(fieldExpr, target, k);
         }
 
@@ -187,7 +187,9 @@ namespace LiteDB
                     var result = reader.Current.AsDocument;
                     var projected = result["Document"].AsDocument;
                     var value = _isSimpleType ? projected[projected.Keys.First()] : projected;
-                    var document = (T)_mapper.Deserialize(typeof(T), value);
+                    var document = _deserialize is not null
+                        ? _deserialize(projected)
+                        : (T)_mapper.Deserialize(typeof(T), value);
                     yield return new VectorSearchResult<T>(document,
                         result["Score"].IsNull ? (double?)null : result["Score"].AsDouble,
                         (VectorDistanceMetric)result["Metric"].AsInt32);

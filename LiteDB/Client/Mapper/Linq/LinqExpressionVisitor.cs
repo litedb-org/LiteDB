@@ -10,7 +10,7 @@ using static LiteDB.Constants;
 
 namespace LiteDB
 {
-    internal class LinqExpressionVisitor : ExpressionVisitor
+    internal partial class LinqExpressionVisitor : ExpressionVisitor
     {
         private static readonly Dictionary<Type, ITypeResolver> _resolver = new Dictionary<Type, ITypeResolver>
         {
@@ -36,6 +36,7 @@ namespace LiteDB
         };
 
         private readonly BsonMapper _mapper;
+        private readonly bool _useGeneratedMappers;
         private readonly Expression _expr;
         private readonly ParameterExpression _rootParameter = null;
 
@@ -46,10 +47,11 @@ namespace LiteDB
         private readonly StringBuilder _builder = new StringBuilder();
         private readonly Stack<MemberExpression> _memberAccessNodes = new();
 
-        public LinqExpressionVisitor(BsonMapper mapper, Expression expr)
+        public LinqExpressionVisitor(BsonMapper mapper, Expression expr, bool useGeneratedMappers = false)
         {
             _mapper = mapper;
             _expr = expr;
+            _useGeneratedMappers = useGeneratedMappers;
 
             if (expr is LambdaExpression lambda)
             {
@@ -249,6 +251,7 @@ namespace LiteDB
         /// <summary>
         /// Visit :: x => x.Age + `10` (will create parameter:  `p0`, `p1`, ...)
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = AotCompatibility.RuntimeModelMapping)]
         protected override Expression VisitConstant(ConstantExpression node)
         {
             var value = node.Value;
@@ -624,32 +627,6 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Returns document field name for some type member
-        /// </summary>
-        private string ResolveMember(MemberInfo member, out MemberMapper memberMapper)
-        {
-            var name = member.Name;
-
-            // checks if parent field are not DbRef (checks for same dataType)
-            var isParentDbRef = _dbRefType != null && member.DeclaringType.IsAssignableFrom(_dbRefType);
-
-            // get class entity from mapper
-            var entity = _mapper.GetEntityMapper(member.DeclaringType);
-            entity.WaitForInitialization();
-
-            // get mapped field from entity
-            var field = entity.Members.FirstOrDefault(x => x.MemberName == name);
-
-            memberMapper = field ?? throw new NotSupportedException($"Member {name} not found on BsonMapper for type {member.DeclaringType}.");
-
-            // define if this field are DbRef (child will need check parent)
-            _dbRefType = field.IsDbRef ? field.UnderlyingType : null;
-
-            // if parent call is DbRef and are calling _id field, rename to $id
-            return "." + (isParentDbRef && field.FieldName == "_id" ? "$id" : field.FieldName);
-        }
-
-        /// <summary>
         /// Define if this method is index access and must eval index value (do not use parameter)
         /// </summary>
         private bool IsMethodIndexEval(MethodCallExpression node, out Expression obj, out Expression idx)
@@ -720,9 +697,12 @@ namespace LiteDB
             }
             else
             {
-                var func = Expression.Lambda(expr).Compile();
+                // Prefer compiled interpretation for AOT
+                var func = Expression.Lambda<Func<object>>(
+                    Expression.Convert(expr, typeof(object)))
+                    .Compile(preferInterpretation: true);
 
-                value = func.DynamicInvoke();
+                value = func();
             }
 
             // do some type validation to be ease to debug
