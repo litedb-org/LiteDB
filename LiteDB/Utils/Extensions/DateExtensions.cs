@@ -20,6 +20,18 @@ namespace LiteDB
                 dt.Kind);
         }
 
+        internal static DateTime ToUniversalTimeForStorage(this DateTime value)
+        {
+            // DateTime.ToUniversalTime silently maps a nonexistent local hour onto
+            // a real hour. Reject that lossy conversion before storing BSON or keys.
+            if (value.Kind != DateTimeKind.Utc && value != DateTime.MinValue && value != DateTime.MaxValue &&
+                TimeZoneInfo.Local.IsInvalidTime(DateTime.SpecifyKind(value, DateTimeKind.Unspecified)))
+            {
+                throw new ArgumentException("Invalid local time cannot be stored as a UTC DateTime. Supply a valid local time or an explicit UTC value.", nameof(value));
+            }
+            return value.ToUniversalTime();
+        }
+
         public static int MonthDifference(this DateTime startDate, DateTime endDate)
         {
             // https://stackoverflow.com/a/1526116/3286260

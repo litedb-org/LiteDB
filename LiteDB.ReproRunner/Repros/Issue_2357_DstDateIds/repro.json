@@ -1,16 +1,33 @@
 {
   "id": "Issue_2357_DstDateIds",
   "title": "Distinct unspecified hourly DateTime IDs collide across the reported DST transition",
-  "issues": ["https://github.com/litedb-org/LiteDB/issues/2357"],
+  "issues": [
+    "https://github.com/litedb-org/LiteDB/issues/2357"
+  ],
   "failingSince": "5.0.17",
   "timeoutSeconds": 90,
   "requiresParallel": false,
   "defaultInstances": 1,
-  "tags": ["datetime", "timezone", "index", "regression"],
-  "supports": ["linux"],
-  "state": "red",
+  "tags": [
+    "datetime",
+    "timezone",
+    "index",
+    "regression"
+  ],
+  "supports": [
+    "linux"
+  ],
+  "state": "green",
   "expectedOutcomes": {
-    "package": {"kind": "reproduce", "exitCode": 0, "logContains": "BUG_2357_CONFIRMED"},
-    "latest": {"kind": "reproduce", "exitCode": 0, "logContains": "BUG_2357_CONFIRMED"}
+    "package": {
+      "kind": "reproduce",
+      "exitCode": 0,
+      "logContains": "BUG_2357_CONFIRMED"
+    },
+    "latest": {
+      "kind": "noRepro",
+      "exitCode": 10,
+      "logContains": "VERIFIED_2357"
+    }
   }
 }

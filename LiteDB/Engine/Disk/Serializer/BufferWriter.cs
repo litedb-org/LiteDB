@@ -220,7 +220,7 @@ namespace LiteDB.Engine
         /// </summary>
         public void Write(DateTime value)
         {
-            var utc = (value == DateTime.MinValue || value == DateTime.MaxValue) ? value : value.ToUniversalTime();
+            var utc = (value == DateTime.MinValue || value == DateTime.MaxValue) ? value : value.ToUniversalTimeForStorage();
 
             this.Write(utc.Ticks);
         }
@@ -408,7 +408,7 @@ namespace LiteDB.Engine
                     this.WriteCString(key);
                     var date = value.AsDateTime;
                     // do not convert to UTC min/max date values - #19
-                    var utc = (date == DateTime.MinValue || date == DateTime.MaxValue) ? date : date.ToUniversalTime();
+                    var utc = (date == DateTime.MinValue || date == DateTime.MaxValue) ? date : date.ToUniversalTimeForStorage();
                     var ts = utc - BsonValue.UnixEpoch;
                     this.Write(Convert.ToInt64(ts.TotalMilliseconds));
                     break;

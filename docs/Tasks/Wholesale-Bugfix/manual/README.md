@@ -1205,3 +1205,18 @@ DbRef/member decoders must run before construction for present bound fields. The
 virtual hook remains post-construction and retains the original full document;
 constructor and decoder side effects remain visible, as constructor side effects
 already were. No input cloning contract is introduced.
+
+## #2357 — reject nonexistent local dates before storage
+
+BSON, raw-tick and index date writers explicitly reject nonexistent local hours
+instead of silently converting them onto another valid UTC instant. UTC input,
+valid local conversions and existing sentinel semantics are preserved. The file
+format is unchanged; callers storing wall-clock labels must choose an explicit
+representation rather than allowing a nonexistent local instant to collapse.
+
+Validation: the reporter-kind process reproduction emits BUG_2357_CONFIRMED on
+baseline and VERIFIED_2357 with the fix. Its UTC controls, full receipt ledger,
+rollback, subsequent writes and reopen pass. 28 focused date tests pass under
+America/New_York and UTC. Full suite: 1744 passed, 243 existing failures, 8 skipped;
+no regressions versus #2303. Production and net462 builds pass. All four fresh
+Sol high reviewers (`review_2357_w1_a` through `_d`) were clean.

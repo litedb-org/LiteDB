@@ -269,7 +269,7 @@ namespace LiteDB
         public static void Write(this BufferSlice buffer, DateTime value, int offset)
         {
             buffer.EnsureWritable();
-            value.ToUniversalTime().Ticks.ToBytes(buffer.Array, buffer.Offset + offset);
+            value.ToUniversalTimeForStorage().Ticks.ToBytes(buffer.Array, buffer.Offset + offset);
         }
 
         public static void Write(this BufferSlice buffer, PageAddress value, int offset)

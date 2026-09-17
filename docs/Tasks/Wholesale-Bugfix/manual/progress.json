@@ -788,10 +788,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2357_Tests.cs"
-      ]
+      ],
+      "validation": "28 date cases pass in NY/UTC; exact source repro VERIFIED_2357, rollback/reuse/reopen preserved; full1744/243/8 no regressions; production/net462 pass; four Sol high approvals"
     },
     {
       "issue": 2367,
