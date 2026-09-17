@@ -36,7 +36,10 @@ namespace LiteDB.Tests.Issues
             using var result = db.Execute("SELECT " + expression + " AS payload FROM rows ORDER BY payload");
             var values = result.ToArray();
             values.All(x => x["payload"].IsDocument).Should().BeTrue();
-            if (expression == "$") values.Select(x => x["payload"]["_id"].AsInt32).Should().Equal(1, 2);
+            // Canonical OrdinalIgnoreCase field order puts amount before _id;
+            // a score-only document still orders by score itself.
+            if (expression == "$") values.Select(x => x["payload"]["_id"].AsInt32).Should().Equal(2, 1);
+            else if (expression.StartsWith("EXTEND")) values.Select(x => x["payload"]["score"].AsInt32).Should().Equal(97, 92);
             else values.Select(x => x["payload"]["score"].AsInt32).Should().Equal(92, 97);
         }
 

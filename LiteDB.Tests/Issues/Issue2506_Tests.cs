@@ -10,7 +10,8 @@ public class Issue2506_Tests
     public void Test()
     {
         // Open database connection
-        using LiteDatabase dataBase = new("demo.db");
+        using var databaseFile = new TempFile();
+        using LiteDatabase dataBase = new(databaseFile.Filename);
 
         // Get the file metadata/chunks storage
         ILiteStorage<string> fileStorage = dataBase.GetStorage<string>("myFiles", "myChunks");
@@ -24,7 +25,8 @@ public class Issue2506_Tests
         Assert.NotNull(file);
 
         // Load and save file bytes to hard drive
-        file.SaveAs(Path.Combine(Path.GetTempPath(), "new-picture.jpg"));
+        using var exportedFile = new TempFile();
+        file.SaveAs(exportedFile.Filename);
 
         // Find all files matching pattern
         IEnumerable<LiteFileInfo<string>> files = fileStorage.Find("_id LIKE 'photos/2014/%'");

@@ -9,7 +9,8 @@ public class Issue546_Tests
     [Fact]
     public void Test()
     {
-        using LiteDatabase dataBase = new("demo.db");
+        using var databaseFile = new TempFile();
+        using LiteDatabase dataBase = new(databaseFile.Filename);
         ILiteCollection<GuidDictContainer> guidDictCollection = dataBase.GetCollection<GuidDictContainer>("Issue546_Guid_Keys");
 
         guidDictCollection.DeleteAll();

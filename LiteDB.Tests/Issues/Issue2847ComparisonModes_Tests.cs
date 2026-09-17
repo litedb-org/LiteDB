@@ -20,6 +20,8 @@ namespace LiteDB.Tests.Issues
         public void All_explicit_modes_match_CLR_with_both_enum_encodings_and_index_presence(bool enumAsInteger, bool indexed)
         {
             var previous = CultureInfo.CurrentCulture;
+            // Initialize the process-wide default before switching test culture.
+            System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(Collation).TypeHandle);
             try
             {
                 CultureInfo.CurrentCulture = new CultureInfo("tr-TR");

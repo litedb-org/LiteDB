@@ -19,6 +19,8 @@ namespace LiteDB.Tests.Issues
         public void Search_signatures_match_CLR_for_every_mode_and_enum_encoding(bool enumAsInteger, bool indexed)
         {
             var previous = CultureInfo.CurrentCulture;
+            // Initialize the process-wide default before switching test culture.
+            System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(Collation).TypeHandle);
             try
             {
                 CultureInfo.CurrentCulture = new CultureInfo("tr-TR");

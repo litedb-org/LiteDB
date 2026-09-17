@@ -1,5 +1,17 @@
 {
   "labelsChecked": "2026-09-17",
+  "requestedFixValidation": {
+    "date": "2026-09-17",
+    "issues": [2847, 2891, 2892, 2893, 2894, 2895, 2896, 2898, 2902, 2904, 2906, 2909],
+    "fixed": 12,
+    "pendingFromRequestedList": 0,
+    "baselineNet8Failed": 208,
+    "finalNet8Failed": 176,
+    "finalNet10Failed": 176,
+    "newFailingTestsNet8": 0,
+    "report": "docs/Tasks/Wholesale-Bugfix/manual/requested-fixes-2026-09-17.md",
+    "githubCI": "queued; actual Windows x86 execution not yet verified"
+  },
   "sourcePR": 2885,
   "previousIntegration": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
   "issues": [

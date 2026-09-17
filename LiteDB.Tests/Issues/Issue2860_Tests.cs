@@ -76,7 +76,11 @@ namespace LiteDB.Tests.Issues
 
             var exception = serialize.Should().Throw<LiteException>().Which;
             exception.ErrorCode.Should().Be(LiteException.DOCUMENT_MAX_DEPTH);
-            exception.Message.Should().Be(
+            exception.Message.Should().Contain(value.GetType().FullName + ".Child")
+                .And.Contain(nestedType.FullName);
+            var original = exception.InnerException.Should().BeOfType<LiteException>().Which;
+            original.ErrorCode.Should().Be(LiteException.DOCUMENT_MAX_DEPTH);
+            original.Message.Should().Be(
                 $"Document has more than 1 nested documents in '{nestedType.FullName}'. " +
                 "Check for circular references (use DbRef).");
         }
