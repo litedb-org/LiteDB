@@ -77,7 +77,7 @@ namespace LiteDB
         {
             var result = Copy(target);
             result.Expression = Expression.Call(_arrayIndexMethod, target.Expression, Expression.Constant(index),
-                Expression.Constant(parameter ?? new BsonExpression()), context.Root, context.Collation, context.Parameters);
+                NestedTemplate(parameter), context.Root, context.Collation, context.Parameters);
             result.Source = target.Source + "[" + (parameter?.Source ?? indexSource ?? index.ToString(CultureInfo.InvariantCulture)) + "]";
             if (parameter != null)
             {

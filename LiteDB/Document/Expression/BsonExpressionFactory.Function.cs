@@ -20,7 +20,7 @@ namespace LiteDB
             var useSource = left.UseSource;
             if (right != null)
             {
-                args.Add(Expression.Constant(right));
+                args.Add(NestedTemplate(right));
                 fields.AddRange(right.Fields);
                 isVolatile |= right.IsVolatile;
             }
@@ -46,6 +46,13 @@ namespace LiteDB
                 IsScalar = isScalarResult, Fields = fields,
                 Expression = Expression.Call(method, args), Source = BsonExpressionFormatter.Function(name, left, right, arguments)
             };
+        }
+
+        private static ConstantExpression NestedTemplate(BsonExpression expression)
+        {
+            // Nested delegates receive current parameters explicitly. Their cached
+            // templates must not retain the first caller's bound payloads.
+            return Expression.Constant(expression?.WithoutParameters() ?? new BsonExpression());
         }
     }
 }

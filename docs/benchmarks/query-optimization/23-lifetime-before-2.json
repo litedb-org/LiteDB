@@ -1,0 +1,14 @@
+{
+  "label": "23-before-2",
+  "runtime": ".NET 8.0.30",
+  "assembly": "/tmp/litedb-lifetime-bench-before/LiteDB.dll",
+  "rows": 1,
+  "templates": 64,
+  "originalKeysPerTemplate": 10000,
+  "reboundKeysPerTemplate": 1,
+  "completeQueries": 128,
+  "checksum": 256,
+  "retainedOriginalArrays": 64,
+  "liveHeapGrowthBytes": 44667384,
+  "nanosecondsPerQuery": 1124326.96875
+}

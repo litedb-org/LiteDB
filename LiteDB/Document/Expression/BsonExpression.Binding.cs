@@ -14,10 +14,19 @@ namespace LiteDB
         public BsonExpression Bind(BsonDocument parameters)
         {
             if (parameters == null) throw new ArgumentNullException(nameof(parameters));
+            return BindCore(parameters);
+        }
+
+        // Embedded evaluators always receive parameters from their caller. Keeping
+        // no fallback document also preserves errors for an explicitly null binding.
+        internal BsonExpression WithoutParameters() => BindCore(null);
+
+        private BsonExpression BindCore(BsonDocument parameters)
+        {
             return new BsonExpression
             {
                 Source = Source, Type = Type, IsImmutable = IsImmutable, IsVolatile = IsVolatile,
-                Parameters = parameters, Left = Left?.Bind(parameters), Right = Right?.Bind(parameters),
+                Parameters = parameters, Left = Left?.BindCore(parameters), Right = Right?.BindCore(parameters),
                 UseSource = UseSource, Expression = Expression, IsScalar = IsScalar, IsANY = IsANY,
                 Fields = new HashSet<string>(Fields, StringComparer.OrdinalIgnoreCase),
                 _funcScalar = _funcScalar, _funcEnumerable = _funcEnumerable

@@ -48,6 +48,8 @@ LINQ and SQL share `BsonExpressionFactory`; LINQ bindings must construct nodes
 without tokenizing templates or parsing generated text. Preserve canonical
 `Source` because persisted indexes and the compiled-delegate cache still use it.
 Nested evaluators must receive the caller's parameter document explicitly.
+Embed unbound nested templates in compiled delegates so caches cannot retain a
+previous caller's parameter document or large serialized values.
 Use `DirectTranslationScope` in differential tests to forbid tokenizer creation
 and bypass cached delegates. Compare production assemblies with
 `tools/QueryIrBenchmarks` (`TestingEnabled=false`); see `docs/shared-query-ir.md`.

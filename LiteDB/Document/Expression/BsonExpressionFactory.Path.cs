@@ -11,7 +11,7 @@ namespace LiteDB
             var result = Copy(target);
             result.IsScalar = false;
             result.Expression = Expression.Call(_arrayFilterMethod, target.Expression,
-                Expression.Constant(filter == null ? int.MaxValue : 0), Expression.Constant(filter ?? new BsonExpression()),
+                Expression.Constant(filter == null ? int.MaxValue : 0), NestedTemplate(filter),
                 context.Root, context.Collation, context.Parameters);
             result.Source = target.Source + "[" + (filter?.Source ?? "*") + "]";
             if (filter != null)

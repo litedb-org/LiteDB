@@ -48,6 +48,8 @@ LINQ parameters retain their current `p0`, `p1`, ... naming and mapper
 serialization behavior. SQL templates use their supplied parameter names.
 Nested MAP/FILTER/SORT and array-index expressions receive the current execution's
 parameters explicitly, so cached delegates cannot reuse another binding's values.
+Embedded nested templates hold no parameter documents, preventing retained first-use
+parameter payloads in compiled delegates and automatically cached LINQ shapes.
 Collation is likewise supplied at execution time. There is no global translation
 cache keyed only by CLR type; each translation observes its own mapper. Reuse a
 template with the mapping under which it was translated. Rebinding stores no
@@ -69,6 +71,17 @@ and the mapped members used during translation, including changes made through
 the publicly mutable entity/member metadata. Bindings receive independent
 parameter documents and field sets. A small per-thread scratch visitor is reused
 and cleared in `finally`; reentrant translation rents another visitor.
+
+Captured helper calls reuse a closure-free CLR evaluator. Every constant is read
+from its occurrence in the current expression tree. Compilation is deferred until
+the shape is reused; ordinary captured fields and properties keep their reflection
+path. Evaluation order, exception wrapping, and live mapper serialization remain
+unchanged. Nested member/list initializers and ambiguous reused binding nodes use
+the direct translator.
+
+Nested MAP/FILTER/SORT and bracket filters reuse their root source across elements,
+or use an empty source when unused. Scalar MAP selectors execute without creating
+a per-element wrapper enumerator; enumerable selectors still flatten their values.
 
 Indexers whose evaluated arguments become part of canonical `Source`, synthetic
 enum/DbRef bindings, invoked lambdas, unsupported shapes, and shapes over 512

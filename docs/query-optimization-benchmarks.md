@@ -626,6 +626,63 @@ Nine new tests cover nulls, scalar array/document values, enumerable and nested
 flattening, source aggregates, deferred failures, and disposal after early exit.
 Full .NET 8 suite: 1,093 passed, seven existing skips; all Release targets build.
 
+## 23. Release original parameter payloads from nested templates
+
+Nested evaluators already receive current parameters explicitly, but their cached
+BsonExpression objects still retained the original parameter document. Rebinding
+could therefore keep large, unused first-use values alive through expression
+trees, compiled delegates, and automatic LINQ templates. Factories now embed
+unbound copies with no fallback parameter document. Public Bind still requires a
+non-null binding, and explicitly null execution parameters keep their errors.
+
+A dedicated **complete-query memory workload** executes 128 projections against a
+one-document collection. It creates 64 distinct templates, each first bound to
+10,000 integer keys and then rebound to one key. It retains the 64 rebound
+templates, releases the original bindings, forces collection, and checks both
+live heap growth and weak references to the original arrays. Every query is fully
+consumed; both versions produce checksum 256.
+
+| After 128 complete queries | Before | After |
+|---|---:|---:|
+| Original parameter arrays still alive | 64 / 64 | 0 / 64 |
+| Managed live-heap growth | 44,667,360 B | 435,888 B |
+
+That is **44.2 MB less retained managed memory** in this workload (99.0% less
+live-heap growth). It does not free values an application intentionally retains,
+measure native/JIT memory, or establish a general latency improvement. These
+numbers are medians of two fresh production processes per version, run in
+before/after/after/before order. Raw files: `23-lifetime-before-*` and
+`23-lifetime-after-*`. `23-lifetime-initial-*` preserves an earlier implementation
+using empty fallback documents, replaced to preserve explicitly null behavior.
+
+Build `tools/QueryParameterLifetimeBenchmarks` against each production assembly
+using `-p:LiteDBAssembly=/tmp/opt-lib/LiteDB.dll -o /tmp/lifetime-bench`, then run:
+
+```sh
+DOTNET_TieredCompilation=0 taskset -c 2 dotnet /tmp/lifetime-bench/QueryParameterLifetimeBenchmarks.dll label
+```
+
+The ordinary nested-query harness also compares step 22 against this change,
+using the existing 4,000-document / 32-element dataset and eighteen batches per
+version. Checksums match. Selected results follow; raw `23-throughput-*` files
+include all seven workloads, allocations, and individual batches.
+
+| Complete query | Before µs | After µs | Before B/query | After B/query |
+|---|---:|---:|---:|---:|
+| LINQ nested projection | 62,460.56 | 61,554.84 | 34,482,730 | 34,482,658 |
+| LINQ nested filter and projection | 71,430.79 | 71,245.37 | 41,091,808 | 41,091,847 |
+| SQL bracket filter | 41,159.25 | 40,462.28 | 31,286,744 | 31,287,424 |
+| SQL MAP with source aggregate | 41,835.47 | 41,311.98 | 38,392,312 | 38,393,012 |
+| Read array documents, control | 33,080.30 | 33,058.39 | 20,462,784 | 20,462,784 |
+
+Timing is effectively unchanged. SQL parsing allocates small additional template
+copies (roughly 0.1–0.7 KB/query in these cases); automatic LINQ cache hits do not
+repeat that work. Six retention regression cases failed before the fix. Twelve
+new tests now cover nested MAP/FILTER/SORT/indexing, recursive templates, the
+first serialized LINQ array, current bindings, and null-parameter errors. Full
+.NET 8 and .NET 10 suites: 1,105 passed each, seven existing skips; all Release
+targets build.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -662,8 +719,8 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 1,093 passed on .NET 8 at step 22;
-  1,084 passed on .NET 10 at step 21; focused sort and query suites also pass on .NET 8. Each full
+- Full `LiteDB.Tests` with `tests.runsettings`: 1,105 passed on .NET 8 at step 23;
+  1,105 passed on .NET 10 at step 23; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file
