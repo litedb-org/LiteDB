@@ -91,6 +91,18 @@ namespace LiteDB
             return base.VisitMemberAssignment(node);
         }
 
+        protected override MemberMemberBinding VisitMemberMemberBinding(MemberMemberBinding node)
+        {
+            Supported = false;
+            return node;
+        }
+
+        protected override MemberListBinding VisitMemberListBinding(MemberListBinding node)
+        {
+            Supported = false;
+            return node;
+        }
+
         private void Add(Token token, Expression node)
         {
             Tokens.Add(token);

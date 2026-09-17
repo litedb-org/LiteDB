@@ -534,6 +534,42 @@ Ten differential tests compare implicit/explicit singleton sources, including
 nested MAP/FILTER/SORT, aggregates, rebinding, and no-root/null overload semantics.
 Full .NET 8 suite: 1,059 passed, seven existing skips; all Release targets build.
 
+## 20. Reuse closure-free evaluators for captured LINQ helpers
+
+A cache hit still compiled and dynamically invoked a fresh delegate for captured
+calls such as `x => x.Id == provider.GetId()`, including calls underneath member
+access. Templates now prepare an evaluator with every constant replaced by a
+position in the **current** expression tree. It retains metadata, never a caller's
+closure, object, or literal value. Compilation is lazy and shared across callers;
+ordinary captured fields/properties retain their existing reflection path.
+
+| Complete query | Before µs | After µs | Time reduction | Before B/query | After B/query |
+|---|---:|---:|---:|---:|---:|
+| Lookup using a captured method | 165.90 | 24.64 | 85.1% | 30,922 | 26,573 |
+| Lookup using a member of a method result | 162.86 | 25.86 | 84.1% | 31,091 | 26,733 |
+| Range count using two captured methods | 284.47 | 29.10 | 89.8% | 38,327 | 29,673 |
+| Ordinary captured-field lookup, control | 26.00 | 25.36 | 2.4% | 28,123 | 28,123 |
+| Translate with a fresh mapper, then execute | 1,108.06 | 1,117.89 | -0.9% | 89,961 | 91,869 |
+
+Two processes per version, before/after/after/before, use changing helper values
+and consume every result. Comparison files are `20-binding-before-2/3` against
+`20-binding-after-1/2`. Checksums match. The fresh-mapper case includes constructing
+and mapping a new mapper on every complete query; it allocates about 1.9 KB more
+to prepare later reuse. Its timing and the field control are effectively unchanged.
+The first reused call pays the one-time lazy compilation cost, outside these warm
+measurements; subsequent calls avoid repeated compilation.
+
+An initial eager implementation made fresh-mapper queries 24% slower. It was
+rejected in favor of lazy compilation; `20-binding-before-1` and
+`20-binding-initial-after-1` preserve that experiment separately.
+
+Tests cover independent closures, literal occurrences (including shared nodes in
+the first tree), initializers, nullable values, live serializers, exception chains,
+evaluation order/count, reentrancy, concurrency, and garbage collection of both
+unused and compiled evaluator inputs. Ambiguous reused binding nodes and nested
+member/list initializer bindings retain uncached translation. The full .NET 8
+suite passes 1,073 tests with seven existing skips; all Release targets build.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -570,8 +606,8 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 1,059 passed on .NET 8 at step 19;
-  1,059 passed on .NET 10 at step 19; focused sort and query suites also pass on .NET 8. Each full
+- Full `LiteDB.Tests` with `tests.runsettings`: 1,073 passed on .NET 8 at step 20;
+  1,072 passed on .NET 10 at step 20 before the final nested-initializer fallback test; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file

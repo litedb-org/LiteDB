@@ -53,7 +53,8 @@ and bypass cached delegates. Compare production assemblies with
 `tools/QueryIrBenchmarks` (`TestingEnabled=false`); see `docs/shared-query-ir.md`.
 Automatic LINQ reuse is mapper-local and bounded. Cache keys must not retain
 closures; validate publicly mutable mapping metadata and bind current values on
-every call. Structural arguments that become part of `Source` must be included
+every call. Cached CLR evaluators must read all constants from the current shape,
+preserve reflection exception semantics, and defer compilation until reuse. Structural arguments that become part of `Source` must be included
 in the key or use the uncached translator. Optimizer rewrites must use the active
 collation and must not intersect separate ANY/ALL predicates as scalar bounds.
 Propagate internal `IsVolatile` through every expression factory and binding;

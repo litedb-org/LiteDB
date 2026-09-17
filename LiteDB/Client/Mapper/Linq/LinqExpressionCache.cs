@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Threading;
 
@@ -50,11 +51,13 @@ namespace LiteDB
             {
                 slots[i] = shape.Expressions.IndexOf(translator.Bindings[i]);
                 // Some translations synthesize bindings (enum names, DbRef metadata,
-                // invoked lambdas). Keep their existing translation path.
-                if (slots[i] < 0 || translator.Bindings[i] == null) return result;
+                // invoked lambdas), or reuse one binding node at multiple positions.
+                // Keep their existing translation path rather than aliasing slots.
+                if (slots[i] < 0 || translator.Bindings[i] == null ||
+                    shape.Expressions.IndexOf(translator.Bindings[i], slots[i] + 1) >= 0) return result;
             }
             var entry = new Entry(shape.Tokens.ToArray(), slots, translator.MemberGuards.ToArray(),
-                result.Bind(new BsonDocument()), mapper.EnumAsInteger, predicate);
+                result.Bind(new BsonDocument()), mapper.EnumAsInteger, predicate, shape);
             Publish(bucket, entry, shape, mapper.EnumAsInteger, predicate);
             return result;
         }
@@ -94,13 +97,14 @@ namespace LiteDB
             private readonly LinqQueryShape.Token[] _tokens;
             private readonly int[] _slots;
             private readonly string[] _names;
+            private readonly Lazy<Func<List<Expression>, object>>[] _evaluators;
             private readonly LinqMemberGuard[] _members;
             private readonly BsonExpression _template;
             private readonly bool _enumAsInteger;
             private readonly bool _predicate;
 
             internal Entry(LinqQueryShape.Token[] tokens, int[] slots, LinqMemberGuard[] members,
-                BsonExpression template, bool enumAsInteger, bool predicate)
+                BsonExpression template, bool enumAsInteger, bool predicate, LinqQueryShape shape)
             {
                 _tokens = tokens;
                 _slots = slots;
@@ -109,7 +113,12 @@ namespace LiteDB
                 _enumAsInteger = enumAsInteger;
                 _predicate = predicate;
                 _names = new string[slots.Length];
-                for (var i = 0; i < slots.Length; i++) _names[i] = "p" + i;
+                _evaluators = new Lazy<Func<List<Expression>, object>>[slots.Length];
+                for (var i = 0; i < slots.Length; i++)
+                {
+                    _names[i] = "p" + i;
+                    _evaluators[i] = LinqBindingEvaluator.Create(shape.Expressions[slots[i]], slots[i]);
+                }
             }
 
             internal bool Matches(LinqQueryShape shape, bool enumAsInteger, bool predicate)
@@ -127,7 +136,8 @@ namespace LiteDB
                 // never retain a caller's closure or reuse its serialized values.
                 for (var i = 0; i < _slots.Length; i++)
                 {
-                    var value = LinqExpressionTranslator.Evaluate(shape.Expressions[_slots[i]]);
+                    var value = _evaluators[i] == null ? LinqExpressionTranslator.Evaluate(shape.Expressions[_slots[i]]) :
+                        _evaluators[i].Value(shape.Expressions);
                     parameters[_names[i]] = value == null ? BsonValue.Null : value is string text ?
                         new BsonValue(text) : mapper.Serialize(value.GetType(), value);
                 }
