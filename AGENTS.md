@@ -75,6 +75,9 @@ Only set `Index.SingleKeyPerDocument` after matching a scalar IR expression or a
 canonically escaped scalar root-field path to the stored index definition. Raw
 field names can resemble multikey/computed paths; use the shared path formatter.
 Multikey and unproven scans still need document address deduplication.
+Index-node links must remain owned by the node across transaction safepoints.
+Keep their compact copied representation independent of released page buffers;
+update both the page and the owned copy when changing links.
 Temporary sort keys use the same extended string/binary length headers as index
 pages. Decode them with `ExtendedLengthHelper`; lengths describe UTF-8 bytes,
 not characters, and valid key payloads can exceed 255 bytes. Preserve full

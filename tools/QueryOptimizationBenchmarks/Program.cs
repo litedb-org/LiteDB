@@ -46,6 +46,7 @@ internal static class Program
             NestedWorkloads.Run(db, Measure, args.Length > 1 ? args[1] : null);
             UniqueWorkloads.Run(db, Measure, plans, args.Length > 1 ? args[1] : null);
             ScalarIndexWorkloads.Run(db, Measure, plans, args.Length > 1 ? args[1] : null);
+            NodeLinkWorkloads.Run(db, Measure);
             MergeWorkloads.Run(db, Measure, plans, args.Length > 1 ? args[1] : null);
             TraversalGuardWorkloads.Run(db, Measure);
             CollationWorkloads.Run(db, Measure);

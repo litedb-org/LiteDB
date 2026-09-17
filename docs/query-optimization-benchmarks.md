@@ -1027,6 +1027,46 @@ also pass. Full .NET 8 and .NET 10 suites: 1,204 passed each, seven existing
 skips each. All Release targets, 18 reproduction-runner tests, and plain/encrypted
 vector file compatibility checks pass through this step.
 
+## 34. Keep loaded index links in one compact owned copy
+
+Loading an index node previously allocated separate forward/backward arrays and
+decoded every skip-list pointer immediately. Nodes now keep one owned copy of
+the encoded pointer bytes and decode the requested link on access. The copy
+remains valid after transaction safepoints release page buffers. Writers update
+the page and the owned copy together; the persisted layout is unchanged.
+Equality scans, index insertion/deletion, and automatic-ID initialization use the
+same link accessor. No lazy access to released page memory is introduced.
+
+The main 20,000-row fixture is compared with step 33. In addition to complete
+queries, write controls insert/query/delete a row or update/query/restore one,
+leaving the fixture unchanged after each operation. Checksums match for every
+case; raw files are `34-links-*`.
+
+| Workload | Before µs | After µs | Time reduction | Before B/op | After B/op | Allocation reduction |
+|---|---:|---:|---:|---:|---:|---:|
+| links-primary-count | 2685.24 | 2495.18 | 7.1% | 7713296 | 6925712 | 10.2% |
+| links-secondary-range-count | 1665.74 | 1597.99 | 4.1% | 4354136 | 3957744 | 9.1% |
+| links-exclusion-count | 3503.93 | 3344.41 | 4.6% | 7732880 | 6940488 | 10.2% |
+| links-primary-lookup | 25.30 | 23.56 | 6.9% | 27002 | 23923 | 11.4% |
+| links-secondary-projection | 68.18 | 65.34 | 4.2% | 35042 | 33377 | 4.7% |
+| links-full-scan | 58096.66 | 57968.94 | 0.2% | 48153997 | 47366406 | 1.6% |
+| links-insert-query-delete-control | 220.89 | 208.97 | 5.4% | 386611 | 368482 | 4.7% |
+| links-update-query-restore-control | 247.32 | 232.71 | 5.9% | 369851 | 349309 | 5.6% |
+
+Measured lookups and counts take 4–7% less time, with 9–11% fewer allocated bytes
+in those cases. A full 20,000-row count saves about 0.79 MB; the changing-ID lookup
+saves about 3.1 KB. Write/query cycles also improve modestly. Full-scan latency is
+unchanged despite its lower allocation; query work outside index traversal still
+dominates that case.
+
+Tests verify every pointer at 1, 2, 5, and 32 levels, nonzero buffer offsets,
+independent reloaded views, invalid-level writes, and retained reads after page
+release. Plain/encrypted file tests cover insertion, updates, deletion, unique and
+multikey indexes, reopening, automatic IDs, and small page budgets. Full .NET 8
+and .NET 10 suites: 1,211 passed each, seven existing skips each. All Release
+targets, 18 reproduction-runner tests, and plain/encrypted file compatibility
+checks pass.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -1063,8 +1103,8 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 1,204 passed on .NET 8 at step 33;
-  1,204 passed on .NET 10 at step 33; focused sort and query suites also pass on .NET 8. Each full
+- Full `LiteDB.Tests` with `tests.runsettings`: 1,211 passed on .NET 8 at step 34;
+  1,211 passed on .NET 10 at step 34; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file
