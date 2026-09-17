@@ -1574,6 +1574,81 @@ positive range-union case. Full .NET 8 and .NET 10 suites: **1,388 passed each**
 seven existing skips each; all Release targets build, 18 reproduction-runner
 tests pass, and vector compatibility checks pass.
 
+## 42. Membership and BETWEEN participate in scalar index unions
+
+The preceding range-union optimization still scanned for
+`keys.Contains(x.Score) || (x.Score >= low && x.Score < high)` and SQL ORs
+containing `IN` or `BETWEEN`. LINQ membership appears as `ITEMS(@keys) ANY = field`,
+which the earlier normalization recognized only as a top-level term. The shared
+union analysis now recognizes that form, scalar IN, and BETWEEN inside each OR
+arm without round-tripping through the text parser.
+
+Each arm reuses the existing constraint intersection logic. Bounds filter set
+values before ordered sets are built; duplicate keys and intersected IN lists use
+the active collation. The union combines the surviving point intervals with its
+ranges and merges overlaps. Current parameter values are read for each execution.
+Large parameter arrays remain eligible, including the 10,000-key regression
+fixture. An existing indexed scalar equality skips set expansion for a more
+expensive union candidate and retains the original OR as a residual filter.
+
+The value proof accepts literal arrays, parameters, arithmetic, and the ITEMS
+conversion used by Contains. It preserves the difference between binary ITEMS
+(which enumerates bytes) and scalar IN (which compares the entire binary value).
+Multikey ANY/ALL, mixed fields, included/computed keys, volatile expressions,
+unrecognized calls, and expressions exceeding the 64-node structural budget keep
+their existing paths. Arithmetic failures preserve short circuits and execution
+time errors. The reusable IR and caller arrays are not changed.
+
+Measurements compare `5559813b` with this change using the same production harness,
+20,000 documents, CPU 2, disabled tiered compilation, and sequential
+before/after/after/before processes. Each version contributes eighteen batches
+per workload. No builds or tests run during timing. Production SHA-256 values are
+`c4b7c781b132e1dc36c0ece50f39ae89d9004143c43e096f476e13a3391875ed`
+(before) and
+`09206086ed3e19aae576544d98a52c60eb51bbcab4bf0b94c1fbbf5e205d435d`
+(after). Use the `setunion` filter; raw samples and plans are `42-setunion-*`.
+
+| Workload | Before µs | After µs | Time reduction | Before B/op | After B/op | Allocation reduction |
+|---|---:|---:|---:|---:|---:|---:|
+| setunion-contains-range-linq | 36462.62 | 99.42 | 99.7% | 38156460 | 85273 | 99.8% |
+| setunion-in-range-sql | 33628.42 | 48.83 | 99.9% | 34506408 | 66752 | 99.8% |
+| setunion-between-sql | 36661.52 | 51.63 | 99.9% | 40743720 | 66952 | 99.8% |
+| setunion-two-sets-linq | 41792.19 | 80.95 | 99.8% | 42033088 | 72104 | 99.8% |
+| setunion-intersect-linq | 1000994.53 | 378.95 | 99.96% | 37977088 | 350312 | 99.1% |
+| setunion-covered-count | 35716.24 | 60.34 | 99.8% | 32124184 | 55595 | 99.8% |
+| setunion-large-union-count | 982977.93 | 5114.32 | 99.5% | 32251664 | 10905368 | 66.2% |
+| setunion-descending-page | 34834.91 | 89.31 | 99.7% | 35552272 | 77787 | 99.8% |
+| setunion-existing-range-control | 91.45 | 90.72 | 0.8% | 74921 | 75017 | -0.1% |
+| setunion-existing-in-control | 54.24 | 55.63 | -2.6% | 52834 | 52834 | 0.0% |
+| setunion-cheaper-id-control | 163.22 | 165.36 | -1.3% | 124545 | 124865 | -0.3% |
+| setunion-unindexed-control | 38666.63 | 38647.00 | 0.1% | 38025456 | 38025728 | -0.0% |
+
+Ordinary Contains plus range is **367× faster**, SQL BETWEEN unions **710× faster**,
+and the intersected 1,000-key query **2,641× faster**. The latter applies `Score >=
+990` to the key list first, leaving eleven seeks plus a ten-row range instead of
+testing list membership across the collection. Its time reduction is shown to
+two decimal places to avoid rounding it to 100%. The broad union counts 2,001
+matching rows using 1,000 point seeks and a 1,001-row range; it is **192× faster**.
+These gains come from previously missed index access and expensive residual work.
+
+Controls stay within 3% of baseline. Existing range unions allocate 96 additional
+bytes per query for shared constraint objects; the cheaper-ID case adds 320 bytes
+of analysis before discarding the union, and the unindexed control adds 272 bytes.
+The existing standalone IN control has unchanged allocation. All result checksums
+match. These are warm, in-memory complete-query results, not a universal speedup
+or disk-throughput measurement.
+
+Thirty-eight new tests cover changing LINQ arrays, inline and bound sets,
+arithmetic BETWEEN bounds, set/range intersections, overlaps, duplicate keys,
+empty results, both ordering directions, pagination, aggregates, grouping,
+10,000-key parameters, alternative indexes, binary/scalar membership, and 100
+randomized mixed-BSON/collation cases. Fallback tests cover ANY/ALL, volatility,
+throwing values and short circuits, computed fields, and includes. Persistence
+checks use plain/encrypted files, one-page transaction budgets, rollback, reopen,
+and rebuilt collation with an existing bound template. Full .NET 8 and .NET 10
+suites pass **1,426 tests each**, with seven existing skips each. All Release
+targets build; 18 reproduction-runner tests and vector compatibility checks pass.
+
 ## Combined result and practical priority (steps 1–5)
 
 A separate complete-suite comparison runs the post-IR baseline against all five
@@ -1610,8 +1685,8 @@ materializers remain separate work.
 ## Validation
 
 - Release solution build with `TestingEnabled=true`: all targets build.
-- Full `LiteDB.Tests` with `tests.runsettings`: 1,388 passed on .NET 8 at step 41;
-  1,388 passed on .NET 10 at step 41; focused sort and query suites also pass on .NET 8. Each full
+- Full `LiteDB.Tests` with `tests.runsettings`: 1,426 passed on .NET 8 at step 42;
+  1,426 passed on .NET 10 at step 42; focused sort and query suites also pass on .NET 8. Each full
   run has seven existing skips.
 - Reproduction-runner tests: 18 passed.
 - Vector file compatibility: ordinary v8 round trips and promoted vector-file

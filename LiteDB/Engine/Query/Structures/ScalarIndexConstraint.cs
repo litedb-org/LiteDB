@@ -44,6 +44,25 @@ namespace LiteDB.Engine
                 return new IndexRange(name, _bounds.Lower, _bounds.Upper,
                     _bounds.LowerInclusive, _bounds.UpperInclusive, Query.Ascending);
             }
+            var intersection = IntersectSets();
+            if (intersection.Count == 0) return new IndexEmpty();
+            var keys = new BsonArray(intersection);
+            if (keys.Count == 1) return new IndexEquals(name, keys[0]);
+            return new IndexIn(name, keys, Query.Ascending);
+        }
+
+        internal void AppendRanges(List<ScalarBounds> ranges)
+        {
+            if (_bounds.IsEmpty(_collation)) return;
+            if (_sets == null) ranges.Add(_bounds);
+            else
+            {
+                foreach (var key in IntersectSets()) ranges.Add(new ScalarBounds(key, key, true, true));
+            }
+        }
+
+        private SortedSet<BsonValue> IntersectSets()
+        {
             // Bounds are complete now. Discard excluded values before constructing
             // ordered sets, and seed from the shortest IN list to keep intersections small.
             var smallest = 0;
@@ -56,12 +75,9 @@ namespace LiteDB.Engine
                 var values = _hasBounds ? set.Where(x => _bounds.Contains(x, _collation)) : (IEnumerable<BsonValue>)set;
                 if (intersection == null) intersection = new SortedSet<BsonValue>(values, _collation);
                 else intersection.IntersectWith(values);
-                if (intersection.Count == 0) return new IndexEmpty();
+                if (intersection.Count == 0) break;
             }
-            var keys = new BsonArray(intersection);
-            if (keys.Count == 0) return new IndexEmpty();
-            if (keys.Count == 1) return new IndexEquals(name, keys[0]);
-            return new IndexIn(name, keys, Query.Ascending);
+            return intersection;
         }
     }
 }

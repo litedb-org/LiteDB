@@ -139,18 +139,28 @@ hot queries, churn, and concurrent throughput measurements.
 ## Shared predicate optimization
 
 ORs of scalar member-path bounds can use an ordered union of index ranges. Each
-arm may intersect `<`, `<=`, `>`, `>=`, and equality constraints on the same key.
+arm may intersect `<`, `<=`, `>`, `>=`, equality, `IN`, and `BETWEEN` constraints
+on the same key. Ordinary LINQ `Contains` participates inside ORs as well.
 The planner reads current parameters, including arithmetic bounds, discards empty
 arms, and merges overlapping or connected ranges using the active collation.
 Open endpoints remain open when neither arm covers the boundary. The resulting
 disjoint scans support ascending/descending order, pagination, covered projections,
-and row aggregates without duplicate documents or residual OR evaluation.
+and row aggregates without duplicate documents or residual OR evaluation. Set
+intersections discard keys outside the final bounds before constructing ordered
+sets, and the union merges matching keys into the ranges that already cover them.
+Parameter lists can exceed the structural node budget. An existing indexed scalar
+equality avoids expanding a list into a more expensive candidate.
+
+Literal arrays, parameters, and arithmetic values are checked structurally. The
+recognized `ITEMS(values) ANY = field` form keeps its sequence semantics: binary
+values enumerate bytes, while scalar `field IN binary` compares the whole binary
+value. Field-based ANY/ALL predicates retain their multikey semantics.
 
 This analysis has a 64-node budget and requires a matching scalar index. Includes,
-computed keys, array selectors, mixed fields, and volatile/function-call bounds
+computed keys, array selectors, mixed fields, and volatile or unrecognized function-call bounds
 keep their existing plans. Arithmetic failures preserve the original filter and
 its execution-time errors and short circuits. If another predicate selects a
-cheaper index, the OR remains a filter. See step 41 in the benchmark report.
+cheaper index, the OR remains a filter. See steps 41–42 in the benchmark report.
 
 The engine inspects the same expression nodes for LINQ and SQL. Equality ORs on
 one scalar indexed expression become ordered IN seeks. OR branches with equivalent

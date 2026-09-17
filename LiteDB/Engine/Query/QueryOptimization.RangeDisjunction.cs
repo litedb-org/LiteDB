@@ -17,6 +17,8 @@ namespace LiteDB.Engine
             if (!CollectRangeBranches(expression, branches, ref field, ref budget)) return null;
             var index = indexes.FirstOrDefault(x => IndexExpressionIdentity.Matches(x.Expression, field));
             if (index == null) return null;
+            if (_terms.Count > 1 && branches.Any(branch => branch.Any(term => term.Type == BsonExpressionType.In || term.IsANY)) &&
+                HasCheaperScalarEquality(indexes)) return null;
 
             // Validate the entire shape before reading any values. Bindings belong
             // to this invocation; the reusable IR and its parameters stay unchanged.
@@ -25,13 +27,14 @@ namespace LiteDB.Engine
                 var ranges = new List<ScalarBounds>(branches.Count);
                 foreach (var branch in branches)
                 {
-                    var bounds = new ScalarBounds(BsonValue.MinValue, BsonValue.MaxValue, true, true);
+                    var constraint = new ScalarIndexConstraint(_collation);
                     foreach (var term in branch)
                     {
-                        TryGetScalarBound(term, out _, out var value, out var operation, allowComputedValue: true);
-                        bounds.Intersect(operation, value.ExecuteScalar(_collation), _collation);
+                        TryGetUnionConstraint(term, out _, out var value, out var operation);
+                        var current = value.IsScalar ? value.ExecuteScalar(_collation) : new BsonArray(value.Execute(_collation));
+                        if (!constraint.Intersect(operation, current)) return null;
                     }
-                    if (!bounds.IsEmpty(_collation)) ranges.Add(bounds);
+                    constraint.AppendRanges(ranges);
                 }
                 return new IndexCost(index, expression, IndexRangeUnion.Create(index.Name, ranges, _collation), scalarKeys: true);
             }
@@ -66,7 +69,7 @@ namespace LiteDB.Engine
                 return CollectRangeConjunction(expression.Left, branch, ref field, ref budget) &&
                     CollectRangeConjunction(expression.Right, branch, ref field, ref budget);
             }
-            if (!TryGetScalarBound(expression, out var current, out var value, out _, allowComputedValue: true) ||
+            if (!TryGetUnionConstraint(expression, out var current, out var value, out _) ||
                 !IsRangeMemberPath(current) || !IsRangeValue(value, ref budget)) return false;
             if (field != null && !IndexExpressionIdentity.Matches(field.Source, current)) return false;
             field = current;
@@ -86,7 +89,7 @@ namespace LiteDB.Engine
                 case BsonExpressionType.Divide:
                 case BsonExpressionType.Modulo:
                     return IsRangeValue(value.Left, ref budget) && IsRangeValue(value.Right, ref budget);
-                default: return false;
+                default: return IsUnionValueExpression(value.Expression, ref budget);
             }
         }
 
