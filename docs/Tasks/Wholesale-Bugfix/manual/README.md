@@ -1697,3 +1697,21 @@ reach the positional opener; dash options retain their behavior. The Windows
 regex is unchanged (not runtime-tested on this Linux host). The retained real
 shell script passes isolated/integrated with exact payload and unchanged bytes.
 Four fresh reviewers review_2774_w1_a through _d were clean.
+
+## #1644 — defer compilation of discarded boolean prefixes
+
+AND/OR predicates compile at first execution. Unexecuted factories stay owned by
+the expression, allowing discarded composition trees to be collected; only
+executed delegates enter the global cache. Publication returns its canonical
+winner, while compilation preserves construction-time interpreter selection.
+
+The unchanged production fixture improves from 1019.446 ms to 261.853 ms and
+passes every disjunct/seed/nonmatch assertion. The host-sensitive absolute timing
+manifest remains flaky, with an expected VERIFIED_1644 result. 26 focused and
+integrated cases pass. Full isolated suite: 1942 passed, 209 existing failures,
+8 skipped, no new failures. Production/net462 builds pass.
+
+Three fresh four-Sol-high waves addressed concurrent publication, interpreter
+scope, meaningful short-circuit coverage and discarded-tree retention. The weak
+reference regression fails with the earlier cached-factory implementation and
+passes the final candidate. Final review_1644_w3_a through _d were clean.

@@ -20,9 +20,9 @@
       "logContains": "BUG_1644_CONFIRMED"
     },
     "latest": {
-      "kind": "reproduce",
-      "exitCode": 0,
-      "logContains": "BUG_1644_CONFIRMED"
+      "kind": "noRepro",
+      "exitCode": 10,
+      "logContains": "VERIFIED_1644"
     }
   }
 }

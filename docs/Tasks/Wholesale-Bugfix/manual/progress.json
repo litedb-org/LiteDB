@@ -1754,8 +1754,9 @@
         "priority: P3"
       ],
       "reproduction": "reproduced-ci",
-      "disposition": "pending",
-      "tests": []
+      "disposition": "fixed-four-reviews",
+      "tests": [],
+      "validation": "Unchanged production fixture1019.446ms->261.853ms with full truth table;26 focused/integrated pass; full1942pass209existingfail8skip no new; production/net462 pass; four fresh Sol-high w3 CLEAN. Discarded-tree retention regression fails prior candidate/passes final."
     },
     {
       "issue": 1706,

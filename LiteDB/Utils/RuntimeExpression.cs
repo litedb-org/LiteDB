@@ -16,11 +16,32 @@ namespace LiteDB
         private static readonly AsyncLocal<bool> _forceInterpretation = new AsyncLocal<bool>();
         internal static bool ForceInterpretation { get => _forceInterpretation.Value; set => _forceInterpretation.Value = value; }
 #endif
-        internal static TDelegate Compile<TDelegate>(Expression<TDelegate> lambda)
+        internal static bool UseInterpretation
         {
-            var interpret = !CanCompile;
+            get
+            {
+                var interpret = !CanCompile;
 #if TESTING
-            interpret |= ForceInterpretation;
+                interpret |= ForceInterpretation;
+#endif
+                return interpret;
+            }
+        }
+#if TESTING
+        private static readonly AsyncLocal<Action<bool>> _compilationObserver = new AsyncLocal<Action<bool>>();
+        internal static Action<bool> CompilationObserver
+        {
+            get => _compilationObserver.Value;
+            set => _compilationObserver.Value = value;
+        }
+#endif
+        internal static TDelegate Compile<TDelegate>(Expression<TDelegate> lambda)
+            => Compile(lambda, UseInterpretation);
+
+        internal static TDelegate Compile<TDelegate>(Expression<TDelegate> lambda, bool interpret)
+        {
+#if TESTING
+            CompilationObserver?.Invoke(interpret);
 #endif
             if (!interpret) return lambda.Compile();
             Func<object[], object> evaluate = arguments => ExpressionInterpreter.Evaluate(lambda.Body, lambda.Parameters, arguments);
