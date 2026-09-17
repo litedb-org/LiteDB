@@ -290,7 +290,7 @@ namespace LiteDB.Engine
                 // calculate index score and store highest score
                 var current = new IndexCost(index.Item1, expr, index.Item2, _collation);
 
-                if (lowest == null || current.Cost < lowest.Cost)
+                if (lowest == null || current.Cost < lowest.Cost || this.PreferRangeStart(current, lowest))
                 {
                     lowest = current;
                 }

@@ -1,4 +1,4 @@
-﻿using LiteDB.Engine;
+using LiteDB.Engine;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -535,7 +535,7 @@ namespace LiteDB
                 // it's the slowest way, but more secure
                 if (this.IsNumber && other.IsNumber)
                 {
-                    return Convert.ToDecimal(this.RawValue).CompareTo(Convert.ToDecimal(other.RawValue));
+                    return BsonNumberComparison.Compare(this, other);
                 }
                 // if not, order by sort type order
                 else

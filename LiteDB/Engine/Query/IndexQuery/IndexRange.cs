@@ -26,6 +26,17 @@ namespace LiteDB.Engine
             _endEquals = endEquals;
         }
 
+        internal bool HasCloserStart(IndexRange other, int order, Collation collation)
+        {
+            var start = order == Query.Ascending ? _start : _end;
+            var previous = order == Query.Ascending ? other._start : other._end;
+            var comparison = start.CompareTo(previous, collation);
+            if (comparison != 0) return order == Query.Ascending ? comparison > 0 : comparison < 0;
+            var inclusive = order == Query.Ascending ? _startEquals : _endEquals;
+            var previousInclusive = order == Query.Ascending ? other._startEquals : other._endEquals;
+            return !inclusive && previousInclusive;
+        }
+
         public override uint GetCost(CollectionIndex index)
         {
             return 20;

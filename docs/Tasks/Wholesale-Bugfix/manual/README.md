@@ -1588,3 +1588,20 @@ The original stress race and new deterministic resolver guard both fail with the
 old implementation. All 57 mapper/ID focused tests pass after integration;
 production/net462 builds pass. Four fresh Sol-high reviewers
 review_2324_w1_a through _d were clean.
+
+## #1706 — choose range starts independently of conjunct order
+
+Equal-cost ranges on the same index now prefer the tighter starting endpoint in
+the actual scan direction, including exclusive endpoints. Other conjuncts stay
+as residual filters, preserving independent multikey witnesses. A supporting
+numeric comparison correction handles doubles outside decimal range and NaN/
+infinity without changing comparisons that previously succeeded. This avoids
+planning/seek overflows and keeps extreme-bound plans stable too.
+
+38 focused and integrated tests pass. Full isolated suite: 1933 passed, 210
+existing failures, 8 skipped; no new failures. Production/net462 builds pass.
+Three fresh Sol-high waves addressed numeric overflow, a test that initially
+missed the active scan endpoint, and order-dependent fallback. Final reviewers
+review_1706_w3_a through _d found only a documentation-filter nit, now addressed.
+The strengthened overflow regression failed all three inputs with the unsafe
+comparison before the final fix.

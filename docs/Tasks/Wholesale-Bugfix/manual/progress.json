@@ -1766,10 +1766,13 @@
         "priority: P3"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
-        "LiteDB.Tests/Issues/Issue1706_Tests.cs"
-      ]
+        "LiteDB.Tests/Issues/Issue1706_Tests.cs",
+        "LiteDB.Tests/Issues/Issue1706RangeStart_Tests.cs",
+        "LiteDB.Tests/Issues/Issue1706NumericBounds_Tests.cs"
+      ],
+      "validation": "38 focused/integrated cases pass; full suite 1933 passed/210 existing failures/8 skipped, no new failures against pre-fix baseline. Production/net462 builds pass. Three fresh four-Sol-high waves; final three clean, one documented-filter nit addressed. Mixed numeric comparison covers out-of-decimal doubles/NaN/infinity and preserves prior defined ordering."
     },
     {
       "issue": 1834,
