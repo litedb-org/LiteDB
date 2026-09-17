@@ -2240,11 +2240,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "reproduced-pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2895_Tests.cs"
       ],
-      "validation": "All six array/List x Insert/Update/Upsert cases bind to the single-entity overload and fail before producing the expected Item collection."
+      "validation": "Added array/List overloads on LiteRepository and ILiteRepository forwarding to bulk operations. All 11 focused repository tests pass, including counts, named collections, empty batches and single-entity controls. Documented intentional v6 interface expansion and custom-implementer/callsite rebuild requirements after first review; four fresh gpt-5.6-sol reviewers approved round two without actionable findings."
     },
     {
       "issue": 2896,
