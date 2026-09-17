@@ -1654,3 +1654,10 @@ failure, reporting both expected and actual types without allocating diagnostic
 strings for valid pages. All 14 retained/integrated cases pass. Two fresh
 four-Sol-high waves removed eager interpolation; final review_2864_w2_a through
 _d were clean.
+
+## #2870 — preserve exception origin stacks
+
+Active query/data-reader catches use bare rethrows. FileReaderV8 and IO helper
+parameter forwarding uses ExceptionDispatchInfo. Identity, error ledger and
+lock-error handling stay intact. 23 focused/integrated tests pass; four fresh
+reviewers review_2870_w1_a through _d were clean.

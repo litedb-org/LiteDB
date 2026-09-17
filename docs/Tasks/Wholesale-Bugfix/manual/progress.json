@@ -2130,10 +2130,11 @@
         "from fork"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2870_Tests.cs"
-      ]
+      ],
+      "validation": "23 focused and integrated exception-stack/short-read tests pass; four fresh Sol-high w1 reviews CLEAN; original exception identity/origin frames and cleanup preserved."
     },
     {
       "issue": 2874,
