@@ -227,40 +227,12 @@ namespace LiteDB
 
                 if (!entity.PopulateMembers) return entity.CreateInstance(doc);
 
-                object instance = _typeInstantiator(type);
-
-                if (instance == null && entity.CreateInstance != null)
+                using (EnterConstructorScope(entity))
                 {
-                    instance = entity.CreateInstance(doc);
+                    var instance = CreateMappedInstance(type, entity, doc, out var complete);
+                    if (!complete) PopulateMappedInstance(type, declaredType, instance, doc);
+                    return instance;
                 }
-
-                if (instance == null && IsSystemIndexType(type))
-                {
-                    return DeserializeSystemIndex(type, doc);
-                }
-
-                // initialize CreateInstance
-                entity.CreateInstance = entity.CreateInstance
-                    ?? GetTypeCtor(entity) 
-                    ?? ((BsonDocument _) => Reflection.CreateInstance(entity.ForType));
-
-                instance ??= entity.CreateInstance(doc);
-
-                if (instance is IDictionary dict)
-                {
-                    var schemaType = Reflection.IsDictionaryInterface(declaredType)
-                        ? declaredType : !type.GetTypeInfo().IsInterface && instance.GetType().GetTypeInfo().IsGenericType &&
-                            type.GetGenericArguments().Length >= 2 ? type : instance.GetType();
-                    Reflection.GetDictionaryTypes(schemaType, out var keyType, out var valueType);
-
-                    DeserializeDictionary(keyType, valueType, dict, value.AsDocument);
-                }
-                else
-                {
-                    DeserializeObject(type, instance, doc);
-                }
-
-                return instance;
             }
 
             // in last case, return value as-is - can cause "cast error"
@@ -405,20 +377,21 @@ namespace LiteDB
         protected virtual void DeserializeObject(Type type, object obj, BsonDocument value)
         {
             var entity = this.GetEntityMapper(type);
+            var constructed = GetConstructorMembers(obj);
             foreach (var member in entity.Members.Where(x => x.Setter != null))
             {
-                if (value.TryGetValue(member.FieldName, out var val))
+                if (!value.TryGetValue(member.FieldName, out var val)) continue;
+
+                if (constructed != null && constructed.TryGetArgument(member, value, out var item))
                 {
-                    // check if has a custom deserialize function
-                    if (member.Deserialize != null)
-                    {
-                        member.Setter(obj, member.Deserialize(val, this));
-                    }
-                    else
-                    {
-                        member.Setter(obj, this.Deserialize(member.DataType, val));
-                    }
+                    if (HoldsValue(member, obj, item)) continue;
                 }
+                else
+                {
+                    item = DeserializeMember(member, val);
+                }
+
+                member.Setter(obj, item);
             }
         }
 

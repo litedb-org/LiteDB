@@ -203,7 +203,7 @@ public partial class BsonMapper
                 continue;
             }
 
-            KeyValuePair<string, Type>[] paramMap = new KeyValuePair<string, Type>[pars.Length];
+            var paramMap = new MemberMapper[pars.Length];
             int i;
             for (i = 0; i < pars.Length; i++)
             {
@@ -218,7 +218,7 @@ public partial class BsonMapper
                     break;
                 }
 
-                paramMap[i] = new KeyValuePair<string, Type>(mi.FieldName, mi.DataType);
+                paramMap[i] = mi;
             }
 
             if (i < pars.Length)
@@ -226,9 +226,7 @@ public partial class BsonMapper
                 continue;
             }
 
-            CreateObject toAdd = (BsonDocument value) =>
-                ctor.Invoke(paramMap.Select(x =>
-                    this.Deserialize(x.Value, value[x.Key])).ToArray());
+            CreateObject toAdd = new MappedConstructor(this, ctor, paramMap).Create;
             if (ctor.GetCustomAttribute<BsonCtorAttribute>() != null)
             {
                 return toAdd;
