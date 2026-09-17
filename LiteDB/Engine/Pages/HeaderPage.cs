@@ -206,22 +206,21 @@ namespace LiteDB.Engine
         /// </summary>
         public uint GetCollectionPageID(string collection)
         {
-            if (_collections.TryGetValue(collection, out var pageID))
+            lock (this)
             {
-                return (uint)pageID.AsInt32;
+                return _collections.TryGetValue(collection, out var pageID) ? (uint)pageID.AsInt32 : uint.MaxValue;
             }
-
-            return uint.MaxValue;
         }
 
         /// <summary>
-        /// Get all collections with pageID
+        /// Get a snapshot of all collections with pageID, without holding the header lock during enumeration.
         /// </summary>
         public IEnumerable<KeyValuePair<string, uint>> GetCollections()
         {
-            foreach(var el in _collections.GetElements())
+            lock (this)
             {
-                yield return new KeyValuePair<string, uint>(el.Key, (uint)el.Value.AsInt32);
+                return _collections.GetElements()
+                    .Select(el => new KeyValuePair<string, uint>(el.Key, (uint)el.Value.AsInt32)).ToArray();
             }
         }
 
@@ -264,12 +263,14 @@ namespace LiteDB.Engine
         /// </summary>
         public int GetAvailableCollectionSpace()
         {
-            return COLLECTIONS_SIZE -
-                _collections.GetBytesCount(true) -
-                1 - // for int32 type (0x10)
-                1 - // for new CString ('\0')
-                4 - // for PageID (int32)
-                8; // reserved
+            lock (this)
+            {
+                return COLLECTIONS_SIZE - _collections.GetBytesCount(true) -
+                    1 - // for int32 type (0x10)
+                    1 - // for new CString ('\0')
+                    4 - // for PageID (int32)
+                    8; // reserved
+            }
         }
     }
 }

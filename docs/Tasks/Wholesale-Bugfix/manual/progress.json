@@ -2175,11 +2175,11 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "reproduced-pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2891_Tests.cs"
       ],
-      "validation": "Deterministic header-level repro advances GetCollections(), mutates the header under its production lock, then gets InvalidOperationException from the live BsonDocument dictionary iterator."
+      "validation": "Header collection reads now use the commit monitor; listing captures a call-time array snapshot. Seven Issue2891/2792/2825 tests pass on net8.0, including concurrent creation/listing. First review round found a test compile ambiguity, corrected; four fresh gpt-5.6-sol reviewers approved round two without actionable findings."
     },
     {
       "issue": 2892,
