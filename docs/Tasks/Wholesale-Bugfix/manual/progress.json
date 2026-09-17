@@ -2224,11 +2224,11 @@
         "priority: P3"
       ],
       "reproduction": "reproduced",
-      "disposition": "reproduced-pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2894_Tests.cs"
       ],
-      "validation": "All three in-process repros fail the contextual-error contract: enumerable root entity, thrown Exception member and MemoryStream member. Trimmed metadata remains a packaging variant of the same diagnostic gap."
+      "validation": "Root non-document values reject with type context; member getter/custom serializer failures retain member chains, original exceptions and LiteException codes. Mapping initialization preserves inner exceptions; missing ctor metadata identifies trimming and cannot bypass BsonCtor. Corrected ordinary Exception repro to verify existing successful serialization. All 105 focused mapper/issue tests pass on net8.0; net462 build succeeds. First-round test/ctor findings fixed; four fresh gpt-5.6-sol reviewers approved round two without actionable findings."
     },
     {
       "issue": 2895,

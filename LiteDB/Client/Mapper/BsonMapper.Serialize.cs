@@ -19,7 +19,12 @@ namespace LiteDB
             // if object is BsonDocument, just return them
             if (entity is BsonDocument) return (BsonDocument)(object)entity;
 
-            return this.Serialize(type, entity, 0).AsDocument;
+            var value = this.Serialize(type, entity, 0);
+            if (value == null || !value.IsDocument)
+                throw new LiteException(LiteException.MAPPING_ERROR,
+                    "Type '{0}' cannot be mapped as a root document (serialized as {1}). Use a document DTO or RegisterType with a document serializer.",
+                    entity.GetType().FullName, value?.Type.ToString() ?? "null");
+            return value.AsDocument;
         }
 
         /// <summary>
@@ -274,20 +279,7 @@ namespace LiteDB
 
             foreach (var member in entity.Members.Where(x => x.Getter != null))
             {
-                // get member value
-                var value = member.Getter(obj);
-
-                if (value == null && this.SerializeNullValues == false && member.FieldName != "_id") continue;
-
-                // if member has a custom serialization, use it
-                if (member.Serialize != null)
-                {
-                    doc[member.FieldName] = member.Serialize(value, this);
-                }
-                else
-                {
-                    doc[member.FieldName] = this.Serialize(member.DataType, value, depth);
-                }
+                this.SerializeMember(doc, member, obj, depth);
             }
 
             return doc;
