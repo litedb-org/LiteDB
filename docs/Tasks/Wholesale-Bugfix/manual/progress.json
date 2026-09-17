@@ -1601,10 +1601,13 @@
         "from fork"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
-        "LiteDB.Tests/Issues/Issue2859_Tests.cs"
-      ]
+        "LiteDB.Tests/Issues/Issue2859_Tests.cs",
+        "LiteDB.Tests/Issues/Issue2859IndexCollation_Tests.cs",
+        "LiteDB.Tests/Issues/Issue2859QueryConsistency_Tests.cs"
+      ],
+      "validation": "35 isolated focused plus integrated AOT/collation coverage; full 1885 passed / 219 existing failures / 8 skipped, no new failures; production/net462; prior-stamp transition rejects non-Ordinal and preserves Ordinal with unchanged bytes; four fresh final Sol high reviews (wave 4), unsupported duplicate-row claims refuted by executed controls and Index.Run deduplication, inherited H16 unchanged"
     },
     {
       "issue": 2860,

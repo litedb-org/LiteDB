@@ -1,4 +1,4 @@
-﻿using LiteDB.Engine;
+using LiteDB.Engine;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -119,14 +119,14 @@ namespace LiteDB
         /// <summary>
         /// Test if left is greater than right value. Returns true or false
         /// </summary>
-        public static BsonValue GT(BsonValue left, BsonValue right) => left > right;
+        public static BsonValue GT(Collation collation, BsonValue left, BsonValue right) => collation.Compare(left, right) > 0;
         public static BsonValue GT_ANY(Collation collation, IEnumerable<BsonValue> left, BsonValue right) => left.Any(x => collation.Compare(x, right) > 0);
         public static BsonValue GT_ALL(Collation collation, IEnumerable<BsonValue> left, BsonValue right) => left.All(x => collation.Compare(x, right) > 0);
 
         /// <summary>
         /// Test if left is greater or equals than right value. Returns true or false
         /// </summary>
-        public static BsonValue GTE(BsonValue left, BsonValue right) => left >= right;
+        public static BsonValue GTE(Collation collation, BsonValue left, BsonValue right) => collation.Compare(left, right) >= 0;
         public static BsonValue GTE_ANY(Collation collation, IEnumerable<BsonValue> left, BsonValue right) => left.Any(x => collation.Compare(x, right) >= 0);
         public static BsonValue GTE_ALL(Collation collation, IEnumerable<BsonValue> left, BsonValue right) => left.All(x => collation.Compare(x, right) >= 0);
 
@@ -134,14 +134,14 @@ namespace LiteDB
         /// <summary>
         /// Test if left is less than right value. Returns true or false
         /// </summary>
-        public static BsonValue LT(BsonValue left, BsonValue right) => left < right;
+        public static BsonValue LT(Collation collation, BsonValue left, BsonValue right) => collation.Compare(left, right) < 0;
         public static BsonValue LT_ANY(Collation collation, IEnumerable<BsonValue> left, BsonValue right) => left.Any(x => collation.Compare(x, right) < 0);
         public static BsonValue LT_ALL(Collation collation, IEnumerable<BsonValue> left, BsonValue right) => left.All(x => collation.Compare(x, right) < 0);
 
         /// <summary>
         /// Test if left is less or equals than right value. Returns true or false
         /// </summary>
-        public static BsonValue LTE(Collation collation, BsonValue left, BsonValue right) => left <= right;
+        public static BsonValue LTE(Collation collation, BsonValue left, BsonValue right) => collation.Compare(left, right) <= 0;
         public static BsonValue LTE_ANY(Collation collation, IEnumerable<BsonValue> left, BsonValue right) => left.Any(x => collation.Compare(x, right) <= 0);
         public static BsonValue LTE_ALL(Collation collation, IEnumerable<BsonValue> left, BsonValue right) => left.All(x => collation.Compare(x, right) <= 0);
 

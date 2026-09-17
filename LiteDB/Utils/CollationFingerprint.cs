@@ -18,6 +18,9 @@ namespace LiteDB
                 // Ordinal comparison is independent of runtime sort tables/culture.
                 if (collation.SortOptions != CompareOptions.Ordinal)
                 {
+                    // Nested arrays/documents now use this collation recursively.
+                    // Older stamped indexes used binary ordering for their contents.
+                    writer.Write("recursive nested collation v2");
                     writer.Write(collation.LCID);
                     SortVersion version;
                     try { version = collation.Culture.CompareInfo.Version; }

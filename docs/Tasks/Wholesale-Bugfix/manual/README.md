@@ -1418,3 +1418,33 @@ were refuted by executed .NET and Mono probes, passing regression/process oracle
 and an independent final reviewer probe. Extending the bounded interpreter into
 a general nested-lambda CLR compiler was declined; the limitation and workaround
 are explicitly documented and tested instead.
+
+## #2859 — propagate collation through nested BSON and query comparisons
+
+Array/document comparisons recurse using the supplied collation; parameterless
+comparison remains Binary. Cross-type results retain the normalized sign needed
+by index traversal. Scalar range predicates, indexed NotEqual and inclusive range
+boundary handling now agree with the configured comparer. Nested values can be
+index keys, contrary to the issue's assumption, so non-Ordinal fingerprints gain
+a comparer revision and zero-stamp files validate their actual stored ordering.
+
+Validation: original four cases and the added range/NotEqual/mixed-type oracles
+fail before their fixes. Final isolated selection: 35 passes. Integrated full
+suite: 1885 passed, 219 existing failures, 8 skipped; no new failures. Production/
+net462 builds pass. An actual two-version file probe creates files with the prior
+fingerprint implementation: new code rejects the old non-Ordinal stamp, opens
+the old Ordinal file with the exact ledger, and preserves both files' bytes.
+
+Four fresh review waves addressed index paths, scan consistency and cross-type
+sign normalization. Final reviewers (`review_2859_w4_a` through `_d`) had no
+unresolved valid new defects. Duplicate IN/multikey row claims were refuted by
+executed controls and Index.Run's existing DataBlock DistinctBy; unique multikey
+indexes remain explicitly unsupported. H16's different-field document comparator
+law violation predates this patch and remains an existing full-suite failure;
+changing document field identity/order is outside this collation propagation fix.
+
+As with #2812, reserved v8 metadata cannot stop an older writer preserving the
+stamp while changing index semantics. Documentation now explicitly prohibits old
+version access to non-Ordinal nested indexes, even with identical culture/options,
+and explains the Ordinal migration path. A matching stamp does not detect that
+unsupported downgrade; no such guarantee is claimed.
