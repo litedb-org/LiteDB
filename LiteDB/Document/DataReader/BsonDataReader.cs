@@ -115,7 +115,7 @@ namespace LiteDB
                     catch (Exception ex)
                     {
                         _state.Handle(ex);
-                        throw ex;
+                        throw;
                     }
                 }
                 else
