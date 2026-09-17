@@ -1805,12 +1805,13 @@
         "severity: high",
         "priority: P3"
       ],
-      "reproduction": "reproduced",
-      "disposition": "pending",
+      "reproduction": "original-unconfirmed-related-case-tracked-separately",
+      "disposition": "closed-separate-issue",
       "tests": [
         "LiteDB.Tests/Issues/Issue2093_Tests.cs"
       ],
-      "validation": "Pending user choice: document explicit missing-field predicates/migration or design opt-in mapped defaults; global false substitution breaks constructor-initialized defaults."
+      "validation": "User requested closing the incomplete original report and tracking the concrete missing-BSON-field/CLR-default mismatch separately in #2912. Original tests remain unchanged at LiteDB.Tests/Issues/Issue2093_Tests.cs, with existing known-failure mappings preserved; two parity failures and two controls remain executable. No query semantics changed.",
+      "followupIssue": 2912
     },
     {
       "issue": 2324,
@@ -2011,11 +2012,11 @@
         "from fork"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
+      "disposition": "deferred-user",
       "tests": [
         "LiteDB.Tests/Issues/Issue2799_Tests.cs"
       ],
-      "validation": "Pending user choice: retain required durable flushes/document unsupported storage, or explicit opt-in relaxed durability. Silent fallback conflicts with completed WAL durability fixes."
+      "validation": "User explicitly excluded #2799 from the sweep for later design, potentially an explicit durability/compatibility option. Considerations recorded in docs/open-bugs/2799.md. No automatic plain-flush fallback or durability change; original tests retained as evidence of an unapproved fallback assumption."
     },
     {
       "issue": 2803,

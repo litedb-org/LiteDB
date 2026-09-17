@@ -1767,3 +1767,23 @@ and BUGFIX_SWEEP_ENABLED remains false.
 
 The user requested ignoring #2320 and moving #2777 to separate feature planning.
 Only #2093 and #2799 remain pending behavior clarification in this sweep.
+
+## Final scope decisions (2026-09-17)
+
+The user deferred #2799 from this sweep for later durability/compatibility design,
+possibly an explicit option. [The issue notes](../../../open-bugs/2799.md) record
+flush guarantees, WAL truncation/recovery risks, error reporting, and validation
+requirements. Existing tests are preserved; their fallback expectation is not an
+approved contract, and no engine behavior was changed.
+
+The user requested closing #2093 and separately tracking the concrete default-value
+mismatch in [#2912](https://github.com/litedb-org/LiteDB/issues/2912). The complete
+`Issue2093_Tests.cs` fixture and its known-failure mappings remain unchanged and
+are linked from the new issue. The original report is not claimed fixed; it did
+not supply a reproducible model/predicate. Default-value semantics remain design
+work outside this sweep.
+
+No reports remain pending a decision in the manual sweep. Final disposition:
+97 fixed with four reviews, 25 not currently reproduced, 4 previously integrated,
+6 deferred by the user, 1 ignored by the user, 1 closed with a separate follow-up,
+and 1 reviewed documentation change in draft PR #2911.
