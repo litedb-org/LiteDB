@@ -17,7 +17,7 @@ namespace LiteDB
         {
             var pDoc = Expression.Parameter(typeof(BsonDocument), "_doc");
 
-            return Expression.Lambda<CreateObject>(Expression.New(type), pDoc).Compile();
+            return RuntimeExpression.Compile(Expression.Lambda<CreateObject>(Expression.New(type), pDoc));
         }
 
         public static CreateObject CreateStruct(Type type)
@@ -26,7 +26,7 @@ namespace LiteDB
             var newType = Expression.New(type);
             var convert = Expression.Convert(newType, typeof(object));
 
-            return Expression.Lambda<CreateObject>(convert, pDoc).Compile();
+            return RuntimeExpression.Compile(Expression.Lambda<CreateObject>(convert, pDoc));
         }
 
         public static GenericGetter CreateGenericGetter(Type type, MemberInfo memberInfo)
@@ -39,7 +39,7 @@ namespace LiteDB
             var obj = Expression.Parameter(typeof(object), "o");
             var accessor = Expression.MakeMemberAccess(Expression.Convert(obj, memberInfo.DeclaringType), memberInfo);
 
-            return Expression.Lambda<GenericGetter>(Expression.Convert(accessor, typeof(object)), obj).Compile();
+            return RuntimeExpression.Compile(Expression.Lambda<GenericGetter>(Expression.Convert(accessor, typeof(object)), obj));
         }
 
         public static GenericSetter CreateGenericSetter(Type type, MemberInfo memberInfo)
@@ -85,7 +85,7 @@ namespace LiteDB
             var assign = Expression.Assign(accessor, castValue);
             var conv = Expression.Convert(assign, typeof(object));
             
-            return Expression.Lambda<GenericSetter>(conv, target, value).Compile();
+            return RuntimeExpression.Compile(Expression.Lambda<GenericSetter>(conv, target, value));
         }
     }
 }

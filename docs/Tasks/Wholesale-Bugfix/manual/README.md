@@ -1385,3 +1385,36 @@ The user requested skipping v4 work and keeping reviewed candidate a13746f5
 unpublished. In addition to #2808, legacy upgrade reports #2823, #2826 and #2855
 are deferred. No v4 fast-forward, stable tag, NuGet publication or advisory change
 is authorized by this sweep.
+
+## #2804 — evaluate expressions on runtimes without dynamic code
+
+Runtime capability checks and actual custom-delegate compilation/invocation
+probes select static adapters plus an interpreter when dynamic code is unavailable.
+Explicit type initializers guarantee that the public LiteDB.UseInterpreter startup
+switch is checked after first use; older hosts with native probe failures can
+bypass probing. Normal JIT execution keeps compiled expressions.
+
+The fallback covers BSON parser/mapper shapes and supported captured values,
+including nullable/lifted conversions, invocation, list initialization and CLR
+argument/exception order. General CLR trees, including nested captured LINQ
+selector/predicate lambdas, explicitly require precomputation. A retained test
+verifies both that diagnostic and the working precomputed query. Trimming still
+requires preserving mapped metadata. See docs/aot-runtime.md.
+
+Validation: focused AOT/collation selection passes 28 cases, including hundreds
+of compiled-CLR numeric oracles. Final integrated suite with the pending #2859
+candidate: 1875 passed, 220 existing failures, 8 skipped; no new failures versus
+#2822. Production/net462 builds pass. Package 5.0.21 still reproduces; source
+passes Linux NativeAOT and Mono full-AOT controls plus mapping/query/index oracles.
+A fresh Mono JIT process checks the public startup switch and runtime selection.
+Post-release captured-query probes are source-only; original package controls
+remain intact. Apple/Unity device toolchains were not exercised.
+
+Ten fresh four-Sol-high review waves addressed evaluation order, lifted/coalesce
+conversions, actual delegate capability detection and guaranteed startup ordering.
+Final reviewers (`review_2804_w10_a` through `_d`) were clean. Claims that boxed
+underlying values cannot be used as nullable-typed Expression.Constant operands
+were refuted by executed .NET and Mono probes, passing regression/process oracles,
+and an independent final reviewer probe. Extending the bounded interpreter into
+a general nested-lambda CLR compiler was declined; the limitation and workaround
+are explicitly documented and tested instead.

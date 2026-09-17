@@ -11,6 +11,9 @@ public static class MonoFullAotProgram
     public static int Main(string[] args)
     {
         var mode = args.Length == 1 ? args[0] : string.Empty;
+#if CURRENT_SOURCE
+        if (mode == "interpreter") AppContext.SetSwitch("LiteDB.UseInterpreter", true);
+#endif
         if (mode == "jit-precondition")
         {
             return VerifyRuntimeCompilation(dynamicCodeExpected: true);
@@ -21,7 +24,7 @@ public static class MonoFullAotProgram
             return VerifyRuntimeCompilation(dynamicCodeExpected: false);
         }
 
-        if (mode != "jit" && mode != "full-aot")
+        if (mode != "jit" && mode != "full-aot" && mode != "interpreter")
         {
             Console.Error.WriteLine(
                 "MONO_HARNESS_ERROR_2804: expected a precondition, 'jit', or 'full-aot' mode");
@@ -43,6 +46,16 @@ public static class MonoFullAotProgram
         try
         {
             RunLiteDbProbe();
+#if CURRENT_SOURCE
+            if (mode == "interpreter")
+            {
+                var runtime = typeof(LiteDatabase).Assembly.GetType("LiteDB.RuntimeExpression", true);
+                var canCompile = runtime.GetField("CanCompile", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+                if (canCompile == null || (bool)canCompile.GetValue(null))
+                    throw new Exception("startup switch did not select the interpreter");
+                Console.WriteLine("MONO_STARTUP_SWITCH_PASSED_2804");
+            }
+#endif
             Console.WriteLine("MONO_LITEDB_PROBE_PASSED_2804: mode=" + mode);
             return 0;
         }
@@ -182,6 +195,24 @@ public static class MonoFullAotProgram
 
     private static void AssertQuery(ILiteCollection<Customer> customers, bool indexed)
     {
+#if CURRENT_SOURCE
+        // These captured forms were added after 5.0.21; preserve its original JIT control.
+        var selected = new int?[] { 7 };
+        if (!customers.Find(x => x.Id == selected[0].GetValueOrDefault()).Select(x => x.Id).SequenceEqual(new[] { 7 }))
+            throw new Exception("nullable captured receiver returned wrong IDs");
+        // Build explicitly: this mcs version incorrectly lowers a widened nullable coalesce.
+        var coalesceTree = Expression.Lambda<Func<Customer, long>>(Expression.Coalesce(
+            Expression.ArrayIndex(Expression.Constant(selected), Expression.Constant(0)), Expression.Constant(9L)),
+            Expression.Parameter(typeof(Customer), "row"));
+        var coalesced = new BsonMapper().GetExpression(coalesceTree).ExecuteScalar(new BsonDocument());
+        if (!coalesced.IsInt64 || coalesced.AsInt64 != 7L)
+            throw new Exception("nullable coalesce did not preserve Int64 result");
+        Func<int> index = () => 0;
+        var numbers = new[] { 7.9 };
+        if (!customers.Find(x => x.Id == (int)numbers[index()]).Select(x => x.Id).SequenceEqual(new[] { 7 }))
+            throw new Exception("captured delegate invocation or numeric conversion returned wrong IDs");
+
+#endif
         var minimumId = 5;
         var actual = customers.Find(x => x.Id >= minimumId && x.IsActive)
             .Select(x => x.Id).OrderBy(x => x).ToArray();

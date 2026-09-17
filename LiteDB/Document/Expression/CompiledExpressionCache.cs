@@ -25,6 +25,9 @@ namespace LiteDB
 
         public T Get<T>(string source) where T : class
         {
+#if TESTING
+            if (RuntimeExpression.ForceInterpretation) return null;
+#endif
             var start = this.GetBucketStart(source);
             var end = Math.Min(start + BucketSize, _entries.Length);
             for (var i = start; i < end; i++)
@@ -37,6 +40,9 @@ namespace LiteDB
 
         public void Add(string source, object compiled)
         {
+#if TESTING
+            if (RuntimeExpression.ForceInterpretation) return;
+#endif
             if (compiled == null) throw new ArgumentNullException(nameof(compiled));
             var start = this.GetBucketStart(source);
             var end = Math.Min(start + BucketSize, _entries.Length);

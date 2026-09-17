@@ -19,7 +19,7 @@
   "supports": [
     "linux"
   ],
-  "state": "red",
+  "state": "green",
   "expectedOutcomes": {
     "package": {
       "kind": "reproduce",
@@ -27,9 +27,9 @@
       "logContains": "BUG_2804_CONFIRMED"
     },
     "latest": {
-      "kind": "reproduce",
-      "exitCode": 0,
-      "logContains": "BUG_2804_CONFIRMED"
+      "kind": "noRepro",
+      "exitCode": 10,
+      "logContains": "VERIFIED_2804"
     }
   }
 }

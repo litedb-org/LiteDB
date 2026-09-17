@@ -702,9 +702,9 @@ namespace LiteDB
             }
             else
             {
-                var func = Expression.Lambda(expr).Compile();
+                var func = RuntimeExpression.Compile(Expression.Lambda<Func<object>>(Expression.Convert(expr, typeof(object))));
 
-                value = func.DynamicInvoke();
+                value = RuntimeExpression.InvokeCaptured(func);
             }
 
             // do some type validation to be ease to debug

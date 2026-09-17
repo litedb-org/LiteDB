@@ -1233,8 +1233,13 @@
         "from fork"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
-      "tests": []
+      "disposition": "fixed-four-reviews",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2804ForcedInterpreter_Tests.cs",
+        "LiteDB.Tests/Issues/Issue2804NumericInterpreter_Tests.cs",
+        "LiteDB.ReproRunner/Repros/Issue_2804_AotRuntime"
+      ],
+      "validation": "28 focused AOT/collation cases; integrated pending #2859 full 1875 passed / 220 existing failures / 8 skipped, no new failures; production/net462; package reproduces and source passes Linux NativeAOT, Mono full-AOT and startup-switch processes; four final fresh Sol high approvals (wave 10); general captured CLR trees require documented precomputation"
     },
     {
       "issue": 2805,

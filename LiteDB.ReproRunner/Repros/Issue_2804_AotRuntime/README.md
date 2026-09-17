@@ -26,8 +26,8 @@ the same runtime constraint and the same LiteDB expression-compilation signature
 issue, but it does not claim that a particular Apple or Unity toolchain was exercised. In particular,
 the Linux NativeAOT control already passes on the unfixed code because that runtime can interpret
 the delegate shapes used here. It is a trimming/runtime control, not evidence that `net8.0-ios` is
-fixed. A future repair still needs a real iOS full-AOT run or an instrumented, forced-fallback test
-for LiteDB's `net8.0` target before #2804 can be closed for modern .NET iOS.
+fixed. The repair now also has instrumented, forced-fallback tests for LiteDB's
+`net8.0` target. Actual Apple and Unity device/toolchain coverage remains separate.
 
 ## Prerequisites and run
 
@@ -59,28 +59,21 @@ accepting an arbitrary nonzero exit could mislabel a build or runtime failure as
 
 ## Last verified
 
-The fresh-CI-cache failure was corrected by explicitly downloading the three
-pinned Mono dependency packages. A `net8.0` host does not restore those older
-`netstandard2.0` assets transitively. Staging also accepts `NUGET_PACKAGES`
-without a trailing separator. Both variants were rerun successfully with a new,
-empty package directory; all no-JIT controls and exact bug signatures passed.
+The unrepaired source and package 5.0.21 passed the NativeAOT/JIT/no-JIT controls
+and emitted `BUG_2804_CONFIRMED` from `BsonExpression.Compile` under Mono full AOT.
 
-Rechecked on 2026-09-14 after merging dev `a50661a9`: both 5.0.21 and the
-source variant again passed the NativeAOT/JIT/no-JIT controls and emitted the
-exact `BUG_2804_CONFIRMED` marker. ReproRunner's green comparison means the
-expected bug was reproduced in both variants; it does not mean the bug is fixed.
+The repaired source passes Linux NativeAOT plus the Mono JIT and full-AOT oracles,
+including typed struct/array mapping, CRUD, captured LINQ and indexed queries.
+The source variant also checks nullable receivers/coalescing and captured delegate
+invocation with numeric conversion, query forms introduced after 5.0.21. The
+package variant retains its original JIT and full-AOT controls.
+It emits `VERIFIED_2804` with exit 10. The latest manifest requires that exact
+result; package 5.0.21 retains its original bug expectation. Forced-fallback
+net8.0 tests additionally exercise short-circuiting and nested SQL aliases.
 
-Validated on Linux x64 with .NET SDK 10.0.400 targeting `net8.0`, .NET runtime 8.0.30, and the pinned
-amd64 Mono image. Package 5.0.21 and the current source variant both passed the NativeAOT probe,
-Mono JIT probe, and full-AOT compilation. Both printed
-`MONO_JIT_PRECONDITION_PASSED_2804`, followed later by
-`MONO_NO_JIT_PRECONDITION_PASSED_2804` and
-`MONO_RUNTIME_CONTROL_PASSED_2804: mode=full-aot` before failing from
-`LiteDB.BsonExpression.Compile` with:
+Validated on Linux x64 with .NET SDK 10.0.400, .NET runtime 8.0.30, and the pinned
+amd64 Mono 6.12 image. These checks do not constitute Apple/Unity device testing.
 
-```text
-System.ExecutionEngineException: Attempting to JIT compile method '(wrapper dynamic-method) ...'
-while running in aot-only mode
-```
-
-Manifest validation and the two-variant run both passed their declared expectations.
+The source variant also runs a fresh Mono JIT process with the public startup
+`LiteDB.UseInterpreter` switch set before LiteDB access, checks the full functional
+oracle, and verifies that runtime selection disabled compilation.

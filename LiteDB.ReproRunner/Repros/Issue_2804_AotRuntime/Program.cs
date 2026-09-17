@@ -38,6 +38,9 @@ internal static class Program
             var jitPreconditionPassed = HasMarker(monoResult, "MONO_JIT_PRECONDITION_PASSED_2804");
             var jitControlPassed = HasMarker(monoResult, "MONO_RUNTIME_CONTROL_PASSED_2804: mode=jit");
             var jitLiteDbPassed = HasMarker(monoResult, "MONO_LITEDB_PROBE_PASSED_2804: mode=jit");
+            if (string.Equals(GetMetadata("LiteDB.ReproRunner.UseProjectReference"), "true", StringComparison.OrdinalIgnoreCase) &&
+                !HasMarker(monoResult, "MONO_STARTUP_SWITCH_PASSED_2804"))
+                return HarnessFailure("current source did not verify the startup interpreter switch");
             var fullAotCompilePassed = HasMarker(monoResult, "MONO_FULL_AOT_COMPILE_PASSED_2804");
             var noJitPreconditionPassed = HasMarker(monoResult,
                 "MONO_NO_JIT_PRECONDITION_PASSED_2804");
@@ -153,7 +156,9 @@ internal static class Program
 
         var monoDirectory = Path.Combine(scratch, "mono");
         Directory.CreateDirectory(monoDirectory);
-        File.Copy(source, Path.Combine(monoDirectory, "MonoFullAotProgram.cs"));
+        var currentSource = string.Equals(GetMetadata("LiteDB.ReproRunner.UseProjectReference"), "true", StringComparison.OrdinalIgnoreCase);
+        File.WriteAllText(Path.Combine(monoDirectory, "MonoFullAotProgram.cs"),
+            (currentSource ? "#define CURRENT_SOURCE\n" : "") + File.ReadAllText(source));
         foreach (var dependency in Directory.EnumerateFiles(staged, "*.dll"))
         {
             File.Copy(dependency, Path.Combine(monoDirectory, Path.GetFileName(dependency)));
@@ -171,6 +176,9 @@ fi
 echo MONO_SOURCE_COMPILE_PASSED_2804
 mono Issue2804.exe jit-precondition
 mono Issue2804.exe jit
+if grep -q '^#define CURRENT_SOURCE' MonoFullAotProgram.cs; then
+  mono Issue2804.exe interpreter
+fi
 for assembly in \
   /usr/lib/mono/4.5/mscorlib.dll /usr/lib/mono/4.5/System.dll \
   /usr/lib/mono/4.5/System.Core.dll /usr/lib/mono/4.5/Facades/netstandard.dll \
