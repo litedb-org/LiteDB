@@ -255,7 +255,7 @@ var …</p>
 <div class="summary mb-2">
   
   <h2 class="title-summary"><a href="/docs/filestorage/">FileStorage</a></h2>
-  <p>To keep its memory profile slim, LiteDB limits the size of a documents to 1MB. For most documents, this is plenty. However, 1MB is too small …</p>
+  <p>LiteDB limits each root BSON document to 16MB, including its embedded documents and arrays. Documents referenced with BsonRef are stored separately …</p>
 </div>
 
 
