@@ -1,5 +1,5 @@
 {
-  "labelsChecked": "2026-09-16",
+  "labelsChecked": "2026-09-17",
   "sourcePR": 2885,
   "previousIntegration": "bbb0253bc06324f0bb14a21a727a37e8c7f2b213",
   "issues": [
@@ -176,7 +176,7 @@
       "tests": [
         "LiteDB.Tests/Issues/Issue1224_Tests.cs"
       ],
-      "validation": "103 focused net8 passes including independent wire bytes and indexed persisted IDs; all production targets build; four fresh independent Sol high approvals"
+      "validation": "Original implicit UInt64 and mapper/wire-bit scope remains fixed: 103 focused net8 passes and four prior approvals. New successor #2898 adds boxed UInt32/UInt64 construction; its seven new cases fail separately and are tracked as reproduced-pending."
     },
     {
       "issue": 1325,
@@ -717,7 +717,7 @@
       "tests": [
         "LiteDB.Tests/Issues/Issue2243_Tests.cs"
       ],
-      "validation": "10 focused cases pass; full 1726 passed / 244 existing failures / 8 skipped, no regressions; production/net462 builds pass; four fresh Sol high approvals"
+      "validation": "Original no-id DbRef-list guard remains fixed: 10 focused cases pass with prior production/net462 validation and four approvals. New successor #2893 adds ids inherited from base interfaces and is tracked separately as reproduced-pending."
     },
     {
       "issue": 2253,
@@ -1277,7 +1277,7 @@
     },
     {
       "issue": 2810,
-      "title": "LINQ Any(x => ids.Contains(x)) over an array property throws \"Any/All requires simple parameter on left side\" (NullReferenceException for IEnumerable<T>)",
+      "title": "LINQ Any/All over an array property or a captured list throws \"Any/All requires simple parameter on left side\" (ids.Contains(x), list.Any(l => l.P == x.P))",
       "priority": "P2",
       "labels": [
         "bug",
@@ -1289,7 +1289,7 @@
       "tests": [
         "LiteDB.Tests/Issues/Issue2810_Tests.cs"
       ],
-      "validation": "325 focused net8 passes / 1 existing skip; full net10 1343 passes / 306 known failures / 8 skips, no baseline pass regressions; all library targets build; four fresh gpt-5.6-sol high/no-fork final approvals"
+      "validation": "Expanded issue title was rechecked: existing regression coverage already includes Any, All, captured lists, embedded lists and DbRef lists. 325 focused net8 passes / 1 existing skip; prior all-target build and four-review validation remains applicable."
     },
     {
       "issue": 2811,
@@ -1550,7 +1550,7 @@
     },
     {
       "issue": 2847,
-      "title": "LINQ string.Equals(value, StringComparison) ignores the comparison and uses the database collation (Ordinal matches case-insensitively)",
+      "title": "LINQ string methods ignore their StringComparison argument (Equals/StartsWith/EndsWith/Contains use the collation; IndexOf passes it as start index)",
       "priority": "P2",
       "labels": [
         "bug",
@@ -1558,11 +1558,12 @@
         "priority: P2"
       ],
       "reproduction": "reproduced",
-      "disposition": "fixed-four-reviews",
+      "disposition": "reproduced-pending-expanded-scope",
       "tests": [
-        "LiteDB.Tests/Issues/Issue2847_Tests.cs"
+        "LiteDB.Tests/Issues/Issue2847_Tests.cs",
+        "LiteDB.Tests/Issues/Issue2847ComparisonModes_Tests.cs"
       ],
-      "validation": "32 integrated focused cases pass; full suite 1812 passed/231 existing failures/8 skipped, no regressions versus #2798; production/net462 pass; four fresh Sol high reviews, valid nits covered and false compile claim refuted by builds"
+      "validation": "Original instance/static Equals(StringComparison) scope remains fixed. The post-cutoff title expansion is reproduced: Ordinal StartsWith/EndsWith and Contains disagree with CLR under collation, and both IndexOf comparison modes return the wrong set; OrdinalIgnoreCase controls pass. The expanded tracker is pending again."
     },
     {
       "issue": 2849,
@@ -1616,7 +1617,7 @@
         "LiteDB.Tests/Issues/Issue2859IndexCollation_Tests.cs",
         "LiteDB.Tests/Issues/Issue2859QueryConsistency_Tests.cs"
       ],
-      "validation": "35 isolated focused plus integrated AOT/collation coverage; full 1885 passed / 219 existing failures / 8 skipped, no new failures; production/net462; prior-stamp transition rejects non-Ordinal and preserves Ordinal with unchanged bytes; four fresh final Sol high reviews (wave 4), unsupported duplicate-row claims refuted by executed controls and Index.Run deduplication, inherited H16 unchanged"
+      "validation": "35 isolated focused plus integrated AOT/collation coverage; full 1885 passed / 219 existing failures / 8 skipped, no new failures; production/net462; prior-stamp transition rejects non-Ordinal and preserves Ordinal with unchanged bytes; four fresh final Sol high reviews. Post-cutoff comment only adds history that PR #1981 landed on old vNext rather than dev; no new behavior or regression scope."
     },
     {
       "issue": 2860,
@@ -2163,6 +2164,230 @@
       "tests": [
         "LiteDB.Tests/Issues/Issue2874_Tests.cs"
       ]
+    },
+    {
+      "issue": 2891,
+      "title": "Concurrent collection create/list races on HeaderPage._collections (\"Collection was modified; enumeration operation may not execute\")",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: medium",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "reproduced-pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2891_Tests.cs"
+      ],
+      "validation": "Deterministic header-level repro advances GetCollections(), mutates the header under its production lock, then gets InvalidOperationException from the live BsonDocument dictionary iterator."
+    },
+    {
+      "issue": 2892,
+      "title": "BsonDocument.CompareTo is not antisymmetric: documents with different keys compare greater in both directions",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "breaking-change",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "reproduced-pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2892_Tests.cs"
+      ],
+      "validation": "Two deterministic cases fail: disjoint-key documents compare greater in both directions, and different null-valued keys compare equal."
+    },
+    {
+      "issue": 2893,
+      "title": "DbRef list to an interface throws NullReferenceException when Id is declared on a base interface (inherited interface members are not mapped)",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "reproduced-pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2893_Tests.cs"
+      ],
+      "validation": "List<IChild> where IChild inherits IBase.Id fails with the #2243 guard message because GetTypeMembers does not collect base-interface properties. The original #2243 no-id diagnostic remains fixed."
+    },
+    {
+      "issue": 2894,
+      "title": "Mapper fails with unhelpful exceptions on types it can't map (IEnumerable entities, Exception, Stream, trimmed builds) instead of naming the member",
+      "priority": "P3",
+      "labels": [
+        "bug",
+        "severity: medium",
+        "priority: P3"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "reproduced-pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2894_Tests.cs"
+      ],
+      "validation": "All three in-process repros fail the contextual-error contract: enumerable root entity, thrown Exception member and MemoryStream member. Trimmed metadata remains a packaging variant of the same diagnostic gap."
+    },
+    {
+      "issue": 2895,
+      "title": "LiteRepository Insert/Update/Upsert with an array or List<T> binds to the single-entity overload and throws NullReferenceException",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: medium",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "reproduced-pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2895_Tests.cs"
+      ],
+      "validation": "All six array/List x Insert/Update/Upsert cases bind to the single-entity overload and fail before producing the expected Item collection."
+    },
+    {
+      "issue": 2896,
+      "title": "Opening a missing database file with ReadOnly=true throws a raw FileNotFoundException instead of a clear LiteException",
+      "priority": "P3",
+      "labels": [
+        "bug",
+        "severity: low",
+        "priority: P3"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "reproduced-pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2896_Tests.cs"
+      ],
+      "validation": "Missing random temp path throws raw FileNotFoundException instead of contextual LiteException; control confirms no file is created."
+    },
+    {
+      "issue": 2897,
+      "title": "\"Sharing violation on path\" when repeatedly opening and disposing the database on Raspbian/Mono (EnsureIndex)",
+      "priority": "P3",
+      "labels": [
+        "bug",
+        "severity: medium",
+        "priority: P3",
+        "needs-repro"
+      ],
+      "reproduction": "not-currently-reproduced",
+      "disposition": "not-currently-reproduced",
+      "tests": [],
+      "validation": "Issue documents unsuccessful stress attempts on Windows/.NET, Linux/.NET and Linux x64/Mono for both 5.0.10 and dev. ARM Raspbian/Mono hardware or an equivalent standalone repro is still required."
+    },
+    {
+      "issue": 2898,
+      "title": "BsonValue mishandles unsigned integers: implicit ulong conversion stores Double, BsonValue(object) rejects boxed ulong/uint",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "reproduced-pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue1224_Tests.cs"
+      ],
+      "validation": "The original #1224 implicit UInt64 conversion remains fixed. Seven added boxed UInt32/UInt64 cases all throw InvalidCastException instead of matching the lossless Int64 representation."
+    },
+    {
+      "issue": 2902,
+      "title": "Mixed numeric comparison is non-transitive across double and decimal",
+      "priority": "P2",
+      "labels": [
+        "bug",
+        "breaking-change",
+        "severity: high",
+        "priority: P2"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "reproduced-pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2902_Tests.cs"
+      ],
+      "validation": "Both focused contracts fail: adjacent unequal doubles both equal decimal 0.1, and double.Epsilon equals decimal zero after Convert.ToDecimal rounding."
+    },
+    {
+      "issue": 2904,
+      "title": "CI: Windows x86 test matrix runs the tests on the x64 runtime",
+      "priority": "P3",
+      "labels": [
+        "bug",
+        "severity: low",
+        "priority: P3"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "reproduced-pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2904_Tests.cs"
+      ],
+      "validation": "Repository workflow guard confirms neither Windows matrix test host receives --arch ${{ matrix.arch }}; the x86 rows therefore duplicate x64."
+    },
+    {
+      "issue": 2906,
+      "title": "Flaky test: VectorIndex_Search_Prunes_Node_Visits can return zero matches because HNSW levels use an unseeded Random",
+      "priority": "P3",
+      "labels": [
+        "bug",
+        "severity: low",
+        "priority: P3"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "reproduced-pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2906_Tests.cs",
+        "LiteDB.Tests/Query/VectorIndex_Tests.cs"
+      ],
+      "validation": "The original pruning test failed in CI with zero matches; deterministic source regression confirms VectorIndexService still owns an unseeded private Random, so topology and the assertion remain process-dependent."
+    },
+    {
+      "issue": 2909,
+      "title": "ObjectId uses fallback machine and process ids on net8.0/net10.0: HAVE_* symbols are never defined since #2771",
+      "priority": "unprioritized",
+      "labels": [
+        "bug",
+        "v6"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "reproduced-pending",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2909_Tests.cs"
+      ],
+      "validation": "net8 behavior test fails because ObjectId.Pid/Machine do not match Environment.ProcessId and Environment.MachineName/AppDomain; .NET Framework is explicitly skipped because the issue targets NETCoreApp builds."
+    },
+    {
+      "issue": 2912,
+      "title": "Typed queries disagree with CLR defaults for missing BSON fields",
+      "priority": "P3",
+      "labels": [
+        "bug",
+        "severity: high",
+        "priority: P3"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "deferred-user",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2093_Tests.cs"
+      ],
+      "validation": "Two missing-field parity cases fail and two fully persisted controls pass. Issue explicitly separates this as compatibility/design work outside the manual bug-fix sweep; raw BSON versus configured CLR-default semantics must be decided first."
+    },
+    {
+      "issue": 2913,
+      "title": "SQL REBUILD without options throws NullReferenceException and leaves the engine closed (regression since 5.0.18)",
+      "priority": "unprioritized",
+      "labels": [
+        "bug"
+      ],
+      "reproduction": "reproduced",
+      "disposition": "previously-integrated",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2824_Tests.cs",
+        "LiteDB.Tests/Audit2026/EngineAuditRegression_Tests.cs"
+      ],
+      "validation": "Already repaired by the branch's #2824 rebuild work before this issue was filed. Eleven SQL/default/encrypted/shared/direct rebuild cases pass, including H66 and four bare-REBUILD variants."
     }
   ]
 }

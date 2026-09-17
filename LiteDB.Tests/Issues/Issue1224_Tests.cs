@@ -171,6 +171,37 @@ namespace LiteDB.Tests.Issues
             }
         }
 
+        [Theory]
+        [InlineData(0UL)]
+        [InlineData(1UL)]
+        [InlineData(9007199254740993UL)]
+        [InlineData(UInt64.MaxValue)]
+        [Trait("Category", "PendingBug")]
+        public void Boxed_UInt64_matches_the_implicit_BsonValue_conversion(ulong value)
+        {
+            BsonValue implicitValue = value;
+            var boxedValue = new BsonValue((object)value);
+
+            boxedValue.Type.Should().Be(BsonType.Int64);
+            boxedValue.Should().Be(implicitValue);
+            boxedValue.RawValue.Should().Be(implicitValue.RawValue);
+        }
+
+        [Theory]
+        [InlineData(0U)]
+        [InlineData(1U)]
+        [InlineData(UInt32.MaxValue)]
+        [Trait("Category", "PendingBug")]
+        public void Boxed_UInt32_matches_the_widened_BsonValue_conversion(uint value)
+        {
+            BsonValue widenedValue = (long)value;
+            var boxedValue = new BsonValue((object)value);
+
+            boxedValue.Type.Should().Be(BsonType.Int64);
+            boxedValue.Should().Be(widenedValue);
+            boxedValue.RawValue.Should().Be(widenedValue.RawValue);
+        }
+
         private static void AssertRawRecord(
             ILiteCollection<BsonDocument> records,
             long signedBits,
