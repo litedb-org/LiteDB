@@ -399,7 +399,9 @@ namespace LiteDB
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static int GetCurrentProcessId()
         {
-#if HAVE_PROCESS
+#if NET5_0_OR_GREATER
+            return Environment.ProcessId;
+#elif HAVE_PROCESS
             return Process.GetCurrentProcess().Id;
 #else
             return (new Random()).Next(0, 5000); // Any same number for this process

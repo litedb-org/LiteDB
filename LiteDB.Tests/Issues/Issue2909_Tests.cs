@@ -12,7 +12,6 @@ namespace LiteDB.Tests.Issues
 #else
         [Fact]
 #endif
-        [Trait("Category", "PendingBug")]
         public void ObjectId_uses_the_current_process_and_machine_on_NETCoreApp()
         {
             var id = ObjectId.NewObjectId();

@@ -2352,11 +2352,11 @@
         "v6"
       ],
       "reproduction": "reproduced",
-      "disposition": "reproduced-pending",
+      "disposition": "fixed-four-reviews",
       "tests": [
         "LiteDB.Tests/Issues/Issue2909_Tests.cs"
       ],
-      "validation": "net8 behavior test fails because ObjectId.Pid/Machine do not match Environment.ProcessId and Environment.MachineName/AppDomain; .NET Framework is explicitly skipped because the issue targets NETCoreApp builds."
+      "validation": "Corrected early MSBuild framework detection; modern targets use Environment.ProcessId and real machine/AppDomain identity. All 17 ObjectId/Issue2909 tests pass on net8.0 and net10.0; netstandard2.0 builds with unchanged fallback behavior. Four fresh gpt-5.6-sol reviewers approved with no actionable findings."
     },
     {
       "issue": 2912,
