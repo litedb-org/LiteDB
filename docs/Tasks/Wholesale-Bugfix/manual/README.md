@@ -1689,3 +1689,11 @@ linear in index entries, so keyset pagination is still preferable for long scans
 37 focused/integrated tests pass. Full isolated suite: 1965 passed, 196 existing
 failures, 8 skipped, no new failures. Production/net462 builds pass. Four fresh
 reviewers review_2795_w1_a through _d were clean.
+
+## #2774 — accept Unix absolute shell arguments
+
+Slash-prefixed option recognition is now Windows-only. Unix absolute filenames
+reach the positional opener; dash options retain their behavior. The Windows
+regex is unchanged (not runtime-tested on this Linux host). The retained real
+shell script passes isolated/integrated with exact payload and unchanged bytes.
+Four fresh reviewers review_2774_w1_a through _d were clean.

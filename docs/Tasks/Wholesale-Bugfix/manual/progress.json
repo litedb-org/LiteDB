@@ -1943,8 +1943,9 @@
         "priority: P3"
       ],
       "reproduction": "reproduced-script",
-      "disposition": "pending",
-      "tests": []
+      "disposition": "fixed-four-reviews",
+      "tests": [],
+      "validation": "Retained real-shell Unix absolute path script passes isolated/integrated with exact payload and unchanged bytes; shell builds pass; four fresh Sol-high reviews CLEAN. Windows slash-option regex unchanged; no Windows runtime claim."
     },
     {
       "issue": 2775,
