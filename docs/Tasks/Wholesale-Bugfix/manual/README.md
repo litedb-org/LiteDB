@@ -1355,3 +1355,26 @@ while a worker owns another. Full suite: 1831 passed, 228 existing failures,
 fresh four-Sol-high review waves addressed shared recursion, publication,
 abandonment and false automatic joins. Final reviewers (`review_2822_w8_a`
 through `_d`) were clean.
+
+## #2812 — reject incompatible collation environments before queries
+
+New files record a non-cryptographic collation fingerprint in reserved header
+bytes. Opening validates both the data header and recovered WAL header. Ordinal
+stamps are independent of runtime sort tables. Legacy zero-stamp files (including
+older Mono without SortVersion support) scan every ordinary index's stored order
+and unique equivalence before queries, without adopting a stamp or rewriting data.
+Structural corruption keeps its existing diagnostic and explicit recovery path.
+
+Healthy mismatches require an original-environment Ordinal rebuild or export/import.
+Explicitly requested AutoRebuild of a flagged damaged file retains its established
+recovery behavior before validation, including ReadOnly opens; duplicate failures
+abort before replacement. Old writers ignore stamps, and the 32-bit fingerprint
+is not an integrity guarantee. See docs/collation-runtime-compatibility.md.
+
+Validation: 14 isolated focused tests pass; full isolated suite has 1824 passes,
+231 existing failures and 8 skips, with no new failures against #2847. Combined
+with the pending AOT fix: 1856 passes, 228 existing failures, 8 skips, no new
+failures against #2822. Production/net462 builds, ordinary/encrypted v8 compatibility,
+and both package/source process variants pass their controls. The source rejects
+both incompatible process directions while preserving the complete ledger.
+Four fresh final Sol high reviewers (`review_2812_w3_a` through `_d`) were clean.

@@ -1,0 +1,55 @@
+using System;
+
+namespace LiteDB.Engine
+{
+    public partial class LiteEngine
+    {
+        private static LiteException CollationMismatch() => new LiteException(0,
+            "Database collation sort/globalization differs from this runtime. Rebuild in the original " +
+            "environment using an Ordinal collation before moving the file, or export there and import here.");
+
+        private void ValidateCollationStamp()
+        {
+            var stored = _header.Pragmas.CollationStamp;
+            if (stored != 0 && stored != CollationFingerprint.Compute(_header.Pragmas.Collation))
+                throw CollationMismatch();
+        }
+
+        private void ValidateLegacyCollation()
+        {
+            if (_header.Pragmas.CollationStamp != 0) return;
+            // Legacy files have no runtime signature. Validate their actual level-zero
+            // ordering before admitting any query or write, without modifying the file.
+            var transaction = _monitor.GetTransaction(true, true, out _);
+            try
+            {
+                var incompatible = false;
+                foreach (var collection in _header.GetCollections())
+                {
+                    var snapshot = transaction.CreateSnapshot(LockMode.Read, collection.Key, false);
+                    var indexes = new IndexService(snapshot, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
+                    foreach (var index in snapshot.CollectionPage.GetCollectionIndexes())
+                    {
+                        if (index.IndexType != 0) continue;
+                        BsonValue previous = null;
+                        foreach (var node in indexes.FindAll(index, LiteDB.Query.Ascending))
+                        {
+                            var key = node.Key;
+                            if (previous != null)
+                            {
+                                var order = previous.CompareTo(key, _header.Pragmas.Collation);
+                                if (order > 0 || (order == 0 && index.Unique)) incompatible = true;
+                            }
+                            previous = key;
+                            transaction.Safepoint();
+                        }
+                    }
+                }
+                // Inspect every index first: later structural corruption must keep
+                // its corruption diagnostic and explicitly requested recovery path.
+                if (incompatible) throw CollationMismatch();
+            }
+            finally { _monitor.ReleaseTransaction(transaction); }
+        }
+    }
+}

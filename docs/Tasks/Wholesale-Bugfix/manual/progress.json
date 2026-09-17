@@ -1309,8 +1309,13 @@
         "from fork"
       ],
       "reproduction": "reproduced",
-      "disposition": "pending",
-      "tests": []
+      "disposition": "fixed-four-reviews",
+      "tests": [
+        "LiteDB.Tests/Issues/Issue2812CollationStamp_Tests.cs",
+        "LiteDB.Tests/Issues/Issue2812Recovery_Tests.cs",
+        "LiteDB.ReproRunner/Repros/Issue_2812_CollationProcess"
+      ],
+      "validation": "14 focused; isolated full 1824 passed / 231 existing failures / 8 skipped; combined AOT full 1856 passed / 228 existing failures / 8 skipped, no new failures; production/net462 and v8 compatibility pass; package reproduces, source process passes; four fresh final Sol high reviews (wave 3)"
     },
     {
       "issue": 2815,

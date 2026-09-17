@@ -31,11 +31,19 @@ Run both the released package and the in-repository source:
 dotnet run --project LiteDB.ReproRunner/LiteDB.ReproRunner.Cli -- run Issue_2812_CollationProcess
 ```
 
-When the bug is fixed, change the latest expectation to `kind: noRepro`, `exitCode: 10`,
-`logContains: VERIFIED_2812` and set the state to green. Keeping the exit code and marker constraints
-prevents a crash, timeout, skipped precondition, or vague rejection from making the regression green.
+The repaired source requires `kind: noRepro`, `exitCode: 10` and
+`logContains: VERIFIED_2812`. Package 5.0.21 retains its original bug expectation.
+The exact exit/marker constraints prevent unrelated failures from passing.
 
-## Last verified
+## Repair validation
+
+The repaired source passes both same-environment read/upsert controls and safely
+rejects cross-environment reads and writes in both directions with a collation
+diagnostic and rebuild guidance. Legacy order/uniqueness validation, unchanged
+read-only bytes, and ordinary/encrypted v8 compatibility have separate tests.
+See [runtime compatibility](../../../docs/collation-runtime-compatibility.md).
+
+## Original reproduction
 
 Verified against dev source `094f2b8564d65ae37951e4d15104c624c53dafdd` from PR #2877 at working
 tree `89820a3b0a8575e6d126d0b7ff6a9b920dc2078b`, on Ubuntu 24.04 x64 with .NET SDK
