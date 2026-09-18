@@ -1,7 +1,9 @@
 # Fresh cumulative measurements, 2026-09-18
 
 Before: current `dev` at `7d2a16c4`. After: its temporary merge with PR head
-`2a2c74e9` plus the two scanner boundary fixes accompanying this report.
+`2a2c74e9` plus the two scanner boundary fixes in `21481eeea`. The subsequent
+contradiction fallback was validated separately in `final-after.json`, with all
+16 result checksums unchanged; its unpaired timings are not folded into these tables.
 All 16 workload checksums match across all four processes in each affinity group.
 The table uses the median of two process medians; each process contains nine batches.
 Allocation change uses the first before/after process medians.

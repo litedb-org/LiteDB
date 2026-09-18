@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -13,17 +14,26 @@ namespace LiteDB.Engine
             {
                 if (consumed?.Contains(term) == true) continue;
                 if (!TryGetScalarBound(term, out var field, out var value, out var operation) ||
-                    field.Type != BsonExpressionType.Path) continue;
-                // Restrict proof to paths: a deterministic function can still throw.
-                // This also excludes volatile functions and ANY/ALL element predicates.
+                    !IndexExpressionIdentity.IsMemberPath(field)) return;
+                // Only a safe prefix can disappear. An earlier residual predicate
+                // may throw or be volatile even if later bounds cannot both match.
                 if (fields == null) fields = new Dictionary<string, ScalarBounds>();
                 if (!fields.TryGetValue(field.Source, out var bounds))
                 {
                     bounds = new ScalarBounds(BsonValue.MinValue, BsonValue.MaxValue, true, true);
                     fields.Add(field.Source, bounds);
                 }
-                bounds.Intersect(operation, value.ExecuteScalar(_collation), _collation);
-                if (!bounds.IsEmpty(_collation)) continue;
+                try
+                {
+                    bounds.Intersect(operation, value.ExecuteScalar(_collation), _collation);
+                    if (!bounds.IsEmpty(_collation)) continue;
+                }
+                catch (Exception)
+                {
+                    // Speculative evaluation must not introduce errors on empty
+                    // input or ahead of a filter's ordinary short circuit.
+                    return;
+                }
                 this.UseEmptyInput();
                 return;
             }

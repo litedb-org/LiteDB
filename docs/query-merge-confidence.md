@@ -2,8 +2,8 @@
 
 Audit date: 2026-09-18. Starting PR head: `2a2c74e924ae72a65089d60f406350cd12608180`.
 Current upstream `dev` tested: `7d2a16c4313fc24f7904cd558af6528d79128a40`.
-The final code under test adds the two scanner guards and eight regression cases
-accompanying this report. The working branch stays on the PR; integration was
+The final code under test adds two scanner guards, a conservative residual
+contradiction fallback, and fifteen regression cases accompanying this report. The working branch stays on the PR; integration was
 tested in a separate, uncommitted merge worktree.
 
 **Assessment: high confidence in the tested correctness and compatibility
@@ -19,10 +19,10 @@ for the current CI status and outstanding decisions.
 | Question | Answer from this audit |
 |---|---|
 | Are we testing the actual PR head? | Fetched the GitHub PR ref and verified the full head SHA. The original 48 reported checks were successful; all four review threads were resolved. |
-| Does it integrate with current `dev`? | Clean temporary merge with `7d2a16c4`; full .NET 8 suite passes **1,740 tests / 7 skips** after the fixes. This includes overlapping storage-reader changes. |
-| Does the complete PR suite pass? | Release solution build passes with `TestingEnabled=true`; **1,612 tests / 7 skips** pass on each of .NET 8 and .NET 10 after the fixes. Reproduction-runner tests: **18 passed**. |
-| Can independent checks find wrong query results? | They found two boundary defects, now fixed. Three deterministic seeds pass **12,000 parameterized cases / 48,000 assertions** against production net8.0; production netstandard2.0 passes another **2,400 cases / 9,600 assertions** on the .NET 8 runtime. |
-| Are regression tests sensitive to the defects? | All **eight new theory cases fail against the unfixed integration assembly** and pass after the guards are added. They cover matching and case-mismatched root/nested indexes, collation, duplicate keys, both orders, counts, Exists, and reused SQL/bindings. |
+| Does it integrate with current `dev`? | Clean temporary merge with `7d2a16c4`; full .NET 8 suite passes **1,747 tests / 7 skips** after the fixes. This includes overlapping storage-reader changes. |
+| Does the complete PR suite pass? | Release solution build passes with `TestingEnabled=true`; **1,619 tests / 7 skips** pass on each of .NET 8 and .NET 10 after the fixes. Reproduction-runner tests: **18 passed**. |
+| Can independent checks find wrong query results? | They found two boundary defects, now fixed; a separate targeted check found a contradiction-pruning regression. Three deterministic seeds pass **12,000 parameterized cases / 48,000 assertions** against production net8.0; production netstandard2.0 passes another **2,400 cases / 9,600 assertions** on the .NET 8 runtime. |
+| Are regression tests sensitive to the defects? | All **eight boundary theory cases fail against the unfixed integration assembly** and pass after the guards are added. Four contradiction cases fail before/pass after; three additional cases preserve existing behavior. They cover matching and case-mismatched root/nested indexes, collation, duplicate keys, both orders, counts, Exists, and reused SQL/bindings. |
 | Are bindings, caches and metadata isolated? | Full suites cover fresh parameters, mapper mutation, cache bounds, concurrent/reentrant use, field ownership, nested evaluators and live index metadata. The production lifetime probe retains **0/64 original arrays**, with 451,160 bytes of measured live-heap growth after 128 complete queries. |
 | Are storage and released-file contracts preserved? | Compatibility script passes ordinary v8 round trips and vector-file rejection by LiteDB 5.0.21, both plain and encrypted. Full suites also exercise index maintenance, rollback, checkpoint, small page budgets and reopened files. |
 | Can we still produce production artifacts? | Production builds pass for netstandard2.0, net8.0 and net10.0 in separate output directories; NuGet packaging passes. The local worktree package has a detached development version, not a release version. |
@@ -46,8 +46,19 @@ for the current CI status and outstanding decisions.
    MinValue/MaxValue cannot be stored as index keys; equality now returns no
    document for either sentinel. Mixed IN lists still return their valid keys.
 
-Both fixes preserve the persisted representation. The independently generated
-cases triggered these failures before the focused regression tests were written.
+3. **Residual contradiction pruning changed observable errors.** On unindexed
+   data, `SUBSTRING(Name,1000) = 'x' AND Score > 7 AND Score < 3` previously
+   threw when evaluating the first filter; the PR silently replaced the query
+   with empty input. Conversely, `Score > (1 % 0) AND Score < 3` threw during
+   planning even on an empty collection. Pruning now requires a safe prefix of
+   scalar member-path constraints and falls back on evaluation/comparison errors.
+   Contradictions reached before a throwing suffix still use empty input.
+   Separate WHERE clauses, empty input, short circuits and reused SQL are tested.
+   This was a regression introduced by the PR, unlike the older scanner defects.
+
+The fixes preserve the persisted representation. Independent generation exposed
+both boundary defects; a subsequent targeted comparison with current dev exposed
+the contradiction regression before its focused tests were written.
 
 ## Independent query checker
 
@@ -86,7 +97,7 @@ The [complete tables](query-confidence-audit/results.md) and adjacent raw JSON
 retain every batch, allocation, checksum and plan. Both sides use production
 Release assemblies, .NET 8.0.30, Ubuntu 24.04 and an AMD Ryzen 9 3900X. Before is
 current `dev` at `7d2a16c4`; after is its merge with this PR and the scanner fixes.
-The unchanged `QueryOptimizationBenchmarks` `overall` suite consumes queries
+The `QueryOptimizationBenchmarks` `overall` workload suite consumes queries
 over 20,000 documents. Each affinity group runs before/after/after/before; each
 process performs warmup and nine measured batches. This is a shared host.
 
@@ -124,6 +135,12 @@ with `DOTNET_TieredCompilation=0 taskset -c 4` for the diagnostic pair.
 For the longer scan, use `taskset -c 4 dotnet QueryOptimizationBenchmarks.dll LABEL
 overall-scan-control 20`. The benchmark dispatcher now accepts an `overall`
 prefix so a single workload can be isolated; the measured operations are unchanged.
+
+The paired measurements above were made at audit commit `21481eeea`, before
+adding the final contradiction fallback. A subsequent complete 16-workload smoke
+run on the final integrated production code retains every baseline checksum;
+its raw batches are in `final-after.json`. This last run is not another paired
+latency experiment and is not combined with the earlier ABBA timings.
 
 The earlier per-step reports still document planning overhead, cache churn and
 the cost of correcting linguistic comparison. This audit does not declare
