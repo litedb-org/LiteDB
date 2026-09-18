@@ -29,7 +29,7 @@ namespace LiteDB
         {
             var ahead = _tokenizer.LookAhead().Expect(TokenType.Word);
 
-            LOG($"executing `{ahead.Value.ToUpper()}`", "SQL");
+            if (Logging.IsEnabled) LOG($"executing `{ahead.Value.ToUpper()}`", "SQL");
 
             switch (ahead.Value.ToUpper())
             {

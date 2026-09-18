@@ -55,7 +55,7 @@ namespace LiteDB.Engine
 
                 if (isNew)
                 {
-                    LOG($"creating new database: '{Path.GetFileName(_dataFactory.Name)}'", "DISK");
+                    if (Logging.IsEnabled) LOG($"creating new database: '{Path.GetFileName(_dataFactory.Name)}'", "DISK");
 
                     this.Initialize(_dataPool.Writer.Value, settings.Collation, settings.InitialSize);
                     dataLength = _dataFactory.GetLength();

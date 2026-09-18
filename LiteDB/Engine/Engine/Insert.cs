@@ -25,7 +25,7 @@ namespace LiteDB.Engine
                 var data = new DataService(snapshot, _disk.MAX_ITEMS_COUNT);
                 var vectorService = new VectorIndexService(snapshot, _header.Pragmas.Collation);
 
-                LOG($"insert `{collection}`", "COMMAND");
+                if (Logging.IsEnabled) LOG($"insert `{collection}`", "COMMAND");
 
                 foreach (var doc in docs)
                 {

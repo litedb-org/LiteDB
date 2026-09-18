@@ -109,28 +109,6 @@ namespace LiteDB
 #endif
 
         /// <summary>
-        /// Log a message using Debug.WriteLine
-        /// </summary>
-        [DebuggerHidden]
-        [Conditional("DEBUG")]
-        public static void LOG(string message, string category)
-        {
-            //Debug.WriteLine is too slow in multi-threads
-            //var threadID = Environment.CurrentManagedThreadId;
-            //Debug.WriteLine(message, threadID + "|" + category);
-        }
-
-        /// <summary>
-        /// Log a message using Debug.WriteLine only if conditional = true
-        /// </summary>
-        [DebuggerHidden]
-        [Conditional("DEBUG")]
-        public static void LOG(bool conditional, string message, string category)
-        {
-            if (conditional) LOG(message, category);
-        }
-
-        /// <summary>
         /// Ensure condition is true, otherwise throw exception (check contract)
         /// </summary>
         [DebuggerHidden]

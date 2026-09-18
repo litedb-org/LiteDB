@@ -220,7 +220,7 @@ namespace LiteDB.Engine
             if (overflow) _overflowSegments++;
             this.AddToBucketLocked(segment);
 
-            LOG($"extending memory usage: (segments: {_segments.Count})", "CACHE");
+            if (Logging.IsEnabled) LOG($"extending memory usage: (segments: {_segments.Count})", "CACHE");
             return segment;
         }
 
