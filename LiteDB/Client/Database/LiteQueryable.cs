@@ -415,9 +415,11 @@ namespace LiteDB
             try
             {
                 this.Select($"{{ count: COUNT(*._id) }}");
-                var ret = this.ToDocuments().Single()["count"].AsInt32;
+                var count = this.ToDocuments().Single()["count"].AsInt64;
 
-                return ret;
+                if (count > int.MaxValue) throw new OverflowException($"The query matches {count} documents, which does not fit an Int32. Use LongCount().");
+
+                return (int)count;
             }
             finally
             {
