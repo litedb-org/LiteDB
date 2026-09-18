@@ -93,7 +93,7 @@ tokens use the direct translator. They remain functional and still use the
 compiled-delegate cache. No physical index choice is cached. Explicit `Bind`
 remains available to callers that want to avoid even the structural cache lookup.
 
-See [`query-optimization-benchmarks.md`](query-optimization-benchmarks.md) for
+See [`query-optimization-benchmarks.md`](https://github.com/litedb-org/LiteDB-Artifacts/blob/main/pull-requests/2905-shared-query-ir/query-optimization-benchmarks.md) for
 separately measured automatic reuse and shared query optimizer improvements.
 
 ## Automatic SQL reuse
@@ -118,7 +118,7 @@ changes subsequent executions because physical plans and results are never cache
 The TextReader overload, other SQL commands, and longer statements keep their
 parser paths. Parsing failures do not populate the cache. The first two calls
 still parse; benefits apply to statements reused enough to remain resident.
-See step 36 in `query-optimization-benchmarks.md` for complete queries, allocation,
+See step 36 in [`query-optimization-benchmarks.md`](https://github.com/litedb-org/LiteDB-Artifacts/blob/main/pull-requests/2905-shared-query-ir/query-optimization-benchmarks.md) for complete queries, allocation,
 and churn controls.
 
 ## Automatic text-expression reuse
@@ -345,7 +345,7 @@ expression indexes, custom mapping/collations, and concurrent bindings.
 
 The benchmark harness is in `tools/QueryIrBenchmarks`. It measures allocations
 and complete queries, and can reference an unmodified baseline assembly. See
-`query-ir-benchmarks.md` for measured results and reproduction details.
+[`query-ir-benchmarks.md`](https://github.com/litedb-org/LiteDB-Artifacts/blob/main/pull-requests/2905-shared-query-ir/query-ir-benchmarks.md) for measured results and reproduction details.
 
 ## Extension boundary
 
