@@ -18,6 +18,10 @@ namespace LiteDB.Engine
         private readonly EngineSettings _settings;
         private readonly int _fileVersion;
 
+#if DEBUG || TESTING
+        internal Action SimulateReplaceFail { get; set; }
+#endif
+
         public RebuildService(EngineSettings settings)
         {
             _settings = settings;
@@ -37,7 +41,12 @@ namespace LiteDB.Engine
             _fileVersion = FileReaderV8.IsVersion(buffer) ? 8 : throw LiteException.InvalidDatabase();
         }
 
-        public long Rebuild(RebuildOptions options)
+        /// <summary>
+        /// Rebuild the database and retain or delete the staged data and log backups according to the options.
+        /// </summary>
+        /// <param name="options">Rebuild behavior and destination settings.</param>
+        /// <returns>A result that retains staged backups until the caller completes validation.</returns>
+        public RebuildResult Rebuild(RebuildOptions options)
         {
             var backupFilename = FileHelper.GetSuffixFile(_settings.Filename, "-backup", true);
             var backupLogFilename = FileHelper.GetSuffixFile(FileHelper.GetLogFile(_settings.Filename), "-backup", true);
@@ -102,13 +111,21 @@ namespace LiteDB.Engine
             });
 
             // rename temp file into filename
+#if DEBUG || TESTING
+            this.SimulateReplaceFail?.Invoke();
+#endif
             File.Move(tempFilename, _settings.Filename);
 
 
             // get difference size
-            return 
-                new FileInfo(backupFilename).Length -
+            var diff = new FileInfo(backupFilename).Length -
                 new FileInfo(_settings.Filename).Length;
+
+            // A rebuild with reported errors is partial. Keep the original files so
+            // callers can recover data that the rebuilt database could not import.
+            var deleteBackup = !options.CreateBackup && options.Errors.Count == 0;
+
+            return new RebuildResult(diff, backupFilename, backupLogFilename, deleteBackup);
         }
 
         /// <summary>

@@ -16,13 +16,14 @@ namespace LiteDB.Engine
         /// <summary>
         /// If Upgrade=true, run this before open Disk service
         /// </summary>
-        private void TryUpgrade()
+        /// <returns>The pending rebuild result when an upgrade occurred; otherwise, null.</returns>
+        private RebuildResult TryUpgrade()
         {
             var filename = _settings.Filename;
 
             // Only v7 requires a rebuild. Ordinary v8 files remain compatible.
             // An explicit upgrade runs before the requested read-only connection is opened.
-            if (!File.Exists(filename)) return;
+            if (!File.Exists(filename)) return null;
 
             const int bufferSize = 1024;
             var buffer = _bufferPool.Rent(bufferSize);
@@ -30,17 +31,25 @@ namespace LiteDB.Engine
             {
                 using (var stream = _settings.CreateDataFactory(false).GetStream(false, true))
                 {
-                    if (stream.Read(buffer, 0, bufferSize) < bufferSize) return;
+                    var offset = 0;
+
+                    while (offset < bufferSize)
+                    {
+                        var bytesRead = stream.Read(buffer, offset, bufferSize - offset);
+                        if (bytesRead == 0) return null;
+
+                        offset += bytesRead;
+                    }
                 }
 
-                if (!FileReaderV7.IsVersion(buffer)) return;
+                if (!FileReaderV7.IsVersion(buffer)) return null;
             }
             finally
             {
                 _bufferPool.Return(buffer, true);
             }
             // run rebuild process
-            this.Recovery(_settings.Collation);
+            return this.Recovery(_settings.Collation, _settings.CreateBackupOnUpgrade);
         }
 
         /// <summary>

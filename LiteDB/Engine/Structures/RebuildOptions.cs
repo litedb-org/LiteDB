@@ -27,6 +27,12 @@ namespace LiteDB.Engine
         public Collation Collation { get; set; } = null;
 
         /// <summary>
+        /// Keep the original data and log files after a successful rebuild (default: true).
+        /// When false, backups are deleted only after replacement succeeds without reported errors.
+        /// </summary>
+        public bool CreateBackup { get; set; } = true;
+
+        /// <summary>
         /// When set true, if any problem occurs in rebuild, a _rebuild_errors collection
         /// will contains all errors found
         /// </summary>

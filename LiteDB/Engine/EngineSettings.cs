@@ -87,9 +87,15 @@ namespace LiteDB.Engine
         public bool AutoRebuild { get; set; } = false;
 
         /// <summary>
-        /// Rebuild format v7 files before opening, retaining a backup. Ordinary v8 files remain compatible without migration.
+        /// Rebuild format v7 files before opening. Ordinary v8 files remain compatible without migration.
         /// </summary>
         public bool Upgrade { get; set; } = false;
+
+        /// <summary>
+        /// Keep the original data and log files after a successful upgrade (default: true).
+        /// When false, backups are deleted only after replacement succeeds without reported errors.
+        /// </summary>
+        public bool CreateBackupOnUpgrade { get; set; } = true;
 
         /// <summary>
         /// Is used to transform a <see cref="BsonValue"/> from the database on read. This can be used to upgrade data from older versions.

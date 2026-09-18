@@ -94,7 +94,7 @@ namespace LiteDB.Engine
                 _state = new EngineState(this, _settings);
 
                 // before initilize, try if must be upgrade
-                if (_settings.Upgrade) this.TryUpgrade();
+                var upgrade = _settings.Upgrade ? this.TryUpgrade() : null;
 
                 // initialize disk service (will create database if needed)
                 _disk = new DiskService(_settings, _state, MEMORY_SEGMENT_SIZES);
@@ -156,6 +156,10 @@ namespace LiteDB.Engine
 
                 // register system collections
                 this.InitializeSystemCollections();
+
+                // The replacement database is now open and validated. Backup cleanup
+                // must not happen earlier because any initialization step can still fail.
+                upgrade?.Complete();
 
                 LOG("initialization completed", "ENGINE");
 
