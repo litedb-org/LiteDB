@@ -1,0 +1,14 @@
+{
+  "label": "--audit",
+  "runtime": ".NET 8.0.30",
+  "assembly": "/home/jonas/.codex/worktrees/b387/LiteDB/tools/QueryParameterLifetimeBenchmarks/bin/Release/net8.0/LiteDB.dll",
+  "rows": 1,
+  "templates": 64,
+  "originalKeysPerTemplate": 10000,
+  "reboundKeysPerTemplate": 1,
+  "completeQueries": 128,
+  "checksum": 256,
+  "retainedOriginalArrays": 0,
+  "liveHeapGrowthBytes": 451160,
+  "nanosecondsPerQuery": 920566.8359375
+}

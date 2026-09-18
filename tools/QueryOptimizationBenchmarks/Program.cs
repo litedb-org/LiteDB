@@ -28,7 +28,7 @@ internal static class Program
         var enabled = true;
         var results = new List<object>();
         var plans = new Dictionary<string, string>();
-        if (args.Length > 1 && args[1] == "overall")
+        if (args.Length > 1 && args[1].StartsWith("overall", StringComparison.Ordinal))
         {
             OverallWorkloads.Run(db, Measure, plans);
         }

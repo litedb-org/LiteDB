@@ -1,0 +1,5 @@
+PASS en-US/None: 1200 cases / 4800 assertions cumulative
+PASS en-US/IgnoreCase: 2400 cases / 9600 assertions cumulative
+PASS tr-TR/IgnoreCase: 3600 cases / 14400 assertions cumulative
+PASS en-US/IgnoreNonSpace: 4800 cases / 19200 assertions cumulative
+PASS seed=2907, shapes=300: 4800 cases / 19200 assertions; assembly=/home/jonas/.codex/worktrees/b387/LiteDB/tools/QueryConfidenceChecks/bin/Release/net8.0/LiteDB.dll

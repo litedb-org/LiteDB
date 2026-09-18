@@ -1,0 +1,55 @@
+{
+  "label": "dev-singlecore-warm-before",
+  "runtime": ".NET 8.0.30",
+  "os": "Ubuntu 24.04.3 LTS",
+  "processors": 1,
+  "assembly": "/tmp/litedb-pr2905-audit/isolated-before/LiteDB.dll",
+  "rows": 20000,
+  "sink": 90905757600,
+  "plans": {
+    "or": "{\u0022collection\u0022:\u0022rows\u0022,\u0022snaphost\u0022:\u0022read\u0022,\u0022pipe\u0022:\u0022queryPipe\u0022,\u0022index\u0022:{\u0022name\u0022:\u0022_id\u0022,\u0022expr\u0022:\u0022$._id\u0022,\u0022order\u0022:1,\u0022mode\u0022:\u0022FULL INDEX SCAN(_id)\u0022,\u0022cost\u0022:100},\u0022lookup\u0022:{\u0022loader\u0022:\u0022document\u0022,\u0022fields\u0022:\u0022$\u0022},\u0022filters\u0022:[\u0022(($.Score=@p0) OR ($.Score=@p1))\u0022],\u0022select\u0022:{\u0022expr\u0022:\u0022$\u0022,\u0022all\u0022:false}}",
+    "contains": "{\u0022collection\u0022:\u0022rows\u0022,\u0022snaphost\u0022:\u0022read\u0022,\u0022pipe\u0022:\u0022queryPipe\u0022,\u0022index\u0022:{\u0022name\u0022:\u0022Score\u0022,\u0022expr\u0022:\u0022$.Score\u0022,\u0022order\u0022:1,\u0022mode\u0022:\u0022INDEX SCAN(Score \u003E= 990)\u0022,\u0022cost\u0022:20},\u0022lookup\u0022:{\u0022loader\u0022:\u0022document\u0022,\u0022fields\u0022:\u0022$\u0022},\u0022filters\u0022:[\u0022((ITEMS(@p0) ANY=$.Score)=true)\u0022],\u0022select\u0022:{\u0022expr\u0022:\u0022$\u0022,\u0022all\u0022:false}}",
+    "count": "{\u0022collection\u0022:\u0022rows\u0022,\u0022snaphost\u0022:\u0022read\u0022,\u0022pipe\u0022:\u0022queryPipe\u0022,\u0022index\u0022:{\u0022name\u0022:\u0022Score\u0022,\u0022expr\u0022:\u0022$.Score\u0022,\u0022order\u0022:1,\u0022mode\u0022:\u0022INDEX SCAN(Score \u003E= 10000)\u0022,\u0022cost\u0022:20},\u0022lookup\u0022:{\u0022loader\u0022:\u0022document\u0022,\u0022fields\u0022:[\u0022_id\u0022,\u0022Score\u0022]},\u0022select\u0022:{\u0022expr\u0022:\u0022{count:COUNT(MAP(*=\u003E@._id))}\u0022,\u0022all\u0022:true}}",
+    "ordinary": "{\u0022collection\u0022:\u0022rows\u0022,\u0022snaphost\u0022:\u0022read\u0022,\u0022pipe\u0022:\u0022queryPipe\u0022,\u0022index\u0022:{\u0022name\u0022:\u0022_id\u0022,\u0022expr\u0022:\u0022$._id\u0022,\u0022order\u0022:1,\u0022mode\u0022:\u0022INDEX SEEK(_id = 1234)\u0022,\u0022cost\u0022:1},\u0022lookup\u0022:{\u0022loader\u0022:\u0022document\u0022,\u0022fields\u0022:\u0022$\u0022},\u0022select\u0022:{\u0022expr\u0022:\u0022$\u0022,\u0022all\u0022:false}}"
+  },
+  "results": [
+    {
+      "name": "overall-scan-control",
+      "iterations": 60,
+      "checksum": 90905757600,
+      "nanoseconds": [
+        69321193.55,
+        57617081.06666667,
+        48192616.233333334,
+        44767263.15,
+        44368959.11666667,
+        44120475.916666664,
+        43838403.333333336,
+        44357042.733333334,
+        46112577.55
+      ],
+      "bytes": [
+        51537013.06666667,
+        51537014.93333333,
+        51537016.13333333,
+        51537012.8,
+        51537012.8,
+        51537012.8,
+        51537013.333333336,
+        51537012.8,
+        51537012.8
+      ],
+      "gen0Per1000": [
+        6583.333333333333,
+        6583.333333333333,
+        6583.333333333333,
+        6583.333333333333,
+        6583.333333333333,
+        6583.333333333333,
+        6583.333333333333,
+        6583.333333333333,
+        6583.333333333333
+      ]
+    }
+  ]
+}

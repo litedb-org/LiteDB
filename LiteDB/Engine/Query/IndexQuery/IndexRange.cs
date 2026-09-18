@@ -38,6 +38,12 @@ namespace LiteDB.Engine
 
         public override IEnumerable<IndexNode> Execute(IndexService indexer, CollectionIndex index)
         {
+            // Validate before emitting duplicate start keys. BETWEEN can reach
+            // this scan directly without passing through interval normalization.
+            var boundsComparison = _start.CompareTo(_end, indexer.Collation);
+            if (boundsComparison > 0 || (boundsComparison == 0 && (!_startEquals || !_endEquals)))
+                yield break;
+
             // if order are desc, swap start/end values
             var start = this.Order == Query.Ascending ? _start : _end;
             var end = this.Order == Query.Ascending ? _end : _start;
