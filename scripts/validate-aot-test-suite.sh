@@ -82,6 +82,7 @@ publish_and_run native-aot
 cut -f 2 "$output_root/regular.tsv" | tr -d '\r' | sort -u > "$output_root/regular.names"
 cut -f 2 "$output_root/native-aot.tsv" | tr -d '\r' | sort -u > "$output_root/native-aot.names"
 names Pass "$output_root/regular.tsv" > "$output_root/regular.pass"
+names Fail "$output_root/regular.tsv" > "$output_root/regular.fail"
 names Fail "$output_root/native-aot.tsv" > "$output_root/native-aot.fail"
 grep -v '^#' "$known_file" | tr -d '\r' | awk -F '\t' 'NF >= 2 { print $2 }' | sort -u > "$output_root/known.names"
 
@@ -112,6 +113,11 @@ printf '[AOT-TESTS] regular: %s passed. native-aot: %s passed, %s failed, of whi
     "$(names Pass "$output_root/native-aot.tsv" | wc -l | tr -d ' ')" \
     "$(wc -l < "$output_root/native-aot.fail" | tr -d ' ')" \
     "$(comm -12 "$output_root/aot-only.names" "$output_root/known.names" | wc -l | tr -d ' ')"
+
+if [ -s "$output_root/regular.fail" ]; then
+    printf '[AOT-TESTS] JIT baseline failures (not AOT regressions; review alongside ordinary test results):\n'
+    awk -F '\t' '$1 == "Fail" { printf "    %s\n        %s\n", $2, $3 }' "$output_root/regular.tsv"
+fi
 
 if [ -s "$output_root/stale.names" ]; then
     # Not an error: which generic instantiations have native code can differ between platforms and runtimes.

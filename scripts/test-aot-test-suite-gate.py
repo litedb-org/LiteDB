@@ -32,7 +32,12 @@ chmod +x "$2/LiteDB.Tests"
 set -eu
 name=LiteDB.Tests.Engine.Regression
 case "$1" in
-    */regular.tsv) printf 'Pass\t%s\t\n' "$name" > "$1" ;;
+    */regular.tsv)
+        if [ "$RETRY_OUTCOME" = baseline_fail ]; then
+            printf 'Fail\t%s\tBaseline fixture missing\n' "$name" > "$1"
+        else
+            printf 'Pass\t%s\t\n' "$name" > "$1"
+        fi ;;
     */native-aot.tsv) printf 'Fail\t%s\t\n' "$name" > "$1" ;;
     */retry.tsv)
         case "$RETRY_OUTCOME" in
@@ -50,12 +55,14 @@ esac
                            TARGET_FRAMEWORK="net8.0", RUNTIME_IDENTIFIER="linux-x64")
         result = subprocess.run(["bash", str(script)], env=environment, text=True,
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=30)
-        expected = 0 if outcome == "pass" else 1
+        expected = 0 if outcome in ("pass", "baseline_fail") else 1
         if result.returncode != expected:
             raise AssertionError(f"retry={outcome}: expected exit {expected}, got {result.returncode}\n{result.stdout}")
+        if outcome == "baseline_fail" and "Baseline fixture missing" not in result.stdout:
+            raise AssertionError(f"JIT baseline failure was not reported:\n{result.stdout}")
         print(f"PASS: retry={outcome}, gate exit={result.returncode}")
 
 
 if __name__ == "__main__":
-    for retry_outcome in ("pass", "fail", "crash", "missing", "skip", "pass_then_crash"):
+    for retry_outcome in ("pass", "fail", "crash", "missing", "skip", "pass_then_crash", "baseline_fail"):
         check_retry(retry_outcome)
