@@ -7,14 +7,12 @@ namespace LiteDB.Tests.Issues
     public class Issue2052DateBounds_Tests
     {
         [Theory]
-        [InlineData(-62135596800001L)]
-        [InlineData(253402300800001L)]
-        public void First_out_of_range_millisecond_has_a_structured_format_error(long milliseconds)
+        [InlineData(-62135596800001L, false)]
+        [InlineData(253402300800001L, true)]
+        public void First_out_of_range_millisecond_reads_as_the_nearest_representable_date(long milliseconds, bool high)
         {
-            var bytes = Document(milliseconds);
-            var error = Assert.Throws<LiteException>(() => BsonSerializer.Deserialize(bytes, utcDate: true));
-            Assert.Equal(LiteException.INVALID_FORMAT, error.ErrorCode);
-            Assert.Contains("DateTime", error.Message);
+            var actual = BsonSerializer.Deserialize(Document(milliseconds), utcDate: true)["date"].AsDateTime;
+            Assert.Equal(high ? DateTime.MaxValue : DateTime.MinValue, actual);
         }
 
         [Theory]

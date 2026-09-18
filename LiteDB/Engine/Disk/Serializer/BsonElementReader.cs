@@ -79,12 +79,9 @@ namespace LiteDB.Engine
             {
                 var ts = reader.ReadInt64();
 
-                // catch specific values for MaxValue / MinValue #19
-                if (ts == 253402300800000) return DateTime.MaxValue;
-                if (ts == -62135596800000) return DateTime.MinValue;
-
-                if (ts < -62135596800000 || ts > 253402300800000)
-                    throw new LiteException(LiteException.INVALID_FORMAT, "BSON DateTime milliseconds are outside the supported range: {0}.", ts);
+                // MaxValue / MinValue sentinels #19; a damaged value beyond them clamps so the document stays readable #2930
+                if (ts >= 253402300800000) return DateTime.MaxValue;
+                if (ts <= -62135596800000) return DateTime.MinValue;
 
                 var date = BsonValue.UnixEpoch.AddMilliseconds(ts);
 
