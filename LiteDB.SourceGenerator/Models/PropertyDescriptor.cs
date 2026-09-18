@@ -11,5 +11,6 @@ internal sealed record PropertyDescriptor(
     string ScalarTypeName,
     bool IsNullableScalar,
     bool HasBsonId,
+    bool IsDeclaringTypeId,
     bool AutoId,
     bool IsId);

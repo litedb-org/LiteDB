@@ -16,6 +16,8 @@ namespace LiteDB
         private readonly ILiteCollection<LiteFileInfo<TFileId>> _files;
         private readonly ILiteCollection<BsonDocument> _chunks;
 
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeFileIdMapping)]
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
         public LiteStorage(ILiteDatabase db, string filesCollection, string chunksCollection)
         {
             _db = db;
@@ -23,7 +25,11 @@ namespace LiteDB
             // LiteFileInfo is LiteDB's own model and has a hand-written mapping, so file storage needs no runtime
             // member discovery and works trimmed and as Native AOT.
             LiteFileInfoMapping<TFileId>.EnsureRegistered(db.Mapper);
-            _files = db.GetGeneratedCollection<LiteFileInfo<TFileId>>(filesCollection);
+            // Existing ILiteDatabase decorators need not implement a new generated-collection API.
+            // Keep their original typed-collection path; this constructor already warns about runtime mapping.
+            _files = db is LiteDatabase database
+                ? database.GetGeneratedCollection<LiteFileInfo<TFileId>>(filesCollection)
+                : db.GetCollection<LiteFileInfo<TFileId>>(filesCollection);
             _chunks = db.GetCollection(chunksCollection);
         }
 

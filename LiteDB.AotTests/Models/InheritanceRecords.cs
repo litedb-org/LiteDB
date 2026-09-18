@@ -155,3 +155,29 @@ public sealed class SingleLevelExecutionRecord : SingleLevelExecutionBase
 {
     public string DerivedValue { get; set; } = string.Empty;
 }
+
+public class Person
+{
+    public int PersonId { get; set; }
+}
+
+[BsonSourceGenerated]
+public sealed class Employee : Person
+{
+    public string Name { get; set; } = string.Empty;
+}
+
+[BsonSourceGenerated]
+public sealed class EmployeeWithId : Person
+{
+    public int Id { get; set; }
+}
+
+[BsonSourceGenerated]
+public sealed class EmployeeWithExplicitId : Person
+{
+    public int Id { get; set; }
+
+    [BsonId(false)]
+    public int Key { get; set; }
+}

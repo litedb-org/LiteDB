@@ -6,7 +6,7 @@
 
 `LiteDB` and `LiteDB.SourceGenerator` are a matching release pair. Both use the version calculated from the same source revision by the repository’s GitVersion configuration. Only exact matching versions are supported; a mixed pair is unsupported even if it happens to compile.
 
-The analyzer package is a development dependency with the same MIT license, project URL, icon, and repository provenance as LiteDB. It packages exactly one analyzer assembly, `analyzers/dotnet/cs/LiteDB.SourceGenerator.dll`, built for `netstandard2.0`. The repository retains the generator’s `net8.0` target for local build and analyzer validation, but it is not a distributed analyzer asset.
+The analyzer package is a development dependency with the same MIT license, project URL, icon, and repository provenance as LiteDB. It packages exactly one analyzer assembly, `analyzers/dotnet/cs/LiteDB.SourceGenerator.dll`, built for `netstandard2.0`. The generated application code currently targets .NET 8 or later; the analyzer's target framework does not imply support for generating code in .NET Framework or netstandard2.0 consumer projects.
 
 > The analyzer package is compile-time only. It does not add LiteDB or Roslyn implementation assemblies to a published application.
 
@@ -40,6 +40,8 @@ using var database = new LiteDatabase("app.db", mapper: mapper);
 var records = database.GetGeneratedCollection<GeneratedRecord>("records");
 ```
 
+The generated registration class is internal. Reusable model libraries expose their own public wrapper around `LiteDbGeneratedMappings.Register` so an application can register each library without ambiguous generated type names.
+
 The generated mapping subset, Native AOT application configuration, diagnostics, and dynamic-dictionary contract are documented in the [Native AOT and Source-Generated Entity Mapping guide](https://github.com/litedb-org/LiteDB/blob/master/docs/AOT.md).
 
 For repository development, continue to use the analyzer-only project reference documented in that guide. External consumers should use the package references above; they must not attach analyzer DLLs manually or use local project references to simulate package discovery.
@@ -68,12 +70,14 @@ Prerelease publishing inherits the package-consumer and source-project Native AO
 
 A defective analyzer package version must be corrected through a new matching LiteDB/runtime and analyzer pair. Do not replace or republish archive contents under an existing version. When a package must be withdrawn, unlist it where the registry permits and publish a corrected paired version.
 
+Package-consumer validation builds its synthetic version under the separate `PackageValidation` configuration. Release packing rebuilds with production settings (`TestingEnabled=false`) after validation, and `validate-package-assembly-versions.ps1` checks the assembly version of every shipped runtime target and the analyzer against GitVersion before publication. This prevents a correctly named package from containing validation DLLs with `AssemblyVersion=0.0.0.0`. The workflows use GitVersion 6's `SemVer` output and `UseFullSemVerForNuGet=false` so the version in each nuspec matches its archive name. Linux CI dry-runs packing and both archive checks without publishing.
+
 | Release gate | Required evidence |
 | --- | --- |
 | Exact pair | One GitVersion-derived version names both LiteDB and LiteDB.SourceGenerator archives. |
 | Archive hygiene | `validate-source-generator-package-archive.sh artifacts <version>` passes after both pack operations. |
 | Package consumer | The Linux Native AOT CI job passed `validate-source-generator-package-consumer.sh`; the manual stable-release workflow runs it directly. |
 | Generated execution | Every admitted property family and inheritance/attribute path has automatic execution-map registration; guarded smoke mappers fail if broad generic conversion is reached. |
-| Source regressions | Focused managed generated-mapping tests, compiler snapshots, trimmed publish, and source-project Native AOT smoke tests passed in CI; the manual stable-release workflow runs these gates directly. |
+| Source regressions | Focused managed mapping, compiler diagnostics, assembly composition, incrementality, trimmed publish, and source-project Native AOT smoke tests passed in CI; the manual stable-release workflow runs these gates directly. |
 | Security/release advisories | The runtime package’s current NuGet audit advisory and package-readme advisory have been remediated or explicitly accepted by the runtime package security/release owner. They are not suppressed or attributed to the analyzer package. |
 | Publication immutability | Neither package archive is replaced under an existing version; corrections use a new paired version. |

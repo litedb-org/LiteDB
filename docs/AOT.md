@@ -98,13 +98,17 @@ var customers = database.GetGeneratedCollection<Customer>("customers");
 
 `Register` must run before `GetGeneratedCollection<T>`. Calling it twice for the same mapper throws `InvalidOperationException`. Generated registration is kept in a dedicated metadata registry and does not populate or replace the ordinary mapper cache, so `GetCollection<T>` continues to build and use ordinary reflection-capable metadata regardless of registration order. `GetGeneratedCollection<T>` throws when either the generated entity map or its generated execution map is absent. It never falls back to the ordinary runtime-mapped collection path.
 
+`LiteDbGeneratedMappings` is internal to each consuming assembly. A model library should expose its own public registration method that calls `LiteDbGeneratedMappings.Register`; applications call each library's method. This lets multiple generated model libraries coexist without conflicting public type names.
+
+`GetGeneratedCollection<T>` is a member of `LiteDatabase`, not a new requirement on `ILiteDatabase`. Existing interface implementations and decorators can retain their original members. Constructing `LiteStorage<TFileId>` over a custom interface implementation retains its typed-collection path and the constructor's trim/AOT warnings.
+
 The generator automatically registers a direct execution map for every supported model. Supported values include scalars, `List<string>`, rank-one `string[]`, and `Dictionary<string, object?>`; supported scalars include Boolean, the signed and unsigned integer widths, Single, Double, Decimal, Char, String, enum, `byte[]`, `DateTime`, `DateTimeOffset`, `Guid`, `ObjectId`, and nullable value-type forms of those values. `LiteDbGeneratedMappings.Register(mapper)` is the only registration call required; consumers do not call `RegisterGeneratedExecutionMap` manually. Direct maps perform generated document conversion and reproduce `SerializeNullValues`, `TrimWhitespace`, `EmptyStringToNull`, and `EnumAsInteger`; every other mapper-shaping setting is rejected before data access. Generated smoke fixtures guard the broad `ToDocument(Type, object)` and `ToObject(Type, BsonDocument)` methods so an accidental fallback is observable and build-breaking. Ordinary `GetCollection<T>` remains the reflection-capable LiteDB API. See [SourceGeneratorPackage.md](SourceGeneratorPackage.md) for package-version policy, contributor package checks, and release requirements.
 
 ## Supported model subset
 
-The first source-generated mapping slice is intentionally narrow. The generator accepts a directly annotated, top-level, sealed, non-generic `public` or `internal` class or mutable record class with an accessible parameterless constructor. Sealing the annotated type prevents a generated collection from receiving a derived runtime type whose additional members are absent from the generated map. The generator can flatten supported public read/write instance properties declared by the annotated class and its public or internal, top-level, non-generic base classes. Compiler-generated record members, such as `EqualityContract`, are not persisted. A base class may be abstract; only the sealed concrete derived class is marked and directly constructed.
+The supported model subset is intentionally narrow. The generator accepts a directly annotated, top-level, sealed, non-generic `public` or `internal` class or mutable record class with an accessible parameterless constructor. Sealing the annotated type prevents a generated collection from receiving a derived runtime type whose additional members are absent from the generated map. The generator can flatten supported public read/write instance properties declared by the annotated class and its public or internal, top-level, non-generic base classes. Compiler-generated record members, such as `EqualityContract`, are not persisted. A base class may be abstract; only the sealed concrete derived class is marked and directly constructed.
 
-`[BsonId]`, `[BsonField]`, and `[BsonIgnore]` are supported on inherited and directly declared properties. For a virtual override chain, the generator maps only the most-derived property and resolves a mapping attribute from that declaration first, then from the nearest overridden declaration. The generator also applies LiteDB's `Id` and `<TypeName>Id` ID conventions. A `List<string>` is serialized and materialized through generated loops rather than reflection-based collection activation. An unannotated public getter-only property that is not an ID convention is treated as a computed projection and is excluded from persistence; mark it with `[BsonIgnore]` if explicit documentation is preferred. A getter-only `[BsonId]`, `[BsonField]`, or conventional ID remains unsupported because the generated path cannot hydrate it. Mapped `new`-hidden members, duplicate effective BSON field names, and multiple resolved IDs across an inheritance hierarchy produce `LDBSG003` rather than an ambiguous map.
+`[BsonId]`, `[BsonField]`, and `[BsonIgnore]` are supported on inherited and directly declared properties. For a virtual override chain, the generator maps only the most-derived property and resolves a mapping attribute from that declaration first, then from the nearest overridden declaration. ID selection follows the reflection mapper's precedence: `[BsonId]`, then `Id`, then `<DeclaringTypeName>Id`. An inherited `Person.PersonId` is therefore the ID of an annotated `Employee : Person` too. A `List<string>` is serialized and materialized through generated loops rather than reflection-based collection activation. An unannotated public getter-only property that is not an ID convention is treated as a computed projection and is excluded from persistence; mark it with `[BsonIgnore]` if explicit documentation is preferred. A getter-only `[BsonId]`, `[BsonField]`, or conventional ID remains unsupported because the generated path cannot hydrate it. Mapped `new`-hidden members, case-insensitive duplicate BSON field names, and multiple IDs at the same precedence produce `LDBSG003`. `[BsonRef]` properties produce `LDBSG002` even when the property type would otherwise be supported.
 
 | Supported | Not supported by the generated path |
 |---|---|
@@ -116,8 +120,6 @@ The first source-generated mapping slice is intentionally narrow. The generator 
 ### DateTimeOffset representation
 
 Ordinary and source-generated mapping write `DateTimeOffset` and nullable `DateTimeOffset` values as BSON `DateTime` values containing the UTC instant. BSON DateTime precision is one millisecond, so the original offset and any sub-millisecond ticks are not retained. Reads therefore materialize a UTC `DateTimeOffset`, consistently across ordinary managed, generated managed, and Native AOT execution paths.
-
-Generated readers also accept the ticks-and-offset embedded document emitted by earlier source-generator versions. This compatibility is read-only: all new writes use the canonical BSON DateTime representation, which keeps indexes and queries independent of the typed writer used for a field.
 
 ### String array representation
 
@@ -147,7 +149,7 @@ Two C# constructs make the *compiler* emit trim-unsafe `System.Linq.Expressions`
 
 ### What is not part of the Native AOT contract
 
-`GetCollection<T>`, `LiteRepository`, `BsonMapper.Entity<T>()`, `BsonMapper.GetExpression`, and `BsonMapper.ToDocument`/`ToObject`/`Serialize`/`Deserialize` use runtime model mapping. They carry `RequiresUnreferencedCode` (and `RequiresDynamicCode` where types are constructed at runtime), so calling them from a trimmed or Native AOT application produces a diagnostic at the call site. `GetCollection(string)` (the `BsonDocument` API), SQL through `Execute`, file storage (`FileStorage`, `GetStorage<TFileId>`), and the engine features (transactions, encryption, shared mode, rebuild, pragmas, vector search) involve no model mapping and are validated published. File storage maps its own `LiteFileInfo<TFileId>` model with hand-written code. A `TFileId` that is a BSON-native type, an enum, or a type with a converter registered through `BsonMapper.RegisterType` needs no reflection at all. A class as `TFileId` still works everywhere, as it always has: the type parameter is annotated so that the trimmer keeps the members of that class (see the limit under "By design" below). A LINQ expression on a `BsonDocument` collection follows the same rule as one on a generated collection: captured values must be BSON-native (or have a registered converter), and a captured application object throws `NotSupportedException` instead of being mapped through reflection. This applies in every runtime, not only when published.
+`GetCollection<T>`, `LiteRepository`, `BsonMapper.Entity<T>()`, `BsonMapper.GetExpression`, and `BsonMapper.ToDocument`/`ToObject`/`Serialize`/`Deserialize` use runtime model mapping. They carry `RequiresUnreferencedCode` (and `RequiresDynamicCode` where types are constructed at runtime), so calling them from a trimmed or Native AOT application produces a diagnostic at the call site. `GetCollection(string)` (the `BsonDocument` API), SQL through `Execute`, string-ID `FileStorage`, and the engine features (transactions, encryption, shared mode, rebuild, pragmas, vector search) are validated published. File storage maps its own `LiteFileInfo<TFileId>` model with hand-written code, but an arbitrary custom ID can still require runtime mapping. Both `GetStorage<TFileId>` and the public `LiteStorage<TFileId>` constructor therefore carry trim/AOT warnings, including calls through `ILiteDatabase`. Those warnings are conservative: scalar IDs, flat IDs and explicitly registered converters can work, but require application-specific qualification before suppression. A LINQ expression on a `BsonDocument` collection follows the same rule as one on a generated collection: captured values must be BSON-native (or have a registered converter), and a captured application object throws `NotSupportedException` instead of being mapped through reflection. This applies in every runtime, not only when published.
 
 | Diagnostic | Meaning | Typical remediation |
 | --- | --- | --- |
@@ -155,11 +157,11 @@ Two C# constructs make the *compiler* emit trim-unsafe `System.Linq.Expressions`
 | `LDBSG002` | Invalid source-generated property | Change, ignore, or remove an unsupported, inaccessible, indexed/static, or persisted getter-only property. |
 | `LDBSG003` | Conflicting source-generated mapping | Remove duplicate mapped member names, IDs, conventional IDs, or effective BSON field names across the hierarchy. |
 
-## By design: known limits when trimmed or published as Native AOT
+## Compatibility boundaries and known limits
 
-None of these affect an ordinary application that runs on a JIT without trimming. They are the places where a trimmed or Native AOT application behaves differently, and each is a deliberate trade-off, not a bug.
+These limits need to be considered when selecting the API and validating an application. The document-query change also affects untrimmed applications.
 
-**1. A class nested inside a file storage id loses its members.** A class used as file id is kept intact by the trimmer. A class *inside* that class is not, and the loss is silent:
+**1. Custom file IDs require trim/AOT warnings.** A class used as file ID has its top-level members preserved; nested types do not. Ignoring the warnings on `GetStorage<TFileId>` or the `LiteStorage<TFileId>` constructor can cause data loss:
 
 ```csharp
 class FileKey { public int Tenant { get; set; } public Address Home { get; set; } }
@@ -169,13 +171,15 @@ class Address { public string City { get; set; } }
 // trimmed app: {"Tenant":1,"Home":{}}        <- two different ids can become the same id
 ```
 
-Keep file ids flat (`int`, `string`, `Guid`, enums, or a class with only such members), or register a converter, which removes reflection from the id completely:
+Use the warning-free `FileStorage` property for string IDs. For a custom ID, register a converter for the complete ID and verify a published round trip before narrowly suppressing the warnings. Preserve the existing BSON shape when reading existing files:
 
 ```csharp
 mapper.RegisterType<FileKey>(
-    key  => new BsonDocument { ["Tenant"] = key.Tenant, ["City"] = key.Home.City },
-    bson => new FileKey { Tenant = bson["Tenant"].AsInt32, Home = new Address { City = bson["City"].AsString } });
+    key  => new BsonDocument { ["Tenant"] = key.Tenant, ["Home"] = new BsonDocument { ["City"] = key.Home.City } },
+    bson => new FileKey { Tenant = bson["Tenant"].AsInt32, Home = new Address { City = bson["Home"]["City"].AsString } });
 ```
+
+The published smoke tests separately qualify integer IDs and the flat `AotFileKey` model, using member-level suppressions with those exact invariants. They do not establish safety for arbitrary custom IDs. The package-consumer gate also verifies that all three public entry points reject an unsuppressed custom-ID call with both `IL2026` and `IL3050`.
 
 **2. A query on a `BsonDocument` or generated collection does not accept your own objects as values.** This one applies to every application. Convert them first; the query itself stays the same:
 

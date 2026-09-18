@@ -27,20 +27,24 @@ mkdir -p "$FEED_DIRECTORY" "$PACKAGE_CACHE_DIRECTORY"
 
 printf '%s\n' '[PACKAGE-CONSUMER] Packing the matching LiteDB runtime and source-generator package pair.'
 dotnet pack "$ROOT_DIRECTORY/LiteDB/LiteDB.csproj" \
-  --configuration Release \
+  --configuration PackageValidation \
   --nologo \
+  -p:TestingEnabled=false \
+  -p:Optimize=true \
   -p:GitVersionEnabled=false \
   -p:PackageVersion="$PACKAGE_VERSION" \
   --output "$FEED_DIRECTORY"
 dotnet pack "$ROOT_DIRECTORY/LiteDB.SourceGenerator/LiteDB.SourceGenerator.csproj" \
-  --configuration Release \
+  --configuration PackageValidation \
   --nologo \
+  -p:Optimize=true \
   -p:GitVersionEnabled=false \
   -p:PackageVersion="$PACKAGE_VERSION" \
   --output "$FEED_DIRECTORY"
 
 test -f "$FEED_DIRECTORY/LiteDB.$PACKAGE_VERSION.nupkg"
 test -f "$FEED_DIRECTORY/LiteDB.SourceGenerator.$PACKAGE_VERSION.nupkg"
+"$ROOT_DIRECTORY/scripts/validate-source-generator-package-archive.sh" "$FEED_DIRECTORY" "$PACKAGE_VERSION"
 
 printf '%s\n' '[PACKAGE-CONSUMER] Restoring the external consumer with the local package feed and required Native AOT toolchain source.'
 export NUGET_PACKAGES="$PACKAGE_CACHE_DIRECTORY"
@@ -55,6 +59,23 @@ dotnet restore "$CONSUMER_PROJECT" \
 grep -q "\"LiteDB/$PACKAGE_VERSION\"" "$CONSUMER_DIRECTORY/obj/project.assets.json"
 grep -q "\"LiteDB.SourceGenerator/$PACKAGE_VERSION\"" "$CONSUMER_DIRECTORY/obj/project.assets.json"
 grep -q 'analyzers/dotnet/cs/LiteDB.SourceGenerator.dll' "$CONSUMER_DIRECTORY/obj/project.assets.json"
+
+printf '%s\n' '[PACKAGE-CONSUMER] Requiring warnings at all public custom-file-ID entry points.'
+warning_probe_log="$FEED_DIRECTORY/file-id-warning-probe.log"
+if dotnet build "$CONSUMER_PROJECT" --configuration Release --no-restore --nologo \
+  -p:GitVersionEnabled=false -p:DefineConstants=FILE_ID_WARNING_PROBE > "$warning_probe_log" 2>&1; then
+  printf '%s\n' '[PACKAGE-CONSUMER] FAILED: unsafe custom file IDs compiled without diagnostics.' >&2
+  exit 1
+fi
+for api in 'LiteDatabase.GetStorage' 'ILiteDatabase.GetStorage' 'LiteStorage<TFileId>.LiteStorage'; do
+  for diagnostic in IL2026 IL3050; do
+    grep -F "error $diagnostic:" "$warning_probe_log" | grep -F "$api" > /dev/null || {
+      cat "$warning_probe_log" >&2
+      printf '[PACKAGE-CONSUMER] FAILED: missing %s on %s.\n' "$diagnostic" "$api" >&2
+      exit 1
+    }
+  done
+done
 
 printf '%s\n' '[PACKAGE-CONSUMER] Building the restored consumer and verifying generated mapper output.'
 dotnet build "$CONSUMER_PROJECT" \

@@ -22,7 +22,7 @@ internal static class GeneratedMappingsEmitter
         source.AppendLine();
         source.AppendLine("namespace LiteDB.Generated");
         source.AppendLine("{");
-        source.AppendLine("    public static class LiteDbGeneratedMappings");
+        source.AppendLine("    internal static class LiteDbGeneratedMappings");
         source.AppendLine("    {");
         source.AppendLine("        public static void Register(global::LiteDB.BsonMapper mapper)");
         source.AppendLine("        {");

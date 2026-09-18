@@ -13,6 +13,19 @@ namespace LiteDB.AotSmokeTests
     {
         internal static void Run(LiteDatabase database)
         {
+            var employees = database.GetGeneratedCollection<AotEmployee>("aot_employee_ids");
+            var employee = new AotEmployee { AotPersonId = 42, Name = "Ada" };
+            Require(employees.Insert(employee).AsInt32 == 42, "Inherited conventional ID was not stored as _id.");
+            var automatic = new AotEmployee { Name = "Grace" };
+            employees.Insert(automatic);
+            Require(automatic.AotPersonId == 43 && employees.FindById(43).Name == "Grace",
+                "Inherited conventional auto-ID was not assigned or hydrated.");
+            SmokeAssert.Report("generated-inherited-id", new BsonDocument
+            {
+                ["explicit"] = employees.FindOne(x => x.AotPersonId == 42).AotPersonId,
+                ["automatic"] = automatic.AotPersonId
+            });
+
             Console.WriteLine("  [3.6] Round-trip the remaining native scalar conversion boundaries.");
             var expectedObjectId = new ObjectId("64c61e5f18a9421a8862c71c");
             var expectedTimestamp = new DateTime(2024, 6, 9, 10, 11, 12, 123, DateTimeKind.Utc);

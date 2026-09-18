@@ -190,10 +190,12 @@ namespace LiteDB.AotTests
                 "public non-init getter and setter");
         }
 
-        [TestMethod]
-        public void BsonSourceGenerationAnalyzer_DuplicateBsonFieldNames_ReportsLdbsg003OnAnnotatedClassIdentifier()
+        [DataTestMethod]
+        [DataRow("duplicate")]
+        [DataRow("DUPLICATE")]
+        public void BsonSourceGenerationAnalyzer_DuplicateBsonFieldNames_ReportsLdbsg003OnAnnotatedClassIdentifier(string secondName)
         {
-            const string source = """
+            var source = $$"""
                 using LiteDB;
 
                 namespace ExternalConsumer;
@@ -206,7 +208,7 @@ namespace LiteDB.AotTests
                     [BsonField("duplicate")]
                     public string First { get; set; } = string.Empty;
 
-                    [BsonField("duplicate")]
+                    [BsonField("{{secondName}}")]
                     public string Second { get; set; } = string.Empty;
                 }
                 """;
@@ -217,6 +219,38 @@ namespace LiteDB.AotTests
                 "LDBSG003",
                 "DuplicateFieldRecord",
                 "BSON field name");
+        }
+
+        [TestMethod]
+        public void InheritedGetterOnlyConventionalId_IsRejectedInsteadOfSilentlyDropped()
+        {
+            const string source = """
+                public class Person
+                {
+                    public int PersonId => 42;
+                }
+                [LiteDB.BsonSourceGenerated]
+                public sealed class Employee : Person
+                {
+                    public string Name { get; set; }
+                }
+                """;
+            AssertDiagnostic(source, "Employee.cs", "LDBSG002", "Employee", "public non-init getter and setter");
+        }
+
+        [TestMethod]
+        public void BsonRefOnOtherwiseSupportedProperty_IsRejectedInsteadOfStoredAsPlainValue()
+        {
+            const string source = """
+                [LiteDB.BsonSourceGenerated]
+                public sealed class ReferenceRecord
+                {
+                    public int Id { get; set; }
+                    [LiteDB.BsonRef("people")]
+                    public string Person { get; set; }
+                }
+                """;
+            AssertDiagnostic(source, "ReferenceRecord.cs", "LDBSG002", "ReferenceRecord", "BsonRef");
         }
 
         [TestMethod]

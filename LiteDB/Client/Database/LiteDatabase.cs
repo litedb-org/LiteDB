@@ -223,12 +223,16 @@ namespace LiteDB
         /// </summary>
         public ILiteStorage<string> FileStorage
         {
+            [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The ID type is string, which uses BSON-native conversion; LiteFileInfo<string> has a statically authored map. No application type is reflected.")]
+            [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050", Justification = "String IDs and the statically authored LiteFileInfo<string> map require no runtime type construction.")]
             get { return _fs ??= this.GetStorage<string>(); }
         }
 
         /// <summary>
         /// Get new instance of Storage using custom FileId type, custom "_files" collection name and custom "_chunks" collection. LiteDB support multiples file storages (using different files/chunks collection names)
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeFileIdMapping)]
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
         public ILiteStorage<TFileId> GetStorage<[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(AotCompatibility.FileIdMembers)] TFileId>(string filesCollection = "_files", string chunksCollection = "_chunks")
         {
             return new LiteStorage<TFileId>(this, filesCollection, chunksCollection);

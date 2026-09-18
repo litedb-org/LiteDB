@@ -95,11 +95,15 @@ comm -13 "$output_root/aot-only.names" "$output_root/known.names" > "$output_roo
 : > "$output_root/confirmed.names"
 while IFS= read -r name; do
     [ -n "$name" ] || continue
-    "$output_root/native-aot/$executable" "$output_root/retry.tsv" "$name" > /dev/null || true
-    if awk -F '\t' -v name="$name" '$2 == name && $1 == "Fail" { found = 1 } END { exit !found }' "$output_root/retry.tsv"; then
-        printf '%s\n' "$name" >> "$output_root/confirmed.names"
-    else
+    # A crashed retry must not reuse a previous result or be mistaken for a pass.
+    : > "$output_root/retry.tsv"
+    retry_status=0
+    "$output_root/native-aot/$executable" "$output_root/retry.tsv" "$name" > "$output_root/retry.run.log" 2>&1 || retry_status=$?
+    if [ "$retry_status" -eq 0 ] && awk -F '\t' -v name="$name" '$2 == name && $1 == "Pass" { found = 1 } END { exit !found }' "$output_root/retry.tsv"; then
         printf '[AOT-TESTS] Flaky, passed on retry: %s\n' "$name"
+    else
+        printf '%s\n' "$name" >> "$output_root/confirmed.names"
+        tail -n 10 "$output_root/retry.run.log"
     fi
 done < "$output_root/unexpected.names"
 

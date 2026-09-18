@@ -77,12 +77,17 @@ internal static class BsonModelAnalyzer
                 continue;
             }
 
+            if (HasAttribute(property, "LiteDB.BsonRefAttribute"))
+            {
+                return ModelAnalysisResult.InvalidProperty($"property '{property.Name}' uses BsonRef, which generated mappings do not support");
+            }
+
             if (property.IsStatic || property.IsIndexer)
             {
                 return ModelAnalysisResult.InvalidProperty($"property '{property.Name}' must be a non-static, non-indexed property");
             }
 
-            if (IsComputedProperty(property, type))
+            if (IsComputedProperty(property))
             {
                 continue;
             }
@@ -119,6 +124,7 @@ internal static class BsonModelAnalyzer
                 ScalarTypeName: GetScalarTypeName(property.Type),
                 IsNullableScalar: isNullableScalar,
                 HasBsonId: idAttribute is not null,
+                IsDeclaringTypeId: string.Equals(property.Name, property.ContainingType.Name + "Id", StringComparison.OrdinalIgnoreCase),
                 AutoId: GetAutoId(idAttribute),
                 IsId: false));
         }
@@ -141,9 +147,13 @@ internal static class BsonModelAnalyzer
         }
         else
         {
-            var conventionalIds = properties.Where(property =>
-                string.Equals(property.Name, "Id", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(property.Name, type.Name + "Id", StringComparison.OrdinalIgnoreCase)).ToArray();
+            // Match BsonMapper.GetIdMember: Id wins over <DeclaringTypeName>Id, including inherited members.
+            var conventionalIds = properties.Where(static property =>
+                string.Equals(property.Name, "Id", StringComparison.OrdinalIgnoreCase)).ToArray();
+            if (conventionalIds.Length == 0)
+            {
+                conventionalIds = properties.Where(static property => property.IsDeclaringTypeId).ToArray();
+            }
 
             if (conventionalIds.Length > 1)
             {
@@ -168,7 +178,7 @@ internal static class BsonModelAnalyzer
             }
         }
 
-        var fieldNames = new HashSet<string>(StringComparer.Ordinal);
+        var fieldNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var property in properties)
         {
             if (!fieldNames.Add(property.FieldName))
@@ -241,7 +251,7 @@ internal static class BsonModelAnalyzer
         return property.Name;
     }
 
-    private static bool IsComputedProperty(IPropertySymbol property, INamedTypeSymbol modelType)
+    private static bool IsComputedProperty(IPropertySymbol property)
     {
         if (property.GetMethod?.DeclaredAccessibility != Accessibility.Public || property.SetMethod is not null)
         {
@@ -254,7 +264,7 @@ internal static class BsonModelAnalyzer
         }
 
         return !string.Equals(property.Name, "Id", StringComparison.OrdinalIgnoreCase) &&
-            !string.Equals(property.Name, modelType.Name + "Id", StringComparison.OrdinalIgnoreCase);
+            !string.Equals(property.Name, property.ContainingType.Name + "Id", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool GetAutoId(AttributeData? attribute)

@@ -15,6 +15,11 @@ internal static class Program
 
         using var stream = new MemoryStream();
         using var database = new LiteDatabase(stream, mapper);
+#if FILE_ID_WARNING_PROBE
+        database.GetStorage<object>();
+        ((ILiteDatabase)database).GetStorage<object>();
+        _ = new LiteStorage<object>(database, "files", "chunks");
+#endif
         var collection = database.GetGeneratedCollection<PackagedGeneratedRecord>("records");
 
         collection.Insert(new PackagedGeneratedRecord { Name = "package-consumer" });

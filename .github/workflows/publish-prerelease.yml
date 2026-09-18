@@ -6,6 +6,7 @@ on:
       - dev
     paths:
       - 'LiteDB/**'
+      - 'LiteDB.SourceGenerator/**'
       - '.github/workflows/**'
   # allow workflow_dispatch to trigger manually from GitHub UI
   workflow_dispatch:
@@ -58,7 +59,7 @@ jobs:
           JSON=$(dotnet tool run dotnet-gitversion /output json)
           echo "$JSON"
 
-          NUGET_VERSION=$(echo "$JSON" | jq -r '.NuGetVersion')
+          NUGET_VERSION=$(echo "$JSON" | jq -er '.SemVer')
           FULL_SEMVER=$(echo "$JSON" | jq -r '.FullSemVer')
           SHORT_SHA=$(echo "$JSON" | jq -r '.ShortSha')
           MAJOR_MINOR_PATCH=$(echo "$JSON" | jq -r '.MajorMinorPatch')
@@ -76,6 +77,7 @@ jobs:
           echo "fullSemVer=$FULL_SEMVER" >> "$GITHUB_OUTPUT"
           echo "releaseVersionPadded=$RELEASE_VERSION_PADDED" >> "$GITHUB_OUTPUT"
           echo "informational=${NUGET_VERSION}+${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "assemblyVersion=$(echo "$JSON" | jq -r '.AssemblySemVer')" >> "$GITHUB_OUTPUT"
 
       - name: Restore
         run: dotnet restore LiteDB.sln
@@ -89,8 +91,8 @@ jobs:
         env:
           PACKAGE_VERSION: ${{ steps.gitversion.outputs.nugetVersion }}
         run: |
-          dotnet pack LiteDB/LiteDB.csproj --configuration Release --no-build -o artifacts /p:ContinuousIntegrationBuild=true -p:PackageVersion="$PACKAGE_VERSION"
-          dotnet pack LiteDB.SourceGenerator/LiteDB.SourceGenerator.csproj --configuration Release --no-build -o artifacts /p:ContinuousIntegrationBuild=true -p:PackageVersion="$PACKAGE_VERSION"
+          dotnet pack LiteDB/LiteDB.csproj --configuration Release -o artifacts /p:ContinuousIntegrationBuild=true -p:TestingEnabled=false -p:UseFullSemVerForNuGet=false -p:PackageVersion="$PACKAGE_VERSION"
+          dotnet pack LiteDB.SourceGenerator/LiteDB.SourceGenerator.csproj --configuration Release -o artifacts /p:ContinuousIntegrationBuild=true -p:UseFullSemVerForNuGet=false -p:PackageVersion="$PACKAGE_VERSION"
 
       - name: Clean up detached packages
         run: |
@@ -100,6 +102,13 @@ jobs:
         env:
           PACKAGE_VERSION: ${{ steps.gitversion.outputs.nugetVersion }}
         run: ./scripts/validate-source-generator-package-archive.sh artifacts "$PACKAGE_VERSION"
+
+      - name: Validate assembly versions inside release packages
+        shell: pwsh
+        env:
+          PACKAGE_VERSION: ${{ steps.gitversion.outputs.nugetVersion }}
+          ASSEMBLY_VERSION: ${{ steps.gitversion.outputs.assemblyVersion }}
+        run: ./scripts/validate-package-assembly-versions.ps1 -PackageDirectory artifacts -PackageVersion $env:PACKAGE_VERSION -AssemblyVersion $env:ASSEMBLY_VERSION
 
       - name: Retrieve secrets from Bitwarden
         uses: bitwarden/sm-action@v2

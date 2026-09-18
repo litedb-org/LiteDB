@@ -39,6 +39,9 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: python scripts/check-csharp-size.py --base "${BASE_SHA:-HEAD^}"
 
+      - name: Check Native AOT retry failure handling
+        run: python3 scripts/test-aot-test-suite-gate.py
+
       - name: Restore
         run: dotnet restore LiteDB.sln
 
@@ -62,6 +65,17 @@ jobs:
         with:
           name: tests-build-linux
           path: tests-build-linux.tar.gz
+
+      - name: Dry-run release package versions without publishing
+        run: |
+          dotnet tool restore
+          VERSION_JSON=$(dotnet tool run dotnet-gitversion /output json)
+          PACKAGE_VERSION=$(echo "$VERSION_JSON" | jq -er '.SemVer')
+          ASSEMBLY_VERSION=$(echo "$VERSION_JSON" | jq -er '.AssemblySemVer')
+          dotnet pack LiteDB/LiteDB.csproj --configuration Release -o artifacts/release-package-validation -p:TestingEnabled=false -p:UseFullSemVerForNuGet=false -p:PackageVersion="$PACKAGE_VERSION"
+          dotnet pack LiteDB.SourceGenerator/LiteDB.SourceGenerator.csproj --configuration Release -o artifacts/release-package-validation -p:UseFullSemVerForNuGet=false -p:PackageVersion="$PACKAGE_VERSION"
+          ./scripts/validate-source-generator-package-archive.sh artifacts/release-package-validation "$PACKAGE_VERSION"
+          pwsh -NoProfile -File scripts/validate-package-assembly-versions.ps1 -PackageDirectory artifacts/release-package-validation -PackageVersion "$PACKAGE_VERSION" -AssemblyVersion "$ASSEMBLY_VERSION"
 
   test-linux:
     name: Test (Linux ${{ matrix.item.display }})

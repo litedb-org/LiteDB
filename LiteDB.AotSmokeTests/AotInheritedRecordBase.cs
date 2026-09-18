@@ -16,3 +16,14 @@ public abstract class AotInheritedRecordBase
     [BsonIgnore]
     public string? IgnoredBaseValue { get; set; }
 }
+
+public class AotPerson
+{
+    public int AotPersonId { get; set; }
+}
+
+[BsonSourceGenerated]
+public sealed class AotEmployee : AotPerson
+{
+    public string Name { get; set; } = string.Empty;
+}

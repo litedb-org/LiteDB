@@ -27,17 +27,6 @@ namespace LiteDB
         ILiteCollection<T> GetCollection<T>(string name, BsonAutoId autoId = BsonAutoId.ObjectId);
 
         /// <summary>
-        /// Gets a typed collection backed exclusively by a source-generated execution map.
-        /// </summary>
-        /// <typeparam name="T">The explicitly generated entity type.</typeparam>
-        /// <param name="name">The required case-insensitive collection name.</param>
-        /// <param name="autoId">The auto-ID type when the entity map has no auto-ID member.</param>
-        /// <returns>The typed collection.</returns>
-        /// <exception cref="ArgumentNullException">Thrown when <paramref name="name"/> is missing.</exception>
-        /// <exception cref="InvalidOperationException">Thrown when no generated entity or execution map is registered, or the execution map requires an unsupported mapper configuration.</exception>
-        ILiteCollection<T> GetGeneratedCollection<T>(string name, BsonAutoId autoId = BsonAutoId.ObjectId);
-
-        /// <summary>
         /// Get a collection using a name based on typeof(T).Name (BsonMapper.ResolveCollectionName function)
         /// </summary>
         [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
@@ -77,6 +66,8 @@ namespace LiteDB
         /// <summary>
         /// Get new instance of Storage using custom FileId type, custom "_files" collection name and custom "_chunks" collection. LiteDB support multiples file storages (using different files/chunks collection names)
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeFileIdMapping)]
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
         ILiteStorage<TFileId> GetStorage<[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(AotCompatibility.FileIdMembers)] TFileId>(string filesCollection = "_files", string chunksCollection = "_chunks");
 
         /// <summary>

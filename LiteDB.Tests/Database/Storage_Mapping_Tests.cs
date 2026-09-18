@@ -22,6 +22,21 @@ namespace LiteDB.Tests.Database
         private static MemoryStream Content(string text) => new MemoryStream(Encoding.UTF8.GetBytes(text));
 
         [Fact]
+        public void A_Custom_String_Id_Converter_Is_Applied_In_Both_Directions()
+        {
+            var mapper = new BsonMapper();
+            mapper.RegisterType<string>(value => "key:" + value, bson => bson.AsString.Substring(4));
+            using var db = new LiteDatabase(new MemoryStream(), mapper);
+
+            db.FileStorage.Upload("one", "a.txt", Content("first"));
+            db.GetCollection("_files").FindAll().Single()["_id"].AsString.Should().Be("key:one");
+            db.FileStorage.FindById("one").Id.Should().Be("one");
+            using var content = new MemoryStream();
+            db.FileStorage.Download("one", content);
+            Encoding.UTF8.GetString(content.ToArray()).Should().Be("first");
+        }
+
+        [Fact]
         public void Stored_File_Document_Matches_The_Reflection_Mapper()
         {
             using var db = new LiteDatabase(new MemoryStream());

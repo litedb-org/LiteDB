@@ -214,6 +214,8 @@ namespace LiteDB.AotSmokeTests
             Console.WriteLine("        Passed: document LINQ with captured variables, and rejection of a captured application object.");
         }
 
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The custom ID cases are int and the flat AotFileKey (int/string members), whose top-level members are preserved by GetStorage's type parameter annotation. Nested IDs are not admitted here.")]
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050", Justification = "The custom IDs are int and a flat class with int/string members; neither requires constructing closed generic types at runtime.")]
         private static void RunFileStorage()
         {
             Console.WriteLine("  [4.9] Upload, query, download, and delete files through file storage.");
@@ -254,6 +256,15 @@ namespace LiteDB.AotSmokeTests
             Require(storage.Delete("reports/2024.bin") && storage.Exists("reports/2024.bin") == false, "File storage did not delete the file.");
             Report("chunks left after delete", database.GetCollection("_chunks").Count());
             Require(downloaded.ToArray().SequenceEqual(payload) && report.Chunks > 1, "File storage did not round-trip a multi-chunk file.");
+
+            var customMapper = new BsonMapper();
+            customMapper.RegisterType<string>(id => "key:" + id, bson => bson.AsString.Substring(4));
+            using var customDatabase = new LiteDatabase(new MemoryStream(), customMapper);
+            customDatabase.FileStorage.Upload("one", "one.txt", new MemoryStream(new byte[] { 1 }));
+            var storedId = customDatabase.GetCollection("_files").FindAll().Single()["_id"].AsString;
+            Require(storedId == "key:one" && customDatabase.FileStorage.FindById("one").Id == "one",
+                "The custom string file ID converter did not round-trip.");
+            Report("converted string file id", storedId);
 
             Console.WriteLine("        Passed: file storage upload, typed and metadata queries, download, custom id type, and delete.");
         }

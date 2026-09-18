@@ -61,14 +61,22 @@ namespace LiteDB
         /// Converts a file storage id without runtime model mapping.
         /// </summary>
         private const string FileIdJustification =
-            "Reached only for an application type used as file id. Every declaration of the file id type parameter carries " +
-            "DynamicallyAccessedMembers(AotCompatibility.FileIdMembers), so the trimmer keeps the properties, fields and " +
-            "constructors the mapper reads from that type. A member whose own type needs runtime type construction fails " +
-            "with a LiteException that names it; it is not mapped silently or partially.";
+            "Custom ID mapping is entered only through GetStorage<TFileId> or the LiteStorage<TFileId> constructor, " +
+            "both of which surface RequiresUnreferencedCode and RequiresDynamicCode to callers. The unannotated " +
+            "FileStorage property uses string IDs, which never enter runtime mapping. FileIdMembers preserves " +
+            "the top-level custom ID only, not nested member types; callers must heed the public API warnings.";
 
         [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = FileIdJustification)]
         internal BsonValue SerializeFileId<[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(AotCompatibility.FileIdMembers)] T>(T id)
         {
+            if (id == null) return BsonValue.Null;
+            if (id is BsonValue bson) return bson;
+            // Match Serialize's converter precedence, including converters for BSON-native ID types.
+            if (_customSerializer.TryGetValue(typeof(T), out var custom) || _customSerializer.TryGetValue(id.GetType(), out custom))
+            {
+                return custom(id);
+            }
+
             return IsMappingFreeFileId(typeof(T)) ? this.SerializeGeneratedConstant(id) : this.Serialize(typeof(T), id);
         }
 
