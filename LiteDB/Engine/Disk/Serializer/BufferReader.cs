@@ -238,7 +238,7 @@ namespace LiteDB.Engine
         /// </summary>
         public DateTime ReadDateTime()
         {
-            var date = new DateTime(this.ReadInt64(), DateTimeKind.Utc);
+            var date = this.ReadInt64().ToUtcDateTime();
 
             return _utcDate ? date.ToLocalTime() : date;
         }

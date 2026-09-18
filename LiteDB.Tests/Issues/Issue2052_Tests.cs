@@ -10,7 +10,7 @@ namespace LiteDB.Tests.Issues
         [Theory]
         [InlineData(long.MaxValue)]
         [InlineData(long.MinValue)]
-        public void Malformed_BSON_date_is_rejected_without_modifying_input_or_hiding_valid_dates(long milliseconds)
+        public void Malformed_BSON_date_is_clamped_without_modifying_input_or_hiding_valid_dates(long milliseconds)
         {
             byte[] bytes;
             using (var stream = new MemoryStream())
@@ -25,8 +25,8 @@ namespace LiteDB.Tests.Issues
                 bytes = stream.ToArray();
             }
             var before = (byte[])bytes.Clone();
-            var failure = Record.Exception(() => BsonSerializer.Deserialize(bytes));
-            failure.Should().BeOfType<LiteException>("invalid stored BSON needs a database-format error rather than an unstructured DateTime overflow");
+            var damaged = BsonSerializer.Deserialize(bytes);
+            damaged["date"].AsDateTime.Should().Be(milliseconds < 0 ? DateTime.MinValue : DateTime.MaxValue, "one damaged date must not make its document unreadable (#2930)");
             bytes.Should().Equal(before);
             var valid = new BsonDocument { ["date"] = new DateTime(2023, 1, 1, 0, 0, 0, DateTimeKind.Utc), ["value"] = "control" };
             var recovered = BsonSerializer.Deserialize(BsonSerializer.Serialize(valid));
