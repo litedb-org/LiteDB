@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace LiteDB.Engine
@@ -32,20 +33,33 @@ namespace LiteDB.Engine
                     covered.UnionWith(terms);
                     continue;
                 }
-                var constraint = new ScalarIndexConstraint(_collation);
-                var valid = true;
-                foreach (var term in terms)
-                {
-                    TryGetConstraint(term, out _, out var value, out var operation);
-                    if (!constraint.Intersect(operation, value.ExecuteScalar(_collation))) { valid = false; break; }
-                }
-                if (!valid) continue;
-                var candidate = new IndexCost(index, first, constraint.CreateIndex(index.Name), terms, scalarKeys: true);
+                var candidate = TryConstraintIndex(index, first, terms);
+                if (candidate == null) continue;
                 if (covered == null) covered = new HashSet<BsonExpression>();
                 covered.UnionWith(terms);
                 if (best == null || candidate.Cost < best.Cost) best = candidate;
             }
             return best;
+        }
+
+        private IndexCost TryConstraintIndex(CollectionIndex index, BsonExpression first, List<BsonExpression> terms)
+        {
+            try
+            {
+                var constraint = new ScalarIndexConstraint(_collation);
+                foreach (var term in terms)
+                {
+                    TryGetConstraint(term, out _, out var value, out var operation);
+                    if (!constraint.Intersect(operation, value.ExecuteScalar(_collation))) return null;
+                }
+                return new IndexCost(index, first, constraint.CreateIndex(index.Name), terms, scalarKeys: true);
+            }
+            catch (Exception)
+            {
+                // Bounds are evaluated and compared with each other before any row
+                // is read. Failures for this binding belong to the original filter.
+                return null;
+            }
         }
 
         private static bool TryGetConstraint(BsonExpression expression, out BsonExpression field,

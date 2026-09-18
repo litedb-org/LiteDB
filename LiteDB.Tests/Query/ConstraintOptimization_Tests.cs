@@ -118,6 +118,29 @@ namespace LiteDB.Tests.QueryTest
             db.GetCollection<Row>("rows").Query().Where(expression).GetPlan().ContainsKey("filters").Should().BeTrue();
         }
 
+        [Theory]
+        [InlineData(double.NaN, false)]
+        [InlineData(double.NaN, true)]
+        [InlineData(double.PositiveInfinity, false)]
+        [InlineData(double.PositiveInfinity, true)]
+        [InlineData(double.MaxValue, false)]
+        [InlineData(double.MaxValue, true)]
+        public void Bounds_that_fail_to_compare_leave_errors_to_the_original_filter(double bound, bool withRows)
+        {
+            // Intersecting the bounds compares them with each other. A scan only compares
+            // them with stored values, and none of these rows reaches a numeric comparison.
+            using var db = new LiteDatabase(":memory:");
+            var rows = db.GetCollection("rows");
+            if (withRows)
+            {
+                rows.Insert(new BsonDocument { ["_id"] = 1, ["Score"] = "text" });
+                rows.Insert(new BsonDocument { ["_id"] = 2 });
+            }
+            rows.EnsureIndex("Score", "Score");
+            var predicate = BsonExpression.Create("Score > @p AND Score < 100", new BsonDocument { ["p"] = bound });
+            rows.Count(predicate).Should().Be(0);
+        }
+
         private static LiteDatabase CreateDatabase()
         {
             var db = new LiteDatabase(":memory:");
