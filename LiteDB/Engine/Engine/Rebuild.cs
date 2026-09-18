@@ -20,6 +20,9 @@ namespace LiteDB.Engine
         {
             if (string.IsNullOrEmpty(_settings.Filename)) return 0; // works only with os file
 
+            // no options (SQL `REBUILD` without an options document) means: keep current password and collation
+            if (options == null) return this.Rebuild();
+
             this.Close();
 
             // run build service
