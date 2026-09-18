@@ -15,7 +15,7 @@ using Xunit;
 
 namespace LiteDB.Tests.QueryTest
 {
-    public class VectorIndex_Tests
+    public partial class VectorIndex_Tests
     {
         private class VectorDocument
         {
@@ -533,62 +533,6 @@ namespace LiteDB.Tests.QueryTest
                 .ToArray();
 
             mediumThreshold.Select(x => x.Id).Should().Equal(new[] { 1, 2 });
-        }
-
-        [Fact]
-        public void VectorIndex_Search_Prunes_Node_Visits()
-        {
-            using var db = new LiteDatabase(":memory:");
-            var collection = db.GetCollection<VectorDocument>("vectors");
-
-            const int nearClusterSize = 64;
-            const int farClusterSize = 64;
-
-            var documents = new List<VectorDocument>();
-
-            for (var i = 0; i < nearClusterSize; i++)
-            {
-                documents.Add(new VectorDocument
-                {
-                    Id = i + 1,
-                    Embedding = new[] { 1f, i / 100f },
-                    Flag = true
-                });
-            }
-
-            for (var i = 0; i < farClusterSize; i++)
-            {
-                documents.Add(new VectorDocument
-                {
-                    Id = i + nearClusterSize + 1,
-                    Embedding = new[] { -1f, 2f + i / 100f },
-                    Flag = false
-                });
-            }
-
-            collection.Insert(documents);
-            collection.Count().Should().Be(documents.Count);
-
-            collection.EnsureIndex(
-                "embedding_idx",
-                BsonExpression.Create("$.Embedding"),
-                new VectorIndexOptions(2, VectorDistanceMetric.Euclidean));
-
-            var stats = InspectVectorIndex(
-                db,
-                "vectors",
-                (snapshot, collation, metadata) =>
-                {
-                    var service = new VectorIndexService(snapshot, collation);
-                    var matches = service.Search(metadata, new[] { 1f, 0f }, maxDistance: 0.25, limit: 5).ToList();
-                    var total = CountNodes(snapshot, metadata.Root);
-
-                    return (Visited: service.LastVisitedCount, Total: total, Matches: matches.Select(x => x.Document["Id"].AsInt32).ToArray());
-                });
-
-            stats.Total.Should().BeGreaterThan(stats.Visited);
-            stats.Total.Should().BeGreaterOrEqualTo(nearClusterSize);
-            stats.Matches.Should().OnlyContain(id => id <= nearClusterSize);
         }
 
         [Fact]
