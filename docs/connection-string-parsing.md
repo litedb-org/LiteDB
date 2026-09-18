@@ -13,8 +13,9 @@ The string constructors of `ConnectionString` and `LiteDatabase` use these rules
   `filename=data/my.db;readonly=true` instead.
 - A single `key=value` is parsed as an option if its trimmed key matches a
   built-in name, ignoring case: `filename`, `connection`, `password`,
-  `initial size`, `readonly`, `upgrade`, `auto-rebuild`, `collation`,
-  `memory profile`, `cache size`, or `transaction pages`.
+  `initial size`, `readonly`, `upgrade`, `auto-rebuild`,
+  `reject invalid local time`, `collation`, `memory profile`, `cache size`, or
+  `transaction pages`.
 - A single unknown `key=value`, including `tenant=acme` or the typo
   `filenam=production.db`, is now a filename. This changes the previous
   custom-option behavior and can select a different database. Multiple custom
@@ -39,6 +40,28 @@ Alternatively, explicitly name and quote a filename containing semicolons:
 Settings-only input remains a connection string with no filename; opening a
 database still requires a data source. Recognition of the three memory-setting
 names is compatible with the settings added in #2772.
+
+## Rejecting nonexistent local times (#2357)
+
+`DateTime` values are stored as UTC. A Local or Unspecified value inside the
+hour skipped by a daylight-saving transition (for example 02:30 on the
+spring-forward night) does not exist, and `ToUniversalTime` maps it onto the
+following valid hour, so hourly local keys can fail with a confusing duplicate
+key error. This remains the default. Set `reject invalid local time=true`
+(`ConnectionString.RejectInvalidLocalTime`, `EngineSettings.RejectInvalidLocalTime`)
+to make Insert, Update, Upsert and bulk writes throw an `ArgumentException`
+instead when a document contains such a value at any depth, including `_id`.
+A rejected write inside an explicit transaction rolls that transaction back.
+The check uses `TimeZoneInfo.Local`: it never fires on a UTC host, and in zones
+that switch at midnight a date-only value can be rejected. Utc, ambiguous,
+`MinValue` and `MaxValue` values are accepted and queries are never checked.
+The duplicate key error explains this itself when the key is a local time that
+collapses with another one around a transition.
+
+Storing UTC values avoids the problem altogether: use `DateTimeKind.Utc` values
+and set `db.UtcDate = true` (pragma `UTC_DATE`). Without `UtcDate`, stored
+values are converted to local time on read, so UTC keys come back shifted and
+look wrong even though they are stored correctly.
 
 ## Integration with pending parser and serializer changes
 
