@@ -132,6 +132,8 @@ namespace LiteDB
             if (value == null) this.Type = BsonType.Null;
             else if (value is Int32) this.Type = BsonType.Int32;
             else if (value is Int64) this.Type = BsonType.Int64;
+            else if (value is UInt32 unsigned32) { this.Type = BsonType.Int64; this.RawValue = (long)unsigned32; }
+            else if (value is UInt64 unsigned64) { this.Type = BsonType.Int64; this.RawValue = unchecked((long)unsigned64); }
             else if (value is Double) this.Type = BsonType.Double;
             else if (value is Decimal) this.Type = BsonType.Decimal;
             else if (value is String) this.Type = BsonType.String;
@@ -337,7 +339,7 @@ namespace LiteDB
         // Double
         public static implicit operator Double(BsonValue value)
         {
-            return value.IsInt32 ? (Int32)value.RawValue : (Double)value.RawValue;
+            return value.IsInt32 ? (Int32)value.RawValue : value.IsInt64 ? (Int64)value.RawValue : (Double)value.RawValue;
         }
 
         // Double
@@ -361,7 +363,9 @@ namespace LiteDB
         // UInt64 (to avoid ambigous between Double-Decimal)
         public static implicit operator UInt64(BsonValue value)
         {
-            return (UInt64)value.RawValue;
+            return value.IsInt64 ? unchecked((UInt64)(Int64)value.RawValue) :
+                value.IsInt32 ? unchecked((UInt64)(Int32)value.RawValue) :
+                (UInt64)value.RawValue;
         }
 
         // Decimal
