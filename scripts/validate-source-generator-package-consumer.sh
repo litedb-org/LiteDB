@@ -60,11 +60,11 @@ grep -q "\"LiteDB/$PACKAGE_VERSION\"" "$CONSUMER_DIRECTORY/obj/project.assets.js
 grep -q "\"LiteDB.SourceGenerator/$PACKAGE_VERSION\"" "$CONSUMER_DIRECTORY/obj/project.assets.json"
 grep -q 'analyzers/dotnet/cs/LiteDB.SourceGenerator.dll' "$CONSUMER_DIRECTORY/obj/project.assets.json"
 
-printf '%s\n' '[PACKAGE-CONSUMER] Requiring warnings at all public custom-file-ID entry points.'
-warning_probe_log="$FEED_DIRECTORY/file-id-warning-probe.log"
+printf '%s\n' '[PACKAGE-CONSUMER] Requiring warnings for custom file IDs and persisted type lookup.'
+warning_probe_log="$FEED_DIRECTORY/runtime-mapping-warning-probe.log"
 if dotnet build "$CONSUMER_PROJECT" --configuration Release --no-restore --nologo \
-  -p:GitVersionEnabled=false -p:DefineConstants=FILE_ID_WARNING_PROBE > "$warning_probe_log" 2>&1; then
-  printf '%s\n' '[PACKAGE-CONSUMER] FAILED: unsafe custom file IDs compiled without diagnostics.' >&2
+  -p:GitVersionEnabled=false -p:DefineConstants=RUNTIME_MAPPING_WARNING_PROBE > "$warning_probe_log" 2>&1; then
+  printf '%s\n' '[PACKAGE-CONSUMER] FAILED: unsafe runtime mapping compiled without diagnostics.' >&2
   exit 1
 fi
 for api in 'LiteDatabase.GetStorage' 'ILiteDatabase.GetStorage' 'LiteStorage<TFileId>.LiteStorage'; do
@@ -75,6 +75,13 @@ for api in 'LiteDatabase.GetStorage' 'ILiteDatabase.GetStorage' 'LiteStorage<TFi
       exit 1
     }
   done
+done
+for api in 'DefaultTypeNameBinder.GetType' 'ITypeNameBinder.GetType'; do
+  grep -F 'error IL2026:' "$warning_probe_log" | grep -F "$api" > /dev/null || {
+    cat "$warning_probe_log" >&2
+    printf '[PACKAGE-CONSUMER] FAILED: missing IL2026 on %s.\n' "$api" >&2
+    exit 1
+  }
 done
 
 printf '%s\n' '[PACKAGE-CONSUMER] Building the restored consumer and verifying generated mapper output.'

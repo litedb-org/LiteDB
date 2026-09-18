@@ -56,7 +56,7 @@ namespace LiteDB
 
         public string GetName(Type type) => type.FullName + ", " + type.GetTypeInfo().Assembly.GetName().Name;
 
-        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2057", Justification = AotCompatibility.PersistedTypeResolution)]
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.PersistedTypeResolution)]
         public Type GetType(string name)
         {
             var type = Type.GetType(name);

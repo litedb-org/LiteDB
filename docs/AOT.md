@@ -181,6 +181,8 @@ mapper.RegisterType<FileKey>(
 
 The published smoke tests separately qualify integer IDs and the flat `AotFileKey` model, using member-level suppressions with those exact invariants. They do not establish safety for arbitrary custom IDs. The package-consumer gate also verifies that all three public entry points reject an unsuppressed custom-ID call with both `IL2026` and `IL3050`.
 
+Persisted type-name lookup through `DefaultTypeNameBinder.GetType` or `ITypeNameBinder.GetType` also reports `IL2026`: a type named only by a stored string may have been removed by trimming. Implementations of `ITypeNameBinder.GetType` need a matching annotation. The package gate verifies warnings on both direct and interface calls.
+
 **2. A query on a `BsonDocument` or generated collection does not accept your own objects as values.** This one applies to every application. Convert them first; the query itself stays the same:
 
 ```csharp
