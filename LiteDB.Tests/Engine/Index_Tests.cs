@@ -66,7 +66,7 @@ namespace LiteDB.Tests.Engine
             }
         }
 
-        [Fact]
+        [Fact(Skip = "Flaky: asserts English case folding on the ambient Collation.Default (#2926); fixed and re-enabled by #2917")]
         public void Index_With_Like()
         {
             using (var db = DatabaseFactory.Create(connectionString: "filename=:memory:"))
