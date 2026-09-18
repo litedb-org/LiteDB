@@ -13,11 +13,11 @@ namespace LiteDB.AotSmokeTests
     {
         internal static void Run(LiteDatabase database)
         {
-            Console.WriteLine("  [3.2b] Automatically round-trip the C2 scalar compatibility matrix without a manual execution map.");
-            var expectedC2ObjectId = new ObjectId("64c61e5f18a9421a8862c71c");
-            var expectedC2CorrelationId = new Guid("d29368bb-9669-4f84-9384-c8eb15caa0a8");
-            var automaticC2 = database.GetGeneratedCollection<AotPhaseCScalarCompatibilityRecord>("aot_phase_c_scalar_compatibility");
-            automaticC2.Insert(new AotPhaseCScalarCompatibilityRecord
+            Console.WriteLine("  [3.2b] Round-trip the scalar compatibility matrix without a manual execution map.");
+            var expectedObjectId = new ObjectId("64c61e5f18a9421a8862c71c");
+            var expectedCorrelationId = new Guid("d29368bb-9669-4f84-9384-c8eb15caa0a8");
+            var scalarCompatibility = database.GetGeneratedCollection<AotScalarCompatibilityRecord>("aot_scalar_compatibility");
+            scalarCompatibility.Insert(new AotScalarCompatibilityRecord
             {
                 Id = 1,
                 BooleanValue = true,
@@ -27,102 +27,102 @@ namespace LiteDB.AotSmokeTests
                 DecimalValue = 7.75m,
                 State = AotNativeScalarState.Captured,
                 Timestamp = new DateTime(2024, 8, 1, 12, 34, 56, 789, DateTimeKind.Utc),
-                ObjectId = expectedC2ObjectId,
-                CorrelationId = expectedC2CorrelationId,
+                ObjectId = expectedObjectId,
+                CorrelationId = expectedCorrelationId,
                 Payload = [0, 1, 127, 128, 255],
-                Name = "  c2 compatibility  ",
+                Name = "  scalar compatibility  ",
                 NullableState = null,
                 NullablePayload = null
             });
-            var automaticC2Document = database.GetCollection("aot_phase_c_scalar_compatibility").FindById(1);
-            var automaticC2Read = automaticC2.FindById(1);
-            Require(automaticC2Document[nameof(AotPhaseCScalarCompatibilityRecord.UnsignedInteger)].Type == BsonType.Int64 &&
-                    automaticC2Document[nameof(AotPhaseCScalarCompatibilityRecord.State)].Type == BsonType.String &&
-                    automaticC2Document[nameof(AotPhaseCScalarCompatibilityRecord.State)].AsString == nameof(AotNativeScalarState.Captured) &&
-                    automaticC2Document[nameof(AotPhaseCScalarCompatibilityRecord.NullableState)].IsNull &&
-                    automaticC2Document[nameof(AotPhaseCScalarCompatibilityRecord.NullablePayload)].IsNull &&
-                    automaticC2Read is not null &&
-                    automaticC2Read.BooleanValue &&
-                    automaticC2Read.UnsignedInteger == uint.MaxValue &&
-                    automaticC2Read.SignedLong == -9_000_000_000L &&
-                    automaticC2Read.UnsignedLong == ulong.MaxValue &&
-                    automaticC2Read.DecimalValue == 7.75m &&
-                    automaticC2Read.State == AotNativeScalarState.Captured &&
-                    automaticC2Read.ObjectId == expectedC2ObjectId &&
-                    automaticC2Read.CorrelationId == expectedC2CorrelationId &&
-                    automaticC2Read.Payload.SequenceEqual(new byte[] { 0, 1, 127, 128, 255 }) &&
-                    automaticC2Read.Name == "c2 compatibility" &&
-                    automaticC2Read.NullableState is null &&
-                    automaticC2Read.NullablePayload is null,
-                "The source-generated Native AOT C2 automatic scalar compatibility map failed.");
-            Console.WriteLine("        Passed: automatic C2 scalar conversion, BSON shape, nullable values, and mapper options without manual registration.");
+            var scalarDocument = database.GetCollection("aot_scalar_compatibility").FindById(1);
+            var scalarRead = scalarCompatibility.FindById(1);
+            Require(scalarDocument[nameof(AotScalarCompatibilityRecord.UnsignedInteger)].Type == BsonType.Int64 &&
+                    scalarDocument[nameof(AotScalarCompatibilityRecord.State)].Type == BsonType.String &&
+                    scalarDocument[nameof(AotScalarCompatibilityRecord.State)].AsString == nameof(AotNativeScalarState.Captured) &&
+                    scalarDocument[nameof(AotScalarCompatibilityRecord.NullableState)].IsNull &&
+                    scalarDocument[nameof(AotScalarCompatibilityRecord.NullablePayload)].IsNull &&
+                    scalarRead is not null &&
+                    scalarRead.BooleanValue &&
+                    scalarRead.UnsignedInteger == uint.MaxValue &&
+                    scalarRead.SignedLong == -9_000_000_000L &&
+                    scalarRead.UnsignedLong == ulong.MaxValue &&
+                    scalarRead.DecimalValue == 7.75m &&
+                    scalarRead.State == AotNativeScalarState.Captured &&
+                    scalarRead.ObjectId == expectedObjectId &&
+                    scalarRead.CorrelationId == expectedCorrelationId &&
+                    scalarRead.Payload.SequenceEqual(new byte[] { 0, 1, 127, 128, 255 }) &&
+                    scalarRead.Name == "scalar compatibility" &&
+                    scalarRead.NullableState is null &&
+                    scalarRead.NullablePayload is null,
+                "The source-generated Native AOT scalar compatibility map failed.");
+            Console.WriteLine("        Passed: generated scalar conversion, BSON shape, nullable values, and mapper options without manual registration.");
 
-            Console.WriteLine("  [3.2c] Execute C2.2a explicit-ID and batch scalar writes without a manual execution map.");
-            var automaticC2Writes = database.GetGeneratedCollection<AotPhaseCScalarRecord>("aot_phase_c_scalar_writes");
-            var explicitC2Write = new AotPhaseCScalarRecord { Id = 900, Name = "explicit", Score = 1 };
-            automaticC2Writes.Insert(41, explicitC2Write);
-            var batchC2Writes = new[]
+            Console.WriteLine("  [3.2c] Execute explicit-ID and batch scalar writes without a manual execution map.");
+            var generatedWrites = database.GetGeneratedCollection<AotGeneratedScalarRecord>("aot_scalar_writes");
+            var explicitWrite = new AotGeneratedScalarRecord { Id = 900, Name = "explicit", Score = 1 };
+            generatedWrites.Insert(41, explicitWrite);
+            var batchWrites = new[]
             {
-                new AotPhaseCScalarRecord { Name = "batch-first", Score = 2 },
-                new AotPhaseCScalarRecord { Name = "batch-second", Score = 3 }
+                new AotGeneratedScalarRecord { Name = "batch-first", Score = 2 },
+                new AotGeneratedScalarRecord { Name = "batch-second", Score = 3 }
             };
-            automaticC2Writes.Insert(batchC2Writes);
-            batchC2Writes[0].Score = 20;
-            batchC2Writes[1].Score = 30;
-            var c2BatchUpdateCount = automaticC2Writes.Update(batchC2Writes);
-            var explicitC2Update = new AotPhaseCScalarRecord { Id = 999, Name = "explicit-update", Score = 40 };
-            var c2ExplicitUpdate = automaticC2Writes.Update(41, explicitC2Update);
-            Require(explicitC2Write.Id == 900 &&
-                    automaticC2Writes.FindById(41)?.Name == "explicit-update" &&
-                    explicitC2Update.Id == 999 &&
-                    batchC2Writes[0].Id != 0 &&
-                    batchC2Writes[1].Id != 0 &&
-                    batchC2Writes[0].Id != batchC2Writes[1].Id &&
-                    c2BatchUpdateCount == 2 &&
-                    automaticC2Writes.FindById(batchC2Writes[0].Id)?.Score == 20 &&
-                    automaticC2Writes.FindById(batchC2Writes[1].Id)?.Score == 30 &&
-                    c2ExplicitUpdate,
-                "The source-generated Native AOT C2.2a explicit-ID or batch scalar write failed.");
-            Console.WriteLine("        Passed: automatic C2.2a explicit-ID insert/update and lazy batch insert/update without manual registration.");
+            generatedWrites.Insert(batchWrites);
+            batchWrites[0].Score = 20;
+            batchWrites[1].Score = 30;
+            var batchUpdateCount = generatedWrites.Update(batchWrites);
+            var explicitUpdate = new AotGeneratedScalarRecord { Id = 999, Name = "explicit-update", Score = 40 };
+            var explicitUpdateResult = generatedWrites.Update(41, explicitUpdate);
+            Require(explicitWrite.Id == 900 &&
+                    generatedWrites.FindById(41)?.Name == "explicit-update" &&
+                    explicitUpdate.Id == 999 &&
+                    batchWrites[0].Id != 0 &&
+                    batchWrites[1].Id != 0 &&
+                    batchWrites[0].Id != batchWrites[1].Id &&
+                    batchUpdateCount == 2 &&
+                    generatedWrites.FindById(batchWrites[0].Id)?.Score == 20 &&
+                    generatedWrites.FindById(batchWrites[1].Id)?.Score == 30 &&
+                    explicitUpdateResult,
+                "The source-generated Native AOT generated batch explicit-ID or batch scalar write failed.");
+            Console.WriteLine("        Passed: generated explicit-ID and batch insert/update paths work without manual registration.");
 
-            Console.WriteLine("  [3.2d] Execute C2.2b automatic-ID, batch, and explicit-ID upserts without a manual execution map.");
-            var automaticC2Upserts = database.GetGeneratedCollection<AotPhaseCScalarRecord>("aot_phase_c_scalar_upserts");
-            var automaticC2Upsert = new AotPhaseCScalarRecord { Name = "automatic", Score = 1 };
-            var c2AutomaticInsert = automaticC2Upserts.Upsert(automaticC2Upsert);
-            automaticC2Upsert.Name = "automatic-updated";
-            automaticC2Upsert.Score = 2;
-            var c2AutomaticUpdate = automaticC2Upserts.Upsert(automaticC2Upsert);
-            var c2BatchUpserts = new[]
+            Console.WriteLine("  [3.2d] Execute automatic-ID, batch, and explicit-ID upserts without a manual execution map.");
+            var generatedUpserts = database.GetGeneratedCollection<AotGeneratedScalarRecord>("aot_scalar_upserts");
+            var automaticUpsert = new AotGeneratedScalarRecord { Name = "automatic", Score = 1 };
+            var automaticInsert = generatedUpserts.Upsert(automaticUpsert);
+            automaticUpsert.Name = "automatic-updated";
+            automaticUpsert.Score = 2;
+            var automaticUpdate = generatedUpserts.Upsert(automaticUpsert);
+            var batchUpserts = new[]
             {
-                new AotPhaseCScalarRecord { Name = "batch-first", Score = 3 },
-                new AotPhaseCScalarRecord { Name = "batch-second", Score = 4 }
+                new AotGeneratedScalarRecord { Name = "batch-first", Score = 3 },
+                new AotGeneratedScalarRecord { Name = "batch-second", Score = 4 }
             };
-            var c2BatchInsertCount = automaticC2Upserts.Upsert(c2BatchUpserts);
-            c2BatchUpserts[0].Score = 30;
-            c2BatchUpserts[1].Score = 40;
-            var c2UpsertBatchUpdateCount = automaticC2Upserts.Upsert(c2BatchUpserts);
-            var explicitC2Upsert = new AotPhaseCScalarRecord { Id = 900, Name = "explicit", Score = 5 };
-            var c2ExplicitInsert = automaticC2Upserts.Upsert(41, explicitC2Upsert);
-            explicitC2Upsert.Name = "explicit-updated";
-            explicitC2Upsert.Score = 50;
-            var c2ExplicitUpsertUpdate = automaticC2Upserts.Upsert(41, explicitC2Upsert);
-            Require(c2AutomaticInsert &&
-                    !c2AutomaticUpdate &&
-                    automaticC2Upsert.Id != 0 &&
-                    automaticC2Upserts.FindById(automaticC2Upsert.Id)?.Score == 2 &&
-                    c2BatchInsertCount == 2 &&
-                    c2UpsertBatchUpdateCount == 0 &&
-                    c2BatchUpserts[0].Id != 0 &&
-                    c2BatchUpserts[1].Id != 0 &&
-                    c2BatchUpserts[0].Id != c2BatchUpserts[1].Id &&
-                    automaticC2Upserts.FindById(c2BatchUpserts[0].Id)?.Score == 30 &&
-                    automaticC2Upserts.FindById(c2BatchUpserts[1].Id)?.Score == 40 &&
-                    c2ExplicitInsert &&
-                    !c2ExplicitUpsertUpdate &&
-                    explicitC2Upsert.Id == 900 &&
-                    automaticC2Upserts.FindById(41)?.Name == "explicit-updated",
-                "The source-generated Native AOT C2.2b scalar upsert behavior failed.");
-            Console.WriteLine("        Passed: automatic C2.2b scalar upserts preserve generated IDs, explicit IDs, and insert-count return semantics.");
+            var batchInsertCount = generatedUpserts.Upsert(batchUpserts);
+            batchUpserts[0].Score = 30;
+            batchUpserts[1].Score = 40;
+            var batchUpsertUpdateCount = generatedUpserts.Upsert(batchUpserts);
+            var explicitUpsert = new AotGeneratedScalarRecord { Id = 900, Name = "explicit", Score = 5 };
+            var explicitInsert = generatedUpserts.Upsert(41, explicitUpsert);
+            explicitUpsert.Name = "explicit-updated";
+            explicitUpsert.Score = 50;
+            var explicitUpsertUpdate = generatedUpserts.Upsert(41, explicitUpsert);
+            Require(automaticInsert &&
+                    !automaticUpdate &&
+                    automaticUpsert.Id != 0 &&
+                    generatedUpserts.FindById(automaticUpsert.Id)?.Score == 2 &&
+                    batchInsertCount == 2 &&
+                    batchUpsertUpdateCount == 0 &&
+                    batchUpserts[0].Id != 0 &&
+                    batchUpserts[1].Id != 0 &&
+                    batchUpserts[0].Id != batchUpserts[1].Id &&
+                    generatedUpserts.FindById(batchUpserts[0].Id)?.Score == 30 &&
+                    generatedUpserts.FindById(batchUpserts[1].Id)?.Score == 40 &&
+                    explicitInsert &&
+                    !explicitUpsertUpdate &&
+                    explicitUpsert.Id == 900 &&
+                    generatedUpserts.FindById(41)?.Name == "explicit-updated",
+                "The source-generated Native AOT generated scalar upsert behavior failed.");
+            Console.WriteLine("        Passed: generated scalar upserts preserve generated IDs, explicit IDs, and insert-count return semantics.");
 
             Console.WriteLine("  [3.3] Round-trip populated, null, and empty List<string> values.");
             Console.WriteLine("        Null values are persisted explicitly so the generated null-list mapping path is exercised.");
@@ -175,7 +175,7 @@ namespace LiteDB.AotSmokeTests
                 "The source-generated Native AOT DateTimeOffset round trip failed.");
             Console.WriteLine("        Passed: required and nullable DateTimeOffset values use canonical UTC BSON precision.");
 
-            Console.WriteLine("  [3.5a] Read a legacy BSON DateTime through the generated DateTimeOffset map.");
+            Console.WriteLine("  [3.5a] Read an ordinary BSON DateTime through the generated DateTimeOffset map.");
             var legacyDateTimeOffset = new DateTimeOffset(2024, 6, 9, 10, 11, 12, TimeSpan.FromHours(5.5)).AddTicks(4321);
             database.GetCollection("aot_date_time_offsets").Insert(new BsonDocument
             {
@@ -187,8 +187,8 @@ namespace LiteDB.AotSmokeTests
             Require(legacyDateTimeOffsetRead is not null &&
                     legacyDateTimeOffsetRead.OccurredAt.UtcDateTime.Ticks == expectedLegacyTicks &&
                     legacyDateTimeOffsetRead.OccurredAt.Offset == TimeSpan.Zero,
-                "The source-generated Native AOT DateTimeOffset legacy BSON DateTime read failed.");
-            Console.WriteLine("        Passed: legacy BSON DateTime materializes as a UTC DateTimeOffset at BSON DateTime precision.");
+                "The source-generated Native AOT DateTimeOffset BSON DateTime read failed.");
+            Console.WriteLine("        Passed: BSON DateTime materializes as a UTC DateTimeOffset at BSON DateTime precision.");
 
         }
     }

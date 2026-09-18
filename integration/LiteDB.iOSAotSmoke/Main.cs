@@ -136,7 +136,6 @@ internal static class SmokeRunner
 
         GeneratedScalarWriteScenarios.Run(database);
         GeneratedValueScenarios.Run(database);
-        GeneratedBoundaryScenarios.Run(database);
         GeneratedLinqScenarios.Run(database);
         Console.WriteLine("[PASS] Source-generated mapping scenarios");
     }

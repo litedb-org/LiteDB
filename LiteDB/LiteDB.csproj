@@ -64,31 +64,25 @@
 
 
     <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-        <Compile Remove="**\*.NetCore.cs" />
-        <None Remove="**\*.NetCore.cs" />
+        <Compile Remove="**\*.NetCore.cs"/>
+        <None Remove="**\*.NetCore.cs"/>
     </ItemGroup>
 
     <ItemGroup Condition="'$(TargetFrameworkIdentifier)' == '.NETCoreApp'">
-        <Compile Remove="**\*.NetStd.cs" />
-        <None Remove="**\*.NetStd.cs" />
+        <Compile Remove="**\*.NetStd.cs"/>
+        <None Remove="**\*.NetStd.cs"/>
     </ItemGroup>
 
     <!-- Begin References -->
     <ItemGroup>
-        <None Include="..\LICENSE" Pack="true" PackagePath="" />
-        <None Include="..\icon_64x64.png" Pack="true" PackagePath="\" />
+        <None Include="..\LICENSE" Pack="true" PackagePath=""/>
+        <None Include="..\icon_64x64.png" Pack="true" PackagePath="\"/>
     </ItemGroup>
 
     <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-        <PackageReference Include="System.Buffers" Version="4.5.1" />
-        <PackageReference Include="System.Memory" Version="4.5.5" />
-        <PackageReference Include="System.ComponentModel.TypeConverter" Version="4.3.0" />
-    </ItemGroup>
-
-    <ItemGroup>
-        <ProjectReference Include="..\LiteDB.SourceGenerator\LiteDB.SourceGenerator.csproj"
-                    OutputItemType="Analyzer"
-                    ReferenceOutputAssembly="false" />
+        <PackageReference Include="System.Buffers" Version="4.5.1"/>
+        <PackageReference Include="System.Memory" Version="4.5.5"/>
+        <PackageReference Include="System.ComponentModel.TypeConverter" Version="4.3.0"/>
     </ItemGroup>
 
     <!-- End References -->

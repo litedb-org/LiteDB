@@ -4,7 +4,7 @@ using System;
 namespace LiteDB.AotSmokeTests;
 
 [BsonSourceGenerated]
-public sealed class AotPhaseCScalarCompatibilityRecord
+public sealed class AotScalarCompatibilityRecord
 {
     public int Id { get; set; }
     public bool BooleanValue { get; set; }

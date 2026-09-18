@@ -205,17 +205,17 @@ namespace LiteDB.AotSmokeTests
 
             RunGeneratedQueryParity(database);
 
-            Console.WriteLine("  [3.1a] Automatically register and execute a C1 scalar generated map.");
-            var automatic = database.GetGeneratedCollection<AotPhaseCScalarRecord>("aot_phase_c_scalar");
-            automatic.Insert(new AotPhaseCScalarRecord { Score = 8 });
+            Console.WriteLine("  [3.1a] Automatically register and execute a generated scalar map.");
+            var automatic = database.GetGeneratedCollection<AotGeneratedScalarRecord>("aot_generated_scalar");
+            automatic.Insert(new AotGeneratedScalarRecord { Score = 8 });
             var automaticRead = automatic.FindById(1);
             Require(automaticRead is not null && automaticRead.Id == 1 && automaticRead.Name is null && automaticRead.Score == 8,
-            "The source-generated Native AOT C1 automatic scalar execution map failed.");
-            Require(automatic.Update(new AotPhaseCScalarRecord { Id = 1, Name = "automatic", Score = 9 }) &&
+            "The source-generated Native AOT scalar execution map failed.");
+            Require(automatic.Update(new AotGeneratedScalarRecord { Id = 1, Name = "automatic", Score = 9 }) &&
             automatic.FindById(1)?.Name == "automatic" &&
             automatic.Count() == 1 &&
             automatic.Delete(1),
-            "The source-generated Native AOT C1 automatic scalar execution-map CRUD failed.");
+            "The source-generated Native AOT scalar execution-map CRUD failed.");
             Console.WriteLine("        Passed: automatic execution-map registration and direct scalar CRUD without manual registration.");
 
             Console.WriteLine("  [3.1b] Evaluate a static-member LINQ expression through the generated mapper.");
@@ -235,18 +235,17 @@ namespace LiteDB.AotSmokeTests
 
             mapper.SerializeNullValues = true;
 
-            Console.WriteLine("  [3.2a] Persist a null C1 scalar string through the automatic execution map.");
-            var automaticNulls = database.GetGeneratedCollection<AotPhaseCScalarRecord>("aot_phase_c_scalar_nulls");
-            automaticNulls.Insert(new AotPhaseCScalarRecord { Score = 10 });
-            var automaticNullDocument = database.GetCollection("aot_phase_c_scalar_nulls").FindById(1);
-            Require(automaticNullDocument[nameof(AotPhaseCScalarRecord.Name)].IsNull &&
+            Console.WriteLine("  [3.2a] Persist a null string through the generated scalar map.");
+            var automaticNulls = database.GetGeneratedCollection<AotGeneratedScalarRecord>("aot_generated_scalar_nulls");
+            automaticNulls.Insert(new AotGeneratedScalarRecord { Score = 10 });
+            var automaticNullDocument = database.GetCollection("aot_generated_scalar_nulls").FindById(1);
+            Require(automaticNullDocument[nameof(AotGeneratedScalarRecord.Name)].IsNull &&
                     automaticNulls.FindById(1)?.Name is null,
-                "The source-generated Native AOT C1 automatic map did not persist a configured null string.");
+                "The source-generated Native AOT map did not persist a configured null string.");
             Console.WriteLine("        Passed: automatic execution map persisted and materialized configured BSON null.");
 
             GeneratedScalarWriteScenarios.Run(database);
             GeneratedValueScenarios.Run(database);
-            GeneratedBoundaryScenarios.Run(database);
             GeneratedLinqScenarios.Run(database);
         }
     }

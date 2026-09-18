@@ -4,5 +4,4 @@ namespace LiteDB.SourceGenerator.Models;
 
 internal sealed record ModelDescriptor(
     string TypeName,
-    EquatableArray<PropertyDescriptor> Properties,
-    bool CanEmitExecutionMap);
+    EquatableArray<PropertyDescriptor> Properties);

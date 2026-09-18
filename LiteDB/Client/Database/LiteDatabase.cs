@@ -17,13 +17,14 @@ namespace LiteDB
         #region Properties
 
         private readonly ILiteEngine _engine;
+        private readonly BsonMapper _mapper;
         private readonly bool _disposeOnClose;
         private readonly int? _checkpointOverride;
 
         /// <summary>
         /// Get current instance of BsonMapper used in this database instance (can be BsonMapper.Global)
         /// </summary>
-        public BsonMapper Mapper { get; }
+        public BsonMapper Mapper => _mapper;
 
         #endregion
 
@@ -45,7 +46,7 @@ namespace LiteDB
             if (connectionString == null) throw new ArgumentNullException(nameof(connectionString));
 
             _engine = connectionString.CreateEngine();
-            Mapper = mapper ?? BsonMapper.Global;
+            _mapper = mapper ?? BsonMapper.Global;
             _disposeOnClose = true;
         }
 
@@ -64,7 +65,7 @@ namespace LiteDB
             };
 
             _engine = new LiteEngine(settings);
-            Mapper = mapper ?? BsonMapper.Global;
+            _mapper = mapper ?? BsonMapper.Global;
             _disposeOnClose = true;
 
             if (logStream == null && stream is not MemoryStream)
@@ -95,7 +96,7 @@ namespace LiteDB
         public LiteDatabase(ILiteEngine engine, BsonMapper mapper = null, bool disposeOnClose = true)
         {
             _engine = engine ?? throw new ArgumentNullException(nameof(engine));
-            Mapper = mapper ?? BsonMapper.Global;
+            _mapper = mapper ?? BsonMapper.Global;
             _disposeOnClose = disposeOnClose;
         }
 

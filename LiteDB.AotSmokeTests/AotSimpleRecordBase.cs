@@ -1,6 +1,6 @@
 namespace LiteDB.AotSmokeTests;
 
-// Keeps this retained manual Phase B smoke fixture outside automatic direct-map emission.
+// Keeps this retained manual manual-map smoke fixture outside automatic direct-map emission.
 public class AotSimpleRecordBase
 {
 }

@@ -224,7 +224,7 @@ public partial class BsonMapper
     protected virtual CreateObject GetTypeCtor(EntityMapper mapper)
     {
         Type type = mapper.ForType;
-        List<CreateObject> Mappings = [];
+        List<CreateObject> Mappings = new List<CreateObject>();
         bool returnZeroParamNull = false;
         foreach (ConstructorInfo ctor in type.GetConstructors())
         {
@@ -244,7 +244,7 @@ public partial class BsonMapper
                 MemberMapper mi = null;
                 foreach (MemberMapper member in mapper.Members)
                 {
-                    if (string.Equals(member.MemberName, par.Name, StringComparison.OrdinalIgnoreCase) && member.DataType == par.ParameterType)
+                    if (member.MemberName.ToLower() == par.Name.ToLower() && member.DataType == par.ParameterType)
                     {
                         mi = member;
                         break;

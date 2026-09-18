@@ -233,11 +233,7 @@ namespace LiteDB
                 return new GeneratedExecutionOptions(SerializeNullValues, TrimWhitespace, EmptyStringToNull, EnumAsInteger);
             }
 
-            if (((SerializeNullValues ||
-                    TrimWhitespace == false ||
-                    EmptyStringToNull == false ||
-                    EnumAsInteger) && map.SupportsScalarOptions == false) ||
-                MaxDepth != 20 ||
+            if (MaxDepth != 20 ||
                 IncludeFields ||
                 IncludeNonPublic ||
                 OnDeserialization is not null ||
@@ -247,8 +243,7 @@ namespace LiteDB
                 Volatile.Read(ref _customEntityConfigurations) != 0 ||
                 ResolveFieldName != ResolveFieldNameDefault ||
                 ResolveMember != ResolveMemberDefault ||
-                typeof(T).IsSealed == false ||
-                GetGeneratedEntityMapper(typeof(T)).Members.Exists(member => member.IsDbRef))
+                typeof(T).IsSealed == false)
             {
                 var detail = typeof(T).IsSealed
                     ? string.Empty

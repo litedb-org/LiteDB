@@ -4,7 +4,7 @@
     <IsPackable>false</IsPackable>
     <Nullable>enable</Nullable>
     <!-- MSTEST0030: a class with [TestMethod] but no [TestClass] is silently skipped by the test runner. -->
-    <WarningsAsErrors>$(WarningsAsErrors);MSTEST0030</WarningsAsErrors>
+    <WarningsAsErrors>$(WarningsAsErrors);CS8619;MSTEST0030</WarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>

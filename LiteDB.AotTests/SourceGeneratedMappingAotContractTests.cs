@@ -62,12 +62,12 @@ namespace LiteDB.AotTests
             LiteDbGeneratedMappings.Register(mapper);
 
             using var database = new LiteDatabase(new MemoryStream(), mapper);
-            var collection = database.GetGeneratedCollection<PhaseCScalarRecord>("captured_collections");
+            var collection = database.GetGeneratedCollection<GeneratedScalarRecord>("captured_collections");
             collection.Insert(new[]
             {
-                new PhaseCScalarRecord { Name = "first", Score = 1 },
-                new PhaseCScalarRecord { Name = "second", Score = 2 },
-                new PhaseCScalarRecord { Name = "third", Score = 3 }
+                new GeneratedScalarRecord { Name = "first", Score = 1 },
+                new GeneratedScalarRecord { Name = "second", Score = 2 },
+                new GeneratedScalarRecord { Name = "third", Score = 3 }
             });
 
             var scores = new List<int> { 1, 3 };
@@ -103,7 +103,7 @@ namespace LiteDB.AotTests
         public void GeneratedLinq_RejectsACapturedApplicationObject()
         {
             using var database = new LiteDatabase(new MemoryStream(), SourceGeneratedMappingTestHelper.CreateGeneratedMapper());
-            var collection = database.GetGeneratedCollection<PhaseCScalarRecord>("captured_object");
+            var collection = database.GetGeneratedCollection<GeneratedScalarRecord>("captured_object");
             var captured = new object[] { new UnmappedValue() };
 
             var exception = Assert.ThrowsException<NotSupportedException>(
@@ -121,8 +121,8 @@ namespace LiteDB.AotTests
             ordinary.Insert(new UnmappedValue { Id = 1, Category = "a" });
             Assert.AreEqual(1, ordinary.Query().GroupBy(x => x.Category).ToArray().Length);
 
-            var generated = database.GetGeneratedCollection<PhaseCScalarRecord>("generated_after_grouping");
-            generated.Insert(new PhaseCScalarRecord { Name = "still-works", Score = 1 });
+            var generated = database.GetGeneratedCollection<GeneratedScalarRecord>("generated_after_grouping");
+            generated.Insert(new GeneratedScalarRecord { Name = "still-works", Score = 1 });
 
             Assert.AreEqual("still-works", generated.FindById(1).Name);
         }

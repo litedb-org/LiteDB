@@ -24,15 +24,15 @@ namespace LiteDB.AotTests
                 LiteDbGeneratedMappings.Register(mapper);
 
                 using var database = new LiteDatabase(path, mapper);
-                var collection = database.GetGeneratedCollection<PhaseCScalarRecord>("complexGroupingKeys");
+                var collection = database.GetGeneratedCollection<GeneratedScalarRecord>("complexGroupingKeys");
                 collection.Insert(new[]
                 {
-                    new PhaseCScalarRecord { Name = "first", Score = 1 },
-                    new PhaseCScalarRecord { Name = "second", Score = 2 }
+                    new GeneratedScalarRecord { Name = "first", Score = 1 },
+                    new GeneratedScalarRecord { Name = "second", Score = 2 }
                 });
 
                 var groups = collection.Query()
-                    .GroupBy(record => new PhaseCScalarRecord
+                    .GroupBy(record => new GeneratedScalarRecord
                     {
                         Name = record.Name,
                         Score = record.Score
@@ -61,7 +61,7 @@ namespace LiteDB.AotTests
                 LiteDbGeneratedMappings.Register(mapper);
 
                 using var database = new LiteDatabase(path, mapper);
-                var collection = database.GetGeneratedCollection<PhaseCScalarRecord>("unmappedGroupingKeys");
+                var collection = database.GetGeneratedCollection<GeneratedScalarRecord>("unmappedGroupingKeys");
 
                 var exception = Assert.ThrowsException<NotSupportedException>(() =>
                     collection.Query().GroupBy(record => new { record.Name, record.Score }));

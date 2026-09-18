@@ -13,9 +13,9 @@ namespace LiteDB.AotTests
             var golden = new BsonDocument
             {
                 ["_id"] = 1,
-                [nameof(PhaseCScalarRecord.Score)] = 42
+                [nameof(GeneratedScalarRecord.Score)] = 42
             };
-            var vector = new BsonCompatibilityVector<PhaseCScalarRecord, PhaseCScalarRecord>
+            var vector = new BsonCompatibilityVector<GeneratedScalarRecord, GeneratedScalarRecord>
             {
                 CreateOrdinary = CreateEntity,
                 CreateGenerated = CreateEntity,
@@ -31,7 +31,7 @@ namespace LiteDB.AotTests
             Assert.AreEqual(BsonCompatibilityAssert.Fingerprint(golden),
                 BsonCompatibilityAssert.Fingerprint(new BsonDocument
                 {
-                    [nameof(PhaseCScalarRecord.Score)] = 42,
+                    [nameof(GeneratedScalarRecord.Score)] = 42,
                     ["_id"] = 1
                 }));
         }
@@ -93,7 +93,7 @@ namespace LiteDB.AotTests
                 new BsonDocument { ["number"] = 1, ["nullable"] = BsonValue.Null, ["items"] = new BsonArray { "a", "b" }, ["nested"] = new BsonDocument { ["different"] = new byte[] { 0, 127, 255 } } }));
         }
 
-        private static PhaseCScalarRecord CreateEntity() => new()
+        private static GeneratedScalarRecord CreateEntity() => new()
         {
             Score = 42
         };
@@ -114,7 +114,7 @@ namespace LiteDB.AotTests
             return mapper;
         }
 
-        private static void VerifyEntity(PhaseCScalarRecord entity, BsonValue id)
+        private static void VerifyEntity(GeneratedScalarRecord entity, BsonValue id)
         {
             Assert.AreEqual(1, id.AsInt32);
             Assert.AreEqual(1, entity.Id);

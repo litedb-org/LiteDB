@@ -1,6 +1,6 @@
 # Native AOT and source-generated entity mapping
 
-LiteDB supports an opt-in typed-collection path for applications that publish with **Native AOT** and need to avoid runtime discovery of application model members. The path uses a C# incremental source generator to emit `EntityMapper` definitions at compile time. It replaces the former `LiteAotDatabase` wrapper and manual `EntityMapper` construction.
+LiteDB supports an opt-in typed-collection path for applications that publish with **Native AOT** and need to avoid runtime discovery of application model members. The path uses a C# incremental source generator to emit `EntityMapper` definitions at compile time.
 
 LiteDB itself targets `netstandard2.0`, `net8.0`, and `net10.0`; its AOT compatibility analysis is enabled for the .NET application targets (`net8.0` and `net10.0`). The consuming application must target **.NET 8 or later** when it publishes with Native AOT.
 
@@ -263,7 +263,7 @@ In short: once warm, a query that evaluates an expression for every document is 
 
 ## Contributor validation
 
-`LiteDB.AotTests` exercises generated registration, C2 direct scalar conversion with option-sensitive BSON golden documents and ordinary/direct cross-reads, mutable record classes, IDs, field and ignore attributes, `DateTimeOffset` values and cross-path reads, inherited and overridden properties, computed projections, `List<string>`, `string[]`, and dynamic-dictionary round trips. `LiteDB.AotSmokeTests` exercises an automatic C2 scalar execution checkpoint alongside generated scalar, nullable scalar, list, string-array, DateTimeOffset, inherited-property, computed-projection, and dynamic-dictionary workflows plus document, query, and stream scenarios.
+`LiteDB.AotTests` exercises generated registration, generated scalar conversion with option-sensitive BSON golden documents and ordinary/direct cross-reads, mutable record classes, IDs, field and ignore attributes, `DateTimeOffset` values and cross-path reads, inherited and overridden properties, computed projections, `List<string>`, `string[]`, and dynamic-dictionary round trips. `LiteDB.AotSmokeTests` covers one published scenario per generated-mapping feature family, plus document, query, and stream scenarios.
 
 The smoke project is also the feature-parity contract between publish modes. The parity script publishes it four times and runs every result:
 

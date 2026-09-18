@@ -1,6 +1,3 @@
-using System.Collections.Generic;
-using System.Linq;
-
 using LiteDB.SourceGenerator.Models;
 
 using Microsoft.CodeAnalysis;
@@ -132,16 +129,6 @@ internal static class PropertyTypeAnalyzer
         return type is INamedTypeSymbol { TypeKind: TypeKind.Enum, EnumUnderlyingType: { } underlyingType }
             ? GetSpecialTypeConversionKind(underlyingType.SpecialType)
             : ScalarConversionKind.None;
-    }
-
-    public static bool CanEmitExecutionMap(IReadOnlyList<PropertyDescriptor> properties)
-    {
-        // Model analysis rejects every shape for which direct code cannot be emitted. Keep
-        // this explicit so a newly admitted property kind fails closed until emission exists.
-        return properties.All(property =>
-            (property.Kind is PropertyKind.Scalar or PropertyKind.DateTimeOffset or PropertyKind.NullableDateTimeOffset &&
-                property.ScalarKind != ScalarConversionKind.None) ||
-            property.Kind is PropertyKind.StringList or PropertyKind.StringArray or PropertyKind.DynamicDictionary);
     }
 
     private static bool IsStringObjectDictionary(INamedTypeSymbol type)

@@ -14,7 +14,7 @@ namespace LiteDB.SourceGenerator;
 [Generator(LanguageNames.CSharp)]
 public sealed class BsonSourceGenerator : IIncrementalGenerator
 {
-    private const string GeneratedMappingsHintName = "LiteDbGeneratedMappings.v2.g.cs";
+    private const string GeneratedMappingsHintName = "LiteDbGeneratedMappings.g.cs";
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {

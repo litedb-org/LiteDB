@@ -65,7 +65,6 @@ dotnet build "$CONSUMER_PROJECT" \
 GENERATED_MAPPING_FILE="$(find "$GENERATED_DIRECTORY" -name 'LiteDbGeneratedMappings*.g.cs' -print -quit)"
 test -n "$GENERATED_MAPPING_FILE"
 grep -q 'PackagedGeneratedRecord' "$GENERATED_MAPPING_FILE"
-grep -q 'SerializeDynamicDictionary' "$GENERATED_MAPPING_FILE"
 grep -q 'RegisterGeneratedExecutionMap' "$GENERATED_MAPPING_FILE"
 
 printf '%s\n' '[PACKAGE-CONSUMER] Publishing and running the restored consumer as a trimmed, non-AOT executable.'

@@ -215,7 +215,7 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
-        public void GetGeneratedCollection_AutomaticC2ScalarMap_RoundTripsSupportedScalarMatrixWithoutMapperFallback()
+        public void GetGeneratedCollection_GeneratedScalarMap_RoundTripsSupportedScalarMatrixWithoutMapperFallback()
         {
             var path = GetDatabasePath();
             var expectedObjectId = new ObjectId("64c61e5f18a9421a8862c71c");
@@ -235,8 +235,8 @@ namespace LiteDB.AotTests
                 LiteDbGeneratedMappings.Register(mapper);
 
                 using var database = new LiteDatabase(path, mapper);
-                var collection = database.GetGeneratedCollection<PhaseCScalarCompatibilityRecord>("phaseCScalarCompatibility");
-                collection.Insert(new PhaseCScalarCompatibilityRecord
+                var collection = database.GetGeneratedCollection<ScalarCompatibilityRecord>("generatedScalarCompatibility");
+                collection.Insert(new ScalarCompatibilityRecord
                 {
                     Id = 1,
                     BooleanValue = true,
@@ -252,7 +252,7 @@ namespace LiteDB.AotTests
                     SingleValue = 3.25f,
                     DoubleValue = 6.5d,
                     DecimalValue = 7.75m,
-                    State = PhaseCScalarState.Completed,
+                    State = GeneratedScalarState.Completed,
                     Timestamp = expectedTimestamp,
                     ObjectId = expectedObjectId,
                     CorrelationId = expectedCorrelationId,
@@ -266,33 +266,33 @@ namespace LiteDB.AotTests
                     NullablePayload = null
                 });
 
-                var document = database.GetCollection("phaseCScalarCompatibility").FindById(1);
-                Assert.AreEqual(BsonType.Boolean, document[nameof(PhaseCScalarCompatibilityRecord.BooleanValue)].Type);
-                Assert.AreEqual(BsonType.Int32, document[nameof(PhaseCScalarCompatibilityRecord.ByteValue)].Type);
-                Assert.AreEqual(BsonType.Int32, document[nameof(PhaseCScalarCompatibilityRecord.SignedByteValue)].Type);
-                Assert.AreEqual(BsonType.String, document[nameof(PhaseCScalarCompatibilityRecord.Character)].Type);
-                Assert.AreEqual(BsonType.Int32, document[nameof(PhaseCScalarCompatibilityRecord.SignedShort)].Type);
-                Assert.AreEqual(BsonType.Int32, document[nameof(PhaseCScalarCompatibilityRecord.UnsignedShort)].Type);
-                Assert.AreEqual(BsonType.Int32, document[nameof(PhaseCScalarCompatibilityRecord.SignedInteger)].Type);
-                Assert.AreEqual(BsonType.Int64, document[nameof(PhaseCScalarCompatibilityRecord.UnsignedInteger)].Type);
-                Assert.AreEqual(BsonType.Int64, document[nameof(PhaseCScalarCompatibilityRecord.SignedLong)].Type);
-                Assert.AreEqual(BsonType.Int64, document[nameof(PhaseCScalarCompatibilityRecord.UnsignedLong)].Type);
-                Assert.AreEqual(BsonType.Double, document[nameof(PhaseCScalarCompatibilityRecord.SingleValue)].Type);
-                Assert.AreEqual(BsonType.Double, document[nameof(PhaseCScalarCompatibilityRecord.DoubleValue)].Type);
-                Assert.AreEqual(BsonType.Decimal, document[nameof(PhaseCScalarCompatibilityRecord.DecimalValue)].Type);
-                Assert.AreEqual(BsonType.String, document[nameof(PhaseCScalarCompatibilityRecord.State)].Type);
-                Assert.AreEqual("Completed", document[nameof(PhaseCScalarCompatibilityRecord.State)].AsString);
-                Assert.AreEqual(BsonType.DateTime, document[nameof(PhaseCScalarCompatibilityRecord.Timestamp)].Type);
-                Assert.AreEqual(BsonType.ObjectId, document[nameof(PhaseCScalarCompatibilityRecord.ObjectId)].Type);
-                Assert.AreEqual(BsonType.Guid, document[nameof(PhaseCScalarCompatibilityRecord.CorrelationId)].Type);
-                Assert.AreEqual(BsonType.Binary, document[nameof(PhaseCScalarCompatibilityRecord.Payload)].Type);
-                Assert.AreEqual("scalar compatibility", document[nameof(PhaseCScalarCompatibilityRecord.Name)].AsString);
-                Assert.IsTrue(document[nameof(PhaseCScalarCompatibilityRecord.NullableInteger)].IsNull);
-                Assert.IsTrue(document[nameof(PhaseCScalarCompatibilityRecord.NullableState)].IsNull);
-                Assert.IsTrue(document[nameof(PhaseCScalarCompatibilityRecord.NullableObjectId)].IsNull);
-                Assert.IsTrue(document[nameof(PhaseCScalarCompatibilityRecord.NullableCorrelationId)].IsNull);
-                Assert.IsTrue(document[nameof(PhaseCScalarCompatibilityRecord.NullableTimestamp)].IsNull);
-                Assert.IsTrue(document[nameof(PhaseCScalarCompatibilityRecord.NullablePayload)].IsNull);
+                var document = database.GetCollection("generatedScalarCompatibility").FindById(1);
+                Assert.AreEqual(BsonType.Boolean, document[nameof(ScalarCompatibilityRecord.BooleanValue)].Type);
+                Assert.AreEqual(BsonType.Int32, document[nameof(ScalarCompatibilityRecord.ByteValue)].Type);
+                Assert.AreEqual(BsonType.Int32, document[nameof(ScalarCompatibilityRecord.SignedByteValue)].Type);
+                Assert.AreEqual(BsonType.String, document[nameof(ScalarCompatibilityRecord.Character)].Type);
+                Assert.AreEqual(BsonType.Int32, document[nameof(ScalarCompatibilityRecord.SignedShort)].Type);
+                Assert.AreEqual(BsonType.Int32, document[nameof(ScalarCompatibilityRecord.UnsignedShort)].Type);
+                Assert.AreEqual(BsonType.Int32, document[nameof(ScalarCompatibilityRecord.SignedInteger)].Type);
+                Assert.AreEqual(BsonType.Int64, document[nameof(ScalarCompatibilityRecord.UnsignedInteger)].Type);
+                Assert.AreEqual(BsonType.Int64, document[nameof(ScalarCompatibilityRecord.SignedLong)].Type);
+                Assert.AreEqual(BsonType.Int64, document[nameof(ScalarCompatibilityRecord.UnsignedLong)].Type);
+                Assert.AreEqual(BsonType.Double, document[nameof(ScalarCompatibilityRecord.SingleValue)].Type);
+                Assert.AreEqual(BsonType.Double, document[nameof(ScalarCompatibilityRecord.DoubleValue)].Type);
+                Assert.AreEqual(BsonType.Decimal, document[nameof(ScalarCompatibilityRecord.DecimalValue)].Type);
+                Assert.AreEqual(BsonType.String, document[nameof(ScalarCompatibilityRecord.State)].Type);
+                Assert.AreEqual("Completed", document[nameof(ScalarCompatibilityRecord.State)].AsString);
+                Assert.AreEqual(BsonType.DateTime, document[nameof(ScalarCompatibilityRecord.Timestamp)].Type);
+                Assert.AreEqual(BsonType.ObjectId, document[nameof(ScalarCompatibilityRecord.ObjectId)].Type);
+                Assert.AreEqual(BsonType.Guid, document[nameof(ScalarCompatibilityRecord.CorrelationId)].Type);
+                Assert.AreEqual(BsonType.Binary, document[nameof(ScalarCompatibilityRecord.Payload)].Type);
+                Assert.AreEqual("scalar compatibility", document[nameof(ScalarCompatibilityRecord.Name)].AsString);
+                Assert.IsTrue(document[nameof(ScalarCompatibilityRecord.NullableInteger)].IsNull);
+                Assert.IsTrue(document[nameof(ScalarCompatibilityRecord.NullableState)].IsNull);
+                Assert.IsTrue(document[nameof(ScalarCompatibilityRecord.NullableObjectId)].IsNull);
+                Assert.IsTrue(document[nameof(ScalarCompatibilityRecord.NullableCorrelationId)].IsNull);
+                Assert.IsTrue(document[nameof(ScalarCompatibilityRecord.NullableTimestamp)].IsNull);
+                Assert.IsTrue(document[nameof(ScalarCompatibilityRecord.NullablePayload)].IsNull);
 
                 var actual = collection.FindById(1);
                 Assert.IsNotNull(actual);
@@ -309,7 +309,7 @@ namespace LiteDB.AotTests
                 Assert.AreEqual(3.25f, actual.SingleValue);
                 Assert.AreEqual(6.5d, actual.DoubleValue);
                 Assert.AreEqual(7.75m, actual.DecimalValue);
-                Assert.AreEqual(PhaseCScalarState.Completed, actual.State);
+                Assert.AreEqual(GeneratedScalarState.Completed, actual.State);
                 Assert.AreEqual(expectedTimestamp, actual.Timestamp.ToUniversalTime());
                 Assert.AreEqual(expectedObjectId, actual.ObjectId);
                 Assert.AreEqual(expectedCorrelationId, actual.CorrelationId);
@@ -323,11 +323,11 @@ namespace LiteDB.AotTests
                 Assert.IsNull(actual.NullablePayload);
 
                 mapper.EnumAsInteger = true;
-                collection.Insert(new PhaseCScalarCompatibilityRecord { Id = 2, State = PhaseCScalarState.Ready });
-                var integerEnumDocument = database.GetCollection("phaseCScalarCompatibility").FindById(2);
-                Assert.AreEqual(BsonType.Int32, integerEnumDocument[nameof(PhaseCScalarCompatibilityRecord.State)].Type);
-                Assert.AreEqual((int)PhaseCScalarState.Ready, integerEnumDocument[nameof(PhaseCScalarCompatibilityRecord.State)].AsInt32);
-                Assert.AreEqual(PhaseCScalarState.Ready, collection.FindById(2)?.State);
+                collection.Insert(new ScalarCompatibilityRecord { Id = 2, State = GeneratedScalarState.Ready });
+                var integerEnumDocument = database.GetCollection("generatedScalarCompatibility").FindById(2);
+                Assert.AreEqual(BsonType.Int32, integerEnumDocument[nameof(ScalarCompatibilityRecord.State)].Type);
+                Assert.AreEqual((int)GeneratedScalarState.Ready, integerEnumDocument[nameof(ScalarCompatibilityRecord.State)].AsInt32);
+                Assert.AreEqual(GeneratedScalarState.Ready, collection.FindById(2)?.State);
             }
             finally
             {
@@ -336,7 +336,7 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
-        public void GetGeneratedCollection_AutomaticC2ScalarMap_CrossReadsWithOrdinaryCollection()
+        public void GetGeneratedCollection_GeneratedScalarMap_CrossReadsWithOrdinaryCollection()
         {
             var path = GetDatabasePath();
             var expectedObjectId = new ObjectId("64c61e5f18a9421a8862c71c");
@@ -358,13 +358,13 @@ namespace LiteDB.AotTests
                 LiteDbGeneratedMappings.Register(ordinaryWriterMapper);
                 using (var database = new LiteDatabase(path, ordinaryWriterMapper))
                 {
-                    database.GetCollection<PhaseCScalarCompatibilityRecord>("phaseCScalarCrossRead").Insert(new PhaseCScalarCompatibilityRecord
+                    database.GetCollection<ScalarCompatibilityRecord>("generatedScalarCrossRead").Insert(new ScalarCompatibilityRecord
                     {
                         Id = 1,
                         Name = "  ordinary writer  ",
                         UnsignedInteger = uint.MaxValue,
-                        State = PhaseCScalarState.Completed,
-                        NullableState = PhaseCScalarState.Ready,
+                        State = GeneratedScalarState.Completed,
+                        NullableState = GeneratedScalarState.Ready,
                         ObjectId = expectedObjectId,
                         NullableObjectId = expectedObjectId,
                         CorrelationId = expectedCorrelationId,
@@ -386,13 +386,13 @@ namespace LiteDB.AotTests
                 LiteDbGeneratedMappings.Register(directMapper);
                 using (var database = new LiteDatabase(path, directMapper))
                 {
-                    var direct = database.GetGeneratedCollection<PhaseCScalarCompatibilityRecord>("phaseCScalarCrossRead");
+                    var direct = database.GetGeneratedCollection<ScalarCompatibilityRecord>("generatedScalarCrossRead");
                     var ordinaryWritten = direct.FindById(1);
                     Assert.IsNotNull(ordinaryWritten);
                     Assert.AreEqual("ordinary writer", ordinaryWritten.Name);
                     Assert.AreEqual(uint.MaxValue, ordinaryWritten.UnsignedInteger);
-                    Assert.AreEqual(PhaseCScalarState.Completed, ordinaryWritten.State);
-                    Assert.AreEqual(PhaseCScalarState.Ready, ordinaryWritten.NullableState);
+                    Assert.AreEqual(GeneratedScalarState.Completed, ordinaryWritten.State);
+                    Assert.AreEqual(GeneratedScalarState.Ready, ordinaryWritten.NullableState);
                     Assert.AreEqual(expectedObjectId, ordinaryWritten.ObjectId);
                     Assert.AreEqual(expectedObjectId, ordinaryWritten.NullableObjectId);
                     Assert.AreEqual(expectedCorrelationId, ordinaryWritten.CorrelationId);
@@ -403,13 +403,13 @@ namespace LiteDB.AotTests
                     CollectionAssert.AreEqual(new byte[] { 1, 2, 3 }, ordinaryWritten.Payload);
                     CollectionAssert.AreEqual(new byte[] { 4, 5 }, ordinaryWritten.NullablePayload);
 
-                    direct.Insert(new PhaseCScalarCompatibilityRecord
+                    direct.Insert(new ScalarCompatibilityRecord
                     {
                         Id = 2,
                         Name = "  direct writer  ",
                         UnsignedInteger = uint.MaxValue - 1,
-                        State = PhaseCScalarState.Ready,
-                        NullableState = PhaseCScalarState.Completed,
+                        State = GeneratedScalarState.Ready,
+                        NullableState = GeneratedScalarState.Completed,
                         ObjectId = expectedObjectId,
                         NullableObjectId = expectedObjectId,
                         CorrelationId = expectedCorrelationId,
@@ -430,12 +430,12 @@ namespace LiteDB.AotTests
                 };
                 LiteDbGeneratedMappings.Register(ordinaryReaderMapper);
                 using var readerDatabase = new LiteDatabase(path, ordinaryReaderMapper);
-                var directWritten = readerDatabase.GetCollection<PhaseCScalarCompatibilityRecord>("phaseCScalarCrossRead").FindById(2);
+                var directWritten = readerDatabase.GetCollection<ScalarCompatibilityRecord>("generatedScalarCrossRead").FindById(2);
                 Assert.IsNotNull(directWritten);
                 Assert.AreEqual("direct writer", directWritten.Name);
                 Assert.AreEqual(uint.MaxValue - 1, directWritten.UnsignedInteger);
-                Assert.AreEqual(PhaseCScalarState.Ready, directWritten.State);
-                Assert.AreEqual(PhaseCScalarState.Completed, directWritten.NullableState);
+                Assert.AreEqual(GeneratedScalarState.Ready, directWritten.State);
+                Assert.AreEqual(GeneratedScalarState.Completed, directWritten.NullableState);
                 Assert.AreEqual(expectedObjectId, directWritten.ObjectId);
                 Assert.AreEqual(expectedObjectId, directWritten.NullableObjectId);
                 Assert.AreEqual(expectedCorrelationId, directWritten.CorrelationId);

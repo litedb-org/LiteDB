@@ -41,19 +41,10 @@ internal static class GeneratedMappingsEmitter
 
         for (var index = 0; index < models.Count; index++)
         {
-            if (models[index].CanEmitExecutionMap)
-            {
-                source.Append("            mapper.RegisterGeneratedExecutionMap(CreateExecutionMap").Append(index).AppendLine("());");
-            }
+            source.Append("            mapper.RegisterGeneratedExecutionMap(CreateExecutionMap").Append(index).AppendLine("());");
         }
 
         source.AppendLine("        }");
-        AppendStringListHelpers(source);
-        if (HasStringArrayProperties(models))
-        {
-            AppendStringArrayHelpers(source);
-        }
-
         if (HasDynamicDictionaryProperties(models))
         {
             AppendDynamicDictionaryHelpers(source);
@@ -68,10 +59,7 @@ internal static class GeneratedMappingsEmitter
         {
             cancellationToken.ThrowIfCancellationRequested();
             AppendFactory(source, models[index], index);
-            if (models[index].CanEmitExecutionMap)
-            {
-                GeneratedExecutionEmitter.AppendExecutionMapFactory(source, models[index], index);
-            }
+            GeneratedExecutionEmitter.AppendExecutionMapFactory(source, models[index], index);
         }
 
         source.AppendLine("    }");
@@ -92,77 +80,12 @@ internal static class GeneratedMappingsEmitter
         source.AppendLine("        private static object DeserializeDateTimeOffset(global::LiteDB.BsonValue value)");
         source.AppendLine("        {");
         source.AppendLine("            if (value.IsNull) return null!;");
-        source.AppendLine("            if (value.IsDateTime)");
-        source.AppendLine("            {");
-        source.AppendLine("                return new global::System.DateTimeOffset(value.AsDateTime.ToUniversalTime());");
-        source.AppendLine("            }");
-        source.AppendLine("            var document = value.AsDocument;");
-        source.AppendLine("            return new global::System.DateTimeOffset(");
-        source.AppendLine("                document[\"DateTime\"].AsInt64,");
-        source.AppendLine("                new global::System.TimeSpan(document[\"Offset\"].AsInt64));");
-        source.AppendLine("        }");
-    }
-
-    private static void AppendStringListHelpers(StringBuilder source)
-    {
-        source.AppendLine();
-        source.AppendLine("        private static global::LiteDB.BsonValue SerializeStringList(global::System.Collections.Generic.List<string>? values)");
-        source.AppendLine("        {");
-        source.AppendLine("            if (values is null) return global::LiteDB.BsonValue.Null;");
-        source.AppendLine("            var result = new global::LiteDB.BsonArray();");
-        source.AppendLine("            foreach (var value in values)");
-        source.AppendLine("            {");
-        source.AppendLine("                result.Add(value);");
-        source.AppendLine("            }");
-        source.AppendLine("            return result;");
-        source.AppendLine("        }");
-        source.AppendLine();
-        source.AppendLine("        private static global::System.Collections.Generic.List<string>? DeserializeStringList(global::LiteDB.BsonValue value)");
-        source.AppendLine("        {");
-        source.AppendLine("            if (value.IsNull) return null;");
-        source.AppendLine("            var result = new global::System.Collections.Generic.List<string>();");
-        source.AppendLine("            foreach (var item in value.AsArray)");
-        source.AppendLine("            {");
-        source.AppendLine("                result.Add(item.AsString);");
-        source.AppendLine("            }");
-        source.AppendLine("            return result;");
-        source.AppendLine("        }");
-    }
-
-    private static void AppendStringArrayHelpers(StringBuilder source)
-    {
-        source.AppendLine();
-        source.AppendLine("        private static global::LiteDB.BsonValue SerializeStringArray(string[]? values)");
-        source.AppendLine("        {");
-        source.AppendLine("            if (values is null) return global::LiteDB.BsonValue.Null;");
-        source.AppendLine("            var result = new global::LiteDB.BsonArray();");
-        source.AppendLine("            foreach (var value in values)");
-        source.AppendLine("            {");
-        source.AppendLine("                result.Add(value);");
-        source.AppendLine("            }");
-        source.AppendLine("            return result;");
-        source.AppendLine("        }");
-        source.AppendLine();
-        source.AppendLine("        private static string[]? DeserializeStringArray(global::LiteDB.BsonValue value)");
-        source.AppendLine("        {");
-        source.AppendLine("            if (value.IsNull) return null;");
-        source.AppendLine("            var array = value.AsArray;");
-        source.AppendLine("            var result = new string[array.Count];");
-        source.AppendLine("            for (var index = 0; index < array.Count; index++)");
-        source.AppendLine("            {");
-        source.AppendLine("                result[index] = array[index].AsString;");
-        source.AppendLine("            }");
-        source.AppendLine("            return result;");
+        source.AppendLine("            return new global::System.DateTimeOffset(value.AsDateTime.ToUniversalTime());");
         source.AppendLine("        }");
     }
 
     private static void AppendDynamicDictionaryHelpers(StringBuilder source)
     {
-        source.AppendLine();
-        source.AppendLine("        private static global::LiteDB.BsonValue SerializeDynamicDictionaryForMap(global::System.Collections.Generic.Dictionary<string, object?>? values)");
-        source.AppendLine("        {");
-        source.AppendLine("            return SerializeDynamicDictionaryCore(values, null, 1);");
-        source.AppendLine("        }");
         source.AppendLine();
         source.AppendLine("        private static global::LiteDB.BsonValue SerializeDynamicDictionaryCore(global::System.Collections.Generic.Dictionary<string, object?>? values, global::LiteDB.GeneratedExecutionOptions? options, int depth)");
         source.AppendLine("        {");
@@ -266,11 +189,6 @@ internal static class GeneratedMappingsEmitter
         return models.Any(static model => model.Properties.Any(static property => property.Kind == PropertyKind.DynamicDictionary));
     }
 
-    private static bool HasStringArrayProperties(IReadOnlyList<ModelDescriptor> models)
-    {
-        return models.Any(static model => model.Properties.Any(static property => property.Kind == PropertyKind.StringArray));
-    }
-
     private static bool HasDateTimeOffsetProperties(IReadOnlyList<ModelDescriptor> models)
     {
         return models.Any(static model => model.Properties.Any(static property =>
@@ -282,10 +200,7 @@ internal static class GeneratedMappingsEmitter
         source.AppendLine();
         source.Append("        private static global::LiteDB.EntityMapper Create").Append(index).AppendLine("()");
         source.AppendLine("        {");
-        source.Append("            var map = new global::LiteDB.EntityMapper(typeof(").Append(model.TypeName).AppendLine("))");
-        source.AppendLine("            {");
-        source.Append("                CreateInstance = _ => new ").Append(model.TypeName).AppendLine("()");
-        source.AppendLine("            };");
+        source.Append("            var map = new global::LiteDB.EntityMapper(typeof(").Append(model.TypeName).AppendLine("));");
 
         foreach (var property in model.Properties)
         {
@@ -297,31 +212,16 @@ internal static class GeneratedMappingsEmitter
             source.Append("                MemberName = ").Append(SymbolDisplay.FormatLiteral(property.Name, true)).AppendLine(",");
             source.Append("                DataType = typeof(").Append(property.TypeName).AppendLine("),");
             source.Append("                UnderlyingType = typeof(").Append(property.Kind is PropertyKind.StringList or PropertyKind.StringArray ? "global::System.String" : property.TypeName).AppendLine("),");
-            source.Append("                IsEnumerable = ").Append(property.Kind is PropertyKind.StringList or PropertyKind.StringArray ? "true" : "false").AppendLine(",");
-
-            if (property.Kind == PropertyKind.StringList)
+            source.Append("                IsEnumerable = ").Append(property.Kind is PropertyKind.StringList or PropertyKind.StringArray ? "true" : "false");
+            if (property.IsId)
             {
-                source.AppendLine("                Serialize = (value, _) => SerializeStringList((global::System.Collections.Generic.List<string>)value),");
-                source.Append("                Deserialize = (value, _) => DeserializeStringList(value)").AppendLine(",");
+                source.AppendLine(",");
+                source.Append("                Setter = (entity, value) => ((").Append(model.TypeName).Append(")entity).").Append(property.Identifier).Append(" = (").Append(property.TypeName).AppendLine(")value");
             }
-            else if (property.Kind == PropertyKind.StringArray)
+            else
             {
-                source.AppendLine("                Serialize = (value, _) => SerializeStringArray((string[])value),");
-                source.Append("                Deserialize = (value, _) => DeserializeStringArray(value)").AppendLine(",");
+                source.AppendLine();
             }
-            else if (property.Kind == PropertyKind.DynamicDictionary)
-            {
-                source.AppendLine("                Serialize = (value, _) => SerializeDynamicDictionaryForMap((global::System.Collections.Generic.Dictionary<string, object?>)value),");
-                source.Append("                Deserialize = (value, _) => DeserializeDynamicDictionary(value)").AppendLine(",");
-            }
-            else if (property.Kind is PropertyKind.DateTimeOffset or PropertyKind.NullableDateTimeOffset)
-            {
-                source.AppendLine("                Serialize = (value, _) => SerializeDateTimeOffset(value),");
-                source.Append("                Deserialize = (value, _) => DeserializeDateTimeOffset(value)").AppendLine(",");
-            }
-
-            source.Append("                Getter = entity => ((").Append(model.TypeName).Append(")entity).").Append(property.Identifier).AppendLine(",");
-            source.Append("                Setter = (entity, value) => ((").Append(model.TypeName).Append(")entity).").Append(property.Identifier).Append(" = (").Append(property.Kind == PropertyKind.DynamicDictionary ? "global::System.Collections.Generic.Dictionary<string, object?>" : property.TypeName).AppendLine(")value");
             source.AppendLine("            });");
         }
 

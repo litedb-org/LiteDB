@@ -16,7 +16,7 @@ namespace LiteDB.AotTests
     public sealed class SourceGeneratedMappingOperationTests
     {
         [TestMethod]
-        public void GetGeneratedCollection_AutomaticC2ScalarMap_ExecutesExplicitIdAndBatchWritesWithoutMapperFallback()
+        public void GetGeneratedCollection_GeneratedScalarMap_ExecutesExplicitIdAndBatchWritesWithoutMapperFallback()
         {
             var path = GetDatabasePath();
 
@@ -26,8 +26,8 @@ namespace LiteDB.AotTests
                 LiteDbGeneratedMappings.Register(mapper);
 
                 using var database = new LiteDatabase(path, mapper);
-                var collection = database.GetGeneratedCollection<PhaseCScalarRecord>("phaseCScalarBatchWrites");
-                var explicitInsert = new PhaseCScalarRecord { Id = 900, Name = "explicit-insert", Score = 1 };
+                var collection = database.GetGeneratedCollection<GeneratedScalarRecord>("generatedScalarBatchWrites");
+                var explicitInsert = new GeneratedScalarRecord { Id = 900, Name = "explicit-insert", Score = 1 };
                 collection.Insert(41, explicitInsert);
 
                 Assert.AreEqual(900, explicitInsert.Id);
@@ -35,8 +35,8 @@ namespace LiteDB.AotTests
 
                 var inserted = new[]
                 {
-                    new PhaseCScalarRecord { Name = "batch-first", Score = 2 },
-                    new PhaseCScalarRecord { Name = "batch-second", Score = 3 }
+                    new GeneratedScalarRecord { Name = "batch-first", Score = 2 },
+                    new GeneratedScalarRecord { Name = "batch-second", Score = 3 }
                 };
                 Assert.AreEqual(2, collection.Insert(inserted));
                 Assert.AreNotEqual(0, inserted[0].Id);
@@ -46,8 +46,8 @@ namespace LiteDB.AotTests
 #pragma warning disable CS0618
                 var bulkInserted = new[]
                 {
-                    new PhaseCScalarRecord { Name = "bulk-first", Score = 4 },
-                    new PhaseCScalarRecord { Name = "bulk-second", Score = 5 }
+                    new GeneratedScalarRecord { Name = "bulk-first", Score = 4 },
+                    new GeneratedScalarRecord { Name = "bulk-second", Score = 5 }
                 };
                 Assert.AreEqual(2, collection.InsertBulk(bulkInserted, batchSize: 1));
 #pragma warning restore CS0618
@@ -60,7 +60,7 @@ namespace LiteDB.AotTests
                 Assert.AreEqual(20, collection.FindById(inserted[0].Id)?.Score);
                 Assert.AreEqual(30, collection.FindById(inserted[1].Id)?.Score);
 
-                var explicitUpdate = new PhaseCScalarRecord { Id = 999, Name = "explicit-update", Score = 40 };
+                var explicitUpdate = new GeneratedScalarRecord { Id = 999, Name = "explicit-update", Score = 40 };
                 Assert.IsTrue(collection.Update(41, explicitUpdate));
                 Assert.AreEqual(999, explicitUpdate.Id);
                 var updated = collection.FindById(41);
@@ -85,7 +85,7 @@ namespace LiteDB.AotTests
                 LiteDbGeneratedMappings.Register(mapper);
 
                 using var database = new LiteDatabase(path, mapper);
-                var collection = database.GetGeneratedCollection<PhaseCScalarRecord>("phaseCScalarBulkBatches");
+                var collection = database.GetGeneratedCollection<GeneratedScalarRecord>("generatedScalarBulkBatches");
                 var enumerationCount = 0;
 
 #pragma warning disable CS0618
@@ -95,7 +95,7 @@ namespace LiteDB.AotTests
                 Assert.AreEqual(0, enumerationCount);
 
                 var records = Enumerable.Range(1, 5)
-                    .Select(value => new PhaseCScalarRecord { Name = $"bulk-{value}", Score = value })
+                    .Select(value => new GeneratedScalarRecord { Name = $"bulk-{value}", Score = value })
                     .ToArray();
                 Assert.AreEqual(5, collection.InsertBulk(records, batchSize: 2));
 #pragma warning restore CS0618
@@ -103,10 +103,10 @@ namespace LiteDB.AotTests
                 Assert.AreEqual(5, collection.Count());
                 Assert.IsTrue(records.All(record => record.Id != 0));
 
-                IEnumerable<PhaseCScalarRecord> CountEnumeration()
+                IEnumerable<GeneratedScalarRecord> CountEnumeration()
                 {
                     enumerationCount++;
-                    yield return new PhaseCScalarRecord();
+                    yield return new GeneratedScalarRecord();
                 }
             }
             finally
@@ -126,12 +126,12 @@ namespace LiteDB.AotTests
                 LiteDbGeneratedMappings.Register(mapper);
 
                 using var database = new LiteDatabase(path, mapper);
-                var collection = database.GetGeneratedCollection<PhaseCScalarRecord>("phaseCParity");
+                var collection = database.GetGeneratedCollection<GeneratedScalarRecord>("generatedParity");
                 collection.Insert(new[]
                 {
-                    new PhaseCScalarRecord { Name = "first", Score = 1 },
-                    new PhaseCScalarRecord { Name = "second", Score = 2 },
-                    new PhaseCScalarRecord { Name = "third", Score = 3 }
+                    new GeneratedScalarRecord { Name = "first", Score = 1 },
+                    new GeneratedScalarRecord { Name = "second", Score = 2 },
+                    new GeneratedScalarRecord { Name = "third", Score = 3 }
                 });
 
                 Assert.AreEqual(3, collection.FindAll().Count());
@@ -152,7 +152,7 @@ namespace LiteDB.AotTests
 
                 var projectedEntities = collection.Query()
                     .Where(record => record.Score >= 2)
-                    .Select(record => new PhaseCScalarRecord
+                    .Select(record => new GeneratedScalarRecord
                     {
                         Name = record.Name,
                         Score = record.Score + 1
@@ -178,7 +178,7 @@ namespace LiteDB.AotTests
                 CollectionAssert.AreEquivalent(new[] { false, true }, groupedKeys);
 
                 Assert.AreEqual(2, collection.UpdateMany(
-                    record => new PhaseCScalarRecord { Score = record.Score + 10 },
+                    record => new GeneratedScalarRecord { Score = record.Score + 10 },
                     record => record.Score >= 2));
                 Assert.AreEqual(2, collection.DeleteMany(record => record.Score >= 12));
 
@@ -186,21 +186,21 @@ namespace LiteDB.AotTests
                 Assert.IsTrue(collection.DropIndex("score_parity"));
                 Assert.AreEqual(1, collection.DeleteAll());
 
-                var scalarCollection = database.GetGeneratedCollection<PhaseCScalarCompatibilityRecord>("phaseCScalarProjection");
-                scalarCollection.Insert(new PhaseCScalarCompatibilityRecord
+                var scalarCollection = database.GetGeneratedCollection<ScalarCompatibilityRecord>("generatedScalarProjection");
+                scalarCollection.Insert(new ScalarCompatibilityRecord
                 {
-                    State = PhaseCScalarState.Completed,
+                    State = GeneratedScalarState.Completed,
                     NullableInteger = 42,
-                    NullableState = PhaseCScalarState.Ready
+                    NullableState = GeneratedScalarState.Ready
                 });
                 Assert.AreEqual(
-                    PhaseCScalarState.Completed,
+                    GeneratedScalarState.Completed,
                     scalarCollection.Query().Select(record => record.State).Single());
                 Assert.AreEqual(
                     42,
                     scalarCollection.Query().Select(record => record.NullableInteger).Single());
                 Assert.AreEqual(
-                    PhaseCScalarState.Ready,
+                    GeneratedScalarState.Ready,
                     scalarCollection.Query().Select(record => record.NullableState).Single());
 
                 var includeException = Assert.ThrowsException<NotSupportedException>(() =>
@@ -224,7 +224,7 @@ namespace LiteDB.AotTests
                 LiteDbGeneratedMappings.Register(mapper);
 
                 using var database = new LiteDatabase(path, mapper);
-                var collection = database.GetGeneratedCollection<PhaseCScalarRecord>("phaseCEmptyAggregates");
+                var collection = database.GetGeneratedCollection<GeneratedScalarRecord>("generatedEmptyAggregates");
 
                 Assert.IsTrue(collection.Min(BsonExpression.Create("Score")).IsNull);
                 Assert.IsTrue(collection.Max(BsonExpression.Create("Score")).IsNull);
@@ -248,12 +248,12 @@ namespace LiteDB.AotTests
                 LiteDbGeneratedMappings.Register(mapper);
 
                 using var database = new LiteDatabase(path, mapper);
-                var collection = database.GetGeneratedCollection<PhaseCScalarRecord>("phaseCQuery");
+                var collection = database.GetGeneratedCollection<GeneratedScalarRecord>("generatedQuery");
                 collection.Insert(new[]
                 {
-                    new PhaseCScalarRecord { Name = "first", Score = 1 },
-                    new PhaseCScalarRecord { Name = "second", Score = 2 },
-                    new PhaseCScalarRecord { Name = "third", Score = 3 }
+                    new GeneratedScalarRecord { Name = "first", Score = 1 },
+                    new GeneratedScalarRecord { Name = "second", Score = 2 },
+                    new GeneratedScalarRecord { Name = "third", Score = 3 }
                 });
 
                 var records = collection.Query()
@@ -282,7 +282,7 @@ namespace LiteDB.AotTests
                 LiteDbGeneratedMappings.Register(mapper);
 
                 using var database = new LiteDatabase(path, mapper);
-                var collection = database.GetGeneratedCollection<PhaseCScalarRecord>("phaseCIndexes");
+                var collection = database.GetGeneratedCollection<GeneratedScalarRecord>("generatedIndexes");
 
                 Assert.IsTrue(collection.EnsureIndex(record => record.Name));
                 Assert.IsFalse(collection.EnsureIndex(record => record.Name));
@@ -297,7 +297,7 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
-        public void GetGeneratedCollection_AutomaticC2ScalarMap_ExecutesUpsertsWithoutMapperFallback()
+        public void GetGeneratedCollection_GeneratedScalarMap_ExecutesUpsertsWithoutMapperFallback()
         {
             var path = GetDatabasePath();
 
@@ -307,9 +307,9 @@ namespace LiteDB.AotTests
                 LiteDbGeneratedMappings.Register(mapper);
 
                 using var database = new LiteDatabase(path, mapper);
-                var collection = database.GetGeneratedCollection<PhaseCScalarRecord>("phaseCScalarUpserts");
+                var collection = database.GetGeneratedCollection<GeneratedScalarRecord>("generatedScalarUpserts");
 
-                var automatic = new PhaseCScalarRecord { Name = "automatic", Score = 1 };
+                var automatic = new GeneratedScalarRecord { Name = "automatic", Score = 1 };
                 Assert.IsTrue(collection.Upsert(automatic));
                 Assert.AreNotEqual(0, automatic.Id);
                 automatic.Name = "automatic-updated";
@@ -321,8 +321,8 @@ namespace LiteDB.AotTests
 
                 var batch = new[]
                 {
-                    new PhaseCScalarRecord { Name = "batch-first", Score = 3 },
-                    new PhaseCScalarRecord { Name = "batch-second", Score = 4 }
+                    new GeneratedScalarRecord { Name = "batch-first", Score = 3 },
+                    new GeneratedScalarRecord { Name = "batch-second", Score = 4 }
                 };
                 Assert.AreEqual(2, collection.Upsert(batch));
                 Assert.AreNotEqual(0, batch[0].Id);
@@ -334,7 +334,7 @@ namespace LiteDB.AotTests
                 Assert.AreEqual(30, collection.FindById(batch[0].Id)?.Score);
                 Assert.AreEqual(40, collection.FindById(batch[1].Id)?.Score);
 
-                var explicitEntity = new PhaseCScalarRecord { Id = 900, Name = "explicit", Score = 5 };
+                var explicitEntity = new GeneratedScalarRecord { Id = 900, Name = "explicit", Score = 5 };
                 Assert.IsTrue(collection.Upsert(41, explicitEntity));
                 Assert.AreEqual(900, explicitEntity.Id);
                 Assert.AreEqual("explicit", collection.FindById(41)?.Name);

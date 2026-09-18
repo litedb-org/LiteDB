@@ -28,20 +28,20 @@ internal static class SourceGeneratedMappingTestHelper
         return mapper;
     }
 
-    public static GeneratedEntityMap<PhaseBGeneratedRecord> CreatePhaseBExecutionMap()
+    public static GeneratedEntityMap<ManualGeneratedRecord> CreateManualExecutionMap()
     {
-        return new GeneratedEntityMap<PhaseBGeneratedRecord>(
-            record => new BsonDocument
+        return new GeneratedEntityMap<ManualGeneratedRecord>(
+            (record, _) => new BsonDocument
             {
                 ["_id"] = record.Id,
-                [nameof(PhaseBGeneratedRecord.Name)] = record.Name,
-                [nameof(PhaseBGeneratedRecord.Score)] = record.Score
+                [nameof(ManualGeneratedRecord.Name)] = record.Name,
+                [nameof(ManualGeneratedRecord.Score)] = record.Score
             },
-            document => new PhaseBGeneratedRecord
+            (document, _) => new ManualGeneratedRecord
             {
                 Id = document["_id"].AsInt32,
-                Name = document[nameof(PhaseBGeneratedRecord.Name)].AsString,
-                Score = document[nameof(PhaseBGeneratedRecord.Score)].AsInt64
+                Name = document[nameof(ManualGeneratedRecord.Name)].AsString,
+                Score = document[nameof(ManualGeneratedRecord.Score)].AsInt64
             });
     }
 

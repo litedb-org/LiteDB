@@ -28,7 +28,7 @@ namespace LiteDB.AotTests
             var engine = new RecordingEngine();
 
             using var database = new LiteDatabase(engine, mapper, false);
-            var collection = database.GetGeneratedCollection<PhaseCScalarRecord>("guarded");
+            var collection = database.GetGeneratedCollection<GeneratedScalarRecord>("guarded");
             mapper.OnDeserialization = (_, _, value) => value;
 
             Assert.ThrowsException<InvalidOperationException>(() =>
@@ -36,9 +36,9 @@ namespace LiteDB.AotTests
                 switch (operation)
                 {
                     case "query": collection.FindById(1); break;
-                    case "insert": collection.Insert(new PhaseCScalarRecord()); break;
-                    case "update": collection.Update(new PhaseCScalarRecord { Id = 1 }); break;
-                    case "upsert": collection.Upsert(new PhaseCScalarRecord()); break;
+                    case "insert": collection.Insert(new GeneratedScalarRecord()); break;
+                    case "update": collection.Update(new GeneratedScalarRecord { Id = 1 }); break;
+                    case "upsert": collection.Upsert(new GeneratedScalarRecord()); break;
                     case "delete": collection.Delete(1); break;
                     default: Assert.Fail($"Unknown operation '{operation}'."); break;
                 }
@@ -408,16 +408,16 @@ namespace LiteDB.AotTests
         public void GeneratedAndRuntimeMappings_CrossReadDateTimeOffsetDocuments()
         {
             var path = GetDatabasePath();
-            var legacyValue = new DateTimeOffset(2024, 7, 6, 8, 9, 10, TimeSpan.FromHours(5.5)).AddTicks(4321);
+            var runtimeValue = new DateTimeOffset(2024, 7, 6, 8, 9, 10, TimeSpan.FromHours(5.5)).AddTicks(4321);
             var generatedValue = new DateTimeOffset(2024, 7, 7, 8, 9, 10, TimeSpan.FromHours(-8)).AddTicks(1234);
-            var expectedLegacyUtcTicks = legacyValue.UtcDateTime.Ticks - (legacyValue.UtcDateTime.Ticks % TimeSpan.TicksPerMillisecond);
+            var expectedRuntimeUtcTicks = runtimeValue.UtcDateTime.Ticks - (runtimeValue.UtcDateTime.Ticks % TimeSpan.TicksPerMillisecond);
 
             try
             {
                 using (var runtimeDatabase = new LiteDatabase(path, new BsonMapper()))
                 {
                     runtimeDatabase.GetCollection<DateTimeOffsetRecord>("dateTimeOffsetCrossRead")
-                        .Insert(new DateTimeOffsetRecord { Id = 1, OccurredAt = legacyValue });
+                        .Insert(new DateTimeOffsetRecord { Id = 1, OccurredAt = runtimeValue });
                 }
 
                 using (var generatedDatabase = new LiteDatabase(path, CreateGeneratedMapper()))
@@ -426,23 +426,10 @@ namespace LiteDB.AotTests
                     var generatedRead = generatedCollection.FindById(1);
 
                     Assert.IsNotNull(generatedRead);
-                    Assert.AreEqual(expectedLegacyUtcTicks, generatedRead.OccurredAt.UtcDateTime.Ticks);
+                    Assert.AreEqual(expectedRuntimeUtcTicks, generatedRead.OccurredAt.UtcDateTime.Ticks);
                     Assert.AreEqual(TimeSpan.Zero, generatedRead.OccurredAt.Offset);
 
                     generatedCollection.Insert(new DateTimeOffsetRecord { Id = 2, OccurredAt = generatedValue });
-                    generatedDatabase.GetCollection("dateTimeOffsetCrossRead").Insert(new BsonDocument
-                    {
-                        ["_id"] = 3,
-                        [nameof(DateTimeOffsetRecord.OccurredAt)] = new BsonDocument
-                        {
-                            ["DateTime"] = generatedValue.Ticks,
-                            ["Offset"] = generatedValue.Offset.Ticks
-                        }
-                    });
-                    var legacyGeneratedRead = generatedCollection.FindById(3);
-
-                    Assert.IsNotNull(legacyGeneratedRead);
-                    Assert.IsTrue(generatedValue.EqualsExact(legacyGeneratedRead.OccurredAt));
                 }
 
                 using (var runtimeDatabase = new LiteDatabase(path, new BsonMapper()))

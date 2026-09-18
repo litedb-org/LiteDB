@@ -149,15 +149,7 @@ namespace LiteDB
 
         private static DateTimeOffset DeserializeDateTimeOffset(BsonValue value)
         {
-            if (value.IsDateTime)
-            {
-                return new DateTimeOffset(value.AsDateTime.ToUniversalTime());
-            }
-
-            var document = value.AsDocument;
-            return new DateTimeOffset(
-                document["DateTime"].AsInt64,
-                new TimeSpan(document["Offset"].AsInt64));
+            return new DateTimeOffset(value.AsDateTime.ToUniversalTime());
         }
 
         [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026",

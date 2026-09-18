@@ -179,8 +179,7 @@ internal static class BsonModelAnalyzer
 
         return ModelAnalysisResult.Supported(new ModelDescriptor(
             typeName,
-            new EquatableArray<PropertyDescriptor>(properties),
-            PropertyTypeAnalyzer.CanEmitExecutionMap(properties)));
+            new EquatableArray<PropertyDescriptor>(properties)));
     }
 
     private static IReadOnlyList<IPropertySymbol> GetSelectedProperties(

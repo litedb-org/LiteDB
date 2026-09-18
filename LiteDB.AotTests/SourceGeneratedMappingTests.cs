@@ -107,8 +107,8 @@ namespace LiteDB.AotTests
                 LiteDbGeneratedMappings.Register(mapper);
 
                 using var database = new LiteDatabase(path, mapper);
-                var collection = database.GetGeneratedCollection<PhaseBGeneratedRecord>("phaseB");
-                var record = new PhaseBGeneratedRecord { Name = "inserted", Score = 7L };
+                var collection = database.GetGeneratedCollection<ManualGeneratedRecord>("manual");
+                var record = new ManualGeneratedRecord { Name = "inserted", Score = 7L };
 
                 var id = collection.Insert(record);
                 Assert.AreEqual(1, id.AsInt32);
@@ -127,9 +127,9 @@ namespace LiteDB.AotTests
 
                 Assert.AreEqual(0, collection.FindAll().Count());
 
-                var ordinaryCollection = database.GetCollection<PhaseBGeneratedRecord>("ordinaryPhaseB");
+                var ordinaryCollection = database.GetCollection<ManualGeneratedRecord>("ordinaryManual");
                 Assert.ThrowsException<AssertFailedException>(() =>
-                    ordinaryCollection.Insert(new PhaseBGeneratedRecord { Name = "legacy", Score = 1L }));
+                    ordinaryCollection.Insert(new ManualGeneratedRecord { Name = "legacy", Score = 1L }));
             }
             finally
             {
@@ -138,7 +138,7 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
-        public void GetGeneratedCollection_AutomaticallyRegistersC1ScalarExecutionMap()
+        public void GetGeneratedCollection_AutomaticallyRegistersScalarExecutionMap()
         {
             var path = GetDatabasePath();
 
@@ -148,16 +148,16 @@ namespace LiteDB.AotTests
                 LiteDbGeneratedMappings.Register(mapper);
 
                 using var database = new LiteDatabase(path, mapper);
-                var collection = database.GetGeneratedCollection<PhaseCScalarRecord>("phaseC");
-                var record = new PhaseCScalarRecord { Score = 7 };
+                var collection = database.GetGeneratedCollection<GeneratedScalarRecord>("generatedScalar");
+                var record = new GeneratedScalarRecord { Score = 7 };
 
                 var id = collection.Insert(record);
-                var document = database.GetCollection("phaseC").FindById(id);
+                var document = database.GetCollection("generatedScalar").FindById(id);
                 Assert.AreEqual(1, id.AsInt32);
                 Assert.AreEqual(1, record.Id);
                 Assert.AreEqual(1, document["_id"].AsInt32);
-                Assert.AreEqual(7, document[nameof(PhaseCScalarRecord.Score)].AsInt32);
-                Assert.IsFalse(document.ContainsKey(nameof(PhaseCScalarRecord.Name)));
+                Assert.AreEqual(7, document[nameof(GeneratedScalarRecord.Score)].AsInt32);
+                Assert.IsFalse(document.ContainsKey(nameof(GeneratedScalarRecord.Name)));
 
                 record.Name = "updated";
                 Assert.IsTrue(collection.Update(record));
@@ -177,7 +177,7 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
-        public void GetGeneratedCollection_AutomaticC1ScalarMap_AcceptsSerializeNullValuesChangedAfterAcquisition()
+        public void GetGeneratedCollection_GeneratedScalarMap_AcceptsSerializeNullValuesChangedAfterAcquisition()
         {
             var path = GetDatabasePath();
 
@@ -187,13 +187,13 @@ namespace LiteDB.AotTests
                 LiteDbGeneratedMappings.Register(mapper);
 
                 using var database = new LiteDatabase(path, mapper);
-                var collection = database.GetGeneratedCollection<PhaseCScalarRecord>("phaseCNulls");
+                var collection = database.GetGeneratedCollection<GeneratedScalarRecord>("generatedNulls");
                 mapper.SerializeNullValues = true;
-                var id = collection.Insert(new PhaseCScalarRecord { Score = 8 });
-                var document = database.GetCollection("phaseCNulls").FindById(id);
+                var id = collection.Insert(new GeneratedScalarRecord { Score = 8 });
+                var document = database.GetCollection("generatedNulls").FindById(id);
 
-                Assert.IsTrue(document.ContainsKey(nameof(PhaseCScalarRecord.Name)));
-                Assert.IsTrue(document[nameof(PhaseCScalarRecord.Name)].IsNull);
+                Assert.IsTrue(document.ContainsKey(nameof(GeneratedScalarRecord.Name)));
+                Assert.IsTrue(document[nameof(GeneratedScalarRecord.Name)].IsNull);
                 Assert.IsNull(collection.FindById(id)?.Name);
             }
             finally
@@ -203,7 +203,7 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
-        public void GetGeneratedCollection_AutomaticC2ScalarMap_AppliesTrimWhitespaceAndEmptyStringToNullWithoutMapperFallback()
+        public void GetGeneratedCollection_GeneratedScalarMap_AppliesTrimWhitespaceAndEmptyStringToNullWithoutMapperFallback()
         {
             var path = GetDatabasePath();
 
@@ -217,11 +217,11 @@ namespace LiteDB.AotTests
                 LiteDbGeneratedMappings.Register(mapper);
 
                 using var database = new LiteDatabase(path, mapper);
-                var collection = database.GetGeneratedCollection<PhaseCScalarRecord>("phaseCTrimmedString");
-                var id = collection.Insert(new PhaseCScalarRecord { Name = "  ", Score = 8 });
-                var document = database.GetCollection("phaseCTrimmedString").FindById(id);
+                var collection = database.GetGeneratedCollection<GeneratedScalarRecord>("generatedTrimmedString");
+                var id = collection.Insert(new GeneratedScalarRecord { Name = "  ", Score = 8 });
+                var document = database.GetCollection("generatedTrimmedString").FindById(id);
 
-                Assert.IsTrue(document[nameof(PhaseCScalarRecord.Name)].IsNull);
+                Assert.IsTrue(document[nameof(GeneratedScalarRecord.Name)].IsNull);
                 Assert.IsNull(collection.FindById(id)?.Name);
             }
             finally
@@ -241,8 +241,8 @@ namespace LiteDB.AotTests
                 LiteDbGeneratedMappings.Register(mapper);
 
                 using var database = new LiteDatabase(path, mapper);
-                var collection = database.GetGeneratedCollection<PhaseBGeneratedRecord>("phaseBBridge");
-                var id = collection.Insert(new PhaseBGeneratedRecord { Name = "generated", Score = 1L });
+                var collection = database.GetGeneratedCollection<ManualGeneratedRecord>("manualBridge");
+                var id = collection.Insert(new ManualGeneratedRecord { Name = "generated", Score = 1L });
                 var read = collection.FindById(id);
 
                 Assert.IsNotNull(read);
@@ -269,7 +269,7 @@ namespace LiteDB.AotTests
         }
 
         [TestMethod]
-        public void GetGeneratedCollection_AutomaticallyRegistersDirectMapForC2AttributeModel()
+        public void GetGeneratedCollection_AutomaticallyRegistersDirectMapForAttributedModel()
         {
             var path = GetDatabasePath();
 
@@ -279,12 +279,12 @@ namespace LiteDB.AotTests
                 LiteDbGeneratedMappings.Register(mapper);
 
                 using var database = new LiteDatabase(path, mapper);
-                var collection = database.GetGeneratedCollection<PhaseCAttributedScalarRecord>("phaseCAttributes");
-                var record = new PhaseCAttributedScalarRecord { Id = 1, Score = 8 };
+                var collection = database.GetGeneratedCollection<AttributedScalarRecord>("generatedAttributes");
+                var record = new AttributedScalarRecord { Id = 1, Score = 8 };
 
                 collection.Insert(record);
 
-                var document = database.GetCollection("phaseCAttributes").FindById(1);
+                var document = database.GetCollection("generatedAttributes").FindById(1);
                 var read = collection.FindById(1);
                 Assert.AreEqual(1, document["_id"].AsInt32);
                 Assert.AreEqual(8, document["score"].AsInt32);
@@ -309,19 +309,19 @@ namespace LiteDB.AotTests
             LiteDbGeneratedMappings.Register(secondMapper);
 
             Assert.ThrowsException<InvalidOperationException>(() =>
-                firstMapper.RegisterGeneratedExecutionMap(CreatePhaseBExecutionMap()));
+                firstMapper.RegisterGeneratedExecutionMap(CreateManualExecutionMap()));
 
             var path = GetDatabasePath();
             try
             {
                 using (var firstDatabase = new LiteDatabase(path, firstMapper))
                 {
-                    var generated = firstDatabase.GetGeneratedCollection<PhaseBGeneratedRecord>("phaseB");
+                    var generated = firstDatabase.GetGeneratedCollection<ManualGeneratedRecord>("manual");
                     Assert.AreEqual(0, generated.FindAll().Count());
                 }
 
                 using var secondDatabase = new LiteDatabase(path, secondMapper);
-                var secondGenerated = secondDatabase.GetGeneratedCollection<PhaseBGeneratedRecord>("phaseB");
+                var secondGenerated = secondDatabase.GetGeneratedCollection<ManualGeneratedRecord>("manual");
                 Assert.AreEqual(0, secondGenerated.FindAll().Count());
             }
             finally
@@ -343,15 +343,15 @@ namespace LiteDB.AotTests
             try
             {
                 using var database = new LiteDatabase(path, mapper);
-                var ordinary = database.GetCollection<PhaseCScalarRecord>("ordinaryMetadata");
-                ordinary.Insert(new PhaseCScalarRecord { Id = 7, Score = 11 });
+                var ordinary = database.GetCollection<GeneratedScalarRecord>("ordinaryMetadata");
+                ordinary.Insert(new GeneratedScalarRecord { Id = 7, Score = 11 });
 
                 var document = database.GetCollection("ordinaryMetadata").FindById(7);
                 Assert.IsTrue(document.ContainsKey("ordinary_Score"));
-                Assert.IsFalse(document.ContainsKey(nameof(PhaseCScalarRecord.Score)));
+                Assert.IsFalse(document.ContainsKey(nameof(GeneratedScalarRecord.Score)));
 
                 Assert.ThrowsException<InvalidOperationException>(() =>
-                    database.GetGeneratedCollection<PhaseCScalarRecord>("generatedMetadata"));
+                    database.GetGeneratedCollection<GeneratedScalarRecord>("generatedMetadata"));
             }
             finally
             {
@@ -364,7 +364,7 @@ namespace LiteDB.AotTests
         {
             var unregisteredMapper = new BsonMapper();
             Assert.ThrowsException<InvalidOperationException>(() =>
-                unregisteredMapper.RegisterGeneratedExecutionMap(CreatePhaseBExecutionMap()));
+                unregisteredMapper.RegisterGeneratedExecutionMap(CreateManualExecutionMap()));
 
             var mapper = new BsonMapper { SerializeNullValues = true };
             LiteDbGeneratedMappings.Register(mapper);
@@ -373,11 +373,11 @@ namespace LiteDB.AotTests
             try
             {
                 using var database = new LiteDatabase(path, mapper);
-                var collection = database.GetGeneratedCollection<PhaseBGeneratedRecord>("phaseB");
-                var id = collection.Insert(new PhaseBGeneratedRecord { Name = null!, Score = 1L });
-                var document = database.GetCollection("phaseB").FindById(id);
+                var collection = database.GetGeneratedCollection<ManualGeneratedRecord>("manual");
+                var id = collection.Insert(new ManualGeneratedRecord { Name = null!, Score = 1L });
+                var document = database.GetCollection("manual").FindById(id);
 
-                Assert.IsTrue(document[nameof(PhaseBGeneratedRecord.Name)].IsNull);
+                Assert.IsTrue(document[nameof(ManualGeneratedRecord.Name)].IsNull);
             }
             finally
             {
@@ -399,7 +399,7 @@ namespace LiteDB.AotTests
             {
                 using var database = new LiteDatabase(path, mapper);
                 var exception = Assert.ThrowsException<InvalidOperationException>(() =>
-                    database.GetGeneratedCollection<PhaseBGeneratedRecord>("phaseB"));
+                    database.GetGeneratedCollection<ManualGeneratedRecord>("manual"));
 
                 StringAssert.Contains(exception.Message, "does not support the active BsonMapper configuration");
             }
@@ -419,7 +419,7 @@ namespace LiteDB.AotTests
             try
             {
                 using var database = new LiteDatabase(path, mapper);
-                var collection = database.GetGeneratedCollection<PhaseBGeneratedRecord>("phaseB");
+                var collection = database.GetGeneratedCollection<ManualGeneratedRecord>("manual");
 
                 mapper.SerializeNullValues = true;
 

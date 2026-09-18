@@ -26,15 +26,15 @@ namespace LiteDB.AotTests
                 new BsonDocument
                 {
                     ["_id"] = 1,
-                    [nameof(PhaseCScalarRecord.Name)] = "nearest",
-                    [nameof(PhaseCScalarRecord.Score)] = 10,
+                    [nameof(GeneratedScalarRecord.Name)] = "nearest",
+                    [nameof(GeneratedScalarRecord.Score)] = 10,
                     ["Embedding"] = new BsonVector(new[] { 1f, 0f })
                 },
                 new BsonDocument
                 {
                     ["_id"] = 2,
-                    [nameof(PhaseCScalarRecord.Name)] = "farther",
-                    [nameof(PhaseCScalarRecord.Score)] = 20,
+                    [nameof(GeneratedScalarRecord.Name)] = "farther",
+                    [nameof(GeneratedScalarRecord.Score)] = 20,
                     ["Embedding"] = new BsonVector(new[] { 0f, 1f })
                 }
             });
@@ -43,7 +43,7 @@ namespace LiteDB.AotTests
                 BsonExpression.Create("$.Embedding"),
                 new VectorIndexOptions(2, VectorDistanceMetric.Euclidean));
 
-            var collection = database.GetGeneratedCollection<PhaseCScalarRecord>("generatedVectorResults");
+            var collection = database.GetGeneratedCollection<GeneratedScalarRecord>("generatedVectorResults");
             var result = collection.Query()
                 .TopKNearWithScore(BsonExpression.Create("$.Embedding"), new[] { 1f, 0f }, 1)
                 .Single();
