@@ -89,19 +89,22 @@ namespace LiteDB.Tests.Engine
         public void Compact_storage_preserves_vector_queries_and_v9_downgrade_floor()
         {
             using var file = new TempFile();
-            using var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, CompactStorage = true });
             var docs = Enumerable.Range(1, 20).Select(i =>
             {
                 var doc = Document(i);
                 doc["Embedding"] = new BsonVector(new[] { (float)i, 1f });
                 return doc;
             }).ToArray();
-            db.GetCollection("docs").Insert(docs);
-            db.GetCollection("docs").EnsureIndex("vector", "$.Embedding", new VectorIndexOptions(2));
-            db.GetCollection("docs").Query().TopKNear("Embedding", new[] { 1f, 1f }, 1).ToArray().Length.Should().Be(1);
-            db.Rebuild(new RebuildOptions { CompactStorage = false });
+            using (var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, CompactStorage = true }))
+            {
+                db.GetCollection("docs").Insert(docs);
+                db.GetCollection("docs").EnsureIndex("vector", "$.Embedding", new VectorIndexOptions(2));
+                db.GetCollection("docs").Query().TopKNear("Embedding", new[] { 1f, 1f }, 1).ToArray().Length.Should().Be(1);
+                db.Rebuild(new RebuildOptions { CompactStorage = false });
+                db.GetCollection("docs").FindById(1)["Embedding"].IsVector.Should().BeTrue();
+            }
+            // File.ReadAllBytes cannot share the live engine's file handle on Windows.
             File.ReadAllBytes(file.Filename)[59].Should().Be(9);
-            db.GetCollection("docs").FindById(1)["Embedding"].IsVector.Should().BeTrue();
         }
 
         [Fact]

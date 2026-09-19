@@ -42,8 +42,9 @@ namespace LiteDB.Tests.Engine
                     foreach (var doc in docs)
                         BsonSerializer.Serialize(doc).Should().Equal(BsonSerializer.Serialize(CompactStorage_Tests.Document(doc["_id"])));
                     db.Checkpoint();
-                    if (password == null) File.ReadAllBytes(file.Filename)[59].Should().Be(10);
                 }
+                // Inspect the persisted header after releasing the engine's Windows file handle.
+                if (password == null) File.ReadAllBytes(file.Filename)[59].Should().Be(10);
             }
         }
 
