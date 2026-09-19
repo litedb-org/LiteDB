@@ -21,6 +21,7 @@ namespace LiteDB.Engine
 
         // transaction controls
         private readonly Dictionary<string, Snapshot> _snapshots = new Dictionary<string, Snapshot>(StringComparer.OrdinalIgnoreCase);
+        private readonly List<Snapshot> _cursorSnapshots = new List<Snapshot>();
         private readonly TransactionPages _transPages = new TransactionPages();
 
         // transaction info
@@ -38,7 +39,7 @@ namespace LiteDB.Engine
         public LockMode Mode => _mode;
         public TransactionPages Pages => _transPages;
         public DateTime StartTime => _startTime;
-        public IEnumerable<Snapshot> Snapshots => _snapshots.Values;
+        public IEnumerable<Snapshot> Snapshots => _snapshots.Values.Concat(_cursorSnapshots);
         public bool QueryOnly { get; }
         internal int MaxObservedTransactionSize { get; private set; }
 
@@ -53,7 +54,7 @@ namespace LiteDB.Engine
         /// <summary>
         /// Get/Set if this transaction was opened by BeginTrans() method (not by AutoTransaction/Cursor)
         /// </summary>
-        public bool ExplicitTransaction { get; set; } = false;
+        public volatile bool ExplicitTransaction = false;
 
         public TransactionService(HeaderPage header, LockService locker, DiskService disk, WalIndexService walIndex, int maxTransactionSize, TransactionMonitor monitor, bool queryOnly)
         {
@@ -88,14 +89,19 @@ namespace LiteDB.Engine
                 // or if a previous snapshot was opened with addIfNotExists=false
                 if ((mode == LockMode.Write && snapshot.Mode == LockMode.Read) || (addIfNotExists && snapshot.CollectionPage == null))
                 {
-                    // dispose current read-only snapshot
-                    snapshot.Dispose();
-
-                    // must remove before try add again - create() method can throw lock exception
-                    _snapshots.Remove(collection);
-
-                    // create new snapshot with write mode
-                    _snapshots[collection] = snapshot = create();
+                    // Acquire the replacement before releasing an existing write
+                    // lock, including a missing collection's snapshot. Active read
+                    // cursors retain their original view until transaction cleanup.
+                    var replacement = create();
+                    // Includes can hold secondary collection snapshots not named
+                    // by CursorInfo.Collection, so retain conservatively for any cursor.
+                    if (snapshot.Mode == LockMode.Read && this.OpenCursors.Count > 0)
+                    {
+                        snapshot.RetainForCursor();
+                        _cursorSnapshots.Add(snapshot);
+                    }
+                    else snapshot.Dispose();
+                    _snapshots[collection] = snapshot = replacement;
                 }
             }
             else
@@ -130,7 +136,7 @@ namespace LiteDB.Engine
                 }
 
                 // clear local pages in all snapshots (read/write snapshosts)
-                foreach (var snapshot in _snapshots.Values)
+                foreach (var snapshot in this.Snapshots)
                 {
                     snapshot.Clear();
                 }
@@ -261,24 +267,36 @@ namespace LiteDB.Engine
             {
                 lock (_header)
                 {
-                    // persist all dirty page as commit mode (mark last page as IsConfirm)
-                    var count = this.PersistDirtyPages(true);
-
-                    // update wal-index (if any page was added into log disk)
-                    if (count > 0)
+                    // Header callbacks republish the collection map, so only those commits keep new
+                    // snapshots out until the WAL index confirms them. No other commit may make
+                    // readers wait for the durable log flush.
+                    if (_transPages.HasCommitCallbacks)
                     {
-                        _walIndex.ConfirmTransaction(_transactionID, _transPages.DirtyPages.Values, _headerPosition);
+                        lock (_header.PublicationLock) this.PersistAndConfirm();
                     }
+                    else this.PersistAndConfirm();
                 }
             }
 
             // dispose all snapshots
-            foreach (var snapshot in _snapshots.Values)
+            foreach (var snapshot in this.Snapshots)
             {
                 snapshot.Dispose();
             }
 
             _state = TransactionState.Committed;
+        }
+
+        private void PersistAndConfirm()
+        {
+            // persist all dirty page as commit mode (mark last page as IsConfirm)
+            var count = this.PersistDirtyPages(true);
+
+            // update wal-index (if any page was added into log disk)
+            if (count > 0)
+            {
+                _walIndex.ConfirmTransaction(_transactionID, _transPages.DirtyPages.Values, _headerPosition);
+            }
         }
 
         /// <summary>
@@ -298,7 +316,7 @@ namespace LiteDB.Engine
             }
 
             // dispose all snapshots
-            foreach (var snapshot in _snapshots.Values)
+            foreach (var snapshot in this.Snapshots)
             {
                 // but first, if writable, discard changes
                 if (snapshot.Mode == LockMode.Write)
@@ -417,9 +435,9 @@ namespace LiteDB.Engine
             List<Exception> errors = null;
             // One damaged lease must not stop the remaining pages and reader
             // from being released during error-close.
-            if (_state == TransactionState.Active && _snapshots.Count > 0)
+            if (_state == TransactionState.Active && (_snapshots.Count > 0 || _cursorSnapshots.Count > 0))
             {
-                foreach (var snapshot in _snapshots.Values)
+                foreach (var snapshot in this.Snapshots)
                 {
                     TransactionPageCleanup.Release(snapshot, _disk.Cache,
                         _threadID == Environment.CurrentManagedThreadId, ref errors);

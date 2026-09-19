@@ -13,7 +13,8 @@ namespace LiteDB
         private readonly Mutex _mutex;
         private readonly SharedReaderRegistry _readers;
         private LiteEngine _engine;
-        private bool _transactionRunning = false;
+        private volatile bool _transactionRunning = false;
+        private int _transactionThreadId;
         private int _databaseUsers;
 
         public SharedEngine(EngineSettings settings)
@@ -51,6 +52,9 @@ namespace LiteDB
                 _mutex.WaitOne();
             }
             catch (AbandonedMutexException) { }
+
+            try { RejectAbandonedTransaction(); }
+            catch { _mutex.ReleaseMutex(); throw; }
 
             // Don't create a new engine while a transaction is running.
             if (!_transactionRunning && _engine == null)
@@ -94,7 +98,12 @@ namespace LiteDB
                     engine.Dispose();
                 }
             }
-            finally { _mutex.ReleaseMutex(); }
+            finally
+            {
+                if (!_transactionRunning) _transactionThreadId = 0;
+                // Every OpenDatabase call acquires a recursion, even when it borrows.
+                _mutex.ReleaseMutex();
+            }
         }
 
         #region Transaction Operations
@@ -106,7 +115,13 @@ namespace LiteDB
             try
             {
                 var started = _engine.BeginTrans();
-                if (started) _transactionRunning = true;
+                if (started)
+                {
+                    _transactionThreadId = Environment.CurrentManagedThreadId;
+                    _transactionRunning = true;
+                }
+                // A false join belongs to the surrounding explicit or automatic
+                // transaction; its caller owes no completion or mutex recursion.
                 else CloseDatabase();
                 return started;
             }
@@ -117,35 +132,56 @@ namespace LiteDB
             }
         }
 
-        public bool Commit()
+        public bool Commit() => CompleteTransaction(commit: true);
+
+        public bool Rollback() => CompleteTransaction(commit: false);
+
+        private bool CompleteTransaction(bool commit)
         {
-            if (!_transactionRunning) return false;
+            // Hold one extra mutex recursion throughout completion. A foreign
+            // thread must not reach cleanup, even while BeginTrans is publishing.
+            try
+            {
+                if (!_mutex.WaitOne(0))
+                {
+                    // Rolling back nothing is safe and must not replace the error a catch block is handling.
+                    if (!_transactionRunning || !commit) return false;
+                    throw ForeignTransactionCompletion();
+                }
+            }
+            catch (AbandonedMutexException) { }
 
             try
             {
-                return _engine.Commit();
+                RejectAbandonedTransaction();
+                if (!_transactionRunning || _engine == null) return false;
+                try { return commit ? _engine.Commit() : _engine.Rollback(); }
+                finally
+                {
+                    _transactionRunning = false;
+                    CloseDatabase();
+                }
             }
-            finally
-            {
-                _transactionRunning = false;
-                CloseDatabase();
-            }
+            finally { _mutex.ReleaseMutex(); }
         }
 
-        public bool Rollback()
+        private void RejectAbandonedTransaction()
         {
-            if (!_transactionRunning) return false;
-
-            try
-            {
-                return _engine.Rollback();
-            }
-            finally
-            {
-                _transactionRunning = false;
-                CloseDatabase();
-            }
+            // Called only while owning the named mutex. A live explicit owner
+            // retains a recursion, so acquisition on another thread proves that
+            // ownership was abandoned, even if another instance consumed the signal.
+            if (!_transactionRunning || _transactionThreadId == Environment.CurrentManagedThreadId) return;
+            _transactionRunning = false;
+            _transactionThreadId = 0;
+            _databaseUsers = 0;
+            var orphan = _engine;
+            _engine = null;
+            orphan?.Dispose();
+            throw new LiteException(0, "The explicit transaction owner thread exited. Its uncommitted work was discarded; begin a new transaction on one thread.");
         }
+
+        private static LiteException ForeignTransactionCompletion() =>
+            new LiteException(0, "Complete the explicit transaction on the same thread that called BeginTrans; do not await inside it.");
 
         #endregion
 

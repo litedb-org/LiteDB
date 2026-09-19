@@ -219,8 +219,9 @@ namespace LiteDB.Engine
         /// - Dispose locker
         /// - Checks Exception type for INVALID_DATAFILE_STATE to auto rebuild on open
         /// </summary>
-        internal List<Exception> Close(Exception ex)
+        internal List<Exception> Close(Exception ex, EngineState origin = null)
         {
+            if (origin != null && !ReferenceEquals(origin, _state)) return new List<Exception>();
             if (_state.Disposed) return new List<Exception>();
 
             _state.Disposed = true;

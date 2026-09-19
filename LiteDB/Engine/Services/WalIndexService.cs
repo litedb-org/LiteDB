@@ -12,8 +12,12 @@ namespace LiteDB.Engine
     /// </summary>
     internal partial class WalIndexService
     {
+        private const int READER_WAIT_MILLISECONDS = 10;
+        private const int NO_WAIT_MILLISECONDS = 0;
+
         private readonly DiskService _disk;
         private readonly LockService _locker;
+        private readonly CheckpointBackoff _backoff = new CheckpointBackoff();
 
         private readonly Dictionary<uint, List<KeyValuePair<int, long>>> _index = new Dictionary<uint, List<KeyValuePair<int, long>>>();
         private readonly ReaderWriterLockSlim _indexLock = new ReaderWriterLockSlim();

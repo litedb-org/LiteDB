@@ -10,7 +10,7 @@ namespace LiteDB.Engine
     {
         /// <summary>
         /// Initialize a new transaction. Transaction are created "per-thread". There is only one single transaction per thread.
-        /// Return true if transaction was created or false if current thread already in a transaction.
+        /// Return true when created; false joins the current thread transaction. Keep the block synchronous, with no await.
         /// </summary>
         public bool BeginTrans()
         {
@@ -18,9 +18,11 @@ namespace LiteDB.Engine
 
             var transacion = _monitor.GetTransaction(true, false, out var isNew);
 
-            transacion.ExplicitTransaction = true;
-
             if (transacion.OpenCursors.Count > 0) throw new LiteException(0, "This thread contains an open cursors/query. Close cursors before Begin()");
+
+            if (isNew) transacion.ExplicitTransaction = true;
+
+            _monitor.ConsumeExplicitAbort();
 
             LOG(isNew, $"begin trans", "COMMAND");
 
@@ -34,7 +36,7 @@ namespace LiteDB.Engine
         {
             _state.Validate();
 
-            var transaction = _monitor.GetTransaction(false, false, out _);
+            var transaction = this.GetTransactionForCompletion(commit: true);
 
             if (transaction != null)
             {
@@ -59,13 +61,11 @@ namespace LiteDB.Engine
         {
             _state.Validate();
 
-            var transaction = _monitor.GetTransaction(false, false, out _);
+            var transaction = this.GetTransactionForCompletion(commit: false);
 
             if (transaction != null && transaction.State == TransactionState.Active)
             {
-                transaction.Rollback();
-
-                _monitor.ReleaseTransaction(transaction);
+                this.RollbackAndReleaseTransaction(transaction);
 
                 return true;
             }
@@ -94,11 +94,11 @@ namespace LiteDB.Engine
             }
             catch(Exception ex)
             {
-                if (_state.Handle(ex))
+                if (_state.Handle(ex) && transaction.State == TransactionState.Active)
                 {
-                    transaction.Rollback();
+                    this.RollbackAndReleaseTransaction(transaction);
 
-                    _monitor.ReleaseTransaction(transaction);
+                    if (transaction.ExplicitTransaction) _monitor.MarkExplicitAbort();
                 }
 
                 throw;
@@ -107,15 +107,38 @@ namespace LiteDB.Engine
 
         private void CommitAndReleaseTransaction(TransactionService transaction)
         {
-            transaction.Commit();
-
-            _monitor.ReleaseTransaction(transaction);
+            try
+            {
+                transaction.Commit();
+                _monitor.ReleaseTransaction(transaction);
+            }
+            catch (Exception ex)
+            {
+                // Completion may have partially persisted state. Do not let a later
+                // write reuse this transaction and report success without committing.
+                _state.Stop(ex);
+                throw;
+            }
 
             // try checkpoint when finish transaction and log file are bigger than checkpoint pragma value (in pages)
             if (_header.Pragmas.Checkpoint > 0 &&
                 _disk.GetFileLength(FileOrigin.Log) >= (_header.Pragmas.Checkpoint * PAGE_SIZE))
             {
-                _walIndex.TryCheckpoint();
+                _walIndex.TryAutoCheckpoint();
+            }
+        }
+
+        private void RollbackAndReleaseTransaction(TransactionService transaction)
+        {
+            try
+            {
+                transaction.Rollback();
+                _monitor.ReleaseTransaction(transaction);
+            }
+            catch (Exception ex)
+            {
+                _state.Stop(ex);
+                throw;
             }
         }
     }

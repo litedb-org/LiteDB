@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using static LiteDB.Constants;
-
 namespace LiteDB.Engine
 {
     /// <summary>
@@ -40,6 +39,7 @@ namespace LiteDB.Engine
             _cache = new MemoryCache(memorySegmentSizes, settings.GetCacheSize());
             _state = state;
             _readOnly = settings.ReadOnly;
+            _durableCommits = settings.DurableCommits;
 
             try
             {
@@ -74,6 +74,7 @@ namespace LiteDB.Engine
                 }
 
                 if (dataLength < PAGE_SIZE) throw LiteException.InvalidDatabase();
+                if (!isNew) this.ValidateExistingData();
 
                 if (settings.ReadOnly == false)
                 {
@@ -103,27 +104,6 @@ namespace LiteDB.Engine
                 TryDispose(_cache);
                 throw;
             }
-        }
-
-        /// <summary>
-        /// Remove incomplete trailing pages only after the data header was validated.
-        /// </summary>
-        internal void TrimTrailingPages()
-        {
-            if (_readOnly) return;
-
-            this.TrimTrailingPage(_dataPool, _dataLength + PAGE_SIZE, ref _dataTrailingLength);
-            this.TrimTrailingPage(_logPool, _logLength + PAGE_SIZE, ref _logTrailingLength);
-        }
-
-        private void TrimTrailingPage(StreamPool pool, long length, ref long trailingLength)
-        {
-            if (trailingLength == 0) return;
-
-            var stream = pool.Writer.Value;
-            stream.SetLength(length);
-            stream.FlushToDisk();
-            trailingLength = 0;
         }
 
         /// <summary>
@@ -217,6 +197,7 @@ namespace LiteDB.Engine
             IReadOnlyDictionary<uint, PagePosition> transactionPages = null)
         {
             var count = 0;
+            var hasConfirmation = false;
             var stream = _writer.Value;
 
             // do a global write lock - only 1 thread can write on disk at time
@@ -255,6 +236,7 @@ namespace LiteDB.Engine
 
                         this.PreserveFileVersion(page);
                         stream.Write(page.Array, page.Offset, PAGE_SIZE);
+                        hasConfirmation |= page.ReadBool(BasePage.P_IS_CONFIRMED);
 
                         // Publish only after the bytes are written to the stream.
                         // The callback can make the position visible to readers.
@@ -286,7 +268,25 @@ namespace LiteDB.Engine
                         readable?.Release();
                     }
                 }
-                stream.Flush();
+                // A confirmation makes this WAL batch recoverable. Make all preceding
+                // pages durable before WAL-index confirmation or acknowledging commit.
+                if (hasConfirmation)
+                {
+                    try
+                    {
+                        this.FlushConfirmedLog(stream);
+                    }
+                    catch (Exception ex)
+                    {
+                        // The confirmation may already be durable. Stop the engine;
+                        // rollback or further writes cannot resolve this uncertainty.
+                        var failure = ex as IOException ?? new IOException("WAL durable flush failed.", ex);
+                        _state.Handle(failure);
+                        if (failure == ex) throw;
+                        throw failure;
+                    }
+                }
+                else stream.Flush();
             }
 
             return count;
@@ -364,7 +364,7 @@ namespace LiteDB.Engine
                 {
                     var position = stream.Position;
 
-                    var bytesRead = stream.Read(buffer, 0, PAGE_SIZE);
+                    var bytesRead = stream.ReadFully(buffer, 0, PAGE_SIZE);
 
                     ENSURE(bytesRead == PAGE_SIZE, "ReadFull must read PAGE_SIZE bytes [{0}]", bytesRead);
 
@@ -430,7 +430,6 @@ namespace LiteDB.Engine
             }
 
             stream.Value.SetLength(length);
-            stream.Value.FlushToDisk();
 
             if (origin == FileOrigin.Log)
             {

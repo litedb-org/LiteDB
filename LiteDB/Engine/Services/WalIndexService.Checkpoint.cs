@@ -43,22 +43,30 @@ namespace LiteDB.Engine
             finally { _indexLock.ExitWriteLock(); }
         }
 
-        public int Checkpoint() => this.TryCheckpoint();
+        public int Checkpoint() => this.TryCheckpoint(rationed: false);
+
+        public int TryCheckpoint() => this.TryCheckpoint(rationed: false);
+
+        public int TryAutoCheckpoint() => this.TryCheckpoint(rationed: true);
 
         /// <summary>
         /// Backfill only committed versions visible to every snapshot. Keep the
         /// floor version of every page and its commit marker. Older superseded
         /// frames cannot be resolved by any live snapshot and can be reused.
         /// </summary>
-        public int TryCheckpoint()
+        private int TryCheckpoint(bool rationed)
         {
+            if (_disk.GetFileLength(FileOrigin.Log) == 0) return 0;
+
             // Acquire transaction exclusion before the index lock. Snapshot disposal
             // needs the index lock, so waiting for transactions while holding it deadlocks.
-            var exclusive = _locker.TryEnterExclusive(out var mustExit);
+            var wait = !rationed || _backoff.TryClaimWaitingAttempt();
+            var timeout = wait ? READER_WAIT_MILLISECONDS : NO_WAIT_MILLISECONDS;
+            var exclusive = _locker.TryEnterExclusive(out var mustExit, waitForReaders: wait, milliseconds: timeout);
+            if (exclusive) _backoff.Reset();
             _indexLock.EnterWriteLock();
             try
             {
-                if (_disk.GetFileLength(FileOrigin.Log) == 0) return 0;
                 var external = _oldestReader?.Invoke();
                 var target = _snapshots.Count == 0 ? _currentReadVersion : _snapshots.Keys.Min();
                 if (external.HasValue) target = Math.Min(target, external.Value);
@@ -79,7 +87,7 @@ namespace LiteDB.Engine
 
                 // WAL must be durable before its pages can reach the data file.
                 // The data flush completes before truncation can become durable.
-                _disk.FlushLog();
+                _disk.SyncLogBeforeCheckpoint();
                 _disk.WriteDataDisk(_disk.ReadCheckpointPages(pages));
                 _backfillVersion = target;
 

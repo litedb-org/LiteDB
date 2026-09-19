@@ -37,7 +37,7 @@ namespace LiteDB.Engine
             _fileVersion = FileReaderV8.IsVersion(buffer) ? 8 : throw LiteException.InvalidDatabase();
         }
 
-        public long Rebuild(RebuildOptions options)
+        public long Rebuild(RebuildOptions options, Collation currentCollation = null)
         {
             var backupFilename = FileHelper.GetSuffixFile(_settings.Filename, "-backup", true);
             var backupLogFilename = FileHelper.GetSuffixFile(FileHelper.GetLogFile(_settings.Filename), "-backup", true);
@@ -55,8 +55,8 @@ namespace LiteDB.Engine
                 using (var engine = new LiteEngine(new EngineSettings
                 {
                     Filename = tempFilename,
-                    Collation = options.Collation,
-                    Password = options.Password,
+                    Collation = options.Collation ?? currentCollation,
+                    Password = options.ResolvePassword(_settings.Password),
                 }))
                 {
                     // copy all database to new Log file with NO checkpoint during all rebuild
@@ -87,6 +87,10 @@ namespace LiteDB.Engine
                 }
             }
 
+            // Read metadata before installation, so no fallible work separates the
+            // completed replacement from the caller updating its engine settings.
+            var difference = new FileInfo(_settings.Filename).Length - new FileInfo(tempFilename).Length;
+
             // if log file exists, rename as backup file
             var logFile = FileHelper.GetLogFile(_settings.Filename);
 
@@ -105,10 +109,7 @@ namespace LiteDB.Engine
             File.Move(tempFilename, _settings.Filename);
 
 
-            // get difference size
-            return 
-                new FileInfo(backupFilename).Length -
-                new FileInfo(_settings.Filename).Length;
+            return difference;
         }
 
         /// <summary>
@@ -122,7 +123,7 @@ namespace LiteDB.Engine
             using (var stream = factory.GetStream(false, true))
             {
                 stream.Position = 0;
-                stream.Read(buffer, 0, buffer.Length);
+                stream.ReadFully(buffer, 0, buffer.Length);
             }
 
             return buffer;

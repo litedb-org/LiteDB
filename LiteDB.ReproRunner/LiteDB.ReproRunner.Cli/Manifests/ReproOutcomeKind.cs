@@ -4,5 +4,6 @@ internal enum ReproOutcomeKind
 {
     Reproduce,
     NoRepro,
-    HardFail
+    HardFail,
+    Intermittent
 }

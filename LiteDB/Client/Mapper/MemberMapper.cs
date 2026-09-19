@@ -47,6 +47,9 @@ namespace LiteDB
         /// </summary>
         public GenericSetter Setter { get; set; }
 
+        // Keep the reflected setter identity so custom setters can accept converted auto IDs.
+        internal GenericSetter DefaultSetter { get; set; }
+
         /// <summary>
         /// When used, can be define a serialization function from entity class to bson value
         /// </summary>
