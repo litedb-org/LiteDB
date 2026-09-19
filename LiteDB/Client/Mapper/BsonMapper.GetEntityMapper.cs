@@ -60,10 +60,7 @@ public partial class BsonMapper
     /// </summary>
     protected void BuildEntityMapper(EntityMapper mapper)
     {
-        var idAttr = typeof(BsonIdAttribute);
-        var ignoreAttr = typeof(BsonIgnoreAttribute);
-        var fieldAttr = typeof(BsonFieldAttribute);
-        var dbrefAttr = typeof(BsonRefAttribute);
+        var attributeMappings = this.GetAttributeMappings();
 
         var members = this.GetTypeMembers(mapper.ForType);
         var id = this.GetIdMember(members);
@@ -71,13 +68,17 @@ public partial class BsonMapper
 
         foreach (var memberInfo in members)
         {
-            // checks [BsonIgnore]
-            if (CustomAttributeExtensions.IsDefined(memberInfo, ignoreAttr, true)) continue;
+            // checks [BsonIgnore] and registered ignore attributes
+            if (CustomAttributeExtensions.IsDefined(memberInfo, _bsonIgnoreAttribute, true) ||
+                HasRegisteredAttribute(memberInfo, attributeMappings.IgnoreTypes, attributeMappings.IgnoreNames))
+            {
+                continue;
+            }
 
             var name = this.ResolveFieldName(memberInfo.Name);
 
             // check if property has [BsonField]
-            var field = (BsonFieldAttribute)CustomAttributeExtensions.GetCustomAttributes(memberInfo, fieldAttr, true)
+            var field = (BsonFieldAttribute)CustomAttributeExtensions.GetCustomAttributes(memberInfo, _bsonFieldAttribute, true)
                 .FirstOrDefault();
 
             // check if property has [BsonField] with a custom field name
@@ -97,8 +98,10 @@ public partial class BsonMapper
             var setter = Reflection.CreateGenericSetter(mapper.ForType, memberInfo);
 
             // check if property has [BsonId] to get with was setted AutoId = true
-            var autoId = (BsonIdAttribute)CustomAttributeExtensions.GetCustomAttributes(memberInfo, idAttr, true)
+            var autoId = (BsonIdAttribute)CustomAttributeExtensions.GetCustomAttributes(memberInfo, _bsonIdAttribute, true)
                 .FirstOrDefault();
+            var hasRegisteredId = autoId == null &&
+                HasRegisteredAttribute(memberInfo, attributeMappings.IdTypes, attributeMappings.IdNames);
 
             var dataType = memberInfo is PropertyInfo
                 ? (memberInfo as PropertyInfo).PropertyType
@@ -108,7 +111,7 @@ public partial class BsonMapper
 
             var member = new MemberMapper
             {
-                AutoId = autoId == null ? true : autoId.AutoId,
+                AutoId = autoId == null ? !hasRegisteredId : autoId.AutoId,
                 FieldName = name,
                 HasExplicitFieldName = autoId != null || field?.Name != null,
                 ReflectedMember = memberInfo,
@@ -121,7 +124,7 @@ public partial class BsonMapper
             };
 
             // check if property has [BsonRef]
-            var dbRef = (BsonRefAttribute)CustomAttributeExtensions.GetCustomAttributes(memberInfo, dbrefAttr, false)
+            var dbRef = (BsonRefAttribute)CustomAttributeExtensions.GetCustomAttributes(memberInfo, _bsonRefAttribute, false)
                 .FirstOrDefault();
 
             if (dbRef != null && memberInfo is PropertyInfo)
@@ -149,8 +152,11 @@ public partial class BsonMapper
     /// </summary>
     protected virtual MemberInfo GetIdMember(IEnumerable<MemberInfo> members)
     {
+        var attributeMappings = this.GetAttributeMappings();
+
         return Reflection.SelectMember(members,
-            x => CustomAttributeExtensions.IsDefined(x, typeof(BsonIdAttribute), true),
+            x => CustomAttributeExtensions.IsDefined(x, _bsonIdAttribute, true),
+            x => HasRegisteredAttribute(x, attributeMappings.IdTypes, attributeMappings.IdNames),
             x => x.Name.Equals("Id", StringComparison.OrdinalIgnoreCase),
             x => x.Name.Equals(x.ReflectedType.Name + "Id", StringComparison.OrdinalIgnoreCase),
             x => x.Name.Equals(x.DeclaringType.Name + "Id", StringComparison.OrdinalIgnoreCase));
