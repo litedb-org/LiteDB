@@ -113,6 +113,41 @@ namespace LiteDB
             return false;
         }
 
+        internal bool TrySerializeRegistered<T>(T value, out BsonValue serialized)
+        {
+            if (_customSerializer.TryGetValue(typeof(T), out var custom))
+            {
+                serialized = custom(value);
+                return true;
+            }
+
+            serialized = null;
+            return false;
+        }
+
+        internal bool TryDeserializeRegistered<T>(BsonValue value, out T deserialized)
+        {
+            if (_customDeserializer.TryGetValue(typeof(T), out var custom))
+            {
+                deserialized = (T)custom(value);
+                return true;
+            }
+
+            deserialized = default;
+            return false;
+        }
+
+        internal bool TryGetRuntimeEntityMapper(Type type, out EntityMapper entity)
+        {
+            if (_entities.TryGetValue(type, out entity))
+            {
+                entity.WaitForInitialization();
+                return true;
+            }
+
+            return false;
+        }
+
         private void RecordCustomTypeRegistration()
         {
             if (_registeringBuiltInTypes == false)
