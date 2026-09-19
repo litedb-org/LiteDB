@@ -1,9 +1,7 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -12,7 +10,7 @@ namespace LiteDB.Engine
     /// Do all WAL index services based on LOG file - has only single instance per engine
     /// [Singleton - ThreadSafe]
     /// </summary>
-    internal class WalIndexService
+    internal partial class WalIndexService
     {
         private const int READER_WAIT_MILLISECONDS = 10;
         private const int NO_WAIT_MILLISECONDS = 0;
@@ -24,8 +22,6 @@ namespace LiteDB.Engine
         private readonly Dictionary<uint, List<KeyValuePair<int, long>>> _index = new Dictionary<uint, List<KeyValuePair<int, long>>>();
         private readonly ReaderWriterLockSlim _indexLock = new ReaderWriterLockSlim();
 
-        private readonly HashSet<uint> _confirmTransactions = new HashSet<uint>();
-
         private int _currentReadVersion = 0;
 
         /// <summary>
@@ -33,10 +29,11 @@ namespace LiteDB.Engine
         /// </summary>
         private int _lastTransactionID = 0;
 
-        public WalIndexService(DiskService disk, LockService locker)
+        public WalIndexService(DiskService disk, LockService locker, Func<int?> oldestReader = null)
         {
             _disk = disk;
             _locker = locker;
+            _oldestReader = oldestReader;
         }
 
         /// <summary>
@@ -74,11 +71,12 @@ namespace LiteDB.Engine
             try
             {
                 // reset 
-                _confirmTransactions.Clear();
+                _confirmationPositions.Clear();
                 _index.Clear();
 
                 _lastTransactionID = 0;
                 _currentReadVersion = 0;
+                _backfillVersion = 0;
 
                 // clear cache
                 _disk.Cache.Clear();
@@ -159,18 +157,23 @@ namespace LiteDB.Engine
         /// <summary>
         /// Add transactionID in confirmed list and update WAL index with all pages positions
         /// </summary>
-        public void ConfirmTransaction(uint transactionID, ICollection<PagePosition> pagePositions)
+        public void ConfirmTransaction(uint transactionID, ICollection<PagePosition> pagePositions, long headerPosition = long.MaxValue)
         {
             // must lock commit operation to update WAL-Index (memory only operation)
             _indexLock.TryEnterWriteLock(-1);
 
             try
             {
-                // increment current version
-                _currentReadVersion++;
+                // Confirmation frames always append. Their physical sequence is
+                // stable even after obsolete transactions are removed from the WAL.
+                var confirmation = headerPosition == long.MaxValue
+                    ? pagePositions.Max(page => page.Position) : headerPosition;
+                _currentReadVersion = checked((int)(confirmation / PAGE_SIZE + 1));
+                _confirmationPositions[_currentReadVersion] = confirmation;
 
                 // update wal-index
-                foreach (var pos in pagePositions)
+                foreach (var pos in headerPosition == long.MaxValue ? pagePositions :
+                    pagePositions.Concat(new[] { new PagePosition(0, headerPosition) }))
                 {
                     if (_index.TryGetValue(pos.PageID, out var slot) == false)
                     {
@@ -183,8 +186,6 @@ namespace LiteDB.Engine
                     slot.Add(new KeyValuePair<int, long>(_currentReadVersion, pos.Position));
                 }
 
-                // add transaction as confirmed
-                _confirmTransactions.Add(transactionID);
             }
             finally
             {
@@ -207,14 +208,15 @@ namespace LiteDB.Engine
             {
                 if(buffer.IsBlank())
                 {
-                    // this should not happen, but if it does, it means there's a zeroed page in the file
-                    // just skip it
+                    // Durably cleared slots can be reused by later unconfirmed frames.
+                    _disk.RegisterFreeLogPosition(current);
                     current += PAGE_SIZE;
                     continue;
                 }
 
                 // read direct from buffer to avoid create BasePage structure
                 var pageID = buffer.ReadUInt32(BasePage.P_PAGE_ID);
+                _disk.RecordLogPosition(pageID, current);
                 var isConfirmed = buffer.ReadBool(BasePage.P_IS_CONFIRMED);
                 var transactionID = buffer.ReadUInt32(BasePage.P_TRANSACTION_ID);
 
@@ -264,120 +266,5 @@ namespace LiteDB.Engine
             }
         }
 
-        /// <summary>
-        /// Do checkpoint operation to copy log pages into data file. Return how many transactions was commited inside data file
-        /// Checkpoint requires exclusive lock database
-        /// </summary>
-        public int Checkpoint()
-        {
-            // no log file or no confirmed transaction, just exit
-            if (_disk.GetFileLength(FileOrigin.Log) == 0 || _confirmTransactions.Count == 0) return 0;
-
-            var mustExit = _locker.EnterExclusive();
-
-            try
-            {
-                return this.CheckpointInternal();
-            }
-            finally
-            {
-                if (mustExit)
-                {
-                    _locker.ExitExclusive();
-                }
-            }
-        }
-
-        /// <summary>
-        /// Briefly queue behind existing transactions so new readers cannot starve checkpoint.
-        /// </summary>
-        public int TryCheckpoint() => this.TryCheckpoint(rationed: false);
-
-        /// <summary>
-        /// Commit-path checkpoint. Queueing behind readers stalls the committer and all new readers, so once
-        /// that fails (a reader outlives the wait) it is retried on a back-off; commits in between only
-        /// checkpoint when no transaction is open.
-        /// </summary>
-        public int TryAutoCheckpoint() => this.TryCheckpoint(rationed: true);
-
-        private int TryCheckpoint(bool rationed)
-        {
-            // no log file or no confirmed transaction, just exit
-            if (_disk.GetFileLength(FileOrigin.Log) == 0 || _confirmTransactions.Count == 0) return 0;
-
-            var wait = rationed == false || _backoff.TryClaimWaitingAttempt();
-            var timeout = wait ? READER_WAIT_MILLISECONDS : NO_WAIT_MILLISECONDS;
-
-            if (_locker.TryEnterExclusive(out var mustExit, waitForReaders: wait, milliseconds: timeout) == false) return 0;
-
-            try
-            {
-                _backoff.Reset();
-
-                return this.CheckpointInternal();
-            }
-            finally
-            {
-                if (mustExit)
-                {
-                    _locker.ExitExclusive();
-                }
-            }
-        }
-
-        /// <summary>
-        /// Do checkpoint operation to copy log pages into data file. Return how many transactions was commited inside data file
-        /// Checkpoint requires exclusive lock database
-        /// If soft = true, just try enter in exclusive mode - if not possible, just exit (don't execute checkpoint)
-        /// </summary>
-        private int CheckpointInternal()
-        {
-            LOG($"checkpoint", "WAL");
-
-            var counter = 0;
-
-            // getting all "good" pages from log file to be copied into data file
-            IEnumerable<PageBuffer> source()
-            {
-                foreach (var buffer in _disk.ReadFull(FileOrigin.Log))
-                {
-                    if (buffer.IsBlank())
-                    {
-                        // this should not happen, but if it does, it means there's a zeroed page in the file
-                        // just skip it
-                        continue;
-                    }
-
-                    // read direct from buffer to avoid create BasePage structure
-                    var transactionID = buffer.ReadUInt32(BasePage.P_TRANSACTION_ID);
-
-                    // only confied paged can be write on data disk
-                    if (_confirmTransactions.Contains(transactionID))
-                    {
-                        var pageID = buffer.ReadUInt32(BasePage.P_PAGE_ID);
-
-                        // clear isConfirmed/transactionID
-                        buffer.Write(uint.MaxValue, BasePage.P_TRANSACTION_ID);
-                        buffer.Write(false, BasePage.P_IS_CONFIRMED);
-
-                        buffer.Position = BasePage.GetPagePosition(pageID);
-
-                        counter++;
-
-                        yield return buffer;
-                    }
-                }
-            }
-
-            _disk.SyncLogBeforeCheckpoint();
-
-            // write all log pages into data file (sync)
-            _disk.WriteDataDisk(source());
-
-            // clear log file, clear wal index, memory cache,
-            this.Clear();
-
-            return counter;
-        }
     }
 }

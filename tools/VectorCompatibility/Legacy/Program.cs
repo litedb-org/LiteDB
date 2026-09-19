@@ -13,7 +13,26 @@ namespace VectorCompatibility.Legacy
             {
                 var suffix = encrypted ? "encrypted.db" : "plain.db";
                 var password = encrypted ? "compatibility-test" : null;
-                if (args[0] == "create")
+                if (args[0] == "reclaim")
+                {
+                    var file = Path.Combine(args[1], "reclaimed-" + suffix);
+                    using (var db = new LiteDatabase(new ConnectionString { Filename = file, Password = password }))
+                    {
+                        var cold = db.GetCollection("cold");
+                        if (cold.Count() != 16 || cold.FindAll().Any(doc => doc["value"].AsInt32 != 21) ||
+                            db.GetCollection("hot").FindAll().Any(doc => doc["value"].AsInt32 != 20))
+                            throw new Exception("Legacy replay lost reclaimed WAL data");
+                        var changed = cold.FindById(0);
+                        changed["value"] = 22;
+                        cold.Update(changed);
+                        db.Checkpoint();
+                    }
+                    using var reopened = new LiteDatabase(new ConnectionString { Filename = file, Password = password });
+                    if (reopened.GetCollection("cold").FindById(0)["value"].AsInt32 != 22 ||
+                        reopened.GetCollection("cold").FindById(1)["value"].AsInt32 != 21)
+                        throw new Exception("Legacy checkpoint reordered reclaimed WAL data");
+                }
+                else if (args[0] == "create")
                 {
                     Refuse(Path.Combine(args[1], "v9-" + suffix), password);
                     using var legacy = new LiteDatabase(new ConnectionString

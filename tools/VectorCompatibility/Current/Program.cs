@@ -10,6 +10,11 @@ namespace VectorCompatibility.Current
     {
         private static void Main(string[] args)
         {
+            if (args[0] == "reclaim-create" || args[0] == "reclaim-verify")
+            {
+                WalReuseCompatibility.Run(args[1], args[0] == "reclaim-create");
+                return;
+            }
             foreach (var encrypted in new[] { false, true })
             {
                 var suffix = encrypted ? "encrypted.db" : "plain.db";

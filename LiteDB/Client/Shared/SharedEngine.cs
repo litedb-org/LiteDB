@@ -1,24 +1,27 @@
-﻿using LiteDB.Engine;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Threading;
 using LiteDB.Client.Shared;
+using LiteDB.Engine;
 using LiteDB.Vector;
 
 namespace LiteDB
 {
-    public class SharedEngine : ILiteEngine
+    public partial class SharedEngine : ILiteEngine
     {
         private readonly EngineSettings _settings;
         private readonly Mutex _mutex;
+        private readonly SharedReaderRegistry _readers;
         private LiteEngine _engine;
         private volatile bool _transactionRunning = false;
         private int _transactionThreadId;
+        private int _databaseUsers;
 
         public SharedEngine(EngineSettings settings)
         {
-            _settings = settings;
+            _settings = settings.Clone();
+            _readers = new SharedReaderRegistry(settings.Filename);
+            _settings.OldestSharedReader = _readers.OldestVersion;
 
             var name = SharedMutexNameFactory.Create(settings.Filename, settings.SharedMutexNameStrategy);
 
@@ -58,7 +61,14 @@ namespace LiteDB
             {
                 try
                 {
-                    _engine = new LiteEngine(_settings);
+                    var settings = _settings;
+                    if (settings.AutoRebuild && _readers.OldestVersion().HasValue)
+                    {
+                        settings = settings.Clone();
+                        settings.AutoRebuild = false;
+                    }
+                    _engine = new LiteEngine(settings);
+                    _databaseUsers++;
                     return true;
                 }
                 catch
@@ -69,6 +79,7 @@ namespace LiteDB
             }
             else
             {
+                _databaseUsers++;
                 return false;
             }
         }
@@ -76,12 +87,11 @@ namespace LiteDB
         /// <summary>
         /// Dequeue stack and dispose database on empty stack
         /// </summary>
-        private void CloseDatabase(bool ownsEngine = true)
+        private void CloseDatabase()
         {
             try
             {
-                // Nested operations borrow an engine owned by a transaction or reader.
-                if (ownsEngine && !_transactionRunning && _engine != null)
+                if (--_databaseUsers == 0 && !_transactionRunning && _engine != null)
                 {
                     var engine = _engine;
                     _engine = null;
@@ -90,7 +100,7 @@ namespace LiteDB
             }
             finally
             {
-                if (ownsEngine && !_transactionRunning) _transactionThreadId = 0;
+                if (!_transactionRunning) _transactionThreadId = 0;
                 // Every OpenDatabase call acquires a recursion, even when it borrows.
                 _mutex.ReleaseMutex();
             }
@@ -100,7 +110,7 @@ namespace LiteDB
 
         public bool BeginTrans()
         {
-            var opened = OpenDatabase();
+            OpenDatabase();
 
             try
             {
@@ -112,12 +122,12 @@ namespace LiteDB
                 }
                 // A false join belongs to the surrounding explicit or automatic
                 // transaction; its caller owes no completion or mutex recursion.
-                else CloseDatabase(opened);
+                else CloseDatabase();
                 return started;
             }
             catch
             {
-                CloseDatabase(opened);
+                CloseDatabase();
                 throw;
             }
         }
@@ -163,6 +173,7 @@ namespace LiteDB
             if (!_transactionRunning || _transactionThreadId == Environment.CurrentManagedThreadId) return;
             _transactionRunning = false;
             _transactionThreadId = 0;
+            _databaseUsers = 0;
             var orphan = _engine;
             _engine = null;
             orphan?.Dispose();
@@ -175,21 +186,6 @@ namespace LiteDB
         #endregion
 
         #region Read Operation
-
-        public IBsonDataReader Query(string collection, Query query)
-        {
-            bool opened = OpenDatabase();
-            try
-            {
-                var reader = _engine.Query(collection, query);
-                return new SharedDataReader(reader, () => CloseDatabase(opened));
-            }
-            catch
-            {
-                CloseDatabase(opened);
-                throw;
-            }
-        }
 
         public BsonValue Pragma(string name)
         {
@@ -212,7 +208,12 @@ namespace LiteDB
 
         public long Rebuild(RebuildOptions options)
         {
-            return QueryDatabase(() => _engine.Rebuild(options));
+            return QueryDatabase(() =>
+            {
+                if (_readers.OldestVersion().HasValue)
+                    throw new LiteException(0, "Close shared readers before rebuilding the database.");
+                return _engine.Rebuild(options);
+            });
         }
 
         public int Insert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId)
@@ -298,14 +299,14 @@ namespace LiteDB
 
         private T QueryDatabase<T>(Func<T> Query)
         {
-            bool opened = OpenDatabase();
+            OpenDatabase();
             try
             {
                 return Query();
             }
             finally
             {
-                CloseDatabase(opened);
+                CloseDatabase();
             }
         }
     }

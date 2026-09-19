@@ -28,6 +28,7 @@ namespace LiteDB.Engine
         private readonly int _threadID = Environment.CurrentManagedThreadId;
         private readonly uint _transactionID;
         private readonly DateTime _startTime;
+        private long _headerPosition = long.MaxValue;
         private LockMode _mode = LockMode.Read;
         private TransactionState _state = TransactionState.Active;
 
@@ -238,10 +239,8 @@ namespace LiteDB.Engine
             // Disk always appends the confirmation page, preserving recovery order.
             var count = _disk.WriteLogDisk(source(), (pageID, position) =>
             {
-                if (pageID != 0)
-                {
-                    _transPages.DirtyPages[pageID] = new PagePosition(pageID, position);
-                }
+                if (pageID == 0) _headerPosition = position;
+                else _transPages.DirtyPages[pageID] = new PagePosition(pageID, position);
             }, _transPages.DirtyPages);
 
             // now, discard all clean pages (because those pages are writable and must be readable)
@@ -296,7 +295,7 @@ namespace LiteDB.Engine
             // update wal-index (if any page was added into log disk)
             if (count > 0)
             {
-                _walIndex.ConfirmTransaction(_transactionID, _transPages.DirtyPages.Values);
+                _walIndex.ConfirmTransaction(_transactionID, _transPages.DirtyPages.Values, _headerPosition);
             }
         }
 
@@ -399,10 +398,7 @@ namespace LiteDB.Engine
                     // write all pages (including new header)
                     _disk.WriteLogDisk(source(), (pageID, position) =>
                     {
-                        if (pageID != 0)
-                        {
-                            pagePositions[pageID] = new PagePosition(pageID, position);
-                        }
+                        pagePositions[pageID] = new PagePosition(pageID, position);
                     });
                 }
                 catch

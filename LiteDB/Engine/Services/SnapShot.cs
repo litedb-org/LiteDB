@@ -88,7 +88,7 @@ namespace LiteDB.Engine
                 {
                     // Collection identity and WAL visibility must describe the same committed
                     // state. A commit that changes the map holds this lock through confirmation.
-                    _readVersion = _walIndex.CurrentReadVersion;
+                    _readVersion = _walIndex.PinSnapshot();
                     collectionPageID = _header.GetCollectionPageID(_collectionName);
                 }
                 srv.Get(_collectionName, collectionPageID, addIfNotExists, ref _collectionPage);
@@ -96,6 +96,7 @@ namespace LiteDB.Engine
             }
             catch
             {
+                this.ReleaseSnapshotPin();
                 // A failed constructor never reaches the transaction's snapshot map.
                 if (_collectionPage != null) _localPages[_collectionPage.PageID] = _collectionPage;
                 foreach (var page in _localPages.Values)
@@ -154,33 +155,6 @@ namespace LiteDB.Engine
             // The collection page is deliberately retained by the snapshot
             // across safepoints, so refresh only its ownership epoch.
             _collectionPage?.SetSnapshotOwnership(this);
-        }
-
-        /// <summary>
-        /// Dispose stream readers and exit collection lock
-        /// </summary>
-        public void Dispose()
-        {
-            if (_disposed)
-            {
-                return;
-            }
-
-            // release all data/index pages
-            this.Clear();
-
-            _disposed = true;
-
-            // release collection page (in read mode)
-            if (_mode == LockMode.Read && _collectionPage != null)
-            {
-                _collectionPage.Buffer.Release();
-            }
-
-            if(_mode == LockMode.Write)
-            {
-                _locker.ExitLock(_collectionName);
-            }
         }
 
         #region Page Version functions

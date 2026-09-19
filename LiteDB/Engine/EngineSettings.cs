@@ -18,6 +18,12 @@ namespace LiteDB.Engine
     public class EngineSettings
     {
         private int? _transactionPageLimit;
+#if DEBUG || TESTING
+        internal Action<string> CheckpointStage { get; set; }
+#endif
+        internal Func<int?> OldestSharedReader { get; set; }
+        internal bool SharedReadSnapshot { get; set; }
+        internal EngineSettings Clone() => (EngineSettings)this.MemberwiseClone();
 
         /// <summary>
         /// Memory and transaction defaults for this database. Explicit limits
@@ -198,6 +204,10 @@ namespace LiteDB.Engine
         /// </summary>
         internal IStreamFactory CreateTempFactory()
         {
+            if (this.SharedReadSnapshot)
+            {
+                return new StreamFactory(new TempStream(), this.Password, true);
+            }
             if (this.TempStream != null)
             {
                 return new StreamFactory(this.TempStream, this.Password, false);
