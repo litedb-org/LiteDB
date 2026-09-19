@@ -120,11 +120,15 @@ namespace LiteDB.Engine
                         //do not remove $id
                         value.Remove("$ref");
 
-                        // copy values from refDocument into current documet (except _id - will keep $id)
-                        foreach (var element in refDoc.Where(x => x.Key != "_id"))
+                        // Keep $id for reference expressions and copy _id for ordinary
+                        // entity mapping when the included value is projected on its own.
+                        foreach (var element in refDoc.Where(x => !StringComparer.OrdinalIgnoreCase.Equals(x.Key, "$id")))
                         {
                             value[element.Key] = element.Value;
                         }
+
+                        // Standalone projections also bypass the DbRef discriminator hook.
+                        if (value.TryGetValue("$type", out var type)) value["_type"] = type;
                     }
                     else
                     {
@@ -377,7 +381,7 @@ namespace LiteDB.Engine
                         var value = select.ExecuteScalar(lookup.Load(node), _pragmas.Collation);
                         yield return value.IsDocument
                             ? value.AsDocument
-                            : new BsonDocument { [defaultName] = value };
+                            : new BsonDocument { [defaultName] = value, IsProjectionValue = true };
                     }
 
                     _transaction.Safepoint();

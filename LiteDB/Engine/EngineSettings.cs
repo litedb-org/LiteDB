@@ -92,6 +92,24 @@ namespace LiteDB.Engine
         public bool Upgrade { get; set; } = false;
 
         /// <summary>
+        /// Reject a document before it is written (insert, update, upsert, bulk) when it contains, at any depth
+        /// including <c>_id</c>, a Local or Unspecified <see cref="DateTime"/> that does not exist in
+        /// <see cref="TimeZoneInfo.Local"/> (the skipped hour of a daylight-saving transition). Such a value is
+        /// otherwise stored as the following valid hour, which can surface as a duplicate key. Throws
+        /// <see cref="ArgumentException"/>; inside an explicit transaction the failed operation rolls it back.
+        /// The result depends on the time zone of the machine: it never fires on a UTC host, and in zones that
+        /// switch at midnight a date-only value can be rejected. Utc, ambiguous, MinValue and MaxValue values are
+        /// always accepted; queries are never checked. Prefer storing UTC values. (default: false)
+        /// </summary>
+        public bool RejectInvalidLocalTime { get; set; } = false;
+
+        /// <summary>
+        /// Zone used by <see cref="RejectInvalidLocalTime"/>; null means <see cref="TimeZoneInfo.Local"/>.
+        /// Internal so tests do not depend on the time zone of the machine.
+        /// </summary>
+        internal TimeZoneInfo LocalTimeZone { get; set; }
+
+        /// <summary>
         /// Is used to transform a <see cref="BsonValue"/> from the database on read. This can be used to upgrade data from older versions.
         /// </summary>
         public Func<string, BsonValue, BsonValue> ReadTransform { get; set; }

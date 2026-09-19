@@ -1,7 +1,6 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
-using System.IO;
 using System.Runtime.InteropServices;
 using static LiteDB.Constants;
 
@@ -264,7 +263,7 @@ namespace LiteDB.Engine
         /// </summary>
         public DateTime ReadDateTime()
         {
-            var date = new DateTime(this.ReadInt64(), DateTimeKind.Utc);
+            var date = this.ReadInt64().ToUtcDateTime();
 
             return _utcDate ? date.ToLocalTime() : date;
         }
@@ -371,47 +370,6 @@ namespace LiteDB.Engine
             this.Read(buffer, 0, count);
             return buffer;
         }
-
-        /// <summary>
-        /// Read single IndexKey (BsonValue) from buffer. Use +1 length only for string/binary
-        /// </summary>
-        public BsonValue ReadIndexKey()
-        {
-            var type = (BsonType)this.ReadByte();
-
-            switch (type)
-            {
-                case BsonType.Null: return BsonValue.Null;
-
-                case BsonType.Int32: return this.ReadInt32();
-                case BsonType.Int64: return this.ReadInt64();
-                case BsonType.Double: return this.ReadDouble();
-                case BsonType.Decimal: return this.ReadDecimal();
-
-                // Use +1 byte only for length
-                case BsonType.String: return this.ReadString(this.ReadByte());
-
-                case BsonType.Document: return this.ReadDocument(null).GetValue();
-                case BsonType.Array: return this.ReadArray().GetValue();
-
-                // Use +1 byte only for length
-                case BsonType.Binary: return this.ReadBytes(this.ReadByte());
-                case BsonType.ObjectId: return this.ReadObjectId();
-                case BsonType.Guid: return this.ReadGuid();
-
-                case BsonType.Boolean: return this.ReadBoolean();
-                case BsonType.DateTime: return this.ReadDateTime();
-
-                case BsonType.MinValue: return BsonValue.MinValue;
-                case BsonType.MaxValue: return BsonValue.MaxValue;
-
-                case BsonType.Vector: return this.ReadVector();
-
-                default: throw new NotImplementedException();
-            }
-        }
-
-        
 
         #endregion
 

@@ -127,7 +127,6 @@ namespace LiteDB.Engine
         public IDocumentLookup GetLookup(Snapshot snapshot, EnginePragmas pragmas, uint maxItemsCount)
         {
             var data = new DataService(snapshot, maxItemsCount);
-            var indexer = new IndexService(snapshot, pragmas.Collation, maxItemsCount);
 
             if (this.Index is VectorIndexQuery vector)
             {
@@ -141,7 +140,7 @@ namespace LiteDB.Engine
             {
                 if (this.IsIndexKeyOnly)
                 {
-                    lookup = new IndexLookup(indexer, this.Fields.Single());
+                    lookup = new IndexLookup(this.Fields.Single(), new DatafileLookup(data, true, this.Fields), pragmas.UtcDate);
                 }
                 else
                 {

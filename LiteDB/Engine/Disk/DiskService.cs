@@ -55,6 +55,18 @@ namespace LiteDB.Engine
 
                 if (isNew)
                 {
+                    if (settings.ReadOnly)
+                    {
+                        // Open missing sources only to preserve the underlying path error.
+                        // Never initialize an empty file or caller-owned stream in read-only mode.
+                        if (_dataFactory is FileStreamFactory && !_dataFactory.Exists())
+                        {
+                            using (var source = _dataFactory.GetStream(false, false)) { }
+                        }
+                        throw new LiteException(LiteException.INVALID_DATABASE,
+                            "Database '{0}' is empty and cannot be initialized in read-only mode.",
+                            settings.Filename ?? _dataFactory.Name);
+                    }
                     LOG($"creating new database: '{Path.GetFileName(_dataFactory.Name)}'", "DISK");
 
                     this.Initialize(_dataPool.Writer.Value, settings.Collation, settings.InitialSize);

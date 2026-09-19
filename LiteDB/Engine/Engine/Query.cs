@@ -16,6 +16,7 @@ namespace LiteDB.Engine
         {
             if (string.IsNullOrWhiteSpace(collection)) throw new ArgumentNullException(nameof(collection));
             if (query == null) throw new ArgumentNullException(nameof(query));
+            _state.Validate();
 
             IEnumerable<BsonDocument> source = null;
 

@@ -73,6 +73,14 @@ namespace LiteDB
         public bool AutoRebuild { get; set; } = false;
 
         /// <summary>
+        /// "reject invalid local time": Throw ArgumentException instead of storing a document containing a Local or
+        /// Unspecified DateTime that does not exist in TimeZoneInfo.Local (the hour skipped by daylight saving), which
+        /// is otherwise stored as the following valid hour. Depends on the machine time zone: never fires on a UTC
+        /// host, and can reject date-only values in zones that switch at midnight. Prefer storing UTC (default: false)
+        /// </summary>
+        public bool RejectInvalidLocalTime { get; set; } = false;
+
+        /// <summary>
         /// "collation": Set default collaction when database creation (default: "[CurrentCulture]/IgnoreCase")
         /// </summary>
         public Collation Collation { get; set; }
@@ -139,6 +147,7 @@ namespace LiteDB
 
             this.Upgrade = _values.GetValue("upgrade", this.Upgrade);
             this.AutoRebuild = _values.GetValue("auto-rebuild", this.AutoRebuild);
+            this.RejectInvalidLocalTime = _values.GetValue("reject invalid local time", this.RejectInvalidLocalTime);
         }
 
         private static bool LooksLikeKeyValueConnectionString(string connectionString)
@@ -160,6 +169,7 @@ namespace LiteDB
                 firstKey.Equals("readonly", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("upgrade", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("auto-rebuild", StringComparison.OrdinalIgnoreCase) ||
+                firstKey.Equals("reject invalid local time", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("collation", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("memory profile", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("cache size", StringComparison.OrdinalIgnoreCase) ||
@@ -215,6 +225,7 @@ namespace LiteDB
                 Collation = this.Collation,
                 Upgrade = this.Upgrade,
                 AutoRebuild = this.AutoRebuild,
+                RejectInvalidLocalTime = this.RejectInvalidLocalTime,
             };
 
             engineSettingsAction?.Invoke(settings);
@@ -322,6 +333,13 @@ namespace LiteDB
             {
                 bld.Append("Auto-Rebuild=")
                     .Append(AutoRebuild)
+                    .Append(';');
+            }
+
+            if (RejectInvalidLocalTime)
+            {
+                bld.Append("Reject Invalid Local Time=")
+                    .Append(RejectInvalidLocalTime)
                     .Append(';');
             }
 

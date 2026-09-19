@@ -11,13 +11,15 @@ namespace LiteDB.Engine
     {
         private readonly string[] _names;
         private readonly int[] _slots;
+        private readonly bool _isProjectionValue;
 
         private BorrowedProjectionEvaluator(BorrowedFieldPath[] paths,
-            string[] names, int[] slots)
+            string[] names, int[] slots, bool isProjectionValue)
         {
             this.Paths = paths;
             _names = names;
             _slots = slots;
+            _isProjectionValue = isProjectionValue;
         }
 
         public BorrowedFieldPath[] Paths { get; }
@@ -32,7 +34,7 @@ namespace LiteDB.Engine
                     out var path, out var slot))
             {
                 evaluator = new BorrowedProjectionEvaluator(new[] { path },
-                    new[] { expression.DefaultFieldName() }, new[] { slot });
+                    new[] { expression.DefaultFieldName() }, new[] { slot }, true);
                 return true;
             }
 
@@ -65,13 +67,13 @@ namespace LiteDB.Engine
                 names[i] = name;
             }
 
-            evaluator = new BorrowedProjectionEvaluator(paths.ToArray(), names, slots);
+            evaluator = new BorrowedProjectionEvaluator(paths.ToArray(), names, slots, false);
             return paths.Count > 0;
         }
 
         public bool TryProject(BorrowedBsonValue[] source, out BsonDocument document)
         {
-            document = new BsonDocument();
+            document = new BsonDocument { IsProjectionValue = _isProjectionValue };
 
             for (var i = 0; i < _slots.Length; i++)
             {

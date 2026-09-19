@@ -35,11 +35,13 @@ public partial class BsonMapper
                 try
                 {
                     this.BuildEntityMapper(mapper);
+                    mapper.IsInitialized = true;
                 }
                 catch (Exception ex)
                 {
                     _entities.TryRemove(type, out _);
-                    throw new LiteException(LiteException.MAPPING_ERROR, $"Error in '{type.Name}' mapping: {ex.Message}", ex);
+                    throw new LiteException(LiteException.MAPPING_ERROR, ex,
+                        "Error in '{0}' mapping: {1}", type.FullName, ex.Message);
                 }
             }
         }
@@ -65,13 +67,13 @@ public partial class BsonMapper
 
         var members = this.GetTypeMembers(mapper.ForType);
         var id = this.GetIdMember(members);
+        mapper.UsesCustomIdSelection = HasCustomIdSelection(GetType());
 
         foreach (var memberInfo in members)
         {
             // checks [BsonIgnore]
             if (CustomAttributeExtensions.IsDefined(memberInfo, ignoreAttr, true)) continue;
 
-            // checks field name conversion
             var name = this.ResolveFieldName(memberInfo.Name);
 
             // check if property has [BsonField]
@@ -98,19 +100,18 @@ public partial class BsonMapper
             var autoId = (BsonIdAttribute)CustomAttributeExtensions.GetCustomAttributes(memberInfo, idAttr, true)
                 .FirstOrDefault();
 
-            // get data type
             var dataType = memberInfo is PropertyInfo
                 ? (memberInfo as PropertyInfo).PropertyType
                 : (memberInfo as FieldInfo).FieldType;
 
-            // check if datatype is list/array
             var isEnumerable = Reflection.IsEnumerable(dataType);
 
-            // create a property mapper
             var member = new MemberMapper
             {
                 AutoId = autoId == null ? true : autoId.AutoId,
                 FieldName = name,
+                HasExplicitFieldName = autoId != null || field?.Name != null,
+                ReflectedMember = memberInfo,
                 MemberName = memberInfo.Name,
                 DataType = dataType,
                 IsEnumerable = isEnumerable,
@@ -151,6 +152,7 @@ public partial class BsonMapper
         return Reflection.SelectMember(members,
             x => CustomAttributeExtensions.IsDefined(x, typeof(BsonIdAttribute), true),
             x => x.Name.Equals("Id", StringComparison.OrdinalIgnoreCase),
+            x => x.Name.Equals(x.ReflectedType.Name + "Id", StringComparison.OrdinalIgnoreCase),
             x => x.Name.Equals(x.DeclaringType.Name + "Id", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -165,9 +167,22 @@ public partial class BsonMapper
             ? (BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
             : (BindingFlags.Public | BindingFlags.Instance);
 
-        members.AddRange(type.GetProperties(flags)
-            .Where(x => x.CanRead && x.GetIndexParameters().Length == 0)
-            .Select(x => x as MemberInfo));
+        // Reflection does not include inherited interface properties. Visit the
+        // most-derived contracts first so a redeclaration owns its member name.
+        var contracts = type.IsInterface
+            ? new[] { type }.Concat(type.GetInterfaces().OrderByDescending(x => x.GetInterfaces().Length)
+                .ThenBy(x => x.FullName, StringComparer.Ordinal))
+            : new[] { type };
+        var properties = contracts.SelectMany(contract => contract.GetProperties(flags))
+            .Where(x => x.CanRead && x.GetIndexParameters().Length == 0);
+        if (type.IsInterface)
+        {
+            var declared = properties.Distinct().ToArray();
+            properties = declared.Where(property => !declared.Any(other => other.Name == property.Name &&
+                other.DeclaringType != property.DeclaringType &&
+                other.DeclaringType.GetInterfaces().Contains(property.DeclaringType)));
+        }
+        members.AddRange(properties.Select(x => x as MemberInfo));
 
         var shouldIncludeFields = members.Count == 0
                                   && type.GetTypeInfo().IsValueType;
@@ -192,6 +207,7 @@ public partial class BsonMapper
         Type type = mapper.ForType;
         List<CreateObject> Mappings = new List<CreateObject>();
         bool returnZeroParamNull = false;
+        bool missingParameterNames = false;
         foreach (ConstructorInfo ctor in type.GetConstructors())
         {
             ParameterInfo[] pars = ctor.GetParameters();
@@ -202,27 +218,29 @@ public partial class BsonMapper
                 continue;
             }
 
-            KeyValuePair<string, Type>[] paramMap = new KeyValuePair<string, Type>[pars.Length];
+            var paramMap = new MemberMapper[pars.Length];
+            if (pars.Any(parameter => string.IsNullOrEmpty(parameter.Name)))
+            {
+                if (ctor.GetCustomAttribute<BsonCtorAttribute>() != null)
+                    throw MissingConstructorParameterNames(type);
+                missingParameterNames = true;
+                continue;
+            }
             int i;
             for (i = 0; i < pars.Length; i++)
             {
                 ParameterInfo par = pars[i];
-                MemberMapper mi = null;
-                foreach (MemberMapper member in mapper.Members)
-                {
-                    if (member.MemberName.ToLower() == par.Name.ToLower() && member.DataType == par.ParameterType)
-                    {
-                        mi = member;
-                        break;
-                    }
-                }
+                var mi = mapper.Members.FirstOrDefault(member => member.DataType == par.ParameterType &&
+                    member.MemberName.Equals(par.Name, StringComparison.OrdinalIgnoreCase)) ??
+                    mapper.Members.FirstOrDefault(member => member.DataType == par.ParameterType &&
+                        member.FieldName.Equals(par.Name, StringComparison.OrdinalIgnoreCase));
 
                 if (mi == null)
                 {
                     break;
                 }
 
-                paramMap[i] = new KeyValuePair<string, Type>(mi.FieldName, mi.DataType);
+                paramMap[i] = mi;
             }
 
             if (i < pars.Length)
@@ -230,9 +248,7 @@ public partial class BsonMapper
                 continue;
             }
 
-            CreateObject toAdd = (BsonDocument value) =>
-                Activator.CreateInstance(type, paramMap.Select(x =>
-                    this.Deserialize(x.Value, value[x.Key])).ToArray());
+            CreateObject toAdd = new MappedConstructor(this, ctor, paramMap).Create;
             if (ctor.GetCustomAttribute<BsonCtorAttribute>() != null)
             {
                 return toAdd;
@@ -248,6 +264,8 @@ public partial class BsonMapper
             return null;
         }
 
+        if (Mappings.Count == 0 && missingParameterNames)
+            throw MissingConstructorParameterNames(type);
         return Mappings.FirstOrDefault();
     }
 }

@@ -1,4 +1,4 @@
-﻿using LiteDB.Utils;
+using LiteDB.Utils;
 
 using System;
 using System.Collections.Concurrent;
@@ -103,7 +103,7 @@ namespace LiteDB.Engine
                 var buffer = _disk.ReadFull(FileOrigin.Data).First();
 
                 // if first byte are 1 this datafile are encrypted but has do defined password to open
-                if (buffer[0] == 1) throw new LiteException(0, "This data file is encrypted and needs a password to open");
+                if (buffer[0] == 1) throw new LiteException(LiteException.INVALID_PASSWORD, "This data file is encrypted and needs a password to open");
 
                 // read header database page
                 _header = new HeaderPage(buffer);
@@ -126,6 +126,10 @@ namespace LiteDB.Engine
                     // read buffer header page again
                     buffer = _disk.ReadFull(FileOrigin.Data).First();
 
+                    // if first byte are 1 this datafile are encrypted but has do defined password to open
+                    if (buffer[0] == 1) throw new LiteException(LiteException.INVALID_PASSWORD, "This data file is encrypted and needs a password to open");
+
+                    // read header database page
                     _header = new HeaderPage(buffer);
                     _disk.FileVersion = _header.FileVersion;
                 }

@@ -15,7 +15,7 @@ namespace LiteDB
             foreach (var item in input)
             {
                 // execute for each child value and except a first bool value (returns if true)
-                var values = mapExpr.Execute(new BsonDocument[] { root }, root, item, collation);
+                var values = mapExpr.Execute(new BsonDocument[] { root }, root, item, collation, parameters);
 
                 foreach (var value in values)
                 {
@@ -29,7 +29,7 @@ namespace LiteDB
             foreach (var item in input)
             {
                 // execute for each child value and except a first bool value (returns if true)
-                var c = filterExpr.ExecuteScalar(new BsonDocument[] { root }, root, item, collation);
+                var c = filterExpr.ExecuteScalar(new BsonDocument[] { root }, root, item, collation, parameters);
 
                 if (c.IsBoolean && c.AsBoolean == true)
                 {
@@ -44,7 +44,7 @@ namespace LiteDB
             {
                 foreach (var item in input)
                 {
-                    var value = sortExpr.ExecuteScalar(new BsonDocument[] { root }, root, item, collation);
+                    var value = sortExpr.ExecuteScalar(new BsonDocument[] { root }, root, item, collation, parameters);
 
                     yield return new Tuple<BsonValue, BsonValue>(item, value);
                 }
