@@ -4,7 +4,7 @@ draft: false
 weight: 8
 ---
 
-To keep its memory profile slim, LiteDB limits the size of documents to 1MB. For most documents, this is plenty. However, this is too small for useful file storage, so LiteDB provides `FileStorage`, a custom collection to store files and streams.
+LiteDB limits each root BSON document to 16MB, including its embedded documents and arrays. Documents referenced with `BsonRef` are stored separately and do not count toward the referring document's size. For files and streams that exceed this limit, LiteDB provides `FileStorage`, which stores metadata in `_files` and splits file content into documents in `_chunks`.
 
 `FileStorage` uses two special collections:
 

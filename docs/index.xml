@@ -98,7 +98,7 @@ Options    Key Type Description Default value     Filename string Full or relati
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       
       <guid>/docs/filestorage/</guid>
-      <description>To keep its memory profile slim, LiteDB limits the size of a documents to 1MB. For most documents, this is plenty. However, 1MB is too small for a useful file storage. For this reason, LiteDB implements FileStorage, a custom collection to store files and streams.
+      <description>LiteDB limits each root BSON document to 16MB, including its embedded documents and arrays. Documents referenced with BsonRef are stored separately and do not count toward the referring document's size. For files and streams that exceed this limit, LiteDB provides FileStorage, which stores metadata in _files and splits file content into documents in _chunks.
 FileStorage uses two special collections:
  The first collection stores file references and metadata only (by default it is called _files)  { _id: &amp;#34;my-photo&amp;#34;, filename: &amp;#34;my-photo.</description>
     </item>
