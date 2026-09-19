@@ -107,6 +107,19 @@ namespace LiteDB.Engine
         public bool RejectInvalidLocalTime { get; set; } = false;
 
         /// <summary>
+        /// When true, each committed transaction is synced to the storage device (<c>FileStream.Flush(true)</c> on
+        /// the log file) before Commit returns, so an acknowledged commit survives power loss and an operating
+        /// system crash. This costs about one device sync per commit; transactions that batch many writes and
+        /// InsertBulk pay it once. When false (the behaviour before 6.0), committed data is handed to the operating
+        /// system only: it survives a crash of the process, but a power loss or operating system crash can lose the
+        /// most recent commits, and because unsynced log pages may reach the device in any order it can, rarely,
+        /// leave the last transactions partially applied. Checkpoints and file creation are synced either way.
+        /// Not stored in the data file: the same file can be opened with either value. Has no effect on
+        /// <c>:memory:</c>, <c>:temp:</c> and non-file streams, which cannot be synced. (default: true)
+        /// </summary>
+        public bool DurableCommits { get; set; } = true;
+
+        /// <summary>
         /// Zone used by <see cref="RejectInvalidLocalTime"/>; null means <see cref="TimeZoneInfo.Local"/>.
         /// Internal so tests do not depend on the time zone of the machine.
         /// </summary>
@@ -129,7 +142,7 @@ namespace LiteDB.Engine
         {
             if (this.DataStream != null)
             {
-                return new StreamFactory(this.DataStream, this.Password, false);
+                return new StreamFactory(this.DataStream, useAesStream ? this.Password : null, false);
             }
             else if (this.Filename == ":memory:")
             {

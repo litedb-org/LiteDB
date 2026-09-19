@@ -88,7 +88,7 @@ namespace LiteDB.Engine
                 }
             }
 
-            return _password == null || !_useAesStream ? (Stream)stream : new AesStream(_password, stream);
+            return _password == null || !_useAesStream ? (Stream)stream : new AesStream(_password, stream, allowRecovery: false);
         }
 
         /// <summary>

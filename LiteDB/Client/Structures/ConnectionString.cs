@@ -84,6 +84,15 @@ namespace LiteDB
         public bool RejectInvalidLocalTime { get; set; } = false;
 
         /// <summary>
+        /// "durable commits": Sync each committed transaction to the storage device before Commit returns, so it
+        /// survives power loss and operating system crashes, at about one device sync per commit. Set to false for
+        /// the behaviour before 6.0: commits are handed to the operating system only, which is much faster for many
+        /// small transactions and still survives a process crash, but a power loss or operating system crash can lose
+        /// the most recent commits or, rarely, leave them partially applied. Not stored in the data file (default: true)
+        /// </summary>
+        public bool DurableCommits { get; set; } = true;
+
+        /// <summary>
         /// "collation": Set default collaction when database creation (default: "[CurrentCulture]/IgnoreCase")
         /// </summary>
         public Collation Collation { get; set; }
@@ -152,6 +161,7 @@ namespace LiteDB
             this.Upgrade = _values.GetValue("upgrade", this.Upgrade);
             this.AutoRebuild = _values.GetValue("auto-rebuild", this.AutoRebuild);
             this.RejectInvalidLocalTime = _values.GetValue("reject invalid local time", this.RejectInvalidLocalTime);
+            this.DurableCommits = _values.GetValue("durable commits", this.DurableCommits);
         }
 
         private static bool LooksLikeKeyValueConnectionString(string connectionString)
@@ -175,6 +185,7 @@ namespace LiteDB
                 firstKey.Equals("upgrade", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("auto-rebuild", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("reject invalid local time", StringComparison.OrdinalIgnoreCase) ||
+                firstKey.Equals("durable commits", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("collation", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("memory profile", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("cache size", StringComparison.OrdinalIgnoreCase) ||
@@ -232,6 +243,7 @@ namespace LiteDB
                 Upgrade = this.Upgrade,
                 AutoRebuild = this.AutoRebuild,
                 RejectInvalidLocalTime = this.RejectInvalidLocalTime,
+                DurableCommits = this.DurableCommits,
             };
 
             engineSettingsAction?.Invoke(settings);
@@ -350,6 +362,13 @@ namespace LiteDB
             }
 
             if (CompactStorage) bld.Append("Compact Storage=true;");
+
+            if (DurableCommits == false)
+            {
+                bld.Append("Durable Commits=")
+                    .Append(DurableCommits)
+                    .Append(';');
+            }
 
             if (MemoryProfile != MemoryProfile.Balanced)
             {

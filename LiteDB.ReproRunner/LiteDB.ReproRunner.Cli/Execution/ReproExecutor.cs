@@ -13,7 +13,7 @@ namespace LiteDB.ReproRunner.Cli.Execution;
 /// <summary>
 /// Executes built repro assemblies and relays their structured output.
 /// </summary>
-internal sealed class ReproExecutor
+internal sealed partial class ReproExecutor
 {
     private const int CapturedOutputLimit = 200;
 
@@ -125,21 +125,16 @@ internal sealed class ReproExecutor
                 capturedOutput,
                 cancellationToken).ConfigureAwait(false);
 
-            FinalizeConfigurationValidation();
-            var configurationMismatch = HasConfigurationMismatch();
-
-            if (configurationMismatch && exitCode == 0)
-            {
-                exitCode = -2;
-            }
+            var configurationValid = ValidateConfiguration();
 
             stopwatch.Stop();
             return new ReproExecutionResult(
                 build.Plan.UseProjectReference,
-                exitCode == 0 && !configurationMismatch,
+                exitCode == 0 && configurationValid,
                 exitCode,
                 stopwatch.Elapsed,
-                capturedOutput.ToSnapshot());
+                capturedOutput.ToSnapshot(),
+                configurationValid);
         }
         finally
         {
@@ -212,17 +207,7 @@ internal sealed class ReproExecutor
             await allProcessesTask.ConfigureAwait(false);
             await Task.WhenAll(outputTasks.Concat(errorTasks)).ConfigureAwait(false);
 
-            var exitCode = 0;
-
-            foreach (var process in processes)
-            {
-                if (process.ExitCode != 0 && exitCode == 0)
-                {
-                    exitCode = process.ExitCode;
-                }
-            }
-
-            return exitCode;
+            return AggregateExitCodes(processes.Select(process => process.ExitCode));
         }
         finally
         {
@@ -713,7 +698,7 @@ internal sealed class ReproExecutor
 /// <param name="ExitCode">The exit code reported by the repro host.</param>
 /// <param name="Duration">The elapsed time for the execution.</param>
 /// <param name="CapturedOutput">The captured standard output and error lines.</param>
-internal readonly record struct ReproExecutionResult(bool UseProjectReference, bool Reproduced, int ExitCode, TimeSpan Duration, IReadOnlyList<ReproExecutionCapturedLine> CapturedOutput);
+internal readonly record struct ReproExecutionResult(bool UseProjectReference, bool Reproduced, int ExitCode, TimeSpan Duration, IReadOnlyList<ReproExecutionCapturedLine> CapturedOutput, bool ConfigurationValid = true);
 
 /// <summary>
 /// Represents a structured log entry emitted during repro execution.

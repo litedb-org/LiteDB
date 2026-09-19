@@ -1,0 +1,47 @@
+{
+  "sourceBase": "527897db",
+  "change": "Idle cached readable-frame ownership transfer for writes",
+  "platform": "Linux x64 / .NET 8 / Release / TestingEnabled=false",
+  "rows": 1000000,
+  "samples": [
+    {
+      "round": 0,
+      "largeBudget": false,
+      "insertMs": 33099.242,
+      "deleteMs": 25558.931
+    },
+    {
+      "round": 0,
+      "largeBudget": true,
+      "insertMs": 17518.189,
+      "deleteMs": 14433.009
+    },
+    {
+      "round": 1,
+      "largeBudget": true,
+      "insertMs": 18179.439,
+      "deleteMs": 16108.758
+    },
+    {
+      "round": 1,
+      "largeBudget": false,
+      "insertMs": 32098.223,
+      "deleteMs": 25829.94
+    },
+    {
+      "round": 2,
+      "largeBudget": false,
+      "insertMs": 32103.316,
+      "deleteMs": 24769.686
+    },
+    {
+      "round": 2,
+      "largeBudget": true,
+      "insertMs": 17427.589,
+      "deleteMs": 15470.09
+    }
+  ],
+  "insertRatio": 1.833,
+  "deleteRatio": 1.652,
+  "allDataChecksPassed": true
+}
