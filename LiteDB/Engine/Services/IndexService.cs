@@ -24,6 +24,7 @@ namespace LiteDB.Engine
         }
 
         public Collation Collation => _collation;
+        internal uint MaxItemsCount => _maxItemsCount;
         public void Safepoint() => _snapshot.Safepoint();
 
         /// <summary>
@@ -107,7 +108,7 @@ namespace LiteDB.Engine
             // scan from top left
             for (int currentLevel = MAX_LEVEL_LENGTH - 1; currentLevel >= 0; currentLevel--)
             {
-                var right = leftNode.Next[currentLevel];
+                var right = leftNode.GetNextPrev((byte)currentLevel, Query.Ascending);
 
                 // while: scan from left to right
                 while (right.IsEmpty == false && right != index.Tail)
@@ -124,7 +125,7 @@ namespace LiteDB.Engine
                     if (diff == 1) break; // stop going right
 
                     leftNode = rightNode;
-                    right = rightNode.Next[currentLevel];
+                    right = rightNode.GetNextPrev((byte)currentLevel, Query.Ascending);
                 }
 
                 if (currentLevel <= (insertLevels - 1)) // level == length
@@ -134,7 +135,7 @@ namespace LiteDB.Engine
                     // next: right node from prev (where left is pointing)
 
                     var prev = leftNode.Position;
-                    var next = leftNode.Next[currentLevel];
+                    var next = leftNode.GetNextPrev((byte)currentLevel, Query.Ascending);
 
                     // if next is empty, use tail (last key)
                     if (next.IsEmpty) next = index.Tail;
@@ -146,7 +147,7 @@ namespace LiteDB.Engine
                     // fix sibling pointer to new node
                     leftNode.SetNext((byte)currentLevel, node.Position);
 
-                    right = node.Next[currentLevel]; // next
+                    right = node.GetNextPrev((byte)currentLevel, Query.Ascending); // next
 
                     var rightNode = this.GetNode(right);
 
@@ -283,16 +284,16 @@ namespace LiteDB.Engine
             for (int i = node.Levels - 1; i >= 0; i--)
             {
                 // get previous and next nodes (between my deleted node)
-                var prevNode = this.GetNode(node.Prev[i]);
-                var nextNode = this.GetNode(node.Next[i]);
+                var prevNode = this.GetNode(node.GetNextPrev((byte)i, Query.Descending));
+                var nextNode = this.GetNode(node.GetNextPrev((byte)i, Query.Ascending));
 
                 if (prevNode != null)
                 {
-                    prevNode.SetNext((byte)i, node.Next[i]);
+                    prevNode.SetNext((byte)i, node.GetNextPrev((byte)i, Query.Ascending));
                 }
                 if (nextNode != null)
                 {
-                    nextNode.SetPrev((byte)i, node.Prev[i]);
+                    nextNode.SetPrev((byte)i, node.GetNextPrev((byte)i, Query.Descending));
                 }
             }
 
@@ -374,7 +375,7 @@ namespace LiteDB.Engine
         /// If index are unique, return unique value - if index are not unique, return first found (can start, middle or end)
         /// If not found but sibling = true and key are not found, returns next value index node (if order = Asc) or prev node (if order = Desc)
         /// </summary>
-        public IndexNode Find(CollectionIndex index, BsonValue value, bool sibling, int order)
+        public IndexNode Find(CollectionIndex index, BsonValue value, bool sibling, int order, bool skipEqual = false)
         {
             var leftNode = order == Query.Ascending ? this.GetNode(index.Head) : this.GetNode(index.Tail);
             var counter = 0ul;
@@ -400,8 +401,8 @@ namespace LiteDB.Engine
                         return (rightNode.Key.IsMinValue || rightNode.Key.IsMaxValue) ? null : rightNode;
                     }
 
-                    // if equals, return index node
-                    if (diff == 0)
+                    // Exclusive seeks traverse equal keys at every skip-list level.
+                    if (diff == 0 && !skipEqual)
                     {
                         return rightNode;
                     }

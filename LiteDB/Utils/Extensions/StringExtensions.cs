@@ -38,34 +38,38 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Match SQL LIKE patterns: percent matches any sequence and underscore one character.
+        /// Match percent (zero or more UTF-16 units) and underscore (one unit)
+        /// wildcards using the execution collation for literal characters.
         /// </summary>
         public static bool SqlLike(this string str, string pattern, Collation collation)
         {
             var valueIndex = 0;
             var patternIndex = 0;
-            var wildcardIndex = -1;
-            var wildcardValueIndex = 0;
+            var wildcardPattern = -1;
+            var wildcardValue = -1;
 
             while (valueIndex < str.Length)
             {
                 if (patternIndex < pattern.Length && pattern[patternIndex] == '%')
                 {
-                    wildcardIndex = patternIndex++;
-                    wildcardValueIndex = valueIndex;
+                    while (patternIndex < pattern.Length && pattern[patternIndex] == '%') patternIndex++;
+                    // A terminal percent already accepts the entire remaining value.
+                    if (patternIndex == pattern.Length) return true;
+                    wildcardPattern = patternIndex;
+                    wildcardValue = valueIndex;
                 }
-                else if (patternIndex < pattern.Length &&
-                    (pattern[patternIndex] == '_' ||
-                     collation.Compare(str[valueIndex].ToString(), pattern[patternIndex].ToString()) == 0))
+                else if (patternIndex < pattern.Length && (pattern[patternIndex] == '_' ||
+                    collation.EqualsCharacter(str, valueIndex, pattern, patternIndex)))
                 {
                     valueIndex++;
                     patternIndex++;
                 }
-                else if (wildcardIndex >= 0)
+                else if (wildcardPattern >= 0)
                 {
-                    // Retry after the last percent, consuming one more input character each time.
-                    patternIndex = wildcardIndex + 1;
-                    valueIndex = ++wildcardValueIndex;
+                    // Retry the suffix after the most recent percent. Each retry
+                    // consumes another input unit, even when literal matching rewinds.
+                    patternIndex = wildcardPattern;
+                    valueIndex = ++wildcardValue;
                 }
                 else
                 {

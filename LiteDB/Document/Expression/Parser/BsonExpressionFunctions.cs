@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -12,24 +12,30 @@ namespace LiteDB
     {
         public static IEnumerable<BsonValue> MAP(BsonDocument root, Collation collation, BsonDocument parameters, IEnumerable<BsonValue> input, BsonExpression mapExpr)
         {
+            var source = mapExpr.UseSource ? new[] { root } : Array.Empty<BsonDocument>();
             foreach (var item in input)
             {
-                // execute for each child value and except a first bool value (returns if true)
-                var values = mapExpr.Execute(new BsonDocument[] { root }, root, item, collation, parameters);
-
-                foreach (var value in values)
+                if (mapExpr.IsScalar)
                 {
-                    yield return value;
+                    yield return mapExpr.ExecuteScalar(source, root, item, collation, parameters);
+                }
+                else
+                {
+                    foreach (var value in mapExpr.Execute(source, root, item, collation, parameters))
+                    {
+                        yield return value;
+                    }
                 }
             }
         }
 
         public static IEnumerable<BsonValue> FILTER(BsonDocument root, Collation collation, BsonDocument parameters, IEnumerable<BsonValue> input, BsonExpression filterExpr)
         {
+            var source = filterExpr.UseSource ? new[] { root } : Array.Empty<BsonDocument>();
             foreach (var item in input)
             {
                 // execute for each child value and except a first bool value (returns if true)
-                var c = filterExpr.ExecuteScalar(new BsonDocument[] { root }, root, item, collation, parameters);
+                var c = filterExpr.ExecuteScalar(source, root, item, collation, parameters);
 
                 if (c.IsBoolean && c.AsBoolean == true)
                 {
@@ -42,9 +48,10 @@ namespace LiteDB
         {
             IEnumerable<Tuple<BsonValue, BsonValue>> source()
             {
+                var documents = sortExpr.UseSource ? new[] { root } : Array.Empty<BsonDocument>();
                 foreach (var item in input)
                 {
-                    var value = sortExpr.ExecuteScalar(new BsonDocument[] { root }, root, item, collation, parameters);
+                    var value = sortExpr.ExecuteScalar(documents, root, item, collation, parameters);
 
                     yield return new Tuple<BsonValue, BsonValue>(item, value);
                 }

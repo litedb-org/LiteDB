@@ -30,7 +30,7 @@ namespace LiteDB.Engine
             throw new NotImplementedException();
         }
 
-        public override IEnumerable<IndexNode> Run(CollectionPage col, IndexService indexer, bool forUpdate)
+        public override IEnumerable<IndexNode> Run(CollectionPage col, IndexService indexer)
         {
             var rawId = 0u;
 

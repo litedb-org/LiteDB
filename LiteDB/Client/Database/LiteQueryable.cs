@@ -414,7 +414,7 @@ namespace LiteDB
 
             try
             {
-                this.Select($"{{ count: COUNT(*._id) }}");
+                _query.Select = QueryAggregateExpressions.Count.Bind(new BsonDocument());
                 var count = this.ToDocuments().Single()["count"].AsInt64;
 
                 if (count > int.MaxValue) throw new OverflowException($"The query matches {count} documents, which does not fit an Int32. Use LongCount().");
@@ -436,7 +436,7 @@ namespace LiteDB
 
             try
             {
-                this.Select($"{{ count: COUNT(*._id) }}");
+                _query.Select = QueryAggregateExpressions.Count.Bind(new BsonDocument());
                 var ret = this.ToDocuments().Single()["count"].AsInt64;
 
                 return ret;
@@ -456,7 +456,7 @@ namespace LiteDB
 
             try
             {
-                this.Select($"{{ exists: ANY(*._id) }}");
+                _query.Select = QueryAggregateExpressions.Exists.Bind(new BsonDocument());
                 var ret = this.ToDocuments().Single()["exists"].AsBoolean;
 
                 return ret;

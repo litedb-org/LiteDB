@@ -8,7 +8,7 @@ namespace LiteDB.Engine
     /// <summary>
     /// Abstract class with workflow method to be used in pipeline implementation
     /// </summary>
-    internal abstract class BasePipe
+    internal abstract partial class BasePipe
     {
         protected readonly TransactionService _transaction;
         protected readonly IDocumentLookup _lookup;
@@ -162,6 +162,11 @@ namespace LiteDB.Engine
         /// </summary>
         protected IEnumerable<BsonDocument> OrderBy(IEnumerable<BsonDocument> source, OrderBy orderBy, int offset, int limit)
         {
+            if (offset >= 0 && limit > 0 && (long)offset + limit <= TopNSort.MaximumCapacity)
+            {
+                foreach (var doc in this.OrderTopN(source, orderBy, offset, limit)) yield return doc;
+                yield break;
+            }
             var segments = orderBy.Segments;
 
             if (segments.Count == 1)

@@ -27,6 +27,9 @@ namespace LiteDB.Engine
 
         private readonly IndexPage _page;
         private readonly BufferSlice _segment;
+        // Own the encoded links: readers can retain nodes after a safepoint has
+        // released their backing pages. One packed copy avoids two pointer arrays.
+        private readonly byte[] _links;
 
         private static readonly byte[] arrayByteEmpty = new byte[0];
 
@@ -59,16 +62,6 @@ namespace LiteDB.Engine
         /// Single linked-list for all nodes from a single document [5 bytes]
         /// </summary>
         public PageAddress NextNode { get; private set; }
-
-        /// <summary>
-        /// Link to prev value (used in skip lists - Prev.Length = Next.Length) [5 bytes]
-        /// </summary>
-        public PageAddress[] Prev { get; private set; }
-
-        /// <summary>
-        /// Link to next value (used in skip lists - Prev.Length = Next.Length)
-        /// </summary>
-        public PageAddress[] Next { get; private set; }
 
         /// <summary>
         /// Get index page reference
@@ -114,14 +107,7 @@ namespace LiteDB.Engine
             this.DataBlock = segment.ReadPageAddress(P_DATA_BLOCK);
             this.NextNode = segment.ReadPageAddress(P_NEXT_NODE);
 
-            this.Next = new PageAddress[this.Levels];
-            this.Prev = new PageAddress[this.Levels];
-
-            for (var i = 0; i < this.Levels; i++)
-            {
-                this.Prev[i] = segment.ReadPageAddress(P_PREV_NEXT + (i * PageAddress.SIZE * 2));
-                this.Next[i] = segment.ReadPageAddress(P_PREV_NEXT + (i * PageAddress.SIZE * 2) + PageAddress.SIZE);
-            }
+            _links = segment.ReadBytes(P_PREV_NEXT, this.Levels * PageAddress.SIZE * 2);
 
             this.Key = segment.ReadIndexKey(P_KEY);
         }
@@ -139,8 +125,7 @@ namespace LiteDB.Engine
             this.Levels = levels;
             this.DataBlock = dataBlock;
             this.NextNode = PageAddress.Empty;
-            this.Next = new PageAddress[levels];
-            this.Prev = new PageAddress[levels];
+            _links = new byte[levels * PageAddress.SIZE * 2];
             this.Key = key;
 
             // persist in buffer read only data
@@ -173,8 +158,7 @@ namespace LiteDB.Engine
             this.Levels = 0;
             this.DataBlock = PageAddress.Empty;
             this.NextNode = PageAddress.Empty;
-            this.Next = new PageAddress[0];
-            this.Prev = new PageAddress[0];
+            _links = arrayByteEmpty;
 
             // index node key IS document
             this.Key = doc;
@@ -197,26 +181,24 @@ namespace LiteDB.Engine
         /// </summary>
         public void SetPrev(byte level, PageAddress value)
         {
-            ENSURE(level <= this.Levels, "out of index in level");
-
-            this.Prev[level] = value;
-
-            _segment.Write(value, P_PREV_NEXT + (level * PageAddress.SIZE * 2));
-
-            _page.IsDirty = true;
+            SetLink(level, Query.Descending, value);
         }
 
         /// <summary>
-        /// Update Next[index] pointer (update in buffer too). Also, set page as dirty
+        /// Update the next link at this level and persist it in the page.
         /// </summary>
         public void SetNext(byte level, PageAddress value)
         {
-            ENSURE(level <= this.Levels, "out of index in level");
+            SetLink(level, Query.Ascending, value);
+        }
 
-            this.Next[level] = value;
-
-            _segment.Write(value, P_PREV_NEXT + (level * PageAddress.SIZE * 2) + PageAddress.SIZE);
-
+        private void SetLink(byte level, int order, PageAddress value)
+        {
+            ENSURE(level < this.Levels, "out of index in level");
+            var offset = level * PageAddress.SIZE * 2 + (order == Query.Ascending ? PageAddress.SIZE : 0);
+            _segment.Write(value, P_PREV_NEXT + offset);
+            value.PageID.ToBytes(_links, offset);
+            _links[offset + 4] = value.Index;
             _page.IsDirty = true;
         }
 
@@ -225,7 +207,8 @@ namespace LiteDB.Engine
         /// </summary>
         public PageAddress GetNextPrev(byte level, int order)
         {
-            return order == Query.Ascending ? this.Next[level] : this.Prev[level];
+            var offset = level * PageAddress.SIZE * 2 + (order == Query.Ascending ? PageAddress.SIZE : 0);
+            return new PageAddress(BitConverter.ToUInt32(_links, offset), _links[offset + 4]);
         }
 
         public override string ToString()
