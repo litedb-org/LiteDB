@@ -33,6 +33,7 @@ namespace LiteDB.Engine
             var bytesLeft = doc.GetBytesCount(true);
 
             if (bytesLeft > MAX_DOCUMENT_SIZE) throw new LiteException(0, "Document size exceed {0} limit", MAX_DOCUMENT_SIZE);
+            _snapshot.CheckVectorVersion(doc);
 
             var firstBlock = PageAddress.Empty;
 
@@ -84,6 +85,7 @@ namespace LiteDB.Engine
             var bytesLeft = doc.GetBytesCount(true);
 
             if (bytesLeft > MAX_DOCUMENT_SIZE) throw new LiteException(0, "Document size exceed {0} limit", MAX_DOCUMENT_SIZE);
+            _snapshot.CheckVectorVersion(doc);
 
             DataBlock lastBlock = null;
             var updateAddress = blockAddress;
@@ -161,11 +163,12 @@ namespace LiteDB.Engine
         /// </summary>
         public IEnumerable<BufferSlice> Read(PageAddress address)
         {
-            var counter = 0u;
+            var counter = 0ul;
+            var maxItemsCount = (ulong)_maxItemsCount + _snapshot.AdditionalTraversalItemsCount;
 
             while (address != PageAddress.Empty)
             {
-                ENSURE(counter++ < _maxItemsCount, "Detected loop in data Read({0})", address);
+                ENSURE(counter++ < maxItemsCount, "Detected loop in data Read({0})", address);
 
                 var dataPage = _snapshot.GetPage<DataPage>(address.PageID);
 

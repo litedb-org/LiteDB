@@ -1,0 +1,39 @@
+branches:
+  main:
+    regex: ^master$|^main$
+    increment: Patch
+    label: ''
+    prevent-increment:
+      of-merged-branch: true
+  develop:
+    regex: ^dev(elop)?(ment)?$
+    increment: Patch
+    label: prerelease
+    source-branches:
+      - main
+    prevent-increment:
+      of-merged-branch: true
+  feature:
+    regex: ^(feature|bugfix|chore|refactor)/.*$
+    increment: Inherit
+    label: ''
+    source-branches:
+      - develop
+      - main
+  pull-request:
+    regex: ^(pull|pr)/.*$
+    increment: Inherit
+    label: pr
+    source-branches:
+      - develop
+      - main
+  release:
+    regex: ^release/.*$
+    increment: Patch
+    label: rc
+    source-branches:
+      - develop
+      - main
+commit-message-incrementing: Enabled
+commit-date-format: yyyy-MM-dd
+tag-prefix: 'v'

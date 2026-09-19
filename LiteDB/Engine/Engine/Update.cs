@@ -21,6 +21,7 @@ namespace LiteDB.Engine
                 var collectionPage = snapshot.CollectionPage;
                 var indexer = new IndexService(snapshot, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
                 var data = new DataService(snapshot, _disk.MAX_ITEMS_COUNT);
+                var vectorService = new VectorIndexService(snapshot, _header.Pragmas.Collation);
                 var count = 0;
 
                 if (collectionPage == null) return 0;
@@ -33,7 +34,7 @@ namespace LiteDB.Engine
 
                     transaction.Safepoint();
 
-                    if (this.UpdateDocument(snapshot, collectionPage, doc, indexer, data))
+                    if (this.UpdateDocument(snapshot, collectionPage, doc, indexer, data, vectorService, true))
                     {
                         count++;
                     }
@@ -94,7 +95,7 @@ namespace LiteDB.Engine
         /// <summary>
         /// Implement internal update document
         /// </summary>
-        private bool UpdateDocument(Snapshot snapshot, CollectionPage col, BsonDocument doc, IndexService indexer, DataService data)
+        private bool UpdateDocument(Snapshot snapshot, CollectionPage col, BsonDocument doc, IndexService indexer, DataService data, VectorIndexService vectorService, bool rejectInvalidLocalTime = false)
         {
             // normalize id before find
             var id = doc["_id"];
@@ -110,9 +111,16 @@ namespace LiteDB.Engine
             
             // if not found document, no updates
             if (pkNode == null) return false;
-            
+
+            // Upsert already checked the document; Update only checks what it is about to write
+            if (rejectInvalidLocalTime) this.RejectInvalidLocalTime(doc);
+
             // update data storage
             data.Update(col, pkNode.DataBlock, doc);
+            foreach (var (vectorIndex, metadata) in col.GetVectorIndexes())
+            {
+                vectorService.Upsert(vectorIndex, metadata, doc, pkNode.DataBlock);
+            }
             
             // get all current non-pk index nodes from this data block (slot, key, nodePosition)
             var oldKeys = indexer.GetNodeList(pkNode.NextNode)
@@ -122,7 +130,7 @@ namespace LiteDB.Engine
             // build a list of all new key index keys
             var newKeys = new List<Tuple<byte, BsonValue, string>>();
 
-            foreach (var index in col.GetCollectionIndexes().Where(x => x.Name != "_id"))
+            foreach (var index in col.GetCollectionIndexes().Where(x => x.Name != "_id" && x.IndexType == 0))
             {
                 // getting all keys from expression over document
                 var keys = index.BsonExpr.GetIndexKeys(doc, _header.Pragmas.Collation);

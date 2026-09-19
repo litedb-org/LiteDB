@@ -1,6 +1,7 @@
 ﻿using FluentAssertions;
 using System;
 using System.Reflection;
+using LiteDB.Tests.Utils;
 using Xunit;
 
 namespace LiteDB.Tests.Mapper
@@ -10,20 +11,19 @@ namespace LiteDB.Tests.Mapper
         private readonly BsonMapper _mapper = new BsonMapper();
 
         [Fact]
-        public void ToDocument_ReturnsNull_WhenFail()
+        public void ToDocument_RejectsNonDocumentRootsWithTypeContext()
         {
             var array = new int[] { 1, 2, 3, 4, 5 };
-            var doc1 = _mapper.ToDocument(array);
-            doc1.Should<BsonDocument>().Be(null);
-
-            var doc2 = _mapper.ToDocument(typeof(int[]), array);
-            doc2.Should<BsonDocument>().Be(null);
+            Action generic = () => _mapper.ToDocument(array);
+            Action typed = () => _mapper.ToDocument(typeof(int[]), array);
+            generic.Should().Throw<LiteException>().WithMessage("*System.Int32[]*root document*");
+            typed.Should().Throw<LiteException>().WithMessage("*System.Int32[]*root document*");
         }
 
         [Fact]
         public void Class_Not_Assignable()
         {
-            using (var db = new LiteDatabase(":memory:"))
+            using (var db = DatabaseFactory.Create())
             {
                 var col = db.GetCollection<MyClass>("Test");
                 col.Insert(new MyClass { Id = 1, Member = null });

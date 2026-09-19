@@ -202,9 +202,15 @@ namespace LiteDB
             }
             else
             {
-                return left == right;
+                return collation.Equals(left, right);
             }
         }
+
+        /// <summary>
+        /// Compute the cosine distance between two vectors (or arrays that can be interpreted as vectors).
+        /// Returns null when the arguments cannot be converted into vectors of matching lengths.
+        /// </summary>
+        public static BsonValue VECTOR_SIM(BsonValue left, BsonValue right) => BsonExpressionMethods.VECTOR_SIM(left, right);
 
         public static BsonValue IN_ANY(Collation collation, IEnumerable<BsonValue> left, BsonValue right) => left.Any(x => IN(collation, x, right));
         public static BsonValue IN_ALL(Collation collation, IEnumerable<BsonValue> left, BsonValue right) => left.All(x => IN(collation, x, right));
@@ -279,7 +285,7 @@ namespace LiteDB
             if (expr.Type == BsonExpressionType.Parameter)
             {
                 // get fixed position based on parameter value (must return int value)
-                var indexValue = expr.ExecuteScalar(root, collation);
+                var indexValue = expr.ExecuteScalar(new BsonDocument[] { root }, root, root, collation, parameters);
 
                 if (!indexValue.IsNumber) throw new LiteException(0, "Parameter expression must return number when called inside an array");
 
@@ -288,7 +294,7 @@ namespace LiteDB
 
             var idx = index < 0 ? arr.Count + index : index;
 
-            if (arr.Count > idx)
+            if (idx >= 0 && idx < arr.Count)
             {
                 return arr[idx];
             }
@@ -319,7 +325,7 @@ namespace LiteDB
                 foreach (var item in arr)
                 {
                     // execute for each child value and except a first bool value (returns if true)
-                    var c = filterExpr.ExecuteScalar(new BsonDocument[] { root }, root, item, collation);
+                    var c = filterExpr.ExecuteScalar(new BsonDocument[] { root }, root, item, collation, parameters);
 
                     if (c.IsBoolean && c.AsBoolean == true)
                     {

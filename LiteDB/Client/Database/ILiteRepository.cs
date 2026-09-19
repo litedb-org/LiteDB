@@ -4,7 +4,7 @@ using System.Linq.Expressions;
 
 namespace LiteDB
 {
-    public interface ILiteRepository : IDisposable
+    public partial interface ILiteRepository : IDisposable
     {
         /// <summary>
         /// Get database instance
@@ -99,6 +99,9 @@ namespace LiteDB
         /// Search for a single instance of T by Id. Shortcut from Query.SingleById
         /// </summary>
         T SingleById<T>(BsonValue id, string collectionName = null);
+
+        /// <summary>Find an entity by id, or return the default value if it is missing.</summary>
+        T SingleOrDefaultById<T>(BsonValue id, string collectionName = null);
 
         /// <summary>
         /// Execute Query[T].Where(predicate).ToList();

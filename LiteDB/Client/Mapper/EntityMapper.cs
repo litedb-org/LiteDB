@@ -26,6 +26,9 @@ namespace LiteDB
         /// </summary>
         public List<MemberMapper> Members { get; } = new List<MemberMapper>();
 
+        // Shared by fluent builders so repeated Ignore calls retain strict member validation.
+        internal HashSet<string> IgnoredMembers { get; } = new HashSet<string>();
+
         /// <summary>
         /// Indicate which member is _id
         /// </summary>
@@ -36,10 +39,13 @@ namespace LiteDB
         /// </summary>
         public CreateObject CreateInstance { get; set; }
 
+        internal bool PopulateMembers { get; set; } = true;
+
         public EntityMapper(Type forType, CancellationToken initializationToken = default)
         {
             _initializationToken = initializationToken;
             this.ForType = forType;
+            IsInitialized = !initializationToken.CanBeCanceled;
         }
 
         /// <summary>
@@ -47,8 +53,28 @@ namespace LiteDB
         /// </summary>
         public MemberMapper GetMember(Expression expr)
         {
+            if (this.ForType.IsInterface)
+            {
+                var body = expr is LambdaExpression lambda ? lambda.Body : expr;
+                while (body is UnaryExpression unary && (unary.NodeType == ExpressionType.Convert ||
+                    unary.NodeType == ExpressionType.ConvertChecked)) body = unary.Operand;
+                if (body is MemberExpression member && member.Member.Name == expr.GetPath())
+                    return this.FindMember(member.Member);
+            }
             return this.Members.FirstOrDefault(x => x.MemberName == expr.GetPath());
         }
+
+        internal MemberMapper FindMember(MemberInfo member)
+        {
+            if (!this.ForType.IsInterface) return this.Members.FirstOrDefault(x => x.MemberName == member.Name);
+            return this.Members.FirstOrDefault(x => x.ReflectedMember == member) ??
+                this.Members.FirstOrDefault(x => x.MemberName == member.Name &&
+                    (x.ReflectedMember == null ||
+                    x.ReflectedMember.DeclaringType.GetInterfaces().Contains(member.DeclaringType)));
+        }
+
+        internal volatile bool IsInitialized;
+        internal bool UsesCustomIdSelection;
 
         public void WaitForInitialization()
         {

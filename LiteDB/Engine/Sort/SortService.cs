@@ -10,6 +10,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
+using LiteDB.Utils;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -26,10 +27,11 @@ namespace LiteDB.Engine
         private readonly int _containerSize;
         private readonly Done _done = new Done { Running = true };
 
-        private readonly int _order;
+        private readonly int[] _orders;
         private readonly EnginePragmas _pragmas;
-        private readonly BufferSlice _buffer;
+        private BufferSlice _buffer;
         private readonly Lazy<Stream> _reader;
+        private int _disposed;
 
         private static readonly ArrayPool<byte> _bufferPool = ArrayPool<byte>.Shared;
 
@@ -43,10 +45,13 @@ namespace LiteDB.Engine
         /// </summary>
         public IReadOnlyCollection<SortContainer> Containers => _containers;
 
-        public SortService(SortDisk disk, int order, EnginePragmas pragmas)
+        public SortService(SortDisk disk, IReadOnlyList<int> orders, EnginePragmas pragmas)
         {
             _disk = disk;
-            _order = order;
+            if (orders == null) throw new ArgumentNullException(nameof(orders));
+            if (orders.Count == 0) throw new ArgumentException("Orders must contain at least one segment", nameof(orders));
+
+            _orders = orders as int[] ?? orders.ToArray();
             _pragmas = pragmas;
             _containerSize = disk.ContainerSize;
 
@@ -59,23 +64,28 @@ namespace LiteDB.Engine
 
         public void Dispose()
         {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            var cleanup = new TryCatch();
             // release all container positions
             foreach(var container in _containers)
             {
-                container.Dispose();
+                cleanup.Catch(container.Dispose);
 
                 // return only was used
                 if (container.Position >= 0)
                 {
-                    _disk.Return(container.Position);
+                    cleanup.Catch(() => _disk.Return(container.Position));
                 }
             }
 
             // return open strem into disk
             if (_reader.IsValueCreated)
             {
-                _disk.Return(_reader.Value);
+                cleanup.Catch(() => _disk.Return(_reader.Value));
             }
+            _containers.Clear();
+            _buffer = null;
+            if (cleanup.Exceptions.Count > 0) throw new AggregateException(cleanup.Exceptions);
         }
 
         /// <summary>
@@ -86,10 +96,12 @@ namespace LiteDB.Engine
             // slit all items in sorted containers
             foreach (var containerItems in this.SliptValues(items, _done))
             {
-                var container = new SortContainer(_pragmas.Collation, _containerSize);
+                var container = new SortContainer(_pragmas.Collation, _containerSize, _orders);
 
                 // insert segmented items inside a container - reuse same buffer slice
-                container.Insert(containerItems, _order, _buffer);
+                var order = _orders.Length == 1 ? _orders[0] : Query.Ascending;
+
+                container.Insert(containerItems, order, _buffer);
 
                 _containers.Add(container);
 
@@ -133,7 +145,7 @@ namespace LiteDB.Engine
             }
             else
             {
-                var diffOrder = _order * -1;
+                var diffOrder = _orders.Length == 1 ? _orders[0] * -1 : -1;
 
                 // merge sort with all containers
                 while (_containers.Any(x => !x.IsEOF))

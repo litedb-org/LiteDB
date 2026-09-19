@@ -14,8 +14,12 @@ namespace LiteDB.Engine
     /// </summary>
     internal class WalIndexService
     {
+        private const int READER_WAIT_MILLISECONDS = 10;
+        private const int NO_WAIT_MILLISECONDS = 0;
+
         private readonly DiskService _disk;
         private readonly LockService _locker;
+        private readonly CheckpointBackoff _backoff = new CheckpointBackoff();
 
         private readonly Dictionary<uint, List<KeyValuePair<int, long>>> _index = new Dictionary<uint, List<KeyValuePair<int, long>>>();
         private readonly ReaderWriterLockSlim _indexLock = new ReaderWriterLockSlim();
@@ -236,19 +240,25 @@ namespace LiteDB.Engine
                     {
                         // page buffer instance can't change
                         var headerBuffer = header.Buffer;
+                        var fileVersion = header.FileVersion;
 
                         // copy this buffer block into original header block
                         Buffer.BlockCopy(buffer.Array, buffer.Offset, headerBuffer.Array, headerBuffer.Offset, PAGE_SIZE);
 
                         // re-load header (using new buffer data)
                         header = new HeaderPage(headerBuffer);
+                        header.EnsureVersion(fileVersion);
                         header.TransactionID = uint.MaxValue;
                         header.IsConfirmed = false;
                     }
                 }
 
-                // update last transaction ID
-                _lastTransactionID = (int)transactionID;
+                // Keep the greatest observed ID, including abandoned transactions.
+                // Reusing one would make its old pages appear committed.
+                if (transactionID > unchecked((uint)_lastTransactionID))
+                {
+                    _lastTransactionID = unchecked((int)transactionID);
+                }
 
                 current += PAGE_SIZE;
             }
@@ -279,17 +289,31 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// Run checkpoint only if there is no open transactions
+        /// Briefly queue behind existing transactions so new readers cannot starve checkpoint.
         /// </summary>
-        public int TryCheckpoint()
+        public int TryCheckpoint() => this.TryCheckpoint(rationed: false);
+
+        /// <summary>
+        /// Commit-path checkpoint. Queueing behind readers stalls the committer and all new readers, so once
+        /// that fails (a reader outlives the wait) it is retried on a back-off; commits in between only
+        /// checkpoint when no transaction is open.
+        /// </summary>
+        public int TryAutoCheckpoint() => this.TryCheckpoint(rationed: true);
+
+        private int TryCheckpoint(bool rationed)
         {
             // no log file or no confirmed transaction, just exit
             if (_disk.GetFileLength(FileOrigin.Log) == 0 || _confirmTransactions.Count == 0) return 0;
 
-            if (_locker.TryEnterExclusive(out var mustExit) == false) return 0;
+            var wait = rationed == false || _backoff.TryClaimWaitingAttempt();
+            var timeout = wait ? READER_WAIT_MILLISECONDS : NO_WAIT_MILLISECONDS;
+
+            if (_locker.TryEnterExclusive(out var mustExit, waitForReaders: wait, milliseconds: timeout) == false) return 0;
 
             try
             {
+                _backoff.Reset();
+
                 return this.CheckpointInternal();
             }
             finally
@@ -344,6 +368,8 @@ namespace LiteDB.Engine
                     }
                 }
             }
+
+            _disk.SyncLogBeforeCheckpoint();
 
             // write all log pages into data file (sync)
             _disk.WriteDataDisk(source());

@@ -1,0 +1,58 @@
+{
+  "Label": "baseline",
+  "Runtime": ".NET 10.0.9",
+  "OS": "Microsoft Windows 10.0.26200",
+  "ProcessorCount": 32,
+  "Assembly": "C:\\Users\\Jonas\\AppData\\Local\\Temp\\litedb-validation-baseline\\LiteDB.dll",
+  "AssemblySha256": "1B6D2E2012BC2F1337339D64BE078D37226F37DB12A046D308B17A7DC1C7736A",
+  "CacheMiB": 64,
+  "Documents": 200000,
+  "Measurements": {
+    "seedMs": 1715.3799,
+    "scanColdMs": 428.6788,
+    "scanWarmMs": 260.7122,
+    "lookupThreads1": {
+      "Samples": 2000,
+      "P50Microseconds": 16.6,
+      "P99Microseconds": 25.1
+    },
+    "lookupThreads1TotalMs": 35.1188,
+    "lookupThreads1FramesExaminedPerLookup": 0,
+    "lookupThreads1FramesExaminedPerMiss": null,
+    "lookupThreads4": {
+      "Samples": 8000,
+      "P50Microseconds": 19.1,
+      "P99Microseconds": 186.6
+    },
+    "lookupThreads4TotalMs": 53.7354,
+    "lookupThreads4FramesExaminedPerLookup": 0,
+    "lookupThreads4FramesExaminedPerMiss": null,
+    "lookupThreads16": {
+      "Samples": 32000,
+      "P50Microseconds": 45.2,
+      "P99Microseconds": 707
+    },
+    "lookupThreads16TotalMs": 164.6434,
+    "lookupThreads16FramesExaminedPerLookup": 0,
+    "lookupThreads16FramesExaminedPerMiss": null,
+    "transactionRelease": {
+      "Samples": 100,
+      "P50Microseconds": 33.7,
+      "P99Microseconds": 537.3
+    },
+    "ensureIndexMs": 789.2717,
+    "indexWalBytes": 19849216,
+    "cacheAfterIndex": "{\u0022extendSegments\u0022:36,\u0022extendPages\u0022:32662,\u0022freePages\u0022:2879,\u0022readablePages\u0022:29783,\u0022writablePages\u0022:0,\u0022pagesInUse\u0022:0}",
+    "bulkInsert10000Ms": 94.1623,
+    "encryptedUpdate20000Ms": 163.2539,
+    "vectorSearch100Ms": 43.0849,
+    "vectorMinimumResults": 20,
+    "vectorShortResultQueries": 0,
+    "overflowTransactionRelease8MiB": {
+      "Samples": 100,
+      "P50Microseconds": 75.1,
+      "P99Microseconds": 485
+    },
+    "overflowCacheAfterRelease": "{\u0022extendSegments\u0022:10,\u0022extendPages\u0022:6662,\u0022freePages\u0022:704,\u0022readablePages\u0022:5958,\u0022writablePages\u0022:0,\u0022pagesInUse\u0022:0}"
+  }
+}

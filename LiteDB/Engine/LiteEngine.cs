@@ -1,4 +1,4 @@
-﻿using LiteDB.Utils;
+using LiteDB.Utils;
 
 using System;
 using System.Collections.Concurrent;
@@ -103,10 +103,12 @@ namespace LiteDB.Engine
                 var buffer = _disk.ReadFull(FileOrigin.Data).First();
 
                 // if first byte are 1 this datafile are encrypted but has do defined password to open
-                if (buffer[0] == 1) throw new LiteException(0, "This data file is encrypted and needs a password to open");
+                if (buffer[0] == 1) throw new LiteException(LiteException.INVALID_PASSWORD, "This data file is encrypted and needs a password to open");
 
                 // read header database page
                 _header = new HeaderPage(buffer);
+                _disk.FileVersion = _header.FileVersion;
+                _disk.TrimTrailingPages();
 
                 // if database is set to invalid state, need rebuild
                 if (buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0 && _settings.AutoRebuild)
@@ -124,7 +126,12 @@ namespace LiteDB.Engine
                     // read buffer header page again
                     buffer = _disk.ReadFull(FileOrigin.Data).First();
 
+                    // if first byte are 1 this datafile are encrypted but has do defined password to open
+                    if (buffer[0] == 1) throw new LiteException(LiteException.INVALID_PASSWORD, "This data file is encrypted and needs a password to open");
+
+                    // read header database page
                     _header = new HeaderPage(buffer);
+                    _disk.FileVersion = _header.FileVersion;
                 }
 
                 // test for same collation
@@ -149,7 +156,7 @@ namespace LiteDB.Engine
                 _sortDisk = new SortDisk(_settings.CreateTempFactory(), CONTAINER_SORT_SIZE, _header.Pragmas);
 
                 // initialize transaction monitor as last service
-                _monitor = new TransactionMonitor(_header, _locker, _disk, _walIndex);
+                _monitor = new TransactionMonitor(_header, _locker, _disk, _walIndex, _settings.TransactionPageLimit);
 
                 // register system collections
                 this.InitializeSystemCollections();
@@ -212,8 +219,9 @@ namespace LiteDB.Engine
         /// - Dispose locker
         /// - Checks Exception type for INVALID_DATAFILE_STATE to auto rebuild on open
         /// </summary>
-        internal List<Exception> Close(Exception ex)
+        internal List<Exception> Close(Exception ex, EngineState origin = null)
         {
+            if (origin != null && !ReferenceEquals(origin, _state)) return new List<Exception>();
             if (_state.Disposed) return new List<Exception>();
 
             _state.Disposed = true;
@@ -221,6 +229,12 @@ namespace LiteDB.Engine
             var tc = new TryCatch(ex);
 
             tc.Catch(() => _monitor?.Dispose());
+
+            if (tc.InvalidDatafileState)
+            {
+                // Keep the data writer alive until the recovery marker is durable.
+                tc.Catch(() => _disk?.MarkAsInvalidState());
+            }
 
             // close disks streams
             tc.Catch(() => _disk?.Dispose());
@@ -231,19 +245,12 @@ namespace LiteDB.Engine
             // close engine lock service
             tc.Catch(() => _locker?.Dispose());
 
-            if (tc.InvalidDatafileState)
-            {
-                // mark byte = 1 in HeaderPage.P_INVALID_DATAFILE_STATE - will open in auto-rebuild
-                // this method will throw no errors
-                tc.Catch(() => _disk.MarkAsInvalidState());
-            }
-
             return tc.Exceptions;
         }
 
         #endregion
 
-#if DEBUG
+#if DEBUG || TESTING
         // exposes for unit tests
         internal TransactionMonitor GetMonitor() => _monitor;
         internal Action<PageBuffer> SimulateDiskReadFail { set => _state.SimulateDiskReadFail = value; }

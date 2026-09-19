@@ -27,7 +27,15 @@ namespace LiteDB
         /// <summary>
         /// Converted document field name
         /// </summary>
-        public string FieldName { get; set; }
+        public string FieldName
+        {
+            get => _fieldName;
+            set { _fieldName = value; HasExplicitFieldName = true; }
+        }
+
+        private string _fieldName;
+        internal bool HasExplicitFieldName { get; set; }
+        internal MemberInfo ReflectedMember { get; set; }
 
         /// <summary>
         /// Delegate method to get value from entity instance
@@ -38,6 +46,9 @@ namespace LiteDB
         /// Delegate method to set value to entity instance
         /// </summary>
         public GenericSetter Setter { get; set; }
+
+        // Keep the reflected setter identity so custom setters can accept converted auto IDs.
+        internal GenericSetter DefaultSetter { get; set; }
 
         /// <summary>
         /// When used, can be define a serialization function from entity class to bson value
@@ -52,7 +63,18 @@ namespace LiteDB
         /// <summary>
         /// Is this property an DbRef? Must implement Serialize/Deserialize delegates
         /// </summary>
-        public bool IsDbRef { get; set; }
+        public bool IsDbRef
+        {
+            get => _isDbRef || DbRefCollectionName != null;
+            set 
+            {
+                _isDbRef = value;
+                if (!value)
+                {
+                    DbRefCollectionName = null;
+                }
+            }
+        }
 
         /// <summary>
         /// Indicate that this property contains an list of elements (IEnumerable)
@@ -68,5 +90,12 @@ namespace LiteDB
         /// Is this property ignore
         /// </summary>
         public bool IsIgnore { get; set; }
+
+        /// <summary>
+        /// Sets the name of the referenced collection if this property is a DbRef.
+        /// </summary>
+        internal string DbRefCollectionName { get; set; }
+
+        private bool _isDbRef = false;
     }
 }

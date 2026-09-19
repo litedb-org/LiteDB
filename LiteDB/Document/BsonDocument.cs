@@ -38,12 +38,21 @@ namespace LiteDB
             }
         }
 
+        internal BsonDocument(Dictionary<string, BsonValue> dict, bool useRawValue)
+            : base(BsonType.Document, dict)
+        {
+            if (dict == null) throw new ArgumentNullException(nameof(dict));
+        }
+
         public new IDictionary<string, BsonValue> RawValue => base.RawValue as IDictionary<string, BsonValue>;
 
         /// <summary>
         /// Get/Set position of this document inside database. It's filled when used in Find operation.
         /// </summary>
         internal PageAddress RawId { get; set; } = PageAddress.Empty;
+
+        // Query output metadata only; never persisted as a BSON field.
+        internal bool IsProjectionValue { get; set; }
 
         /// <summary>
         /// Get/Set a field for document. Fields are case sensitive
@@ -114,7 +123,7 @@ namespace LiteDB
                 yield return new KeyValuePair<string, BsonValue>("_id", id);
             }
 
-            foreach(var item in this.RawValue.Where(x => x.Key != "_id"))
+            foreach(var item in this.RawValue.Where(x => !x.Key.Equals("_id", StringComparison.OrdinalIgnoreCase)))
             {
                 yield return item;
             }

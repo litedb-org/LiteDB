@@ -1,8 +1,6 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Threading;
 using static LiteDB.Constants;
 
@@ -14,86 +12,79 @@ namespace LiteDB.Engine
     /// </summary>
     internal class TransactionMonitor : IDisposable
     {
-        private readonly Dictionary<uint, TransactionService> _transactions = new Dictionary<uint, TransactionService>();
+        private readonly TransactionRegistry _transactions = new TransactionRegistry();
         private readonly ThreadLocal<TransactionService> _slot = new ThreadLocal<TransactionService>();
+        private readonly ThreadLocal<bool> _explicitAborted = new ThreadLocal<bool>();
 
         private readonly HeaderPage _header;
         private readonly LockService _locker;
         private readonly DiskService _disk;
         private readonly WalIndexService _walIndex;
 
-        private int _freePages;
-        private readonly int _initialSize;
+        private readonly int _transactionPageLimit;
+        private int _disposed;
+
+#if TESTING
+        internal Action BeforeTransactionRegistration { get; set; }
+#endif
 
         // expose open transactions
-        public ICollection<TransactionService> Transactions => _transactions.Values;
-        public int FreePages => _freePages;
-        public int InitialSize => _initialSize;
+        public ICollection<TransactionService> Transactions => _transactions.Snapshot();
+        public int TransactionPageLimit => _transactionPageLimit;
+        public TransactionService[] GetTransactionsSnapshot() => _transactions.Snapshot().ToArray();
 
-        public TransactionMonitor(HeaderPage header, LockService locker, DiskService disk, WalIndexService walIndex)
+        public TransactionMonitor(HeaderPage header, LockService locker, DiskService disk, WalIndexService walIndex, int transactionPageLimit)
         {
+            if (transactionPageLimit <= 0) throw new ArgumentOutOfRangeException(nameof(transactionPageLimit));
+
             _header = header;
             _locker = locker;
             _disk = disk;
             _walIndex = walIndex;
-
-            // initialize free pages with all avaiable pages in memory
-            _freePages = MAX_TRANSACTION_SIZE;
-
-            // initial size 
-            _initialSize = MAX_TRANSACTION_SIZE / MAX_OPEN_TRANSACTIONS;
+            _transactionPageLimit = transactionPageLimit;
         }
 
         public TransactionService GetTransaction(bool create, bool queryOnly, out bool isNew)
         {
+            this.ThrowIfDisposed();
             var transaction = _slot.Value;
 
             if (create && transaction == null)
             {
                 isNew = true;
 
-                bool alreadyLock;
+#if TESTING
+                BeforeTransactionRegistration?.Invoke();
+#endif
+                this.ThrowIfDisposed();
 
-                // must lock _transaction before work with _transactions (GetInitialSize use _transactions)
-                lock (_transactions)
+                var enteredTransaction = false;
+                var owner = Environment.CurrentManagedThreadId;
+                try
                 {
-                    if (_transactions.Count >= MAX_OPEN_TRANSACTIONS) throw new LiteException(0, "Maximum number of transactions reached");
+                    // Checkpoint can reset the WAL ID sequence only while holding
+                    // exclusive admission. Take our lease before reserving an ID.
+                    _locker.EnterTransaction();
+                    enteredTransaction = true;
+                    this.ThrowIfDisposed();
+                    transaction = new TransactionService(_header, _locker, _disk, _walIndex, _transactionPageLimit, this, queryOnly);
+                    _transactions.Add(transaction);
 
-                    var initialSize = this.GetInitialSize();
-
-                    // check if current thread contains any transaction
-                    alreadyLock = _transactions.Values.Any(x => x.ThreadID == Environment.CurrentManagedThreadId);
-
-                    transaction = new TransactionService(_header, _locker, _disk, _walIndex, initialSize, this, queryOnly);
-
-                    // add transaction to execution transaction dict
-                    _transactions[transaction.TransactionID] = transaction;
+                    this.ThrowIfDisposed();
+                    if (queryOnly == false) _slot.Value = transaction;
                 }
-
-                // enter in lock transaction after release _transaction lock
-                if (alreadyLock == false)
+                catch
                 {
+                    if (transaction != null) _transactions.Remove(transaction);
                     try
                     {
-                        _locker.EnterTransaction();
+                        transaction?.Dispose();
                     }
-                    catch
+                    finally
                     {
-                        transaction.Dispose();
-                        lock (_transactions)
-                        {
-                            // return pages
-                            _freePages += transaction.MaxTransactionSize;
-                            _transactions.Remove(transaction.TransactionID);
-                        }
-                        throw;
+                        if (enteredTransaction) _locker.ExitTransaction(owner);
                     }
-                }
-
-                // do not store in thread query-only transaction
-                if (queryOnly == false)
-                {
-                    _slot.Value = transaction;
+                    throw;
                 }
             }
             else
@@ -105,40 +96,74 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
+        /// Dispose and remove transaction from monitor
+        /// without releasing thread lock
+        /// </summary>
+        private void RemoveTransaction(TransactionService transaction, out bool removed)
+        {
+            removed = false;
+            try
+            {
+                transaction.Dispose();
+            }
+            finally
+            {
+                removed = _transactions.Remove(transaction);
+            }
+        }
+
+        /// <summary>
         /// Release current thread transaction
         /// </summary>
         public void ReleaseTransaction(TransactionService transaction)
         {
-            // dispose current transaction
-            transaction.Dispose();
-
-            bool keepLocked;
-
-            lock (_transactions)
+            var removed = false;
+            try
             {
-                // remove from "open transaction" list
-                _transactions.Remove(transaction.TransactionID);
-
-                // return freePages used area
-                _freePages += transaction.MaxTransactionSize;
-
-                // check if current thread contains more query transactions
-                keepLocked = _transactions.Values.Any(x => x.ThreadID == Environment.CurrentManagedThreadId);
+                this.RemoveTransaction(transaction, out removed);
             }
-
-            // unlock thread-transaction only if there is no more transactions
-            if (keepLocked == false)
+            finally
             {
-                _locker.ExitTransaction();
+                if (removed) _locker.ExitTransaction(transaction.ThreadID);
+                if (!transaction.QueryOnly)
+                {
+                    ENSURE(_slot.Value == transaction, "current thread must contains transaction parameter");
+                    _slot.Value = null;
+                }
+                _disk.Cache.TrimToLimit();
             }
+        }
 
-            // remove transaction from thread if are no queryOnly transaction
-            if (transaction.QueryOnly == false)
+        /// <summary>
+        /// Remember that a failed operation rolled back this thread's explicit transaction, so that
+        /// the caller's pending Commit is not mistaken for a completion from a foreign thread.
+        /// </summary>
+        public void MarkExplicitAbort()
+        {
+            // Dispose on another thread may already have released the slot; a closing engine has nothing left to complete.
+            try
             {
-                ENSURE(_slot.Value == transaction, "current thread must contains transaction parameter");
+                _explicitAborted.Value = true;
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+        }
 
-                // clear thread slot for new transaction
-                _slot.Value = null;
+        /// <summary>
+        /// Read and clear the mark left by <see cref="MarkExplicitAbort"/> on the current thread.
+        /// </summary>
+        public bool ConsumeExplicitAbort()
+        {
+            try
+            {
+                var aborted = _explicitAborted.Value;
+                if (aborted) _explicitAborted.Value = false;
+                return aborted;
+            }
+            catch (ObjectDisposedException)
+            {
+                return false;
             }
         }
 
@@ -148,72 +173,16 @@ namespace LiteDB.Engine
         /// </summary>
         public TransactionService GetThreadTransaction()
         {
-            lock (_transactions)
-            {
-                return 
-                    _slot.Value ??
-                    _transactions.Values.FirstOrDefault(x => x.ThreadID == Environment.CurrentManagedThreadId);
-            }
+            this.ThrowIfDisposed();
+            return _slot.Value ?? _transactions.FindForThread(Environment.CurrentManagedThreadId);
         }
 
         /// <summary>
-        /// Get initial transaction size - get from free pages or reducing from all open transactions
-        /// </summary>
-        private int GetInitialSize()
-        {
-            if (_freePages >= _initialSize)
-            {
-                _freePages -= _initialSize;
-
-                return _initialSize;
-            }
-            else
-            {
-                var sum = 0;
-
-                // if there is no available pages, reduce all open transactions
-                foreach (var trans in _transactions.Values)
-                {
-                    //TODO: revisar estas contas, o reduce tem que fechar 1000
-                    var reduce = (trans.MaxTransactionSize / _initialSize);
-
-                    trans.MaxTransactionSize -= reduce;
-
-                    sum += reduce;
-                }
-
-                return sum;
-            }
-        }
-
-        /// <summary>
-        /// Try extend max transaction size in passed transaction ONLY if contains free pages available
-        /// </summary>
-        private bool TryExtend(TransactionService trans)
-        {
-            lock(_transactions)
-            {
-                if (_freePages >= _initialSize)
-                {
-                    trans.MaxTransactionSize += _initialSize;
-
-                    _freePages -= _initialSize;
-
-                    return true;
-                }
-
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Check if transaction size reach limit AND check if is possible extend this limit
+        /// Check whether a transaction reached its fixed page-retention limit.
         /// </summary>
         public bool CheckSafepoint(TransactionService trans)
         {
-            return 
-                trans.Pages.TransactionSize >= trans.MaxTransactionSize &&
-                this.TryExtend(trans) == false;
+            return trans.Pages.TransactionSize >= trans.MaxTransactionSize;
         }
 
         /// <summary>
@@ -221,15 +190,21 @@ namespace LiteDB.Engine
         /// </summary>
         public void Dispose()
         {
-            if (_transactions.Count > 0)
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            var cleanup = new LiteDB.Utils.TryCatch();
+            foreach (var transaction in _transactions.Close())
             {
-                foreach (var transaction in _transactions.Values)
-                {
-                    transaction.Dispose();
-                }
-
-                _transactions.Clear();
+                cleanup.Catch(transaction.Dispose);
             }
+
+            cleanup.Catch(_slot.Dispose);
+            cleanup.Catch(_explicitAborted.Dispose);
+            if (cleanup.Exceptions.Count > 0) throw new AggregateException(cleanup.Exceptions);
+        }
+
+        private void ThrowIfDisposed()
+        {
+            if (Volatile.Read(ref _disposed) != 0) throw new ObjectDisposedException(nameof(TransactionMonitor));
         }
     }
 }

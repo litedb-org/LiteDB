@@ -29,9 +29,9 @@ namespace LiteDB
         {
             var ahead = _tokenizer.LookAhead().Expect(TokenType.Word);
 
-            LOG($"executing `{ahead.Value.ToUpper()}`", "SQL");
+            LOG($"executing `{ahead.Value.ToUpperInvariant()}`", "SQL");
 
-            switch (ahead.Value.ToUpper())
+            switch (ahead.Value.ToUpperInvariant())
             {
                 case "SELECT": 
                 case "EXPLAIN":

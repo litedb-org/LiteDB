@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <RunConfiguration>
+    <!-- Increase timeouts for CI environment -->
+    <!-- <TestSessionTimeout>600000</TestSessionTimeout> 10 minutes -->
+    <TestSessionTimeout>180000</TestSessionTimeout> <!-- 3 minutes -->
+    <TestCaseTimeout>60000</TestCaseTimeout>        <!-- 60 seconds per test -->
+    
+    <!-- Optimize for CI -->
+    <MaxCpuCount>1</MaxCpuCount>                    <!-- Single-threaded to avoid resource contention -->
+    <DisableParallelization>true</DisableParallelization>
+  </RunConfiguration>
+  
+  <!-- CI-specific test filters -->
+  <MSTest>
+    <DeploymentEnabled>false</DeploymentEnabled>
+  </MSTest>
+</RunSettings>

@@ -1,0 +1,47 @@
+{
+  "Label": "baseline",
+  "Runtime": ".NET 10.0.9",
+  "OS": "Microsoft Windows 10.0.26200",
+  "ProcessorCount": 32,
+  "Assembly": "C:\\Users\\Jonas\\AppData\\Local\\Temp\\litedb-validation-baseline\\LiteDB.dll",
+  "AssemblySha256": "1B6D2E2012BC2F1337339D64BE078D37226F37DB12A046D308B17A7DC1C7736A",
+  "CacheMiB": 64,
+  "Documents": 900000,
+  "Measurements": {
+    "seedMs": 5402.4275,
+    "scanColdMs": 1818.0719,
+    "scanWarmMs": 1633.6248,
+    "lookupThreads1": {
+      "Samples": 2000,
+      "P50Microseconds": 23.2,
+      "P99Microseconds": 83.7
+    },
+    "lookupThreads1TotalMs": 74.2299,
+    "lookupThreads1FramesExaminedPerLookup": 0,
+    "lookupThreads1FramesExaminedPerMiss": null,
+    "lookupThreads4": {
+      "Samples": 8000,
+      "P50Microseconds": 30.4,
+      "P99Microseconds": 354.2
+    },
+    "lookupThreads4TotalMs": 123.7422,
+    "lookupThreads4FramesExaminedPerLookup": 0,
+    "lookupThreads4FramesExaminedPerMiss": null,
+    "lookupThreads16": {
+      "Samples": 32000,
+      "P50Microseconds": 45.2,
+      "P99Microseconds": 983.8
+    },
+    "lookupThreads16TotalMs": 304.6312,
+    "lookupThreads16FramesExaminedPerLookup": 0,
+    "lookupThreads16FramesExaminedPerMiss": null,
+    "transactionRelease": {
+      "Samples": 100,
+      "P50Microseconds": 48.4,
+      "P99Microseconds": 589.2
+    },
+    "ensureIndexMs": 3501.8389,
+    "indexWalBytes": 89194496,
+    "cacheAfterIndex": "{\u0022extendSegments\u0022:104,\u0022extendPages\u0022:100662,\u0022freePages\u0022:613,\u0022readablePages\u0022:100013,\u0022writablePages\u0022:36,\u0022pagesInUse\u0022:0}"
+  }
+}

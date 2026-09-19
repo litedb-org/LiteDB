@@ -61,7 +61,14 @@ namespace LiteDB
             }
             catch (Exception ex)
             {
-                _state.Handle(ex);
+                try
+                {
+                    this.Dispose();
+                }
+                finally
+                {
+                    _state.Handle(ex);
+                }
                 throw;
             }
         }
@@ -108,7 +115,7 @@ namespace LiteDB
                     catch (Exception ex)
                     {
                         _state.Handle(ex);
-                        throw ex;
+                        throw;
                     }
                 }
                 else

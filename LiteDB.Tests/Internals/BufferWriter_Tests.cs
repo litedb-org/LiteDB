@@ -88,6 +88,60 @@ namespace LiteDB.Internals
         }
 
         [Fact]
+        public void Buffer_Write_CString_MultiSegment_Writes_Terminator()
+        {
+            var buffer = new byte[32];
+
+            var slice0 = new BufferSlice(buffer, 0, 3);
+            var slice1 = new BufferSlice(buffer, 3, 4);
+            var slice2 = new BufferSlice(buffer, 7, 8);
+            var slice3 = new BufferSlice(buffer, 15, 10);
+
+            using (var writer = new BufferWriter(new[] { slice0, slice1, slice2, slice3 }))
+            {
+                writer.WriteCString("abcdefghi");
+                writer.Position.Should().Be(10);
+            }
+
+            buffer[9].Should().Be((byte)0x00);
+
+            using (var reader = new BufferReader(new[] { slice0, slice1, slice2, slice3 }))
+            {
+                reader.ReadCString().Should().Be("abcdefghi");
+                reader.Position.Should().Be(10);
+            }
+        }
+
+        [Fact]
+        public void Buffer_Write_String_Specs_MultiSegment_Writes_Terminator()
+        {
+            var buffer = new byte[48];
+
+            var slice0 = new BufferSlice(buffer, 0, 5);
+            var slice1 = new BufferSlice(buffer, 5, 4);
+            var slice2 = new BufferSlice(buffer, 9, 7);
+            var slice3 = new BufferSlice(buffer, 16, 12);
+            var slice4 = new BufferSlice(buffer, 28, 20);
+
+            var value = "segment-boundary";
+
+            using (var writer = new BufferWriter(new[] { slice0, slice1, slice2, slice3, slice4 }))
+            {
+                writer.WriteString(value, true);
+                writer.Position.Should().Be(value.Length + 5);
+            }
+
+            using (var reader = new BufferReader(new[] { slice0, slice1, slice2, slice3, slice4 }))
+            {
+                reader.ReadInt32().Should().Be(value.Length + 1);
+                reader.ReadCString().Should().Be(value);
+                reader.Position.Should().Be(value.Length + 5);
+            }
+
+            buffer[4 + value.Length].Should().Be((byte)0x00);
+        }
+
+        [Fact]
         public void Buffer_Write_Numbers()
         {
             var source = new BufferSlice(new byte[1000], 0, 1000);
@@ -219,6 +273,70 @@ namespace LiteDB.Internals
             p += PageAddress.SIZE;
             source.ReadPageAddress(p).Should().Be(new PageAddress(199, 0));
             p += PageAddress.SIZE;
+        }
+
+        [Fact]
+        public void Buffer_Write_Guid_ObjectId_Across_Segments()
+        {
+            var guid = new Guid("01020304-0506-0708-090A-0B0C0D0E0F10");
+            var objectId = new ObjectId(0x11223344, 0x556677, 0x6677, 0xAABBCC);
+
+            var slices = new[]
+            {
+                new BufferSlice(new byte[8], 0, 8),
+                new BufferSlice(new byte[10], 0, 10),
+                new BufferSlice(new byte[12], 0, 12)
+            };
+
+            using (var writer = new BufferWriter(slices))
+            {
+                writer.Write(guid);
+                writer.Write(objectId);
+            }
+
+            var expectedGuidBytes = guid.ToByteArray();
+            var actualGuidBytes = new byte[16];
+
+            Buffer.BlockCopy(slices[0].Array, slices[0].Offset, actualGuidBytes, 0, slices[0].Count);
+            Buffer.BlockCopy(slices[1].Array, slices[1].Offset, actualGuidBytes, slices[0].Count, 16 - slices[0].Count);
+
+            actualGuidBytes.Should().Equal(expectedGuidBytes);
+
+            var expectedObjectIdBytes = objectId.ToByteArray();
+            var actualObjectIdBytes = new byte[12];
+
+            Buffer.BlockCopy(slices[1].Array, slices[1].Offset + 16 - slices[0].Count, actualObjectIdBytes, 0, slices[1].Count - (16 - slices[0].Count));
+            Buffer.BlockCopy(slices[2].Array, slices[2].Offset, actualObjectIdBytes, slices[1].Count - (16 - slices[0].Count), 12 - (slices[1].Count - (16 - slices[0].Count)));
+
+            actualObjectIdBytes.Should().Equal(expectedObjectIdBytes);
+
+            using (var reader = new BufferReader(slices))
+            {
+                reader.ReadGuid().Should().Be(guid);
+                reader.ReadObjectId().Should().Be(objectId);
+            }
+        }
+
+        [Fact]
+        public void BufferSlice_Span_Based_Guid_ObjectId_Should_Preserve_Endianness()
+        {
+            var buffer = new BufferSlice(new byte[64], 4, 40);
+            var guid = new Guid("0F0E0D0C-0B0A-0908-0706-050403020100");
+            var objectId = new ObjectId(0x0A0B0C0D, 0x010203, 0x0405, 0x060708);
+
+            buffer.Write(guid, 3);
+            buffer.Write(objectId, 21);
+
+            buffer.ReadGuid(3).Should().Be(guid);
+            buffer.ReadObjectId(21).Should().Be(objectId);
+
+            var guidBytes = new byte[16];
+            Buffer.BlockCopy(buffer.Array, buffer.Offset + 3, guidBytes, 0, 16);
+            guidBytes.Should().Equal(guid.ToByteArray());
+
+            var objectIdBytes = new byte[12];
+            Buffer.BlockCopy(buffer.Array, buffer.Offset + 21, objectIdBytes, 0, 12);
+            objectIdBytes.Should().Equal(objectId.ToByteArray());
         }
 
         [Fact]

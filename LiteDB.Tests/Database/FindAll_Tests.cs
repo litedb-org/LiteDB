@@ -2,6 +2,7 @@
 using System.IO;
 using System.Linq;
 using FluentAssertions;
+using LiteDB.Tests.Utils;
 using Xunit;
 
 namespace LiteDB.Tests.Database
@@ -23,7 +24,7 @@ namespace LiteDB.Tests.Database
         {
             using (var f = new TempFile())
             {
-                using (var db = new LiteDatabase(f.Filename))
+                using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, f.Filename))
                 {
                     var col = db.GetCollection<Person>("Person");
 
@@ -34,7 +35,7 @@ namespace LiteDB.Tests.Database
                 }
                 // close datafile
 
-                using (var db = new LiteDatabase(f.Filename))
+                using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, f.Filename))
                 {
                     var p = db.GetCollection<Person>("Person").Find(Query.All("Fullname", Query.Ascending));
 

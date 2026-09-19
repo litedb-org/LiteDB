@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using Xunit;
 using System.Linq;
+using LiteDB.Tests.Utils;
 
 namespace LiteDB.Tests.Issues
 {
@@ -28,7 +29,7 @@ namespace LiteDB.Tests.Issues
         {
             BsonMapper.Global.Entity<Order>().DbRef(order => order.Customer);
 
-            using var _database = new LiteDatabase(":memory:");
+            using var _database = DatabaseFactory.Create();
             var _orderCollection = _database.GetCollection<Order>("Order");
             var _customerCollection = _database.GetCollection<Customer>("Customer");
 
