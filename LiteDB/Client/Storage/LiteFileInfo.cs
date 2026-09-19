@@ -60,6 +60,14 @@ namespace LiteDB
         }
 
         /// <summary>
+        /// Open file stream to append to the content in database
+        /// </summary>
+        internal LiteFileStream<TFileId> OpenAppend(Action<bool> complete)
+        {
+            return new LiteFileStream<TFileId>(_files, _chunks, this, _fileId, FileAccess.Write, true, complete);
+        }
+
+        /// <summary>
         /// Copy file content to another stream
         /// </summary>
         public void CopyTo(Stream stream)

@@ -48,6 +48,18 @@ namespace LiteDB
         LiteFileStream<TFileId> OpenWrite(TFileId id, string filename, BsonDocument metadata = null);
 
         /// <summary>
+        /// Open/create a file and return a stream that atomically appends to its content.
+        /// Existing file metadata is preserved and a failed append is rolled back. The stream
+        /// must be used and disposed on the opening thread and cannot be nested in a transaction.
+        /// </summary>
+        /// <param name="id">The identifier of the file to append.</param>
+        /// <param name="filename">The filename used only when a new file is created.</param>
+        /// <param name="metadata">The metadata used only when a new file is created.</param>
+        /// <returns>A write-only stream positioned at the end of the file.</returns>
+        /// <exception cref="InvalidOperationException">The opening thread already has an active transaction.</exception>
+        LiteFileStream<TFileId> OpenAppend(TFileId id, string filename, BsonDocument metadata = null);
+
+        /// <summary>
         /// Upload a file based on stream data
         /// </summary>
         LiteFileInfo<TFileId> Upload(TFileId id, string filename, Stream stream, BsonDocument metadata = null);
