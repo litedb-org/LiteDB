@@ -131,6 +131,15 @@ namespace LiteDB
         {
             if (TryTranslateEnumEquals(node, out var enumEquals)) return enumEquals;
             if (TryTranslateOrdinalStringEquals(node, out var ordinalEquals)) return ordinalEquals;
+            if (node.Method.DeclaringType == typeof(string) && node.Method.Name == nameof(string.Equals) &&
+                node.Arguments.Count > 0 && node.Arguments[node.Arguments.Count - 1].Type == typeof(StringComparison) &&
+                !ParameterExpressionVisitor.Test(node.Arguments[node.Arguments.Count - 1]))
+            {
+                // Ordinal equality adds a plain equality term so the query can seek an
+                // index. A template produced for any other captured mode therefore
+                // cannot be reused when that captured value later becomes Ordinal.
+                Bindings?.Add(null);
+            }
             if (node.Method.Name == "op_Implicit" && node.Arguments.Count == 1 && node.Type.IsGenericType &&
                 (node.Type.GetGenericTypeDefinition().FullName == "System.Span`1" ||
                  node.Type.GetGenericTypeDefinition().FullName == "System.ReadOnlySpan`1"))

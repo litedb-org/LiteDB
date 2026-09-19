@@ -102,6 +102,18 @@ namespace LiteDB.Tests.Issues
         }
 
         [Fact]
+        public void Cached_non_ordinal_mode_does_not_hide_a_later_ordinal_seek()
+        {
+            using var db = new LiteDatabase(":memory:");
+            var rows = db.GetCollection<Row>();
+            rows.Insert(_names.Select((name, i) => new Row { Id = i + 1, Name = name }));
+            rows.EnsureIndex(row => row.Name);
+
+            CapturedMode(rows, StringComparison.OrdinalIgnoreCase).Should().StartWith("FULL INDEX SCAN");
+            CapturedMode(rows, StringComparison.Ordinal).Should().StartWith("INDEX SEEK(Name = ");
+        }
+
+        [Fact]
         public void A_row_dependent_mode_is_not_narrowed()
         {
             using var db = new LiteDatabase(":memory:");
@@ -116,5 +128,8 @@ namespace LiteDB.Tests.Issues
 
         private static string Mode(ILiteCollection<Row> rows, Expression<Func<Row, bool>> predicate) =>
             rows.Query().Where(predicate).GetPlan()["index"]["mode"].AsString;
+
+        private static string CapturedMode(ILiteCollection<Row> rows, StringComparison mode) =>
+            Mode(rows, row => row.Name.Equals("alice", mode));
     }
 }
