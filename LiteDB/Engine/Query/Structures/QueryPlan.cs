@@ -72,6 +72,8 @@ namespace LiteDB.Engine
         /// </summary>
         public Select Select { get; set; }
 
+        internal VectorScoreProjection VectorScore { get; set; }
+
         /// <summary>
         /// Get fields name that will be deserialize from disk
         /// </summary>
@@ -115,7 +117,12 @@ namespace LiteDB.Engine
         public IDocumentLookup GetLookup(Snapshot snapshot, EnginePragmas pragmas, uint maxItemsCount)
         {
             var data = new DataService(snapshot, maxItemsCount);
-            var indexer = new IndexService(snapshot, pragmas.Collation, maxItemsCount);
+
+            if (this.Index is VectorIndexQuery vector)
+            {
+                vector.ConfigureLookup(data, pragmas.UtcDate, this.Fields);
+                return vector;
+            }
 
             // define document loader
             // if index are VirtualIndex - it's also lookup document
@@ -123,7 +130,7 @@ namespace LiteDB.Engine
             {
                 if (this.IsIndexKeyOnly)
                 {
-                    lookup = new IndexLookup(indexer, this.Fields.Single());
+                    lookup = new IndexLookup(this.Fields.Single(), new DatafileLookup(data, true, this.Fields), pragmas.UtcDate);
                 }
                 else
                 {

@@ -128,6 +128,7 @@ namespace LiteDB
 
                 while (true)
                 {
+                    var firstOrderToken = _tokenizer.LookAhead();
                     var orderBy = BsonExpression.Create(_tokenizer, BsonExpressionParserMode.Full, _parameters);
 
                     var orderByOrder = Query.Ascending;
@@ -138,6 +139,8 @@ namespace LiteDB
                         orderByOrder = _tokenizer.ReadToken().Is("ASC") ? Query.Ascending : Query.Descending;
                     }
 
+                    if (query.GroupBy == null && !query.Select.UseSource && firstOrderToken.Type == TokenType.Word)
+                        orderBy = ResolveSelectAlias(query.Select, orderBy, firstOrderToken.Value);
                     query.OrderBy.Add(new QueryOrder(orderBy, orderByOrder));
 
                     var next = _tokenizer.LookAhead();

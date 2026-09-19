@@ -35,6 +35,11 @@ namespace LiteDB.Engine
 
         public override void Flush() => _stream.Flush();
 
+        internal void FlushToDisk()
+        {
+            lock (_stream) _stream.FlushToDisk();
+        }
+
         public override void SetLength(long value)
         {
             // WAL rollback can truncate while another wrapper is reading.

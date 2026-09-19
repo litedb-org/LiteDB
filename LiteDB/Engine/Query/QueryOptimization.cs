@@ -8,7 +8,7 @@ namespace LiteDB.Engine
     /// <summary>
     /// Class that optimize query transforming user "Query" into "QueryPlan"
     /// </summary>
-    internal class QueryOptimization
+    internal partial class QueryOptimization
     {
         private readonly Snapshot _snapshot;
         private readonly Query _query;
@@ -16,6 +16,7 @@ namespace LiteDB.Engine
         private readonly QueryPlan _queryPlan;
         private readonly List<BsonExpression> _terms = new List<BsonExpression>();
         private bool _vectorOrderConsumed;
+        private bool _vectorPrimaryOrderMatched;
 
         public QueryOptimization(Snapshot snapshot, Query query, IEnumerable<BsonDocument> source, Collation collation)
         {
@@ -32,7 +33,8 @@ namespace LiteDB.Engine
                 Select = new Select(_query.Select, _query.Select.UseSource),
                 ForUpdate = query.ForUpdate,
                 Limit = query.Limit,
-                Offset = query.Offset
+                Offset = query.Offset,
+                VectorScore = query.VectorScore
             };
         }
 
@@ -241,14 +243,14 @@ namespace LiteDB.Engine
             }
 
             // if is only 1 field to deserialize and this field are same as index, use IndexKeyOnly = rue
-            if (_queryPlan.Fields.Count == 1 && _queryPlan.IndexExpression == "$." + _queryPlan.Fields.First())
+            if (!(_queryPlan.Index is VectorIndexQuery) && _queryPlan.Fields.Count == 1 && _queryPlan.IndexExpression == "$." + _queryPlan.Fields.First())
             {
                 // best choice - no need lookup for document (use only index)
                 _queryPlan.IsIndexKeyOnly = true;
             }
 
             // fill filter using all expressions (remove selected term used in Index)
-            _queryPlan.Filters.AddRange(_terms.Where(x => x != selected));
+            _queryPlan.Filters.AddRange(_terms.Where(x => x != selected && !_fusedTerms.Contains(x)));
         }
 
         /// <summary>
@@ -261,13 +263,19 @@ namespace LiteDB.Engine
         /// </summary>
         private IndexCost ChooseIndex(HashSet<string> fields)
         {
-            var indexes = _snapshot.CollectionPage.GetCollectionIndexes().ToArray();
+            // Indexes contain stored reference stubs, not the documents resolved by INCLUDE.
+            // They cannot filter or order values from fields that an include replaces.
+            var indexes = _snapshot.CollectionPage.GetCollectionIndexes()
+                .Where(x => x.IndexType == 0 &&
+                    !_query.Includes.Any(include => IncludeChangesIndex(include, x.BsonExpr)))
+                .ToArray();
 
             // if query contains a single field used, give preferred if this index exists
             var preferred = fields.Count == 1 ? "$." + fields.First() : null;
 
             // otherwise, check for lowest index cost
             IndexCost lowest = null;
+            var ranges = new List<IndexCost>();
 
             // test all possible predicates in terms
             foreach (var expr in _terms.Where(x => x.IsPredicate))
@@ -307,10 +315,7 @@ namespace LiteDB.Engine
                 // calculate index score and store highest score
                 var current = new IndexCost(index.Item1, expr, index.Item2, _collation);
 
-                if (lowest == null || current.Cost < lowest.Cost)
-                {
-                    lowest = current;
-                }
+                lowest = this.SelectLowest(lowest, current, ranges);
             }
 
             // if no index found, try use same index in orderby/groupby/preferred
@@ -328,218 +333,7 @@ namespace LiteDB.Engine
                 }
             }
 
-            return lowest;
-        }
-
-        private bool TrySelectVectorIndex(out VectorIndexQuery index, out BsonExpression consumedTerm)
-        {
-            index = null;
-            consumedTerm = null;
-
-            string expression = null;
-            float[] target = null;
-            double maxDistance = double.MaxValue;
-            var matchedFromOrderBy = false;
-
-            foreach (var term in _terms)
-            {
-                if (this.TryParseVectorPredicate(term, out expression, out target, out maxDistance))
-                {
-                    consumedTerm = term;
-                    break;
-                }
-            }
-
-            if (expression == null && _query.OrderBy.Count > 0)
-            {
-                foreach (var order in _query.OrderBy)
-                {
-                    if (this.TryParseVectorExpression(order.Expression, out expression, out target))
-                    {
-                        matchedFromOrderBy = true;
-                        maxDistance = double.MaxValue;
-                        break;
-                    }
-                }
-            }
-
-            if (expression == null && _query.VectorTarget != null && _query.VectorField != null)
-            {
-                expression = NormalizeVectorField(_query.VectorField);
-                target = _query.VectorTarget?.ToArray();
-                maxDistance = _query.VectorMaxDistance;
-                matchedFromOrderBy = matchedFromOrderBy || (_query.OrderBy.Any(order => order.Expression?.Type == BsonExpressionType.VectorSim));
-            }
-
-            if (expression == null || target == null)
-            {
-                return false;
-            }
-
-            int? limit = _query.Limit != int.MaxValue ? _query.Limit : (int?)null;
-
-            foreach (var (candidate, metadata) in _snapshot.CollectionPage.GetVectorIndexes())
-            {
-                if (!string.Equals(candidate.Expression, expression, StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                if (metadata.Dimensions != target.Length)
-                {
-                    continue;
-                }
-
-                index = new VectorIndexQuery(candidate.Name, _snapshot, candidate, metadata, target, maxDistance, limit, _collation);
-
-                if (matchedFromOrderBy)
-                {
-                    _vectorOrderConsumed = true;
-                }
-
-                return true;
-            }
-
-            return false;
-        }
-
-        private bool TryParseVectorPredicate(BsonExpression predicate, out string expression, out float[] target, out double maxDistance)
-        {
-            expression = null;
-            target = null;
-            maxDistance = double.NaN;
-
-            if (predicate == null)
-            {
-                return false;
-            }
-
-            if ((predicate.Type == BsonExpressionType.LessThan || predicate.Type == BsonExpressionType.LessThanOrEqual) &&
-                this.TryParseVectorExpression(predicate.Left, out expression, out target) &&
-                TryConvertToDouble(predicate.Right?.ExecuteScalar(_collation), out maxDistance))
-            {
-                return true;
-            }
-
-            if ((predicate.Type == BsonExpressionType.GreaterThan || predicate.Type == BsonExpressionType.GreaterThanOrEqual) &&
-                this.TryParseVectorExpression(predicate.Right, out expression, out target) &&
-                TryConvertToDouble(predicate.Left?.ExecuteScalar(_collation), out maxDistance))
-            {
-                return true;
-            }
-
-            expression = null;
-            target = null;
-            maxDistance = double.NaN;
-            return false;
-        }
-
-        private bool TryParseVectorExpression(BsonExpression expression, out string fieldExpression, out float[] target)
-        {
-            fieldExpression = null;
-            target = null;
-
-            if (expression == null || expression.Type != BsonExpressionType.VectorSim)
-            {
-                return false;
-            }
-
-            var field = expression.Left;
-            if (field == null || string.IsNullOrEmpty(field.Source))
-            {
-                return false;
-            }
-
-            var targetValue = expression.Right?.ExecuteScalar(_collation);
-
-            if (!TryConvertToVector(targetValue, out target))
-            {
-                return false;
-            }
-
-            fieldExpression = field.Source;
-            return true;
-        }
-
-        private static bool TryConvertToVector(BsonValue value, out float[] vector)
-        {
-            vector = null;
-
-            if (value == null || value.IsNull)
-            {
-                return false;
-            }
-
-            if (value.Type == BsonType.Vector)
-            {
-                vector = value.AsVector.ToArray();
-                return true;
-            }
-
-            if (!value.IsArray)
-            {
-                return false;
-            }
-
-            var array = value.AsArray;
-            var buffer = new float[array.Count];
-
-            for (var i = 0; i < array.Count; i++)
-            {
-                var item = array[i];
-
-                if (item.IsNull)
-                {
-                    return false;
-                }
-
-                try
-                {
-                    buffer[i] = (float)item.AsDouble;
-                }
-                catch
-                {
-                    return false;
-                }
-            }
-
-            vector = buffer;
-            return true;
-        }
-
-        private static bool TryConvertToDouble(BsonValue value, out double number)
-        {
-            number = double.NaN;
-
-            if (value == null || value.IsNull || !value.IsNumber)
-            {
-                return false;
-            }
-
-            number = value.AsDouble;
-            return !double.IsNaN(number);
-        }
-
-        private static string NormalizeVectorField(string field)
-        {
-            if (string.IsNullOrWhiteSpace(field))
-            {
-                return field;
-            }
-
-            field = field.Trim();
-
-            if (field.StartsWith("$", StringComparison.Ordinal))
-            {
-                return field;
-            }
-
-            if (field.StartsWith(".", StringComparison.Ordinal))
-            {
-                field = field.Substring(1);
-            }
-
-            return "$." + field;
+            return this.FuseRanges(lowest, ranges);
         }
 
         #endregion
@@ -551,19 +345,31 @@ namespace LiteDB.Engine
         /// </summary>
         private void DefineOrderBy()
         {
-            // if has no order by, returns null
-            if (_query.OrderBy.Count == 0) return;
-
-            if (_vectorOrderConsumed)
+            if (_query.OrderBy.Count == 0)
             {
-                _queryPlan.OrderBy = null;
+                // Unbounded WhereNear preserves metric ranking through the normal sorter.
+                if (_query.GroupBy == null && _queryPlan.Index is VectorIndexQuery vector && vector.RequiresSort)
+                {
+                    _queryPlan.OrderBy = new OrderBy(new[] { vector.CreateOrderByItem(Query.Ascending) });
+                }
                 return;
             }
 
-            var orderBy = new OrderBy(_query.OrderBy.Select(x => new OrderByItem(x.Expression, x.Order)));
+            var segments = _query.OrderBy.Select(x => new OrderByItem(x.Expression, x.Order)).ToArray();
+            if (_vectorOrderConsumed) return;
+
+            if (_vectorPrimaryOrderMatched)
+            {
+                // Retain the metric score as the primary key so ThenBy only breaks score ties.
+                // Re-evaluating VECTOR_SIM here would replace Euclidean/dot-product scores with cosine.
+                var index = (VectorIndexQuery)_queryPlan.Index;
+                segments[0] = index.CreateOrderByItem(segments[0].Order);
+            }
+
+            var orderBy = new OrderBy(segments);
 
             // if index expression are same as primary OrderBy segment, use index order configuration
-            if (orderBy.PrimaryExpression.Source == _queryPlan.IndexExpression)
+            if (!orderBy.PrimaryExpression.RequiresExactSort && !(_queryPlan.Index is VectorIndexQuery) && orderBy.PrimaryExpression.Source == _queryPlan.IndexExpression)
             {
                 _queryPlan.Index.Order = orderBy.PrimaryOrder;
 
@@ -588,11 +394,14 @@ namespace LiteDB.Engine
 
             var expression = _query.GroupBy;
             var select = _queryPlan.Select.Expression;
+            // SQL SELECT collects enumerable expressions into one array per group.
+            // Match that behavior for fluent SELECT * without changing the caller's query.
+            if (!select.IsScalar) select = BsonExpression.Create("ARRAY(" + select.Source + ")", select.Parameters);
             var having = _query.Having;
             var groupOrderBy = (OrderBy)null;
 
             // if groupBy use same expression in index, no additional ordering is required before grouping
-            if (expression.Source == _queryPlan.IndexExpression)
+            if (!(_queryPlan.Index is VectorIndexQuery) && expression.Source == _queryPlan.IndexExpression)
             {
                 // index already provides grouped ordering
             }

@@ -1,4 +1,4 @@
-﻿using LiteDB.Engine;
+using LiteDB.Engine;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -11,7 +11,7 @@ namespace LiteDB
     /// <summary>
     /// Represent a Bson Value used in BsonDocument
     /// </summary>
-    public class BsonValue : IComparable<BsonValue>, IEquatable<BsonValue>
+    public partial class BsonValue : IComparable<BsonValue>, IEquatable<BsonValue>
     {
         public static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
@@ -132,11 +132,35 @@ namespace LiteDB
             if (value == null) this.Type = BsonType.Null;
             else if (value is Int32) this.Type = BsonType.Int32;
             else if (value is Int64) this.Type = BsonType.Int64;
+            else if (value is UInt32 unsigned32) { this.Type = BsonType.Int64; this.RawValue = (long)unsigned32; }
+            else if (value is UInt64 unsigned64) { this.Type = BsonType.Int64; this.RawValue = unchecked((long)unsigned64); }
             else if (value is Double) this.Type = BsonType.Double;
             else if (value is Decimal) this.Type = BsonType.Decimal;
             else if (value is String) this.Type = BsonType.String;
-            else if (value is IDictionary<string, BsonValue>) this.Type = BsonType.Document;
-            else if (value is IList<BsonValue>) this.Type = BsonType.Array;
+            else if (value is IDictionary<string, BsonValue> bsonDocument)
+            {
+                var dict = new Dictionary<string, BsonValue>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var element in bsonDocument)
+                {
+                    dict[element.Key] = element.Value ?? Null;
+                }
+
+                this.Type = BsonType.Document;
+                this.RawValue = new BsonDocument(dict, true);
+            }
+            else if (value is IList<BsonValue> bsonArray)
+            {
+                var list = new List<BsonValue>(bsonArray.Count);
+
+                foreach (var element in bsonArray)
+                {
+                    list.Add(element ?? Null);
+                }
+
+                this.Type = BsonType.Array;
+                this.RawValue = new BsonArray(list, true);
+            }
             else if (value is Byte[]) this.Type = BsonType.Binary;
             else if (value is ObjectId) this.Type = BsonType.ObjectId;
             else if (value is Guid) this.Type = BsonType.Guid;
@@ -162,15 +186,15 @@ namespace LiteDB
                 // test first for dictionary (because IDictionary implements IEnumerable)
                 if (dictionary != null)
                 {
-                    var dict = new Dictionary<string, BsonValue>();
+                    var dict = new Dictionary<string, BsonValue>(StringComparer.OrdinalIgnoreCase);
 
                     foreach (var key in dictionary.Keys)
                     {
-                        dict.Add(key.ToString(), new BsonValue(dictionary[key]));
+                        dict[key.ToString()] = new BsonValue(dictionary[key]);
                     }
 
                     this.Type = BsonType.Document;
-                    this.RawValue = dict;
+                    this.RawValue = new BsonDocument(dict, true);
                 }
                 else if (enumerable != null)
                 {
@@ -182,7 +206,7 @@ namespace LiteDB
                     }
 
                     this.Type = BsonType.Array;
-                    this.RawValue = list;
+                    this.RawValue = new BsonArray(list, true);
                 }
                 else
                 {
@@ -193,35 +217,7 @@ namespace LiteDB
 
         #endregion
 
-        #region Index "this" property
-
-        /// <summary>
-        /// Get/Set a field for document. Fields are case sensitive - Works only when value are document
-        /// </summary>
-        public virtual BsonValue this[string name]
-        {
-            get => throw new InvalidOperationException("Cannot access non-document type value on " + this.RawValue);
-            set => throw new InvalidOperationException("Cannot access non-document type value on " + this.RawValue);
-        }
-
-        /// <summary>
-        /// Get/Set value in array position. Works only when value are array
-        /// </summary>
-        public virtual BsonValue this[int index]
-        {
-            get => throw new InvalidOperationException("Cannot access non-array type value on " + this.RawValue);
-            set => throw new InvalidOperationException("Cannot access non-array type value on " + this.RawValue);
-        }
-
-        #endregion
-
         #region Convert types
-
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public BsonArray AsArray => this as BsonArray;
-
-        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public BsonDocument AsDocument => this as BsonDocument;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         public Byte[] AsBinary => this.RawValue as Byte[];
@@ -331,7 +327,7 @@ namespace LiteDB
         // Int64
         public static implicit operator Int64(BsonValue value)
         {
-            return (Int64)value.RawValue;
+            return value.IsInt32 ? (Int32)value.RawValue : (Int64)value.RawValue;
         }
 
         // Int64
@@ -343,7 +339,7 @@ namespace LiteDB
         // Double
         public static implicit operator Double(BsonValue value)
         {
-            return (Double)value.RawValue;
+            return value.IsInt32 ? (Int32)value.RawValue : value.IsInt64 ? (Int64)value.RawValue : (Double)value.RawValue;
         }
 
         // Double
@@ -364,16 +360,18 @@ namespace LiteDB
             return new BsonValue(value);
         }
 
-        // UInt64 (to avoid ambigous between Double-Decimal)
+        // UInt64 uses the same signed Int64 bits as BsonMapper.
         public static implicit operator UInt64(BsonValue value)
         {
-            return (UInt64)value.RawValue;
+            return value.IsInt64 ? unchecked((UInt64)(Int64)value.RawValue) :
+                value.IsInt32 ? unchecked((UInt64)(Int32)value.RawValue) :
+                (UInt64)value.RawValue;
         }
 
-        // Decimal
+        // UInt64 (lossless, including values above Int64.MaxValue)
         public static implicit operator BsonValue(UInt64 value)
         {
-            return new BsonValue((Double)value);
+            return new BsonValue(unchecked((Int64)value));
         }
 
         // String
@@ -560,7 +558,16 @@ namespace LiteDB
                 // it's the slowest way, but more secure
                 if (this.IsNumber && other.IsNumber)
                 {
-                    return Convert.ToDecimal(this.RawValue).CompareTo(Convert.ToDecimal(other.RawValue));
+                    if (IsDecimalConvertible(this) && IsDecimalConvertible(other))
+                    {
+                        return Convert.ToDecimal(this.RawValue).CompareTo(Convert.ToDecimal(other.RawValue));
+                    }
+
+                    // exactly one side is a double that decimal cannot hold (NaN, infinity or |x| >= 2^96).
+                    // it can never equal the other side, so only its sign decides the order
+                    return IsDecimalConvertible(this)
+                        ? -OutOfDecimalRangeSign(other.AsDouble)
+                        : OutOfDecimalRangeSign(this.AsDouble);
                 }
                 // if not, order by sort type order
                 else
@@ -673,14 +680,6 @@ namespace LiteDB
             }
 
             return false;
-        }
-
-        public override int GetHashCode()
-        {
-            var hash = 17;
-            hash = 37 * hash + this.Type.GetHashCode();
-            hash = 37 * hash + (this.RawValue?.GetHashCode() ?? 0);
-            return hash;
         }
 
         #endregion

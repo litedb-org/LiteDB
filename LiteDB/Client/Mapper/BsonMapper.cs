@@ -119,7 +119,7 @@ namespace LiteDB
 
             #region Register CustomTypes
 
-            RegisterType<Uri>(uri => uri.IsAbsoluteUri ? uri.AbsoluteUri : uri.ToString(), bson => new Uri(bson.AsString));
+            RegisterType<Uri>(uri => uri.IsAbsoluteUri ? uri.AbsoluteUri : uri.ToString(), bson => new Uri(bson.AsString, UriKind.RelativeOrAbsolute));
             RegisterType<DateTimeOffset>(value => new BsonValue(value.UtcDateTime), bson => bson.AsDateTime.ToUniversalTime());
             RegisterType<TimeSpan>(value => new BsonValue(value.Ticks), bson => new TimeSpan(bson.AsInt64));
             RegisterType<Regex>(
@@ -328,6 +328,7 @@ namespace LiteDB
                 foreach (var item in (IEnumerable)list)
                 {
                     if (item == null) continue;
+                    if (idField == null) throw new LiteException(0, "There is no _id field mapped in your type: " + member.UnderlyingType.FullName);
 
                     var id = idField.Getter(item);
 

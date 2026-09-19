@@ -12,7 +12,7 @@ namespace LiteDB
     /// <summary>
     /// An IQueryable-like class to write fluent query in documents in collection.
     /// </summary>
-    public class LiteQueryable<T> : ILiteQueryable<T>
+    public partial class LiteQueryable<T> : ILiteQueryable<T>
     {
         protected readonly ILiteEngine _engine;
         protected readonly BsonMapper _mapper;
@@ -237,126 +237,6 @@ namespace LiteDB
             return new LiteQueryable<K>(_engine, _mapper, _collection, _query);
         }
 
-        private static void ValidateVectorArguments(float[] target, double maxDistance)
-        {
-            if (target == null || target.Length == 0) throw new ArgumentException("Target vector must be provided.", nameof(target));
-            // Dot-product queries interpret "maxDistance" as a minimum similarity score and may therefore pass negative values.
-            if (double.IsNaN(maxDistance)) throw new ArgumentOutOfRangeException(nameof(maxDistance), "Similarity threshold must be a valid number.");
-        }
-
-        private static BsonExpression CreateVectorSimilarityFilter(BsonExpression fieldExpr, float[] target, double maxDistance)
-        {
-            if (fieldExpr == null) throw new ArgumentNullException(nameof(fieldExpr));
-
-            ValidateVectorArguments(target, maxDistance);
-
-            var targetArray = new BsonArray(target.Select(v => new BsonValue(v)));
-            return BsonExpression.Create($"{fieldExpr.Source} VECTOR_SIM @0 <= @1", targetArray, new BsonValue(maxDistance));
-        }
-
-        internal ILiteQueryable<T> VectorWhereNear(string vectorField, float[] target, double maxDistance)
-        {
-            if (string.IsNullOrWhiteSpace(vectorField)) throw new ArgumentNullException(nameof(vectorField));
-
-            var fieldExpr = BsonExpression.Create($"$.{vectorField}");
-            return this.VectorWhereNear(fieldExpr, target, maxDistance);
-        }
-
-        internal ILiteQueryable<T> VectorWhereNear(BsonExpression fieldExpr, float[] target, double maxDistance)
-        {
-            var filter = CreateVectorSimilarityFilter(fieldExpr, target, maxDistance);
-
-            _query.Where.Add(filter);
-
-            _query.VectorField = fieldExpr.Source;
-            _query.VectorTarget = target?.ToArray();
-            _query.VectorMaxDistance = maxDistance;
-
-            return this;
-        }
-
-        internal ILiteQueryable<T> VectorWhereNear<K>(Expression<Func<T, K>> field, float[] target, double maxDistance)
-        {
-            if (field == null) throw new ArgumentNullException(nameof(field));
-
-            var fieldExpr = _mapper.GetExpression(field);
-            return this.VectorWhereNear(fieldExpr, target, maxDistance);
-        }
-
-        internal ILiteQueryableResult<T> VectorTopKNear<K>(Expression<Func<T, K>> field, float[] target, int k)
-        {
-            var fieldExpr = _mapper.GetExpression(field);
-            return this.VectorTopKNear(fieldExpr, target, k);
-        }
-
-        internal ILiteQueryableResult<T> VectorTopKNear(string field, float[] target, int k)
-        {
-            var fieldExpr = BsonExpression.Create($"$.{field}");
-            return this.VectorTopKNear(fieldExpr, target, k);
-        }
-
-        internal ILiteQueryableResult<T> VectorTopKNear(BsonExpression fieldExpr, float[] target, int k)
-        {
-            if (fieldExpr == null) throw new ArgumentNullException(nameof(fieldExpr));
-            if (target == null || target.Length == 0) throw new ArgumentException("Target vector must be provided.", nameof(target));
-            if (k <= 0) throw new ArgumentOutOfRangeException(nameof(k), "Top-K must be greater than zero.");
-
-            var targetArray = new BsonArray(target.Select(v => new BsonValue(v)));
-
-            // Build VECTOR_SIM as order clause
-            var simExpr = BsonExpression.Create($"VECTOR_SIM({fieldExpr.Source}, @0)", targetArray);
-
-            _query.VectorField = fieldExpr.Source;
-            _query.VectorTarget = target?.ToArray();
-            _query.VectorMaxDistance = double.MaxValue;
-
-            return this
-                .OrderBy(simExpr, Query.Ascending)
-                .Limit(k);
-        }
-
-        [Obsolete("Add `using LiteDB.Vector;` and call the LiteQueryableVectorExtensions.WhereNear extension instead.")]
-        public ILiteQueryable<T> WhereNear(string vectorField, float[] target, double maxDistance)
-        {
-            return this.VectorWhereNear(vectorField, target, maxDistance);
-        }
-
-        [Obsolete("Add `using LiteDB.Vector;` and call the LiteQueryableVectorExtensions.WhereNear extension instead.")]
-        public ILiteQueryable<T> WhereNear(BsonExpression fieldExpr, float[] target, double maxDistance)
-        {
-            return this.VectorWhereNear(fieldExpr, target, maxDistance);
-        }
-
-        [Obsolete("Add `using LiteDB.Vector;` and call the LiteQueryableVectorExtensions.WhereNear extension instead.")]
-        public ILiteQueryable<T> WhereNear<K>(Expression<Func<T, K>> field, float[] target, double maxDistance)
-        {
-            return this.VectorWhereNear(field, target, maxDistance);
-        }
-
-        [Obsolete("Add `using LiteDB.Vector;` and call the LiteQueryableVectorExtensions.FindNearest extension instead.")]
-        public IEnumerable<T> FindNearest(string vectorField, float[] target, double maxDistance)
-        {
-            return this.VectorWhereNear(vectorField, target, maxDistance).ToEnumerable();
-        }
-
-        [Obsolete("Add `using LiteDB.Vector;` and call the LiteQueryableVectorExtensions.TopKNear extension instead.")]
-        public ILiteQueryableResult<T> TopKNear<K>(Expression<Func<T, K>> field, float[] target, int k)
-        {
-            return this.VectorTopKNear(field, target, k);
-        }
-
-        [Obsolete("Add `using LiteDB.Vector;` and call the LiteQueryableVectorExtensions.TopKNear extension instead.")]
-        public ILiteQueryableResult<T> TopKNear(string field, float[] target, int k)
-        {
-            return this.VectorTopKNear(field, target, k);
-        }
-
-        [Obsolete("Add `using LiteDB.Vector;` and call the LiteQueryableVectorExtensions.TopKNear extension instead.")]
-        public ILiteQueryableResult<T> TopKNear(BsonExpression fieldExpr, float[] target, int k)
-        {
-            return this.VectorTopKNear(fieldExpr, target, k);
-        }
-
         #endregion
 
         #region Offset/Limit/ForUpdate
@@ -412,6 +292,18 @@ namespace LiteDB
         /// </summary>
         public IEnumerable<BsonDocument> ToDocuments()
         {
+            // The projection marker is for typed materialization only. A document handed to the
+            // caller must map like any other document (BsonMapper.ToObject is public).
+            foreach (var doc in this.ReadDocuments())
+            {
+                doc.IsProjectionValue = false;
+
+                yield return doc;
+            }
+        }
+
+        private IEnumerable<BsonDocument> ReadDocuments()
+        {
             using (var reader = this.ExecuteReader())
             {
                 while (reader.Read())
@@ -432,10 +324,16 @@ namespace LiteDB
                     .Select(x => x[x.Keys.First()])
                     .Select(x => (T)_mapper.Deserialize(typeof(T), x));
             }
-            else
+            else if (typeof(T) == typeof(BsonDocument))
             {
+                // Raw reads still need deserialization callbacks; ToObject returns documents unchanged.
                 return this.ToDocuments()
                     .Select(x => (T)_mapper.Deserialize(typeof(T), x));
+            }
+            else
+            {
+                return this.ReadDocuments()
+                    .Select(x => _mapper.ToObject<T>(x));
             }
         }
 
@@ -517,9 +415,11 @@ namespace LiteDB
             try
             {
                 this.Select($"{{ count: COUNT(*._id) }}");
-                var ret = this.ToDocuments().Single()["count"].AsInt32;
+                var count = this.ToDocuments().Single()["count"].AsInt64;
 
-                return ret;
+                if (count > int.MaxValue) throw new OverflowException($"The query matches {count} documents, which does not fit an Int32. Use LongCount().");
+
+                return (int)count;
             }
             finally
             {

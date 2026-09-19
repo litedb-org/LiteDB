@@ -20,7 +20,7 @@ namespace LiteDB
                 case "Abs": return "ABS(@0)";
                 case "Pow": return "POW(@0, @1)";
                 case "Round":
-                    if (qtParams != 2) throw new ArgumentOutOfRangeException("Method Round need 2 arguments when convert to BsonExpression");
+                    if (qtParams != 2 || method.GetParameters()[1].ParameterType != typeof(int)) return null;
                     return "ROUND(@0, @1)";
             }
 

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
 namespace LiteDB.Shell
@@ -43,7 +44,10 @@ namespace LiteDB.Shell
         /// </summary>
         public void Parse(string[] args)
         {
-            var expr = new Regex(@"^(--|-|\/)(\w+)([=:]?)");
+            var pattern = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                ? @"^(--|-|\/)(\w+)([=:]?)"
+                : @"^(--|-)(\w+)([=:]?)";
+            var expr = new Regex(pattern);
 
             for (var i = 0; i < args.Length; i++)
             {

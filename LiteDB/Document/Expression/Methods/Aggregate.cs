@@ -15,7 +15,15 @@ namespace LiteDB
         /// </summary>
         public static BsonValue COUNT(IEnumerable<BsonValue> values)
         {
-            return values.Count();
+            return CountValue(values is ICollection<BsonValue> collection ? collection.Count : values.LongCount());
+        }
+
+        /// <summary>
+        /// Int32 while the count fits, so existing results keep their BSON type; Int64 beyond that instead of overflowing.
+        /// </summary>
+        internal static BsonValue CountValue(long count)
+        {
+            return count <= int.MaxValue ? new BsonValue((int)count) : new BsonValue(count);
         }
 
         /// <summary>

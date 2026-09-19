@@ -56,7 +56,12 @@ namespace LiteDB
         /// </summary>
         public LiteFileStream<TFileId> OpenWrite()
         {
-            return new LiteFileStream<TFileId>(_files, _chunks, this, _fileId, FileAccess.Write);
+            return this.OpenWrite(false);
+        }
+
+        internal LiteFileStream<TFileId> OpenWrite(bool preserveExisting)
+        {
+            return new LiteFileStream<TFileId>(_files, _chunks, this, _fileId, FileAccess.Write, preserveExisting);
         }
 
         /// <summary>

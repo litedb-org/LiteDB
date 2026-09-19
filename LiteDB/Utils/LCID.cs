@@ -462,7 +462,7 @@ namespace LiteDB
         {
             foreach(var item in _mappings)
             {
-                if (item.Value == culture)
+                if (string.Equals(item.Value, culture, StringComparison.OrdinalIgnoreCase))
                 {
                     return item.Key;
                 }

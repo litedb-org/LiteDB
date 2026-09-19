@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.ComponentModel;
 using System.Globalization;
@@ -19,7 +19,12 @@ namespace LiteDB
             // if object is BsonDocument, just return them
             if (entity is BsonDocument) return (BsonDocument)(object)entity;
 
-            return this.Serialize(type, entity, 0).AsDocument;
+            var value = this.Serialize(type, entity, 0);
+            if (value == null || !value.IsDocument)
+                throw new LiteException(LiteException.MAPPING_ERROR,
+                    "Type '{0}' cannot be mapped as a root document (serialized as {1}). Use a document DTO or RegisterType with a document serializer.",
+                    entity.GetType().FullName, value?.Type.ToString() ?? "null");
+            return value.AsDocument;
         }
 
         /// <summary>
@@ -46,7 +51,10 @@ namespace LiteDB
             return this.Serialize(type, obj, 0);
         }
 
-        internal BsonValue Serialize(Type type, object obj, int depth)
+        /// <summary>
+        /// Serialize a value using its declared type and current nesting depth.
+        /// </summary>
+        public virtual BsonValue Serialize(Type type, object obj, int depth)
         {
             if (++depth > MaxDepth) throw LiteException.DocumentMaxDepth(MaxDepth, type);
 
@@ -59,6 +67,12 @@ namespace LiteDB
             else if (_customSerializer.TryGetValue(type, out var custom) || _customSerializer.TryGetValue(obj.GetType(), out custom))
             {
                 return custom(obj);
+            }
+            // Preserve the virtual object-mapping hook as well as registered
+            // serializers; the base implementation declines runtime metadata.
+            else if (obj is Delegate || obj is MemberInfo)
+            {
+                return (BsonValue)this.SerializeObject(type, obj, depth) ?? BsonValue.Null;
             }
             // test string - mapper has some special options
             else if (obj is String)
@@ -115,6 +129,10 @@ namespace LiteDB
             {
                 if (EnumAsInteger)
                 {
+                    var underlyingType = Enum.GetUnderlyingType(obj.GetType());
+                    // Match integer mapping, including UInt64's lossless signed BSON bit representation.
+                    if (underlyingType == typeof(UInt64)) return new BsonValue(unchecked((Int64)Convert.ToUInt64(obj)));
+                    if (underlyingType == typeof(Int64) || underlyingType == typeof(UInt32)) return new BsonValue(Convert.ToInt64(obj));
                     return new BsonValue(Convert.ToInt32(obj));
                 }
                 else
@@ -125,27 +143,21 @@ namespace LiteDB
             // for dictionary
             else if (obj is IDictionary dict)
             {
-                // when you are converting Dictionary<string, object>
-                if (type == typeof(object))
-                {
-                    type = obj.GetType();
-                }
-
-                Type keyType = typeof(object);
-                Type valueType = typeof(object);
-
-                if (type.GetTypeInfo().IsGenericType) {
-                    Type[] generics = type.GetGenericArguments();
-                    keyType = generics[0];
-                    valueType = generics[1];
-                }
+                var dictionaryType = type == typeof(object) ? obj.GetType() : type;
+                // Non-generic declarations historically used object/object BSON shapes.
+                Reflection.GetDictionaryTypes(dictionaryType.GetTypeInfo().IsGenericType ? dictionaryType : typeof(IDictionary),
+                    out var keyType, out var valueType);
 
                 return SerializeDictionary(keyType, valueType, dict, depth);
+            }
+            else if (obj is System.Dynamic.ExpandoObject expando && (type == typeof(object) || Reflection.IsDictionary(type)))
+            {
+                return SerializeExpando(expando, depth);
             }
             // check if is a list or array
             else if (obj is IEnumerable)
             {
-                return SerializeArray(Reflection.GetListItemType(type), obj as IEnumerable, depth);
+                return SerializeArray(GetListItemType(type, obj), obj as IEnumerable, depth);
             }
             // otherwise serialize as a plain object
             else
@@ -154,7 +166,18 @@ namespace LiteDB
             }
         }
 
-        private BsonArray SerializeArray(Type type, IEnumerable array, int depth)
+        /// <summary>
+        /// Resolve the item type while retaining the declared collection contract.
+        /// </summary>
+        protected virtual Type GetListItemType(Type type, object value)
+        {
+            return Reflection.GetListItemType(type);
+        }
+
+        /// <summary>
+        /// Serialize the items in an enumerable value.
+        /// </summary>
+        protected virtual BsonArray SerializeArray(Type type, IEnumerable array, int depth)
         {
             BsonArray bsonArray = [];
 
@@ -183,7 +206,10 @@ namespace LiteDB
             return Reflection.GetListItemType(declaredType) == typeof(object);
         }
 
-        private BsonDocument SerializeDictionary(Type keyType, Type valueType, IDictionary dict, int depth)
+        /// <summary>
+        /// Serialize dictionary keys and values using their declared types.
+        /// </summary>
+        protected virtual BsonDocument SerializeDictionary(Type keyType, Type valueType, IDictionary dict, int depth)
         {
             BsonDocument bsonDocument = [];
 
@@ -208,9 +234,16 @@ namespace LiteDB
                 {
                     var converterType = keyType == typeof(object) ? key.GetType() : keyType;
                     var keyConverter = TypeDescriptor.GetConverter(converterType);
-                    stringKey = keyConverter.CanConvertTo(typeof(string))
-                        ? keyConverter.ConvertToInvariantString(key) ?? string.Empty
-                        : Convert.ToString(key, CultureInfo.InvariantCulture) ?? string.Empty;
+                    var enumConverter = keyConverter.GetType() == typeof(NullableConverter)
+                        ? ((NullableConverter)keyConverter).UnderlyingTypeConverter
+                        : keyConverter;
+                    // The default EnumConverter rejects unnamed values that the reader accepts.
+                    // Unwrap only the default nullable wrapper; honor custom converters at either level.
+                    stringKey = key is Enum && enumConverter.GetType() == typeof(EnumConverter)
+                        ? key.ToString()
+                        : keyConverter.CanConvertTo(typeof(string))
+                            ? keyConverter.ConvertToInvariantString(key) ?? string.Empty
+                            : Convert.ToString(key, CultureInfo.InvariantCulture) ?? string.Empty;
                 }
 
                 if (bsonDocument.ContainsKey(stringKey))
@@ -226,8 +259,13 @@ namespace LiteDB
             return bsonDocument;
         }
 
-        private BsonDocument SerializeObject(Type type, object obj, int depth)
+        /// <summary>
+        /// Serialize the mapped members of an object. The default returns null for runtime metadata and delegates.
+        /// </summary>
+        protected virtual BsonDocument SerializeObject(Type type, object obj, int depth)
         {
+            if (obj is Delegate || obj is MemberInfo) return null;
+
             var t = obj.GetType();
             var doc = new BsonDocument();
             var entity = this.GetEntityMapper(t);
@@ -241,20 +279,7 @@ namespace LiteDB
 
             foreach (var member in entity.Members.Where(x => x.Getter != null))
             {
-                // get member value
-                var value = member.Getter(obj);
-
-                if (value == null && this.SerializeNullValues == false && member.FieldName != "_id") continue;
-
-                // if member has a custom serialization, use it
-                if (member.Serialize != null)
-                {
-                    doc[member.FieldName] = member.Serialize(value, this);
-                }
-                else
-                {
-                    doc[member.FieldName] = this.Serialize(member.DataType, value, depth);
-                }
+                this.SerializeMember(doc, member, obj, depth);
             }
 
             return doc;

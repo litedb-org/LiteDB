@@ -46,6 +46,9 @@ namespace LiteDB.Engine
         internal Action Safepoint => _safepoint;
         internal int Epoch => _epoch;
 
+        /// <summary>Maximum chain traversal count for this snapshot's engine.</summary>
+        internal uint MaxItemsCount => _disk.MAX_ITEMS_COUNT;
+
         public Snapshot(
             LockMode mode, 
             string collectionName, 
@@ -76,14 +79,19 @@ namespace LiteDB.Engine
                 _locker.EnterLock(_collectionName);
             }
 
-            // get lastest read version from wal-index
-            _readVersion = _walIndex.CurrentReadVersion;
-
             var srv = new CollectionService(_header, _disk, this, _transPages);
 
             try
             {
-                srv.Get(_collectionName, addIfNotExists, ref _collectionPage);
+                uint collectionPageID;
+                lock (_header.PublicationLock)
+                {
+                    // Collection identity and WAL visibility must describe the same committed
+                    // state. A commit that changes the map holds this lock through confirmation.
+                    _readVersion = _walIndex.CurrentReadVersion;
+                    collectionPageID = _header.GetCollectionPageID(_collectionName);
+                }
+                srv.Get(_collectionName, collectionPageID, addIfNotExists, ref _collectionPage);
                 if (_collectionPage != null) _localPages.Remove(_collectionPage.PageID);
             }
             catch
@@ -235,7 +243,7 @@ namespace LiteDB.Engine
         private T ReadPage<T>(uint pageID, out FileOrigin origin, out long position, out int walVersion, bool useLatestVersion = false)
             where T : BasePage
         {
-            var dirty = _transPages.DirtyPages.TryGetValue(pageID, out var walPosition);
+            var dirty = _transPages.DirtyPages.TryGetValue(pageID, out var walPosition) && !_retainedForCursor;
             if (dirty)
             {
                 origin = FileOrigin.Log;

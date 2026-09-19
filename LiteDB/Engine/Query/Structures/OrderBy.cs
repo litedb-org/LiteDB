@@ -37,14 +37,22 @@ namespace LiteDB.Engine
 
     internal class OrderByItem
     {
-        public OrderByItem(BsonExpression expression, int order)
+        private readonly Func<BsonDocument, BsonValue> _keySelector;
+
+        public OrderByItem(BsonExpression expression, int order, Func<BsonDocument, BsonValue> keySelector = null)
         {
             this.Expression = expression ?? throw new ArgumentNullException(nameof(expression));
             this.Order = order;
+            _keySelector = keySelector;
         }
 
         public BsonExpression Expression { get; }
 
         public int Order { get; }
+
+        public BsonValue ExecuteScalar(BsonDocument document, Collation collation)
+        {
+            return _keySelector != null ? _keySelector(document) : Expression.ExecuteScalar(document, collation);
+        }
     }
 }

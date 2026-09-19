@@ -145,6 +145,8 @@ namespace LiteDB.Engine
             if (expression?.Parameters != null)
             {
                 expression.Parameters["key"] = key;
+                if (expression.GroupKeyAliases != null)
+                    foreach (var alias in expression.GroupKeyAliases) expression.Parameters[alias] = key;
             }
         }
 
@@ -203,7 +205,7 @@ namespace LiteDB.Engine
                     }
                     else
                     {
-                        document = new BsonDocument { [defaultName] = value };
+                        document = new BsonDocument { [defaultName] = value, IsProjectionValue = true };
                     }
 
                     if (resultOrderBy != null)
