@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using static LiteDB.Constants;
@@ -79,7 +79,7 @@ namespace LiteDB.Engine
             if (startEquals && node != null)
             {
                 // going backward in same value list to get first value
-                while (!node.GetNextPrev(0, -this.Order).IsEmpty && ((node = indexer.GetNode(node.GetNextPrev(0, -this.Order))).Key.CompareTo(start) == 0))
+                while (!node.GetNextPrev(0, -this.Order).IsEmpty && ((node = indexer.GetNode(node.GetNextPrev(0, -this.Order))).Key.CompareTo(start, indexer.Collation) == 0))
                 {
                     if (node.Key.IsMinValue || node.Key.IsMaxValue) break;
 
