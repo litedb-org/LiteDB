@@ -9,31 +9,37 @@ namespace LiteDB
         private BsonValue(UInt64 value)
         {
             _isUInt64 = true;
-            this.Type = value <= Int64.MaxValue ? BsonType.Int64 : BsonType.Decimal;
-            this.RawValue = value <= Int64.MaxValue ? (object)(Int64)value : (Decimal)value;
+            this.Type = BsonType.Int64;
+            this.RawValue = unchecked((Int64)value);
         }
 
         internal ulong AsUInt64
         {
             get
             {
-                if (this.IsDouble)
+                if (this.IsInt64) return unchecked((UInt64)this.AsInt64);
+                if (this.IsInt32) return unchecked((UInt64)this.AsInt32);
+
+                throw new InvalidCastException();
+            }
+        }
+
+        internal ulong AsUInt64OrLegacy
+        {
+            get
+            {
+                if (!this.IsDouble) return this.AsUInt64;
+
+                var value = this.AsDouble;
+
+                if (Double.IsNaN(value) || value < 0d || value > 18446744073709551616d)
                 {
-                    var value = this.AsDouble;
-
-                    if (Double.IsNaN(value) || value < 0d || value > 18446744073709551616d)
-                    {
-                        throw new OverflowException();
-                    }
-
-                    return value == 18446744073709551616d
-                        ? UInt64.MaxValue
-                        : Convert.ToUInt64(value);
+                    throw new OverflowException();
                 }
 
-                return this.IsDecimal
-                    ? Convert.ToUInt64(this.AsDecimal)
-                    : unchecked((UInt64)this.AsInt64);
+                return value == 18446744073709551616d
+                    ? UInt64.MaxValue
+                    : Convert.ToUInt64(value);
             }
         }
 
@@ -73,8 +79,7 @@ namespace LiteDB
             return value.AsUInt64;
         }
 
-        // Preserve the existing Int64 representation while it is unambiguous.
-        // Decimal stores the high half without colliding with negative Int64 keys.
+        // UInt64 uses the same signed Int64 bits as BsonMapper.
         public static implicit operator BsonValue(UInt64 value)
         {
             return new BsonValue(value);

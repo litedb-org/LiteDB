@@ -27,7 +27,15 @@ namespace LiteDB
         /// <summary>
         /// Converted document field name
         /// </summary>
-        public string FieldName { get; set; }
+        public string FieldName
+        {
+            get => _fieldName;
+            set { _fieldName = value; HasExplicitFieldName = true; }
+        }
+
+        private string _fieldName;
+        internal bool HasExplicitFieldName { get; set; }
+        internal MemberInfo ReflectedMember { get; set; }
 
         /// <summary>
         /// Delegate method to get value from entity instance
@@ -38,6 +46,9 @@ namespace LiteDB
         /// Delegate method to set value to entity instance
         /// </summary>
         public GenericSetter Setter { get; set; }
+
+        // Keep the reflected setter identity so custom setters can accept converted auto IDs.
+        internal GenericSetter DefaultSetter { get; set; }
 
         /// <summary>
         /// When used, can be define a serialization function from entity class to bson value

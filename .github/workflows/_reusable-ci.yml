@@ -275,6 +275,57 @@ jobs:
           --logger "console;verbosity=detailed"
           ${{ matrix.item.msbuildProps }}
 
+  test-windows-framework:
+    name: Test (Windows ${{ matrix.framework }})
+    runs-on: windows-2022
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        framework: [net462, net481]
+    env:
+      XUNIT_RUNNER_VERSION: 2.9.2
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.x
+            8.0.x
+
+      - name: Restore
+        run: dotnet restore LiteDB.Tests/LiteDB.Tests.csproj
+
+      - name: Build test project
+        run: >-
+          dotnet build LiteDB.Tests/LiteDB.Tests.csproj
+          --configuration Release
+          --framework ${{ matrix.framework }}
+          --no-restore
+          /p:TestingEnabled=true
+
+      - name: Run .NET Framework tests
+        shell: pwsh
+        run: |
+          $framework = '${{ matrix.framework }}'
+          $runner = Join-Path $env:USERPROFILE ".nuget\packages\xunit.runner.console\$env:XUNIT_RUNNER_VERSION\tools\$framework\xunit.console.exe"
+          $assembly = "LiteDB.Tests\bin\Release\$framework\LiteDB.Tests.dll"
+          $results = "LiteDB.Tests\TestResults\TestResults-$framework.xml"
+          New-Item -ItemType Directory -Force (Split-Path $results) | Out-Null
+
+          & $runner $assembly -nologo -xml $results
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          [xml]$report = Get-Content $results
+          $total = [int]$report.assemblies.assembly.total
+          if ($total -eq 0) { throw "The $framework runner discovered zero tests." }
+
   test-windows-crossprocess:
     name: Cross-Process Tests (Windows ${{ matrix.os }} - ${{ matrix.arch }} - ${{ matrix.item.display }})
     runs-on: ${{ matrix.os }}

@@ -66,6 +66,15 @@ namespace LiteDB.Engine
             this.Cost = this.Index.GetCost(index);
         }
 
+        // used when one range enforces several terms over the index of the selected term
+        public IndexCost(IndexCost selected, IndexRange range)
+        {
+            this.Expression = selected.Expression;
+            this.IndexExpression = selected.IndexExpression;
+            this.Index = range;
+            this.Cost = selected.Cost;
+        }
+
         // used when full index search
         public IndexCost(CollectionIndex index)
         {
@@ -84,7 +93,7 @@ namespace LiteDB.Engine
             {
                 case BsonExpressionType.Equal: return new IndexEquals(name, value);
                 case BsonExpressionType.Between: return new IndexRange(name, value.AsArray[0], value.AsArray[1], true, true, Query.Ascending);
-                case BsonExpressionType.Like: return new IndexLike(name, value.AsString, Query.Ascending);
+                case BsonExpressionType.Like: return new IndexLike(name, value.AsString, Query.Ascending, collation);
                 case BsonExpressionType.GreaterThan: return new IndexRange(name, value, BsonValue.MaxValue, false, true, Query.Ascending);
                 case BsonExpressionType.GreaterThanOrEqual: return new IndexRange(name, value, BsonValue.MaxValue, true, true, Query.Ascending);
                 case BsonExpressionType.LessThan: return new IndexRange(name, BsonValue.MinValue, value, true, false, Query.Ascending);

@@ -108,7 +108,8 @@ namespace LiteDB.Engine
 
             // now, let's link my index node on right place
             var leftNode = this.GetNode(index.Head);
-            var counter = 0u;
+            var counter = 0ul;
+            var maxItemsCount = (ulong)_maxItemsCount + _snapshot.AdditionalTraversalItemsCount;
 
             // scan from top left
             for (int currentLevel = MAX_LEVEL_LENGTH - 1; currentLevel >= 0; currentLevel--)
@@ -118,7 +119,7 @@ namespace LiteDB.Engine
                 // while: scan from left to right
                 while (right.IsEmpty == false && right != index.Tail)
                 {
-                    ENSURE(counter++ < _maxItemsCount, "Detected loop in AddNode({0})", node.Position);
+                    ENSURE(counter++ < maxItemsCount, "Detected loop in AddNode({0})", node.Position);
 
                     var rightNode = this.GetNode(right);
 
@@ -212,11 +213,12 @@ namespace LiteDB.Engine
         public IEnumerable<IndexNode> GetNodeList(PageAddress nodeAddress)
         {
             var node = this.GetNode(nodeAddress);
-            var counter = 0u;
+            var counter = 0ul;
+            var maxItemsCount = (ulong)_maxItemsCount + _snapshot.AdditionalTraversalItemsCount;
 
             while (node != null)
             {
-                ENSURE(counter++ < _maxItemsCount, "Detected loop in GetNodeList({0})", nodeAddress);
+                ENSURE(counter++ < maxItemsCount, "Detected loop in GetNodeList({0})", nodeAddress);
 
                 yield return node;
 
@@ -231,11 +233,12 @@ namespace LiteDB.Engine
         {
             var node = this.GetNode(pkAddress);
             var indexes = _snapshot.CollectionPage.GetCollectionIndexesSlots();
-            var counter = 0u;
+            var counter = 0ul;
+            var maxItemsCount = (ulong)_maxItemsCount + _snapshot.AdditionalTraversalItemsCount;
 
             while (node != null)
             {
-                ENSURE(counter++ < _maxItemsCount, "Detected loop in DeleteAll({0})", pkAddress);
+                ENSURE(counter++ < maxItemsCount, "Detected loop in DeleteAll({0})", pkAddress);
 
                 this.DeleteSingleNode(node, indexes[node.Slot]);
 
@@ -252,11 +255,12 @@ namespace LiteDB.Engine
             var last = this.GetNode(pkAddress);
             var node = this.GetNode(last.NextNode); // starts in first node after PK
             var indexes = _snapshot.CollectionPage.GetCollectionIndexesSlots();
-            var counter = 0u;
+            var counter = 0ul;
+            var maxItemsCount = (ulong)_maxItemsCount + _snapshot.AdditionalTraversalItemsCount;
 
             while (node != null)
             {
-                ENSURE(counter++ < _maxItemsCount, "Detected loop in DeleteList({0})", pkAddress);
+                ENSURE(counter++ < maxItemsCount, "Detected loop in DeleteList({0})", pkAddress);
 
                 if (toDelete.Contains(node.Position))
                 {
@@ -353,11 +357,12 @@ namespace LiteDB.Engine
         {
             var cur = order == Query.Ascending ? this.GetNode(index.Head) : this.GetNode(index.Tail);
             var next = cur.GetNextPrev(0, order);
-            var counter = 0u;
+            var counter = 0ul;
+            var maxItemsCount = (ulong)_maxItemsCount + _snapshot.AdditionalTraversalItemsCount;
 
             while (!next.IsEmpty)
             {
-                ENSURE(counter++ < _maxItemsCount, "Detected loop in FindAll({0})", index.Name);
+                ENSURE(counter++ < maxItemsCount, "Detected loop in FindAll({0})", index.Name);
 
                 cur = this.GetNode(next);
 
@@ -391,7 +396,8 @@ namespace LiteDB.Engine
         internal IndexNode FindExact(CollectionIndex index, BsonValue value, bool sibling, int order)
         {
             var leftNode = order == Query.Ascending ? this.GetNode(index.Head) : this.GetNode(index.Tail);
-            var counter = 0u;
+            var counter = 0ul;
+            var maxItemsCount = (ulong)_maxItemsCount + _snapshot.AdditionalTraversalItemsCount;
 
             for (int level = MAX_LEVEL_LENGTH - 1; level >= 0; level--)
             {
@@ -399,7 +405,7 @@ namespace LiteDB.Engine
 
                 while (right.IsEmpty == false)
                 {
-                    ENSURE(counter++ < _maxItemsCount, "Detected loop in Find({0}, {1})", index.Name, value);
+                    ENSURE(counter++ < maxItemsCount, "Detected loop in Find({0}, {1})", index.Name, value);
 
                     var rightNode = this.GetNode(right);
 

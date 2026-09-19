@@ -4,6 +4,13 @@ using LiteDB.Vector;
 
 namespace LiteDB.Engine
 {
+    /// <summary>Database engine operations used by the collection APIs.</summary>
+    /// <remarks>
+    /// Write inputs are streaming sequences and must be consumed at most once,
+    /// within the write transaction after acquiring the collection lock. Enumeration
+    /// can perform mapping callbacks, generated-ID handoff, and nested operations.
+    /// Engine decorators must forward these sequences without pre-enumerating them.
+    /// </remarks>
     public interface ILiteEngine : IDisposable
     {
         int Checkpoint();

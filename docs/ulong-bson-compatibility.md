@@ -1,16 +1,15 @@
 # UInt64 BSON compatibility
 
-LiteDB stores `UInt64` values in the exact BSON numeric representation that does
-not collide with signed keys:
+LiteDB stores `UInt64` values by preserving their bits in BSON `Int64`:
 
 | CLR value | Current BSON representation |
 | --- | --- |
-| `0` through `Int64.MaxValue` | `Int64` |
-| `Int64.MaxValue + 1` through `UInt64.MaxValue` | `Decimal` |
+| `0` through `Int64.MaxValue` | positive `Int64` |
+| `Int64.MaxValue + 1` through `UInt64.MaxValue` | negative `Int64` with the same bits |
 
-LiteDB 5.0.21 already used `Int64` for mapper-written `UInt64` values, including
-the unchecked negative bit pattern for values above `Int64.MaxValue`. The current
-reader accepts those values so existing mapped documents still round-trip.
+LiteDB 5.0.21 already used this representation for mapper-written `UInt64`
+values. The current reader accepts those values so existing mapped documents
+still round-trip.
 
 Direct `BsonValue` conversion in 5.0.21 used `Double`. Values above 2^53 may
 therefore already be rounded in an existing file. Equality operations created

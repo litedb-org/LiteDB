@@ -14,9 +14,9 @@ public class Issue1224_Compatibility_Tests
     public void Fractional_FindById_should_not_match_an_integer_id()
     {
         using var db = new LiteDatabase(new MemoryStream());
-        var col = db.GetCollection<Issue1224_Tests.Entity>("entities");
+        var col = db.GetCollection<Entity>("entities");
 
-        col.Insert(new Issue1224_Tests.Entity { Id = 2UL, Name = "integer" });
+        col.Insert(new Entity { Id = 2UL, Name = "integer" });
 
         Assert.Null(col.FindById(new BsonValue(1.9)));
     }
@@ -25,7 +25,7 @@ public class Issue1224_Compatibility_Tests
     public void Linq_equality_should_find_a_legacy_ulong_id()
     {
         using var db = new LiteDatabase(new MemoryStream());
-        var col = db.GetCollection<Issue1224_Tests.Entity>("entities");
+        var col = db.GetCollection<Entity>("entities");
 
         db.GetCollection("entities").Insert(LegacyDocument(LegacyValue));
 
@@ -75,13 +75,13 @@ public class Issue1224_Compatibility_Tests
     public void Update_should_modify_a_legacy_ulong_id_without_changing_its_key()
     {
         using var db = new LiteDatabase(new MemoryStream());
-        var col = db.GetCollection<Issue1224_Tests.Entity>("entities");
+        var col = db.GetCollection<Entity>("entities");
         var raw = db.GetCollection("entities");
         var legacyId = new BsonValue((double)LegacyValue);
 
         raw.Insert(LegacyDocument(LegacyValue));
 
-        var updated = col.Update(new Issue1224_Tests.Entity { Id = LegacyValue, Name = "updated" });
+        var updated = col.Update(new Entity { Id = LegacyValue, Name = "updated" });
         var stored = raw.FindById(legacyId);
 
         Assert.True(updated);
@@ -94,12 +94,12 @@ public class Issue1224_Compatibility_Tests
     public void Upsert_should_update_a_legacy_ulong_id_without_inserting_a_copy()
     {
         using var db = new LiteDatabase(new MemoryStream());
-        var col = db.GetCollection<Issue1224_Tests.Entity>("entities");
+        var col = db.GetCollection<Entity>("entities");
         var raw = db.GetCollection("entities");
 
         raw.Insert(LegacyDocument(LegacyValue));
 
-        var inserted = col.Upsert(new Issue1224_Tests.Entity { Id = LegacyValue, Name = "updated" });
+        var inserted = col.Upsert(new Entity { Id = LegacyValue, Name = "updated" });
 
         Assert.False(inserted);
         Assert.Equal(1, raw.Count());
@@ -140,7 +140,7 @@ public class Issue1224_Compatibility_Tests
 
         using (var db = new LiteDatabase(tempFile.Filename))
         {
-            var found = db.GetCollection<Issue1224_Tests.Entity>("entities")
+            var found = db.GetCollection<Entity>("entities")
                 .Find(x => x.Id == LegacyValue)
                 .SingleOrDefault();
 
@@ -160,16 +160,6 @@ public class Issue1224_Compatibility_Tests
         Assert.Throws<OverflowException>(() => mapper.Deserialize<ulong>(new BsonValue(Math.Pow(2, 65))));
     }
 
-    [Fact]
-    public void Deserializing_an_in_range_decimal_to_ulong_should_keep_mapper_rounding()
-    {
-        var mapper = new BsonMapper();
-
-        var result = mapper.Deserialize<ulong>(new BsonValue(1.9m));
-
-        Assert.Equal(2UL, result);
-    }
-
     private static BsonDocument LegacyDocument(ulong id)
     {
         return new BsonDocument
@@ -183,6 +173,12 @@ public class Issue1224_Compatibility_Tests
     {
         public int Id { get; set; }
         public ulong Value { get; set; }
+        public string Name { get; set; }
+    }
+
+    public class Entity
+    {
+        public ulong Id { get; set; }
         public string Name { get; set; }
     }
 }

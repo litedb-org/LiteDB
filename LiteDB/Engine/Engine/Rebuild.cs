@@ -18,7 +18,13 @@ namespace LiteDB.Engine
         /// </summary>
         public long Rebuild(RebuildOptions options)
         {
+            // Every omitted option keeps its current value; conflicting options fail before the engine closes.
+            options = options ?? new RebuildOptions();
+            var password = options.ResolvePassword(_settings.Password);
+
             if (string.IsNullOrEmpty(_settings.Filename)) return 0; // works only with os file
+
+            var collation = options.Collation ?? new Collation(this.Pragma(Pragmas.COLLATION));
 
             this.Close();
 
@@ -26,7 +32,11 @@ namespace LiteDB.Engine
             var rebuilder = new RebuildService(_settings);
 
             // return how many bytes of diference from original/rebuild version
-            var diff = rebuilder.Rebuild(options);
+            var diff = rebuilder.Rebuild(options, collation);
+
+            // SharedEngine retains this same settings instance for subsequent opens.
+            _settings.Password = password;
+            _settings.Collation = collation;
 
             // re-open engine
             this.Open();
@@ -41,10 +51,7 @@ namespace LiteDB.Engine
         /// </summary>
         public long Rebuild()
         {
-            var collation = new Collation(this.Pragma(Pragmas.COLLATION));
-            var password = _settings.Password;
-
-            return this.Rebuild(new RebuildOptions { Password = password, Collation = collation });
+            return this.Rebuild(null);
         }
 
         /// <summary>

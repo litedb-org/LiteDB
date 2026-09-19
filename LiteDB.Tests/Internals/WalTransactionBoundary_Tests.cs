@@ -155,7 +155,6 @@ namespace LiteDB.Internals
             var transaction = test.Engine.GetMonitor().GetThreadTransaction();
             transaction.Safepoint();
             var cache = transaction.Snapshots.Single().CollectionPage.Buffer.Cache;
-            var writable = cache.WritablePages;
             var length = test.Log.Length;
             test.Engine.SimulateDiskWriteFail = page =>
             {
@@ -166,15 +165,18 @@ namespace LiteDB.Internals
                 Action commit = () => test.Database.Commit();
                 commit.Should().Throw<IOException>().WithMessage("injected confirmation failure");
                 test.Log.Length.Should().Be(length);
-                cache.WritablePages.Should().Be(writable);
+                cache.WritablePages.Should().Be(0, "failed completion closes the engine and releases every frame");
                 cache.PinnedPages.Should().Be(0);
                 cache.LostFrames.Should().Be(0);
                 AssertValues(test.Recover("docs", checkpoint: false), 0);
+                Action rollback = () => test.Database.Rollback();
+                rollback.Should().Throw<IOException>().WithMessage("*injected confirmation failure");
+                Action nextWrite = () => test.Update("docs", 2);
+                nextWrite.Should().Throw<IOException>().WithMessage("*injected confirmation failure");
             }
             finally
             {
                 test.Engine.SimulateDiskWriteFail = null;
-                test.Database.Rollback();
             }
             cache.WritablePages.Should().Be(0);
             test.Engine.GetMonitor().Transactions.Should().BeEmpty();

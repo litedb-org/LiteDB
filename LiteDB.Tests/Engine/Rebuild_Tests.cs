@@ -37,6 +37,37 @@ namespace LiteDB.Tests.Engine
         }
 
         [Fact]
+        public void Rebuild_Sql_Without_Options_Keeps_Password_Collation_And_Data()
+        {
+            using var file = new TempFile();
+            var connection = new ConnectionString
+            {
+                Filename = file.Filename,
+                Password = "secret",
+                Collation = new Collation("en-US/IgnoreCase")
+            };
+
+            using (var db = new LiteDatabase(connection))
+            {
+                db.GetCollection("items").Insert(new BsonDocument { ["_id"] = 1, ["name"] = "kept" });
+
+                // `REBUILD` without an options document used to pass null options to the engine, which
+                // threw NullReferenceException after the engine had already been closed.
+                using (db.Execute("REBUILD"))
+                {
+                }
+
+                db.GetCollection("items").FindById(1)["name"].AsString.Should().Be("kept");
+                db.Collation.ToString().Should().Be("en-US/IgnoreCase");
+            }
+
+            using (var reopened = new LiteDatabase(connection))
+            {
+                reopened.GetCollection("items").Count().Should().Be(1);
+            }
+        }
+
+        [Fact]
         public void Rebuild_Large_Files()
         {
             // do some tests
