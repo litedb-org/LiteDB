@@ -10,16 +10,26 @@ namespace LiteDB
     /// <summary>
     /// Storage is a special collection to store files and streams.
     /// </summary>
-    public class LiteStorage<TFileId> : ILiteStorage<TFileId>
+    public class LiteStorage<[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(AotCompatibility.FileIdMembers)] TFileId> : ILiteStorage<TFileId>
     {
         private readonly ILiteDatabase _db;
         private readonly ILiteCollection<LiteFileInfo<TFileId>> _files;
         private readonly ILiteCollection<BsonDocument> _chunks;
 
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeFileIdMapping)]
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
         public LiteStorage(ILiteDatabase db, string filesCollection, string chunksCollection)
         {
             _db = db;
-            _files = db.GetCollection<LiteFileInfo<TFileId>>(filesCollection);
+
+            // LiteFileInfo is LiteDB's own model and has a hand-written mapping, so file storage needs no runtime
+            // member discovery and works trimmed and as Native AOT.
+            LiteFileInfoMapping<TFileId>.EnsureRegistered(db.Mapper);
+            // Existing ILiteDatabase decorators need not implement a new generated-collection API.
+            // Keep their original typed-collection path; this constructor already warns about runtime mapping.
+            _files = db is LiteDatabase database
+                ? database.GetGeneratedCollection<LiteFileInfo<TFileId>>(filesCollection)
+                : db.GetCollection<LiteFileInfo<TFileId>>(filesCollection);
             _chunks = db.GetCollection(chunksCollection);
         }
 
@@ -32,7 +42,7 @@ namespace LiteDB
         {
             if (id == null) throw new ArgumentNullException(nameof(id));
 
-            var fileId = _db.Mapper.Serialize(typeof(TFileId), id);
+            var fileId = _db.Mapper.SerializeFileId(id);
 
             var file = _files.FindById(fileId);
 
@@ -57,7 +67,7 @@ namespace LiteDB
 
             foreach (var file in query.ToEnumerable())
             {
-                var fileId = _db.Mapper.Serialize(typeof(TFileId), file.Id);
+                var fileId = _db.Mapper.SerializeFileId(file.Id);
 
                 file.SetReference(fileId, _files, _chunks);
 
@@ -78,7 +88,7 @@ namespace LiteDB
         /// <summary>
         /// Find all files that match with predicate expression.
         /// </summary>
-        public IEnumerable<LiteFileInfo<TFileId>> Find(Expression<Func<LiteFileInfo<TFileId>, bool>> predicate) => this.Find(_db.Mapper.GetExpression(predicate));
+        public IEnumerable<LiteFileInfo<TFileId>> Find(Expression<Func<LiteFileInfo<TFileId>, bool>> predicate) => this.Find(_db.Mapper.GetGeneratedExpression(predicate));
 
         /// <summary>
         /// Find all files inside file collections
@@ -92,7 +102,7 @@ namespace LiteDB
         {
             if (id == null) throw new ArgumentNullException(nameof(id));
 
-            var fileId = _db.Mapper.Serialize(typeof(TFileId), id);
+            var fileId = _db.Mapper.SerializeFileId(id);
 
             return _files.Exists("_id = @0", fileId);
         }
@@ -114,7 +124,7 @@ namespace LiteDB
             if (id == null) throw new ArgumentNullException(nameof(id));
 
             // get _id as BsonValue
-            var fileId = _db.Mapper.Serialize(typeof(TFileId), id);
+            var fileId = _db.Mapper.SerializeFileId(id);
             if (fileId == null || fileId.IsNull) throw new ArgumentNullException(nameof(id));
 
             var name = Path.GetFileName(filename);
@@ -253,7 +263,7 @@ namespace LiteDB
         {
             if (id == null) throw new ArgumentNullException(nameof(id));
 
-            var fileId = _db.Mapper.Serialize(typeof(TFileId), id);
+            var fileId = _db.Mapper.SerializeFileId(id);
             if (fileId == null || fileId.IsNull) throw new ArgumentNullException(nameof(id));
             if (!_files.Exists("_id = @0", fileId)) return false;
 
@@ -323,7 +333,7 @@ namespace LiteDB
             if (id == null) throw new ArgumentNullException(nameof(id));
 
             // get Id as BsonValue
-            var fileId = _db.Mapper.Serialize(typeof(TFileId), id);
+            var fileId = _db.Mapper.SerializeFileId(id);
             if (fileId == null || fileId.IsNull) throw new ArgumentNullException(nameof(id));
 
             // An absent record can belong to an unfinished incremental OpenWrite.

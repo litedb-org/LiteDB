@@ -36,6 +36,7 @@ namespace LiteDB
         };
 
         private readonly BsonMapper _mapper;
+        private readonly bool _useGeneratedMappers;
         private readonly Expression _expr;
         private readonly ParameterExpression _rootParameter = null;
 
@@ -46,9 +47,26 @@ namespace LiteDB
         private readonly StringBuilder _builder = new StringBuilder();
         private readonly Stack<MemberExpression> _memberAccessNodes = new();
 
-        public LinqExpressionVisitor(BsonMapper mapper, Expression expr)
+        /// <summary>
+        /// Creates a visitor that resolves members and captured values through runtime model mapping.
+        /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+        public static LinqExpressionVisitor ForRuntimeMapping(BsonMapper mapper, Expression expr) =>
+            new LinqExpressionVisitor(mapper, expr, false);
+
+        /// <summary>
+        /// Creates a visitor that resolves members only through registered source-generated maps and never
+        /// discovers members or serializes application model types at runtime.
+        /// </summary>
+        public static LinqExpressionVisitor ForGeneratedMapping(BsonMapper mapper, Expression expr) =>
+            new LinqExpressionVisitor(mapper, expr, true);
+
+        // Private so the mapping mode is always chosen through one of the factories above; the
+        // runtime-mapping helpers below rely on ForRuntimeMapping having surfaced the trim warning.
+        private LinqExpressionVisitor(BsonMapper mapper, Expression expr, bool useGeneratedMappers)
         {
             _mapper = mapper;
+            _useGeneratedMappers = useGeneratedMappers;
             _expr = new InvocationExpander().Visit(expr);
 
             if (_expr is LambdaExpression lambda)
@@ -295,7 +313,10 @@ namespace LiteDB
             // if type is string, use direct BsonValue(string) to avoid rules like TrimWhitespace/EmptyStringToNull in mapper
             var arg = type == null ? BsonValue.Null :
                 type == typeof(string) ? new BsonValue((string)value) :
-                _mapper.Serialize(value.GetType(), value);
+                // A BsonDocument collection is reachable without a trimming annotation (GetCollection(string)),
+                // so its captured values take the same mapping-free route as a generated collection.
+                _useGeneratedMappers || _rootParameter.Type == typeof(BsonDocument) ? _mapper.SerializeGeneratedConstant(value) :
+                this.SerializeRuntimeConstant(value);
 
             _parameters[parameter] = arg;
 
@@ -606,33 +627,6 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Returns document field name for some type member
-        /// </summary>
-        private string ResolveMember(MemberInfo member, Type mappedType, out MemberMapper memberMapper)
-        {
-            var name = member.Name;
-
-            // checks if parent field are not DbRef (checks for same dataType)
-            var isParentDbRef = _dbRefType != null && member.DeclaringType.IsAssignableFrom(_dbRefType);
-
-            // get class entity from mapper
-            var entity = _mapper.GetEntityMapper(mappedType);
-            entity.WaitForInitialization();
-
-            // get mapped field from entity
-            var field = entity.FindMember(member);
-
-            memberMapper = field ?? throw new NotSupportedException($"Member {name} not found on BsonMapper for type {mappedType}.");
-
-            // define if this field are DbRef (child will need check parent)
-            _dbRefType = field.IsDbRef ? field.UnderlyingType : null;
-
-            // if parent call is DbRef and are calling _id field, rename to $id
-            var fieldName = _mapper.ResolveAbstractIdField(entity, field);
-            return "." + (isParentDbRef && fieldName == "_id" ? "$id" : fieldName);
-        }
-
-        /// <summary>
         /// Define if this method is index access and must eval index value (do not use parameter)
         /// </summary>
         private bool IsMethodIndexEval(MethodCallExpression node, out Expression obj, out Expression idx)
@@ -704,9 +698,12 @@ namespace LiteDB
             }
             else
             {
-                var func = Expression.Lambda(expr).Compile();
+                // Prefer compiled interpretation for AOT
+                var func = Expression.Lambda<Func<object>>(
+                    Expression.Convert(expr, typeof(object)))
+                    .Compile(preferInterpretation: true);
 
-                value = func.DynamicInvoke();
+                value = func();
             }
 
             // do some type validation to be ease to debug

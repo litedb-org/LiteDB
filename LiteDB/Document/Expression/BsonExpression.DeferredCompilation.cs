@@ -1,5 +1,4 @@
 using System;
-using System.Linq.Expressions;
 using System.Threading;
 
 namespace LiteDB
@@ -7,11 +6,11 @@ namespace LiteDB
     public sealed partial class BsonExpression
     {
         private static BsonExpressionScalarDelegate CompileScalarWhenNeeded(BsonExpression expression,
-            Expression<BsonExpressionScalarDelegate> lambda)
+            ExpressionContext context)
         {
             var sourceText = expression.Source;
             if (expression.Type != BsonExpressionType.And && expression.Type != BsonExpressionType.Or)
-                return _compiledCache.Add(sourceText, lambda.Compile());
+                return _compiledCache.Add(sourceText, BsonExpressionCompiler.CompileScalar(expression.Expression, context));
 
             // Unexecuted predicates own their factory, outside the global cache.
             // Otherwise discarded composition prefixes retain entire parse trees.
@@ -19,7 +18,7 @@ namespace LiteDB
             {
                 var cached = _compiledCache.Get<BsonExpressionScalarDelegate>(sourceText);
                 if (cached != null) return cached;
-                return _compiledCache.Add(sourceText, lambda.Compile());
+                return _compiledCache.Add(sourceText, BsonExpressionCompiler.CompileScalar(expression.Expression, context));
             }, LazyThreadSafetyMode.ExecutionAndPublication);
             return (source, root, current, collation, parameters) =>
                 compiled.Value(source, root, current, collation, parameters);

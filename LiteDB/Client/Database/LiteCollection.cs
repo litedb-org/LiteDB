@@ -5,6 +5,8 @@ using static LiteDB.Constants;
 
 namespace LiteDB
 {
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
     public sealed partial class LiteCollection<T> : ILiteCollection<T>
     {
         private readonly string _collection;
@@ -32,7 +34,7 @@ namespace LiteDB
 
         internal LiteCollection(string name, BsonAutoId autoId, ILiteEngine engine, BsonMapper mapper)
         {
-            _collection = name ?? mapper.ResolveCollectionName(typeof(T));
+            _collection = name ?? mapper.GetCollectionName(typeof(T));
             _engine = engine;
             _mapper = mapper;
             _includes = new List<BsonExpression>();

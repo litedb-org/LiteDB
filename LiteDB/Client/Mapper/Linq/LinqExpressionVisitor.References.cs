@@ -52,7 +52,9 @@ namespace LiteDB
                 {
                     owner = conversion.Operand;
                 }
-                var entity = _mapper.GetEntityMapper(owner.Type);
+                var entity = _useGeneratedMappers
+                    ? _mapper.GetGeneratedEntityMapper(owner.Type)
+                    : this.GetRuntimeEntityMapper(owner.Type);
                 entity.WaitForInitialization();
                 var field = entity.FindMember(member.Member);
                 return field?.IsDbRef == true ? field.UnderlyingType : null;

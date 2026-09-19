@@ -21,6 +21,10 @@
         <NoWarn>1701;1702;1705;1591;0618</NoWarn>
         <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\LiteDB.xml</DocumentationFile>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <EnableAotAnalyzer>true</EnableAotAnalyzer>
+        <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
+        <ILLinkTreatWarningsAsErrors>true</ILLinkTreatWarningsAsErrors>
         <LangVersion>latest</LangVersion>
     </PropertyGroup>
 
@@ -42,6 +46,16 @@
 
     <PropertyGroup Condition="'$(TargetFramework)' != '' and $([MSBuild]::GetTargetFrameworkIdentifier('$(TargetFramework)')) == '.NETCoreApp'">
         <DefineConstants>$(DefineConstants);HAVE_SHA1_MANAGED;HAVE_APP_DOMAIN;HAVE_PROCESS;HAVE_ENVIRONMENT</DefineConstants>
+    </PropertyGroup>
+
+    <!--
+    $(TargetFrameworkIdentifier) is assigned by the SDK targets, after this file's properties are evaluated,
+    so a PropertyGroup condition on it is always false. Derive the identifier from $(TargetFramework) instead;
+    otherwise the assembly is never marked trimmable and the IL diagnostics below stay warnings.
+    -->
+    <PropertyGroup Condition="'$(TargetFramework)' != '' and $([MSBuild]::GetTargetFrameworkIdentifier('$(TargetFramework)')) == '.NETCoreApp'">
+        <IsAotCompatible>true</IsAotCompatible>
+        <WarningsAsErrors>$(WarningsAsErrors);IL2026;IL2046;IL2057;IL2067;IL2070;IL2072;IL2075;IL3050;IL3051</WarningsAsErrors>
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(TestingEnabled)' == 'true'">

@@ -11,6 +11,8 @@ namespace LiteDB
         private readonly ConditionalWeakTable<object, ConstructorMembers> _constructorMembers =
             new ConditionalWeakTable<object, ConstructorMembers>();
 
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
         private void PopulateMappedInstance(Type type, Type declaredType, object instance, BsonDocument doc)
         {
             // Hooks retain the full source document. Only base member population
@@ -43,6 +45,8 @@ namespace LiteDB
             }
         }
 
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
         private object CreateMappedInstance(Type type, EntityMapper entity, BsonDocument document,
             out bool complete)
         {
@@ -78,6 +82,8 @@ namespace LiteDB
             return entity.CreateInstance?.Target is DefaultConstructor ? null : new ConstructorScope(this);
         }
 
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+        [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
         private object DeserializeMember(Type entity, MemberMapper member, BsonValue value, bool isStored = true)
         {
             try
@@ -116,6 +122,8 @@ namespace LiteDB
                 Parameters = parameters;
             }
 
+            [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
+            [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
             public object Create(BsonDocument document)
             {
                 var arguments = Parameters.Select(member =>

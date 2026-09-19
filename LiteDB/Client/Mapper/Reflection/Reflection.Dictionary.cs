@@ -13,6 +13,7 @@ namespace LiteDB
     {
         private static readonly ConditionalWeakTable<Type, Type[]> _dictionarySchemas = new ConditionalWeakTable<Type, Type[]>();
 
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         internal static void GetDictionaryTypes(Type declaredType, out Type keyType, out Type valueType)
         {
             var arguments = _dictionarySchemas.GetValue(declaredType, GetDictionarySchema);
@@ -20,6 +21,7 @@ namespace LiteDB
             valueType = arguments[1];
         }
 
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         internal static bool IsDictionaryInterface(Type type)
         {
             return type.GetTypeInfo().IsInterface && type != typeof(IDictionary) &&
@@ -27,6 +29,7 @@ namespace LiteDB
                  type.GetInterfaces().Any(IsGenericDictionaryContract));
         }
 
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         private static Type[] GetDictionarySchema(Type type)
         {
             if (type.GetTypeInfo().IsInterface)

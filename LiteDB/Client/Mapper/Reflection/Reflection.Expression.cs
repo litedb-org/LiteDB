@@ -13,6 +13,7 @@ namespace LiteDB
     /// </summary>
     internal partial class Reflection
     {
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2067", Justification = AotCompatibility.RuntimeModelMapping)]
         public static CreateObject CreateClass(Type type)
         {
             var pDoc = Expression.Parameter(typeof(BsonDocument), "_doc");
@@ -20,6 +21,7 @@ namespace LiteDB
             return Expression.Lambda<CreateObject>(Expression.New(type), pDoc).Compile();
         }
 
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2067", Justification = AotCompatibility.RuntimeModelMapping)]
         public static CreateObject CreateStruct(Type type)
         {
             var pDoc = Expression.Parameter(typeof(BsonDocument), "_doc");
@@ -29,6 +31,7 @@ namespace LiteDB
             return Expression.Lambda<CreateObject>(convert, pDoc).Compile();
         }
 
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         public static GenericGetter CreateGenericGetter(Type type, MemberInfo memberInfo)
         {
             if (memberInfo == null) throw new ArgumentNullException(nameof(memberInfo));
@@ -42,6 +45,7 @@ namespace LiteDB
             return Expression.Lambda<GenericGetter>(Expression.Convert(accessor, typeof(object)), obj).Compile();
         }
 
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         public static GenericSetter CreateGenericSetter(Type type, MemberInfo memberInfo)
         {
             if (memberInfo == null) throw new ArgumentNullException(nameof(memberInfo));
