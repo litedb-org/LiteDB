@@ -42,3 +42,12 @@ continues to rebuild v7 files before applying read-only access. Durable flushes
 must reach the underlying file through encryption and caller-stream wrappers. Run `python3 scripts/test-vector-compatibility.py`
 to verify ordinary v8 round trips and vector-file rejection by LiteDB 5.0.21,
 including encrypted files. See `docs/vector-query-compatibility.md` for semantics.
+
+## MVCC Checkpointing
+Checkpoints backfill through the oldest local/shared snapshot and retain the entire
+WAL until all reader leases drain. Shared readers register OS-held lease files in
+`<database>-readers/`; never remove that directory while the database is in use.
+Run the `Mvcc` test filter with `TestingEnabled=true` to cover snapshot races and
+actual child-process crashes. The test build copies SharedMutexHarness into its
+output for process tests. See `docs/mvcc-checkpoint.md` for the reclamation proof,
+recovery ordering, and shared-mode constraints.

@@ -1,23 +1,26 @@
-﻿using LiteDB.Engine;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Threading;
 using LiteDB.Client.Shared;
+using LiteDB.Engine;
 using LiteDB.Vector;
 
 namespace LiteDB
 {
-    public class SharedEngine : ILiteEngine
+    public partial class SharedEngine : ILiteEngine
     {
         private readonly EngineSettings _settings;
         private readonly Mutex _mutex;
+        private readonly SharedReaderRegistry _readers;
         private LiteEngine _engine;
         private bool _transactionRunning = false;
+        private int _databaseUsers;
 
         public SharedEngine(EngineSettings settings)
         {
-            _settings = settings;
+            _settings = settings.Clone();
+            _readers = new SharedReaderRegistry(settings.Filename);
+            _settings.OldestSharedReader = _readers.OldestVersion;
 
             var name = SharedMutexNameFactory.Create(settings.Filename, settings.SharedMutexNameStrategy);
 
@@ -54,7 +57,14 @@ namespace LiteDB
             {
                 try
                 {
-                    _engine = new LiteEngine(_settings);
+                    var settings = _settings;
+                    if (settings.AutoRebuild && _readers.OldestVersion().HasValue)
+                    {
+                        settings = settings.Clone();
+                        settings.AutoRebuild = false;
+                    }
+                    _engine = new LiteEngine(settings);
+                    _databaseUsers++;
                     return true;
                 }
                 catch
@@ -65,6 +75,7 @@ namespace LiteDB
             }
             else
             {
+                _databaseUsers++;
                 return false;
             }
         }
@@ -74,16 +85,16 @@ namespace LiteDB
         /// </summary>
         private void CloseDatabase()
         {
-            // Don't dispose the engine while a transaction is running.
-            if (!_transactionRunning && _engine != null)
+            try
             {
-                // If no transaction pending, dispose the engine.
-                _engine.Dispose();
-                _engine = null;
+                if (--_databaseUsers == 0 && !_transactionRunning && _engine != null)
+                {
+                    var engine = _engine;
+                    _engine = null;
+                    engine.Dispose();
+                }
             }
-
-            // Release Mutex on every call to close DB.
-            _mutex.ReleaseMutex();
+            finally { _mutex.ReleaseMutex(); }
         }
 
         #region Transaction Operations
@@ -94,9 +105,10 @@ namespace LiteDB
 
             try
             {
-                _transactionRunning = _engine.BeginTrans();
-
-                return _transactionRunning;
+                var started = _engine.BeginTrans();
+                if (started) _transactionRunning = true;
+                else CloseDatabase();
+                return started;
             }
             catch
             {
@@ -107,7 +119,7 @@ namespace LiteDB
 
         public bool Commit()
         {
-            if (_engine == null) return false;
+            if (!_transactionRunning) return false;
 
             try
             {
@@ -122,7 +134,7 @@ namespace LiteDB
 
         public bool Rollback()
         {
-            if (_engine == null) return false;
+            if (!_transactionRunning) return false;
 
             try
             {
@@ -138,21 +150,6 @@ namespace LiteDB
         #endregion
 
         #region Read Operation
-
-        public IBsonDataReader Query(string collection, Query query)
-        {
-            bool opened = OpenDatabase();
-
-            var reader = _engine.Query(collection, query);
-
-            return new SharedDataReader(reader, () =>
-            {
-                if (opened)
-                {
-                    CloseDatabase();
-                }
-            });
-        }
 
         public BsonValue Pragma(string name)
         {
@@ -175,7 +172,12 @@ namespace LiteDB
 
         public long Rebuild(RebuildOptions options)
         {
-            return QueryDatabase(() => _engine.Rebuild(options));
+            return QueryDatabase(() =>
+            {
+                if (_readers.OldestVersion().HasValue)
+                    throw new LiteException(0, "Close shared readers before rebuilding the database.");
+                return _engine.Rebuild(options);
+            });
         }
 
         public int Insert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId)
@@ -261,17 +263,14 @@ namespace LiteDB
 
         private T QueryDatabase<T>(Func<T> Query)
         {
-            bool opened = OpenDatabase();
+            OpenDatabase();
             try
             {
                 return Query();
             }
             finally
             {
-                if (opened)
-                {
-                    CloseDatabase();
-                }
+                CloseDatabase();
             }
         }
     }

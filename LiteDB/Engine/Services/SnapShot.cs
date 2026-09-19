@@ -80,7 +80,7 @@ namespace LiteDB.Engine
             }
 
             // get lastest read version from wal-index
-            _readVersion = _walIndex.CurrentReadVersion;
+            _readVersion = _walIndex.PinSnapshot();
 
             var srv = new CollectionService(_header, _disk, this, _transPages);
 
@@ -91,6 +91,7 @@ namespace LiteDB.Engine
             }
             catch
             {
+                this.ReleaseSnapshotPin();
                 // A failed constructor never reaches the transaction's snapshot map.
                 if (_collectionPage != null) _localPages[_collectionPage.PageID] = _collectionPage;
                 foreach (var page in _localPages.Values)
@@ -149,33 +150,6 @@ namespace LiteDB.Engine
             // The collection page is deliberately retained by the snapshot
             // across safepoints, so refresh only its ownership epoch.
             _collectionPage?.SetSnapshotOwnership(this);
-        }
-
-        /// <summary>
-        /// Dispose stream readers and exit collection lock
-        /// </summary>
-        public void Dispose()
-        {
-            if (_disposed)
-            {
-                return;
-            }
-
-            // release all data/index pages
-            this.Clear();
-
-            _disposed = true;
-
-            // release collection page (in read mode)
-            if (_mode == LockMode.Read && _collectionPage != null)
-            {
-                _collectionPage.Buffer.Release();
-            }
-
-            if(_mode == LockMode.Write)
-            {
-                _locker.ExitLock(_collectionName);
-            }
         }
 
         #region Page Version functions

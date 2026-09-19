@@ -387,20 +387,24 @@ namespace LiteDB.Engine
         public void WriteDataDisk(IEnumerable<PageBuffer> pages)
         {
             var stream = _dataPool.Writer.Value;
-
-            foreach (var page in pages)
+            lock (stream)
             {
-                ENSURE(page.ShareCounter == 0, "this page can't be shared to use sync operation - do not use cached pages");
+                foreach (var page in pages)
+                {
+                    ENSURE(page.ShareCounter == 0, "this page can't be shared to use sync operation - do not use cached pages");
 
-                _dataLength = Math.Max(_dataLength, page.Position);
+                    _dataLength = Math.Max(_dataLength, page.Position);
 
-                stream.Position = page.Position;
+                    stream.Position = page.Position;
 
-                this.PreserveFileVersion(page);
-                stream.Write(page.Array, page.Offset, PAGE_SIZE);
+                    this.PreserveFileVersion(page);
+                    stream.Write(page.Array, page.Offset, PAGE_SIZE);
+                    this.CheckpointStage("data-page");
+                }
+
+                stream.FlushToDisk();
+                this.CheckpointStage("data-flushed");
             }
-
-            stream.FlushToDisk();
         }
 
         /// <summary>
@@ -420,6 +424,7 @@ namespace LiteDB.Engine
             }
 
             stream.Value.SetLength(length);
+            stream.Value.FlushToDisk();
 
             if (origin == FileOrigin.Log)
             {
@@ -444,7 +449,7 @@ namespace LiteDB.Engine
             var errors = new List<Exception>();
             var delete = false;
 
-            TryAction(() => delete = _logFactory.Exists() && _logPool.Writer.Value.Length == 0, errors);
+            TryAction(() => delete = !_readOnly && _logFactory.Exists() && _logPool.Writer.Value.Length == 0, errors);
             TryAction(() => _dataPool.Dispose(), errors);
             TryAction(() => _logPool.Dispose(), errors);
             if (delete) TryAction(() => _logFactory.Delete(), errors);
