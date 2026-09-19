@@ -15,6 +15,17 @@ namespace LiteDB
         public string ResolveMethod(MethodInfo method)
         {
             var qtParams = method.GetParameters().Length;
+            if (qtParams > 0 && method.GetParameters().Last().ParameterType == typeof(StringComparison))
+            {
+                switch (method.Name)
+                {
+                    case "StartsWith": return "STRING_STARTSWITH(#, @0, @1)";
+                    case "EndsWith": return "STRING_ENDSWITH(#, @0, @1)";
+                    case "Contains": return "STRING_CONTAINS(#, @0, @1)";
+                    case "IndexOf":
+                        return "STRING_INDEXOF(#, " + string.Join(", ", Enumerable.Range(0, qtParams).Select(i => "@" + i)) + ")";
+                }
+            }
 
             switch (method.Name)
             {
@@ -35,13 +46,14 @@ namespace LiteDB
                 case "Contains": return "# LIKE ('%' + @0 + '%')";
                 case "EndsWith": return "# LIKE ('%' + @0)";
                 case "ToString": return "#";
-                case "Equals": return "# = @0";
+                case "Equals":
+                    if (method.GetParameters().Last().ParameterType == typeof(StringComparison))
+                        return method.IsStatic ? "STRING_EQUALS(@0, @1, @2)" : "STRING_EQUALS_INSTANCE(#, @0, @1)";
+                    return method.IsStatic ? "@0 = @1" : "# = @0";
 
                 // static methods
                 case "IsNullOrEmpty": return "(LENGTH(@0) = 0)";
                 case "IsNullOrWhiteSpace": return "(LENGTH(TRIM(@0)) = 0)";
-                case "Format": throw new NotImplementedException(); //TODO implement format
-                case "Join": throw new NotImplementedException(); //TODO implement join
             };
 
             return null;

@@ -13,6 +13,8 @@ namespace LiteDB
     {
         public virtual string ResolveMethod(MethodInfo method)
         {
+            if (DictionaryResolver.IsContainsKey(method)) return "CONTAINSKEY(#, @0)";
+
             // all methods in Enumerable are Extensions (static methods), so first parameter is IEnumerable
             var name = Reflection.MethodName(method, 1); 
 

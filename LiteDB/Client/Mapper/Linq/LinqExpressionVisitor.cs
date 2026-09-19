@@ -66,10 +66,10 @@ namespace LiteDB
         private LinqExpressionVisitor(BsonMapper mapper, Expression expr, bool useGeneratedMappers)
         {
             _mapper = mapper;
-            _expr = expr;
             _useGeneratedMappers = useGeneratedMappers;
+            _expr = new InvocationExpander().Visit(expr);
 
-            if (expr is LambdaExpression lambda)
+            if (_expr is LambdaExpression lambda)
             {
                 _rootParameter = lambda.Parameters.First();
             }
@@ -81,6 +81,7 @@ namespace LiteDB
 
         public BsonExpression Resolve(bool predicate)
         {
+            ValidateCapturedRuntimeBranches(_expr);
             this.Visit(_expr);
 
             ENSURE(_memberAccessNodes.Count == 0, "Member access node stack must be empty when finish expression resolve");
@@ -112,12 +113,7 @@ namespace LiteDB
         /// </summary>
         protected override Expression VisitLambda<T>(Expression<T> node)
         {
-            var l = base.VisitLambda(node);
-
-            // remove last parameter $ (or @)
-            _builder.Length--;
-
-            return l;
+            return this.VisitLambdaWithReferences(node);
         }
 
         /// <summary>
@@ -125,6 +121,12 @@ namespace LiteDB
         /// </summary>
         protected override Expression VisitInvocation(InvocationExpression node)
         {
+            if (!ParameterExpressionVisitor.Test(node) && !ContainsServerRuntime(node))
+            {
+                this.VisitConstant(Expression.Constant(this.Evaluate(node)));
+                return node;
+            }
+
             var l = base.VisitInvocation(node);
 
             // remove last parameter $ (or @)
@@ -153,9 +155,17 @@ namespace LiteDB
 
             var member = node.Member;
 
+            if (!isParam && this.TryVisitCapturedElementMember(node)) return node;
+
             // special types contains method access: string.Length, DateTime.Day, ...
             if (TryGetResolver(member.DeclaringType, out var type))
             {
+                if (!isParam && type is GroupingResolver)
+                {
+                    this.VisitConstant(Expression.Constant(this.Evaluate(node)));
+                    return node;
+                }
+
                 var pattern = type.ResolveMember(member);
 
                 if (pattern == null) throw new NotSupportedException($"Member {member.Name} are not support in {member.DeclaringType.Name} when convert to BsonExpression ({node.ToString()}).");
@@ -173,7 +183,18 @@ namespace LiteDB
 
                     if (isParam)
                     {
-                        var name = this.ResolveMember(member, out _);
+                        var owner = node.Expression;
+                        while (owner is UnaryExpression conversion && conversion.Method == null &&
+                            (conversion.NodeType == ExpressionType.Convert || conversion.NodeType == ExpressionType.TypeAs) &&
+                            conversion.Type.IsAssignableFrom(conversion.Operand.Type))
+                        {
+                            owner = conversion.Operand;
+                        }
+                        if (owner is ParameterExpression parameter && _lambdaReferences.TryGetValue(parameter, out var referenceType))
+                        {
+                            _dbRefType = referenceType;
+                        }
+                        var name = this.ResolveMember(member, owner.Type, out _);
 
                         _builder.Append(name);
                     }
@@ -197,6 +218,10 @@ namespace LiteDB
         /// </summary>
         protected override Expression VisitMethodCall(MethodCallExpression node)
         {
+            if (IsElementAccess(node) && this.TryVisitCapturedElement(node)) return node;
+            if (this.TryVisitEnumEquals(node)) return node;
+            if (this.TryVisitOrdinalStringEquals(node)) return node;
+            if (this.TryVisitEnumerableQuantifier(node)) return node;
             if (this.IsSpanImplicitConversion(node.Method))
             {
                 this.Visit(node.Arguments[0]);
@@ -211,10 +236,13 @@ namespace LiteDB
 
                 var index = this.Evaluate(idx, typeof(string), typeof(int));
 
-                if (index is string)
+                if (index is string key)
                 {
+                    if (key.Length == 0) throw new NotSupportedException("Empty row dictionary keys are not supported by BSON paths.");
                     _builder.Append(".");
-                    _builder.Append($"['{index}']");
+                    _builder.Append("[");
+                    JsonSerializer.Serialize(key, _builder);
+                    _builder.Append("]");
                 }
                 else
                 {
@@ -238,28 +266,20 @@ namespace LiteDB
                 }
             }
 
-            if (!hasResolver)
+            // Preserve server translations, including runtime functions such as GUID() and NOW().
+            var pattern = hasResolver ? type.ResolveMethod(node.Method) : null;
+            if (pattern == null)
             {
-                // if method are called by parameter expression and it's not exists, throw error
-                var isParam = ParameterExpressionVisitor.Test(node);
-
-                if (isParam) throw new NotSupportedException($"Method {node.Method.Name} not available to convert to BsonExpression ({node.ToString()}).");
-
-                // otherwise, try compile and execute
-                var value = this.Evaluate(node);
-
-                base.Visit(Expression.Constant(value));
-
+                if (ParameterExpressionVisitor.Test(node) || (ContainsServerRuntime(node) && ContainsElementAccess(node)))
+                {
+                    throw new NotSupportedException($"Method {node.Method.Name} not available to convert to BsonExpression ({node.ToString()}).");
+                }
+                this.VisitConstant(Expression.Constant(this.Evaluate(node)));
                 return node;
             }
 
-            // otherwise I have resolver for this method
-            var pattern = type.ResolveMethod(node.Method);
-
-            if (pattern == null) throw new NotSupportedException($"Method {Reflection.MethodName(node.Method)} in {node.Method.DeclaringType.Name} are not supported when convert to BsonExpression ({node.ToString()}).");
-
             // run pattern using object as # and args as @n
-            this.ResolvePattern(pattern, node.Object, node.Arguments);
+            this.ResolvePattern(GuardRowSuppliedText(node, pattern), node.Object, node.Arguments);
 
             return node;
         }
@@ -308,6 +328,7 @@ namespace LiteDB
         /// </summary>
         protected override Expression VisitUnary(UnaryExpression node)
         {
+            if (this.TryVisitCapturedUnary(node)) return node;
             if (node.NodeType == ExpressionType.Not)
             {
                 // when is only "not boolean" resolve as 'x => !x.Active' = '$.Active = false'
@@ -421,7 +442,7 @@ namespace LiteDB
             for (var i = 0; i < node.Bindings.Count; i++)
             {
                 var bind = node.Bindings[i] as MemberAssignment;
-                var member = this.ResolveMember(bind.Member, out var memberMapper);
+                var member = this.ResolveMember(bind.Member, node.Type, out var memberMapper);
 
                 _builder.Append(i > 0 ? ", " : "");
                 _builder.Append(member.Substring(1));
@@ -462,6 +483,7 @@ namespace LiteDB
         protected override Expression VisitBinary(BinaryExpression node)
         {
             var andOr = node.NodeType == ExpressionType.AndAlso || node.NodeType == ExpressionType.OrElse;
+            if ((andOr || node.NodeType == ExpressionType.Coalesce) && this.TryVisitCapturedBranch(node)) return node;
 
             // special visitors
             if (node.NodeType == ExpressionType.Coalesce) return this.VisitCoalesce(node);
@@ -474,18 +496,18 @@ namespace LiteDB
             this.VisitAsPredicate(node.Left, andOr);
 
             _builder.Append(op);
-
             if (!_mapper.EnumAsInteger &&
                 node.Left.NodeType == ExpressionType.Convert &&
                 node.Left is UnaryExpression unex &&
-                unex.Operand.Type.GetTypeInfo().IsEnum &&
-                unex.Type == typeof(Int32))
+                GetConvertedEnum(unex) != null &&
+                unex.Type == typeof(Int32) &&
+                ((node.NodeType != ExpressionType.Equal && node.NodeType != ExpressionType.NotEqual) || !ParameterExpressionVisitor.Test(node.Right)))
             {
-                this.VisitAsPredicate(Expression.Constant(Enum.GetName(unex.Operand.Type, this.Evaluate(node.Right))), andOr);
+                this.VisitAsPredicate(Expression.Constant(Enum.GetName(GetConvertedEnum(unex), this.Evaluate(node.Right))), andOr);
             }
             else
             {
-                this.VisitAsPredicate(node.Right, andOr);
+                this.VisitAsPredicate(this.EnsureNameStoredEnumOperand(node), andOr);
             }
 
             _builder.Append(")");
@@ -498,6 +520,7 @@ namespace LiteDB
         /// </summary>
         protected override Expression VisitConditional(ConditionalExpression node)
         {
+            if (this.TryVisitCapturedBranch(node)) return node;
             _builder.Append("IIF(");
             this.Visit(node.Test);
             _builder.Append(", ");
@@ -528,6 +551,7 @@ namespace LiteDB
         /// </summary>
         private Expression VisitArrayIndex(BinaryExpression node)
         {
+            if (this.TryVisitCapturedElement(node)) return node;
             this.Visit(node.Left);
             _builder.Append("[");
             // index must be evaluated (must returns a constant)
@@ -558,6 +582,10 @@ namespace LiteDB
                 {
                     var i = Convert.ToInt32(tokenizer.ReadToken(false).Expect(TokenType.Int).Value);
 
+                    if (i > 0 && args[i] is LambdaExpression)
+                    {
+                        _dbRefType = this.GetEnumerableReferenceType(args[0]);
+                    }
                     this.Visit(args[i]);
                 }
                 else if (token.Type == TokenType.Percent)
@@ -570,52 +598,6 @@ namespace LiteDB
                     _builder.Append(token.Type == TokenType.String ? "'" + token.Value + "'" : token.Value);
                 }
             }
-        }
-
-        /// <summary>
-        /// Resolve Enumerable predicate when using Any/All enumerable extensions
-        /// </summary>
-        private void VisitEnumerablePredicate(LambdaExpression lambda)
-        {
-            var expression = lambda.Body;
-
-            // Visit .Any(x => `x == 10`)
-            if (expression is BinaryExpression bin)
-            {
-                // requires only parameter in left side
-                if (bin.Left.NodeType != ExpressionType.Parameter) throw new LiteException(0, "Any/All requires simple parameter on left side. Eg: `x => x.Phones.Select(p => p.Number).Any(n => n > 5)`");
-
-                var op = this.GetOperator(bin.NodeType);
-
-                _builder.Append(op);
-
-                this.VisitAsPredicate(bin.Right, false);
-            }
-            // Visit .Any(x => `x.StartsWith("John")`)
-            else if (expression is MethodCallExpression met)
-            {
-                // requires only parameter in left side
-                if (met.Object.NodeType != ExpressionType.Parameter) throw new NotSupportedException("Any/All requires simple parameter on left side. Eg: `x.Customers.Select(c => c.Name).Any(n => n.StartsWith('J'))`");
-
-                // if not found in resolver, try run method
-                if (!TryGetResolver(met.Method.DeclaringType, out var type))
-                {
-                    throw new NotSupportedException($"Method {met.Method.Name} not available to convert to BsonExpression inside Any/All call.");
-                }
-
-                // otherwise I have resolver for this method
-                var pattern = type.ResolveMethod(met.Method);
-
-                if (pattern == null || !pattern.StartsWith("#")) throw new NotSupportedException($"Method {met.Method.Name} not available to convert to BsonExpression inside Any/All call.");
-
-                // call resolve pattern removing first `#`
-                this.ResolvePattern(pattern.Substring(1), met.Object, met.Arguments);
-            }
-            else
-            {
-                throw new LiteException(0, "When using Any/All method test do only simple predicate variable. Eg: `x => x.Phones.Select(p => p.Number).Any(n => n > 5)`");
-            }
-
         }
 
         /// <summary>
@@ -683,7 +665,8 @@ namespace LiteDB
         private void VisitAsPredicate(Expression expr, bool ensurePredicate)
         {
             // apppend `= true` only if expression is path (MemberAccess), method call or constant
-            ensurePredicate = ensurePredicate &&
+            // (ordinal string equality already resolves to predicates that the optimizer must see as AND terms)
+            ensurePredicate = ensurePredicate && !this.IsOrdinalStringEquals(expr) &&
                 (expr.NodeType == ExpressionType.MemberAccess || expr.NodeType == ExpressionType.Call || expr.NodeType == ExpressionType.Invoke || expr.NodeType == ExpressionType.Constant);
 
             if (ensurePredicate)
@@ -753,6 +736,8 @@ namespace LiteDB
                 throw new NotSupportedException($"BsonRefId<T> requires a DbRef collection name. Member '{memberMapper.MemberName}' is missing it (use [BsonRef] or Entity<T>().DbRef(...)).");
             }
 
+            if (this.TryVisitCapturedDbRef(node, memberMapper, isInList)) return true;
+
             switch (node)
             {
                 // Implicit convert from BsonRefId<T> to T
@@ -778,51 +763,16 @@ namespace LiteDB
                 case NewArrayExpression expr
                     when !isInList && expr.Type.IsArray && memberMapper.UnderlyingType.IsAssignableFrom(expr.Type.GetElementType()):
 
-                    _builder.Append("[ ");
-
-                    for (var i = 0; i < expr.Expressions.Count; i++)
-                    {
-                        if (i > 0)
-                        {
-                            _builder.Append(", ");
-                        }
-
-                        if (!TryVisitDbRefIdExpression(expr.Expressions[i], memberMapper, true))
-                        {
-                            throw new NotSupportedException($"Expression {expr} not supported for BsonRefId<T>.");
-                        }
-                    }
-
-                    _builder.Append(" ]");
+                    this.VisitDbRefList(expr.Expressions, memberMapper);
                     return true;
 
                 // new List<T> { new BsonRefId<T>, ... }
                 case ListInitExpression { Type: { IsConstructedGenericType: true, GenericTypeArguments.Length: 1 } } expr
                     when !isInList && expr.Type.GetGenericTypeDefinition() == typeof(List<>) && memberMapper.UnderlyingType.IsAssignableFrom(expr.Type.GetGenericArguments()[0]):
 
-                    _builder.Append("[ ");
-
-                    for (var i = 0; i < expr.Initializers.Count; i++)
-                    {
-                        if (i > 0)
-                        {
-                            _builder.Append(", ");
-                        }
-
-                        var initializer = expr.Initializers[i];
-
-                        if (initializer.Arguments.Count != 1 || initializer.AddMethod.Name != "Add")
-                        {
-                            throw new NotSupportedException($"List initializers {initializer.AddMethod.Name} not supported when convert to BsonExpression ({node}).");
-                        }
-
-                        if (!TryVisitDbRefIdExpression(initializer.Arguments[0], memberMapper, true))
-                        {
-                            throw new NotSupportedException($"Expression {expr} not supported for BsonRefId<T>.");
-                        }
-                    }
-
-                    _builder.Append(" ]");
+                    if (expr.Initializers.Any(x => x.Arguments.Count != 1 || x.AddMethod.Name != "Add"))
+                        throw new NotSupportedException($"List initializers not supported when convert to BsonExpression ({node}).");
+                    this.VisitDbRefList(expr.Initializers.Select(x => x.Arguments[0]), memberMapper);
                     return true;
 
                 default:

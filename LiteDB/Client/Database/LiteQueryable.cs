@@ -362,6 +362,18 @@ namespace LiteDB
         /// </summary>
         public IEnumerable<BsonDocument> ToDocuments()
         {
+            // The projection marker is for typed materialization only. A document handed to the
+            // caller must map like any other document (BsonMapper.ToObject is public).
+            foreach (var doc in this.ReadDocuments())
+            {
+                doc.IsProjectionValue = false;
+
+                yield return doc;
+            }
+        }
+
+        private IEnumerable<BsonDocument> ReadDocuments()
+        {
             using (var reader = this.ExecuteReader())
             {
                 while (reader.Read())
@@ -389,10 +401,16 @@ namespace LiteDB
                     .Select(x => x[x.Keys.First()])
                     .Select(x => (T)_mapper.Deserialize(typeof(T), x));
             }
-            else
+            else if (typeof(T) == typeof(BsonDocument))
             {
+                // Raw reads still need deserialization callbacks; ToObject returns documents unchanged.
                 return this.ToDocuments()
                     .Select(x => (T)_mapper.Deserialize(typeof(T), x));
+            }
+            else
+            {
+                return this.ReadDocuments()
+                    .Select(x => _mapper.ToObject<T>(x));
             }
         }
 
@@ -474,9 +492,11 @@ namespace LiteDB
             try
             {
                 this.Select($"{{ count: COUNT(*._id) }}");
-                var ret = this.ToDocuments().Single()["count"].AsInt32;
+                var count = this.ToDocuments().Single()["count"].AsInt64;
 
-                return ret;
+                if (count > int.MaxValue) throw new OverflowException($"The query matches {count} documents, which does not fit an Int32. Use LongCount().");
+
+                return (int)count;
             }
             finally
             {

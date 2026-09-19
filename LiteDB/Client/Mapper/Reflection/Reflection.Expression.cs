@@ -31,6 +31,7 @@ namespace LiteDB
             return Expression.Lambda<CreateObject>(convert, pDoc).Compile();
         }
 
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         public static GenericGetter CreateGenericGetter(Type type, MemberInfo memberInfo)
         {
             if (memberInfo == null) throw new ArgumentNullException(nameof(memberInfo));
@@ -44,12 +45,21 @@ namespace LiteDB
             return Expression.Lambda<GenericGetter>(Expression.Convert(accessor, typeof(object)), obj).Compile();
         }
 
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         public static GenericSetter CreateGenericSetter(Type type, MemberInfo memberInfo)
         {
             if (memberInfo == null) throw new ArgumentNullException(nameof(memberInfo));
             
             var fieldInfo = memberInfo as FieldInfo;
             var propertyInfo = memberInfo as PropertyInfo;
+
+            // Reflection through a derived type omits an inherited property's private setter.
+            if (propertyInfo != null && !propertyInfo.CanWrite && propertyInfo.ReflectedType != propertyInfo.DeclaringType)
+            {
+                propertyInfo = propertyInfo.DeclaringType.GetProperty(propertyInfo.Name,
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly) ?? propertyInfo;
+                memberInfo = propertyInfo;
+            }
 
             // if is property and has no write
             if (memberInfo is PropertyInfo && propertyInfo.CanWrite == false) return null;

@@ -13,7 +13,7 @@ namespace LiteDB.Engine
 
         private readonly Snapshot _snapshot;
         private readonly Collation _collation;
-        private readonly Random _random = new Random();
+        private readonly Random _random = CreateLevelRandom();
 
         private DataService _vectorData;
 

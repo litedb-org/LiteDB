@@ -120,8 +120,9 @@ namespace LiteDB
         {
             var ticks = buffer.ReadInt64(offset);
 
-            if (ticks == 0) return DateTime.MinValue;
-            if (ticks == 3155378975999999999) return DateTime.MaxValue;
+            // damaged ticks beyond the DateTime range clamp so the index node stays readable #2930
+            if (ticks <= 0) return DateTime.MinValue;
+            if (ticks >= 3155378975999999999) return DateTime.MaxValue;
 
             return new DateTime(ticks, DateTimeKind.Utc);
         }

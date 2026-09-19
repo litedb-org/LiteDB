@@ -79,9 +79,9 @@ namespace LiteDB.Engine
             {
                 var ts = reader.ReadInt64();
 
-                // catch specific values for MaxValue / MinValue #19
-                if (ts == 253402300800000) return DateTime.MaxValue;
-                if (ts == -62135596800000) return DateTime.MinValue;
+                // MaxValue / MinValue sentinels #19; a damaged value beyond them clamps so the document stays readable #2930
+                if (ts >= 253402300800000) return DateTime.MaxValue;
+                if (ts <= -62135596800000) return DateTime.MinValue;
 
                 var date = BsonValue.UnixEpoch.AddMilliseconds(ts);
 

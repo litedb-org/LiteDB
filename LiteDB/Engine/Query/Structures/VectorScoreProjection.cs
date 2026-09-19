@@ -44,6 +44,9 @@ namespace LiteDB.Engine
                 // Keep metadata outside the user's document, including documents with Score fields.
                 yield return new BsonDocument
                 {
+                    // The envelope carries the shape of its projected Document,
+                    // so replacement ReadTransforms retain the unwrapping metadata.
+                    IsProjectionValue = !value.IsDocument,
                     ["Document"] = projected,
                     ["Score"] = score,
                     ["Metric"] = (int)metric

@@ -24,7 +24,7 @@ namespace LiteDB
     /// <summary>
     /// Compile and execute string expressions using BsonDocuments. Used in all document manipulation (transform, filter, indexes, updates). See https://github.com/mbdavid/LiteDB/wiki/Expressions
     /// </summary>
-    public sealed class BsonExpression
+    public sealed partial class BsonExpression
     {
         /// <summary>
         /// Get formatted expression
@@ -45,6 +45,13 @@ namespace LiteDB
         /// Get/Set parameter values that will be used on expression execution
         /// </summary>
         public BsonDocument Parameters { get; internal set; }
+
+        // Query composition renames parameters; GROUP BY must still bind its key.
+        internal HashSet<string> GroupKeyAliases { get; set; }
+
+        internal List<KeyValuePair<string, BsonExpression>> SelectAliases { get; set; }
+        internal ExpressionContext SelectContext { get; set; }
+        internal bool RequiresExactSort { get; set; }
 
         /// <summary>
         /// In predicate expressions, indicate Left side
@@ -194,17 +201,18 @@ namespace LiteDB
         /// <summary>
         /// Execute expression and returns IEnumerable values - returns NULL if no elements
         /// </summary>
-        internal IEnumerable<BsonValue> Execute(IEnumerable<BsonDocument> source, BsonDocument root, BsonValue current, Collation collation)
+        internal IEnumerable<BsonValue> Execute(IEnumerable<BsonDocument> source, BsonDocument root, BsonValue current, Collation collation, BsonDocument parameters = null)
         {
+            // Nested expressions can belong to a cached delegate; use the current execution's parameters.
             if (this.IsScalar)
             {
-                var value = _funcScalar(source, root, current, collation ?? Collation.Binary, this.Parameters);
+                var value = _funcScalar(source, root, current, collation ?? Collation.Binary, parameters ?? this.Parameters);
 
                 yield return value;
             }
             else
             {
-                var values = _funcEnumerable(source, root, current, collation ?? Collation.Binary, this.Parameters);
+                var values = _funcEnumerable(source, root, current, collation ?? Collation.Binary, parameters ?? this.Parameters);
 
                 foreach (var value in values)
                 {
@@ -262,11 +270,11 @@ namespace LiteDB
         /// <summary>
         /// Execute expression and returns IEnumerable values - returns NULL if no elements
         /// </summary>
-        internal BsonValue ExecuteScalar(IEnumerable<BsonDocument> source, BsonDocument root, BsonValue current, Collation collation)
+        internal BsonValue ExecuteScalar(IEnumerable<BsonDocument> source, BsonDocument root, BsonValue current, Collation collation, BsonDocument parameters = null)
         {
             if (this.IsScalar)
             {
-                return _funcScalar(source, root, current, collation ?? Collation.Binary, this.Parameters);
+                return _funcScalar(source, root, current, collation ?? Collation.Binary, parameters ?? this.Parameters);
             }
             else
             {
@@ -346,7 +354,8 @@ namespace LiteDB
                 mode == BsonExpressionParserMode.SelectDocument ? BsonExpressionParser.ParseSelectDocumentBuilder(tokenizer, context, parameters) :
                 BsonExpressionParser.ParseUpdateDocumentBuilder(tokenizer, context, parameters);
 
-            // compile linq expression (with left+right expressions)
+            // Retain original parameter nodes for lazy SQL alias compilation.
+            expr.SelectContext = context;
             Compile(expr, context);
 
             return expr;
@@ -373,8 +382,7 @@ namespace LiteDB
                 var cached = _compiledCache.Get<BsonExpressionScalarDelegate>(expr.Source);
                 if (cached == null)
                 {
-                    cached = BsonExpressionCompiler.CompileScalar(expr.Expression, context);
-                    _compiledCache.Add(expr.Source, cached);
+                    cached = CompileScalarWhenNeeded(expr, context);
                 }
 
                 expr._funcScalar = cached;
@@ -385,7 +393,7 @@ namespace LiteDB
                 if (cached == null)
                 {
                     cached = BsonExpressionCompiler.CompileEnumerable(expr.Expression, context);
-                    _compiledCache.Add(expr.Source, cached);
+                    cached = _compiledCache.Add(expr.Source, cached);
                 }
 
                 expr._funcEnumerable = cached;

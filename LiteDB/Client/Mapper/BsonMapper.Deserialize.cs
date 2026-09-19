@@ -1,9 +1,10 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using System.ComponentModel;
+using System.Globalization;
 
 namespace LiteDB
 {
@@ -70,7 +71,7 @@ namespace LiteDB
             // if T is BsonDocument, just return them
             if (type == typeof(BsonDocument)) return doc;
 
-            return this.Deserialize(type, doc);
+            return this.Deserialize(type, doc.IsProjectionValue ? doc[doc.Keys.First()] : doc);
         }
 
         /// <summary>
@@ -104,6 +105,8 @@ namespace LiteDB
         [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
         public virtual object Deserialize(Type type, BsonValue value)
         {
+            var input = value;
+
             if (OnDeserialization is not null)
             {
                 var result = OnDeserialization(this, type, value);
@@ -161,12 +164,12 @@ namespace LiteDB
                 return unchecked((UInt64)value.AsInt64);
             }
 
-            // enum value is an int
+            // Preserve all underlying enum bits, including UInt64 values stored as signed BSON Int64.
             else if (typeInfo.IsEnum)
             {
                 if (value.IsString) return Enum.Parse(type, value.AsString);
 
-                if (value.IsNumber) return Enum.ToObject(type, value.AsInt32);
+                if (value.IsNumber) return DeserializeEnumNumber(type, value.AsInt64);
             }
 
             // if value is array, deserialize as array
@@ -197,9 +200,12 @@ namespace LiteDB
                 }
 
                 var doc = value.AsDocument;
+                var declaredType = type;
 
-                // test if value is object and has _type
-                if (doc.TryGetValue("_type", out var typeField) && typeField.IsString)
+                // A known sealed Expando contract treats field names as data. Untyped
+                // object values retain the mapper's existing _type discriminator convention.
+                if (type != typeof(System.Dynamic.ExpandoObject) &&
+                    doc.TryGetValue("_type", out var typeField) && typeField.IsString)
                 {
                     var actualType = _typeNameBinder.GetType(typeField.AsString);
 
@@ -209,6 +215,13 @@ namespace LiteDB
                     if (!type.IsAssignableFrom(actualType))
                     {
                         throw LiteException.DataTypeNotAssignable(type.FullName, actualType.FullName);
+                    }
+
+                    // The resolved type may have its own registered decoder.
+                    // Validate assignability before allowing that callback to run.
+                    if (!ReferenceEquals(input, _resolvedDecoderValue) && _customDeserializer.TryGetValue(actualType, out custom))
+                    {
+                        return InvokeResolvedDeserializer(custom, value);
                     }
 
                     type = actualType;
@@ -222,50 +235,50 @@ namespace LiteDB
                 var entity = this.GetEntityMapper(type);
                 entity.WaitForInitialization();
 
-                object instance = _typeInstantiator(type);
+                if (!entity.PopulateMembers) return entity.CreateInstance(doc);
 
-                if (instance == null && entity.CreateInstance != null)
+                using (EnterConstructorScope(entity))
                 {
-                    instance = entity.CreateInstance(doc);
+                    var instance = CreateMappedInstance(type, entity, doc, out var complete);
+                    if (!complete) PopulateMappedInstance(type, declaredType, instance, doc);
+                    return instance;
                 }
-
-                if (instance == null && IsSystemIndexType(type))
-                {
-                    return DeserializeSystemIndex(type, doc);
-                }
-
-                // initialize CreateInstance
-                entity.CreateInstance = entity.CreateInstance
-                    ?? GetTypeCtor(entity) 
-                    ?? ((BsonDocument _) => Reflection.CreateInstance(entity.ForType));
-
-                instance ??= entity.CreateInstance(doc);
-
-                if (instance is IDictionary dict)
-                {
-                    Type keyType = typeof(object);
-                    Type valueType = typeof(object);
-
-                    if (instance.GetType().GetTypeInfo().IsGenericType)
-                    {
-                        Type[] generics = type.GetGenericArguments();
-                        keyType = generics[0];
-                        valueType = generics[1];
-                    }
-
-                    DeserializeDictionary(keyType, valueType, dict, value.AsDocument);
-                }
-                else
-                {
-                    DeserializeObject(type, instance, doc);
-                }
-
-                return instance;
             }
 
             // in last case, return value as-is - can cause "cast error"
             // it's used for "public object MyInt { get; set; }"
             return value.RawValue;
+        }
+
+        private static object DeserializeEnumNumber(Type type, long number)
+        {
+            var underlyingType = Enum.GetUnderlyingType(type);
+
+            // UInt64 enums are stored as their signed bit pattern, so every Int64 is a valid value.
+            if (underlyingType == typeof(UInt64)) return Enum.ToObject(type, unchecked((UInt64)number));
+
+            // Enum.ToObject truncates silently; the checked conversion throws OverflowException instead.
+            return Enum.ToObject(type, Convert.ChangeType(number, underlyingType, CultureInfo.InvariantCulture));
+        }
+
+        // The value a resolved-type decoder is decoding on this thread. A decoder can only reach the default
+        // materialisation by deserializing that same value again, which must not dispatch back to the decoder.
+        [ThreadStatic]
+        private static BsonValue _resolvedDecoderValue;
+
+        private static object InvokeResolvedDeserializer(Func<BsonValue, object> custom, BsonValue value)
+        {
+            var outer = _resolvedDecoderValue;
+            _resolvedDecoderValue = value;
+
+            try
+            {
+                return custom(value);
+            }
+            finally
+            {
+                _resolvedDecoderValue = outer;
+            }
         }
 
         /// <summary>
@@ -384,20 +397,21 @@ namespace LiteDB
         protected virtual void DeserializeObject(Type type, object obj, BsonDocument value)
         {
             var entity = this.GetEntityMapper(type);
+            var constructed = GetConstructorMembers(obj);
             foreach (var member in entity.Members.Where(x => x.Setter != null))
             {
-                if (value.TryGetValue(member.FieldName, out var val))
+                if (!value.TryGetValue(member.FieldName, out var val)) continue;
+
+                if (constructed != null && constructed.TryGetArgument(member, value, out var item))
                 {
-                    // check if has a custom deserialize function
-                    if (member.Deserialize != null)
-                    {
-                        member.Setter(obj, member.Deserialize(val, this));
-                    }
-                    else
-                    {
-                        member.Setter(obj, this.Deserialize(member.DataType, val));
-                    }
+                    if (HoldsValue(member, obj, item)) continue;
                 }
+                else
+                {
+                    item = DeserializeMember(type, member, val);
+                }
+
+                this.SetMember(type, member, obj, item, val);
             }
         }
 

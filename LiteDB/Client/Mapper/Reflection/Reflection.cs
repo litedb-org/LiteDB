@@ -1,6 +1,7 @@
 ﻿using System;
 using System.CodeDom;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
@@ -27,7 +28,7 @@ namespace LiteDB
     {
         #region CreateInstance
 
-        private static readonly Dictionary<Type, CreateObject> _cacheCtor = new Dictionary<Type, CreateObject>();
+        private static readonly ConcurrentDictionary<Type, CreateObject> _cacheCtor = new ConcurrentDictionary<Type, CreateObject>();
 
         /// <summary>
         /// Create a new instance from a Type
@@ -59,7 +60,7 @@ namespace LiteDB
 
                     if (typeInfo.IsClass)
                     {
-                        _cacheCtor.Add(type, c = CreateClass(type));
+                        _cacheCtor.TryAdd(type, c = CreateClass(type));
                     }
                     else if (typeInfo.IsInterface) // some know interfaces
                     {
@@ -91,7 +92,7 @@ namespace LiteDB
                     }
                     else // structs
                     {
-                        _cacheCtor.Add(type, c = CreateStruct(type));
+                        _cacheCtor.TryAdd(type, c = CreateStruct(type));
                     }
 
                     return c(null);

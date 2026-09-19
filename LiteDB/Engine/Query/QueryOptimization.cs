@@ -226,7 +226,7 @@ namespace LiteDB.Engine
             }
 
             // fill filter using all expressions (remove selected term used in Index)
-            _queryPlan.Filters.AddRange(_terms.Where(x => x != selected));
+            _queryPlan.Filters.AddRange(_terms.Where(x => x != selected && !_fusedTerms.Contains(x)));
         }
 
         /// <summary>
@@ -239,13 +239,19 @@ namespace LiteDB.Engine
         /// </summary>
         private IndexCost ChooseIndex(HashSet<string> fields)
         {
-            var indexes = _snapshot.CollectionPage.GetCollectionIndexes().Where(x => x.IndexType == 0).ToArray();
+            // Indexes contain stored reference stubs, not the documents resolved by INCLUDE.
+            // They cannot filter or order values from fields that an include replaces.
+            var indexes = _snapshot.CollectionPage.GetCollectionIndexes()
+                .Where(x => x.IndexType == 0 &&
+                    !_query.Includes.Any(include => IncludeChangesIndex(include, x.BsonExpr)))
+                .ToArray();
 
             // if query contains a single field used, give preferred if this index exists
             var preferred = fields.Count == 1 ? "$." + fields.First() : null;
 
             // otherwise, check for lowest index cost
             IndexCost lowest = null;
+            var ranges = new List<IndexCost>();
 
             // test all possible predicates in terms
             foreach (var expr in _terms.Where(x => x.IsPredicate))
@@ -285,10 +291,7 @@ namespace LiteDB.Engine
                 // calculate index score and store highest score
                 var current = new IndexCost(index.Item1, expr, index.Item2, _collation);
 
-                if (lowest == null || current.Cost < lowest.Cost)
-                {
-                    lowest = current;
-                }
+                lowest = this.SelectLowest(lowest, current, ranges);
             }
 
             // if no index found, try use same index in orderby/groupby/preferred
@@ -306,7 +309,7 @@ namespace LiteDB.Engine
                 }
             }
 
-            return lowest;
+            return this.FuseRanges(lowest, ranges);
         }
 
         #endregion
@@ -342,7 +345,7 @@ namespace LiteDB.Engine
             var orderBy = new OrderBy(segments);
 
             // if index expression are same as primary OrderBy segment, use index order configuration
-            if (!(_queryPlan.Index is VectorIndexQuery) && orderBy.PrimaryExpression.Source == _queryPlan.IndexExpression)
+            if (!orderBy.PrimaryExpression.RequiresExactSort && !(_queryPlan.Index is VectorIndexQuery) && orderBy.PrimaryExpression.Source == _queryPlan.IndexExpression)
             {
                 _queryPlan.Index.Order = orderBy.PrimaryOrder;
 
@@ -367,6 +370,9 @@ namespace LiteDB.Engine
 
             var expression = _query.GroupBy;
             var select = _queryPlan.Select.Expression;
+            // SQL SELECT collects enumerable expressions into one array per group.
+            // Match that behavior for fluent SELECT * without changing the caller's query.
+            if (!select.IsScalar) select = BsonExpression.Create("ARRAY(" + select.Source + ")", select.Parameters);
             var having = _query.Having;
             var groupOrderBy = (OrderBy)null;
 

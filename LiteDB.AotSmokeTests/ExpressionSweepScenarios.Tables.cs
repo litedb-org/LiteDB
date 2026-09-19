@@ -27,6 +27,7 @@ namespace LiteDB.AotSmokeTests
             ("JOIN~2", "JOIN($.tags[*], '-')"),
             ("KEYS~1", "ARRAY(KEYS($.nested))"),
             ("VALUES~1", "ARRAY(VALUES($.nested))"),
+            ("CONTAINSKEY~2", "CONTAINSKEY($.nested, 'x')"),
 
             // data type conversion
             ("MINVALUE~0", "IS_MINVALUE(MINVALUE())"),
@@ -126,6 +127,14 @@ namespace LiteDB.AotSmokeTests
             ("FORMAT~2", "FORMAT($.age, '000')"),
             ("IS_MATCH~2", "IS_MATCH('abc123', '^[a-z]+\\\\d+$')"),
             ("MATCH~3", "MATCH('abc123', '([a-z]+)(\\\\d+)', 2)"),
+            ("STRING_EQUALS~3", "STRING_EQUALS('Ada', 'ada', 'OrdinalIgnoreCase')"),
+            ("STRING_EQUALS_INSTANCE~3", "STRING_EQUALS_INSTANCE('Ada', 'ada', 'OrdinalIgnoreCase')"),
+            ("STRING_STARTSWITH~3", "STRING_STARTSWITH('Ada', 'a', 'OrdinalIgnoreCase')"),
+            ("STRING_ENDSWITH~3", "STRING_ENDSWITH('Ada', 'A', 'OrdinalIgnoreCase')"),
+            ("STRING_CONTAINS~3", "STRING_CONTAINS('Ada', 'D', 'OrdinalIgnoreCase')"),
+            ("STRING_INDEXOF~3", "STRING_INDEXOF('Ada Lovelace', 'LOVE', 'OrdinalIgnoreCase')"),
+            ("STRING_INDEXOF~4", "STRING_INDEXOF('Ada Lovelace', 'A', 1, 'OrdinalIgnoreCase')"),
+            ("STRING_INDEXOF~5", "STRING_INDEXOF('Ada Lovelace', 'A', 1, 5, 'OrdinalIgnoreCase')"),
 
             // vectors
             ("VECTOR_SIM~2", "VECTOR_SIM($.vec, [1.0, 0.0])")
