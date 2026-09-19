@@ -112,6 +112,14 @@ namespace LiteDB.Engine
             // if not found document, no updates
             if (pkNode == null) return false;
 
+            // Updating an upgraded legacy record must keep its rounded Double ID
+            // aligned with the existing primary-key node. Other indexed UInt64
+            // fields may migrate to the exact representation during this update.
+            if (id.IsLegacyUInt64Match(pkNode.Key, _header.Pragmas.Collation))
+            {
+                doc["_id"] = pkNode.Key;
+            }
+
             // Upsert already checked the document; Update only checks what it is about to write
             if (rejectInvalidLocalTime) this.RejectInvalidLocalTime(doc);
 

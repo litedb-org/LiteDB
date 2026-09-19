@@ -112,9 +112,9 @@ namespace LiteDB
         /// <summary>
         /// Test if left and right are same value. Returns true or false
         /// </summary>
-        public static BsonValue EQ(Collation collation, BsonValue left, BsonValue right) => collation.Equals(left, right);
-        public static BsonValue EQ_ALL(Collation collation, IEnumerable<BsonValue> left, BsonValue right) => left.All(x => collation.Equals(x, right));
-        public static BsonValue EQ_ANY(Collation collation, IEnumerable<BsonValue> left, BsonValue right) => left.Any(x => collation.Equals(x, right));
+        public static BsonValue EQ(Collation collation, BsonValue left, BsonValue right) => BsonValue.UInt64Equals(left, right, collation);
+        public static BsonValue EQ_ALL(Collation collation, IEnumerable<BsonValue> left, BsonValue right) => left.All(x => BsonValue.UInt64Equals(x, right, collation));
+        public static BsonValue EQ_ANY(Collation collation, IEnumerable<BsonValue> left, BsonValue right) => left.Any(x => BsonValue.UInt64Equals(x, right, collation));
 
         /// <summary>
         /// Test if left is greater than right value. Returns true or false
@@ -148,9 +148,9 @@ namespace LiteDB
         /// <summary>
         /// Test if left and right are not same value. Returns true or false
         /// </summary>
-        public static BsonValue NEQ(Collation collation, BsonValue left, BsonValue right) => !collation.Equals(left, right);
-        public static BsonValue NEQ_ANY(Collation collation, IEnumerable<BsonValue> left, BsonValue right) => left.Any(x => !collation.Equals(x, right));
-        public static BsonValue NEQ_ALL(Collation collation, IEnumerable<BsonValue> left, BsonValue right) => left.All(x => !collation.Equals(x, right));
+        public static BsonValue NEQ(Collation collation, BsonValue left, BsonValue right) => !BsonValue.UInt64Equals(left, right, collation);
+        public static BsonValue NEQ_ANY(Collation collation, IEnumerable<BsonValue> left, BsonValue right) => left.Any(x => !BsonValue.UInt64Equals(x, right, collation));
+        public static BsonValue NEQ_ALL(Collation collation, IEnumerable<BsonValue> left, BsonValue right) => left.All(x => !BsonValue.UInt64Equals(x, right, collation));
 
         /// <summary>
         /// Test if left is "SQL LIKE" with right. Returns true or false. Works only when left and right are string
@@ -198,11 +198,11 @@ namespace LiteDB
         {
             if (right.IsArray)
             {
-                return right.AsArray.Contains(left, collation);
+                return right.AsArray.Any(x => BsonValue.UInt64Equals(left, x, collation));
             }
             else
             {
-                return collation.Equals(left, right);
+                return BsonValue.UInt64Equals(left, right, collation);
             }
         }
 

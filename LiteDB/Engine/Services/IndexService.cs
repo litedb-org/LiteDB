@@ -88,6 +88,13 @@ namespace LiteDB.Engine
             byte insertLevels,
             IndexNode last)
         {
+            if (index.Unique &&
+                key.TryGetLegacyUInt64(out var legacy) &&
+                this.FindExact(index, legacy, false, Query.Ascending) != null)
+            {
+                throw LiteException.IndexDuplicateKey(index.Name, key);
+            }
+
             // get a free index page for head note
             var bytesLength = IndexNode.GetNodeLength(insertLevels, key, out var keyLength);
 
@@ -375,6 +382,18 @@ namespace LiteDB.Engine
         /// If not found but sibling = true and key are not found, returns next value index node (if order = Asc) or prev node (if order = Desc)
         /// </summary>
         public IndexNode Find(CollectionIndex index, BsonValue value, bool sibling, int order)
+        {
+            var node = this.FindExact(index, value, sibling, order);
+
+            if (node == null && !sibling && value.TryGetLegacyUInt64(out var legacy))
+            {
+                node = this.FindExact(index, legacy, false, order);
+            }
+
+            return node;
+        }
+
+        internal IndexNode FindExact(CollectionIndex index, BsonValue value, bool sibling, int order)
         {
             var leftNode = order == Query.Ascending ? this.GetNode(index.Head) : this.GetNode(index.Tail);
             var counter = 0ul;

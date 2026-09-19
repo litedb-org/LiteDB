@@ -176,6 +176,7 @@ namespace LiteDB
                 var v = (BsonValue)value;
                 this.Type = v.Type;
                 this.RawValue = v.RawValue;
+                _isUInt64 = v._isUInt64;
             }
             else
             {
@@ -358,20 +359,6 @@ namespace LiteDB
         public static implicit operator BsonValue(Decimal value)
         {
             return new BsonValue(value);
-        }
-
-        // UInt64 uses the same signed Int64 bits as BsonMapper.
-        public static implicit operator UInt64(BsonValue value)
-        {
-            return value.IsInt64 ? unchecked((UInt64)(Int64)value.RawValue) :
-                value.IsInt32 ? unchecked((UInt64)(Int32)value.RawValue) :
-                (UInt64)value.RawValue;
-        }
-
-        // UInt64 (lossless, including values above Int64.MaxValue)
-        public static implicit operator BsonValue(UInt64 value)
-        {
-            return new BsonValue(unchecked((Int64)value));
         }
 
         // String

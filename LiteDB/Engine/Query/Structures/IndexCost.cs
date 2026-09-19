@@ -98,7 +98,7 @@ namespace LiteDB.Engine
                 case BsonExpressionType.GreaterThanOrEqual: return new IndexRange(name, value, BsonValue.MaxValue, true, true, Query.Ascending);
                 case BsonExpressionType.LessThan: return new IndexRange(name, BsonValue.MinValue, value, true, false, Query.Ascending);
                 case BsonExpressionType.LessThanOrEqual: return new IndexRange(name, BsonValue.MinValue, value, true, true, Query.Ascending);
-                case BsonExpressionType.NotEqual: return new IndexScan(name, x => x.CompareTo(value) != 0, Query.Ascending);
+                case BsonExpressionType.NotEqual: return new IndexScan(name, x => !BsonValue.UInt64Equals(x, value, collation), Query.Ascending);
                 case BsonExpressionType.In: return value.IsArray ?
                         (Index)new IndexIn(name, value.AsArray, Query.Ascending) :
                         (Index)new IndexEquals(name, value);

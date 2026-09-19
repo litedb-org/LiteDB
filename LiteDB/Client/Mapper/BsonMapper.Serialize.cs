@@ -112,10 +112,7 @@ namespace LiteDB
             }
             else if (obj is UInt64)
             {
-                var ulng = ((UInt64)obj);
-                var lng = unchecked((Int64)ulng);
-
-                return new BsonValue(lng);
+                return (BsonValue)(UInt64)obj;
             }
             else if (obj is Single)
             {
