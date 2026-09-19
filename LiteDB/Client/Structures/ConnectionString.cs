@@ -15,6 +15,9 @@ namespace LiteDB
         private readonly Dictionary<string, string> _values;
         private int? _transactionPageLimit;
 
+        /// <summary>Opt in to compact document writes and lazy v10 promotion. Existing documents stay readable in place.</summary>
+        public bool CompactStorage { get; set; } = false;
+
         /// <summary>
         /// "memory profile": Balanced (default), LowMemory, or Throughput.
         /// Explicit cache and transaction limits override these defaults.
@@ -141,6 +144,7 @@ namespace LiteDB
             {
                 throw new LiteException(0, "`cache size` must be non-negative and `transaction pages` must be greater than zero");
             }
+            this.CompactStorage = _values.GetValue("compact storage", this.CompactStorage);
             this.ReadOnly = _values.GetValue("readonly", this.ReadOnly);
 
             this.Collation = _values.ContainsKey("collation") ? new Collation(_values.GetValue<string>("collation")) : this.Collation;
@@ -166,6 +170,7 @@ namespace LiteDB
                 firstKey.Equals("password", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("initialsize", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("initial size", StringComparison.OrdinalIgnoreCase) ||
+                firstKey.Equals("compact storage", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("readonly", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("upgrade", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("auto-rebuild", StringComparison.OrdinalIgnoreCase) ||
@@ -222,6 +227,7 @@ namespace LiteDB
                 CacheSize = this.CacheSize,
                 TransactionPageLimit = this.TransactionPageLimit,
                 ReadOnly = this.ReadOnly,
+                CompactStorage = this.CompactStorage,
                 Collation = this.Collation,
                 Upgrade = this.Upgrade,
                 AutoRebuild = this.AutoRebuild,
@@ -342,6 +348,8 @@ namespace LiteDB
                     .Append(RejectInvalidLocalTime)
                     .Append(';');
             }
+
+            if (CompactStorage) bld.Append("Compact Storage=true;");
 
             if (MemoryProfile != MemoryProfile.Balanced)
             {

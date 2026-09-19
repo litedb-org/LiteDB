@@ -9,14 +9,14 @@ namespace LiteDB.Engine
         internal byte FileVersion { get; set; } = HeaderPage.FILE_VERSION;
 
         /// <summary>
-        /// Publish the vector format before any vector bytes can enter the WAL.
+        /// Publish the required format before any feature bytes can enter the WAL.
         /// The caller holds the header lock and an active write transaction, which
         /// excludes checkpoint. Only the persisted header is copied: uncommitted
         /// header fields must never be written directly to the data file.
         /// </summary>
-        internal void PromoteVectorFormat()
+        internal void RequireFileVersion(byte requiredVersion)
         {
-            if (FileVersion >= HeaderPage.VECTOR_FILE_VERSION) return;
+            if (FileVersion >= requiredVersion) return;
             var stream = _dataPool.Writer.Value;
             lock (stream)
             {
@@ -30,16 +30,17 @@ namespace LiteDB.Engine
                     read += count;
                 }
                 if (header[HeaderPage.P_FILE_VERSION] != HeaderPage.FILE_VERSION &&
-                    header[HeaderPage.P_FILE_VERSION] != HeaderPage.VECTOR_FILE_VERSION)
+                    header[HeaderPage.P_FILE_VERSION] != HeaderPage.VECTOR_FILE_VERSION &&
+                    header[HeaderPage.P_FILE_VERSION] != HeaderPage.COMPACT_FILE_VERSION)
                 {
                     throw LiteException.UnsupportedFileVersion(header[HeaderPage.P_FILE_VERSION]);
                 }
-                header[HeaderPage.P_FILE_VERSION] = HeaderPage.VECTOR_FILE_VERSION;
+                header[HeaderPage.P_FILE_VERSION] = Math.Max(requiredVersion, header[HeaderPage.P_FILE_VERSION]);
                 stream.Position = 0;
                 // A full page also works with encrypted streams; all other header fields are preserved.
                 stream.Write(header, 0, header.Length);
                 stream.FlushToDisk();
-                FileVersion = HeaderPage.VECTOR_FILE_VERSION;
+                FileVersion = header[HeaderPage.P_FILE_VERSION];
             }
         }
 

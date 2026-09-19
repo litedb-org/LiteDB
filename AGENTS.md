@@ -42,3 +42,12 @@ continues to rebuild v7 files before applying read-only access. Durable flushes
 must reach the underlying file through encryption and caller-stream wrappers. Run `python3 scripts/test-vector-compatibility.py`
 to verify ordinary v8 round trips and vector-file rejection by LiteDB 5.0.21,
 including encrypted files. See `docs/vector-query-compatibility.md` for semantics.
+
+## Compact Document Storage
+`CompactStorage=true` opts into lazy v10 document writes; legacy BSON remains
+readable in place and is still the default write format. Route DataBlock reads
+through `DocumentStorageCodec`, never public BSON alone. Schema pages belong to
+the collection transaction; read-version catalog caches must be cleared when WAL
+versions reset. Run `python3 scripts/test-compact-compatibility.py` alongside the
+vector compatibility script. See `docs/compact-document-storage.md` for layout,
+bounds, downgrade options, and benchmark results.

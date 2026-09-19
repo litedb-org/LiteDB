@@ -21,6 +21,9 @@ namespace LiteDB.Engine
         /// </summary>
         public string Password { get; set; } = null;
 
+        /// <summary>Choose compact writes or legacy BSON for the rebuilt file; null retains the engine setting. Vector data still requires v9.</summary>
+        public bool? CompactStorage { get; set; }
+
         /// <summary>
         /// Define a new collation when rebuild
         /// </summary>

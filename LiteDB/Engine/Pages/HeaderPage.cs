@@ -25,6 +25,7 @@ namespace LiteDB.Engine
         /// </summary>
         public const byte FILE_VERSION = 8;
         public const byte VECTOR_FILE_VERSION = 9;
+        public const byte COMPACT_FILE_VERSION = 10;
         private volatile byte _fileVersion;
         public byte FileVersion => _fileVersion;
 
@@ -127,7 +128,7 @@ namespace LiteDB.Engine
                 throw LiteException.InvalidDatabase();
             }
 
-            if (ver != FILE_VERSION && ver != VECTOR_FILE_VERSION) throw LiteException.UnsupportedFileVersion(ver);
+            if (ver != FILE_VERSION && ver != VECTOR_FILE_VERSION && ver != COMPACT_FILE_VERSION) throw LiteException.UnsupportedFileVersion(ver);
             _fileVersion = Math.Max(_fileVersion, ver); // Loading must not mutate a readable page.
 
             // CreateTime is readonly

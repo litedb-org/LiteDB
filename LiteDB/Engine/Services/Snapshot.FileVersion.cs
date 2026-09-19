@@ -10,14 +10,16 @@ namespace LiteDB.Engine
         }
 
         /// <summary>Promotion is durable and monotonic, even if this transaction rolls back.</summary>
-        internal void RequireVectorVersion()
+        internal void RequireVectorVersion() => RequireFileVersion(HeaderPage.VECTOR_FILE_VERSION);
+
+        internal void RequireFileVersion(byte requiredVersion)
         {
-            if (_header.FileVersion >= HeaderPage.VECTOR_FILE_VERSION) return;
+            if (_header.FileVersion >= requiredVersion) return;
             lock (_header)
             {
-                if (_header.FileVersion >= HeaderPage.VECTOR_FILE_VERSION) return;
-                _disk.PromoteVectorFormat();
-                _header.EnsureVersion(HeaderPage.VECTOR_FILE_VERSION);
+                if (_header.FileVersion >= requiredVersion) return;
+                _disk.RequireFileVersion(requiredVersion);
+                _header.EnsureVersion(requiredVersion);
             }
         }
 
