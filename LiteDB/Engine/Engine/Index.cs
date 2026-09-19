@@ -10,6 +10,37 @@ namespace LiteDB.Engine
     public partial class LiteEngine
     {
         /// <summary>
+        /// Read-only databases cannot create an index, but "ensure" of an index that already
+        /// exists is a no-op and must keep working (common startup pattern).
+        /// </summary>
+        private bool EnsureIndexReadOnly(string collection, string name, string expression, VectorIndexOptions vector = null)
+        {
+            var exists = this.AutoTransaction(transaction =>
+            {
+                var snapshot = transaction.CreateSnapshot(LockMode.Read, collection, false);
+                var current = snapshot.CollectionPage?.GetCollectionIndex(name);
+
+                if (current == null) return false;
+
+                // same conflicts the writable path reports
+                if (current.Expression != expression || (vector != null && current.IndexType != 1)) throw LiteException.IndexAlreadyExist(name);
+
+                var metadata = vector == null ? null : snapshot.CollectionPage.GetVectorIndexMetadata(name);
+
+                if (metadata != null && (metadata.Dimensions != vector.Dimensions || metadata.Metric != vector.Metric))
+                {
+                    throw new LiteException(0, $"Vector index '{name}' already exists with different options.");
+                }
+
+                return true;
+            });
+
+            if (exists == false) throw new NotSupportedException("Cannot create an index in a read-only database.");
+
+            return false;
+        }
+
+        /// <summary>
         /// Create a new index (or do nothing if already exists) to a collection/field
         /// </summary>
         public bool EnsureIndex(string collection, string name, BsonExpression expression, bool unique)
@@ -25,6 +56,9 @@ namespace LiteDB.Engine
             if (expression.IsScalar == false && unique) throw new LiteException(0, "Multikey index expression do not support unique option");
 
             if (expression.Source == "$._id") return false; // always exists
+
+            _state.Validate();
+            if (_settings.ReadOnly) return this.EnsureIndexReadOnly(collection, name, expression.Source);
 
             return this.AutoTransaction(transaction =>
             {
@@ -109,6 +143,9 @@ namespace LiteDB.Engine
             if (name.Length > INDEX_NAME_MAX_LENGTH) throw LiteException.InvalidIndexName(name, collection, "MaxLength = " + INDEX_NAME_MAX_LENGTH);
             if (!name.IsWord()) throw LiteException.InvalidIndexName(name, collection, "Use only [a-Z$_]");
             if (name.StartsWith("$")) throw LiteException.InvalidIndexName(name, collection, "Index name can't start with `$`");
+
+            _state.Validate();
+            if (_settings.ReadOnly) return this.EnsureIndexReadOnly(collection, name, expression.Source, options);
 
             return this.AutoTransaction(transaction =>
             {

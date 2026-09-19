@@ -12,6 +12,8 @@ namespace LiteDB.Engine
     {
         private readonly BsonArray _values;
 
+        internal BsonArray Values => _values;
+
         public IndexIn(string name, BsonArray values, int order)
             : base(name, order)
         {

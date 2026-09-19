@@ -280,7 +280,8 @@ namespace LiteDB.Engine
             var orderBy = new OrderBy(segments);
 
             // if index expression are same as primary OrderBy segment, use index order configuration
-            if (!(_queryPlan.Index is VectorIndexQuery) && MatchesStoredIndex(_queryPlan.IndexExpression, orderBy.PrimaryExpression))
+            if (!orderBy.PrimaryExpression.RequiresExactSort && !(_queryPlan.Index is VectorIndexQuery) &&
+                MatchesStoredIndex(_queryPlan.IndexExpression, orderBy.PrimaryExpression))
             {
                 _queryPlan.Index.Order = orderBy.PrimaryOrder;
 
@@ -305,6 +306,9 @@ namespace LiteDB.Engine
 
             var expression = _query.GroupBy;
             var select = _queryPlan.Select.Expression;
+            // SQL SELECT collects enumerable expressions into one array per group.
+            // Match that behavior for fluent SELECT * without changing the caller's query.
+            if (!select.IsScalar) select = BsonExpression.Create("ARRAY(" + select.Source + ")", select.Parameters);
             var having = _query.Having;
             var groupOrderBy = (OrderBy)null;
 

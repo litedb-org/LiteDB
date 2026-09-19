@@ -110,7 +110,7 @@ namespace LiteDB.Engine
                 // if execution is just to get explan plan, return as single document result
                 if (executionPlan)
                 {
-                    yield return queryPlan.GetExecutionPlan();
+                    yield return this.ExplainPlan(queryPlan, snapshot);
                     yield break;
                 }
 
@@ -135,7 +135,7 @@ namespace LiteDB.Engine
                     catch (Exception ex)
                     {
                         _state.Handle(ex);
-                        throw ex;
+                        throw;
                     }
 
                     while (read)
@@ -156,11 +156,28 @@ namespace LiteDB.Engine
                         catch (Exception ex)
                         {
                             _state.Handle(ex);
-                            throw ex;
+                            throw;
                         }
                     }
                 }
             };
+        }
+
+        /// <summary>
+        /// Execution plan plus the diagnostics that read the index - only an explained query pays for them
+        /// </summary>
+        private BsonDocument ExplainPlan(QueryPlan queryPlan, Snapshot snapshot)
+        {
+            var plan = queryPlan.GetExecutionPlan();
+            var indexer = new IndexService(snapshot, _pragmas.Collation, _disk.MAX_ITEMS_COUNT);
+            var warning = IndexKeyTypeWarning.Find(queryPlan.Index, snapshot.CollectionPage, indexer);
+
+            if (warning != null)
+            {
+                plan["index"]["warning"] = warning;
+            }
+
+            return plan;
         }
 
         /// <summary>

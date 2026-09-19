@@ -330,7 +330,7 @@ namespace LiteDB.Tests.Mapper
             TestExpr<User>(x => x.Name.StartsWith("Mauricio"), "Name LIKE (@p0 + '%')", "Mauricio");
             TestExpr<User>(x => x.Name.Contains("Bezerra"), "Name LIKE ('%' + @p0 + '%')", "Bezerra");
             TestExpr<User>(x => x.Name.EndsWith("David"), "Name LIKE ('%' + @p0)", "David");
-            TestExpr<User>(x => x.Name.StartsWith(x.Address.Street), "Name LIKE (Address.Street + '%')");
+            TestExpr<User>(x => x.Name.StartsWith(x.Address.Street), "((IS_STRING(Address.Street) = true) AND (Name LIKE (Address.Street + '%') = true))");
 
             // Equals
             TestExpr<User>(x => x.Name.Equals("John"), "Name = @p0", "John");
@@ -530,14 +530,14 @@ namespace LiteDB.Tests.Mapper
             Expression<Func<User, bool>> exprLeft = x => x.Id >= 1;
             Expression<Func<User, bool>> exprRight = x => x.Id <= 10;
 
-            var invokedExprRight = Expression.Invoke(exprRight, exprRight.Parameters.Cast<Expression>());
+            var invokedExprRight = Expression.Invoke(exprRight, exprLeft.Parameters.Cast<Expression>());
 
             Expression<Func<User, bool>> exprMerged = Expression.Lambda<Func<User, bool>>
                   (Expression.AndAlso(exprLeft.Body, invokedExprRight), exprLeft.Parameters);
 
             Test<User, bool>(expr, "(($._id>=@p0) AND ($._id<=@p1))", 1, 10);
-            Test<User, bool>(exprMerged, "(($._id>=@p0) AND (((@._id<=@p1))=true))", 1, 10);
-            //the right expr of exprMerged uses @ (instead of $) because the rootParameter is different for exprLeft and exprRight
+            Test<User, bool>(exprMerged, "(($._id>=@p0) AND ($._id<=@p1))", 1, 10);
+            Assert.Equal(expr.Compile()(new User { Id = 5 }), exprMerged.Compile()(new User { Id = 5 }));
         }
 
         [Fact]

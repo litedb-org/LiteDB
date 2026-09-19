@@ -17,12 +17,33 @@ namespace LiteDB.Engine
         private string _buildId = Guid.NewGuid().ToString("d").ToLower().Substring(6);
 
         /// <summary>
-        /// Rebuild database with a new password
+        /// Rebuild database with a new password. Null keeps the current password (or keeps the database
+        /// unencrypted); an empty string is a valid password. Use <see cref="RemovePassword"/> to decrypt.
         /// </summary>
         public string Password { get; set; } = null;
 
         /// <summary>
-        /// Define a new collation when rebuild
+        /// When set true, rebuild into an unencrypted database. Cannot be combined with <see cref="Password"/>.
+        /// </summary>
+        public bool RemovePassword { get; set; } = false;
+
+        /// <summary>
+        /// Password of the rebuilt database: losing encryption is never a side effect of an omitted Password.
+        /// </summary>
+        internal string ResolvePassword(string currentPassword)
+        {
+            if (this.RemovePassword == false) return this.Password ?? currentPassword;
+
+            if (this.Password != null)
+            {
+                throw new ArgumentException("RebuildOptions cannot both set a Password and RemovePassword.");
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Define a new collation when rebuilding. Null preserves the current database collation.
         /// </summary>
         public Collation Collation { get; set; } = null;
 

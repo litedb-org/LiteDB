@@ -6,11 +6,12 @@ namespace LiteDB
     /// <summary>
     /// A fixed-size cache shared by scalar and enumerable expressions. Each
     /// immutable entry is published atomically. Four entries per bucket let
-    /// colliding hot expressions coexist without growing the cache or locking.
+    /// colliding hot expressions coexist without growing the cache. Lookups do not lock; publication is serialized.
     /// </summary>
     internal sealed class CompiledExpressionCache
     {
         private readonly Entry[] _entries;
+        private readonly object _publish = new object();
         private const int BucketSize = 4;
         private int _count;
         private int _nextVictim;
@@ -35,28 +36,29 @@ namespace LiteDB
             return null;
         }
 
-        public void Add(string source, object compiled)
+        public T Add<T>(string source, T compiled) where T : class
         {
             if (compiled == null) throw new ArgumentNullException(nameof(compiled));
-            var start = this.GetBucketStart(source);
-            var end = Math.Min(start + BucketSize, _entries.Length);
-            var replacement = new Entry(source, compiled);
-            for (var i = start; i < end; i++)
+            lock (_publish)
             {
-                var entry = Volatile.Read(ref _entries[i]);
-                if (entry != null && entry.Source == source && entry.Compiled.GetType() == compiled.GetType()) return;
-                if (entry == null)
+                var start = this.GetBucketStart(source);
+                var end = Math.Min(start + BucketSize, _entries.Length);
+                for (var i = start; i < end; i++)
                 {
-                    if (Interlocked.CompareExchange(ref _entries[i], replacement, null) == null)
+                    var entry = Volatile.Read(ref _entries[i]);
+                    if (entry != null && entry.Source == source && entry.Compiled is T existing)
+                        return existing;
+                    if (entry == null)
                     {
+                        Volatile.Write(ref _entries[i], new Entry(source, compiled));
                         Interlocked.Increment(ref _count);
-                        return;
+                        return compiled;
                     }
-                    i--; // Inspect the winner before considering the next slot.
                 }
+                var victim = start + (int)((uint)++_nextVictim % (uint)(end - start));
+                Volatile.Write(ref _entries[victim], new Entry(source, compiled));
+                return compiled;
             }
-            var victim = start + (int)((uint)Interlocked.Increment(ref _nextVictim) % (uint)(end - start));
-            Interlocked.Exchange(ref _entries[victim], replacement);
         }
 
         private int GetBucketStart(string source)

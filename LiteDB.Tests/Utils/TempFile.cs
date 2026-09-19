@@ -69,6 +69,15 @@ namespace LiteDB.Tests
 
         public long Size => new FileInfo(this.Filename).Length;
 
+        public static byte[] ReadAllBytesShared(string filename)
+        {
+            using var input = new FileStream(filename, FileMode.Open, FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            using var output = new MemoryStream();
+            input.CopyTo(output);
+            return output.ToArray();
+        }
+
         public string ReadAsText() => File.ReadAllText(this.Filename);
 
         public override string ToString() => this.Filename;

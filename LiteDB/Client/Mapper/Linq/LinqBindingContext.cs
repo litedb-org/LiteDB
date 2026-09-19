@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Linq.Expressions;
 
 namespace LiteDB
@@ -50,9 +51,15 @@ namespace LiteDB
             {
                 var context = _translator._context;
                 var scope = _translator._scope;
+                var referenceType = _translator._dbRefType;
+                var lambda = _arguments[lambdaIndex] as LambdaExpression;
+                Type previousReference = null;
+                var hadPreviousReference = lambda != null &&
+                    _translator._lambdaReferences.TryGetValue(lambda.Parameters[0], out previousReference);
                 BsonExpression right;
                 try
                 {
+                    if (lambda != null) _translator._lambdaReferences[lambda.Parameters[0]] = referenceType;
                     _translator._context = new ExpressionContext();
                     _translator._scope = left.Type == BsonExpressionType.Source ? DocumentScope.Source : DocumentScope.Current;
                     right = _translator.Translate(_arguments[lambdaIndex]);
@@ -62,6 +69,12 @@ namespace LiteDB
                 {
                     _translator._context = context;
                     _translator._scope = scope;
+                    _translator._dbRefType = referenceType;
+                    if (lambda != null)
+                    {
+                        if (hadPreviousReference) _translator._lambdaReferences[lambda.Parameters[0]] = previousReference;
+                        else _translator._lambdaReferences.Remove(lambda.Parameters[0]);
+                    }
                 }
                 var result = BsonExpressionFactory.Function(name, name == "MAP" ? BsonExpressionType.Map : BsonExpressionType.Filter,
                     left, right, new BsonExpression[0], context, _translator._parameters);
@@ -76,11 +89,11 @@ namespace LiteDB
                 if (!(_arguments[lambdaIndex] is LambdaExpression lambda)) throw _translator.Unsupported(_arguments[lambdaIndex], quantifier);
                 if (lambda.Body is BinaryExpression binary)
                 {
-                    if (binary.Left.NodeType != ExpressionType.Parameter)
-                        throw new LiteException(0, "Any/All requires simple parameter on left side. Eg: `x => x.Phones.Select(p => p.Number).Any(n => n > 5)`");
-                    return Binary(quantifier + " " + Operator(binary.NodeType), left, _translator.Translate(binary.Right));
+                    if (binary.Left.NodeType == ExpressionType.Parameter && !ContainsParameter(binary.Right, lambda.Parameters[0]))
+                        return Binary(quantifier + " " + Operator(binary.NodeType), left, _translator.Translate(binary.Right));
                 }
                 if (lambda.Body is MethodCallExpression method && method.Object is ParameterExpression &&
+                    !method.Arguments.Any(argument => ContainsParameter(argument, lambda.Parameters[0])) &&
                     TryGetResolver(method.Method.DeclaringType, out var resolver))
                 {
                     var binding = resolver.ResolveMethod(method.Method);
@@ -95,7 +108,54 @@ namespace LiteDB
                         }
                     }
                 }
-                throw _translator.Unsupported(lambda, "Any/All requires a simple predicate parameter");
+
+                var scope = new QuantifierScopeVisitor(_translator._root);
+                scope.Visit(lambda);
+                if (scope.HasOuterItemReference)
+                    throw new NotSupportedException("Nested collection predicates cannot refer to an outer collection item.");
+
+                var mapped = Function("MAP", left, lambdaIndex);
+                return Binary(quantifier + " =", mapped, Constant(true));
+            }
+
+            private static bool ContainsParameter(Expression expression, ParameterExpression parameter)
+            {
+                var visitor = new SpecificParameterVisitor(parameter);
+                visitor.Visit(expression);
+                return visitor.Found;
+            }
+
+            private sealed class SpecificParameterVisitor : ExpressionVisitor
+            {
+                private readonly ParameterExpression _parameter;
+                internal bool Found { get; private set; }
+                internal SpecificParameterVisitor(ParameterExpression parameter) => _parameter = parameter;
+                protected override Expression VisitParameter(ParameterExpression node)
+                {
+                    if (node == _parameter) Found = true;
+                    return node;
+                }
+            }
+
+            private sealed class QuantifierScopeVisitor : ExpressionVisitor
+            {
+                private readonly ParameterExpression _root;
+                private IReadOnlyList<ParameterExpression> _parameters;
+                internal bool HasOuterItemReference { get; private set; }
+                internal QuantifierScopeVisitor(ParameterExpression root) => _root = root;
+                protected override Expression VisitLambda<T>(Expression<T> node)
+                {
+                    var previous = _parameters;
+                    _parameters = node.Parameters;
+                    Visit(node.Body);
+                    _parameters = previous;
+                    return node;
+                }
+                protected override Expression VisitParameter(ParameterExpression node)
+                {
+                    if (node != _root && (_parameters == null || !_parameters.Contains(node))) HasOuterItemReference = true;
+                    return node;
+                }
             }
         }
     }

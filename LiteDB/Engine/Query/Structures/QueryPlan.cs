@@ -135,7 +135,7 @@ namespace LiteDB.Engine
             {
                 if (this.IsIndexKeyOnly)
                 {
-                    lookup = new IndexLookup(indexer, this.Fields.Single());
+                    lookup = new IndexLookup(indexer, this.Fields.Single(), new DatafileLookup(data, true, this.Fields), pragmas.UtcDate);
                 }
                 else
                 {

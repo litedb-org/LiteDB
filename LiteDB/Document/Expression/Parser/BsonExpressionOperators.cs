@@ -295,7 +295,7 @@ namespace LiteDB
 
             var idx = index < 0 ? arr.Count + index : index;
 
-            if (arr.Count > idx)
+            if (idx >= 0 && idx < arr.Count)
             {
                 return arr[idx];
             }

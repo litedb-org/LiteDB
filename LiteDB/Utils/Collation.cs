@@ -70,9 +70,9 @@ namespace LiteDB
             return result < 0 ? -1 : result > 0 ? +1 : 0;
         }
 
-        public int Compare(BsonValue left, BsonValue rigth)
+        public int Compare(BsonValue left, BsonValue right)
         {
-            return left.CompareTo(rigth, this);
+            return left.CompareTo(right, this);
         }
 
         // Match the previous comparison of two one-character strings, including

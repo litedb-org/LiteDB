@@ -17,7 +17,7 @@ namespace LiteDB.Tests.QueryTest
             var rows = db.GetCollection<Row>("rows");
             var query = rows.Query().Where(predicate).OrderByDescending(x => x.Score);
             var plan = query.GetPlan();
-            plan["index"]["mode"].AsString.Should().Contain("BETWEEN");
+            plan["index"]["mode"].AsString.Should().Contain("RANGE SCAN");
             plan.ContainsKey("filters").Should().BeFalse();
             query.ToArray().Select(x => x.Score).Should().Equal(Enumerable.Range(start, count).Reverse());
         }

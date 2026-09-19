@@ -102,7 +102,7 @@ namespace LiteDB
                 i++;
             }
 
-            hasMore = !(i == len || i == len - 1);
+            hasMore = i < len && (c != '%' || i < len - 1);
 
             return str.Substring(0, i);
         }

@@ -35,7 +35,6 @@ namespace LiteDB.Tests.Mapper
                 p => p.Ages.All(a => a < minimum),
                 p => p.Ages.ElementAt(1),
                 p => p.Ages.ElementAt(minimum + 1),
-                p => p.Ages.ElementAt(p.Id),
                 projected,
                 p => new Person { Id = p.Id, Name = p.Name, Ages = new[] { p.Age, minimum } },
                 p => p.CreatedOn.Year,

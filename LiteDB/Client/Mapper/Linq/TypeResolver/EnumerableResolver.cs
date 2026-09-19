@@ -13,6 +13,9 @@ namespace LiteDB
     {
         public virtual LinqExpressionBinding ResolveMethod(MethodInfo method)
         {
+            if (DictionaryResolver.IsContainsKey(method))
+                return c => c.Call("CONTAINSKEY", c.Object(), c.Argument(0));
+
             // all methods in Enumerable are Extensions (static methods), so first parameter is IEnumerable
             var name = Reflection.MethodName(method, 1); 
 

@@ -17,7 +17,10 @@ namespace LiteDB.Engine
         /// </summary>
         private IndexCost ChooseIndex(HashSet<string> fields)
         {
-            var indexes = _snapshot.CollectionPage.GetCollectionIndexes().Where(x => x.IndexType == 0).ToArray();
+            var indexes = _snapshot.CollectionPage.GetCollectionIndexes()
+                .Where(x => x.IndexType == 0 &&
+                    !_query.Includes.Any(include => IncludeChangesIndex(include, x.BsonExpr)))
+                .ToArray();
 
             // if query contains a single field used, give preferred if this index exists
             var preferred = fields.Count == 1 && !IsIncludedRootField(fields.First()) ? GetFieldIndexExpression(fields.First()) : null;

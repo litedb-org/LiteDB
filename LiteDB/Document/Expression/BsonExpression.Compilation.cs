@@ -100,6 +100,9 @@ namespace LiteDB
                 mode == BsonExpressionParserMode.SelectDocument ? BsonExpressionParser.ParseSelectDocumentBuilder(tokenizer, context, parameters) :
                 BsonExpressionParser.ParseUpdateDocumentBuilder(tokenizer, context, parameters);
 
+            // Retain original parameter nodes for lazy SQL alias compilation.
+            expr.SelectContext = context;
+
             // compile linq expression (with left+right expressions)
             Compile(expr, context);
 
@@ -128,8 +131,7 @@ namespace LiteDB
                 if (cached == null)
                 {
                     var lambda = System.Linq.Expressions.Expression.Lambda<BsonExpressionScalarDelegate>(expr.Expression, context.Source, context.Root, context.Current, context.Collation, context.Parameters);
-                    cached = lambda.Compile();
-                    if (CacheEnabled) _compiledCache.Add(expr.Source, cached);
+                    cached = CacheEnabled ? CompileScalarWhenNeeded(expr, lambda) : lambda.Compile();
                 }
 
                 expr._funcScalar = cached;

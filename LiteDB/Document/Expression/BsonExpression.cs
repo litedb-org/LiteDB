@@ -50,6 +50,13 @@ namespace LiteDB
         /// </summary>
         public BsonDocument Parameters { get; internal set; }
 
+        // Query composition renames parameters; GROUP BY must still bind its key.
+        internal HashSet<string> GroupKeyAliases { get; set; }
+
+        internal List<KeyValuePair<string, BsonExpression>> SelectAliases { get; set; }
+        internal ExpressionContext SelectContext { get; set; }
+        internal bool RequiresExactSort { get; set; }
+
         /// <summary>
         /// In predicate expressions, indicate Left side
         /// </summary>
@@ -198,6 +205,7 @@ namespace LiteDB
         /// </summary>
         internal IEnumerable<BsonValue> Execute(IEnumerable<BsonDocument> source, BsonDocument root, BsonValue current, Collation collation, BsonDocument parameters = null)
         {
+            // Nested expressions can belong to a cached delegate; use the current execution's parameters.
             if (this.IsScalar)
             {
                 var value = _funcScalar(source, root, current, collation ?? Collation.Binary, parameters ?? this.Parameters);

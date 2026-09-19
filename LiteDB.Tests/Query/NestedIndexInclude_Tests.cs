@@ -68,9 +68,9 @@ namespace LiteDB.Tests.QueryTest
         }
 
         [Theory]
-        [InlineData("Owner.Score + 1", "Owner.Score + 1 = 11")]
-        [InlineData("Owner.$id", "Owner.$id = 10")]
-        public void Computed_keys_and_reference_members_cannot_replace_included_values(string index, string predicate)
+        [InlineData("Owner.Score + 1", "Owner.Score + 1 = 11", "_id")]
+        [InlineData("Owner.$id", "Owner.$id = 1", "nested")]
+        public void Computed_keys_and_reference_members_cannot_replace_included_values(string index, string predicate, string expectedIndex)
         {
             using var db = CreateDatabase();
             db.GetCollection("owners").UpdateMany("{ $id: _id * 10 }", "true");
@@ -79,7 +79,7 @@ namespace LiteDB.Tests.QueryTest
             expected.Should().Equal(new BsonValue[] { 1 });
             rows.EnsureIndex("nested", index);
             var query = rows.Query().Include("Owner").Where(predicate);
-            query.GetPlan()["index"]["name"].AsString.Should().Be("_id");
+            query.GetPlan()["index"]["name"].AsString.Should().Be(expectedIndex);
             query.ToArray().Select(x => x["_id"]).Should().Equal(expected);
         }
 

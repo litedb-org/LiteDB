@@ -74,7 +74,7 @@ namespace LiteDB
             throw new NotSupportedException($"Operator not supported {nodeType}");
         }
 
-        private string ResolveMember(MemberInfo member, out MemberMapper memberMapper)
+        private string ResolveMember(MemberInfo member, Type mappedType, out MemberMapper memberMapper)
         {
             var name = member.Name;
 
@@ -82,20 +82,20 @@ namespace LiteDB
             var isParentDbRef = _dbRefType != null && member.DeclaringType.IsAssignableFrom(_dbRefType);
 
             // get class entity from mapper
-            var entity = _mapper.GetEntityMapper(member.DeclaringType);
+            var entity = _mapper.GetEntityMapper(mappedType);
             entity.WaitForInitialization();
 
             // get mapped field from entity
-            var field = entity.Members.FirstOrDefault(x => x.MemberName == name);
+            var field = entity.FindMember(member);
 
-            memberMapper = field ?? throw new NotSupportedException($"Member {name} not found on BsonMapper for type {member.DeclaringType}.");
-            MemberGuards?.Add(new LinqMemberGuard(entity, field));
-
+            memberMapper = field ?? throw new NotSupportedException($"Member {name} not found on BsonMapper for type {mappedType}.");
             // define if this field are DbRef (child will need check parent)
             _dbRefType = field.IsDbRef ? field.UnderlyingType : null;
 
             // if parent call is DbRef and are calling _id field, rename to $id
-            return (isParentDbRef && field.FieldName == "_id" ? "$id" : field.FieldName);
+            var fieldName = _mapper.ResolveAbstractIdField(entity, field);
+            MemberGuards?.Add(new LinqMemberGuard(_mapper, entity, field, fieldName));
+            return isParentDbRef && fieldName == "_id" ? "$id" : fieldName;
         }
 
         internal static object Evaluate(Expression expression, params Type[] validTypes)

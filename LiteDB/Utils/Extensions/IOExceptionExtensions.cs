@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using static LiteDB.Constants;
 
@@ -8,6 +9,7 @@ namespace LiteDB
     {
         private const int ERROR_SHARING_VIOLATION = 32;
         private const int ERROR_LOCK_VIOLATION = 33;
+        private const int LINUX_EAGAIN = 11;
 
         /// <summary>
         /// Detect if exception is an Locked exception
@@ -18,7 +20,9 @@ namespace LiteDB
 
             return 
                 errorCode == ERROR_SHARING_VIOLATION ||
-                errorCode == ERROR_LOCK_VIOLATION;
+                errorCode == ERROR_LOCK_VIOLATION ||
+                // Unix byte-range locks report the raw errno, not a Win32 HRESULT.
+                (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) && ex.HResult == LINUX_EAGAIN);
         }
 
         /// <summary>
@@ -35,7 +39,7 @@ namespace LiteDB
             }
             else
             {
-                throw ex;
+                ExceptionDispatchInfo.Capture(ex).Throw();
             }
         }
     }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using static LiteDB.Constants;
@@ -28,7 +28,15 @@ namespace LiteDB.Engine
         /// </summary>
         public override IEnumerable<BsonDocument> Pipe(IEnumerable<IndexNode> nodes, QueryPlan query)
         {
-            // starts pipe loading document
+            // When the index already determines membership and ordering, skip
+            // nodes before loading document payloads. Other plans must paginate
+            // after their document filters/includes or in-memory sort.
+            var paginateNodes = query.Filters.Count == 0 && query.IncludeBefore.Count == 0 && query.OrderBy == null;
+            if (paginateNodes)
+            {
+                nodes = this.SkipNodes(nodes, query.Offset);
+                if (query.Limit < int.MaxValue) nodes = nodes.Take(query.Limit);
+            }
             var source = this.LoadDocument(nodes);
 
             // do includes in result before filter
@@ -48,7 +56,7 @@ namespace LiteDB.Engine
                 // pipe: orderby with offset+limit
                 source = this.OrderBy(source, query.OrderBy, query.Offset, query.Limit);
             }
-            else
+            else if (!paginateNodes)
             {
                 // pipe: apply offset (no orderby)
                 if (query.Offset > 0) source = source.Skip(query.Offset);
@@ -80,6 +88,24 @@ namespace LiteDB.Engine
             }
         }
 
+        private IEnumerable<IndexNode> SkipNodes(IEnumerable<IndexNode> nodes, int offset)
+        {
+            foreach (var node in nodes)
+            {
+                if (offset > 0)
+                {
+                    offset--;
+                    // Skipped index pages still count toward the transaction's
+                    // memory budget. Do not retain a node across its safepoint.
+                    _transaction.Safepoint();
+                }
+                else
+                {
+                    yield return node;
+                }
+            }
+        }
+
         /// <summary>
         /// Pipe: Transaform final result appling expressin transform. Can return document or simple values
         /// </summary>
@@ -97,7 +123,7 @@ namespace LiteDB.Engine
                 }
                 else
                 {
-                    yield return new BsonDocument { [defaultName] = value };
+                    yield return new BsonDocument { [defaultName] = value, IsProjectionValue = true };
                 }
             }
         }
@@ -107,17 +133,21 @@ namespace LiteDB.Engine
         /// </summary>
         private IEnumerable<BsonDocument> SelectAll(IEnumerable<BsonDocument> source, QueryPlan query)
         {
-            using var cached = new DocumentCacheEnumerable(source, _lookup, _transaction.Safepoint, drainOnDispose: false);
+            var select = query.Select.Expression;
+            using var cached = select.CanStreamAggregateSource ? null :
+                new DocumentCacheEnumerable(source, _lookup, _transaction.Safepoint, drainOnDispose: false);
 
             // Aggregate expressions replay documents by address. Expand references again
             // on each enumeration because reloaded BSON contains the original DBRefs.
-            source = cached;
-            foreach (var path in query.IncludeBefore.Concat(query.IncludeAfter).Distinct())
+            if (cached != null)
             {
-                source = this.Include(source, path);
+                source = cached;
+                foreach (var path in query.IncludeBefore.Concat(query.IncludeAfter).Distinct())
+                {
+                    source = this.Include(source, path);
+                }
             }
 
-            var select = query.Select.Expression;
             var defaultName = select.DefaultFieldName();
             var result = select.Execute(source, _pragmas.Collation);
 
@@ -129,7 +159,7 @@ namespace LiteDB.Engine
                 }
                 else
                 {
-                    yield return new BsonDocument { [defaultName] = value };
+                    yield return new BsonDocument { [defaultName] = value, IsProjectionValue = true };
                 }
             }
         }

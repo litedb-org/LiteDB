@@ -238,7 +238,7 @@ namespace LiteDB.Engine
         /// </summary>
         public DateTime ReadDateTime()
         {
-            var date = new DateTime(this.ReadInt64(), DateTimeKind.Utc);
+            var date = this.ReadInt64().ToUtcDateTime();
 
             return _utcDate ? date.ToLocalTime() : date;
         }
@@ -258,8 +258,11 @@ namespace LiteDB.Engine
             }
             else
             {
-                // can't use _tempoBuffer because Guid validate 16 bytes array length
-                value = new Guid(this.ReadBytes(16));
+                Span<byte> buffer = stackalloc byte[16];
+
+                this.Read(buffer);
+
+                value = BufferSliceExtensions.ReadGuid(buffer);
             }
 
             return value;
@@ -274,23 +277,18 @@ namespace LiteDB.Engine
 
             if (_currentPosition + 12 <= _current.Count)
             {
-                value = new ObjectId(_current.Array, _current.Offset + _currentPosition);
+                _current.EnsureReadable();
+                value = BufferSliceExtensions.ReadObjectId(new ReadOnlySpan<byte>(_current.Array, _current.Offset + _currentPosition, 12));
 
                 this.MoveForward(12);
             }
             else
             {
-                var buffer = _bufferPool.Rent(12);
-                try
-                {
-                    this.Read(buffer, 0, 12);
+                Span<byte> buffer = stackalloc byte[12];
 
-                    value = new ObjectId(buffer, 0);
-                }
-                finally
-                {
-                    _bufferPool.Return(buffer, true);
-                }
+                this.Read(buffer);
+
+                value = BufferSliceExtensions.ReadObjectId(buffer);
             }
 
             return value;
@@ -349,15 +347,16 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// Read single IndexKey (BsonValue) from buffer. Use +1 length only for string/binary
+        /// Read a single IndexKey, including the extended string/binary length encoded in its type byte.
         /// </summary>
         public BsonValue ReadIndexKey()
         {
-            // String/binary lengths share their high bits with the type byte.
-            // Preserve the full type byte for other types, including vectors.
             var typeByte = this.ReadByte();
-            ExtendedLengthHelper.ReadLength(typeByte, 0, out var shortType, out var extraLength);
-            var type = shortType == BsonType.String || shortType == BsonType.Binary ? shortType : (BsonType)typeByte;
+            ExtendedLengthHelper.ReadLength(typeByte, 0, out var type, out _);
+            if (type != BsonType.String && type != BsonType.Binary)
+            {
+                type = (BsonType)typeByte;
+            }
 
             switch (type)
             {
@@ -368,12 +367,16 @@ namespace LiteDB.Engine
                 case BsonType.Double: return this.ReadDouble();
                 case BsonType.Decimal: return this.ReadDecimal();
 
-                case BsonType.String: return this.ReadString(extraLength | this.ReadByte());
+                case BsonType.String:
+                    ExtendedLengthHelper.ReadLength(typeByte, this.ReadByte(), out _, out var stringLength);
+                    return this.ReadString(stringLength);
 
                 case BsonType.Document: return this.ReadDocument(null).GetValue();
                 case BsonType.Array: return this.ReadArray().GetValue();
 
-                case BsonType.Binary: return this.ReadBytes(extraLength | this.ReadByte());
+                case BsonType.Binary:
+                    ExtendedLengthHelper.ReadLength(typeByte, this.ReadByte(), out _, out var binaryLength);
+                    return this.ReadBytes(binaryLength);
                 case BsonType.ObjectId: return this.ReadObjectId();
                 case BsonType.Guid: return this.ReadGuid();
 

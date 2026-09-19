@@ -31,7 +31,7 @@ namespace LiteDB
             foreach (var binding in node.Bindings)
             {
                 if (!(binding is MemberAssignment assignment)) throw Unsupported(node, binding.Member.Name);
-                var name = ResolveMember(assignment.Member, out var member);
+                var name = ResolveMember(assignment.Member, node.Type, out var member);
                 var value = TryDbRef(assignment.Expression, member, false) ?? Translate(assignment.Expression);
                 members.Add(new KeyValuePair<string, BsonExpression>(name, value));
             }
@@ -43,6 +43,15 @@ namespace LiteDB
             if (!member.IsDbRef) return null;
             if (string.IsNullOrWhiteSpace(member.DbRefCollectionName))
                 throw new NotSupportedException($"BsonRefId<T> requires a DbRef collection name. Member '{member.MemberName}' is missing it (use [BsonRef] or Entity<T>().DbRef(...)).");
+            if (TrySerializeCapturedDbRef(node, member, inList, out var serialized))
+                return Bind(serialized ?? BsonValue.Null);
+            if (!inList && node is ConditionalExpression conditional)
+                return Call("IIF", new[] { Translate(conditional.Test),
+                    TryDbRef(conditional.IfTrue, member, false) ?? Translate(conditional.IfTrue),
+                    TryDbRef(conditional.IfFalse, member, false) ?? Translate(conditional.IfFalse) }, _context, _parameters);
+            if (!inList && node is BinaryExpression coalesce && coalesce.NodeType == ExpressionType.Coalesce && coalesce.Conversion == null)
+                return Call("COALESCE", new[] { TryDbRef(coalesce.Left, member, false) ?? Translate(coalesce.Left),
+                    TryDbRef(coalesce.Right, member, false) ?? Translate(coalesce.Right) }, _context, _parameters);
             switch (node)
             {
                 case UnaryExpression { NodeType: ExpressionType.Convert, Method: { Name: "op_Implicit" } } conversion:
@@ -60,13 +69,49 @@ namespace LiteDB
                         fields.Add(new KeyValuePair<string, BsonExpression>("$type", Bind(_mapper.SerializeTypeName(refType))));
                     return Document(fields, _parameters);
                 case NewArrayExpression array when !inList && array.Type.IsArray && member.UnderlyingType.IsAssignableFrom(array.Type.GetElementType()):
-                    return Array(array.Expressions.Select(x => TryDbRef(x, member, true) ?? throw Unsupported(x, "BsonRefId<T>")), _parameters);
+                    return Array(TranslateDbRefItems(array.Expressions, member), _parameters);
                 case ListInitExpression list when !inList && list.Type.IsConstructedGenericType &&
                     list.Type.GetGenericTypeDefinition() == typeof(List<>) && member.UnderlyingType.IsAssignableFrom(list.Type.GetGenericArguments()[0]):
-                    return Array(list.Initializers.Select(x => x.Arguments.Count == 1 && x.AddMethod.Name == "Add" ?
-                        TryDbRef(x.Arguments[0], member, true) ?? throw Unsupported(node, "BsonRefId<T>") :
-                        throw Unsupported(node, x.AddMethod.Name)), _parameters);
+                    return Array(TranslateDbRefItems(list.Initializers.Select(x => x.Arguments.Count == 1 && x.AddMethod.Name == "Add" ?
+                        x.Arguments[0] : throw Unsupported(node, x.AddMethod.Name)), member), _parameters);
                 default: return null;
+            }
+        }
+
+        private IEnumerable<BsonExpression> TranslateDbRefItems(IEnumerable<Expression> items, MemberMapper member)
+        {
+            foreach (var item in items)
+            {
+                if (TrySerializeCapturedDbRef(item, member, true, out var serialized))
+                {
+                    if (serialized != null) yield return Bind(serialized);
+                    continue;
+                }
+                yield return TryDbRef(item, member, true) ?? throw Unsupported(item, "BsonRefId<T>");
+            }
+        }
+
+        private bool TrySerializeCapturedDbRef(Expression node, MemberMapper member, bool inList, out BsonValue serialized)
+        {
+            serialized = null;
+            if (ParameterExpressionVisitor.Test(node) || ContainsServerRuntime(node)) return false;
+            var markers = new DbRefMarkerVisitor();
+            markers.Visit(node);
+            if (markers.Found) return false;
+            var value = Evaluate(node);
+            serialized = inList ? member.Serialize(new[] { value }, _mapper).AsArray.FirstOrDefault() :
+                member.Serialize(value, _mapper);
+            return true;
+        }
+
+        private sealed class DbRefMarkerVisitor : ExpressionVisitor
+        {
+            internal bool Found { get; private set; }
+            public override Expression Visit(Expression node)
+            {
+                if (node != null && node.Type.IsGenericType &&
+                    node.Type.GetGenericTypeDefinition() == typeof(BsonRefId<>)) Found = true;
+                return base.Visit(node);
             }
         }
     }

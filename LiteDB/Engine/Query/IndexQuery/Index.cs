@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using static LiteDB.Constants;
@@ -63,6 +63,12 @@ namespace LiteDB.Engine
             // values; other scans retain their multikey address filtering.
             return index.Slot == 0 || (!ForUpdate && (index.Unique || SingleKeyPerDocument))
                 ? nodes : nodes.DistinctBy(x => x.DataBlock, null);
+        }
+
+        public IEnumerable<IndexNode> Run(CollectionPage col, IndexService indexer, bool forUpdate)
+        {
+            this.ForUpdate = forUpdate;
+            return this.Run(col, indexer);
         }
 
         #endregion

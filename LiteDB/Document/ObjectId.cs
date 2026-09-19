@@ -99,6 +99,8 @@ namespace LiteDB
         public ObjectId(byte[] bytes, int startIndex = 0)
         {
             if (bytes == null) throw new ArgumentNullException(nameof(bytes));
+            if (startIndex < 0 || startIndex > bytes.Length) throw new ArgumentOutOfRangeException(nameof(startIndex));
+            if (bytes.Length - startIndex < 12) throw new ArgumentException("ObjectId requires at least 12 bytes starting at startIndex.", nameof(bytes));
 
             this.Timestamp = 
                 (bytes[startIndex + 0] << 24) + 
@@ -397,7 +399,9 @@ namespace LiteDB
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static int GetCurrentProcessId()
         {
-#if HAVE_PROCESS
+#if NET5_0_OR_GREATER
+            return Environment.ProcessId;
+#elif HAVE_PROCESS
             return Process.GetCurrentProcess().Id;
 #else
             return (new Random()).Next(0, 5000); // Any same number for this process

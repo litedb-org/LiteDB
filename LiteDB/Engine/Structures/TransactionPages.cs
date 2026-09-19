@@ -63,6 +63,11 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
+        /// Detect if committing will run header callbacks (collection add/drop/rename, pragmas)
+        /// </summary>
+        public bool HasCommitCallbacks => this.Commit != null;
+
+        /// <summary>
         /// Detect if this transaction will need persist header page (has added/deleted pages or added/deleted collections)
         /// </summary>
         public bool HeaderChanged =>

@@ -6,6 +6,7 @@ namespace LiteDB
     // list. Validate the exact metadata translation consulted before reusing IR.
     internal sealed class LinqMemberGuard
     {
+        private readonly BsonMapper _mapper;
         private readonly EntityMapper _entity;
         private readonly MemberMapper _member;
         private readonly string _name;
@@ -14,9 +15,11 @@ namespace LiteDB
         private readonly Type _underlying;
         private readonly Type _dataType;
         private readonly string _collection;
+        private readonly string _resolvedField;
 
-        internal LinqMemberGuard(EntityMapper entity, MemberMapper member)
+        internal LinqMemberGuard(BsonMapper mapper, EntityMapper entity, MemberMapper member, string resolvedField)
         {
+            _mapper = mapper;
             _entity = entity;
             _member = member;
             _name = member.MemberName;
@@ -25,17 +28,16 @@ namespace LiteDB
             _underlying = member.UnderlyingType;
             _dataType = member.DataType;
             _collection = member.DbRefCollectionName;
+            _resolvedField = resolvedField;
         }
 
         internal bool IsCurrent()
         {
-            foreach (var member in _entity.Members)
-            {
-                if (member.MemberName != _name) continue;
-                return ReferenceEquals(member, _member) && member.FieldName == _field && member.IsDbRef == _dbRef &&
-                    member.UnderlyingType == _underlying && member.DataType == _dataType && member.DbRefCollectionName == _collection;
-            }
-            return false;
+            if (!_entity.Members.Contains(_member)) return false;
+            return _member.MemberName == _name && _member.FieldName == _field && _member.IsDbRef == _dbRef &&
+                _member.UnderlyingType == _underlying && _member.DataType == _dataType &&
+                _member.DbRefCollectionName == _collection &&
+                _mapper.ResolveAbstractIdField(_entity, _member) == _resolvedField;
         }
     }
 }
