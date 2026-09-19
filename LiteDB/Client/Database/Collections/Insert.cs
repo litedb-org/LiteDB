@@ -14,7 +14,7 @@ namespace LiteDB
         {
             if (entity == null) throw new ArgumentNullException(nameof(entity));
 
-            var doc = _mapper.ToDocument(entity);
+            var doc = this.Serialize(entity);
 
             _engine.Insert(_collection, this.GetBsonDocs(entity, doc), _autoId);
 
@@ -29,7 +29,7 @@ namespace LiteDB
             if (entity == null) throw new ArgumentNullException(nameof(entity));
             if (id == null || id.IsNull) throw new ArgumentNullException(nameof(id));
 
-            var doc = _mapper.ToDocument(entity);
+            var doc = this.Serialize(entity);
 
             doc["_id"] = id;
 
@@ -64,7 +64,7 @@ namespace LiteDB
         {
             foreach (var document in documents)
             {
-                foreach (var doc in this.GetBsonDocs(document, _mapper.ToDocument(document)))
+                foreach (var doc in this.GetBsonDocs(document, this.Serialize(document)))
                 {
                     yield return doc;
                 }

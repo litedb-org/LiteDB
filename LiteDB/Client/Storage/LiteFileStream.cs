@@ -57,6 +57,11 @@ namespace LiteDB
         /// </summary>
         public LiteFileInfo<TFileId> FileInfo { get { return _file; } }
 
+        internal bool IsOwnedBy(ILiteCollection<LiteFileInfo<TFileId>> files, ILiteCollection<BsonDocument> chunks)
+        {
+            return ReferenceEquals(_files, files) && ReferenceEquals(_chunks, chunks);
+        }
+
         public override long Length { get { return _file.Length; } }
 
         public override bool CanRead { get { return _mode == FileAccess.Read; } }

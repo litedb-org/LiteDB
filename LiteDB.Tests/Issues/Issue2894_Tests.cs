@@ -72,9 +72,8 @@ namespace LiteDB.Tests.Issues
         [Fact]
         public void Stream_member_failure_names_the_entity_and_member()
         {
-            using var db = new LiteDatabase(new MemoryStream());
-            Action insert = () => db.GetCollection<StreamHolder>()
-                .Insert(new StreamHolder { Id = 1, Data = new MemoryStream() });
+            Action insert = () => new BsonMapper()
+                .ToDocument(new StreamHolder { Id = 1, Data = new MemoryStream() });
 
             AssertContextualFailure(insert, nameof(StreamHolder), nameof(StreamHolder.Data));
         }
