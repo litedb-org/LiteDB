@@ -181,6 +181,27 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
+        /// Advance a caller-owned data-block cursor without creating an iterator.
+        /// </summary>
+        internal bool TryRead(ref PageAddress address, ref uint counter, out BufferSlice buffer)
+        {
+            if (address == PageAddress.Empty)
+            {
+                buffer = null;
+                return false;
+            }
+
+            ENSURE(counter++ < _maxItemsCount, "Detected loop in data Read({0})", address);
+
+            var dataPage = _snapshot.GetPage<DataPage>(address.PageID);
+            var block = dataPage.GetBlock(address.Index);
+
+            buffer = block.Buffer;
+            address = block.NextBlock;
+            return true;
+        }
+
+        /// <summary>
         /// Delete all datablock that contains a document (can use multiples data blocks)
         /// </summary>
         public void Delete(PageAddress blockAddress)

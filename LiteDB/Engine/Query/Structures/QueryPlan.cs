@@ -74,6 +74,16 @@ namespace LiteDB.Engine
 
         internal VectorScoreProjection VectorScore { get; set; }
 
+        internal QueryAggregate Aggregate { get; set; }
+
+        internal string AggregateFieldName { get; set; }
+
+        internal BorrowedPredicateEvaluator BorrowedFilter { get; set; }
+
+        internal BorrowedScalarEvaluator BorrowedOrderBy { get; set; }
+
+        internal BorrowedProjectionEvaluator BorrowedProjection { get; set; }
+
         /// <summary>
         /// Get fields name that will be deserialize from disk
         /// </summary>
@@ -172,6 +182,14 @@ namespace LiteDB.Engine
                 ["fields"] =
                     this.Fields.Count == 0 ? new BsonValue("$") :
                     (BsonValue)new BsonArray(this.Fields.Select(x => new BsonValue(x))),
+            };
+
+            doc["borrowed"] = new BsonDocument
+            {
+                ["filter"] = this.BorrowedFilter != null,
+                ["orderBy"] = this.BorrowedOrderBy != null,
+                ["projection"] = this.BorrowedProjection != null,
+                ["aggregate"] = this.Aggregate != QueryAggregate.None
             };
 
             if (this.IncludeBefore.Count > 0)
