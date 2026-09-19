@@ -9,6 +9,7 @@ namespace LiteDB.Engine
         private readonly Dictionary<int, int> _snapshots = new Dictionary<int, int>();
         private readonly Func<int?> _oldestReader;
         private int _backfillVersion;
+        private readonly Dictionary<int, long> _confirmationPositions = new Dictionary<int, long>();
 
 #if DEBUG || TESTING
         internal Action SnapshotCaptured;
@@ -46,8 +47,8 @@ namespace LiteDB.Engine
 
         /// <summary>
         /// Backfill only committed versions visible to every snapshot. Keep the
-        /// complete WAL generation until both local transactions and shared
-        /// reader leases have drained: even a resolved but unread offset stays valid.
+        /// floor version of every page and its commit marker. Older superseded
+        /// frames cannot be resolved by any live snapshot and can be reused.
         /// </summary>
         public int TryCheckpoint()
         {
@@ -73,13 +74,19 @@ namespace LiteDB.Engine
                     }
                 }
 
-                if (pages.Count == 0 && !reclaim) return 0;
+                var obsolete = reclaim ? new List<long>() : this.FindObsoleteFrames(target);
+                if (pages.Count == 0 && obsolete.Count == 0 && !reclaim) return 0;
 
                 // WAL must be durable before its pages can reach the data file.
                 // The data flush completes before truncation can become durable.
                 _disk.FlushLog();
                 _disk.WriteDataDisk(_disk.ReadCheckpointPages(pages));
                 _backfillVersion = target;
+
+                if (obsolete.Count > 0)
+                {
+                    _disk.ReclaimLogPages(obsolete);
+                }
 
                 if (reclaim)
                 {
@@ -88,7 +95,7 @@ namespace LiteDB.Engine
                     _disk.CheckpointStage("before-reclaim");
                     _disk.SetLength(0, FileOrigin.Log);
                     _disk.CheckpointStage("after-reclaim");
-                    _confirmTransactions.Clear();
+                    _confirmationPositions.Clear();
                     _index.Clear();
                     _lastTransactionID = 0;
                     _currentReadVersion = 0;

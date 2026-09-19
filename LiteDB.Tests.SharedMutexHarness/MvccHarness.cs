@@ -32,7 +32,27 @@ internal static class MvccHarness
         {
             case "seed":
                 database.Pragma(Pragmas.CHECKPOINT, 0);
+                database.GetCollection("cold").Insert(Documents(0));
                 collection.Insert(Documents(0));
+                Console.WriteLine("done");
+                break;
+            case "history":
+                for (var value = 1; value <= 20; value++) collection.Update(Documents(value));
+                Console.WriteLine("done");
+                break;
+            case "write-cold":
+                database.GetCollection("cold").Update(Documents(int.Parse(args[4])));
+                Console.WriteLine("done");
+                break;
+            case "uncommitted-cold":
+                database.BeginTrans();
+                database.GetCollection("cold").Update(Documents(99));
+                Console.WriteLine("ready");
+                Console.ReadLine();
+                break;
+            case "read-cold":
+                if (database.GetCollection("cold").FindAll().Any(doc => doc["value"].AsInt32 != int.Parse(args[4])))
+                    throw new InvalidOperationException("Incorrect recovered cold collection");
                 Console.WriteLine("done");
                 break;
             case "write":
@@ -57,9 +77,10 @@ internal static class MvccHarness
                 break;
             case "read":
             case "hold":
-                using (var reader = engine.Query("docs", new Query()))
+            case "hold-cold":
+                using (var reader = engine.Query(mode == "hold-cold" ? "cold" : "docs", new Query()))
                 {
-                    if (mode == "hold")
+                    if (mode == "hold" || mode == "hold-cold")
                     {
                         Console.WriteLine("ready");
                         Console.ReadLine();

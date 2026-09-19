@@ -31,7 +31,7 @@ namespace LiteDB.Internals
             var log = FileHelper.GetLogFile(Filename);
             var bytes = File.ReadAllBytes(log);
             await MvccProcess.Run("checkpoint", Filename, password);
-            File.ReadAllBytes(log).Should().Equal(bytes, "live readers pin absolute WAL offsets");
+            new FileInfo(log).Length.Should().Be(bytes.Length, "reclamation must not move live WAL offsets");
             AssertDataFileValue(password, 0);
             using (var latest = new MvccProcess("read", Filename, password))
             {

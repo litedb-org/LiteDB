@@ -4,46 +4,77 @@ An ordinary query pins its logical read version for its entire lifetime, includi
 pages it has not visited. Checkpoint backfills the newest committed image of each
 page at or below the oldest live snapshot. It does not wait for readers to finish.
 `Checkpoint()` returns the number of pages copied; with a version-zero reader it
-can return zero. Dispose streaming readers promptly to permit WAL reclamation.
+can return zero. Dispose streaming readers promptly to permit full WAL truncation.
 
 ## Backfill and reclamation
 
-This implementation keeps one append-only committed WAL generation. It separates
-copying safe page images into the data file from reclaiming that generation:
+Checkpoint uses the minimum of the current commit version, every local collection
+snapshot, and all live shared-reader versions. Capture/registration, commit-index
+publication, and boundary selection share the WAL index lock. Registration in
+other processes is ordered by the named database mutex.
 
-* Local snapshot capture/registration, commit-index publication, and checkpoint
-  boundary selection use the WAL index lock. Every collection snapshot registers,
-  including write snapshots and snapshots opened later in a transaction.
-* The backfill boundary is the minimum of the current commit version, all local
-  snapshot versions, and all live shared-reader versions.
-* Only the latest committed frame for each page at that boundary is copied.
-  Header frames participate in the same version index. Safepoint frames from an
-  uncommitted transaction cannot be selected.
-* Committed frames are never moved, overwritten, or removed while readers exist.
-  Transaction-private unconfirmed slots can still be reused by their owner.
-* Full reset requires both exclusive local transaction ownership and no shared
-  reader leases. Flush the WAL, backfill and durably flush data, then durably
-  truncate the WAL. Only then reset the version counters and index.
+For each page, keep its newest committed version at or below the watermark (its
+**floor**) and every newer version. Earlier versions are obsolete. For example,
+with page versions 2, 6, 9 and watermark 8, version 6 must remain available even
+though it is below 8; version 2 can be reclaimed. A commit marker also remains
+until none of that transaction's page versions are required.
 
-For a snapshot S, a page with a WAL version at or below S resolves to an immutable
-WAL offset. If there is no such version, no backfill at or below S can change that
-page, so its original data-file image remains valid. This covers both an untouched
-page and a reader suspended between resolving an offset and reading its bytes.
+An active snapshot S is at least the watermark. Its index was captured after the
+floor committed, so it cannot select a frame older than that floor. This holds
+for another process's unchanged index and for a reader suspended after resolving
+an offset but before reading its bytes. If no WAL version exists at or below S,
+backfill at or below S cannot change that page's original data-file image.
 
-### Why no persistent base field is needed
+The physical protocol is:
 
-The complete WAL, including already-backfilled frames and confirmation records,
-is retained until full reset. Recovery can reconstruct the same version numbering
-by replaying that WAL; page resolution continues to prefer the WAL even for frames
-already copied to data. The in-memory backfill version only avoids duplicate
-writes in one engine instance. Reopening may safely repeat the copies.
+1. Flush the WAL, copy the safe page images, and durably flush the data file.
+2. Invalidate obsolete cached frames and overwrite their WAL slots with zero
+   pages, without moving any retained offset.
+3. Durably flush the cleared slots before publishing them to the free-slot pool.
+4. Let subsequent unconfirmed writes reuse eligible slots under the WAL writer
+   lock. Failed reused writes are not immediately returned to the pool; reopening
+   only recovers slots that are entirely zero. Abandoned nonzero frames remain
+   until full reset. Transaction-private safepoint reuse remains supported.
+5. Append confirmation frames. Their page positions define logical version IDs;
+   removing old transactions therefore never renumbers another process's lease.
 
-Consequently there is no separately published persistent base, prefix deletion,
-or generation switch to recover. Existing v8/v9 page formats remain unchanged.
-This deliberately trades reclamation granularity for a smaller recovery protocol:
-a long-lived reader can still grow the WAL and its index, even though it no longer
-prevents backfill or commits. Incremental physical reclamation would require an
-additional generation/epoch protocol and is not performed here.
+### Recovery and compatibility
+
+Recovery rebuilds the free-slot pool from zero pages. Retained floor frames and
+their confirmation records reconstruct every required page version. Versions are
+sparse confirmation-position IDs, not counts of surviving confirmations. An
+interruption during clearing can leave some obsolete frames present or some old
+transactions without confirmations; required page images and their confirmations
+remain intact. There is no separately published persistent base or free-list file.
+
+Existing v8 engines checkpoint in physical WAL order. A reclaimed slot is eligible
+only if it comes after this page's previous WAL positions, so physical order per
+page still agrees with commit order. Confirmations always append after their
+transaction's frames. This restriction deliberately preserves ordinary v8
+compatibility and v9 vector compatibility without introducing a format migration.
+The compatibility script opens a reclaimed/reused WAL in LiteDB 5.0.21, updates
+it, checkpoints it, and reopens it in both engines, plain and encrypted.
+
+### Space savings and limits
+
+Reclamation provides reusable capacity inside the existing WAL. It does **not**
+shrink the live file or punch filesystem holes. Full truncation, index reset, and
+version-counter reset require exclusive local transaction ownership and no shared
+reader leases, and happen only after the data flush.
+
+Retained floors, newer versions, and necessary commit markers cannot be reclaimed.
+Not every freed slot is eligible for every page: a page whose previous frame is
+near the WAL tail may still need to append, preserving legacy replay order.
+Consequently this reduces growth when usable obsolete slots exist, rather than
+guaranteeing bounded storage for arbitrary long-running readers or hot-page writes.
+
+A Linux measurement using the process-test fixture seeded two collections of 64
+rows with 3,000-byte payloads, updated one collection 20 times, and kept a reader
+open while updating the other collection five times. With checkpoint disabled for
+the control, WAL growth was 1,351,680 bytes; after partial checkpoint/reclamation,
+it was 73,728 bytes: **94.5% less incremental growth**, for both plain and encrypted
+files. The initial WAL was about 6 MB and stayed allocated in both runs. This is a
+workload-specific capacity-reuse measurement, not a general storage reduction.
 
 ## Shared mode
 
@@ -76,7 +107,7 @@ removed while the database is in use.
 
 ## Failure ordering and tests
 
-If a process dies during backfill, the complete WAL remains authoritative. If it
+If a process dies during backfill, the required WAL versions remain authoritative. If it
 dies during truncation, the data flush has already completed. A killed reader
 loses its OS lease; a killed writer's unconfirmed frames remain invisible. An I/O
 failure in explicit checkpoint closes the engine so subsequent operations must
@@ -88,7 +119,9 @@ readers/writers/checkpoints, cleanup failures, shared query and transaction
 lifetimes, and encrypted files. The process tests use the shared-mutex harness as
 a child executable: readers at different versions, concurrent writers, reader and
 writer termination, and termination during individual data writes, after the
-data flush, and before/after WAL reclamation. In-memory recovery tests also clone
+data flush, before/after WAL truncation, and during slot clearing, flush, and
+free-slot publication. Tests also pause a reader between offset resolution and
+page access while other writes reuse reclaimed slots. In-memory recovery tests also clone
 the exact data/WAL images at each interruption point before cleanup can repair them.
 
 Run focused coverage with:

@@ -44,10 +44,13 @@ to verify ordinary v8 round trips and vector-file rejection by LiteDB 5.0.21,
 including encrypted files. See `docs/vector-query-compatibility.md` for semantics.
 
 ## MVCC Checkpointing
-Checkpoints backfill through the oldest local/shared snapshot and retain the entire
-WAL until all reader leases drain. Shared readers register OS-held lease files in
+Checkpoints backfill through the oldest local/shared snapshot and reclaim obsolete
+WAL slots while retaining each page's floor version and required commit markers.
+Reused slots preserve physical order per page for legacy recovery; full truncation
+requires all reader leases to drain. Shared readers register OS-held lease files in
 `<database>-readers/`; never remove that directory while the database is in use.
 Run the `Mvcc` test filter with `TestingEnabled=true` to cover snapshot races and
-actual child-process crashes. The test build copies SharedMutexHarness into its
+actual child-process crashes. The compatibility script also verifies reclaimed-WAL
+replay and checkpoint by LiteDB 5.0.21. The test build copies SharedMutexHarness into its
 output for process tests. See `docs/mvcc-checkpoint.md` for the reclamation proof,
 recovery ordering, and shared-mode constraints.

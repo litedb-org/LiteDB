@@ -25,13 +25,19 @@ namespace LiteDB.Internals
             var snapshot = test.Engine.GetMonitor().GetThreadTransaction().Snapshots.Single();
             var version = snapshot.ReadVersion;
             var originalWal = test.Log.ToArray();
+            var protectedPositions = test.Engine.GetWalIndex().SnapshotPositions(version);
             RunThread(() =>
             {
                 for (var value = 1; value <= 10; value++) test.Update("docs", value);
                 var count = test.Engine.Checkpoint();
                 if (!dataSnapshot) count.Should().BeGreaterThan(0);
                 test.Engine.GetWalIndex().BackfillVersion.Should().Be(version);
-                test.Log.ToArray().Take(originalWal.Length).Should().Equal(originalWal);
+                var preamble = password == null ? 0 : Constants.PAGE_SIZE;
+                foreach (var position in protectedPositions)
+                {
+                    test.Log.ToArray().Skip((int)position + preamble).Take(Constants.PAGE_SIZE)
+                        .Should().Equal(originalWal.Skip((int)position + preamble).Take(Constants.PAGE_SIZE));
+                }
                 for (var value = 11; value <= 20; value++) test.Update("docs", value);
                 test.Engine.Checkpoint();
             });

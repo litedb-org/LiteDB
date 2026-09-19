@@ -243,8 +243,9 @@ namespace LiteDB.Engine
                         }
                         else
                         {
-                            page.Position = Interlocked.Add(ref _logLength, PAGE_SIZE);
+                            page.Position = this.AllocateLogPosition(pageID, page.ReadBool(BasePage.P_IS_CONFIRMED));
                         }
+                        this.RecordLogPosition(pageID, page.Position);
                         page.Origin = FileOrigin.Log;
                         stream.Position = page.Position;
 
@@ -417,6 +418,11 @@ namespace LiteDB.Engine
             if (origin == FileOrigin.Log)
             {
                 Interlocked.Exchange(ref _logLength, length - PAGE_SIZE);
+                if (length == 0)
+                {
+                    _freeLogPositions.Clear();
+                    _lastLogPositions.Clear();
+                }
             }
             else
             {

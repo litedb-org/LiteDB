@@ -251,6 +251,7 @@ namespace LiteDB.Engine
 
 #if DEBUG || TESTING
         // exposes for unit tests
+        internal Action<long, FileOrigin> BeforePageRead { set => _state.BeforePageRead = value; }
         internal WalIndexService GetWalIndex() => _walIndex;
         internal Action<string> CheckpointStage { set => _state.CheckpointStage = value; }
         internal TransactionMonitor GetMonitor() => _monitor;

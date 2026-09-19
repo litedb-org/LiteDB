@@ -19,6 +19,7 @@ namespace LiteDB.Engine
         private readonly EngineSettings _settings;
 
 #if DEBUG || TESTING
+        public Action<long, FileOrigin> BeforePageRead;
         public Action<string> CheckpointStage;
         public Action<PageBuffer> SimulateDiskReadFail = null;
         public Action<PageBuffer> SimulateDiskWriteFail = null;

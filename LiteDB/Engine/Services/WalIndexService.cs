@@ -18,8 +18,6 @@ namespace LiteDB.Engine
         private readonly Dictionary<uint, List<KeyValuePair<int, long>>> _index = new Dictionary<uint, List<KeyValuePair<int, long>>>();
         private readonly ReaderWriterLockSlim _indexLock = new ReaderWriterLockSlim();
 
-        private readonly HashSet<uint> _confirmTransactions = new HashSet<uint>();
-
         private int _currentReadVersion = 0;
 
         /// <summary>
@@ -69,7 +67,7 @@ namespace LiteDB.Engine
             try
             {
                 // reset 
-                _confirmTransactions.Clear();
+                _confirmationPositions.Clear();
                 _index.Clear();
 
                 _lastTransactionID = 0;
@@ -162,8 +160,12 @@ namespace LiteDB.Engine
 
             try
             {
-                // increment current version
-                _currentReadVersion++;
+                // Confirmation frames always append. Their physical sequence is
+                // stable even after obsolete transactions are removed from the WAL.
+                var confirmation = headerPosition == long.MaxValue
+                    ? pagePositions.Max(page => page.Position) : headerPosition;
+                _currentReadVersion = checked((int)(confirmation / PAGE_SIZE + 1));
+                _confirmationPositions[_currentReadVersion] = confirmation;
 
                 // update wal-index
                 foreach (var pos in headerPosition == long.MaxValue ? pagePositions :
@@ -180,8 +182,6 @@ namespace LiteDB.Engine
                     slot.Add(new KeyValuePair<int, long>(_currentReadVersion, pos.Position));
                 }
 
-                // add transaction as confirmed
-                _confirmTransactions.Add(transactionID);
             }
             finally
             {
@@ -204,14 +204,15 @@ namespace LiteDB.Engine
             {
                 if(buffer.IsBlank())
                 {
-                    // this should not happen, but if it does, it means there's a zeroed page in the file
-                    // just skip it
+                    // Durably cleared slots can be reused by later unconfirmed frames.
+                    _disk.RegisterFreeLogPosition(current);
                     current += PAGE_SIZE;
                     continue;
                 }
 
                 // read direct from buffer to avoid create BasePage structure
                 var pageID = buffer.ReadUInt32(BasePage.P_PAGE_ID);
+                _disk.RecordLogPosition(pageID, current);
                 var isConfirmed = buffer.ReadBool(BasePage.P_IS_CONFIRMED);
                 var transactionID = buffer.ReadUInt32(BasePage.P_TRANSACTION_ID);
 
