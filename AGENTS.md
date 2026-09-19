@@ -52,5 +52,8 @@ requires all reader leases to drain. Shared readers register OS-held lease files
 Run the `Mvcc` test filter with `TestingEnabled=true` to cover snapshot races and
 actual child-process crashes. The compatibility script also verifies reclaimed-WAL
 replay and checkpoint by LiteDB 5.0.21. The test build copies SharedMutexHarness into its
-output for process tests. See `docs/mvcc-checkpoint.md` for the reclamation proof,
+output for process tests. CI artifacts must also include the harness's `bin/Release`
+and `obj/Release` trees: test jobs rebuild with `--no-dependencies`, but MSBuild
+still copies the referenced executable's runtime files and apphost.
+See `docs/mvcc-checkpoint.md` for the reclamation proof,
 recovery ordering, and shared-mode constraints.
