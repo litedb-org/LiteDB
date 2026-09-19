@@ -11,7 +11,7 @@ namespace LiteDB.Shell.Commands
         Description = "Open (or create) a new datafile. Can be used a single filename or a connection string with all supported parameters.",
         Examples = new string[] {
             "open mydb.db",
-            "open filename=mydb.db; password=johndoe; initial=100Mb"
+            "open filename=mydb.db; password=johndoe; initial size=100Mb"
         }
     )]
     internal class Open : IShellCommand
