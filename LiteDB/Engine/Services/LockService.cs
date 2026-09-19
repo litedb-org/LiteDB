@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -17,8 +17,12 @@ namespace LiteDB.Engine
     {
         private readonly EnginePragmas _pragmas;
 
-        private readonly ReaderWriterLockSlim _transaction = new ReaderWriterLockSlim(LockRecursionPolicy.NoRecursion);
+        private readonly TransactionGate _transaction = new TransactionGate();
         private readonly ConcurrentDictionary<string, CollectionLock> _collections = new ConcurrentDictionary<string, CollectionLock>(StringComparer.OrdinalIgnoreCase);
+
+#if TESTING
+        internal Action BeforeTransactionAdmission { get; set; }
+#endif
 
         internal LockService(EnginePragmas pragmas)
         {
@@ -40,6 +44,9 @@ namespace LiteDB.Engine
         /// </summary>
         public void EnterTransaction()
         {
+#if TESTING
+            BeforeTransactionAdmission?.Invoke();
+#endif
             // if current thread already in exclusive mode, just exit
             if (_transaction.IsWriteLockHeld) return;
 
@@ -49,20 +56,9 @@ namespace LiteDB.Engine
         /// <summary>
         /// Exit transaction read lock
         /// </summary>
-        public void ExitTransaction()
+        public void ExitTransaction(int ownerThreadId)
         {
-            // if current thread are in reserved mode, do not exit transaction (will be exit from ExitExclusive)
-            if (_transaction.IsWriteLockHeld) return;
-            
-            //This can be called when a lock has either been released by the slim or somewhere else therefore there is no lock to release from ExitReadLock()
-            if (_transaction.IsReadLockHeld)
-            {
-                try
-                {
-                    _transaction.ExitReadLock();
-                }
-                catch { }
-            }
+            _transaction.ExitReadLock(ownerThreadId);
         }
 
         /// <summary>
@@ -104,10 +100,10 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// Try enter in exclusive mode - if not possible, just exit with false (do not wait and no exceptions)
+        /// Try exclusive mode, optionally queueing briefly behind readers. Timeout returns false.
         /// If mustExit returns true, must call ExitExclusive after use
         /// </summary>
-        public bool TryEnterExclusive(out bool mustExit)
+        public bool TryEnterExclusive(out bool mustExit, bool waitForReaders = false, int milliseconds = 10)
         {
             // if already in exclusive mode return true but "enter" indicator must be false (do not exit)
             if (_transaction.IsWriteLockHeld)
@@ -117,14 +113,14 @@ namespace LiteDB.Engine
             }
 
             // if there is any open transaction, exit with false
-            if (_transaction.IsReadLockHeld || _transaction.CurrentReadCount > 0)
+            if (_transaction.IsReadLockHeld || (!waitForReaders && _transaction.CurrentReadCount > 0))
             {
                 mustExit = false;
                 return false;
             }
 
             // try enter in exclusive mode - but if not possible, just exit with false
-            if (_transaction.TryEnterWriteLock(10) == false)
+            if (_transaction.TryEnterWriteLock(milliseconds) == false)
             {
                 mustExit = false;
                 return false;

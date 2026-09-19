@@ -175,7 +175,7 @@ namespace LiteDB
             // fix #921 converting index key into LocalTime
             // this is not best solution because uctDate must be a global parameter
             // this will be review in v5
-            var date = new DateTime(this.ReadInt64(), DateTimeKind.Utc);
+            var date = this.ReadInt64().ToUtcDateTime();
 
             return date.ToLocalTime();
         }

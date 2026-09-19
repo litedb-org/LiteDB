@@ -230,10 +230,23 @@ namespace LiteDB.Engine
         /// </summary>
         public void Write(Guid value)
         {
-            // there is no avaiable value.TryWriteBytes (TODO: implement conditional compile)?
-            var bytes = value.ToByteArray();
+            if (_currentPosition + 16 <= _current.Count)
+            {
+                _current.EnsureWritable();
+                var span = new Span<byte>(_current.Array, _current.Offset + _currentPosition, 16);
 
-            this.Write(bytes, 0, 16);
+                BufferSliceExtensions.Write(span, value);
+
+                this.MoveForward(16);
+            }
+            else
+            {
+                Span<byte> buffer = stackalloc byte[16];
+
+                BufferSliceExtensions.Write(buffer, value);
+
+                this.Write(buffer);
+            }
         }
 
         /// <summary>
@@ -243,23 +256,20 @@ namespace LiteDB.Engine
         {
             if (_currentPosition + 12 <= _current.Count)
             {
-                value.ToByteArray(_current.Array, _current.Offset + _currentPosition);
+                _current.EnsureWritable();
+                var span = new Span<byte>(_current.Array, _current.Offset + _currentPosition, 12);
+
+                BufferSliceExtensions.Write(span, value);
 
                 this.MoveForward(12);
             }
             else
             {
-                var buffer = _bufferPool.Rent(12);
-                try
-                {
-                    value.ToByteArray(buffer, 0);
+                Span<byte> buffer = stackalloc byte[12];
 
-                    this.Write(buffer, 0, 12);
-                }
-                finally
-                {
-                    _bufferPool.Return(buffer, true);
-                }
+                BufferSliceExtensions.Write(buffer, value);
+
+                this.Write(buffer);
             }
         }
 

@@ -4,9 +4,9 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -63,8 +63,8 @@ namespace LiteDB.Engine
                 var dataFactory = _settings.CreateDataFactory();
                 var logFactory = _settings.CreateLogFactory();
 
-                // get maxPageID based on both file length
-                _maxPageID = (uint)((dataFactory.GetLength() + logFactory.GetLength()) / PAGE_SIZE);
+                // Floor each source independently so partial tails cannot form a page.
+                _maxPageID = (uint)(dataFactory.GetLength() / PAGE_SIZE + logFactory.GetLength() / PAGE_SIZE);
 
                 _dataStream = dataFactory.GetStream(true, false);
 
@@ -441,7 +441,7 @@ namespace LiteDB.Engine
                 {
                     _logStream.Position = pageInfo.Position = currentPosition;
 
-                    var read = _logStream.Read(buffer.Array, buffer.Offset, PAGE_SIZE);
+                    var read = _logStream.ReadFully(buffer.Array, buffer.Offset, PAGE_SIZE);
 
                     if (buffer.IsBlank())
                     {
@@ -531,7 +531,7 @@ namespace LiteDB.Engine
 
                 stream.Position = pageInfo.Position;
 
-                read = stream.Read(pageBuffer.Array, pageBuffer.Offset, pageBuffer.Count);
+                read = stream.ReadFully(pageBuffer.Array, pageBuffer.Offset, pageBuffer.Count);
 
                 ENSURE(read == PAGE_SIZE, "Page position {0} read only than {1} bytes (instead {2})", stream.Position, read, PAGE_SIZE);
 
@@ -573,7 +573,7 @@ namespace LiteDB.Engine
                 // Código de erros HResult do IOException
                 // https://learn.microsoft.com/pt-br/windows/win32/debug/system-error-codes--0-499-
 
-                throw ex;
+                ExceptionDispatchInfo.Capture(ex).Throw();
             }
         }
 

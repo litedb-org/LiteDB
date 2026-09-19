@@ -1,12 +1,12 @@
-﻿using LiteDB.Engine;
 using System;
 using System.Linq;
 using System.Text;
+using LiteDB.Engine;
 using static LiteDB.Constants;
 
 namespace LiteDB
 {
-    internal static class BufferSliceExtensions
+    internal static partial class BufferSliceExtensions
     {
         #region Read Extensions
 
@@ -76,12 +76,34 @@ namespace LiteDB
         public static ObjectId ReadObjectId(this BufferSlice buffer, int offset)
         {
             buffer.EnsureReadable();
-            return new ObjectId(buffer.Array, buffer.Offset + offset);
+            var span = new ReadOnlySpan<byte>(buffer.Array, buffer.Offset + offset, 12);
+
+            return ReadObjectId(span);
         }
 
-        public static Guid ReadGuid(this BufferSlice buffer, int offset)
+        internal static ObjectId ReadObjectId(ReadOnlySpan<byte> span)
         {
-            return new Guid(buffer.ReadBytes(offset, 16));
+            ENSURE(span.Length >= 12, "span must contain at least 12 bytes");
+
+            var timestamp =
+                (span[0] << 24) |
+                (span[1] << 16) |
+                (span[2] << 8) |
+                span[3];
+
+            var machine =
+                (span[4] << 16) |
+                (span[5] << 8) |
+                span[6];
+
+            var pid = (short)((span[7] << 8) | span[8]);
+
+            var increment =
+                (span[9] << 16) |
+                (span[10] << 8) |
+                span[11];
+
+            return new ObjectId(timestamp, machine, pid, increment);
         }
 
         public static byte[] ReadBytes(this BufferSlice buffer, int offset, int count)
@@ -98,8 +120,9 @@ namespace LiteDB
         {
             var ticks = buffer.ReadInt64(offset);
 
-            if (ticks == 0) return DateTime.MinValue;
-            if (ticks == 3155378975999999999) return DateTime.MaxValue;
+            // damaged ticks beyond the DateTime range clamp so the index node stays readable #2930
+            if (ticks <= 0) return DateTime.MinValue;
+            if (ticks >= 3155378975999999999) return DateTime.MaxValue;
 
             return new DateTime(ticks, DateTimeKind.Utc);
         }
@@ -279,11 +302,6 @@ namespace LiteDB
             buffer[offset + 4] = value.Index;
         }
 
-        public static void Write(this BufferSlice buffer, Guid value, int offset)
-        {
-            buffer.Write(value.ToByteArray(), offset);
-        }
-
         public static void Write(this BufferSlice buffer, float[] value, int offset)
         {
             buffer.EnsureWritable();
@@ -299,7 +317,30 @@ namespace LiteDB
         public static void Write(this BufferSlice buffer, ObjectId value, int offset)
         {
             buffer.EnsureWritable();
-            value.ToByteArray(buffer.Array, buffer.Offset + offset);
+            var span = new Span<byte>(buffer.Array, buffer.Offset + offset, 12);
+
+            Write(span, value);
+        }
+
+        internal static void Write(Span<byte> destination, ObjectId value)
+        {
+            ENSURE(destination.Length >= 12, "span must contain at least 12 bytes");
+
+            destination[0] = (byte)(value.Timestamp >> 24);
+            destination[1] = (byte)(value.Timestamp >> 16);
+            destination[2] = (byte)(value.Timestamp >> 8);
+            destination[3] = (byte)(value.Timestamp);
+
+            destination[4] = (byte)(value.Machine >> 16);
+            destination[5] = (byte)(value.Machine >> 8);
+            destination[6] = (byte)(value.Machine);
+
+            destination[7] = (byte)(value.Pid >> 8);
+            destination[8] = (byte)(value.Pid);
+
+            destination[9] = (byte)(value.Increment >> 16);
+            destination[10] = (byte)(value.Increment >> 8);
+            destination[11] = (byte)(value.Increment);
         }
 
         public static void Write(this BufferSlice buffer, byte[] value, int offset)

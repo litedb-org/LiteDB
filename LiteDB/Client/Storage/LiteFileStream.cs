@@ -24,7 +24,7 @@ namespace LiteDB
         private int _positionInChunk = 0;
         private MemoryStream _buffer;
 
-        internal LiteFileStream(ILiteCollection<LiteFileInfo<TFileId>> files, ILiteCollection<BsonDocument> chunks, LiteFileInfo<TFileId> file, BsonValue fileId, FileAccess mode)
+        internal LiteFileStream(ILiteCollection<LiteFileInfo<TFileId>> files, ILiteCollection<BsonDocument> chunks, LiteFileInfo<TFileId> file, BsonValue fileId, FileAccess mode, bool preserveExisting = false)
         {
             _files = files;
             _chunks = chunks;
@@ -34,24 +34,21 @@ namespace LiteDB
 
             if (mode == FileAccess.Read)
             {
+                if (_file.Length < 0 || _file.Chunks < 0 || (_file.Length == 0) != (_file.Chunks == 0))
+                    throw new LiteException(LiteException.INVALID_FORMAT, "File '{0}' has inconsistent length and chunk metadata.", _fileId);
                 // initialize first data block
                 _currentChunkData = this.GetChunkData(_currentChunkIndex);
             }
             else if(mode == FileAccess.Write)
             {
                 _buffer = new MemoryStream(MAX_CHUNK_SIZE);
+                _staged = preserveExisting && _chunks.Exists(CHUNK_RANGE, _fileId, 0, int.MaxValue);
 
-                if (_file.Length > 0)
-                {
-                    // delete all chunks before re-write
-                    var count = _chunks.DeleteMany("_id BETWEEN { f: @0, n: 0 } AND { f: @0, n: 99999999 }", _fileId);
-
-                    ENSURE(count == _file.Chunks);
-
-                    // clear file content length+chunks
-                    _file.Length = 0;
-                    _file.Chunks = 0;
-                }
+                // Replacement also repairs missing or orphaned chunks. Metadata may
+                // describe an interrupted upload, so its count is not an oracle.
+                if (!_staged) _chunks.DeleteMany(CHUNK_RANGE, _fileId, 0, int.MaxValue);
+                _file.Length = 0;
+                _file.Chunks = 0;
             }
         }
 
@@ -104,6 +101,12 @@ namespace LiteDB
         #region Dispose
 
         private bool _disposed = false;
+
+        internal void Abort()
+        {
+            _disposed = true;
+            _buffer?.Dispose();
+        }
 
         protected override void Dispose(bool disposing)
         {

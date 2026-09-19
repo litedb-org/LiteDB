@@ -41,8 +41,35 @@ namespace LiteDB
         {
             if (query == null) throw new ArgumentNullException(nameof(query));
 
-            if (skip != 0) query.Offset = skip;
-            if (limit != int.MaxValue) query.Limit = limit;
+            if (_includes.Count > 0 || skip != 0 || limit != int.MaxValue)
+            {
+                // Keep collection includes and paging local to this execution,
+                // including lazy enumeration, without mutating a caller's query.
+                var executionQuery = new Query
+                {
+                    Select = query.Select,
+                    GroupBy = query.GroupBy,
+                    Having = query.Having,
+                    Offset = skip != 0 ? skip : query.Offset,
+                    Limit = limit != int.MaxValue ? limit : query.Limit,
+                    ForUpdate = query.ForUpdate,
+                    VectorField = query.VectorField,
+                    VectorTarget = query.VectorTarget,
+                    VectorMaxDistance = query.VectorMaxDistance,
+                    VectorFilter = query.VectorFilter,
+                    VectorScore = query.VectorScore,
+                    Into = query.Into,
+                    IntoAutoId = query.IntoAutoId,
+                    ExplainPlan = query.ExplainPlan
+                };
+                // Match collection.Query().Include(...): collection-level parents
+                // are expanded before includes supplied by the query definition.
+                executionQuery.Includes.AddRange(_includes);
+                executionQuery.Includes.AddRange(query.Includes);
+                executionQuery.Where.AddRange(query.Where);
+                executionQuery.OrderBy.AddRange(query.OrderBy);
+                query = executionQuery;
+            }
 
             return new LiteQueryable<T>(_engine, _mapper, _streamReferenceMapper, _collection, query)
                 .ToEnumerable();

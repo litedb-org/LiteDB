@@ -45,30 +45,43 @@ namespace LiteDB.Engine
             }
             else
             {
-                return new AesStream(_password, new ConcurrentStream(_stream, canWrite, true));
+                return new AesStream(_password, new ConcurrentStream(_stream, canWrite, true), allowRecovery: false);
             }
         }
 
         /// <summary>
-        /// Get file length using _stream.Length
+        /// Get the logical stream length without modifying the stream.
         /// </summary>
         public long GetLength()
         {
-            var length = _stream.Length;
-
-            // if file length are not PAGE_SIZE module, maybe last save are not completed saved on disk
-            // crop file removing last uncompleted page saved
-            if (length % PAGE_SIZE != 0)
+            lock (_stream)
             {
-                length = length - (length % PAGE_SIZE);
+                var length = _stream.Length;
 
-                _stream.SetLength(length);
-                _stream.FlushToDisk();
+                if (_password == null || length == 0)
+                {
+                    return length;
+                }
+
+                // A partial encrypted preamble is treated as an interrupted creation.
+                // Preserve the caller's position while checking its marker byte.
+                if (length < PAGE_SIZE && _stream.CanRead && _stream.CanSeek)
+                {
+                    var position = _stream.Position;
+                    try
+                    {
+                        _stream.Position = 0;
+                        return _stream.ReadByte() == 1 ? 0 : length;
+                    }
+                    finally
+                    {
+                        _stream.Position = position;
+                    }
+                }
+
+                // Encrypted streams reserve the first physical page for their salt.
+                return length >= PAGE_SIZE ? length - PAGE_SIZE : length;
             }
-
-            return length > 0 ?
-                length - (_password == null ? 0 : PAGE_SIZE) :
-                0;
         }
 
         /// <summary>

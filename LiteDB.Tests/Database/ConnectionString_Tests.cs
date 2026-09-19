@@ -96,10 +96,14 @@ namespace LiteDB.Tests.Database
 
             var serialized = full.ToStringWithPassword();
 
+            // culture name casing differs between ICU (ca-ES-VALENCIA) and NLS on .NET Framework
+            // (ca-ES-valencia); the serialized form must match whatever Collation.ToString() emits
+            var collation = full.Collation.ToString();
+
             serialized.Should().Be(
-                """Filename="c:\only;file\"d\"emo.db";Connection=Shared;Password="john-doe\ ";InitialSize=10485760;ReadOnly=True;Collation=ca-ES-VALENCIA/IgnoreCase;Upgrade=True;Auto-Rebuild=True;Memory Profile=Throughput;Cache Size=67108864;Transaction Pages=32""");
+                $"""Filename="c:\only;file\"d\"emo.db";Connection=Shared;Password="john-doe\ ";InitialSize=10485760;ReadOnly=True;Collation={collation};Upgrade=True;Auto-Rebuild=True;Memory Profile=Throughput;Cache Size=67108864;Transaction Pages=32""");
             full.ToString().Should().Be(
-                """Filename="c:\only;file\"d\"emo.db";Connection=Shared;Password=********;InitialSize=10485760;ReadOnly=True;Collation=ca-ES-VALENCIA/IgnoreCase;Upgrade=True;Auto-Rebuild=True;Memory Profile=Throughput;Cache Size=67108864;Transaction Pages=32""");
+                $"""Filename="c:\only;file\"d\"emo.db";Connection=Shared;Password=********;InitialSize=10485760;ReadOnly=True;Collation={collation};Upgrade=True;Auto-Rebuild=True;Memory Profile=Throughput;Cache Size=67108864;Transaction Pages=32""");
 
             var parsed = new ConnectionString(serialized);
 
