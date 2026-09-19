@@ -33,6 +33,8 @@ namespace LiteDB.Engine
         private SortDisk _sortDisk;
 
         private EngineState _state;
+        private FileOwnership _fileOwnership;
+        private readonly object _lifecycleLock = new object();
 
         // immutable settings
         private readonly EngineSettings _settings;
@@ -71,8 +73,16 @@ namespace LiteDB.Engine
         /// Initialize LiteEngine using initial engine settings
         /// </summary>
         public LiteEngine(EngineSettings settings)
+            : this(settings, snapshotSettings: true)
         {
-            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+        }
+
+        // SharedEngine supplies its own private snapshot so rebuild can update
+        // the password/collation used by its subsequent short-lived engines.
+        internal LiteEngine(EngineSettings settings, bool snapshotSettings)
+        {
+            if (settings == null) throw new ArgumentNullException(nameof(settings));
+            _settings = snapshotSettings ? settings.Snapshot() : settings;
 
             this.Open();
         }
@@ -83,48 +93,27 @@ namespace LiteDB.Engine
 
         internal bool Open()
         {
-            LOG($"start initializing{(_settings.ReadOnly ? " (readonly)" : "")}", "ENGINE");
-
-            _systemCollections = new Dictionary<string, SystemCollection>(StringComparer.OrdinalIgnoreCase);
-            _sequences = new ConcurrentDictionary<string, long>(StringComparer.OrdinalIgnoreCase);
-
-            try
+            lock (_lifecycleLock)
             {
-                // initialize engine state 
-                _state = new EngineState(this, _settings);
+                LOG($"start initializing{(_settings.ReadOnly ? " (readonly)" : "")}", "ENGINE");
 
-                // before initilize, try if must be upgrade
-                if (_settings.Upgrade) this.TryUpgrade();
+                _systemCollections = new Dictionary<string, SystemCollection>(StringComparer.OrdinalIgnoreCase);
+                _sequences = new ConcurrentDictionary<string, long>(StringComparer.OrdinalIgnoreCase);
 
-                // initialize disk service (will create database if needed)
-                _disk = new DiskService(_settings, _state, MEMORY_SEGMENT_SIZES);
-
-                // read page with no cache ref (has a own PageBuffer) - do not Release() support
-                var buffer = _disk.ReadFull(FileOrigin.Data).First();
-
-                // if first byte are 1 this datafile are encrypted but has do defined password to open
-                if (buffer[0] == 1) throw new LiteException(LiteException.INVALID_PASSWORD, "This data file is encrypted and needs a password to open");
-
-                // read header database page
-                _header = new HeaderPage(buffer);
-                _disk.FileVersion = _header.FileVersion;
-                _disk.TrimTrailingPages();
-
-                // if database is set to invalid state, need rebuild
-                if (buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0 && _settings.AutoRebuild)
+                try
                 {
-                    // dispose disk access to rebuild process
-                    _disk.Dispose();
-                    _disk = null;
+                    // initialize engine state
+                    _state = new EngineState(this, _settings);
+                    _fileOwnership = _fileOwnership ?? FileOwnership.Acquire(_settings);
 
-                    // rebuild database, create -backup file and include _rebuild_errors collection
-                    this.Recovery(_header.Pragmas.Collation);
+                    // before initilize, try if must be upgrade
+                    if (_settings.Upgrade) this.TryUpgrade();
 
-                    // re-initialize disk service
+                    // initialize disk service (will create database if needed)
                     _disk = new DiskService(_settings, _state, MEMORY_SEGMENT_SIZES);
 
-                    // read buffer header page again
-                    buffer = _disk.ReadFull(FileOrigin.Data).First();
+                    // read page with no cache ref (has a own PageBuffer) - do not Release() support
+                    var buffer = _disk.ReadFull(FileOrigin.Data).First();
 
                     // if first byte are 1 this datafile are encrypted but has do defined password to open
                     if (buffer[0] == 1) throw new LiteException(LiteException.INVALID_PASSWORD, "This data file is encrypted and needs a password to open");
@@ -132,45 +121,67 @@ namespace LiteDB.Engine
                     // read header database page
                     _header = new HeaderPage(buffer);
                     _disk.FileVersion = _header.FileVersion;
-                }
+                    _disk.TrimTrailingPages();
 
-                // test for same collation
-                if (_settings.Collation != null && _settings.Collation.ToString() != _header.Pragmas.Collation.ToString())
+                    // if database is set to invalid state, need rebuild
+                    if (buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0 && _settings.AutoRebuild)
+                    {
+                        // dispose disk access to rebuild process
+                        _disk.Dispose();
+                        _disk = null;
+
+                        // rebuild database, create -backup file and include _rebuild_errors collection
+                        this.Recovery(_header.Pragmas.Collation);
+
+                        // re-initialize disk service
+                        _disk = new DiskService(_settings, _state, MEMORY_SEGMENT_SIZES);
+
+                        // read buffer header page again
+                        buffer = _disk.ReadFull(FileOrigin.Data).First();
+
+                        _header = new HeaderPage(buffer);
+                        _disk.FileVersion = _header.FileVersion;
+                        _disk.TrimTrailingPages();
+                    }
+
+                    // test for same collation
+                    if (_settings.Collation != null && _settings.Collation.ToString() != _header.Pragmas.Collation.ToString())
+                    {
+                        throw new LiteException(0, $"Datafile collation '{_header.Pragmas.Collation}' is different from engine settings. Use Rebuild database to change collation.");
+                    }
+
+                    // initialize locker service
+                    _locker = new LockService(_header.Pragmas);
+
+                    // initialize wal-index service
+                    _walIndex = new WalIndexService(_disk, _locker);
+
+                    // if exists log file, restore wal index references (can update full _header instance)
+                    if (_disk.GetFileLength(FileOrigin.Log) > 0)
+                    {
+                        _walIndex.RestoreIndex(ref _header);
+                    }
+
+                    // initialize sort temp disk
+                    _sortDisk = new SortDisk(_settings.CreateTempFactory(), CONTAINER_SORT_SIZE, _header.Pragmas);
+
+                    // initialize transaction monitor as last service
+                    _monitor = new TransactionMonitor(_header, _locker, _disk, _walIndex, _settings.TransactionPageLimit);
+
+                    // register system collections
+                    this.InitializeSystemCollections();
+
+                    LOG("initialization completed", "ENGINE");
+
+                    return true;
+                }
+                catch (Exception ex)
                 {
-                    throw new LiteException(0, $"Datafile collation '{_header.Pragmas.Collation}' is different from engine settings. Use Rebuild database to change collation.");
+                    LOG(ex.Message, "ERROR");
+
+                    this.Close(ex);
+                    throw;
                 }
-
-                // initialize locker service
-                _locker = new LockService(_header.Pragmas);
-
-                // initialize wal-index service
-                _walIndex = new WalIndexService(_disk, _locker);
-
-                // if exists log file, restore wal index references (can update full _header instance)
-                if (_disk.GetFileLength(FileOrigin.Log) > 0)
-                {
-                    _walIndex.RestoreIndex(ref _header);
-                }
-
-                // initialize sort temp disk
-                _sortDisk = new SortDisk(_settings.CreateTempFactory(), CONTAINER_SORT_SIZE, _header.Pragmas);
-
-                // initialize transaction monitor as last service
-                _monitor = new TransactionMonitor(_header, _locker, _disk, _walIndex, _settings.TransactionPageLimit);
-
-                // register system collections
-                this.InitializeSystemCollections();
-
-                LOG("initialization completed", "ENGINE");
-
-                return true;
-            }
-            catch (Exception ex)
-            {
-                LOG(ex.Message, "ERROR");
-
-                this.Close(ex);
-                throw;
             }
         }
 
@@ -182,33 +193,38 @@ namespace LiteDB.Engine
         /// - Close disks
         /// - Clean variables
         /// </summary>
-        internal List<Exception> Close()
+        internal List<Exception> Close(bool releaseOwnership = true)
         {
-            if (_state.Disposed) return new List<Exception>();
-
-            _state.Disposed = true;
-
-            var tc = new TryCatch();
-
-            // stop running all transactions
-            tc.Catch(() => _monitor?.Dispose());
-
-            if (_header?.Pragmas.Checkpoint > 0)
+            lock (_lifecycleLock)
             {
-                // do a soft checkpoint (only if exclusive lock is possible)
-                tc.Catch(() => _walIndex?.TryCheckpoint());
+                if (_state.Disposed) return new List<Exception>();
+
+                _state.Disposed = true;
+
+                var tc = new TryCatch();
+
+                // stop running all transactions
+                tc.Catch(() => _monitor?.Dispose());
+
+                if (!_settings.ReadOnly && _header?.Pragmas.Checkpoint > 0)
+                {
+                    // do a soft checkpoint (only if exclusive lock is possible)
+                    tc.Catch(() => _walIndex?.TryCheckpoint());
+                }
+
+                // close all disk streams (and delete log if empty)
+                tc.Catch(() => _disk?.Dispose());
+
+                // delete sort temp file
+                tc.Catch(() => _sortDisk?.Dispose());
+
+                // dispose lockers
+                tc.Catch(() => _locker?.Dispose());
+
+                if (releaseOwnership) tc.Catch(this.ReleaseOwnership);
+
+                return tc.Exceptions;
             }
-
-            // close all disk streams (and delete log if empty)
-            tc.Catch(() => _disk?.Dispose());
-
-            // delete sort temp file
-            tc.Catch(() => _sortDisk?.Dispose());
-
-            // dispose lockers
-            tc.Catch(() => _locker?.Dispose());
-
-            return tc.Exceptions;
         }
 
         /// <summary>
@@ -221,51 +237,89 @@ namespace LiteDB.Engine
         /// </summary>
         internal List<Exception> Close(Exception ex, EngineState origin = null)
         {
-            if (origin != null && !ReferenceEquals(origin, _state)) return new List<Exception>();
-            if (_state.Disposed) return new List<Exception>();
-
-            _state.Disposed = true;
-
-            var tc = new TryCatch(ex);
-
-            tc.Catch(() => _monitor?.Dispose());
-
-            if (tc.InvalidDatafileState)
+            lock (_lifecycleLock)
             {
-                // Keep the data writer alive until the recovery marker is durable.
-                tc.Catch(() => _disk?.MarkAsInvalidState());
+                if (origin != null && !ReferenceEquals(origin, _state)) return new List<Exception>();
+                if (_state.Disposed) return new List<Exception>();
+
+                _state.Disposed = true;
+
+                var tc = new TryCatch(ex);
+
+                tc.Catch(() => _monitor?.Dispose());
+
+                if (!_settings.ReadOnly && tc.InvalidDatafileState)
+                {
+                    // Keep the data writer alive until the recovery marker is durable.
+                    tc.Catch(() => _disk?.MarkAsInvalidState());
+                }
+
+                // close disks streams
+                tc.Catch(() => _disk?.Dispose());
+
+                // close sort disk service
+                tc.Catch(() => _sortDisk?.Dispose());
+
+                // close engine lock service
+                tc.Catch(() => _locker?.Dispose());
+
+                tc.Catch(this.ReleaseOwnership);
+
+                return tc.Exceptions;
             }
-
-            // close disks streams
-            tc.Catch(() => _disk?.Dispose());
-
-            // close sort disk service
-            tc.Catch(() => _sortDisk?.Dispose());
-
-            // close engine lock service
-            tc.Catch(() => _locker?.Dispose());
-
-            return tc.Exceptions;
         }
+
+        internal FileOwnership DetachOwnership() => Interlocked.Exchange(ref _fileOwnership, null);
+
+        private void ReleaseOwnership() => Interlocked.Exchange(ref _fileOwnership, null)?.Dispose();
 
         #endregion
 
 #if DEBUG || TESTING
         // exposes for unit tests
+        internal Action SimulateRebuildClosed;
         internal TransactionMonitor GetMonitor() => _monitor;
         internal Action<PageBuffer> SimulateDiskReadFail { set => _state.SimulateDiskReadFail = value; }
         internal Action<PageBuffer> SimulateDiskWriteFail { set => _state.SimulateDiskWriteFail = value; }
+        internal Action<PageBuffer> SimulateDataWriteFail { set => _state.SimulateDataWriteFail = value; }
 #endif
 
         /// <summary>
         /// Run checkpoint command to copy log file into data file
         /// </summary>
-        public int Checkpoint() => _walIndex.Checkpoint();
+        public int Checkpoint()
+        {
+            EngineState state;
+            WalIndexService wal;
+            lock (_lifecycleLock)
+            {
+                state = _state;
+                state.Validate();
+                wal = _walIndex;
+            }
+            try { return wal.Checkpoint(); }
+            catch (Exception ex)
+            {
+                state.Handle(ex);
+                throw;
+            }
+        }
 
         public void Dispose()
         {
             this.Dispose(true);
             GC.SuppressFinalize(this);
+        }
+
+        ~LiteEngine()
+        {
+            // Close streams before releasing ownership. Do not checkpoint an
+            // abandoned engine from the finalizer thread.
+            try
+            {
+                if (_state != null) this.Close(new ObjectDisposedException(nameof(LiteEngine)));
+            }
+            catch { }
         }
 
         protected virtual void Dispose(bool disposing)

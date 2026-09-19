@@ -61,7 +61,7 @@ namespace LiteDB.Engine
             FileStream stream;
             try
             {
-                stream = new FileStream(_filename,
+                stream = FileOwnership.OpenFile(_filename,
                     fileMode,
                     fileAccess,
                     fileShare,

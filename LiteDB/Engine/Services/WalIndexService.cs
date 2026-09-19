@@ -37,6 +37,7 @@ namespace LiteDB.Engine
         {
             _disk = disk;
             _locker = locker;
+            _disk.EnableWalIdentity();
         }
 
         /// <summary>
@@ -84,7 +85,7 @@ namespace LiteDB.Engine
                 _disk.Cache.Clear();
 
                 // clear log file (sync)
-                _disk.SetLength(0, FileOrigin.Log);
+                _disk.TruncateWal();
             }
             finally
             {
@@ -205,6 +206,11 @@ namespace LiteDB.Engine
             // read all pages to get confirmed transactions (do not read page content, only page header)
             foreach (var buffer in _disk.ReadFull(FileOrigin.Log))
             {
+                if (current == 0 && WalIdentity.IsPrefix(buffer))
+                {
+                    current += PAGE_SIZE;
+                    continue;
+                }
                 if(buffer.IsBlank())
                 {
                     // this should not happen, but if it does, it means there's a zeroed page in the file
@@ -341,6 +347,7 @@ namespace LiteDB.Engine
             {
                 foreach (var buffer in _disk.ReadFull(FileOrigin.Log))
                 {
+                    if (buffer.Position == 0 && WalIdentity.IsPrefix(buffer)) continue;
                     if (buffer.IsBlank())
                     {
                         // this should not happen, but if it does, it means there's a zeroed page in the file
@@ -374,8 +381,12 @@ namespace LiteDB.Engine
             // write all log pages into data file (sync)
             _disk.WriteDataDisk(source());
 
+            _disk.PrepareCheckpointCompletion();
+
             // clear log file, clear wal index, memory cache,
             this.Clear();
+
+            _disk.FinishCheckpointCompletion();
 
             return counter;
         }
