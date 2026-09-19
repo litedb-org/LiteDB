@@ -743,7 +743,7 @@ namespace LiteDB.Engine
                 }
             }
 
-            // remove collection name (in header) at commit time
+            this.DropSchemas(safePoint);
             _transPages.Commit += (h) => h.DeleteCollection(_collectionName);
         }
 

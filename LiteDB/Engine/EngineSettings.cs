@@ -19,6 +19,9 @@ namespace LiteDB.Engine
     {
         private int? _transactionPageLimit;
 
+        /// <summary>Opt in to compact document writes and lazy v10 promotion. Existing documents stay readable in place.</summary>
+        public bool CompactStorage { get; set; } = false;
+
         /// <summary>
         /// Memory and transaction defaults for this database. Explicit limits
         /// take precedence regardless of property assignment order.

@@ -81,6 +81,7 @@ namespace LiteDB.Engine
                 _currentReadVersion = 0;
 
                 // clear cache
+                _disk.ClearSchemaCache();
                 _disk.Cache.Clear();
 
                 // clear log file (sync)

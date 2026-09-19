@@ -15,6 +15,7 @@ namespace LiteDB.Engine
         private readonly MemoryCache _cache;
         private readonly EngineState _state;
         private readonly bool _readOnly;
+        internal bool CompactStorage { get; }
 
         private IStreamFactory _dataFactory;
         private readonly IStreamFactory _logFactory;
@@ -39,6 +40,7 @@ namespace LiteDB.Engine
             _cache = new MemoryCache(memorySegmentSizes, settings.GetCacheSize());
             _state = state;
             _readOnly = settings.ReadOnly;
+            CompactStorage = settings.CompactStorage;
             _durableCommits = settings.DurableCommits;
 
             try

@@ -401,13 +401,13 @@ namespace LiteDB.Engine
         /// <summary>
         /// Read a BsonDocument from reader
         /// </summary>
-        public Result<BsonDocument> ReadDocument(HashSet<string> fields = null)
+        public Result<BsonDocument> ReadDocument(HashSet<string> fields = null, int? storedLength = null)
         {
             var doc = new BsonDocument();
 
             try
             {
-                var length = this.ReadInt32();
+                var length = storedLength ?? this.ReadInt32();
                 var end = _position + length - 5;
                 var remaining = fields == null || fields.Count == 0 ? null : new HashSet<string>(fields, StringComparer.OrdinalIgnoreCase);
 

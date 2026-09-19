@@ -34,7 +34,7 @@ namespace LiteDB.Tests.Engine
             using var file = new TempFile();
             using (var db = new LiteDatabase(file.Filename)) db.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1 });
             var bytes = File.ReadAllBytes(file.Filename);
-            bytes[HeaderPage.P_FILE_VERSION] = 10;
+            bytes[HeaderPage.P_FILE_VERSION] = 11;
             File.WriteAllBytes(file.Filename, bytes);
             Action open = () =>
             {
@@ -43,7 +43,7 @@ namespace LiteDB.Tests.Engine
             };
             var error = open.Should().Throw<LiteException>().Which;
             error.ErrorCode.Should().Be(LiteException.UNSUPPORTED_FILE_VERSION);
-            error.Message.Should().Contain("version 10").And.Contain("versions 8 and 9");
+            error.Message.Should().Contain("version 11").And.Contain("versions 8, 9 and 10");
             File.ReadAllBytes(file.Filename).Should().Equal(bytes);
         }
 

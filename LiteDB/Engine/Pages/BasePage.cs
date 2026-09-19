@@ -7,9 +7,9 @@ using static LiteDB.Constants;
 
 namespace LiteDB.Engine
 {
-    internal enum PageType { Empty = 0, Header = 1, Collection = 2, Index = 3, Data = 4, VectorIndex = 5 }
+    internal enum PageType { Empty = 0, Header = 1, Collection = 2, Index = 3, Data = 4, VectorIndex = 5, Schema = 6 }
 
-    internal class BasePage
+    internal partial class BasePage
     {
         protected readonly PageBuffer _buffer;
 
@@ -792,33 +792,6 @@ namespace LiteDB.Engine
         /// <summary>
         /// Create new page instance based on buffer (READ)
         /// </summary>
-        public static T ReadPage<T>(PageBuffer buffer)
-            where T : BasePage
-        {
-            if (typeof(T) == typeof(BasePage)) return (T)(object)new BasePage(buffer);
-            if (typeof(T) == typeof(HeaderPage)) return (T)(object)new HeaderPage(buffer);
-            if (typeof(T) == typeof(CollectionPage)) return (T)(object)new CollectionPage(buffer);
-            if (typeof(T) == typeof(IndexPage)) return (T)(object)new IndexPage(buffer);
-            if (typeof(T) == typeof(VectorIndexPage)) return (T)(object)new VectorIndexPage(buffer);
-            if (typeof(T) == typeof(DataPage)) return (T)(object)new DataPage(buffer);
-
-            throw new InvalidCastException();
-        }
-
-        /// <summary>
-        /// Create new page instance with new PageID and passed buffer (NEW)
-        /// </summary>
-        public static T CreatePage<T>(PageBuffer buffer, uint pageID)
-            where T : BasePage
-        {
-            if (typeof(T) == typeof(CollectionPage)) return (T)(object)new CollectionPage(buffer, pageID);
-            if (typeof(T) == typeof(IndexPage)) return (T)(object)new IndexPage(buffer, pageID);
-            if (typeof(T) == typeof(VectorIndexPage)) return (T)(object)new VectorIndexPage(buffer, pageID);
-            if (typeof(T) == typeof(DataPage)) return (T)(object)new DataPage(buffer, pageID);
-
-            throw new InvalidCastException();
-        }
-
         #endregion
 
         public override string ToString()
