@@ -71,5 +71,17 @@ Enumerable/Queryable extrema before evaluating them.
 
 `LinqCacheRebinding_Tests` covers both string equality forms and warmup modes,
 enum runtime-type transitions under both storage settings, mapping precedence,
-raw BSON serialization parity, and null/changing DbRef captures. The full Release
-suites must run on the final revision under `TZ=Europe/Berlin` for net8/net10.
+raw BSON serialization parity, and null/changing DbRef captures.
+
+## Final local verification
+
+Production/test source revision `b1e027307` passed the Release solution build
+with `TestingEnabled=true` (zero errors) and the complete local suites under
+`TZ=Europe/Berlin`:
+
+- net8.0: 2,990 passed, 7 existing skips, 0 failed (2m21s).
+- net10.0: 2,990 passed, 7 existing skips, 0 failed (2m01s).
+- C# size and whitespace checks passed.
+
+These totals include 23 new regression cases. CI was not awaited, as explicitly
+requested by the maintainer; these results do not claim final CI success.
