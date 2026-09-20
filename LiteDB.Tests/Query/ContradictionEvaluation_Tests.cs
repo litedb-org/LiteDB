@@ -63,6 +63,8 @@ namespace LiteDB.Tests.QueryTest
             };
             execute.Should().Throw<DivideByZeroException>();
             var rows = db.GetCollection("rows");
+            var safe = rows.Query().Where("Score > 7 AND Score < 3 AND SUBSTRING(Name,1000) = 'x'");
+            safe.ToArray().Should().BeEmpty();
             rows.DeleteAll();
             execute.Should().NotThrow();
         }

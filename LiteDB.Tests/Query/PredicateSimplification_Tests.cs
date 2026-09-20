@@ -91,6 +91,19 @@ namespace LiteDB.Tests.QueryTest
             query.WithScore().ToArray().Should().BeEmpty();
         }
 
+        [Fact]
+        public void Residual_contradictions_return_no_vector_results()
+        {
+            using var db = new LiteDatabase(":memory:");
+            var rows = db.GetCollection("rows");
+            rows.Insert(new BsonDocument { ["Score"] = 5, ["Embedding"] = new BsonVector(new[] { 1f, 0f }) });
+            rows.EnsureIndex("embedding", "Embedding", new VectorIndexOptions(2, VectorDistanceMetric.Euclidean));
+            var query = rows.Query().Where("Score > 10 AND Score < 1");
+            query.TopKNear("Embedding", new[] { 1f, 0f }, 5);
+            query.ThenBy("_id");
+            query.WithScore().ToArray().Should().BeEmpty();
+        }
+
         [Theory]
         [InlineData("@.Score = 3")]
         [InlineData("false OR @.Score = 3")]
