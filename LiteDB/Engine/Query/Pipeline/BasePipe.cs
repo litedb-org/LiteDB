@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using static LiteDB.Constants;
@@ -166,7 +165,7 @@ namespace LiteDB.Engine
             DatafileLookup lookup, BorrowedPredicateEvaluator predicate,
             IReadOnlyList<BsonExpression> fallbackFilters)
         {
-            var values = ArrayPool<BorrowedBsonValue>.Shared.Rent(predicate.SlotCount);
+            using var values = new BorrowedValueBuffer(predicate.SlotCount);
             var reader = lookup.CreateBorrowedReader(predicate);
 
             try
@@ -196,7 +195,6 @@ namespace LiteDB.Engine
             finally
             {
                 reader.Dispose();
-                ArrayPool<BorrowedBsonValue>.Shared.Return(values, true);
             }
         }
 
@@ -312,7 +310,7 @@ namespace LiteDB.Engine
             IEnumerable<IndexNode> source, DatafileLookup lookup, OrderBy orderBy,
             BorrowedScalarEvaluator scalar, int[] orders)
         {
-            var borrowed = ArrayPool<BorrowedBsonValue>.Shared.Rent(scalar.SlotCount);
+            using var borrowed = new BorrowedValueBuffer(scalar.SlotCount);
             var reader = lookup.CreateBorrowedReader(scalar);
 
             try
@@ -355,7 +353,6 @@ namespace LiteDB.Engine
             finally
             {
                 reader.Dispose();
-                ArrayPool<BorrowedBsonValue>.Shared.Return(borrowed, true);
             }
         }
 
@@ -367,7 +364,7 @@ namespace LiteDB.Engine
             DatafileLookup lookup, BorrowedProjectionEvaluator projection,
             BsonExpression select)
         {
-            var borrowed = ArrayPool<BorrowedBsonValue>.Shared.Rent(projection.SlotCount);
+            using var borrowed = new BorrowedValueBuffer(projection.SlotCount);
             var reader = lookup.CreateBorrowedReader(projection);
             var defaultName = select.DefaultFieldName();
 
@@ -395,7 +392,6 @@ namespace LiteDB.Engine
             finally
             {
                 reader.Dispose();
-                ArrayPool<BorrowedBsonValue>.Shared.Return(borrowed, true);
             }
         }
     }

@@ -163,17 +163,17 @@ namespace LiteDB.Engine
             {
                 using (var enumerator = source.GetEnumerator())
                 {
-                    yield return aggregate.Project(enumerator.MoveNext() ? 1 : 0);
+                    yield return aggregate.Project(enumerator.MoveNext() ? 1L : 0L);
                 }
 
                 yield break;
             }
 
-            var count = 0;
+            long count = 0;
 
             foreach (var _ in source)
             {
-                count = checked(count + 1);
+                count = checked(count + 1L);
                 _transaction.Safepoint();
             }
 

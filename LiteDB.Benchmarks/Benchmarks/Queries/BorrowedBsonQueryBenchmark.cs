@@ -1,6 +1,7 @@
-using BenchmarkDotNet.Attributes;
 using System.IO;
 using System.Linq;
+
+using BenchmarkDotNet.Attributes;
 
 namespace LiteDB.Benchmarks.Benchmarks.Queries
 {

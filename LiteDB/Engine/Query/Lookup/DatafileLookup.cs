@@ -41,7 +41,7 @@ namespace LiteDB.Engine
         }
 
         internal bool TryEvaluate(IndexNode node, BorrowedDocumentReader documentReader,
-            BorrowedPredicateEvaluator predicate, BorrowedBsonValue[] values,
+            BorrowedPredicateEvaluator predicate, BorrowedValueBuffer values,
             Collation collation, out bool result)
         {
             if (!this.ReadBorrowed(node, documentReader, values, predicate.SlotCount))
@@ -69,14 +69,11 @@ namespace LiteDB.Engine
         }
 
         internal bool ReadBorrowed(IndexNode node, BorrowedDocumentReader documentReader,
-            BorrowedBsonValue[] values, int slotCount)
+            BorrowedValueBuffer values, int slotCount)
         {
             ENSURE(node.DataBlock != PageAddress.Empty, "data block must be a valid block address");
 
-            for (var i = 0; i < slotCount; i++)
-            {
-                values[i] = BorrowedBsonValue.Null;
-            }
+            values.Reset(slotCount);
 
             return documentReader.Read(node.DataBlock, values);
         }

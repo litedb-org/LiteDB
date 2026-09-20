@@ -1,8 +1,10 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
 using FluentAssertions;
 using LiteDB.Engine;
 using LiteDB.Tests.Utils;
-using System.Collections.Generic;
-using System.Linq;
 using Xunit;
 
 namespace LiteDB.Tests.QueryTest
@@ -250,6 +252,40 @@ namespace LiteDB.Tests.QueryTest
             collection.Count(expression).Should().Be(expected);
             BorrowedQueryDiagnostics.BorrowedPredicateFallbacks.Should().Be(1);
             BorrowedQueryDiagnostics.DocumentsMaterialized.Should().Be(1);
+        }
+
+        [Fact]
+        public void Borrowed_slot_buffer_round_trips_values_from_the_byte_pool()
+        {
+            using var buffer = new BorrowedValueBuffer(4);
+            var guid = Guid.NewGuid();
+
+            buffer[0] = BorrowedBsonValue.FromInt64(long.MaxValue);
+            buffer[1] = BorrowedBsonValue.FromDecimal(123.456m);
+            buffer[2] = BorrowedBsonValue.FromGuid(guid);
+            buffer[3] = BorrowedBsonValue.FromString("borrowed");
+
+            buffer[0].TryMaterialize(out var integer).Should().BeTrue();
+            buffer[1].TryMaterialize(out var number).Should().BeTrue();
+            buffer[2].TryMaterialize(out var identifier).Should().BeTrue();
+            buffer[3].TryMaterialize(out var text).Should().BeTrue();
+            integer.AsInt64.Should().Be(long.MaxValue);
+            number.AsDecimal.Should().Be(123.456m);
+            identifier.AsGuid.Should().Be(guid);
+            text.AsString.Should().Be("borrowed");
+
+            buffer.Reset(4);
+            buffer[3].Type.Should().Be(BsonType.Null);
+        }
+
+        [Fact]
+        public void Borrowed_row_aggregate_projects_counts_beyond_int32()
+        {
+            var aggregate = RowAggregate.TryCreate(QueryAggregateExpressions.Count);
+
+            aggregate.Should().NotBeNull();
+            aggregate.Project((long)int.MaxValue + 1)["count"].AsInt64
+                .Should().Be((long)int.MaxValue + 1);
         }
     }
 }

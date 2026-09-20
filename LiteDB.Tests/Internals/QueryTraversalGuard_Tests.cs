@@ -57,5 +57,30 @@ namespace LiteDB.Internals
                 .Select(x => x.Key.AsInt32).Should().Equal(1);
             engine.Rollback().Should().BeTrue();
         }
+
+        [Fact]
+        public void Cursor_data_read_includes_the_transaction_page_allowance()
+        {
+            using var engine = new LiteEngine(new EngineSettings
+            {
+                DataStream = new MemoryStream(), LogStream = new MemoryStream()
+            });
+            engine.Insert("rows", new[] { new BsonDocument { ["_id"] = 1 } }, BsonAutoId.Int32);
+            engine.BeginTrans().Should().BeTrue();
+            var transaction = engine.GetMonitor().GetThreadTransaction();
+            var snapshot = transaction.CreateSnapshot(LockMode.Write, "rows", false);
+            var data = new DataService(snapshot, 0);
+            var address = data.Insert(new BsonDocument
+            {
+                ["payload"] = new string('x', DataService.MAX_DATA_BYTES_PER_PAGE * 2)
+            });
+            ulong counter = 0;
+            var blocks = 0;
+
+            while (data.TryRead(ref address, ref counter, out _)) blocks++;
+
+            blocks.Should().BeGreaterThan(1);
+            engine.Rollback().Should().BeTrue();
+        }
     }
 }

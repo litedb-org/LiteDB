@@ -183,7 +183,7 @@ namespace LiteDB.Engine
         /// <summary>
         /// Advance a caller-owned data-block cursor without creating an iterator.
         /// </summary>
-        internal bool TryRead(ref PageAddress address, ref uint counter, out BufferSlice buffer)
+        internal bool TryRead(ref PageAddress address, ref ulong counter, out BufferSlice buffer)
         {
             if (address == PageAddress.Empty)
             {
@@ -191,7 +191,9 @@ namespace LiteDB.Engine
                 return false;
             }
 
-            ENSURE(counter++ < _maxItemsCount, "Detected loop in data Read({0})", address);
+            var maxItemsCount = (ulong)_maxItemsCount + _snapshot.AdditionalTraversalItemsCount;
+
+            ENSURE(counter++ < maxItemsCount, "Detected loop in data Read({0})", address);
 
             var dataPage = _snapshot.GetPage<DataPage>(address.PageID);
             var block = dataPage.GetBlock(address.Index);

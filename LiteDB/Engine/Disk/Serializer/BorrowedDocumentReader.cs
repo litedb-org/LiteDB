@@ -21,7 +21,7 @@ namespace LiteDB.Engine
             _reader = new BufferReader(data, utcDate);
         }
 
-        public bool Read(PageAddress address, BorrowedBsonValue[] values)
+        public bool Read(PageAddress address, BorrowedValueBuffer values)
         {
             _reader.Reset(address);
             _requiresFallback = false;
@@ -35,7 +35,7 @@ namespace LiteDB.Engine
         public void Dispose() => _reader.Dispose();
 
         private void ReadDocument(BufferReader reader, ulong active, int depth,
-            BorrowedBsonValue[] values, ref ulong found)
+            BorrowedValueBuffer values, ref ulong found)
         {
             var length = reader.ReadInt32();
             ENSURE(length >= 5, "BSON document length must be at least 5 bytes");
@@ -127,7 +127,7 @@ namespace LiteDB.Engine
         }
 
         private void ReadOrSkipValue(BufferReader reader, byte type, ulong terminal,
-            BorrowedBsonValue[] values, ref ulong found)
+            BorrowedValueBuffer values, ref ulong found)
         {
             if (terminal == 0)
             {
@@ -266,13 +266,13 @@ namespace LiteDB.Engine
         }
 
         private void SetTerminalTypes(ulong terminal, BsonType type,
-            BorrowedBsonValue[] values, ref ulong found)
+            BorrowedValueBuffer values, ref ulong found)
         {
             this.SetTerminalValues(terminal, BorrowedBsonValue.FromType(type), values, ref found);
         }
 
         private void SetTerminalValues(ulong terminal, BorrowedBsonValue value,
-            BorrowedBsonValue[] values, ref ulong found)
+            BorrowedValueBuffer values, ref ulong found)
         {
             for (var bits = terminal; bits != 0; bits &= bits - 1)
             {

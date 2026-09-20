@@ -41,6 +41,8 @@ namespace LiteDB.Engine
 
         public bool AsBoolean => _integer != 0;
 
+        internal string StringValue => _string;
+
         public static BorrowedBsonValue Null => new BorrowedBsonValue(BsonType.Null);
 
         public static BorrowedBsonValue FromInt32(int value) =>
@@ -71,6 +73,41 @@ namespace LiteDB.Engine
         public static BorrowedBsonValue FromType(BsonType type) =>
             new BorrowedBsonValue(type, decoded: type == BsonType.Null ||
                 type == BsonType.MinValue || type == BsonType.MaxValue);
+
+        internal void WriteTo(ref BorrowedBsonSlot slot)
+        {
+            slot = default;
+            slot.Type = this.Type;
+            slot.IsDecoded = this.IsDecoded ? (byte)1 : (byte)0;
+
+            switch (this.Type)
+            {
+                case BsonType.Int32:
+                case BsonType.Int64:
+                case BsonType.Boolean: slot.Integer = _integer; break;
+                case BsonType.Double: slot.Double = _double; break;
+                case BsonType.Decimal: slot.Decimal = _decimal; break;
+                case BsonType.DateTime: slot.DateTime = _dateTime; break;
+                case BsonType.Guid: slot.Guid = _guid; break;
+            }
+        }
+
+        internal static BorrowedBsonValue FromSlot(BorrowedBsonSlot slot, string text)
+        {
+            switch (slot.Type)
+            {
+                case BsonType.Int32: return FromInt32((int)slot.Integer);
+                case BsonType.Int64: return FromInt64(slot.Integer);
+                case BsonType.Double: return FromDouble(slot.Double);
+                case BsonType.Decimal: return FromDecimal(slot.Decimal);
+                case BsonType.String: return FromString(text);
+                case BsonType.Boolean: return FromBoolean(slot.Integer != 0);
+                case BsonType.DateTime: return new BorrowedBsonValue(BsonType.DateTime,
+                    dateTime: slot.DateTime);
+                case BsonType.Guid: return FromGuid(slot.Guid);
+                default: return new BorrowedBsonValue(slot.Type, decoded: slot.IsDecoded != 0);
+            }
+        }
 
         public static bool TryFromOwned(BsonValue value, out BorrowedBsonValue result)
         {

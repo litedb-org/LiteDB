@@ -42,7 +42,7 @@ namespace LiteDB.Engine
             return paths.Count > 0;
         }
 
-        public bool TryEvaluate(BorrowedBsonValue[] values, Collation collation, out bool result)
+        public bool TryEvaluate(BorrowedValueBuffer values, Collation collation, out bool result)
         {
             for (var i = 0; i < _predicates.Length; i++)
             {
@@ -206,13 +206,13 @@ namespace LiteDB.Engine
 
         private abstract class PredicateNode
         {
-            public abstract bool TryEvaluate(BorrowedBsonValue[] values,
+            public abstract bool TryEvaluate(BorrowedValueBuffer values,
                 Collation collation, out bool result);
         }
 
         private abstract class ValueNode
         {
-            public abstract bool TryGetValue(BorrowedBsonValue[] values,
+            public abstract bool TryGetValue(BorrowedValueBuffer values,
                 out BorrowedBsonValue result);
         }
 
@@ -222,7 +222,7 @@ namespace LiteDB.Engine
 
             public PathNode(int slot) => _slot = slot;
 
-            public override bool TryGetValue(BorrowedBsonValue[] values,
+            public override bool TryGetValue(BorrowedValueBuffer values,
                 out BorrowedBsonValue result)
             {
                 result = values[_slot];
@@ -236,7 +236,7 @@ namespace LiteDB.Engine
 
             public ConstantNode(BorrowedBsonValue value) => _value = value;
 
-            public override bool TryGetValue(BorrowedBsonValue[] values,
+            public override bool TryGetValue(BorrowedValueBuffer values,
                 out BorrowedBsonValue result)
             {
                 result = _value;
@@ -255,7 +255,7 @@ namespace LiteDB.Engine
                 _name = name;
             }
 
-            public override bool TryGetValue(BorrowedBsonValue[] values,
+            public override bool TryGetValue(BorrowedValueBuffer values,
                 out BorrowedBsonValue result)
             {
                 var owned = _parameters.TryGetValue(_name, out var parameter)
@@ -280,7 +280,7 @@ namespace LiteDB.Engine
                 _right = right;
             }
 
-            public override bool TryEvaluate(BorrowedBsonValue[] values,
+            public override bool TryEvaluate(BorrowedValueBuffer values,
                 Collation collation, out bool result)
             {
                 if (!_left.TryGetValue(values, out var left) ||
@@ -290,10 +290,7 @@ namespace LiteDB.Engine
                     return false;
                 }
 
-                var comparisonCollation = _type == BsonExpressionType.Equal ||
-                    _type == BsonExpressionType.NotEqual ? collation : Collation.Binary;
-
-                if (!left.TryCompare(right, comparisonCollation, out var comparison))
+                if (!left.TryCompare(right, collation, out var comparison))
                 {
                     result = false;
                     return false;
@@ -326,7 +323,7 @@ namespace LiteDB.Engine
                 _right = right;
             }
 
-            public override bool TryEvaluate(BorrowedBsonValue[] values,
+            public override bool TryEvaluate(BorrowedValueBuffer values,
                 Collation collation, out bool result)
             {
                 if (!_left.TryEvaluate(values, collation, out var left))

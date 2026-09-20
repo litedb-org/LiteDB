@@ -16,7 +16,7 @@ namespace LiteDB.Engine
         private readonly bool _utcDate;
 
         private PageAddress _nextAddress;
-        private uint _dataBlockCount;
+        private ulong _dataBlockCount;
 
         private BufferSlice _current;
         private int _currentPosition = 0; // position in _current

@@ -71,7 +71,7 @@ namespace LiteDB.Engine
             return paths.Count > 0;
         }
 
-        public bool TryProject(BorrowedBsonValue[] source, out BsonDocument document)
+        public bool TryProject(BorrowedValueBuffer source, out BsonDocument document)
         {
             document = new BsonDocument { IsProjectionValue = _isProjectionValue };
 

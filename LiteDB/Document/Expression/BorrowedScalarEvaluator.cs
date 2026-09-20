@@ -61,7 +61,7 @@ namespace LiteDB.Engine
             return paths.Count > 0;
         }
 
-        public bool TryGetValues(BorrowedBsonValue[] source, BsonValue[] values)
+        public bool TryGetValues(BorrowedValueBuffer source, BsonValue[] values)
         {
             for (var i = 0; i < _slots.Length; i++)
             {
@@ -71,7 +71,7 @@ namespace LiteDB.Engine
             return true;
         }
 
-        public bool TryGetValue(BorrowedBsonValue[] source, int index, out BsonValue value)
+        public bool TryGetValue(BorrowedValueBuffer source, int index, out BsonValue value)
         {
             return source[_slots[index]].TryMaterialize(out value);
         }
