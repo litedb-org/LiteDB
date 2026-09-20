@@ -288,9 +288,7 @@ Exclusive range starts use the same seek to skip duplicate boundary keys; inclus
 range endpoints retain their existing traversal. Scalar range evaluation also uses
 the execution collation, keeping unindexed and residual comparisons consistent
 with indexed ranges and ANY/ALL predicates. Traversal loop guards retain their
-checks while creating diagnostic argument arrays only on failure. Loaded index
-nodes hold one compact owned copy of their link bytes; link access remains safe
-after page release, and writes preserve the existing on-disk representation.
+checks while creating diagnostic argument arrays only on failure.
 
 ## Boolean predicate results
 

@@ -66,7 +66,6 @@ internal static class Program
             IncludedBooleanWorkloads.Run(db, Measure, plans, args.Length > 1 ? args[1] : null);
             DisjunctionPlanningWorkloads.Run(db, Measure, plans, args.Length > 1 ? args[1] : null);
             DocumentKeyWorkloads.Run(db, Measure, args.Length > 1 ? args[1] : null);
-            NodeLinkWorkloads.Run(db, Measure);
             MergeWorkloads.Run(db, Measure, plans, args.Length > 1 ? args[1] : null);
             TraversalGuardWorkloads.Run(db, Measure);
             CollationWorkloads.Run(db, Measure);

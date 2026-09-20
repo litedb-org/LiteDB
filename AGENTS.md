@@ -110,9 +110,6 @@ paths; retain index use for proven disjoint member paths.
 Use the same INCLUDE dependency check for Boolean range and common-guard index
 candidates. A shared leading guard is only necessary, so retain the original OR
 filter when it still reads resolved reference members.
-Index-node links must remain owned by the node across transaction safepoints.
-Keep their compact copied representation independent of released page buffers;
-update both the page and the owned copy when changing links.
 Boolean predicate results share only plain immutable Boolean BsonValues. Keep
 projected containers and current parameter documents independent; retain short
 circuits and required type errors when changing Boolean evaluation.

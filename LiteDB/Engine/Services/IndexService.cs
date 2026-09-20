@@ -108,7 +108,7 @@ namespace LiteDB.Engine
             // scan from top left
             for (int currentLevel = MAX_LEVEL_LENGTH - 1; currentLevel >= 0; currentLevel--)
             {
-                var right = leftNode.GetNextPrev((byte)currentLevel, Query.Ascending);
+                var right = leftNode.Next[currentLevel];
 
                 // while: scan from left to right
                 while (right.IsEmpty == false && right != index.Tail)
@@ -125,7 +125,7 @@ namespace LiteDB.Engine
                     if (diff == 1) break; // stop going right
 
                     leftNode = rightNode;
-                    right = rightNode.GetNextPrev((byte)currentLevel, Query.Ascending);
+                    right = rightNode.Next[currentLevel];
                 }
 
                 if (currentLevel <= (insertLevels - 1)) // level == length
@@ -135,7 +135,7 @@ namespace LiteDB.Engine
                     // next: right node from prev (where left is pointing)
 
                     var prev = leftNode.Position;
-                    var next = leftNode.GetNextPrev((byte)currentLevel, Query.Ascending);
+                    var next = leftNode.Next[currentLevel];
 
                     // if next is empty, use tail (last key)
                     if (next.IsEmpty) next = index.Tail;
@@ -147,7 +147,7 @@ namespace LiteDB.Engine
                     // fix sibling pointer to new node
                     leftNode.SetNext((byte)currentLevel, node.Position);
 
-                    right = node.GetNextPrev((byte)currentLevel, Query.Ascending); // next
+                    right = node.Next[currentLevel]; // next
 
                     var rightNode = this.GetNode(right);
 
@@ -284,16 +284,16 @@ namespace LiteDB.Engine
             for (int i = node.Levels - 1; i >= 0; i--)
             {
                 // get previous and next nodes (between my deleted node)
-                var prevNode = this.GetNode(node.GetNextPrev((byte)i, Query.Descending));
-                var nextNode = this.GetNode(node.GetNextPrev((byte)i, Query.Ascending));
+                var prevNode = this.GetNode(node.Prev[i]);
+                var nextNode = this.GetNode(node.Next[i]);
 
                 if (prevNode != null)
                 {
-                    prevNode.SetNext((byte)i, node.GetNextPrev((byte)i, Query.Ascending));
+                    prevNode.SetNext((byte)i, node.Next[i]);
                 }
                 if (nextNode != null)
                 {
-                    nextNode.SetPrev((byte)i, node.GetNextPrev((byte)i, Query.Descending));
+                    nextNode.SetPrev((byte)i, node.Prev[i]);
                 }
             }
 
