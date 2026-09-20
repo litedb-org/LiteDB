@@ -84,9 +84,10 @@ namespace LiteDB.Tests.QueryTest
         }
 
         [Theory]
-        [InlineData(false)]
-        [InlineData(true)]
-        public void Exact_vector_queries_spill_sort_keys_and_reload_projected_scores(bool thresholdOnly)
+        [InlineData(false, 3)]
+        [InlineData(false, 1100)]
+        [InlineData(true, int.MaxValue)]
+        public void Exact_vector_queries_use_bounded_sorting_and_reload_projected_scores(bool thresholdOnly, int limit)
         {
             using var temporary = new MemoryStream();
             using var engine = new LiteEngine(new EngineSettings { Filename = ":memory:", TempStream = temporary });
@@ -97,7 +98,7 @@ namespace LiteDB.Tests.QueryTest
             var header = (HeaderPage)typeof(LiteEngine).GetField("_header", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(engine);
             field.SetValue(engine, new SortDisk(new StreamFactory(temporary, null, false), Constants.PAGE_SIZE, header.Pragmas));
             var docs = db.GetCollection("docs");
-            docs.InsertBulk(Enumerable.Range(1, 800).Select(i => new BsonDocument
+            docs.InsertBulk(Enumerable.Range(1, 1400).Select(i => new BsonDocument
             {
                 ["_id"] = i, ["Embedding"] = new BsonVector(new[] { (float)i, 0f }),
                 ["Payload"] = new string('x', 4000)
@@ -105,14 +106,16 @@ namespace LiteDB.Tests.QueryTest
             docs.EnsureIndex("vector", "$.Embedding", new VectorIndexOptions(2, VectorDistanceMetric.DotProduct));
             var query = docs.Query();
             if (thresholdOnly) query.WhereNear("Embedding", new[] { 1f, 0f }, 0);
-            else query.Where(x => x["_id"] > 0).TopKNear("Embedding", new[] { 1f, 0f }, 3).Skip(1);
+            else query.Where(x => x["_id"] > 0).TopKNear("Embedding", new[] { 1f, 0f }, limit).Skip(1);
             var projected = query.Select(BsonExpression.Create("$._id"));
             var results = projected.WithScore().ToArray();
             results.Select(x => x.Document["_id"].AsInt32).Should().Equal(thresholdOnly
-                ? Enumerable.Range(1, 800).Reverse() : new[] { 799, 798, 797 });
+                ? Enumerable.Range(1, 1400).Reverse() : Enumerable.Range(1, 1400).Reverse().Skip(1).Take(limit));
             results.Should().OnlyContain(x => x.Score == x.Document["_id"].AsInt32);
             results.Should().OnlyContain(x => !x.Document.ContainsKey("Payload"));
-            temporary.Length.Should().BeGreaterThan(0, "exact vector ranking must use the bounded temporary sorter");
+            if (thresholdOnly || limit > TopNSort.MaximumCapacity)
+                temporary.Length.Should().BeGreaterThan(0, "large exact rankings must still spill through the temporary sorter");
+            else temporary.Length.Should().Be(0, "small exact rankings retain only the requested top keys");
         }
     }
 }

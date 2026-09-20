@@ -411,12 +411,10 @@ namespace LiteDB
         public int Count()
         {
             var oldSelect = _query.Select;
-            var oldAggregate = _query.Aggregate;
 
             try
             {
-                _query.Aggregate = QueryAggregate.Count;
-                this.Select($"{{ count: COUNT(*._id) }}");
+                _query.Select = QueryAggregateExpressions.Count.Bind(new BsonDocument());
                 var count = this.ToDocuments().Single()["count"].AsInt64;
 
                 if (count > int.MaxValue) throw new OverflowException($"The query matches {count} documents, which does not fit an Int32. Use LongCount().");
@@ -426,7 +424,6 @@ namespace LiteDB
             finally
             {
                 _query.Select = oldSelect;
-                _query.Aggregate = oldAggregate;
             }
         }
 
@@ -436,12 +433,10 @@ namespace LiteDB
         public long LongCount()
         {
             var oldSelect = _query.Select;
-            var oldAggregate = _query.Aggregate;
 
             try
             {
-                _query.Aggregate = QueryAggregate.Count;
-                this.Select($"{{ count: COUNT(*._id) }}");
+                _query.Select = QueryAggregateExpressions.Count.Bind(new BsonDocument());
                 var ret = this.ToDocuments().Single()["count"].AsInt64;
 
                 return ret;
@@ -449,7 +444,6 @@ namespace LiteDB
             finally
             {
                 _query.Select = oldSelect;
-                _query.Aggregate = oldAggregate;
             }
         }
 
@@ -459,12 +453,10 @@ namespace LiteDB
         public bool Exists()
         {
             var oldSelect = _query.Select;
-            var oldAggregate = _query.Aggregate;
 
             try
             {
-                _query.Aggregate = QueryAggregate.Exists;
-                this.Select($"{{ exists: ANY(*._id) }}");
+                _query.Select = QueryAggregateExpressions.Exists.Bind(new BsonDocument());
                 var ret = this.ToDocuments().Single()["exists"].AsBoolean;
 
                 return ret;
@@ -472,7 +464,6 @@ namespace LiteDB
             finally
             {
                 _query.Select = oldSelect;
-                _query.Aggregate = oldAggregate;
             }
         }
 

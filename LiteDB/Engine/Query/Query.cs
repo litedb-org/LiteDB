@@ -38,7 +38,6 @@ namespace LiteDB
         // Only this API-generated predicate may be evaluated with the vector index metric.
         internal BsonExpression VectorFilter { get; set; }
         internal Engine.VectorScoreProjection VectorScore { get; set; }
-        internal Engine.QueryAggregate Aggregate { get; set; }
 
         public string Into { get; set; }
         public BsonAutoId IntoAutoId { get; set; } = BsonAutoId.ObjectId;

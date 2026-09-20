@@ -117,7 +117,8 @@ public partial class BsonMapper
                 IsEnumerable = isEnumerable,
                 UnderlyingType = isEnumerable ? Reflection.GetListItemType(dataType) : dataType,
                 Getter = getter,
-                Setter = setter
+                Setter = setter,
+                DefaultSetter = setter
             };
 
             // check if property has [BsonRef]

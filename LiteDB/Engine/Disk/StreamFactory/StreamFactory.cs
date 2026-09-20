@@ -45,7 +45,7 @@ namespace LiteDB.Engine
             }
             else
             {
-                return new AesStream(_password, new ConcurrentStream(_stream, canWrite, true));
+                return new AesStream(_password, new ConcurrentStream(_stream, canWrite, true), allowRecovery: false);
             }
         }
 

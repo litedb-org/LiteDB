@@ -53,7 +53,7 @@ namespace LiteDB.Engine
 
             // Count and Exists need no owning source document. Ordering cannot
             // change their result, while offset and limit still can.
-            if (query.Aggregate != QueryAggregate.None &&
+            if (query.RowAggregate != null && !query.ForUpdate && query.VectorScore == null &&
                 query.IncludeBefore.Count == 0 && query.IncludeAfter.Count == 0 &&
                 (query.Filters.Count == 0 || borrowed))
             {
@@ -63,8 +63,7 @@ namespace LiteDB.Engine
                     if (query.Limit < int.MaxValue) nodeSource = nodeSource.Take(query.Limit);
                 }
 
-                return this.AggregateNodes(nodeSource, query.Aggregate,
-                    query.AggregateFieldName);
+                return this.AggregateNodes(nodeSource, query.RowAggregate);
             }
 
             // A direct-field projection owns only its result container and
@@ -158,13 +157,13 @@ namespace LiteDB.Engine
         }
 
         private IEnumerable<BsonDocument> AggregateNodes(IEnumerable<IndexNode> source,
-            QueryAggregate aggregate, string fieldName)
+            RowAggregate aggregate)
         {
-            if (aggregate == QueryAggregate.Exists)
+            if (!aggregate.NeedsCount)
             {
                 using (var enumerator = source.GetEnumerator())
                 {
-                    yield return new BsonDocument { [fieldName] = enumerator.MoveNext() };
+                    yield return aggregate.Project(enumerator.MoveNext() ? 1 : 0);
                 }
 
                 yield break;
@@ -178,7 +177,7 @@ namespace LiteDB.Engine
                 _transaction.Safepoint();
             }
 
-            yield return new BsonDocument { [fieldName] = count };
+            yield return aggregate.Project(count);
         }
 
         private IEnumerable<IndexNode> SkipNodes(IEnumerable<IndexNode> nodes, int offset)

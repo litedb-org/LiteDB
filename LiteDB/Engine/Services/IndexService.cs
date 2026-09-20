@@ -24,6 +24,8 @@ namespace LiteDB.Engine
         }
 
         public Collation Collation => _collation;
+        internal uint MaxItemsCount => _maxItemsCount;
+        internal ulong MaxTraversalItemsCount => (ulong)_maxItemsCount + _snapshot.AdditionalTraversalItemsCount;
         public void Safepoint() => _snapshot.Safepoint();
 
         /// <summary>
@@ -374,7 +376,7 @@ namespace LiteDB.Engine
         /// If index are unique, return unique value - if index are not unique, return first found (can start, middle or end)
         /// If not found but sibling = true and key are not found, returns next value index node (if order = Asc) or prev node (if order = Desc)
         /// </summary>
-        public IndexNode Find(CollectionIndex index, BsonValue value, bool sibling, int order)
+        public IndexNode Find(CollectionIndex index, BsonValue value, bool sibling, int order, bool skipEqual = false)
         {
             var leftNode = order == Query.Ascending ? this.GetNode(index.Head) : this.GetNode(index.Tail);
             var counter = 0ul;
@@ -400,8 +402,8 @@ namespace LiteDB.Engine
                         return (rightNode.Key.IsMinValue || rightNode.Key.IsMaxValue) ? null : rightNode;
                     }
 
-                    // if equals, return index node
-                    if (diff == 0)
+                    // Exclusive seeks traverse equal keys at every skip-list level.
+                    if (diff == 0 && !skipEqual)
                     {
                         return rightNode;
                     }

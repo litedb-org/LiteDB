@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -185,7 +185,7 @@ namespace LiteDB.Tests.Mapper
             TestExpr<User>(x => x.Phones.AsEnumerable(), "$.Phones[*]");
 
             // where
-            TestExpr<User>(x => x.Phones.Where(p => p.Prefix == 1), "FILTER($.Phones=>(@.Prefix=@p0))", 1);
+            TestExpr<User>(x => x.Phones.Where(p => p.Prefix == 1), ExpressionParity.WithSelectorDependency("FILTER($.Phones=>(@.Prefix=@p0))"), 1);
             TestExpr<User>(x => x.Phones.Where(p => p.Prefix == x.Id), "FILTER($.Phones=>(@.Prefix=$._id))");
 
             // aggregate
@@ -207,7 +207,7 @@ namespace LiteDB.Tests.Mapper
             TestExpr<User>(x => x.Phones.Select(p => p.Number).Average(), "AVG(MAP($.Phones => @.Number))");
 
             // array/list
-            TestExpr<User>(x => x.Phones.Where(w => w.Number == 5).ToArray(), "ARRAY(FILTER($.Phones=>(@.Number=@p0)))", 5);
+            TestExpr<User>(x => x.Phones.Where(w => w.Number == 5).ToArray(), ExpressionParity.WithSelectorDependency("ARRAY(FILTER($.Phones=>(@.Number=@p0)))"), 5);
             TestExpr<User>(x => x.Phones.ToList(), "ARRAY($.Phones)");
 
             // access using native array index (special "get_Item" eval index value)
@@ -238,7 +238,7 @@ namespace LiteDB.Tests.Mapper
             TestExpr<User>(x => !x.Phones2.Contains(new Phone { Number = 1 }), "(Phones2 ANY = { Number: @p0 }) = false", 1);
 
             // fixed position with filter expression
-            TestExpr<User>(x => x.Phones.First(p => p.Number == 1), "FIRST(FILTER($.Phones=>(@.Number=@p0)))", 1);
+            TestExpr<User>(x => x.Phones.First(p => p.Number == 1), ExpressionParity.WithSelectorDependency("FIRST(FILTER($.Phones=>(@.Number=@p0)))"), 1);
 
             // using any/all
             TestExpr<User>(x => x.Phones.Select(p => p.Number).Any(p => p == 1), "MAP(Phones => @.Number) ANY = @p0", 1);
@@ -330,7 +330,7 @@ namespace LiteDB.Tests.Mapper
             TestExpr<User>(x => x.Name.StartsWith("Mauricio"), "Name LIKE (@p0 + '%')", "Mauricio");
             TestExpr<User>(x => x.Name.Contains("Bezerra"), "Name LIKE ('%' + @p0 + '%')", "Bezerra");
             TestExpr<User>(x => x.Name.EndsWith("David"), "Name LIKE ('%' + @p0)", "David");
-            TestExpr<User>(x => x.Name.StartsWith(x.Address.Street), "Name LIKE (Address.Street + '%')");
+            TestExpr<User>(x => x.Name.StartsWith(x.Address.Street), "((IS_STRING(Address.Street) = true) AND (Name LIKE (Address.Street + '%') = true))");
 
             // Equals
             TestExpr<User>(x => x.Name.Equals("John"), "Name = @p0", "John");
@@ -461,12 +461,12 @@ namespace LiteDB.Tests.Mapper
                 Count = x.Phones.Where(p => p.Type == PhoneType.Landline).Count(),
                 List = x.Phones.Where(p => p.Number > x.Salary).Select(p => p.Number).ToArray()
             },
-                @"
+                ExpressionParity.WithSelectorDependency(@"
             {
                 CityName: $.Address.City.CityName,
                 Count: COUNT(FILTER($.Phones=>(@.Type=@p0))),
                 List: ARRAY(MAP(FILTER($.Phones=>(@.Number>$.Salary))=>@.Number))
-            }",
+            }"),
                 (int)PhoneType.Landline);
         }
 
@@ -621,9 +621,9 @@ namespace LiteDB.Tests.Mapper
         [DebuggerHidden]
         private BsonExpression Test<T, K>(Expression<Func<T, K>> expr, BsonExpression expect, params BsonValue[] args)
         {
+            using var verification = new DirectTranslationScope();
             var expression = _mapper.GetExpression(expr);
-
-            expression.Source.Should().Be(expect.Source);
+            ExpressionParity.AssertMetadata(expression, expect);
 
             expression.Parameters.Keys.Count.Should().Be(args.Length, "Number of parameter are different than expected");
 

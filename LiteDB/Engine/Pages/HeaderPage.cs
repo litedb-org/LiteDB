@@ -77,6 +77,12 @@ namespace LiteDB.Engine
         private BsonDocument _collections;
 
         /// <summary>
+        /// Guards the collection map, and lets a snapshot pair it with a WAL read version. Writers hold lock(header)
+        /// across log I/O; readers take only this lock, which a commit holds solely while it republishes the map.
+        /// </summary>
+        public object PublicationLock { get; } = new object();
+
+        /// <summary>
         /// Check if collections was changed
         /// </summary>
         private bool _isCollectionsChanged = false;
@@ -143,7 +149,8 @@ namespace LiteDB.Engine
 
             using (var r = new BufferReader(new[] { area }, false))
             {
-                _collections = r.ReadDocument().GetValue();
+                var collections = r.ReadDocument().GetValue();
+                lock (this.PublicationLock) _collections = collections;
             }
 
             _isCollectionsChanged = false;
@@ -206,7 +213,7 @@ namespace LiteDB.Engine
         /// </summary>
         public uint GetCollectionPageID(string collection)
         {
-            lock (this)
+            lock (this.PublicationLock)
             {
                 return _collections.TryGetValue(collection, out var pageID) ? (uint)pageID.AsInt32 : uint.MaxValue;
             }
@@ -217,7 +224,7 @@ namespace LiteDB.Engine
         /// </summary>
         public IEnumerable<KeyValuePair<string, uint>> GetCollections()
         {
-            lock (this)
+            lock (this.PublicationLock)
             {
                 return _collections.GetElements()
                     .Select(el => new KeyValuePair<string, uint>(el.Key, (uint)el.Value.AsInt32)).ToArray();
@@ -229,7 +236,7 @@ namespace LiteDB.Engine
         /// </summary>
         public void InsertCollection(string name, uint pageID)
         {
-            _collections[name] = (int)pageID;
+            lock (this.PublicationLock) _collections[name] = (int)pageID;
 
             _isCollectionsChanged = true;
         }
@@ -239,7 +246,7 @@ namespace LiteDB.Engine
         /// </summary>
         public void DeleteCollection(string name)
         {
-            _collections.Remove(name);
+            lock (this.PublicationLock) _collections.Remove(name);
 
             _isCollectionsChanged = true;
         }
@@ -249,11 +256,14 @@ namespace LiteDB.Engine
         /// </summary>
         public void RenameCollection(string oldName, string newName)
         {
-            var pageID = _collections[oldName];
+            lock (this.PublicationLock)
+            {
+                var pageID = _collections[oldName];
 
-            _collections.Remove(oldName);
+                _collections.Remove(oldName);
 
-            _collections.Add(newName, pageID);
+                _collections.Add(newName, pageID);
+            }
 
             _isCollectionsChanged = true;
         }
@@ -263,7 +273,7 @@ namespace LiteDB.Engine
         /// </summary>
         public int GetAvailableCollectionSpace()
         {
-            lock (this)
+            lock (this.PublicationLock)
             {
                 return COLLECTIONS_SIZE - _collections.GetBytesCount(true) -
                     1 - // for int32 type (0x10)
