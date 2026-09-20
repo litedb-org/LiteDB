@@ -79,6 +79,17 @@ namespace LiteDB.Tests.QueryTest
         }
 
         [Fact]
+        public void Binding_preserves_exact_sort_requirement()
+        {
+            var expression = BsonExpression.Create("Score % @divisor");
+            expression.RequiresExactSort = true;
+
+            var bound = expression.Bind(new BsonDocument { ["divisor"] = 3 });
+
+            bound.RequiresExactSort.Should().BeTrue();
+        }
+
+        [Fact]
         public void Concurrent_and_interleaved_readers_have_independent_bindings()
         {
             using var db = CreateDatabase();

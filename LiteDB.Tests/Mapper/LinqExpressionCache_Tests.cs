@@ -87,6 +87,20 @@ namespace LiteDB.Tests.Mapper
         }
 
         [Fact]
+        public void Enum_equals_with_changing_captured_runtime_types_is_not_cached_as_false()
+        {
+            var mapper = new BsonMapper();
+            object value = null;
+            Expression<Func<Row, bool>> predicate = x => x.State.Equals(value);
+            var document = new BsonDocument { ["State"] = "Ready" };
+            mapper.GetExpression(predicate).ExecuteScalar(document).AsBoolean.Should().BeFalse();
+            value = "Ready";
+            mapper.GetExpression(predicate).ExecuteScalar(document).AsBoolean.Should().BeFalse();
+            value = State.Ready;
+            mapper.GetExpression(predicate).ExecuteScalar(document).AsBoolean.Should().BeTrue();
+        }
+
+        [Fact]
         public void Captured_getters_keep_translation_order_and_evaluation_count()
         {
             var mapper = new BsonMapper();

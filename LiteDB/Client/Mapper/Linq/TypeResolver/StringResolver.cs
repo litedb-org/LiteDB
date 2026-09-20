@@ -39,7 +39,7 @@ namespace LiteDB
                 case "ToLowerInvariant": return c => c.Call("LOWER", c.Object());
                 case "Replace": return c => c.Call("REPLACE", c.Object(), c.Argument(0), c.Argument(1));
                 case "PadLeft": return c => c.Call("LPAD", c.Object(), c.Argument(0), c.Argument(1));
-                case "RightLeft": return c => c.Call("RPAD", c.Object(), c.Argument(0), c.Argument(1));
+                case "PadRight": return c => c.Call("RPAD", c.Object(), c.Argument(0), c.Argument(1));
                 case "IndexOf": return qtParams == 1 ? (c => c.Call("INDEXOF", c.Object(), c.Argument(0))) : (c => c.Call("INDEXOF", c.Object(), c.Argument(0), c.Argument(1)));
                 case "Substring": return qtParams == 1 ? (c => c.Call("SUBSTRING", c.Object(), c.Argument(0))) : (c => c.Call("SUBSTRING", c.Object(), c.Argument(0), c.Argument(1)));
                 case "StartsWith": return c => c.Binary("LIKE", c.Object(), c.Group(c.Binary("+", c.Argument(0), c.Constant("%"))));

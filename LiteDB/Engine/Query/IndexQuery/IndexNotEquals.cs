@@ -22,10 +22,10 @@ namespace LiteDB.Engine
         {
             var edge = indexer.GetNode(this.Order == Query.Ascending ? index.Head : index.Tail);
             var next = edge.GetNextPrev(0, this.Order);
-            var counter = 0u;
+            var counter = 0ul;
             while (!next.IsEmpty)
             {
-                if (counter++ >= indexer.MaxItemsCount)
+                if (counter++ >= indexer.MaxTraversalItemsCount)
                 {
                     ENSURE(false, "Detected loop in exclusion scan({0})", this.Name);
                 }

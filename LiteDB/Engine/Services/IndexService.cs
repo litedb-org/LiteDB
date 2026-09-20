@@ -25,6 +25,7 @@ namespace LiteDB.Engine
 
         public Collation Collation => _collation;
         internal uint MaxItemsCount => _maxItemsCount;
+        internal ulong MaxTraversalItemsCount => (ulong)_maxItemsCount + _snapshot.AdditionalTraversalItemsCount;
         public void Safepoint() => _snapshot.Safepoint();
 
         /// <summary>

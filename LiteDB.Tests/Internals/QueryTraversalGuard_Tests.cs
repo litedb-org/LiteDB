@@ -36,5 +36,26 @@ namespace LiteDB.Internals
             execute.Should().Throw<LiteException>().WithMessage("*Detected loop*(_id*");
             engine.Rollback().Should().BeTrue();
         }
+
+        [Theory]
+        [InlineData(Query.Ascending)]
+        [InlineData(Query.Descending)]
+        public void Exclusion_scan_includes_the_transaction_page_allowance(int order)
+        {
+            using var engine = new LiteEngine(new EngineSettings
+            {
+                DataStream = new MemoryStream(), LogStream = new MemoryStream()
+            });
+            engine.Insert("rows", new[] { new BsonDocument { ["_id"] = 1 } }, BsonAutoId.Int32);
+            engine.BeginTrans().Should().BeTrue();
+            var transaction = engine.GetMonitor().GetThreadTransaction();
+            var snapshot = transaction.CreateSnapshot(LockMode.Write, "rows", false);
+            snapshot.NewPage<IndexPage>();
+            var index = snapshot.CollectionPage.PK;
+            var indexer = new IndexService(snapshot, Collation.Binary, 0);
+            new IndexNotEquals("_id", 0, order).Execute(indexer, index)
+                .Select(x => x.Key.AsInt32).Should().Equal(1);
+            engine.Rollback().Should().BeTrue();
+        }
     }
 }

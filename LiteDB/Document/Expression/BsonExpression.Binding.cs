@@ -28,6 +28,7 @@ namespace LiteDB
                 Source = Source, Type = Type, IsImmutable = IsImmutable, IsVolatile = IsVolatile,
                 Parameters = parameters, Left = Left?.BindCore(parameters), Right = Right?.BindCore(parameters),
                 UseSource = UseSource, Expression = Expression, IsScalar = IsScalar, IsANY = IsANY,
+                RequiresExactSort = RequiresExactSort,
                 Fields = new HashSet<string>(Fields, StringComparer.OrdinalIgnoreCase),
                 _funcScalar = _funcScalar, _funcEnumerable = _funcEnumerable
             };

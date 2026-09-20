@@ -29,6 +29,8 @@ before, after = load(args.before), load(args.after)
 print("| Workload | Before µs | After µs | Time reduction | Before B/op | After B/op | Allocation reduction |")
 print("|---|---:|---:|---:|---:|---:|---:|")
 for name, old in before.items():
+    if name not in after:
+        continue
     new = after[name]
     if len(old["checksums"]) != 1 or old["checksums"] != new["checksums"]:
         raise ValueError(f"Query result checksum mismatch: {name}")

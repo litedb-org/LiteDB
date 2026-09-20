@@ -284,6 +284,9 @@ namespace LiteDB
                 var value = Evaluate(right);
                 if (value == null || value.GetType() != enumType)
                 {
+                    // This result depends on the current captured runtime value.
+                    // Prevent the shape cache from publishing a constant template.
+                    Bindings?.Add(null);
                     result = Constant(false, _parameters);
                     return true;
                 }

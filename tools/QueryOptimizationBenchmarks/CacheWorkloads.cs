@@ -25,8 +25,8 @@ internal static class CacheWorkloads
         // Fixed workload across processes and revisions: 128 repeated generated
         // predicate shapes, all selecting the same indexed row, with no explicit Bind.
         measure("cache-many-shapes", shapes.Count * 8, i => rows.Query().Where(shapes[i % shapes.Count]).FirstOrDefault().Id);
-        plans["cache-entries"] = typeof(BsonMapper).GetProperty("LinqExpressionCacheCount", BindingFlags.Instance | BindingFlags.NonPublic)
-            .GetValue(db.Mapper).ToString();
+        var cacheCount = typeof(BsonMapper).GetProperty("LinqExpressionCacheCount", BindingFlags.Instance | BindingFlags.NonPublic);
+        if (cacheCount != null) plans["cache-entries"] = cacheCount.GetValue(db.Mapper).ToString();
         measure("cache-single-shape-control", 4000, i => rows.Query().Where(x => x.Id == 1234).FirstOrDefault().Id);
         measure("cache-combined-control", 4000, i => rows.Query().Where(x => x.City == "City234" && x.Score >= 1000).FirstOrDefault().Id);
         plans["cache"] = rows.Query().Where(shapes[shapes.Count - 1]).GetPlan().ToString();
