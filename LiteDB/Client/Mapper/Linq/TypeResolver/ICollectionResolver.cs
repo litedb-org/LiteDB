@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,12 +11,12 @@ namespace LiteDB
 {
     internal class ICollectionResolver : EnumerableResolver
     {
-        public override string ResolveMethod(MethodInfo method)
+        public override LinqExpressionBinding ResolveMethod(MethodInfo method)
         {
             // special Contains method
             switch(method.Name)
             {
-                case "Contains": return "# ANY = @0";
+                case "Contains": return c => c.Binary("ANY =", c.Object(), c.Argument(0));
             };
 
             return base.ResolveMethod(method);

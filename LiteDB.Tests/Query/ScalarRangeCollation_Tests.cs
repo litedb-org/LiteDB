@@ -63,6 +63,8 @@ namespace LiteDB.Tests.QueryTest
             foreach (var collation in new[] { Collation.Binary, insensitive, Collation.Binary })
             {
                 expression.ExecuteScalar(row, collation).AsBoolean.Should().Be(Matches(collation.Compare("A", "a"), operation));
+                var rebound = expression.Bind(new BsonDocument { ["0"] = "b" });
+                rebound.ExecuteScalar(row, collation).AsBoolean.Should().Be(Matches(collation.Compare("A", "b"), operation));
             }
         }
 

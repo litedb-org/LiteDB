@@ -44,14 +44,7 @@ namespace LiteDB
 
             if (from.Type == TokenType.EOF || from.Type == TokenType.SemiColon)
             {
-                // select with no FROM - just run expression (avoid DUAL table, Mr. Oracle)
-                //TODO: i think will be better add all sql into engine
-                var result = query.Select.Execute(_collation.Value);
-
-                var defaultName = "expr";
-                var data = result.Select(x => x.IsDocument ? x.AsDocument : new BsonDocument { [defaultName] = x }).FirstOrDefault();
-
-                return new BsonDataReader(data, null);
+                return this.ExecuteSelect(query, null);
             }
             else if (from.Is("INTO"))
             {
@@ -191,7 +184,14 @@ namespace LiteDB
             // read eof/;
             _tokenizer.ReadToken().Expect(TokenType.EOF, TokenType.SemiColon);
 
-            return _engine.Query(collection, query);
+            return this.ExecuteSelect(query, collection);
+        }
+
+        private IBsonDataReader ExecuteSelect(Query query, string collection)
+        {
+            ParsedSelect = true;
+            if (_captureSelect) SelectTemplate = new SqlQueryTemplate(collection, query);
+            return SqlQueryTemplate.Execute(_engine, collection, query);
         }
 
         /// <summary>
