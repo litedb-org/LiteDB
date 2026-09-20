@@ -34,7 +34,9 @@ namespace LiteDB.Tests.Issues
             var changed = 0;
             for (var offset = 0; offset <= bytes.Length - from.Length; offset++)
             {
-                if (!bytes.Skip(offset).Take(from.Length).SequenceEqual(from)) continue;
+                var match = true;
+                for (var i = 0; i < from.Length && match; i++) match = bytes[offset + i] == from[i];
+                if (!match) continue;
                 Array.Copy(to, 0, bytes, offset, to.Length);
                 changed++;
             }

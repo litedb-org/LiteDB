@@ -134,14 +134,14 @@ and four indexes produced the following measurements (decimal MB):
 
 | File | Source | First open | Peak process memory | Sampled peak disk | Final growth |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Plain | 110.0 MB | 5.74 s | 141.3 MB | 204.2 MB | 16 KB |
-| Encrypted | 110.0 MB | 6.04 s | 145.5 MB | 204.2 MB | 16 KB |
+| Plain | 110.0 MB | 5.48 s | 143.8 MB | 204.2 MB | 16 KB |
+| Encrypted | 110.0 MB | 5.89 s | 158.1 MB | 204.2 MB | 16 KB |
 
 Both runs allocated about 10.8 GB cumulatively, reclaimed by GC. These numbers
 are a reproducible synthetic baseline, not a latency or memory guarantee for
 other data or hardware. For 200,000 repeated operations, integer hashing took
-4.0 ms with no per-operation allocation (5.0.21: 1.2 ms). Exact double/decimal
-comparison of `0.1` took 95 ms and allocated 33.6 MB (5.0.21: 8.0 ms, no
+4.0 ms with no per-operation allocation (5.0.21: 1.3 ms). Exact double/decimal
+comparison of `0.1` took 80 ms and allocated 33.6 MB (5.0.21: 8.0 ms, no
 per-operation allocation, but incorrect equality). Mixed numeric hot paths
 therefore retain a measurable correctness cost; use representative workload
 measurements when sizing an upgrade.

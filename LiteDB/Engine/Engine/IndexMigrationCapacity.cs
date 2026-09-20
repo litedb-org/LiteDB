@@ -14,7 +14,8 @@ namespace LiteDB.Engine
         {
             _limit = requestedLimit ?? header.Pragmas.LimitSize;
             _currentPages = (long)header.LastPageID + 1;
-            if (_limit < header.Pragmas.LimitSize || _limit < _currentPages * PAGE_SIZE)
+            if (requestedLimit.HasValue &&
+                (_limit < header.Pragmas.LimitSize || _limit < _currentPages * PAGE_SIZE))
                 throw new ArgumentException("IndexMigrationLimitSize must be at least the stored LIMIT_SIZE and database size.");
         }
 

@@ -38,11 +38,20 @@ namespace LiteDB.Engine
                             this.ValidateVectorMigration(snapshot, indexer, index, capacity);
                             continue;
                         }
-                        using (var sort = this.SortMigrationKeys(snapshot, indexer, index))
+                        var memberPath = IndexExpressionIdentity.IsMemberPath(index.BsonExpr);
+                        if (memberPath && !index.Unique) continue;
+                        using (var sort = index.Unique ? new SortService(_sortDisk,
+                            new[] { LiteDB.Query.Ascending }, _header.Pragmas) : null)
                         {
+                            var keys = this.GetMigrationKeys(snapshot, indexer, index);
+                            if (sort != null)
+                            {
+                                sort.Insert(keys);
+                                keys = sort.Sort();
+                            }
                             BsonValue previous = null;
                             long maximumNodeBytes = 0;
-                            foreach (var item in sort.Sort())
+                            foreach (var item in keys)
                             {
                                 if (index.Unique && previous != null &&
                                     previous.CompareTo(item.Key, _header.Pragmas.Collation) == 0)
@@ -50,7 +59,7 @@ namespace LiteDB.Engine
                                 maximumNodeBytes += IndexNode.GetNodeLength(MAX_LEVEL_LENGTH, item.Key, out _) + BasePage.SLOT_SIZE;
                                 previous = item.Key;
                             }
-                            if (!IndexExpressionIdentity.IsMemberPath(index.BsonExpr))
+                            if (!memberPath)
                             {
                                 var pages = new HashSet<uint> { index.Head.PageID, index.Tail.PageID };
                                 foreach (var node in indexer.FindAll(index, LiteDB.Query.Ascending))
@@ -170,39 +179,26 @@ namespace LiteDB.Engine
             }
         }
 
-        private SortService SortMigrationKeys(Snapshot snapshot, IndexService indexer, CollectionIndex index)
+        private IEnumerable<KeyValuePair<BsonValue, PageAddress>> GetMigrationKeys(
+            Snapshot snapshot, IndexService indexer, CollectionIndex index)
         {
-            var sort = new SortService(_sortDisk, new[] { LiteDB.Query.Ascending }, _header.Pragmas);
-            IEnumerable<KeyValuePair<BsonValue, PageAddress>> Keys()
+            var data = new DataService(snapshot, _disk.MAX_ITEMS_COUNT);
+            foreach (var node in indexer.FindAll(snapshot.CollectionPage.PK, LiteDB.Query.Ascending))
             {
-                var data = new DataService(snapshot, _disk.MAX_ITEMS_COUNT);
-                foreach (var node in indexer.FindAll(snapshot.CollectionPage.PK, LiteDB.Query.Ascending))
+                // Capture addresses before any safepoint can release this node.
+                var position = node.Position;
+                using (var reader = new BufferReader(data.Read(node.DataBlock)))
                 {
-                    // Capture addresses before any safepoint can release this node.
-                    var position = node.Position;
-                    using (var reader = new BufferReader(data.Read(node.DataBlock)))
+                    var document = reader.ReadDocument().GetValue();
+                    foreach (var key in index.BsonExpr.GetIndexKeys(document, _header.Pragmas.Collation))
                     {
-                        var document = reader.ReadDocument().GetValue();
-                        foreach (var key in index.BsonExpr.GetIndexKeys(document, _header.Pragmas.Collation))
-                        {
-                            if (key.IsMinValue || key.IsMaxValue ||
-                                IndexNode.GetKeyLength(key, true) > MAX_INDEX_KEY_LENGTH)
-                                throw LiteException.InvalidIndexKey("Invalid key while migrating index " + index.Name);
-                            yield return new KeyValuePair<BsonValue, PageAddress>(key, position);
-                        }
+                        if (key.IsMinValue || key.IsMaxValue ||
+                            IndexNode.GetKeyLength(key, true) > MAX_INDEX_KEY_LENGTH)
+                            throw LiteException.InvalidIndexKey("Invalid key while migrating index " + index.Name);
+                        yield return new KeyValuePair<BsonValue, PageAddress>(key, position);
                     }
-                    snapshot.Safepoint();
                 }
-            }
-            try
-            {
-                sort.Insert(Keys());
-                return sort;
-            }
-            catch
-            {
-                sort.Dispose();
-                throw;
+                snapshot.Safepoint();
             }
         }
 

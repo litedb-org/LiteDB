@@ -36,7 +36,12 @@ namespace LiteDB.Tests.Engine
             var oldExpression = System.Text.Encoding.UTF8.GetBytes("$.values[0]");
             for (var offset = 0; offset <= legacyBytes.Length - oldExpression.Length; offset++)
             {
-                if (!legacyBytes.Skip(offset).Take(oldExpression.Length).SequenceEqual(oldExpression)) continue;
+                // Framework LINQ Skip enumerates the prefix on every call, making
+                // a per-byte scan quadratic. Compare the fixed-size window directly.
+                var match = true;
+                for (var i = 0; i < oldExpression.Length && match; i++)
+                    match = legacyBytes[offset + i] == oldExpression[i];
+                if (!match) continue;
                 data.Position = offset + oldExpression.Length - 2;
                 data.WriteByte((byte)'*');
             }
