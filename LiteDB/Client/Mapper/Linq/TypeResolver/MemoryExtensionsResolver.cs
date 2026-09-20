@@ -4,7 +4,7 @@ namespace LiteDB
 {
     internal class MemoryExtensionsResolver : ITypeResolver
     {
-        public string ResolveMethod(MethodInfo method)
+        public LinqExpressionBinding ResolveMethod(MethodInfo method)
         {
             if (method.Name != nameof(System.MemoryExtensions.Contains))
                 return null;
@@ -12,7 +12,7 @@ namespace LiteDB
 
             if (parameters.Length == 2)
             {
-                return "@0 ANY = @1";
+                return c => c.Binary("ANY =", c.Argument(0), c.Argument(1));
             }
 
             // Support the 3-parameter overload only when comparer defaults to null.
@@ -22,15 +22,15 @@ namespace LiteDB
 
                 if (third.HasDefaultValue && third.DefaultValue == null)
                 {
-                    return "@0 ANY = @1";
+                    return c => c.Binary("ANY =", c.Argument(0), c.Argument(1));
                 }
             }
 
             return null;
         }
 
-        public string ResolveMember(MemberInfo member) => null;
+        public LinqExpressionBinding ResolveMember(MemberInfo member) => null;
 
-        public string ResolveCtor(ConstructorInfo ctor) => null;
+        public LinqExpressionBinding ResolveCtor(ConstructorInfo ctor) => null;
     }
 }
