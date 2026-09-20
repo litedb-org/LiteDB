@@ -68,6 +68,7 @@ namespace LiteDB
             {
                 return custom(obj);
             }
+            else if (this.TrySerializeStream(obj, out var streamValue)) return streamValue;
             // Preserve the virtual object-mapping hook as well as registered
             // serializers; the base implementation declines runtime metadata.
             else if (obj is Delegate || obj is MemberInfo)

@@ -46,7 +46,7 @@ namespace LiteDB
         /// <summary>
         /// Get document count in collection using predicate filter expression
         /// </summary>
-        public int Count(Query query) => new LiteQueryable<T>(_engine, _mapper, _collection, query).Count();
+        public int Count(Query query) => new LiteQueryable<T>(_engine, _mapper, _streamReferenceMapper, _collection, query).Count();
 
         #endregion
 
@@ -88,7 +88,7 @@ namespace LiteDB
         /// <summary>
         /// Get document count in collection using predicate filter expression
         /// </summary>
-        public long LongCount(Query query) => new LiteQueryable<T>(_engine, _mapper, _collection, query).LongCount();
+        public long LongCount(Query query) => new LiteQueryable<T>(_engine, _mapper, _streamReferenceMapper, _collection, query).LongCount();
 
         #endregion
 
@@ -122,7 +122,7 @@ namespace LiteDB
         /// <summary>
         /// Get true if collection contains at least 1 document that satisfies the predicate expression
         /// </summary>
-        public bool Exists(Query query) => new LiteQueryable<T>(_engine, _mapper, _collection, query).Exists();
+        public bool Exists(Query query) => new LiteQueryable<T>(_engine, _mapper, _streamReferenceMapper, _collection, query).Exists();
 
         #endregion
 

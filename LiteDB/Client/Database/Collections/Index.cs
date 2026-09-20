@@ -149,7 +149,7 @@ namespace LiteDB
         /// </summary>
         private BsonDocument[] FindIndexes(BsonExpression expression, int indexType)
         {
-            return new LiteQueryable<BsonDocument>(_engine, _mapper, "$indexes", new Query())
+            return new LiteQueryable<BsonDocument>(_engine, _mapper, _streamReferenceMapper, "$indexes", new Query())
                 .ToDocuments()
                 .Where(x => x["collection"].AsString.Equals(_collection, StringComparison.OrdinalIgnoreCase))
                 .Where(x => x["expression"].AsString == expression.Source && x["indexType"].AsInt32 == indexType)

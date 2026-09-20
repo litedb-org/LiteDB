@@ -123,6 +123,8 @@ namespace LiteDB
                 return custom(value);
             }
 
+            if (this.TryDeserializeStream(type, value, out var stream)) return stream;
+
             var typeInfo = type.GetTypeInfo();
 
             // check if your type is already a BsonValue/BsonDocument/BsonArray

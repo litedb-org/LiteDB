@@ -23,6 +23,11 @@ namespace LiteDB
             _chunks = db.GetCollection(chunksCollection);
         }
 
+        internal bool Owns(LiteFileStream<TFileId> stream)
+        {
+            return stream != null && stream.IsOwnedBy(_files, _chunks);
+        }
+
         #region Find Files
 
         /// <summary>

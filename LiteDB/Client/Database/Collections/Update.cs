@@ -16,7 +16,7 @@ namespace LiteDB
             if (entity == null) throw new ArgumentNullException(nameof(entity));
 
             // get BsonDocument from object
-            var doc = _mapper.ToDocument(entity);
+            var doc = this.Serialize(entity);
 
             return _engine.Update(_collection, new BsonDocument[] { doc }) > 0;
         }
@@ -30,7 +30,7 @@ namespace LiteDB
             if (id == null || id.IsNull) throw new ArgumentNullException(nameof(id));
 
             // get BsonDocument from object
-            var doc = _mapper.ToDocument(entity);
+            var doc = this.Serialize(entity);
 
             // set document _id using id parameter
             doc["_id"] = id;
@@ -45,7 +45,7 @@ namespace LiteDB
         {
             if (entities == null) throw new ArgumentNullException(nameof(entities));
 
-            return _engine.Update(_collection, entities.Select(x => _mapper.ToDocument(x)));
+            return _engine.Update(_collection, entities.Select(this.Serialize));
         }
 
         /// <summary>
