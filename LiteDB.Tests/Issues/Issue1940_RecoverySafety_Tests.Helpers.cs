@@ -45,7 +45,7 @@ namespace LiteDB.Tests.Issues
 
             using (var data = new FileStream(databasePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
             {
-                for (var offset = 0; offset + PageSize <= log.Length; offset += PageSize)
+                for (var offset = 0; offset + PageSize <= log.Length; offset += WalStride(log))
                 {
                     var transactionId = ReadUInt32(log, offset + TransactionIdOffset);
                     if (confirmedTransactions.Contains(transactionId) == false)
@@ -67,11 +67,14 @@ namespace LiteDB.Tests.Issues
             File.Delete(logPath);
         }
 
+        private static int WalStride(byte[] log) => log.Length >= WalChecksum.FrameSize &&
+            BitConverter.ToUInt32(log, PageSize) == WalChecksum.Magic ? WalChecksum.FrameSize : PageSize;
+
         private HashSet<uint> FindConfirmedTransactions(byte[] log)
         {
             var result = new HashSet<uint>();
 
-            for (var offset = 0; offset + PageSize <= log.Length; offset += PageSize)
+            for (var offset = 0; offset + PageSize <= log.Length; offset += WalStride(log))
             {
                 if (log[offset + IsConfirmedOffset] != 0)
                 {
@@ -87,7 +90,7 @@ namespace LiteDB.Tests.Issues
             var confirmedTransactions = this.FindConfirmedTransactions(log);
             var result = -1;
 
-            for (var offset = 0; offset + PageSize <= log.Length; offset += PageSize)
+            for (var offset = 0; offset + PageSize <= log.Length; offset += WalStride(log))
             {
                 if (ReadUInt32(log, offset + PageIdOffset) == pageId &&
                     confirmedTransactions.Contains(ReadUInt32(log, offset + TransactionIdOffset)))
@@ -104,7 +107,7 @@ namespace LiteDB.Tests.Issues
         {
             var confirmedTransactions = this.FindConfirmedTransactions(log);
 
-            for (var offset = 0; offset + PageSize <= log.Length; offset += PageSize)
+            for (var offset = 0; offset + PageSize <= log.Length; offset += WalStride(log))
             {
                 if (log[offset + PageTypeOffset] == (byte)PageType.Header &&
                     confirmedTransactions.Contains(ReadUInt32(log, offset + TransactionIdOffset)))
@@ -118,7 +121,7 @@ namespace LiteDB.Tests.Issues
         {
             var result = uint.MaxValue;
 
-            for (var offset = 0; offset + PageSize <= log.Length; offset += PageSize)
+            for (var offset = 0; offset + PageSize <= log.Length; offset += WalStride(log))
             {
                 if (log[offset + PageTypeOffset] == (byte)PageType.Header &&
                     log[offset + IsConfirmedOffset] != 0)
@@ -243,7 +246,7 @@ namespace LiteDB.Tests.Issues
             {
                 this.ReadCalls++;
 
-                if (count == PageSize && this.Position == this._targetPosition)
+                if ((count == PageSize || count == WalChecksum.FrameSize) && this.Position == this._targetPosition)
                 {
                     this._targetVisits++;
                 }

@@ -1,5 +1,19 @@
 # Release notes: bounded memory management
 
+## Data-page and WAL checksums (#2935)
+
+New files use format v10. Writable v8/v9 opens automatically recover the legacy
+WAL, add page checksums, and durably publish v10 before accepting writes.
+Read-only legacy opens preserve their files. Older engines refuse v10, so keep a
+backup before writable open if backward compatibility is required.
+
+Recovery validates salted WAL frame checksums, transaction page counts/digests,
+and commit order. Missing, torn, or stale frames discard the incomplete transaction
+and its dependent tail; `$database.recoveryDiscardedWalBytes` reports the loss.
+Checkpointed data pages also have checksums and fail explicitly when damaged.
+Plain and encrypted files use the same validation. See the
+[format, conversion, and recovery details](page-and-wal-checksums.md).
+
 ## `BsonValue` CLR collection compatibility
 
 `new BsonValue(object)` now supports CLR arrays, lists, and dictionaries as

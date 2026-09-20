@@ -35,13 +35,20 @@ this fork is `JKamsker/LiteDB` (remote `origin`). Issues are tracked upstream, s
 `-R litedb-org/LiteDB` when searching or viewing them.
 
 ## Vector File Compatibility
-Ordinary files remain on format v8 and open without migration. The first vector
-write durably promotes the header to v9 before vector pages can enter the WAL;
-rollback, WAL replay, and checkpoint must never downgrade it. `Upgrade=true`
-continues to rebuild v7 files before applying read-only access. Durable flushes
-must reach the underlying file through encryption and caller-stream wrappers. Run `python3 scripts/test-vector-compatibility.py`
-to verify ordinary v8 round trips and vector-file rejection by LiteDB 5.0.21,
-including encrypted files. See `docs/vector-query-compatibility.md` for semantics.
+New files use format v10 with data-page and WAL checksums. Writable v8/v9 opens
+recover/checkpoint the legacy WAL, checksum existing pages, sync them, and only
+then durably publish v10. Read-only legacy opens preserve their bytes. `Upgrade=true`
+continues to rebuild v7 files before applying read-only access. Data checksums use
+bytes 14..17 (the unused persisted transaction ID); WAL frames append 64 plaintext
+metadata bytes and keep logical 8192-byte page addresses. Rotate the WAL salt only
+after checkpointed data is durable and before recycling log positions. Never
+rewrite an unconfirmed slot before the latest confirmation. Recovery validates
+frame CRCs, transaction counts/digests, and commit sequence before publishing;
+rebuild must use the same verifier. Flushes must reach the underlying file through
+encryption, caller-stream, and checksum wrappers. Run
+`python3 scripts/test-vector-compatibility.py` for legacy read-only compatibility,
+automatic conversion, and old-engine rejection, including encrypted files.
+See `docs/page-and-wal-checksums.md` and `docs/vector-query-compatibility.md`.
 
 ## Query Frontends
 LINQ and SQL share `BsonExpressionFactory`; LINQ bindings must construct nodes

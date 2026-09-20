@@ -83,6 +83,8 @@ namespace LiteDB.Engine
                 // clear cache
                 _disk.Cache.Clear();
 
+                // Invalidate the old generation only after checkpoint synced data.
+                _disk.RotateWalSalt();
                 // clear log file (sync)
                 _disk.SetLength(0, FileOrigin.Log);
             }
@@ -202,8 +204,10 @@ namespace LiteDB.Engine
             var positions = new Dictionary<long, List<PagePosition>>();
             var current = 0L;
 
-            // read all pages to get confirmed transactions (do not read page content, only page header)
-            foreach (var buffer in _disk.ReadFull(FileOrigin.Log))
+            var recovery = new WalRecovery();
+            var pages = _disk.ReadFull(FileOrigin.Log);
+            if (_disk.ChecksumsEnabled) pages = recovery.Read(pages);
+            foreach (var buffer in pages)
             {
                 if(buffer.IsBlank())
                 {
@@ -261,6 +265,10 @@ namespace LiteDB.Engine
                 }
 
                 current += PAGE_SIZE;
+            }
+            if (_disk.ChecksumsEnabled)
+            {
+                _disk.FinishWalRecovery(recovery);
             }
         }
 
@@ -369,13 +377,19 @@ namespace LiteDB.Engine
                 }
             }
 
-            _disk.SyncLogBeforeCheckpoint();
-
-            // write all log pages into data file (sync)
-            _disk.WriteDataDisk(source());
-
-            // clear log file, clear wal index, memory cache,
-            this.Clear();
+            try
+            {
+                _disk.SyncLogBeforeCheckpoint();
+                _disk.WriteDataDisk(source());
+                this.Clear();
+            }
+            catch (Exception ex)
+            {
+                // A generation-header write or sync may have reached storage.
+                // Never accept another commit with an uncertain generation.
+                _disk.StopAfterCheckpointFailure(ex);
+                throw;
+            }
 
             return counter;
         }

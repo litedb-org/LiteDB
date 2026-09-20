@@ -1,4 +1,4 @@
-﻿using LiteDB.Engine;
+using LiteDB.Engine;
 using System;
 using System.Reflection;
 using System.Text;
@@ -41,6 +41,8 @@ namespace LiteDB
         public const int ENGINE_DISPOSED = 137;
         /// <summary>The file header declares an unsupported engine format.</summary>
         public const int UNSUPPORTED_FILE_VERSION = 138;
+        /// <summary>A persisted page or WAL frame failed checksum validation.</summary>
+        public const int CHECKSUM_MISMATCH = 139;
 
         public const int INVALID_FORMAT = 200;
         public const int DOCUMENT_MAX_DEPTH = 201;
@@ -128,7 +130,7 @@ namespace LiteDB
         internal static LiteException UnsupportedFileVersion(byte version)
         {
             return new LiteException(UNSUPPORTED_FILE_VERSION,
-                "Database format version {0} is unsupported. This engine reads versions 8 and 9; use a compatible LiteDB engine.", version);
+                "Database format version {0} is unsupported. This engine reads versions 8, 9 and 10; use a compatible LiteDB engine.", version);
         }
 
         internal static LiteException FileSizeExceeded(long limit)

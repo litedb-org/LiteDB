@@ -33,6 +33,8 @@ namespace LiteDB.Engine
                 ["dataFileSize"] = (int)_disk.GetFileLength(FileOrigin.Data),
                 ["logFileSize"] = (int)_disk.GetFileLength(FileOrigin.Log),
                 ["durableLogFlush"] = _disk.IsLogFlushDurable,
+                ["checksums"] = _disk.ChecksumsEnabled,
+                ["recoveryDiscardedWalBytes"] = _disk.DiscardedWalBytes,
 
                 ["currentReadVersion"] = _walIndex.CurrentReadVersion,
                 ["lastTransactionID"] = _walIndex.LastTransactionID,

@@ -85,7 +85,7 @@ namespace LiteDB
         /// survives power loss and operating system crashes, at about one device sync per commit. Set to false for
         /// the behaviour before 6.0: commits are handed to the operating system only, which is much faster for many
         /// small transactions and still survives a process crash, but a power loss or operating system crash can lose
-        /// the most recent commits or, rarely, leave them partially applied. Not stored in the data file (default: true)
+        /// the most recent commits. Checksums prevent partial WAL transactions from being recovered. Not stored in the data file (default: true)
         /// </summary>
         public bool DurableCommits { get; set; } = true;
 

@@ -147,9 +147,16 @@ namespace LiteDB.Engine
                 _walIndex = new WalIndexService(_disk, _locker);
 
                 // if exists log file, restore wal index references (can update full _header instance)
-                if (_disk.GetFileLength(FileOrigin.Log) > 0)
+                if (_disk.GetFileLength(FileOrigin.Log) > 0 || _disk.ChecksumsEnabled)
                 {
                     _walIndex.RestoreIndex(ref _header);
+                }
+
+                if (!_settings.ReadOnly && !_disk.ChecksumsEnabled)
+                {
+                    _walIndex.Checkpoint();
+                    _walIndex.Clear();
+                    _disk.EnableChecksums(ref _header);
                 }
 
                 // initialize sort temp disk
