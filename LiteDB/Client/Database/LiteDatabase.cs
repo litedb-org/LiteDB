@@ -260,11 +260,7 @@ namespace LiteDB
         {
             if (command == null) throw new ArgumentNullException(nameof(command));
 
-            var tokenizer = new Tokenizer(command);
-            var sql = new SqlParser(_engine, tokenizer, parameters);
-            var reader = sql.Execute();
-
-            return reader;
+            return this.ExecuteSql(command, parameters);
         }
 
         /// <summary>

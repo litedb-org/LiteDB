@@ -33,10 +33,10 @@ namespace VectorCompatibility.Current
                         if (mode == "ordinary") docs.Insert(new BsonDocument { ["_id"] = 2, ["value"] = "current" });
                         else if (mode == "promote")
                         {
-                            if (docs.Count() != 3) throw new Exception("Ordinary round trip lost documents");
+                            if (docs.Count() != 2) throw new Exception("Ordinary round trip lost documents");
                             docs.Insert(new BsonDocument { ["_id"] = 4, ["Embedding"] = new BsonVector(new[] { 1f, 0f }) });
                         }
-                        else if (docs.Count() != 4 || !docs.FindById(4)["Embedding"].IsVector)
+                        else if (docs.Count() != 3 || !docs.FindById(4)["Embedding"].IsVector)
                         {
                             throw new Exception("Promotion lost data");
                         }
@@ -53,7 +53,7 @@ namespace VectorCompatibility.Current
                 });
                 if (mode == "ordinary") ordinary.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "current" });
                 else if (mode == "promote") ordinary.GetCollection("empty").EnsureIndex("vector", "$.Embedding", new VectorIndexOptions(2));
-                else if (ordinary.GetCollection("docs").Count() != 2) throw new Exception("Empty index promotion lost ordinary data");
+                else if (ordinary.GetCollection("docs").Count() != 1) throw new Exception("Empty index promotion lost ordinary data");
             }
             Console.WriteLine("Current engine: " + args[0] + " passed (plain and encrypted)");
         }

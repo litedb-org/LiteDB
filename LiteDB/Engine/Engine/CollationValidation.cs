@@ -11,14 +11,16 @@ namespace LiteDB.Engine
 
         private void ValidateCollationStamp()
         {
+            if (_header.Pragmas.IndexOrderVersion > EnginePragmas.INDEX_ORDER_VERSION)
+                throw CollationMismatch();
             var stored = _header.Pragmas.CollationStamp;
             if (stored != 0 && stored != CollationFingerprint.Compute(_header.Pragmas.Collation))
                 throw CollationMismatch();
         }
 
-        private void ValidateLegacyCollation()
+        private void ValidateLegacyCollation(bool migrating = false)
         {
-            if (_header.Pragmas.CollationStamp != 0) return;
+            if (!migrating && _header.Pragmas.CollationStamp != 0) return;
             // Legacy files have no runtime signature. Validate their actual level-zero
             // ordering before admitting any query or write, without modifying the file.
             var transaction = _monitor.GetTransaction(true, true, out _);
@@ -48,7 +50,7 @@ namespace LiteDB.Engine
                 }
                 // Inspect every index first: later structural corruption must keep
                 // its corruption diagnostic and explicitly requested recovery path.
-                if (incompatible) throw CollationMismatch();
+                if (incompatible && !migrating) throw CollationMismatch();
             }
             finally { _monitor.ReleaseTransaction(transaction); }
         }

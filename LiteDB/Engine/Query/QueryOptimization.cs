@@ -69,6 +69,8 @@ namespace LiteDB.Engine
             // define IncludeBefore + IncludeAfter
             this.DefineIncludes();
 
+            this.DefineRowAggregate();
+
             return _queryPlan;
         }
 
@@ -94,11 +96,16 @@ namespace LiteDB.Engine
                 }
                 else if (predicate.Type == BsonExpressionType.And)
                 {
+                    if (TryEvaluateBoolean(predicate.Right, out var right) && !right)
+                    {
+                        _terms.Add(predicate); // Preserve evaluation of the left before false.
+                        return;
+                    }
                     var left = predicate.Left;
-                    var right = predicate.Right;
+                    var rhs = predicate.Right;
 
                     add(left);
-                    add(right);
+                    add(rhs);
                 }
                 else
                 {
@@ -107,9 +114,16 @@ namespace LiteDB.Engine
             }
 
             // check all where predicate for AND operators
-            foreach(var predicate in _query.Where)
+            foreach(var original in _query.Where)
             {
-                add(predicate);
+                if (original.UseSource) { add(original); continue; }
+                var predicate = this.SimplifyPredicate(original, out var constant);
+                if (!constant.HasValue) add(predicate);
+                else if (!constant.Value)
+                {
+                    if (_terms.Count == 0) _constantFalse = true;
+                    else _terms.Add(predicate);
+                }
             }
         }
 
@@ -130,7 +144,7 @@ namespace LiteDB.Engine
                     term.Type == BsonExpressionType.Equal &&
                     term.Right?.Type == BsonExpressionType.Path)
                 {
-                    _terms[i] = BsonExpression.Create(term.Right.Source + " IN ARRAY(" + term.Left.Source + ")", term.Parameters);
+                    _terms[i] = this.NormalizeContainsTerm(term);
                 }
             }
         }
@@ -175,6 +189,7 @@ namespace LiteDB.Engine
         {
             // selected expression to be used as index (from _terms)
             BsonExpression selected = null;
+            IReadOnlyCollection<BsonExpression> consumed = null;
 
             // if index are not defined yet, get index
             if (_queryPlan.Index == null)
@@ -209,6 +224,7 @@ namespace LiteDB.Engine
 
                     // get selected expression used as index
                     selected = indexCost?.Expression;
+                    consumed = indexCost?.ConsumedExpressions;
                 }
             }
             else
@@ -219,97 +235,15 @@ namespace LiteDB.Engine
             }
 
             // if is only 1 field to deserialize and this field are same as index, use IndexKeyOnly = rue
-            if (!(_queryPlan.Index is VectorIndexQuery) && _queryPlan.Fields.Count == 1 && _queryPlan.IndexExpression == "$." + _queryPlan.Fields.First())
+            if (!(_queryPlan.Index is VectorIndexQuery) && _queryPlan.Fields.Count == 1 && IsFieldIndex(_queryPlan.IndexExpression, _queryPlan.Fields.First()))
             {
                 // best choice - no need lookup for document (use only index)
                 _queryPlan.IsIndexKeyOnly = true;
             }
 
             // fill filter using all expressions (remove selected term used in Index)
-            _queryPlan.Filters.AddRange(_terms.Where(x => x != selected && !_fusedTerms.Contains(x)));
-        }
-
-        /// <summary>
-        /// Try select index based on lowest cost or GroupBy/OrderBy reuse - use this priority order:
-        /// - Get lowest index cost used in WHERE expressions (will filter data)
-        /// - If there is no candidate, try get:
-        ///     - Same of GroupBy
-        ///     - Same of OrderBy
-        ///     - Prefered single-field (when no lookup neeed)
-        /// </summary>
-        private IndexCost ChooseIndex(HashSet<string> fields)
-        {
-            // Indexes contain stored reference stubs, not the documents resolved by INCLUDE.
-            // They cannot filter or order values from fields that an include replaces.
-            var indexes = _snapshot.CollectionPage.GetCollectionIndexes()
-                .Where(x => x.IndexType == 0 &&
-                    !_query.Includes.Any(include => IncludeChangesIndex(include, x.BsonExpr)))
-                .ToArray();
-
-            // if query contains a single field used, give preferred if this index exists
-            var preferred = fields.Count == 1 ? "$." + fields.First() : null;
-
-            // otherwise, check for lowest index cost
-            IndexCost lowest = null;
-            var ranges = new List<IndexCost>();
-
-            // test all possible predicates in terms
-            foreach (var expr in _terms.Where(x => x.IsPredicate))
-            {
-                ENSURE(expr.Left != null && expr.Right != null, "predicate expression must has left/right expressions");
-
-                Tuple<CollectionIndex, BsonExpression> index = null;
-
-                // check if expression is ANY
-                if (expr.Left.IsScalar == false && expr.Right.IsScalar == true)
-                {
-                    // ANY expression support only LEFT (Enum) -> RIGHT (Scalar)
-                    if (expr.IsANY)
-                    {
-                        index = indexes
-                            .Where(x => x.Expression == expr.Left.Source && expr.Right.IsValue)
-                            .Select(x => Tuple.Create(x, expr.Right))
-                            .FirstOrDefault();
-                    }
-                    // ALL are not supported in index
-                }
-                else
-                {
-                    index = indexes
-                        .Where(x => x.Expression == expr.Left.Source && expr.Right.IsValue)
-                        .Select(x => Tuple.Create(x, expr.Right))
-                        .Union(indexes
-                            .Where(x => x.Expression == expr.Right.Source && expr.Left.IsValue)
-                            .Select(x => Tuple.Create(x, expr.Left))
-                        ).FirstOrDefault();
-                }
-
-                // get index that match with expression left/right side 
-
-                if (index == null) continue;
-
-                // calculate index score and store highest score
-                var current = new IndexCost(index.Item1, expr, index.Item2, _collation);
-
-                lowest = this.SelectLowest(lowest, current, ranges);
-            }
-
-            // if no index found, try use same index in orderby/groupby/preferred
-            if (lowest == null && (_query.OrderBy.Count > 0 || _query.GroupBy != null || preferred != null))
-            {
-                var orderByExpr = _query.OrderBy.Count > 0 ? _query.OrderBy[0].Expression.Source : null;
-                var index =
-                    indexes.FirstOrDefault(x => x.Expression == _query.GroupBy?.Source) ??
-                    indexes.FirstOrDefault(x => x.Expression == orderByExpr) ??
-                    indexes.FirstOrDefault(x => x.Expression == preferred);
-
-                if (index != null)
-                {
-                    lowest = new IndexCost(index);
-                }
-            }
-
-            return this.FuseRanges(lowest, ranges);
+            _queryPlan.Filters.AddRange(_terms.Where(x => x != selected && (consumed == null || !consumed.Contains(x))));
+            if (_constantFalse) this.UseEmptyInput();
         }
 
         #endregion
@@ -345,7 +279,8 @@ namespace LiteDB.Engine
             var orderBy = new OrderBy(segments);
 
             // if index expression are same as primary OrderBy segment, use index order configuration
-            if (!orderBy.PrimaryExpression.RequiresExactSort && !(_queryPlan.Index is VectorIndexQuery) && orderBy.PrimaryExpression.Source == _queryPlan.IndexExpression)
+            if (!orderBy.PrimaryExpression.RequiresExactSort && !(_queryPlan.Index is VectorIndexQuery) &&
+                MatchesStoredIndex(_queryPlan.IndexExpression, orderBy.PrimaryExpression))
             {
                 _queryPlan.Index.Order = orderBy.PrimaryOrder;
 
@@ -377,7 +312,7 @@ namespace LiteDB.Engine
             var groupOrderBy = (OrderBy)null;
 
             // if groupBy use same expression in index, no additional ordering is required before grouping
-            if (!(_queryPlan.Index is VectorIndexQuery) && expression.Source == _queryPlan.IndexExpression)
+            if (!(_queryPlan.Index is VectorIndexQuery) && IndexExpressionIdentity.Matches(_queryPlan.IndexExpression, expression))
             {
                 // index already provides grouped ordering
             }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
@@ -25,6 +25,7 @@ namespace LiteDB.Engine
         /// </summary>
         public const byte FILE_VERSION = 8;
         public const byte VECTOR_FILE_VERSION = 9;
+        public const byte INDEX_FILE_VERSION = 10;
         private volatile byte _fileVersion;
         public byte FileVersion => _fileVersion;
 
@@ -101,9 +102,9 @@ namespace LiteDB.Engine
             // initialize pragmas
             this.Pragmas = new EnginePragmas(this);
 
-            // Initialize persisted identity fields; vector writes may later promote the version.
+            // New comparer ordering requires a downgrade barrier even without vectors.
             _buffer.Write(HEADER_INFO, P_HEADER_INFO);
-            this.EnsureVersion(FILE_VERSION);
+            this.EnsureVersion(INDEX_FILE_VERSION);
             _buffer.Write(this.CreationTime, P_CREATION_TIME);
 
             // initialize collections
@@ -133,7 +134,7 @@ namespace LiteDB.Engine
                 throw LiteException.InvalidDatabase();
             }
 
-            if (ver != FILE_VERSION && ver != VECTOR_FILE_VERSION) throw LiteException.UnsupportedFileVersion(ver);
+            if (ver != FILE_VERSION && ver != VECTOR_FILE_VERSION && ver != INDEX_FILE_VERSION) throw LiteException.UnsupportedFileVersion(ver);
             _fileVersion = Math.Max(_fileVersion, ver); // Loading must not mutate a readable page.
 
             // CreateTime is readonly

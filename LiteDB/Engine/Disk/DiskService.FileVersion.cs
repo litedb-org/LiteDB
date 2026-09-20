@@ -10,13 +10,17 @@ namespace LiteDB.Engine
 
         /// <summary>
         /// Publish the vector format before any vector bytes can enter the WAL.
-        /// The caller holds the header lock and an active write transaction, which
-        /// excludes checkpoint. Only the persisted header is copied: uncommitted
-        /// header fields must never be written directly to the data file.
         /// </summary>
-        internal void PromoteVectorFormat()
+        internal void PromoteVectorFormat() => this.PromoteFileFormat(HeaderPage.VECTOR_FILE_VERSION);
+
+        /// <summary>
+        /// Writes hold the header lock and an active transaction; startup migration
+        /// owns the disk exclusively. Only the persisted header is copied, never
+        /// uncommitted header fields. Flush before publishing dependent WAL pages.
+        /// </summary>
+        internal void PromoteFileFormat(byte version)
         {
-            if (FileVersion >= HeaderPage.VECTOR_FILE_VERSION) return;
+            if (FileVersion >= version) return;
             var stream = _dataPool.Writer.Value;
             lock (stream)
             {
@@ -30,16 +34,17 @@ namespace LiteDB.Engine
                     read += count;
                 }
                 if (header[HeaderPage.P_FILE_VERSION] != HeaderPage.FILE_VERSION &&
-                    header[HeaderPage.P_FILE_VERSION] != HeaderPage.VECTOR_FILE_VERSION)
+                    header[HeaderPage.P_FILE_VERSION] != HeaderPage.VECTOR_FILE_VERSION &&
+                    header[HeaderPage.P_FILE_VERSION] != HeaderPage.INDEX_FILE_VERSION)
                 {
                     throw LiteException.UnsupportedFileVersion(header[HeaderPage.P_FILE_VERSION]);
                 }
-                header[HeaderPage.P_FILE_VERSION] = HeaderPage.VECTOR_FILE_VERSION;
+                header[HeaderPage.P_FILE_VERSION] = version;
                 stream.Position = 0;
                 // A full page also works with encrypted streams; all other header fields are preserved.
                 stream.Write(header, 0, header.Length);
                 stream.FlushToDisk();
-                FileVersion = HeaderPage.VECTOR_FILE_VERSION;
+                FileVersion = version;
             }
         }
 

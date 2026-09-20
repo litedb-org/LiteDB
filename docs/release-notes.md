@@ -1,5 +1,15 @@
 # Release notes: bounded memory management
 
+## Index ordering migration (format v10)
+
+New files use v10. Writable opens automatically migrate v8/v9 indexes for corrected
+nested collation, unsigned ObjectId, canonical document and exact numeric ordering.
+Read-only files needing migration must first be opened writable. Unique-key
+collisions abort before changing data or WAL. Computed/multikey keys regenerate
+from documents; scalar member-path indexes reuse their pages. Old readers reject
+v10, and interrupted migrations resume through WAL recovery. Migration can require
+substantial temporary/WAL space. See [the compatibility contract](collation-runtime-compatibility.md).
+
 ## `BsonValue` CLR collection compatibility
 
 `new BsonValue(object)` now supports CLR arrays, lists, and dictionaries as

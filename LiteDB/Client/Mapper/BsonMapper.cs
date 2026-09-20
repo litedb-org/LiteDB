@@ -162,16 +162,17 @@ namespace LiteDB
             return new EntityBuilder<T>(this, _typeNameBinder);
         }
 
-        #region Get LinqVisitor processor
+        #region LINQ expression translation
+
+        private readonly LinqExpressionCache _linqExpressionCache = new LinqExpressionCache();
+        internal int LinqExpressionCacheCount => _linqExpressionCache.Count;
 
         /// <summary>
         /// Resolve LINQ expression into BsonExpression
         /// </summary>
         public BsonExpression GetExpression<T, K>(Expression<Func<T, K>> predicate)
         {
-            var visitor = new LinqExpressionVisitor(this, predicate);
-
-            var expr = visitor.Resolve(typeof(K) == typeof(bool));
+            var expr = _linqExpressionCache.Resolve(this, predicate, typeof(K) == typeof(bool));
 
             LOG($"`{predicate.ToString()}` -> `{expr.Source}`", "LINQ");
 
@@ -183,9 +184,7 @@ namespace LiteDB
         /// </summary>
         public BsonExpression GetIndexExpression<T, K>(Expression<Func<T, K>> predicate)
         {
-            var visitor = new LinqExpressionVisitor(this, predicate);
-
-            var expr = visitor.Resolve(false);
+            var expr = _linqExpressionCache.Resolve(this, predicate, false);
 
             LOG($"`{predicate.ToString()}` -> `{expr.Source}`", "LINQ");
 

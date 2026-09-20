@@ -108,7 +108,6 @@ namespace LiteDB.Engine
                 // read header database page
                 _header = new HeaderPage(buffer);
                 _disk.FileVersion = _header.FileVersion;
-                _disk.TrimTrailingPages();
 
                 // if database is set to invalid state, need rebuild
                 if (buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0 && _settings.AutoRebuild)
@@ -162,7 +161,8 @@ namespace LiteDB.Engine
                 // initialize transaction monitor as last service
                 _monitor = new TransactionMonitor(_header, _locker, _disk, _walIndex, _settings.TransactionPageLimit);
 
-                this.ValidateLegacyCollation();
+                this.MigrateIndexOrdering();
+                _disk.TrimTrailingPages();
 
                 // register system collections
                 this.InitializeSystemCollections();

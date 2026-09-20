@@ -16,6 +16,11 @@ namespace LiteDB.Engine
         private readonly bool _startEquals;
         private readonly bool _endEquals;
 
+        internal BsonValue Start => _start;
+        internal BsonValue End => _end;
+        internal bool StartEquals => _startEquals;
+        internal bool EndEquals => _endEquals;
+
         public IndexRange(string name, BsonValue start, BsonValue end, bool startEquals, bool endEquals, int order)
             : base(name, order)
         {
@@ -55,6 +60,12 @@ namespace LiteDB.Engine
 
         public override IEnumerable<IndexNode> Execute(IndexService indexer, CollectionIndex index)
         {
+            // Validate before emitting duplicate start keys. BETWEEN can reach
+            // this scan directly without passing through interval normalization.
+            var boundsComparison = _start.CompareTo(_end, indexer.Collation);
+            if (boundsComparison > 0 || (boundsComparison == 0 && (!_startEquals || !_endEquals)))
+                yield break;
+
             // if order are desc, swap start/end values
             var start = this.Order == Query.Ascending ? _start : _end;
             var end = this.Order == Query.Ascending ? _end : _start;
@@ -71,7 +82,7 @@ namespace LiteDB.Engine
             var first = 
                 start.Type == BsonType.MinValue ? indexer.GetNode(index.Head) :
                 start.Type == BsonType.MaxValue ? indexer.GetNode(index.Tail) :
-                indexer.Find(index, start, true, this.Order);
+                indexer.Find(index, start, true, this.Order, skipEqual: !startEquals);
 
             var node = first;
 

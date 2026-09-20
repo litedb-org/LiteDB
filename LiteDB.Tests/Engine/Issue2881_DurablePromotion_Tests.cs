@@ -23,54 +23,49 @@ namespace LiteDB.Tests.Engine
         [Theory]
         [InlineData(null)]
         [InlineData("password")]
-        public void Promotion_durably_flushes_through_caller_stream_wrappers_before_commit(string password)
+        public void Migration_durably_flushes_through_caller_stream_wrappers(string password)
         {
             using var file = new TempFile();
+            CreateLegacy(file.Filename, password);
             using var stream = new TrackingFileStream(file.Filename);
-            using var engine = new LiteEngine(new EngineSettings { DataStream = stream, Password = password });
+            using var log = new MemoryStream();
+            using var engine = new LiteEngine(new EngineSettings { DataStream = stream, LogStream = log, Password = password });
+            stream.DurableFlushes.Should().BeGreaterThan(0);
             using var db = new LiteDatabase(engine, disposeOnClose: false);
-            var docs = db.GetCollection("docs");
-            docs.Insert(new BsonDocument { ["_id"] = 1 });
-            db.Checkpoint();
-            db.BeginTrans();
-            var before = stream.DurableFlushes;
-            docs.Insert(new BsonDocument { ["_id"] = 2, ["vector"] = new BsonVector(new[] { 1f, 0f }) });
-            stream.DurableFlushes.Should().BeGreaterThan(before, "promotion must reach FileStream.Flush(true) before vector commit");
-            db.Rollback();
+            db.GetCollection("docs").Count().Should().Be(1);
         }
 
         [Theory]
         [InlineData(null)]
         [InlineData("password")]
-        public void Failed_durable_flush_aborts_promotion_without_committing_vectors(string password)
+        public void Failed_durable_flush_aborts_migration_before_wal_writes(string password)
         {
             using var file = new TempFile();
+            CreateLegacy(file.Filename, password);
             using var stream = new TrackingFileStream(file.Filename);
             using var log = new MemoryStream();
             var settings = new EngineSettings { DataStream = stream, LogStream = log, Password = password };
-            using (var engine = new LiteEngine(settings))
-            using (var db = new LiteDatabase(engine, disposeOnClose: false))
-            {
-                var docs = db.GetCollection("docs");
-                docs.Insert(new BsonDocument { ["_id"] = 1 });
-                db.Checkpoint();
-                var writesBeforeFlushFailure = 0;
-                engine.SimulateDiskWriteFail = page =>
-                {
-                    if (!stream.FlushFailed) writesBeforeFlushFailure++;
-                };
-                stream.HeaderOffset = password == null ? 0 : Constants.PAGE_SIZE;
-                stream.FailDurableFlush = true;
-                Action insert = () => docs.Insert(new BsonDocument
-                {
-                    ["_id"] = 2, ["vector"] = new BsonVector(new[] { 1f, 0f })
-                });
-                insert.Should().Throw<IOException>().WithMessage("Injected durable flush failure");
-                writesBeforeFlushFailure.Should().Be(0, "vector pages must not reach the WAL before promotion is durable");
-            }
+            stream.HeaderOffset = password == null ? 0 : Constants.PAGE_SIZE;
+            stream.FailDurableFlush = true;
+            Action open = () => { using var engine = new LiteEngine(settings); };
+            open.Should().Throw<IOException>().WithMessage("Injected durable flush failure");
+            stream.FlushFailed.Should().BeTrue();
+            log.Length.Should().Be(0, "migration pages must not reach the WAL before promotion is durable");
             using var reopenedEngine = new LiteEngine(settings);
             using var reopened = new LiteDatabase(reopenedEngine, disposeOnClose: false);
             reopened.GetCollection("docs").FindAll().Select(x => x["_id"].AsInt32).Should().Equal(1);
+        }
+
+        private static void CreateLegacy(string filename, string password)
+        {
+            using (var db = IndexMigration_Tests.Open(filename, password))
+                db.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1 });
+            IndexMigration_Tests.RewriteHeaders(filename, password, header =>
+            {
+                header[HeaderPage.P_FILE_VERSION] = 8;
+                header[EnginePragmas.P_INDEX_ORDER_VERSION] = 0;
+                Array.Clear(header, EnginePragmas.P_COLLATION_STAMP, 4);
+            });
         }
 
         private sealed class TrackingFileStream : FileStream
@@ -82,7 +77,7 @@ namespace LiteDB.Tests.Engine
             private bool _headerWritten;
 
             internal TrackingFileStream(string filename)
-                : base(filename, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite) { }
+                : base(filename, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite) { }
 
             public override void Write(byte[] buffer, int offset, int count)
             {

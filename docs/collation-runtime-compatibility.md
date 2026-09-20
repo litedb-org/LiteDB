@@ -1,87 +1,91 @@
-# Collation runtime compatibility
+# Persisted index ordering and runtime compatibility
 
-Culture-sensitive string indexes depend on the runtime's sort tables, not just
-the stored culture and comparison options. Moving a file between ICU, NLS,
-invariant globalization, or sort-table versions can change index ordering and
-uniqueness. LiteDB now rejects a detected mismatch before admitting queries or
-writes, with rebuild guidance. A collation mismatch does not trigger automatic rebuild or discard rows that
-become equal under a new comparer.
+PR #2924 changes persisted comparison rules. Existing skip lists can produce
+incorrect seeks and ranges under the new comparer even though their page layout
+is readable. This requires a file-format boundary, not just a package version bump.
 
-New and rebuilt files on runtimes with sort-version support store a 32-bit hash in reserved header bytes 92–95. The hash
-covers comparison options, culture, runtime sort version/ID, comparison probes,
-and BSON value-ordering revisions.
-Pure Ordinal comparison has a runtime-independent signature. Ordinary files stay
-on format v8; vector files stay on v9. No WAL identity bytes are reused. Checks
-apply to the data header and the recovered WAL header. Ordinary opening and collation validation do not rewrite the stamp.
-Existing explicitly requested `AutoRebuild=true` recovery of files marked corrupt
-still rebuilds before opening (also with `ReadOnly=true`). That recovery regenerates
-indexes from records using the current comparer; conflicting unique keys abort
-before the replacement is installed. Keep its backup and inspect recovery errors.
+New databases use **format v10**, including databases without vectors. Writable
+opens of v8/v9 databases automatically migrate their indexes before exposing the
+connection. Read-only opens requiring migration fail with instructions to open
+writable once. `Upgrade=true` retains the separate v7 rebuild/backup path, including
+explicit v7 upgrades requested together with `ReadOnly=true`.
 
-Legacy files with a zero stamp have every ordinary index traversed at level zero
-before the engine opens. Non-monotonic keys or equal keys in a unique index cause
-the same rejection. This scan is read-only and costs time proportional to the
-index entries on every open, including shared-mode opens. Runtimes without a
-sort-version implementation (such as Mono 6.12) also use this zero-stamp path.
-Rebuild a legacy file
-in its original environment to create a stamped file and avoid repeated scans.
+## Automatic migration
 
-For a culture-only runtime change, open the database in its original compatible environment and
-call `Rebuild(new RebuildOptions { Password = existingPassword,
-Collation = Collation.Binary })`, then move the data file. `Collation.Binary` uses
-the invariant culture with Ordinal comparison. Changing collation can change
-application query semantics; alternatively export records in the original
-environment and import them into a new database in the destination environment.
-Keep the rebuild backup and resolve any target unique-key conflicts explicitly.
-A mismatch cannot be repaired by calling `Rebuild()` on a rejected connection.
+The engine restores confirmed WAL transactions, validates index chains, evaluates
+index expressions from the original BSON documents, and checks all unique keys
+with the current comparer. Unique-key collisions or expression errors stop this
+preflight before data/WAL mutation. Resolve collisions in the original compatible
+environment; migration never silently removes documents.
 
-The stamp is a compact compatibility signature, not a cryptographic integrity
-check. Older LiteDB versions ignore it and must not write the file under a
-different comparer; their writes cannot update this metadata. Damaged indexes or
-arbitrary modifications are outside this signature's guarantee. Cross-process
-validation covers ICU versus invariant globalization in both directions, with
-read-only byte preservation and duplicate-sensitive upsert controls.
+The engine then durably promotes the persisted data header to v10 **before** any
+migration pages enter the WAL. It reorders primary and proven scalar member-path skip lists while preserving
+node/data addresses and document index chains, without allocating replacement pages.
+It clears and regenerates computed and multikey BSON indexes from documents,
+retaining their sentinels, names, expressions, and uniqueness. This is conservative: a stored
+key's type cannot prove that a computed expression or multikey distinctness is unaffected. Sorting old keys alone could permanently
+omit values collapsed by the old equality rules. Simple member-path vector indexes
+are retained; computed vector indexes are regenerated with their dimensions and
+metric because comparison changes can also affect their input expressions.
 
-Nested document and array values now recursively use the configured collation.
-Legacy files with nested index keys are checked by the same ordering/uniqueness
-scan. Older comparer stamps are rejected conservatively. For incompatible value
-ordering, export records using the original compatible version and import into a
-new database here; an Ordinal rebuild does not change ObjectId ordering.
-Parameterless BSON comparisons retain binary semantics.
+All index changes and the completed ordering revision (header byte 109, currently
+1) commit in one transaction. Documents, user version, collation, encryption and
+other pragmas are retained. Revision zero means migration is still required,
+including after interrupted promotion or an unconfirmed migration transaction.
+Old WAL headers cannot lower the file version. Normal transaction WAL replay
+publishes either all rebuilt indexes or none; a retry rebuilds from the last
+committed documents. The durable version barrier remains after a failed migration.
+As with other full-page writes, torn header writes may require explicit recovery.
 
-The recursive comparer is a compatibility boundary even when the culture and
-sort options have identical names. Older releases must not read or write these
-non-Ordinal nested indexes: their binary nested comparer can return wrong results
-or create incompatible ordering/uniqueness. An older writer can preserve the new
-stamp unchanged; a matching stamp does not detect that downgrade. This reserved
-v8 metadata cannot enforce exclusion of old software. Keep files exclusively on a version with compatible value ordering. An Ordinal
-rebuild can address string-collation differences only. This limitation is not repaired by a
-successful subsequent open on the new version.
+Migration uses the temporary external sorter and transaction safepoints; it needs
+temporary disk/WAL space and can make the first writable open expensive. It does
+not create a whole-database backup. Subsequent opens use the revision and comparer
+stamp instead of repeating migration. Keep a backup before upgrading production
+files, and rehearse large migrations and unique constraints on representative copies.
 
-ObjectId timestamps and PID bytes now compare as unsigned values, matching
-their big-endian wire representation. This revision affects every collation,
-including Ordinal, so all earlier nonzero stamps are rejected. Zero-stamp legacy
-files still open if their actual indexes satisfy the current ordering; mixed
-pre/post-2038 timestamps or signed-PID boundaries may expose incompatible indexes.
-Export/import is the migration path for rejected files. Future-dated ObjectIds
-need not be generated by the system clock to be present in existing databases.
-The public signed Timestamp and Pid properties retain their original raw bits.
+## Comparer stamp and runtime changes
 
-Document values now compare their case-insensitive field names in canonical
-ordinal order, followed by the corresponding values using the selected collation.
-Insertion order no longer changes comparison, and differently named null fields
-are distinct. The comparer stamp includes this revision for every collation;
-older nonzero stamps are rejected before queries or writes. Export records with
-the original engine and import them with this engine to reconstruct affected
-indexes. Zero-stamp legacy files retain the full index-order validation described
-above. The BSON representation and ordinary v8 file format are unchanged.
+Header bytes 92–95 contain a 32-bit compatibility fingerprint covering comparison
+options, culture, runtime sort-version/ID, comparison probes, and BSON ordering
+revisions. Ordinal comparison has a runtime-independent fingerprint. Unknown
+nonzero fingerprints are rejected before trailing-page repair or query/write
+access, including fingerprints recovered from WAL. They are not silently adopted
+as part of automatic legacy migration. The fingerprint is not an integrity check.
 
-Mixed numeric comparisons now compare the exact represented binary or decimal
-values. For example, binary64 `0.1` is slightly greater than decimal `0.1`, and
-`double.Epsilon` is greater than zero. Exactly representable values such as
-`0.5`, integers, and signed zero still compare equally across numeric types.
-NaN remains below other numbers, with infinities ordered at their usual ends.
-This revision also updates every collation stamp: older nonzero stamps require
-export/import with the original/new engines, while zero-stamp files are checked
-against the new ordering. Numeric hashes use reduced exact fractions to preserve
-cross-type equality without collapsing high-precision decimals to binary64.
+Runtimes without sort-version support use zero and validate stored level-zero
+ordering on each open after migration. Explicitly requested `AutoRebuild=true`
+recovery of a file marked corrupt retains its existing recovery semantics and
+backup/error-report behavior. It can run before compatibility rejection.
+
+For a fingerprint mismatch, export with the original compatible engine and import
+with this engine. For culture-only differences, an Ordinal rebuild in the original
+environment can also prepare a portable file. A rejected connection cannot call
+`Rebuild()`. New/migrated v10 files are rejected by 5.0.21 and earlier v8/v9 readers;
+do not edit the version byte to bypass that boundary.
+
+## Changed comparisons
+
+- Nested arrays/documents recursively use the execution collation.
+- ObjectId timestamp and PID bytes compare unsigned, including across the 2038
+  timestamp boundary. Public signed properties retain their raw bits.
+- Documents compare case-insensitive field names in canonical ordinal order,
+  then corresponding values. Differently named null fields are distinct.
+- Mixed numbers compare their exact represented binary/decimal values. Binary64
+  `0.1` is greater than decimal `0.1`; exactly represented values such as `0.5`
+  remain equal across types. NaN sorts below numbers, and numeric hashes preserve
+  exact cross-type equality.
+
+## Validation
+
+Run `python3 scripts/test-index-compatibility.py` to produce real 5.0.21 fixtures
+and test current migration, indexed/scan agreement, exact parameterized seeks,
+regenerated multikey/computed keys, external sorting, collision nonmutation, and
+old-engine rejection. The matrix covers plain/encrypted files, binary/culture
+collation, and checkpointed data/confirmed WAL. Generated fixtures are not a
+substitute for a customer-data migration rehearsal.
+
+`IndexMigration_Tests` also covers v9 vector metadata, low transaction page limits,
+updates/deletes after migration, read-only behavior and interrupted promotion.
+`IndexCompatibilityValidation_Tests` covers mismatch rejection before tail repair
+for data/WAL, plain/encrypted, and read-only/writable combinations. Promotion
+failure tests cover caller streams and durable-flush failures through encryption.

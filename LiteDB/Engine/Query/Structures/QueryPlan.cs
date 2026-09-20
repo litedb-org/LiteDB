@@ -74,6 +74,8 @@ namespace LiteDB.Engine
 
         internal VectorScoreProjection VectorScore { get; set; }
 
+        internal RowAggregate RowAggregate { get; set; }
+
         /// <summary>
         /// Get fields name that will be deserialize from disk
         /// </summary>
@@ -101,6 +103,8 @@ namespace LiteDB.Engine
         /// </summary>
         public BasePipe GetPipe(TransactionService transaction, Snapshot snapshot, SortDisk tempDisk, EnginePragmas pragmas, uint maxItemsCount)
         {
+            if (this.RowAggregate != null)
+                return new IndexAggregatePipe(transaction, tempDisk, pragmas, maxItemsCount);
             if (this.GroupBy == null)
             {
                 return new QueryPipe(transaction, this.GetLookup(snapshot, pragmas, maxItemsCount), tempDisk, pragmas, maxItemsCount);
@@ -117,6 +121,7 @@ namespace LiteDB.Engine
         public IDocumentLookup GetLookup(Snapshot snapshot, EnginePragmas pragmas, uint maxItemsCount)
         {
             var data = new DataService(snapshot, maxItemsCount);
+            var indexer = new IndexService(snapshot, pragmas.Collation, maxItemsCount);
 
             if (this.Index is VectorIndexQuery vector)
             {
@@ -130,7 +135,7 @@ namespace LiteDB.Engine
             {
                 if (this.IsIndexKeyOnly)
                 {
-                    lookup = new IndexLookup(this.Fields.Single(), new DatafileLookup(data, true, this.Fields), pragmas.UtcDate);
+                    lookup = new IndexLookup(indexer, this.Fields.Single(), new DatafileLookup(data, true, this.Fields), pragmas.UtcDate);
                 }
                 else
                 {
@@ -154,7 +159,7 @@ namespace LiteDB.Engine
             {
                 ["collection"] = this.Collection,
                 ["snaphost"] = this.ForUpdate ? "write" : "read",
-                ["pipe"] = this.GroupBy == null ? "queryPipe" : "groupByPipe"
+                ["pipe"] = this.RowAggregate != null ? "indexAggregatePipe" : this.GroupBy == null ? "queryPipe" : "groupByPipe"
             };
 
             doc["index"] = new BsonDocument
@@ -168,9 +173,9 @@ namespace LiteDB.Engine
 
             doc["lookup"] = new BsonDocument
             {
-                ["loader"] = this.Index is IndexVirtual ? "virtual" : (this.IsIndexKeyOnly ? "index" : "document"),
+                ["loader"] = this.RowAggregate != null ? "none" : this.Index is IndexVirtual ? "virtual" : (this.IsIndexKeyOnly ? "index" : "document"),
                 ["fields"] =
-                    this.Fields.Count == 0 ? new BsonValue("$") :
+                    this.RowAggregate != null ? new BsonArray() : this.Fields.Count == 0 ? new BsonValue("$") :
                     (BsonValue)new BsonArray(this.Fields.Select(x => new BsonValue(x))),
             };
 

@@ -22,23 +22,6 @@ namespace VectorCompatibility.Legacy
                     });
                     legacy.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "legacy" });
                 }
-                else if (args[0] == "ordinary")
-                {
-                    foreach (var prefix in new[] { "v8-", "current-v8-" })
-                    {
-                        using var db = new LiteDatabase(new ConnectionString
-                        {
-                            Filename = Path.Combine(args[1], prefix + suffix), Password = password
-                        });
-                        var docs = db.GetCollection("docs");
-                        var count = prefix == "v8-" ? 2 : 1;
-                        if (docs.Count() != count || docs.FindById(count)["value"].AsString != "current")
-                        {
-                            throw new Exception("Current engine changed ordinary v8 compatibility");
-                        }
-                        docs.Insert(new BsonDocument { ["_id"] = count + 1, ["value"] = "legacy-again" });
-                    }
-                }
                 else
                 {
                     Refuse(Path.Combine(args[1], "v8-" + suffix), password);
@@ -70,7 +53,7 @@ namespace VectorCompatibility.Legacy
                 }
                 if (!rejected || !original.SequenceEqual(File.ReadAllBytes(file)))
                 {
-                    throw new Exception("Legacy engine must reject v9 without changing the file: " + mode);
+                    throw new Exception("Legacy engine must reject v10 without changing the file: " + mode);
                 }
             }
         }

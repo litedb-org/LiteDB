@@ -42,6 +42,8 @@ jobs:
       - name: Build
         run: dotnet build LiteDB.sln --configuration Release --no-restore /p:TestingEnabled=true
 
+      - name: Verify index migration from LiteDB 5.0.21
+        run: python3 scripts/test-index-compatibility.py
       - name: Verify vector file compatibility with LiteDB 5.0.21
         run: python3 scripts/test-vector-compatibility.py
 

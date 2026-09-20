@@ -35,10 +35,102 @@ this fork is `JKamsker/LiteDB` (remote `origin`). Issues are tracked upstream, s
 `-R litedb-org/LiteDB` when searching or viewing them.
 
 ## Vector File Compatibility
-Ordinary files remain on format v8 and open without migration. The first vector
-write durably promotes the header to v9 before vector pages can enter the WAL;
-rollback, WAL replay, and checkpoint must never downgrade it. `Upgrade=true`
-continues to rebuild v7 files before applying read-only access. Durable flushes
-must reach the underlying file through encryption and caller-stream wrappers. Run `python3 scripts/test-vector-compatibility.py`
-to verify ordinary v8 round trips and vector-file rejection by LiteDB 5.0.21,
-including encrypted files. See `docs/vector-query-compatibility.md` for semantics.
+New files use format v10. Writable opens automatically migrate v8/v9 indexes;
+read-only opens requiring migration must request a writable open first. Validate
+unique keys before mutation, durably promote the data header before migration WAL
+writes, and commit every rebuilt index with ordering revision byte 109. Rollback,
+WAL replay, and checkpoint must never downgrade the version. Re-evaluate secondary
+computed/multikey keys from documents, since old equality can have omitted keys.
+Reorder proven scalar member-path indexes in place to preserve page capacity. Preserve
+simple member-path vector indexes and rebuild computed vector expressions.
+`Upgrade=true` continues to rebuild v7 files before applying read-only access.
+Durable flushes must reach the underlying file through encryption and caller-stream
+wrappers. Run `python3 scripts/test-index-compatibility.py` and
+`python3 scripts/test-vector-compatibility.py`, including encrypted files.
+See `docs/collation-runtime-compatibility.md` and `docs/vector-query-compatibility.md`.
+
+## Query Frontends
+LINQ and SQL share `BsonExpressionFactory`; LINQ bindings must construct nodes
+without tokenizing templates or parsing generated text. Preserve canonical
+`Source` because persisted indexes and the compiled-delegate cache still use it.
+Nested evaluators must receive the caller's parameter document explicitly.
+LINQ MAP/FILTER nodes must also propagate selector immutability and source usage;
+explicit SQL MAP/FILTER retains its historical input-only metadata for those flags.
+Embed unbound nested templates in compiled delegates so caches cannot retain a
+previous caller's parameter document or large serialized values.
+Use `DirectTranslationScope` in differential tests to forbid tokenizer creation
+and bypass cached delegates. Compare production assemblies with
+`tools/QueryIrBenchmarks` (`TestingEnabled=false`); see `docs/shared-query-ir.md`.
+Automatic LINQ reuse is mapper-local and bounded. Cache keys must not retain
+closures; validate publicly mutable mapping metadata and bind current values on
+every call. Include child counts for variable-arity shape nodes so nested arrays
+and member initializers cannot alias sibling layouts. Mapping guards must verify
+the selected member, including list precedence, not just its continued presence.
+Cached CLR evaluators must read all constants from the current shape,
+preserve reflection exception semantics, and defer compilation until reuse. Structural arguments that become part of `Source` must be included
+in the key or use the uncached translator. Optimizer rewrites must use the active
+collation and must not intersect separate ANY/ALL predicates as scalar bounds.
+Validate the complete pure Boolean shape before pushing bounds into membership
+branches. Empty allowed intervals must still validate subsequent bound values,
+so throwing arithmetic and invalid bindings preserve filter fallback.
+Keep OR shape validation separate from value evaluation and preserve leaf order
+and bindings. Avoid temporary branch lists for rejected shapes. Cache only fixed
+query-local metadata, never bound values; do not bypass flat empty ranges merely
+because a primary-key candidate exists, since that can change residual errors.
+Propagate internal `IsVolatile` through every expression factory and binding;
+`IsImmutable` alone does not distinguish parameters from volatile functions.
+Preserve `IsANY` when copying predicate nodes; inspecting generated delegate text
+loses that distinction after logical rewrites.
+Persisted `CollectionIndex.BsonExpr` is lazy: ordinary reads use canonical text
+and existing index keys. Keep new-index validation eager, and evaluate through
+the property when maintaining index keys or executing vector expressions.
+Public text-expression reuse is process-wide and bounded by key count and length.
+Capture only unbound templates after successful parsing and EOF validation. Hits
+copy nodes/field sets and bind the current parameters; preserve explicitly null
+bindings. Tokenizer parser entry points must still consume their input. Bypass
+parsed-template reuse when tests disable compilation caching.
+SQL SELECT templates are database-local and bounded by statement count and length.
+Retain only a key on first use; promote recurring statements to unbound templates.
+Copy all SQL clauses and bind current parameters for every hit. Cache no physical
+plans, result data, engine state, or caller parameter documents. TextReader input
+keeps its streaming parser path. Bound root projections must preserve GROUP BY
+semantics without requiring singleton identity or overwriting caller predicate parameters.
+Built-in aggregate templates need independent parameter bindings because GROUP BY
+writes its key into the parameter document.
+Query replay addresses are lookup-specific: `IndexLookup` uses an index node
+position, while `DatafileLookup` uses a data block. Keep `RawId` consistent with
+the loader that receives it during sort/aggregate replay.
+Only set `Index.SingleKeyPerDocument` after matching a scalar IR expression or a
+canonically escaped scalar root-field path to the stored index definition. Raw
+field names can resemble multikey/computed paths; use the shared path formatter.
+Multikey and unproven scans still need document address deduplication.
+Secondary-index queries opened for update also need that tracking: changing a
+scalar or unique key can move the same document into a later scan interval.
+When adding index access paths, test key-moving UpdateMany operations as well as
+read order, duplicate keys, page release, and rollback.
+Case-insensitive index identity requires a proven scalar MEMBER_PATH chain rooted
+in the document, with literal member names and bounded depth. Root-only index
+lookups still require a canonically escaped root-field path.
+Never compare arbitrary expression text ignoring case: string literals inside
+computed expressions can be case-sensitive even though BSON field lookup is not.
+INCLUDE can replace stored members, including reference metadata supplied by a
+referenced document. Do not consume filters or sorting with indexes on affected
+paths; retain index use for proven disjoint member paths.
+Use the same INCLUDE dependency check for Boolean range and common-guard index
+candidates. A shared leading guard is only necessary, so retain the original OR
+filter when it still reads resolved reference members.
+Boolean predicate results share only plain immutable Boolean BsonValues. Keep
+projected containers and current parameter documents independent; retain short
+circuits and required type errors when changing Boolean evaluation.
+LIKE character comparisons use one-code-unit ranges with the execution collation.
+Do not replace them with ordinal comparisons or absorb adjacent surrogate/combining
+characters. LIKE must consume the whole value, distinguish literal NUL from pattern
+exhaustion, and make input progress on wildcard retries. A terminal percent accepts
+the remaining input immediately. Check wildcard changes against the independent
+test reference, including underscore after percent and repeated trailing characters.
+Temporary sort keys use the same extended string/binary length headers as index
+pages. Decode them with `ExtendedLengthHelper`; lengths describe UTF-8 bytes,
+not characters, and valid key payloads can exceed 255 bytes. Preserve full
+non-length type codes, including vectors. Multi-block merge ties retain the active
+block first, then original block order; keep this policy when changing sorting.
+Use `tools/QueryOptimizationBenchmarks` for per-optimization end-to-end comparisons.

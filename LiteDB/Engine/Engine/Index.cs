@@ -86,7 +86,7 @@ namespace LiteDB.Engine
                 var count = 0u;
 
                 // read all objects (read from PK index)
-                foreach (var pkNode in new IndexAll("_id", LiteDB.Query.Ascending).Run(collectionPage, indexer, false))
+                foreach (var pkNode in new IndexAll("_id", LiteDB.Query.Ascending).Run(collectionPage, indexer))
                 {
                     using (var reader = new BufferReader(data.Read(pkNode.DataBlock)))
                     {
@@ -183,7 +183,7 @@ namespace LiteDB.Engine
                 snapshot.RequireVectorVersion();
                 var tuple = collectionPage.InsertVectorIndex(name, expression.Source, options.Dimensions, options.Metric);
 
-                foreach (var pkNode in new IndexAll("_id", LiteDB.Query.Ascending).Run(collectionPage, indexer, false))
+                foreach (var pkNode in new IndexAll("_id", LiteDB.Query.Ascending).Run(collectionPage, indexer))
                 {
                     _state.Validate();
 
