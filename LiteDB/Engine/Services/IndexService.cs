@@ -324,6 +324,7 @@ namespace LiteDB.Engine
                     {
                         // delete node from page (mark as dirty)
                         node.Page.DeleteIndexNode(node.Position.Index);
+                        _snapshot.AddOrRemoveFreeIndexList(node.Page, ref index.FreeIndexPageList);
 
                         last.SetNextNode(node.NextNode);
                     }
@@ -339,8 +340,18 @@ namespace LiteDB.Engine
             }
 
             // removing head/tail index nodes
-            this.GetNode(index.Head).Page.DeleteIndexNode(index.Head.Index);
-            this.GetNode(index.Tail).Page.DeleteIndexNode(index.Tail.Index);
+            var headPage = this.GetNode(index.Head).Page;
+            var tailPage = this.GetNode(index.Tail).Page;
+            headPage.DeleteIndexNode(index.Head.Index);
+            tailPage.DeleteIndexNode(index.Tail.Index);
+
+            // Sentinels can be the last nodes on their pages. Reclaim those pages
+            // before the collection forgets this index and its free-page list.
+            this._snapshot.AddOrRemoveFreeIndexList(headPage, ref index.FreeIndexPageList);
+            if (tailPage.PageID != headPage.PageID)
+            {
+                this._snapshot.AddOrRemoveFreeIndexList(tailPage, ref index.FreeIndexPageList);
+            }
         }
 
         #region Find
