@@ -4,8 +4,6 @@
     <TargetFramework>net8.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="../Program.cs" />
-    <Compile Include="../Measurements.cs" />
-    <ProjectReference Include="../../../LiteDB/LiteDB.csproj" />
+    <ProjectReference Include="../../LiteDB/LiteDB.csproj" AdditionalProperties="TestingEnabled=true" />
   </ItemGroup>
 </Project>

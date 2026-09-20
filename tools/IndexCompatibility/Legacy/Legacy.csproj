@@ -6,6 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../Program.cs" />
+    <Compile Include="../Measurements.cs" />
     <PackageReference Include="LiteDB" Version="5.0.21" />
   </ItemGroup>
 </Project>

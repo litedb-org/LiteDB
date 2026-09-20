@@ -41,12 +41,19 @@ unique keys before mutation, durably promote the data header before migration WA
 writes, and commit every rebuilt index with ordering revision byte 109. Rollback,
 WAL replay, and checkpoint must never downgrade the version. Re-evaluate secondary
 computed/multikey keys from documents, since old equality can have omitted keys.
-Reorder proven scalar member-path indexes in place to preserve page capacity. Preserve
+Reorder proven scalar member-path indexes in place to preserve page capacity.
+Reuse empty computed-index pages within their own index during regeneration;
+do not expose transaction-deleted pages to other snapshots. Preflight finite
+LIMIT_SIZE before promotion. Explicit IndexMigrationLimitSize increases are
+transaction-local until migration commits, including retries of pending v10 files. Preserve
 simple member-path vector indexes and rebuild computed vector expressions.
 `Upgrade=true` continues to rebuild v7 files before applying read-only access.
 Durable flushes must reach the underlying file through encryption and caller-stream
 wrappers. Run `python3 scripts/test-index-compatibility.py` and
 `python3 scripts/test-vector-compatibility.py`, including encrypted files.
+Run `python3 scripts/test-index-migration-recovery.py` for real process-death and
+partial encrypted I/O recovery. Cross-runtime CI must exchange legacy fixtures
+between Windows/NLS and Linux/ICU; same-host tests do not cover that transition.
 See `docs/collation-runtime-compatibility.md` and `docs/vector-query-compatibility.md`.
 
 ## Query Frontends

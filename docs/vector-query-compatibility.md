@@ -71,7 +71,7 @@ require O(N log N) work and temporary disk space. Simple bounded top-k queries
 retain the existing ANN performance characteristics. Equal-distance neighbors
 have no specified relative order unless the query supplies a tie-breaker.
 
-## Ordinary v8 compatibility and vector format 9
+## Legacy v8/v9 migration and vector format 10
 
 New databases now use **format v10**, which protects both vector pages and the
 persisted comparison changes described in [index compatibility](collation-runtime-compatibility.md).

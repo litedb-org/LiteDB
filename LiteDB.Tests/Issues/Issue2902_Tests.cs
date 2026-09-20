@@ -76,6 +76,24 @@ namespace LiteDB.Tests.Issues
             hashes.Should().BeGreaterThan(900);
         }
 
+        [Theory]
+        [InlineData(0L)]
+        [InlineData(1L)]
+        [InlineData(-1L)]
+        [InlineData((long)int.MinValue)]
+        [InlineData((long)int.MaxValue)]
+        [InlineData(long.MinValue)]
+        [InlineData(long.MaxValue)]
+        [InlineData(9007199254740993L)]
+        public void Integral_hash_fast_path_matches_equal_decimal_values(long value)
+        {
+            var integer = new BsonValue(value);
+            var decimalValue = new BsonValue((decimal)value);
+            integer.GetHashCode().Should().Be(decimalValue.GetHashCode());
+            if (value >= int.MinValue && value <= int.MaxValue)
+                new BsonValue((int)value).GetHashCode().Should().Be(decimalValue.GetHashCode());
+        }
+
         [Fact]
         public void Distinct_mixed_numeric_unique_index_keys_survive_reopen()
         {

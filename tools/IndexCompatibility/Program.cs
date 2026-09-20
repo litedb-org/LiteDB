@@ -7,6 +7,15 @@ internal static class Program
 {
     private static void Main(string[] args)
     {
+        if (args[0].StartsWith("measure-", StringComparison.Ordinal))
+        {
+            Measurements.Run(args);
+            return;
+        }
+        Directory.CreateDirectory(args[1]);
+        var comparison = System.Globalization.CultureInfo.GetCultureInfo("en-US").CompareInfo;
+        Console.WriteLine($"Runtime: {System.Runtime.InteropServices.RuntimeInformation.OSDescription}; " +
+            $"en-US sort version {comparison.Version.FullVersion}/{comparison.Version.SortId}");
         foreach (var password in new[] { null, "index-compatibility" })
         foreach (var ordinal in new[] { false, true })
         foreach (var wal in new[] { false, true })
@@ -27,7 +36,54 @@ internal static class Program
             else Verify(settings, args[0] == "verify");
 #endif
         }
+        CapacityFixtures(args[0], args[1]);
         Console.WriteLine(args[0] + ": 16 plain/encrypted, binary/culture, data/WAL, success/collision fixtures passed");
+    }
+
+    private static void CapacityFixtures(string mode, string directory)
+    {
+        foreach (var password in new[] { null, "index-compatibility" })
+        {
+            var settings = new ConnectionString
+            {
+                Filename = Path.Combine(directory, "capacity-" + (password != null) + ".db"),
+                Password = password, Collation = new Collation("en-US/IgnoreCase")
+            };
+#if LEGACY
+            if (mode != "create") { Refuse(settings); continue; }
+            using var db = new LiteDatabase(settings);
+            var rows = db.GetCollection("rows");
+            rows.Insert(Enumerable.Range(1, 2000).Select(i => new BsonDocument
+            {
+                ["_id"] = i, ["key"] = new string('A', 200) + i
+            }));
+            rows.EnsureIndex("computed", "LOWER($.key)", true);
+            db.Checkpoint();
+            db.LimitSize = new FileInfo(settings.Filename).Length;
+#else
+            if (mode == "migrate")
+            {
+                var before = File.ReadAllBytes(settings.Filename);
+                try
+                {
+                    using var rejected = new LiteDatabase(settings);
+                    throw new Exception("Expected capacity admission failure");
+                }
+                catch (LiteException ex) when (ex.Message.Contains("Index migration capacity exceeds LIMIT_SIZE")) { }
+                if (!before.SequenceEqual(File.ReadAllBytes(settings.Filename)))
+                    throw new Exception("Capacity rejection changed the legacy file");
+                settings.IndexMigrationLimitSize = 8 * 1024 * 1024;
+            }
+            else settings.ReadOnly = true;
+            using var db = new LiteDatabase(settings);
+            var rows = db.GetCollection("rows");
+            if (db.LimitSize != 8 * 1024 * 1024 || rows.Count() != 2000 ||
+                rows.Count("LOWER($.key) = @0", new string('a', 200) + 2) != 1)
+                throw new Exception("Capacity recovery did not preserve data/indexes/budget");
+            if (!settings.ReadOnly) db.Checkpoint();
+#endif
+        }
+        Console.WriteLine(mode + ": real legacy LIMIT_SIZE fixtures passed");
     }
 
 #if LEGACY
@@ -64,9 +120,10 @@ internal static class Program
         rows.EnsureIndex("computed", "$.n = 9007199254740992.0");
         // Exercise external sorting and migration safepoints on a larger collection.
         var many = db.GetCollection("many");
+        var cultureKeys = new[] { "a-b", "ab", "a'b", "a b", "co-op", "coop", "résumé", "resume", "a\u030a", "å", "æ", "ae" };
         many.Insert(Enumerable.Range(1, 5000).Select(i => new BsonDocument
         {
-            ["_id"] = i, ["value"] = new string((char)('a' + i % 26), 200) + i
+            ["_id"] = i, ["value"] = cultureKeys[i % cultureKeys.Length] + new string('x', 200) + i
         }));
         many.EnsureIndex("value", true);
     }
@@ -113,8 +170,13 @@ internal static class Program
         var expectedComputed = all.Count(x => collation.Compare(x["n"], 9007199254740992d) == 0);
         if (rows.Count("($.n = 9007199254740992.0) = true") != expectedComputed) throw new Exception("Computed key was not regenerated");
         var many = db.GetCollection("many");
-        if (many.Count() != 5000 || many.Query().OrderBy("$.value").ToArray().Length != 5000)
+        var manyScan = many.FindAll().ToArray();
+        var manyIndex = many.Query().OrderBy("$.value").ToArray().Select(x => x["value"]);
+        if (manyScan.Length != 5000 || !manyIndex.SequenceEqual(manyScan.Select(x => x["value"]).OrderBy(x => x, collation)))
             throw new Exception("Large migration lost records");
+        foreach (var document in manyScan.Take(24))
+            if (many.Count(Query.Parameterized.EQ("value", document["value"])) != 1)
+                throw new Exception("Cross-runtime string seek failed");
         if (!readOnly)
         {
             var first = all[0];

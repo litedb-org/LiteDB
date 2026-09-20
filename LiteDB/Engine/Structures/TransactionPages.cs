@@ -16,6 +16,8 @@ namespace LiteDB.Engine
         /// <summary>
         /// Get how many pages are involved in this transaction across all snapshots - Will be clear when get MAX_TRANSACTION_SIZE
         /// </summary>
+        internal long? IndexMigrationLimitSize { get; set; }
+
         private int _transactionSize;
 
         public int TransactionSize

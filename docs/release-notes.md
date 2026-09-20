@@ -9,6 +9,10 @@ collisions abort before changing data or WAL. Computed/multikey keys regenerate
 from documents; scalar member-path indexes reuse their pages. Old readers reject
 v10, and interrupted migrations resume through WAL recovery. Migration can require
 substantial temporary/WAL space. See [the compatibility contract](collation-runtime-compatibility.md).
+Finite `LIMIT_SIZE` is checked before promotion; insufficient budgets leave legacy
+files unchanged. Computed-index pages are reused during regeneration. An explicit
+`index migration limit size` connection option raises the budget atomically with
+a successful migration and allows retrying previously interrupted v10 migrations.
 
 ## `BsonValue` CLR collection compatibility
 

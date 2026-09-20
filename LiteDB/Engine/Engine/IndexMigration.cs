@@ -23,6 +23,7 @@ namespace LiteDB.Engine
             // Traverse links, never seek using the new comparer in an old skip list.
             // Inspect all structures and unique keys before any persistent mutation.
             this.ValidateLegacyCollation(migrating: true);
+            var capacity = new IndexMigrationCapacity(_header, _settings.IndexMigrationLimitSize);
             var validation = _monitor.GetTransaction(true, true, out _);
             try
             {
@@ -34,22 +35,35 @@ namespace LiteDB.Engine
                     {
                         if (index.IndexType != 0)
                         {
-                            this.ValidateVectorMigration(snapshot, indexer, index);
+                            this.ValidateVectorMigration(snapshot, indexer, index, capacity);
                             continue;
                         }
                         using (var sort = this.SortMigrationKeys(snapshot, indexer, index))
                         {
                             BsonValue previous = null;
+                            long maximumNodeBytes = 0;
                             foreach (var item in sort.Sort())
                             {
                                 if (index.Unique && previous != null &&
                                     previous.CompareTo(item.Key, _header.Pragmas.Collation) == 0)
                                     throw LiteException.IndexDuplicateKey(index.Name, item.Key);
+                                maximumNodeBytes += IndexNode.GetNodeLength(MAX_LEVEL_LENGTH, item.Key, out _) + BasePage.SLOT_SIZE;
                                 previous = item.Key;
+                            }
+                            if (!IndexExpressionIdentity.IsMemberPath(index.BsonExpr))
+                            {
+                                var pages = new HashSet<uint> { index.Head.PageID, index.Tail.PageID };
+                                foreach (var node in indexer.FindAll(index, LiteDB.Query.Ascending))
+                                {
+                                    pages.Add(node.Position.PageID);
+                                    snapshot.Safepoint();
+                                }
+                                capacity.AddOrdinaryIndex(maximumNodeBytes, pages.Count);
                             }
                         }
                     }
                 }
+                capacity.Validate(validation.CreateSnapshot(LockMode.Read, "$migration_capacity", false), _header);
             }
             finally { _monitor.ReleaseTransaction(validation); }
 
@@ -63,6 +77,7 @@ namespace LiteDB.Engine
             try
             {
                 var transaction = _monitor.GetTransaction(true, false, out _);
+                transaction.Pages.IndexMigrationLimitSize = _settings.IndexMigrationLimitSize;
                 foreach (var collection in _header.GetCollections())
                 {
                     var snapshot = transaction.CreateSnapshot(LockMode.Write, collection.Key, false);
@@ -95,7 +110,12 @@ namespace LiteDB.Engine
                         }
                     }
                 }
-                transaction.Pages.Commit += header => header.Pragmas.CompleteIndexMigration();
+                transaction.Pages.Commit += header =>
+                {
+                    if (_settings.IndexMigrationLimitSize.HasValue)
+                        header.Pragmas.Set(Pragmas.LIMIT_SIZE, _settings.IndexMigrationLimitSize.Value, true);
+                    header.Pragmas.CompleteIndexMigration();
+                };
                 this.Commit();
             }
             catch (Exception ex)
@@ -109,6 +129,7 @@ namespace LiteDB.Engine
 
         private void RebuildOrdinaryIndex(Snapshot snapshot, IndexService indexer, CollectionIndex index)
         {
+            snapshot.RetainEmptyIndexPages = true;
             // Keep the sentinels and metadata. Empty indexes need no replacement
             // pages, and node deletion returns unused pages to the database on commit.
             foreach (var primary in indexer.FindAll(snapshot.CollectionPage.PK, LiteDB.Query.Ascending))
@@ -132,10 +153,11 @@ namespace LiteDB.Engine
                 }
                 snapshot.Safepoint();
             }
+            snapshot.ReleaseEmptyIndexPages(index);
             snapshot.CollectionPage.IsDirty = true;
         }
 
-        private void ValidateVectorMigration(Snapshot snapshot, IndexService indexer, CollectionIndex index)
+        private void ValidateVectorMigration(Snapshot snapshot, IndexService indexer, CollectionIndex index, IndexMigrationCapacity capacity)
         {
             if (IndexExpressionIdentity.IsMemberPath(index.BsonExpr)) return;
             var data = new DataService(snapshot, _disk.MAX_ITEMS_COUNT);
@@ -143,6 +165,7 @@ namespace LiteDB.Engine
             {
                 using (var reader = new BufferReader(data.Read(node.DataBlock)))
                     index.BsonExpr.ExecuteScalar(reader.ReadDocument().GetValue(), _header.Pragmas.Collation);
+                capacity.AddVectorDocument(snapshot.CollectionPage.GetVectorIndexMetadata(index.Name).Dimensions);
                 snapshot.Safepoint();
             }
         }

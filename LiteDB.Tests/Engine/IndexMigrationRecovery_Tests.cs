@@ -26,8 +26,19 @@ namespace LiteDB.Tests.Engine
                 }));
                 rows.EnsureIndex("key", true);
                 rows.EnsureIndex("computed", "$.key + 1", true);
-                rows.EnsureIndex("values", "$.values[*]");
+                rows.EnsureIndex("values", "$.values[0]");
                 db.Checkpoint();
+                db.LimitSize = data.Length;
+            }
+            // Model an old multikey comparer that omitted the second key. The
+            // equal-length metadata edit leaves the stored nodes at one per row.
+            var legacyBytes = data.ToArray();
+            var oldExpression = System.Text.Encoding.UTF8.GetBytes("$.values[0]");
+            for (var offset = 0; offset <= legacyBytes.Length - oldExpression.Length; offset++)
+            {
+                if (!legacyBytes.Skip(offset).Take(oldExpression.Length).SequenceEqual(oldExpression)) continue;
+                data.Position = offset + oldExpression.Length - 2;
+                data.WriteByte((byte)'*');
             }
             data.Position = HeaderPage.P_FILE_VERSION;
             data.WriteByte(8);
@@ -37,13 +48,20 @@ namespace LiteDB.Tests.Engine
             data.Write(new byte[4], 0, 4);
             if (afterAllocation) log.MinimumPage = BitConverter.ToUInt32(data.ToArray(), HeaderPage.P_LAST_PAGE_ID) + 1;
             log.Armed = true;
-            var settings = new EngineSettings { DataStream = data, LogStream = log, TransactionPageLimit = 8 };
+            var settings = new EngineSettings
+            {
+                DataStream = data, LogStream = log, TransactionPageLimit = 8,
+                IndexMigrationLimitSize = 64 * 1024 * 1024
+            };
             Action open = () => { using var engine = new LiteEngine(settings); };
             open.Should().Throw<IOException>().WithMessage("Injected migration WAL failure");
             log.Triggered.Should().BeTrue();
             data.ToArray()[HeaderPage.P_FILE_VERSION].Should().Be(10);
+            BitConverter.ToInt64(data.ToArray(), EnginePragmas.P_LIMIT_SIZE)
+                .Should().Be(BitConverter.ToInt64(legacyBytes, EnginePragmas.P_LIMIT_SIZE));
             using (var db = new LiteDatabase(new LiteEngine(settings)))
             {
+                db.LimitSize.Should().Be(settings.IndexMigrationLimitSize.Value);
                 var rows = db.GetCollection("rows");
                 rows.Count().Should().Be(1500);
                 rows.Query().OrderBy("$.key").ToArray().Select(x => x["key"].AsInt32)

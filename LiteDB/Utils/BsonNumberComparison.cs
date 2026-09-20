@@ -10,6 +10,9 @@ namespace LiteDB
             if (value.IsDouble && (double.IsNaN(value.AsDouble) || double.IsInfinity(value.AsDouble)))
                 return double.IsNaN(value.AsDouble) ? double.NaN.GetHashCode() : value.AsDouble.GetHashCode();
 
+            if (value.IsInt32 || value.IsInt64)
+                return unchecked(new BigInteger(value.AsInt64).GetHashCode() * 397 ^ BigInteger.One.GetHashCode());
+
             GetFraction(value, out var numerator, out var denominator);
             var divisor = BigInteger.GreatestCommonDivisor(BigInteger.Abs(numerator), denominator);
             numerator /= divisor;
@@ -19,7 +22,12 @@ namespace LiteDB
 
         private static void GetFraction(BsonValue value, out BigInteger numerator, out BigInteger denominator)
         {
-            if (value.IsDouble)
+            if (value.IsInt32 || value.IsInt64)
+            {
+                numerator = new BigInteger(value.AsInt64);
+                denominator = BigInteger.One;
+            }
+            else if (value.IsDouble)
             {
                 var bits = unchecked((ulong)BitConverter.DoubleToInt64Bits(value.AsDouble));
                 var exponentBits = (int)((bits >> 52) & 0x7ff);
