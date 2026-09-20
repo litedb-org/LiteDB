@@ -9,6 +9,15 @@ automatically.
 
 ## Checkpoint
 
+Before changing either file, a checksummed checkpoint runs the same complete-WAL
+transaction verifier as startup recovery and requires its confirmed transaction
+IDs to match the live committed set. This catches a missing confirmation or stale
+safepoint frames even when individual CRCs still verify. Failure stops the engine
+and leaves both files unchanged for subsequent recovery. The exclusive lock
+prevents engine writers from changing the WAL between validation and copying.
+The extra pass keeps transaction summaries rather than buffering entire page
+payloads; copying still verifies each frame's checksum.
+
 1. Append the current, checksum-validated data header and a descriptor to the WAL.
    This temporary footer is 16384 bytes, encrypted through the same stream as the
    WAL. Sync it together with the preceding WAL before writing any data pages.

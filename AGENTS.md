@@ -57,6 +57,12 @@ Incomplete encrypted redo can look confirmed, so never feed it to legacy replay
 without checking the intent/preparation records. Keep read-only recovery byte
 preserving. See `docs/header-publication.md` and the crash-boundary tests.
 
+Checkpoint must verify the entire checksummed WAL and match its confirmed
+transaction IDs to the live committed set before changing either file. Per-frame
+validation during copying alone can certify a partial transaction before a later
+read fails. Hold the exclusive lock across validation and copying, and retain
+summaries rather than buffering all WAL page payloads.
+
 ## Query Frontends
 LINQ and SQL share `BsonExpressionFactory`; LINQ bindings must construct nodes
 without tokenizing templates or parsing generated text. Preserve canonical

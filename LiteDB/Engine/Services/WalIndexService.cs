@@ -12,7 +12,7 @@ namespace LiteDB.Engine
     /// Do all WAL index services based on LOG file - has only single instance per engine
     /// [Singleton - ThreadSafe]
     /// </summary>
-    internal class WalIndexService
+    internal partial class WalIndexService
     {
         private const int READER_WAIT_MILLISECONDS = 10;
         private const int NO_WAIT_MILLISECONDS = 0;
@@ -379,6 +379,7 @@ namespace LiteDB.Engine
 
             try
             {
+                this.ValidateCheckpoint();
                 _disk.SyncLogBeforeCheckpoint();
                 _disk.WriteDataDisk(source());
                 this.Clear();

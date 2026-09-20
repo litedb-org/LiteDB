@@ -8,6 +8,7 @@ syncs must persist bytes.
 
 | Question | Test evidence | Answer |
 | --- | --- | --- |
+| Can checkpoint certify part of a damaged live WAL transaction? | `CorruptCommittedWal_IsRejectedBeforeCheckpointChangesAnyData` and `StaleSafepointFrames_CannotBeCertifiedByCheckpoint`. | A full preflight rejects damaged CRCs, counts, digests, sequences, missing/truncated confirmations, and genuine stale safepoint frames before changing either file. Subsequent writes stop; recovery and another checkpoint retain only the valid prefix. |
 | Can checkpoint resume between page writes? | `EveryCheckpointWriteBoundary_RecoversAcknowledgedCommits` captures data and WAL before every write. | Acknowledged collections survive replay, checkpoint, and reopen, plain and encrypted. |
 | Can checkpoint recover torn headers and other pages? | `TornCheckpointPages_IncludingHeaders_RecoverAcknowledgedCommits` tears actual captured writes, including a collection map spanning sectors. | Recovery succeeds at tested cuts from 1 to 4096 bytes. Read-only opens preserve both images. |
 | Can repeated checkpoints recover a changing database rather than only fresh inserts? | `RepeatedGenerations_WithPageReuseAndSectorTears_PreserveCommittedModel` runs six generations of deterministic insert/update/delete/rollback transactions with forced safepoints and variable-size overflow documents. | Full documents, nonunique and unique index lookups match an independent model after alternating 16/512-byte sector tears, out-of-order page persistence, read-only recovery, new writes, checkpoint, and reopening. |
@@ -36,8 +37,8 @@ dotnet test LiteDB.Tests -c Release -f net8.0 -p:TestingEnabled=true --settings 
 Use `-f net10.0` for the second runtime. The compatibility script additionally
 runs the released LiteDB 5.0.21 in another process against interrupted conversion,
 normal conversion, encrypted files, and the v10 rejection boundary. CI must pass
-on the final PR commit before merging; an earlier Windows test timeout is not
-counted as a successful run.
+on the final PR commit before merging; superseded runs do not substitute for
+that gate.
 
 ## Acceptance boundaries
 

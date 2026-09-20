@@ -91,7 +91,8 @@ Explicit rebuild uses the same verifier instead of trusting confirmation bits.
 (including incomplete or uncommitted tails); recovery also emits a `RECOVERY` log
 message. The diagnostic is per-open, not persisted.
 
-Checkpoint appends a 16 KiB header recovery record and syncs the WAL before
+Checkpoint first validates the entire checksummed WAL and its committed
+transaction set before changing either file. It then appends a 16 KiB header recovery record and syncs the WAL before
 copying pages, syncs all data pages, then writes
 and syncs a fresh generation salt in the data header before truncating the WAL.
 Stale frames left behind by a crash during truncation cannot match that salt.
@@ -182,3 +183,18 @@ WAL was already synced. One-time conversion writes complete legacy redo and uses
 additional durability barriers before changing data. These shared-host samples
 show that cost; they are not a throughput or latency guarantee. Conversion also
 requires temporary WAL space approximately equal to allocated data plus 24 KiB.
+
+The additional checkpoint preflight was measured separately against `187fac92e`
+(header journaling already enabled), with the same maintenance fixture and
+production settings:
+
+| Encryption | Checkpoint before preflight (ms) | Checkpoint with preflight (ms) |
+| --- | ---: | ---: |
+| No | 23.55 | 25.17 |
+| Yes | 27.93 | 31.21 |
+
+The extra full WAL read and transaction verification added approximately 1.6 ms
+plain and 3.3 ms encrypted in this paired run. Absolute timings varied from the
+earlier header-journal run; compare within each table rather than combining
+medians from separate runs. Preflight retains transaction summaries, not all page
+payloads, and leaves both files unchanged if the live committed set cannot verify.

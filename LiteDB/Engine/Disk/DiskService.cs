@@ -370,6 +370,8 @@ namespace LiteDB.Engine
 
                     var bytesRead = stream.ReadFully(buffer, 0, PAGE_SIZE);
 
+                    if (bytesRead != PAGE_SIZE && origin == FileOrigin.Log && ChecksumsEnabled)
+                        throw new PageChecksumException(origin, position);
                     ENSURE(bytesRead == PAGE_SIZE, "ReadFull must read PAGE_SIZE bytes [{0}]", bytesRead);
                     this.ReadRecoveredHeader(buffer, position, origin);
                     if (origin == FileOrigin.Data && ChecksumsEnabled)
