@@ -145,6 +145,42 @@ namespace LiteDB.Internals
             AssertRecovered(torn, publication.Wal, password, new[] { "docs" }, WalTestDatabase.DocumentCount, 0);
         }
 
+        [Theory]
+        [InlineData(null, 8)]
+        [InlineData("secret", 8)]
+        [InlineData(null, 9)]
+        [InlineData("secret", 9)]
+        public void LegacyRecoveryCheckpointAndConversion_CanBothTearDuringWritableOpen(string password, byte version)
+        {
+            using var source = new WalTestDatabase(password);
+            source.Seed("docs");
+            source.Database.Checkpoint();
+            source.Update("docs", 1);
+            source.Seed("newdocs");
+            source.Update("newdocs", 1);
+            using var data = new CheckpointImages();
+            var initial = source.Data.ToArray();
+            data.Write(initial, 0, initial.Length);
+            using var log = ChecksumTestFiles.Copy(source.Log.ToArray());
+            ChecksumTestFiles.MakeLegacy(data, log, password, version);
+            data.Log = log;
+            data.Capture = true;
+            using (var converted = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, Password = password })) { }
+            data.Capture = false;
+            data.Writes.Should().NotBeEmpty();
+            foreach (var write in data.Writes)
+            {
+                // This includes the initial LEGACY checkpoint, before the
+                // conversion redo exists, as well as subsequent v10 publication.
+                var torn = new byte[Math.Max(write.Before.Length, write.Position + write.Bytes.Length)];
+                Buffer.BlockCopy(write.Before, 0, torn, 0, write.Before.Length);
+                Buffer.BlockCopy(write.Bytes, 0, torn, write.Position, 15);
+                foreach (var readOnly in new[] { true, false })
+                    AssertRecovered(torn, write.Wal, password, new[] { "docs", "newdocs" },
+                        WalTestDatabase.DocumentCount, 1, readOnly);
+            }
+        }
+
         private static void AssertRecovered(byte[] bytes, byte[] wal, string password, string[] names, int count = 1, int value = 123, bool readOnly = false)
         {
             using var data = ChecksumTestFiles.Copy(bytes);

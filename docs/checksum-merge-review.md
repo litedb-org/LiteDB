@@ -10,6 +10,8 @@ syncs must persist bytes.
 | --- | --- | --- |
 | Can checkpoint resume between page writes? | `EveryCheckpointWriteBoundary_RecoversAcknowledgedCommits` captures data and WAL before every write. | Acknowledged collections survive replay, checkpoint, and reopen, plain and encrypted. |
 | Can checkpoint recover torn headers and other pages? | `TornCheckpointPages_IncludingHeaders_RecoverAcknowledgedCommits` tears actual captured writes, including a collection map spanning sectors. | Recovery succeeds at tested cuts from 1 to 4096 bytes. Read-only opens preserve both images. |
+| Can repeated checkpoints recover a changing database rather than only fresh inserts? | `RepeatedGenerations_WithPageReuseAndSectorTears_PreserveCommittedModel` runs six generations of deterministic insert/update/delete/rollback transactions with forced safepoints and variable-size overflow documents. | Full documents, nonunique and unique index lookups match an independent model after alternating 16/512-byte sector tears, out-of-order page persistence, read-only recovery, new writes, checkpoint, and reopening. |
+| Can conversion recover when its initial legacy checkpoint tears? | `LegacyRecoveryCheckpointAndConversion_CanBothTearDuringWritableOpen` starts with acknowledged legacy WAL updates and a newly created collection. | Every captured data write during the legacy checkpoint and conversion can tear at byte 15; v8/v9, plain/encrypted, read-only and writable recovery preserve both collections. |
 | Can conversion resume after torn data writes? | `LegacyConversion_CanResumeAtEveryPageWriteBoundary` covers v8/v9 and cuts inside encrypted blocks. | Verified legacy redo restores the original data before conversion is retried. |
 | What if the conversion header is torn or fully written before cleanup? | `TornConversionHeader_ResumesAutomatically` tests 64-byte, 128-byte, and whole-page publication. | Read-only recovery and writable conversion preserve all documents. |
 | Can creating the conversion backup itself publish partial data? | `EveryConversionRedoWrite_CanTearWithoutPublishingPartialData` captures every intent/redo/footer write, testing partial tails and zero-extended pages at multiple cuts. | Incomplete backup is ignored; verified preparation can recover even when the final confirmation tears. |
@@ -36,3 +38,23 @@ runs the released LiteDB 5.0.21 in another process against interrupted conversio
 normal conversion, encrypted files, and the v10 rejection boundary. CI must pass
 on the final PR commit before merging; an earlier Windows test timeout is not
 counted as a successful run.
+
+## Acceptance boundaries
+
+The upstream issue's six requirements are covered by transaction/frame corruption
+and power-loss tests (complete transactions and a verified prefix), generation
+and slot-reuse tests (stale frames), recovery diagnostics assertions (visible
+truncation), data-page validation tests (the additional requested scope), the
+separate-process legacy compatibility runner (format boundary and encryption),
+and the insert/bulk plus maintenance benchmarks (cost). Automatic writable
+conversion is the chosen compatibility policy; read-only opens never convert.
+
+Fault tests distinguish writes from successful syncs. The mixed-workload model
+also persists a complete checkpoint header ahead of some data pages, before the
+data-sync barrier. It never loses data behind a successful sync while retaining
+a later salt publication: storage violating that contract is outside the
+promised durability model. CRC32C is probabilistic accidental-corruption
+detection, not cryptographic integrity. Passing this matrix increases confidence;
+it does not prove every device behavior or arbitrary independent damage is
+recoverable. Final-commit CI across the supported runtime/OS matrix remains a
+merge gate.
