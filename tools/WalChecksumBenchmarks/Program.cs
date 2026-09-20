@@ -4,6 +4,12 @@ using System.IO;
 using System.Linq;
 using LiteDB;
 
+if (args.Contains("--maintenance"))
+{
+    MaintenanceBenchmarks.Run();
+    return;
+}
+
 var memory = args.Contains("--memory");
 foreach (var encrypted in new[] { false, true })
 foreach (var bulk in new[] { false, true })

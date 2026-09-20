@@ -15,6 +15,8 @@ namespace LiteDB.Engine
         internal const uint HeaderMarker = 0x31435243; // CRC1, independent of the version byte.
         internal byte[] Salt { get; private set; }
         internal bool Enabled => Salt != null;
+        internal long JournalBytes { get; set; }
+        internal long LegacyConfirmationPosition { get; set; } = -1;
         internal long LastConfirmedPosition { get; private set; } = -PAGE_SIZE;
         internal long Sequence { get; set; }
         private readonly Dictionary<uint, Summary> _transactions = new Dictionary<uint, Summary>();
@@ -37,6 +39,7 @@ namespace LiteDB.Engine
         internal void Reset(byte[] salt)
         {
             Salt = salt;
+            LegacyConfirmationPosition = -1;
             Sequence = 0;
             LastConfirmedPosition = -PAGE_SIZE;
             _transactions.Clear();

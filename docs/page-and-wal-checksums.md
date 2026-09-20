@@ -1,14 +1,12 @@
 # Data-page and WAL checksums (#2935)
 
-**Merge status:** additional crash tests reproduce an unresolved header-recovery
-gap, including with an intact WAL. See [the merge review](checksum-merge-review.md)
-for the cases, test evidence, and required recovery guarantee.
-
 New databases use format **10**. Writable opens of formats 8 and 9 automatically
 recover their legacy WAL, checkpoint it, and add checksums to existing pages.
 The page checksums are synced before the v10 header is written and synced. This
 is an in-place metadata conversion, with work proportional to the allocated
-database pages; documents and indexes are not rebuilt and no backup is created.
+database pages. Temporary legacy redo and a header journal protect interrupted
+conversion; allow approximately the allocated file size plus 24 KiB of WAL space.
+Documents and indexes are not rebuilt and no permanent backup is created.
 Keep a backup if the file must remain usable by an older engine. Read-only legacy
 opens do not convert or modify either file. The `Upgrade=true` v7 rebuild path
 remains available and produces v10.
@@ -93,12 +91,15 @@ Explicit rebuild uses the same verifier instead of trusting confirmation bits.
 (including incomplete or uncommitted tails); recovery also emits a `RECOVERY` log
 message. The diagnostic is per-open, not persisted.
 
-Checkpoint syncs the WAL before copying pages, syncs all data pages, then writes
+Checkpoint appends a 16 KiB header recovery record and syncs the WAL before
+copying pages, syncs all data pages, then writes
 and syncs a fresh generation salt in the data header before truncating the WAL.
 Stale frames left behind by a crash during truncation cannot match that salt.
-Interrupted conversion before v10 publication can be retried using the legacy
-header. As with other header writes, a torn header itself is detected and can
-require restore or explicit salvage; this does not assume atomic sector writes.
+Torn headers bootstrap recovery from that verified record. Conversion retains
+legacy redo and an independently verified preparation so torn ciphertext or a
+torn confirmation cannot publish a partial backup. Read-only recovery preserves
+both files. See the [header-publication protocol](header-publication.md) for
+ordering, encoding, temporary space, and durability limits.
 
 With `DurableCommits=false`, power loss may lose recent commits, but a partially
 present transaction is not recovered. Storage must still honor successful syncs
@@ -115,6 +116,10 @@ a middle frame, both with opted-out commits and an interrupted durable commit.
 plain/encrypted data damage, legacy WAL recovery, and v8/v9 conversion.
 Existing transaction-boundary, slot-reuse, flush-failure, and vector suites cover
 interleaved transactions, rollback, ownership, and format monotonicity.
+`ChecksumCheckpointCrash_Tests`, `ConversionJournalCrash_Tests`, and
+`HeaderJournalFailure_Tests` cover torn headers, every conversion redo write,
+failed backup/repair syncs, corrupted recovery copies, journal cleanup, and
+file-backed recovery. See the [merge-review test matrix](checksum-merge-review.md).
 
 Run `python3 scripts/test-vector-compatibility.py` to check against NuGet LiteDB
 5.0.21 in separate processes. Run `dotnet run --project tools/WalChecksumBenchmarks
@@ -151,3 +156,29 @@ substantial scheduling/device variability (the first baseline file run was about
 9.2 seconds per 1000 inserts); lower times in other cases are not evidence of a
 checksum-related speedup. These numbers exclude one-time legacy conversion and
 checkpoint's additional generation-header sync.
+
+
+### Header recovery maintenance cost
+
+The following comparison isolates the header-recovery protocol against checksum
+implementation `9c87328e6`, before that protocol was added. It uses durable files,
+10000 documents with 256-character payloads (approximately 4.4 MiB allocated),
+one warmup and five samples on the same Linux x64 host with production assemblies.
+Conversion changes the legacy metadata in place without rebuilding documents.
+
+```sh
+DOTNET_TieredCompilation=0 dotnet run --project tools/WalChecksumBenchmarks -c Release -- --maintenance
+```
+
+| Encryption | Operation | Before median (ms) | With recovery journal (ms) |
+| --- | --- | ---: | ---: |
+| No | Checkpoint | 25.99 | 36.76 |
+| Yes | Checkpoint | 30.28 | 41.29 |
+| No | Automatic conversion on open | 19.58 | 89.40 |
+| Yes | Automatic conversion on open | 44.81 | 119.91 |
+
+Checkpoint now writes and syncs a 16 KiB recovery footer even when the preceding
+WAL was already synced. One-time conversion writes complete legacy redo and uses
+additional durability barriers before changing data. These shared-host samples
+show that cost; they are not a throughput or latency guarantee. Conversion also
+requires temporary WAL space approximately equal to allocated data plus 24 KiB.

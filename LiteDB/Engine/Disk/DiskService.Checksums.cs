@@ -34,21 +34,32 @@ namespace LiteDB.Engine
 
         private void MarkHeaderInvalid(BufferSlice header)
         {
-            if (ChecksumsEnabled) PageChecksum.Validate(header, 0);
+            if (ChecksumsEnabled)
+            {
+                PageChecksum.Validate(header, 0);
+                var original = new byte[PAGE_SIZE];
+                Buffer.BlockCopy(header.Array, header.Offset, original, 0, PAGE_SIZE);
+                BeginHeaderJournal(original);
+            }
             header[HeaderPage.P_INVALID_DATAFILE_STATE] = 1;
             StampDataPage(header);
         }
 
         /// <summary>
         /// Legacy WAL must be checkpointed first. Checksums occupy bytes ignored by
-        /// legacy readers; publish v10 only after every existing data page is synced.
-        /// Interrupted conversions can be repeated while the header remains v8/v9.
+        /// legacy readers. Keep legacy redo and a header journal until v10 and all
+        /// existing data pages are synced, including encrypted page metadata.
         /// </summary>
         internal void EnableChecksums(ref HeaderPage header)
         {
             if (_readOnly || ChecksumsEnabled) return;
             var stream = _dataPool.Writer.Value;
             var buffer = new PageBuffer(new byte[PAGE_SIZE], 0, 0);
+            stream.Position = 0;
+            stream.ReadRequired(buffer.Array, 0, PAGE_SIZE);
+            var log = ((ChecksummedWalStream)_writer.Value).RawStream;
+            HeaderJournal.BackupLegacyPages(stream, log, buffer.Array, header.LastPageID);
+            BeginHeaderJournal(buffer.Array, conversion: true);
             for (long position = PAGE_SIZE; position < GetFileLength(FileOrigin.Data); position += PAGE_SIZE)
             {
                 stream.Position = position;
@@ -68,6 +79,9 @@ namespace LiteDB.Engine
             stream.Position = 0;
             stream.Write(buffer.Array, 0, PAGE_SIZE);
             stream.FlushToDisk();
+            SetLength(0, FileOrigin.Log);
+            log.FlushToDisk();
+            _recoveredHeader = null;
             FileVersion = HeaderPage.CHECKSUM_FILE_VERSION;
             header.EnsureVersion(FileVersion);
             Buffer.BlockCopy(_checksums.Salt, 0, header.Buffer.Array, header.Buffer.Offset + WalChecksum.SaltPosition, 16);

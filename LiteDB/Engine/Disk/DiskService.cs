@@ -371,6 +371,7 @@ namespace LiteDB.Engine
                     var bytesRead = stream.ReadFully(buffer, 0, PAGE_SIZE);
 
                     ENSURE(bytesRead == PAGE_SIZE, "ReadFull must read PAGE_SIZE bytes [{0}]", bytesRead);
+                    this.ReadRecoveredHeader(buffer, position, origin);
                     if (origin == FileOrigin.Data && ChecksumsEnabled)
                         PageChecksum.Validate(new BufferSlice(buffer, 0, PAGE_SIZE), position);
 
@@ -453,7 +454,7 @@ namespace LiteDB.Engine
             var errors = new List<Exception>();
             var delete = false;
 
-            TryAction(() => delete = !_readOnly && _logFactory.Exists() && _logPool.Writer.Value.Length == 0, errors);
+            TryAction(() => delete = !_readOnly && _checksums.JournalBytes == 0 && _logFactory.Exists() && _logPool.Writer.Value.Length == 0, errors);
             TryAction(() => _dataPool.Dispose(), errors);
             TryAction(() => _logPool.Dispose(), errors);
             if (delete) TryAction(() => _logFactory.Delete(), errors);

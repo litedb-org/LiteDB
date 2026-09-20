@@ -76,7 +76,8 @@ have no specified relative order unless the query supplies a tie-breaker.
 New databases use format **10**, which supports vectors and checksums for data
 pages and WAL frames. A writable open automatically converts v8/v9 files after
 recovering and checkpointing their legacy WAL. This changes persisted metadata
-without rebuilding documents or indexes; there is no backup copy. Read-only
+without rebuilding documents or indexes. Temporary WAL redo protects conversion;
+no permanent backup file is created. Read-only
 v8/v9 opens preserve their original format. LiteDB 5.0.21 refuses v10 before it
 can interpret the new WAL. See [the checksum format and recovery rules](page-and-wal-checksums.md).
 
@@ -113,7 +114,9 @@ The current engine reads legacy files without modification in read-only mode,
 then automatically converts them on writable open. The old engine refuses
 read/write/rebuild/upgrade of new and converted files without changing their
 bytes. The current engine reopens the converted files and verifies their contents. This runs for plain and
-encrypted files, along with vector rebuild checks, in Linux CI.
+encrypted files, along with vector rebuild checks, in Linux CI. It also checks
+that a conversion interrupted before v10 publication can be resumed by the old
+engine, then converted by the current engine without losing the intervening write.
 
 `Issue2881_VectorPredicate_Tests` distinguishes scalar cosine predicates from API
 thresholds, index selection, targets, and candidate limits. Together with

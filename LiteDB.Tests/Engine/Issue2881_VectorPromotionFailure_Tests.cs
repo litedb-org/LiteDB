@@ -28,7 +28,7 @@ namespace LiteDB.Tests.Engine
             Action open = () => { using var db = new LiteDatabase(data, logStream: log); };
             open.Should().Throw<IOException>().WithMessage("Injected promotion failure");
             data.Triggered.Should().BeTrue();
-            log.Length.Should().Be(0, "no WAL frame may precede durable format conversion");
+            HeaderJournal.Read(log).Should().NotBeNull("only legacy redo and the recovery journal may precede publication");
             using var reopened = new LiteDatabase(data, logStream: log);
             reopened.GetCollection("docs").Count().Should().Be(1);
             reopened.GetCollection("docs").FindById(1)["value"].AsString.Should().Be("ordinary");

@@ -1,52 +1,38 @@
 # Checksum merge review
 
-PR #2954 is **not ready to merge**. The additional fault tests answer several
-boundary questions, but reproduce a header-recovery gap. These are bounded crash
-models, not a proof against every possible storage failure.
+The header-recovery gap is covered by the implemented
+[header-publication protocol](header-publication.md). Tests require successful
+recovery and another checkpoint/open, rather than merely expecting corruption
+errors. The matrix below describes bounded fault models; successful storage
+syncs must persist bytes.
 
 | Question | Test evidence | Answer |
 | --- | --- | --- |
-| Can checkpoint resume after a crash between page writes? | `EveryCheckpointWriteBoundary_RecoversAcknowledgedCommits` snapshots before every data write, including generation publication, and reopens with the original WAL. | Yes in the tested plain/encrypted cases; acknowledged collections survive replay, checkpoint, and another open. |
-| Can checkpoint recover torn pages? | `TornCheckpointPages_RecoverExceptForTheUnprotectedHeader` retains only the first 512 bytes of each write. The collection map spans several sectors. | Non-header pages recover. Some header images cannot open, even with an intact WAL and `AutoRebuild=true`. Both writable and read-only opens are covered. |
-| Can automatic conversion resume after interruption? | `LegacyConversion_CanResumeAtEveryPageWriteBoundary` uses v8/v9 images with legacy transaction fields and snapshots every conversion write, also retaining just its first sector. | Yes for those boundaries, plain and encrypted. This does not establish atomic header publication. |
-| What if conversion tears inside the header's first sector? | `TornConversionHeader_IsDetectedButCannotResumeAutomatically` retains 64 or 128 bytes of the new header and the remainder of the old header. | Opening raises a checksum error and preserves the files. Automatic conversion cannot resume; no backup was created. |
-| Can a later transaction's safepoint destroy an earlier acknowledged commit? | `TornSafepointAfterAnotherTransactionCommits_PreservesItsAcknowledgedPrefix` interleaves two writers, verifies the committed prefix is unchanged, tears the following safepoint, and reopens twice. | The acknowledged transaction survives; the interrupted transaction stays rolled back, plain and encrypted. |
-| Are the checksum field, metadata, and reserved bytes covered? | `EveryByteOfDataPageAndWalTrailer_IsCovered` flips one bit at each data-page byte and each WAL-trailer byte. | Every tested mutation is rejected, including mutations of the checksum itself. |
-| Can a valid page be accepted at the wrong data-file position? | `ValidDataPageChecksum_DoesNotPermitAMisdirectedPage`. | No; page identity is checked independently of CRC equality. |
-| Does migration checksum unallocated padding or break later allocation? | `AutomaticConversion_PreservesUnusedPreallocation` converts a preallocated legacy image, checks untouched padding, then allocates and reopens new pages. | Padding remains zero and subsequent allocation/checkpoint works. |
+| Can checkpoint resume between page writes? | `EveryCheckpointWriteBoundary_RecoversAcknowledgedCommits` captures data and WAL before every write. | Acknowledged collections survive replay, checkpoint, and reopen, plain and encrypted. |
+| Can checkpoint recover torn headers and other pages? | `TornCheckpointPages_IncludingHeaders_RecoverAcknowledgedCommits` tears actual captured writes, including a collection map spanning sectors. | Recovery succeeds at tested cuts from 1 to 4096 bytes. Read-only opens preserve both images. |
+| Can conversion resume after torn data writes? | `LegacyConversion_CanResumeAtEveryPageWriteBoundary` covers v8/v9 and cuts inside encrypted blocks. | Verified legacy redo restores the original data before conversion is retried. |
+| What if the conversion header is torn or fully written before cleanup? | `TornConversionHeader_ResumesAutomatically` tests 64-byte, 128-byte, and whole-page publication. | Read-only recovery and writable conversion preserve all documents. |
+| Can creating the conversion backup itself publish partial data? | `EveryConversionRedoWrite_CanTearWithoutPublishingPartialData` captures every intent/redo/footer write, testing partial tails and zero-extended pages at multiple cuts. | Incomplete backup is ignored; verified preparation can recover even when the final confirmation tears. |
+| Does a failed sync allow data to change early? | `JournalMustBeDurableBeforeCheckpointTouchesData` and `FailedConversionBackupSync_CannotPublishAPartialLegacyTransaction`. | Ordinary I/O failures stop the operation and preserve original data. Conversion cannot proceed without durable redo. |
+| Can repair/cleanup failure destroy the remaining recovery copy? | `FailedHeaderRepair_PreservesRecoveryJournalForAnotherOpen` and `InterruptedJournalRemoval_KeepsTheSyncedHeaderAndRedo`. | A subsequent open recovers after failed writes, syncs, and truncation. |
+| Does real file-backed recovery agree with stream tests? | `FileBackedRecovery_PreservesReadOnlyImagesAndRepairsWritableOpens`. | Both plain and encrypted files recover; read-only bytes remain unchanged. |
+| Can a damaged journal certify a damaged header? | `CorruptedRecoveryCopy_CannotCertifyADamagedHeader`. | No; opening fails and preserves both sources. |
+| Does rebuild use the same recovery copy? | `RebuildReader_UsesJournalWithoutMutatingTheSources`. | It recovers the documents without salvage errors or source mutation. |
+| Can a later safepoint destroy an acknowledged commit? | `TornSafepointAfterAnotherTransactionCommits_PreservesItsAcknowledgedPrefix`. | The committed prefix remains immutable; the other transaction remains rolled back. |
+| Are data bytes, checksum fields, and WAL metadata covered? | `EveryByteOfDataPageAndWalTrailer_IsCovered`. | A one-bit mutation at every tested byte is rejected. |
+| Can a valid page be accepted at the wrong position? | `ValidDataPageChecksum_DoesNotPermitAMisdirectedPage`. | No; identity is checked independently of CRC equality. |
+| Does migration preserve unused preallocation? | `AutomaticConversion_PreservesUnusedPreallocation`. | Padding stays zero and later allocation/checkpoint/reopen works. |
+| Can an older engine append commits after interrupted conversion? | `LegacyCommitsAfterAConversionFooter_AreReplayedBeforeConversion` and the separate-process 5.0.21 compatibility runner. | Later commits survive read-only recovery, writable conversion, and reopening, with and without a legacy checkpoint. |
+| Can encrypted disposal undo WAL truncation? | `DisposingAfterCheckpoint_DoesNotReextendTheTruncatedWal`. | The truncated writer position is clamped before CryptoStream disposal. |
 
-## Blocking recovery gap
+Run the focused matrix with:
 
-The data header is validated in `DiskService.ValidateExistingData` before
-`WalIndexService.RestoreIndex` can read the WAL. A checkpoint can write a new
-header CRC in its first sector while later collection-map sectors retain older
-bytes. That correctly fails validation, but also prevents the intact committed
-WAL from repairing the header. The new tests reproduce this using actual captured
-checkpoint writes, including encrypted ciphertext, rather than arbitrary bit
-corruption. Conversion has a related publication gap and no redundant header.
+```sh
+dotnet test LiteDB.Tests -c Release -f net8.0 -p:TestingEnabled=true --settings tests.runsettings --filter 'FullyQualifiedName~Checksum|FullyQualifiedName~HeaderJournal|FullyQualifiedName~ConversionJournalCrash|FullyQualifiedName~LegacyJournalTail|FullyQualifiedName~WalTransactionBoundary|FullyQualifiedName~WalPowerLoss'
+```
 
-The tests asserting rejection are **characterization tests of the limitation**.
-Their passing result does not mean crash recovery is fixed. Before merging,
-header publication needs a durable recovery copy/protocol that preserves the
-generation identity and works for caller-owned streams as well as files. The
-acceptance test should then require all acknowledged records to recover from
-these images without salvage, followed by a successful checkpoint and reopen.
-Read-only recovery must still preserve both files, and stale WAL generations
-must remain rejected.
-
-Skipping header validation, recomputing a checksum over damaged metadata, or
-silently rebuilding with potentially lost records is not an equivalent fix.
-The automated review's suggestion to route checksum failures to automatic
-rebuild does not resolve the durable-header problem. Current behavior deliberately
-preserves the damaged files, including with `AutoRebuild=true`.
-
-## Validation status
-
-This review adds 19 test cases. The focused checksum, WAL power-loss, and
-transaction-boundary suites pass **81 tests on .NET 8 and 81 on .NET 10**, with
-no skips. No production recovery behavior is changed by this review.
-
-On the initial PR commit, GitHub's Windows x64 .NET 10 test job hit its five-minute
-step timeout with no failed test assertions reported before cancellation. That
-result is not a successful suite run and is not assumed to be an unrelated flake.
-A passing run remains a separate merge requirement.
+Use `-f net10.0` for the second runtime. The compatibility script additionally
+runs the released LiteDB 5.0.21 in another process against interrupted conversion,
+normal conversion, encrypted files, and the v10 rejection boundary. CI must pass
+on the final PR commit before merging; an earlier Windows test timeout is not
+counted as a successful run.

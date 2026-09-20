@@ -216,7 +216,7 @@ namespace LiteDB.Tests.Issues
             {
                 this.WriteCalls++;
 
-                if (this._failed == false && count == PageSize)
+                if (this._failed == false && count >= PageSize)
                 {
                     this._failed = true;
                     base.Write(buffer, offset, 32);

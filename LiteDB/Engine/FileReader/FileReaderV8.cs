@@ -67,17 +67,16 @@ namespace LiteDB.Engine
                 _maxPageID = (uint)(dataFactory.GetLength() / PAGE_SIZE + logFactory.GetLength() / PAGE_SIZE);
 
                 _dataStream = dataFactory.GetStream(true, false);
+                if (logFactory.Exists()) _logStream = logFactory.GetStream(false, true);
 
                 this.InitializeChecksums();
                 _dataStream.Position = 0;
 
-                if (logFactory.Exists())
+                if (_logStream != null)
                 {
-                    _logStream = logFactory.GetStream(false, true);
-
+                    _logStream = new ChecksummedWalStream(_logStream, _checksums);
                     if (_checksums.Enabled)
                     {
-                        _logStream = new ChecksummedWalStream(_logStream, _checksums);
                         this.LoadChecksummedIndexMap();
                     }
                     else this.LoadIndexMap();
@@ -460,6 +459,7 @@ namespace LiteDB.Engine
                 stream.Position = pageInfo.Position;
 
                 read = stream.ReadFully(pageBuffer.Array, pageBuffer.Offset, pageBuffer.Count);
+                this.ReadRecoveredHeader(pageBuffer, pageID, pageInfo.Origin);
 
                 ENSURE(read == PAGE_SIZE, "Page position {0} read only than {1} bytes (instead {2})", stream.Position, read, PAGE_SIZE);
 

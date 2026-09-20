@@ -15,7 +15,13 @@ namespace VectorCompatibility.Current
                 var suffix = encrypted ? "encrypted.db" : "plain.db";
                 var password = encrypted ? "compatibility-test" : null;
                 var mode = args[0];
-                var file = Path.Combine(args[1], (mode == "create" ? "current-" : "legacy-") + suffix);
+                if (mode == "interrupt")
+                {
+                    InterruptedConversion.Create(args[1], suffix, password);
+                    continue;
+                }
+                var prefix = mode == "create" ? "current-" : mode == "resumed" ? "interrupted-" : mode == "resumed-wal" ? "interrupted-wal-" : "legacy-";
+                var file = Path.Combine(args[1], prefix + suffix);
                 var original = File.Exists(file) ? File.ReadAllBytes(file) : null;
                 using (var db = new LiteDatabase(new ConnectionString
                 {
@@ -38,6 +44,8 @@ namespace VectorCompatibility.Current
                             docs.Insert(new BsonDocument { ["_id"] = 2, ["Embedding"] = new BsonVector(new[] { 1f, 0f }) });
                         else if (mode == "verify" && (docs.Count() != 2 || !docs.FindById(2)["Embedding"].IsVector))
                             throw new Exception("Conversion lost data");
+                        else if (mode.StartsWith("resumed") && (docs.Count() != 2 || docs.FindById(2)["value"].AsString != "resumed"))
+                            throw new Exception("Resuming conversion lost a legacy write");
                     }
                 }
                 if (mode == "readonly" && !System.Linq.Enumerable.SequenceEqual(original, File.ReadAllBytes(file)))

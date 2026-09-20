@@ -11,6 +11,9 @@ Recovery validates salted WAL frame checksums, transaction page counts/digests,
 and commit order. Missing, torn, or stale frames discard the incomplete transaction
 and its dependent tail; `$database.recoveryDiscardedWalBytes` reports the loss.
 Checkpointed data pages also have checksums and fail explicitly when damaged.
+Checkpoint uses a temporary header journal to recover torn header writes.
+Automatic conversion keeps verified legacy redo until v10 publication is durable,
+requiring temporary WAL space proportional to allocated database pages.
 Plain and encrypted files use the same validation. See the
 [format, conversion, and recovery details](page-and-wal-checksums.md).
 

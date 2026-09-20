@@ -12,7 +12,9 @@ namespace LiteDB.Engine
         private readonly byte[] _frame = new byte[WalChecksum.FrameSize];
         private long _position;
         internal WalChecksum.Frame LastFrame { get; private set; }
-        internal long TrailingBytes => _checksum.Enabled ? _stream.Length % WalChecksum.FrameSize : _stream.Length % PAGE_SIZE;
+        internal Stream RawStream => _stream;
+        private long ContentLength => Math.Max(0, _stream.Length - _checksum.JournalBytes);
+        internal long TrailingBytes => ContentLength % (_checksum.Enabled ? WalChecksum.FrameSize : PAGE_SIZE);
 
         internal ChecksummedWalStream(Stream stream, WalChecksum checksum)
         {
@@ -23,12 +25,20 @@ namespace LiteDB.Engine
         public override bool CanRead => _stream.CanRead;
         public override bool CanSeek => _stream.CanSeek;
         public override bool CanWrite => _stream.CanWrite;
-        public override long Length => _checksum.Enabled ? _stream.Length / WalChecksum.FrameSize * PAGE_SIZE : _stream.Length;
+        public override long Length => _checksum.Enabled ? ContentLength / WalChecksum.FrameSize * PAGE_SIZE : ContentLength;
         public override long Position { get => _checksum.Enabled ? _position : _stream.Position; set => Seek(value, SeekOrigin.Begin); }
 
         public override int Read(byte[] buffer, int offset, int count)
         {
-            if (!_checksum.Enabled) return _stream.Read(buffer, offset, count);
+            if (!_checksum.Enabled)
+            {
+                var start = _stream.Position;
+                var length = _stream.Read(buffer, offset, count);
+                var confirmation = _checksum.LegacyConfirmationPosition + BasePage.P_IS_CONFIRMED;
+                if (_checksum.LegacyConfirmationPosition >= 0 && start <= confirmation && confirmation < start + length)
+                    buffer[offset + (int)(confirmation - start)] = 1;
+                return length;
+            }
             CheckPage(count);
             _stream.Position = _position / PAGE_SIZE * WalChecksum.FrameSize;
             var read = _stream.ReadFully(_frame, 0, _frame.Length);
@@ -43,6 +53,7 @@ namespace LiteDB.Engine
 
         public override void Write(byte[] buffer, int offset, int count)
         {
+            if (_checksum.JournalBytes != 0) throw new IOException("Cannot append WAL pages during header publication.");
             if (!_checksum.Enabled)
             {
                 _stream.Write(buffer, offset, count);
@@ -76,7 +87,14 @@ namespace LiteDB.Engine
         public override void SetLength(long value)
         {
             if (_checksum.Enabled && value % PAGE_SIZE != 0) throw new ArgumentException("WAL length must be page aligned.");
-            _stream.SetLength(_checksum.Enabled ? checked(value / PAGE_SIZE * WalChecksum.FrameSize) : value);
+            var length = _checksum.Enabled ? checked(value / PAGE_SIZE * WalChecksum.FrameSize) : value;
+            _stream.SetLength(length);
+            // CryptoStream can forward an empty final write on dispose. Do not
+            // let a borrowed stream position re-extend a truncated memory WAL.
+            if (_stream.Position > length) _stream.Position = length;
+            if (_position > value) _position = value;
+            _checksum.JournalBytes = 0;
+            _checksum.LegacyConfirmationPosition = -1;
         }
 
         public override void Flush() => _stream.Flush();

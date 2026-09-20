@@ -39,7 +39,6 @@ namespace LiteDB.Tests.Engine
             }
             ChecksumTestFiles.MakeLegacy(stream, log, password);
             var before = stream.DurableFlushes;
-            var logLength = log.Length;
             stream.HeaderOffset = password == null ? 0 : Constants.PAGE_SIZE;
             stream.FailDurableFlush = failFlush;
             if (failFlush)
@@ -47,7 +46,9 @@ namespace LiteDB.Tests.Engine
                 Action open = () => { using var engine = new LiteEngine(settings); };
                 open.Should().Throw<IOException>().WithMessage("Injected durable flush failure");
                 stream.FlushFailed.Should().BeTrue();
-                log.Length.Should().BeLessThanOrEqualTo(logLength, "conversion may checkpoint legacy frames but must not append new WAL writes");
+                using var factory = new StreamFactory(log, password);
+                using var journalStream = factory.GetStream(false, false);
+                HeaderJournal.Read(journalStream).Should().NotBeNull("failed publication retains legacy redo and a header recovery copy");
             }
             using var reopenedEngine = new LiteEngine(settings);
             using var reopened = new LiteDatabase(reopenedEngine, disposeOnClose: false);

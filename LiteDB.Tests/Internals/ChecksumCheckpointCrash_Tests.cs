@@ -24,6 +24,7 @@ namespace LiteDB.Internals
             var names = Enumerable.Range(0, 10).Select(i => "collection_" + i + new string('x', 45)).ToArray();
             foreach (var name in names) db.GetCollection(name).Insert(new BsonDocument { ["_id"] = 1, ["value"] = 123 });
             var wal = log.ToArray();
+            data.Log = log;
             data.Capture = true;
             db.Checkpoint();
             data.Capture = false;
@@ -32,7 +33,7 @@ namespace LiteDB.Internals
             // Before every write, all earlier writes reached storage but this one
             // did not. The original WAL remains until the checkpoint completes.
             foreach (var write in data.Writes)
-                AssertRecovered(write.Before, wal, password, names);
+                AssertRecovered(write.Before, write.Wal, password, names);
             AssertRecovered(data.ToArray(), wal, password, names);
         }
 
@@ -41,7 +42,7 @@ namespace LiteDB.Internals
         [InlineData("secret", false)]
         [InlineData(null, true)]
         [InlineData("secret", true)]
-        public void TornCheckpointPages_RecoverExceptForTheUnprotectedHeader(string password, bool readOnly)
+        public void TornCheckpointPages_IncludingHeaders_RecoverAcknowledgedCommits(string password, bool readOnly)
         {
             using var data = new CheckpointImages();
             using var log = new MemoryStream();
@@ -50,54 +51,22 @@ namespace LiteDB.Internals
             db.CheckpointSize = 0;
             var names = Enumerable.Range(0, 10).Select(i => "collection_" + i + new string('x', 45)).ToArray();
             foreach (var name in names) db.GetCollection(name).Insert(new BsonDocument { ["_id"] = 1, ["value"] = 123 });
-            var wal = log.ToArray();
+            data.Log = log;
             data.Capture = true;
             db.Checkpoint();
             data.Capture = false;
             var headerPosition = password == null ? 0 : PAGE_SIZE;
-            var rejectedHeaders = 0;
-
             foreach (var write in data.Writes)
             {
-                // Model a sector reaching storage while the rest of its page
-                // retains the previous bytes, including encrypted ciphertext.
-                var torn = new byte[Math.Max(write.Before.Length, write.Position + PAGE_SIZE)];
-                Buffer.BlockCopy(write.Before, 0, torn, 0, write.Before.Length);
-                Buffer.BlockCopy(write.Bytes, 0, torn, write.Position, 512);
-                if (write.Position != headerPosition)
+                var cuts = write.Position == headerPosition ? new[] { 1, 16, 64, 128, 512, 4096 } : new[] { 512 };
+                foreach (var prefix in cuts)
                 {
-                    AssertRecovered(torn, wal, password, names);
-                    continue;
-                }
-
-                using var candidate = ChecksumTestFiles.Copy(torn);
-                using var candidateWal = ChecksumTestFiles.Copy(wal);
-                try
-                {
-                    using var recovered = new LiteEngine(new EngineSettings
-                    {
-                        DataStream = candidate, LogStream = candidateWal, Password = password, ReadOnly = readOnly,
-                        AutoRebuild = true
-                    });
-                    using var recoveredDb = new LiteDatabase(recovered, disposeOnClose: false);
-                    // Avoid a normal close checkpoint changing this image.
-                    foreach (var name in names) recoveredDb.GetCollection(name).Count().Should().Be(1);
-                }
-                catch (PageChecksumException)
-                {
-                    rejectedHeaders++;
-                    candidate.ToArray().Should().Equal(torn);
-                    candidateWal.ToArray().Should().Equal(wal);
-                }
-                if (readOnly)
-                {
-                    candidate.ToArray().Should().Equal(torn);
-                    candidateWal.ToArray().Should().Equal(wal);
+                    var torn = new byte[Math.Max(write.Before.Length, write.Position + PAGE_SIZE)];
+                    Buffer.BlockCopy(write.Before, 0, torn, 0, write.Before.Length);
+                    Buffer.BlockCopy(write.Bytes, 0, torn, write.Position, prefix);
+                    AssertRecovered(torn, write.Wal, password, names, readOnly: readOnly);
                 }
             }
-            // This is a documented merge blocker, not a recovery guarantee:
-            // header validation currently prevents replay of an intact redo WAL.
-            rejectedHeaders.Should().BeGreaterThan(0);
         }
 
         [Theory]
@@ -131,16 +100,20 @@ namespace LiteDB.Internals
                     stream.Write(page, 0, page.Length);
                 }
             }
+            data.Log = log;
             data.Capture = true;
             using (var converted = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, Password = password })) { }
             data.Capture = false;
             data.Writes.Should().HaveCount((bytes.Length - (password == null ? 0 : PAGE_SIZE)) / PAGE_SIZE);
             foreach (var write in data.Writes)
             {
-                AssertRecovered(write.Before, Array.Empty<byte>(), password, new[] { "docs" }, WalTestDatabase.DocumentCount, 0);
-                var torn = (byte[])write.Before.Clone();
-                Buffer.BlockCopy(write.Bytes, 0, torn, write.Position, 512);
-                AssertRecovered(torn, Array.Empty<byte>(), password, new[] { "docs" }, WalTestDatabase.DocumentCount, 0);
+                AssertRecovered(write.Before, write.Wal, password, new[] { "docs" }, WalTestDatabase.DocumentCount, 0);
+                foreach (var prefix in new[] { 8, 15, 512 })
+                {
+                    var torn = (byte[])write.Before.Clone();
+                    Buffer.BlockCopy(write.Bytes, 0, torn, write.Position, prefix);
+                    AssertRecovered(torn, write.Wal, password, new[] { "docs" }, WalTestDatabase.DocumentCount, 0);
+                }
             }
         }
 
@@ -149,40 +122,45 @@ namespace LiteDB.Internals
         [InlineData("secret", 64)]
         [InlineData(null, 128)]
         [InlineData("secret", 128)]
-        public void TornConversionHeader_IsDetectedButCannotResumeAutomatically(string password, int prefix)
+        [InlineData(null, PAGE_SIZE)]
+        [InlineData("secret", PAGE_SIZE)]
+        public void TornConversionHeader_ResumesAutomatically(string password, int prefix)
         {
             using var original = new WalTestDatabase(password);
             original.Seed("docs");
             original.Database.Checkpoint();
-            using var data = ChecksumTestFiles.Copy(original.Data.ToArray());
+            using var data = new CheckpointImages();
+            var initial = original.Data.ToArray();
+            data.Write(initial, 0, initial.Length);
             using var log = new MemoryStream();
             ChecksumTestFiles.MakeLegacy(data, log, password);
-            var legacy = data.ToArray();
+            data.Log = log;
+            data.Capture = true;
             using (var converted = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, Password = password })) { }
-            var bytes = data.ToArray();
-            var headerPosition = password == null ? 0 : PAGE_SIZE;
-            // The first part of the v10 publication reaches storage; the rest
-            // retains its legacy bytes. No backup exists for in-place conversion.
-            Buffer.BlockCopy(legacy, headerPosition + prefix, bytes, headerPosition + prefix, PAGE_SIZE - prefix);
-            using var interrupted = ChecksumTestFiles.Copy(bytes);
-            var wal = log.ToArray();
-            var settings = new EngineSettings { DataStream = interrupted, LogStream = log, Password = password, AutoRebuild = true };
-            Action reopen = () => { using var engine = new LiteEngine(settings); };
-            reopen.Should().Throw<PageChecksumException>();
-            interrupted.ToArray().Should().Equal(bytes);
-            log.ToArray().Should().Equal(wal);
+            data.Capture = false;
+            var publication = data.Writes.Last();
+            var torn = (byte[])publication.Before.Clone();
+            Buffer.BlockCopy(publication.Bytes, 0, torn, publication.Position, prefix);
+            AssertRecovered(torn, publication.Wal, password, new[] { "docs" }, WalTestDatabase.DocumentCount, 0, readOnly: true);
+            AssertRecovered(torn, publication.Wal, password, new[] { "docs" }, WalTestDatabase.DocumentCount, 0);
         }
 
-        private static void AssertRecovered(byte[] bytes, byte[] wal, string password, string[] names, int count = 1, int value = 123)
+        private static void AssertRecovered(byte[] bytes, byte[] wal, string password, string[] names, int count = 1, int value = 123, bool readOnly = false)
         {
             using var data = ChecksumTestFiles.Copy(bytes);
             using var log = ChecksumTestFiles.Copy(wal);
-            var settings = new EngineSettings { DataStream = data, LogStream = log, Password = password };
+            var settings = new EngineSettings { DataStream = data, LogStream = log, Password = password, ReadOnly = readOnly };
             using (var engine = new LiteEngine(settings))
             using (var db = new LiteDatabase(engine, disposeOnClose: false))
             {
                 foreach (var name in names)
                     db.GetCollection(name).FindAll().Should().HaveCount(count).And.OnlyContain(x => x["value"].AsInt32 == value);
+                if (readOnly)
+                {
+                    data.ToArray().Should().Equal(bytes);
+                    log.ToArray().Should().Equal(wal);
+                    return;
+                }
                 db.Checkpoint();
             }
             using var reopenedEngine = new LiteEngine(settings);
@@ -193,6 +171,7 @@ namespace LiteDB.Internals
         private sealed class CheckpointImages : MemoryStream
         {
             internal bool Capture;
+            internal MemoryStream Log;
             internal readonly List<WriteImage> Writes = new List<WriteImage>();
 
             public override void Write(byte[] buffer, int offset, int count)
@@ -201,7 +180,7 @@ namespace LiteDB.Internals
                 {
                     var bytes = new byte[count];
                     Buffer.BlockCopy(buffer, offset, bytes, 0, count);
-                    Writes.Add(new WriteImage { Position = checked((int)Position), Before = ToArray(), Bytes = bytes });
+                    Writes.Add(new WriteImage { Position = checked((int)Position), Before = ToArray(), Bytes = bytes, Wal = Log.ToArray() });
                 }
                 base.Write(buffer, offset, count);
             }
@@ -212,6 +191,7 @@ namespace LiteDB.Internals
             internal int Position;
             internal byte[] Before;
             internal byte[] Bytes;
+            internal byte[] Wal;
         }
     }
 }

@@ -49,6 +49,13 @@ encryption, caller-stream, and checksum wrappers. Run
 `python3 scripts/test-vector-compatibility.py` for legacy read-only compatibility,
 automatic conversion, and old-engine rejection, including encrypted files.
 See `docs/page-and-wal-checksums.md` and `docs/vector-query-compatibility.md`.
+Header overwrites require a synced WAL recovery footer; recover it before the
+primary-header checksum gate, and sync repairs before removing the footer.
+Conversion keeps legacy redo: durably publish its intent before writing backup
+pages, sync redo before preparation, and sync preparation before confirmation.
+Incomplete encrypted redo can look confirmed, so never feed it to legacy replay
+without checking the intent/preparation records. Keep read-only recovery byte
+preserving. See `docs/header-publication.md` and the crash-boundary tests.
 
 ## Query Frontends
 LINQ and SQL share `BsonExpressionFactory`; LINQ bindings must construct nodes

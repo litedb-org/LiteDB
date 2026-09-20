@@ -20,6 +20,7 @@ namespace LiteDB.Engine
                     offset += read;
                 }
 
+                this.RecoverHeaderJournal(ref bytes);
                 if (bytes[0] == 1)
                     throw new LiteException(LiteException.INVALID_PASSWORD, "This data file is encrypted and needs a password to open");
 

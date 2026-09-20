@@ -46,7 +46,9 @@ namespace LiteDB.Engine
 
             lock (stream)
             {
-                this.FlushLogToDisk(stream);
+                // Sync both the header recovery copy and preceding WAL before
+                // overwriting data. Unsupported sync retains the reported fallback.
+                this.PrepareCheckpointHeader();
             }
         }
 
