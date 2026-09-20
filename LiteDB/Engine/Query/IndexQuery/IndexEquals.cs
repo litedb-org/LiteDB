@@ -41,7 +41,7 @@ namespace LiteDB.Engine
                 var first = node;
 
                 // first go forward
-                while (!node.Next[0].IsEmpty && ((node = indexer.GetNode(node.Next[0])).Key.CompareTo(_value, indexer.Collation) == 0))
+                while (!node.GetNextPrev(0, Query.Ascending).IsEmpty && ((node = indexer.GetNode(node.GetNextPrev(0, Query.Ascending))).Key.CompareTo(_value, indexer.Collation) == 0))
                 {
                     if (node.Key.IsMinValue || node.Key.IsMaxValue) break;
 
@@ -51,7 +51,7 @@ namespace LiteDB.Engine
                 node = first;
                 
                 // and than, go backward
-                while (!node.Prev[0].IsEmpty && ((node = indexer.GetNode(node.Prev[0])).Key.CompareTo(_value, indexer.Collation) == 0))
+                while (!node.GetNextPrev(0, Query.Descending).IsEmpty && ((node = indexer.GetNode(node.GetNextPrev(0, Query.Descending))).Key.CompareTo(_value, indexer.Collation) == 0))
                 {
                     if (node.Key.IsMinValue || node.Key.IsMaxValue) break;
 

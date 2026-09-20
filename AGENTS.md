@@ -42,3 +42,7 @@ continues to rebuild v7 files before applying read-only access. Durable flushes
 must reach the underlying file through encryption and caller-stream wrappers. Run `python3 scripts/test-vector-compatibility.py`
 to verify ordinary v8 round trips and vector-file rejection by LiteDB 5.0.21,
 including encrypted files. See `docs/vector-query-compatibility.md` for semantics.
+
+Index-node links must remain owned by the node across transaction safepoints.
+Keep their compact copied representation independent of released page buffers;
+update both the page and the owned copy when changing links.
