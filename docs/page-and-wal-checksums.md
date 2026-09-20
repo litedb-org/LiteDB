@@ -1,5 +1,9 @@
 # Data-page and WAL checksums (#2935)
 
+**Merge status:** additional crash tests reproduce an unresolved header-recovery
+gap, including with an intact WAL. See [the merge review](checksum-merge-review.md)
+for the cases, test evidence, and required recovery guarantee.
+
 New databases use format **10**. Writable opens of formats 8 and 9 automatically
 recover their legacy WAL, checkpoint it, and add checksums to existing pages.
 The page checksums are synced before the v10 header is written and synced. This
