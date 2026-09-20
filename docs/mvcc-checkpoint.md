@@ -6,6 +6,15 @@ page at or below the oldest live snapshot. It does not wait for readers to finis
 `Checkpoint()` returns the number of pages copied; with a version-zero reader it
 can return zero. Dispose streaming readers promptly to permit full WAL truncation.
 
+`Checkpoint()` therefore no longer guarantees an empty WAL. It waits only briefly
+for open transactions and otherwise backfills what is safe. The data file alone is
+a complete copy of the database only when the WAL is empty afterwards, so a backup
+that copies just the data file must first close its readers or copy both files.
+
+An auto-checkpoint from a commit takes the full path whenever no transaction is
+open. Under readers it does partial work on a back-off (50 ms doubling to 1 s),
+because that work scans the index under its write lock and flushes the WAL twice.
+
 ## Backfill and reclamation
 
 Checkpoint uses the minimum of the current commit version, every local collection
@@ -13,16 +22,19 @@ snapshot, and all live shared-reader versions. Capture/registration, commit-inde
 publication, and boundary selection share the WAL index lock. Registration in
 other processes is ordered by the named database mutex.
 
-For each page, keep its newest committed version at or below the watermark (its
-**floor**) and every newer version. Earlier versions are obsolete. For example,
-with page versions 2, 6, 9 and watermark 8, version 6 must remain available even
-though it is below 8; version 2 can be reclaimed. A commit marker also remains
-until none of that transaction's page versions are required.
+A snapshot S resolves a page to its **floor**: the newest committed version at or
+below S. For each page, keep the floor of every live snapshot (local and shared)
+and the newest version, which is the floor of every snapshot taken later. Every
+other version is obsolete, including versions newer than the oldest reader. For
+example, with page versions 2, 6, 9, 12 and live snapshots 8 and 10, versions 6
+and 9 are floors and 12 is newest; version 2 can be reclaimed. With one snapshot
+at 8, version 9 is reclaimable too. A commit marker remains until none of that
+transaction's page versions are required.
 
-An active snapshot S is at least the watermark. Its index was captured after the
-floor committed, so it cannot select a frame older than that floor. This holds
-for another process's unchanged index and for a reader suspended after resolving
-an offset but before reading its bytes. If no WAL version exists at or below S,
+A snapshot's index was captured after its floor committed, so it cannot select
+any other frame. This holds for another process's unchanged index and for a
+reader suspended after resolving an offset but before reading its bytes. Backfill
+still stops at the oldest snapshot. If no WAL version exists at or below S,
 backfill at or below S cannot change that page's original data-file image.
 
 The physical protocol is:
@@ -62,7 +74,10 @@ shrink the live file or punch filesystem holes. Full truncation, index reset, an
 version-counter reset require exclusive local transaction ownership and no shared
 reader leases, and happen only after the data flush.
 
-Retained floors, newer versions, and necessary commit markers cannot be reclaimed.
+Retained floors, the newest versions, and necessary commit markers cannot be
+reclaimed. Confirmation frames always append, and a single-page transaction is
+only a confirmation frame. A workload of single-page commits therefore grows the
+WAL by one page per commit for as long as any snapshot blocks full truncation.
 Not every freed slot is eligible for every page: a page whose previous frame is
 near the WAL tail may still need to append, preserving legacy replay order.
 Consequently this reduces growth when usable obsolete slots exist, rather than
@@ -78,7 +93,14 @@ workload-specific capacity-reuse measurement, not a general storage reduction.
 
 ## Shared mode
 
-Ordinary `SharedEngine.Query` uses a private read-only engine with a fixed WAL
+Ordinary `SharedEngine.Query` first reads the result under the mutex. A result of
+at most 100 values and 64 KiB completes there and is returned from memory: it
+holds no engine, lock or lease, and costs what a shared query cost before. A
+larger result is abandoned and streamed as follows, from the same committed state.
+A failure while producing row N is raised by the `Read` that would have returned
+row N, as a streaming reader does. A larger result pays for up to 101 discarded rows.
+
+A streamed query uses a private read-only engine with a fixed WAL
 index and an OS-held lease in `<database filename>-readers/`. Under the existing
 named database mutex it opens/replays the database and publishes a lease whose
 name contains the captured version. It then releases the mutex before returning
@@ -92,7 +114,9 @@ offsets outlive their protection. A newly opened query replays newer commits.
 
 An exclusively opened lease file is the liveness primitive. The process keeps its
 handle open; another participant can only open it exclusively after the OS has
-released that handle. Stale files are then deleted under the database mutex.
+released that handle. Stale files are then deleted under the database mutex, and
+the directory with the last of them. A lease that cannot be proven dead for any
+reason (sharing violation, access denied, delete-pending) counts as live.
 No PID reuse or heartbeat timeout can evict a paused but live reader. Interrupted
 registration is safe because replay, registration, and checkpoint are ordered by
 the same mutex. After a machine restart there are no surviving reader handles.

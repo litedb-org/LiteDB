@@ -6,20 +6,18 @@ namespace LiteDB.Engine
     internal partial class WalIndexService
     {
         /// <summary>
-        /// The caller owns the index write lock. For each page keep its newest
-        /// version at or below the watermark (the floor), and every newer version.
-        /// A snapshot S >= watermark captured its index after that floor committed,
-        /// so even another process's unchanged index cannot select an earlier frame.
+        /// The caller owns the index write lock. A snapshot S resolves a page to its
+        /// floor: the newest version at or below S. Keep the floor of every live
+        /// snapshot and the newest version, which is the floor of every later one.
+        /// No snapshot, in this or another process, can select any other frame.
         /// </summary>
-        private List<long> FindObsoleteFrames(int watermark)
+        private List<long> FindObsoleteFrames(int[] liveVersions)
         {
             var obsolete = new HashSet<long>();
             var requiredVersions = new HashSet<int>();
             foreach (var versions in _index.Values)
             {
-                var floor = versions.FindLastIndex(frame => frame.Key <= watermark);
-                for (var i = 0; i < floor; i++) obsolete.Add(versions[i].Value);
-                if (floor > 0) versions.RemoveRange(0, floor);
+                if (versions.Count > 1) RemoveUnreachable(versions, liveVersions, obsolete);
                 foreach (var frame in versions) requiredVersions.Add(frame.Key);
             }
 
@@ -38,6 +36,26 @@ namespace LiteDB.Engine
                 }
             }
             return obsolete.OrderBy(position => position).ToList();
+        }
+
+        private static void RemoveUnreachable(List<KeyValuePair<int, long>> versions, int[] liveVersions, HashSet<long> obsolete)
+        {
+            var keep = new bool[versions.Count];
+            keep[versions.Count - 1] = true;
+            foreach (var live in liveVersions)
+            {
+                var floor = versions.FindLastIndex(frame => frame.Key <= live);
+                if (floor >= 0) keep[floor] = true;
+            }
+
+            var reachable = new List<KeyValuePair<int, long>>();
+            for (var i = 0; i < versions.Count; i++)
+            {
+                if (keep[i]) reachable.Add(versions[i]);
+                else obsolete.Add(versions[i].Value);
+            }
+            versions.Clear();
+            versions.AddRange(reachable);
         }
 
 #if DEBUG || TESTING

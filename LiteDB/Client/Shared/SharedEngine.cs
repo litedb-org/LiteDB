@@ -21,7 +21,7 @@ namespace LiteDB
         {
             _settings = settings.Clone();
             _readers = new SharedReaderRegistry(settings.Filename);
-            _settings.OldestSharedReader = _readers.OldestVersion;
+            _settings.SharedReaderVersions = _readers.LiveVersions;
 
             var name = SharedMutexNameFactory.Create(settings.Filename, settings.SharedMutexNameStrategy);
 

@@ -29,11 +29,11 @@ namespace LiteDB.Engine
         /// </summary>
         private int _lastTransactionID = 0;
 
-        public WalIndexService(DiskService disk, LockService locker, Func<int?> oldestReader = null)
+        public WalIndexService(DiskService disk, LockService locker, Func<int[]> sharedReaders = null)
         {
             _disk = disk;
             _locker = locker;
-            _oldestReader = oldestReader;
+            _sharedReaders = sharedReaders;
         }
 
         /// <summary>

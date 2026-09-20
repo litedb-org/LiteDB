@@ -21,7 +21,7 @@ namespace LiteDB.Engine
 #if DEBUG || TESTING
         internal Action<string> CheckpointStage { get; set; }
 #endif
-        internal Func<int?> OldestSharedReader { get; set; }
+        internal Func<int[]> SharedReaderVersions { get; set; }
         internal bool SharedReadSnapshot { get; set; }
         internal EngineSettings Clone() => (EngineSettings)this.MemberwiseClone();
 

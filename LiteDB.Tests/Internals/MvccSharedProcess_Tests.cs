@@ -69,7 +69,7 @@ namespace LiteDB.Internals
             }
             await MvccProcess.Run("checkpoint", Filename, password);
             File.Exists(FileHelper.GetLogFile(Filename)).Should().BeFalse();
-            Directory.GetFiles(Filename + "-readers", "*.lease").Should().BeEmpty();
+            Directory.Exists(Filename + "-readers").Should().BeFalse("the last dead lease takes the registry with it");
             AssertDataFileValue(password, 1);
         }
 

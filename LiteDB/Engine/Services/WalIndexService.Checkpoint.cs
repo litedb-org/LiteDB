@@ -7,7 +7,7 @@ namespace LiteDB.Engine
     internal partial class WalIndexService
     {
         private readonly Dictionary<int, int> _snapshots = new Dictionary<int, int>();
-        private readonly Func<int?> _oldestReader;
+        private readonly Func<int[]> _sharedReaders;
         private int _backfillVersion;
         private readonly Dictionary<int, long> _confirmationPositions = new Dictionary<int, long>();
 
@@ -43,6 +43,16 @@ namespace LiteDB.Engine
             finally { _indexLock.ExitWriteLock(); }
         }
 
+        /// <summary>
+        /// Ascending snapshot versions of this process and of shared readers.
+        /// The caller owns the index write lock.
+        /// </summary>
+        private int[] LiveVersions()
+        {
+            var shared = _sharedReaders?.Invoke() ?? new int[0];
+            return _snapshots.Keys.Concat(shared).Distinct().OrderBy(version => version).ToArray();
+        }
+
         public int Checkpoint() => this.TryCheckpoint(rationed: false);
 
         public int TryCheckpoint() => this.TryCheckpoint(rationed: false);
@@ -50,9 +60,8 @@ namespace LiteDB.Engine
         public int TryAutoCheckpoint() => this.TryCheckpoint(rationed: true);
 
         /// <summary>
-        /// Backfill only committed versions visible to every snapshot. Keep the
-        /// floor version of every page and its commit marker. Older superseded
-        /// frames cannot be resolved by any live snapshot and can be reused.
+        /// Backfill only committed versions visible to every snapshot. Frames that
+        /// no live or future snapshot can resolve are cleared and become reusable.
         /// </summary>
         private int TryCheckpoint(bool rationed)
         {
@@ -64,13 +73,15 @@ namespace LiteDB.Engine
             var timeout = wait ? READER_WAIT_MILLISECONDS : NO_WAIT_MILLISECONDS;
             var exclusive = _locker.TryEnterExclusive(out var mustExit, waitForReaders: wait, milliseconds: timeout);
             if (exclusive) _backoff.Reset();
+            // Partial work under readers costs an index scan and two WAL flushes.
+            // A commit only pays for it on the same back-off as the waiting attempt.
+            if (!exclusive && !wait) return 0;
             _indexLock.EnterWriteLock();
             try
             {
-                var external = _oldestReader?.Invoke();
-                var target = _snapshots.Count == 0 ? _currentReadVersion : _snapshots.Keys.Min();
-                if (external.HasValue) target = Math.Min(target, external.Value);
-                var reclaim = exclusive && _snapshots.Count == 0 && !external.HasValue;
+                var live = this.LiveVersions();
+                var target = live.Length == 0 ? _currentReadVersion : live[0];
+                var reclaim = exclusive && live.Length == 0;
 
                 var pages = new List<PagePosition>();
                 foreach (var entry in _index)
@@ -82,7 +93,7 @@ namespace LiteDB.Engine
                     }
                 }
 
-                var obsolete = reclaim ? new List<long>() : this.FindObsoleteFrames(target);
+                var obsolete = reclaim ? new List<long>() : this.FindObsoleteFrames(live);
                 if (pages.Count == 0 && obsolete.Count == 0 && !reclaim) return 0;
 
                 // WAL must be durable before its pages can reach the data file.
