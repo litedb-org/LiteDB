@@ -157,13 +157,18 @@ namespace LiteDB.Tests.Mapper
 
         private Expression Element(int depth)
         {
-            if (depth <= 0) return _shape.Next(2) == 0 ? Int(0) : Text(0);
-            switch (_shape.Next(4))
+            // Half the elements are one plain capture or a nested container, so many
+            // seeds share a preorder node sequence and differ only in their nesting.
+            if (depth <= 0) return _shape.Next(2) == 0 ? Capture(Words[_values.Next(Words.Length)]) : Int(0);
+            switch (_shape.Next(8))
             {
                 case 0: return Int(depth);
                 case 1: return Text(depth);
-                case 2: return Array(depth);
-                default: return Init(depth);
+                case 2:
+                case 3:
+                case 4: return Array(depth);
+                case 5: return Init(depth);
+                default: return Capture(Words[_values.Next(Words.Length)]);
             }
         }
 

@@ -8,7 +8,10 @@ namespace LiteDB.Tests.Mapper
 {
     public class LinqCacheFuzz_Tests
     {
-        private const int Shapes = 1500;
+        // CI runs a fixed, reproducible range inside its five-minute test budget.
+        // Set LITEDB_FUZZ_SHAPES and LITEDB_FUZZ_SEED to explore other ranges locally.
+        private static readonly int Shapes = Setting("LITEDB_FUZZ_SHAPES", 400);
+        private static readonly int FirstSeed = Setting("LITEDB_FUZZ_SEED", 0);
         private const int ValueSeeds = 3;
 
         private static readonly BsonDocument Document = new BsonDocument
@@ -32,10 +35,10 @@ namespace LiteDB.Tests.Mapper
             var translated = 0;
             for (var i = 0; i < Shapes; i++)
             {
-                var shapeSeed = reverse ? Shapes - 1 - i : i;
+                var shapeSeed = FirstSeed + (reverse ? Shapes - 1 - i : i);
                 for (var valueSeed = 0; valueSeed < ValueSeeds; valueSeed++)
                 {
-                    var query = new LinqCacheFuzzGenerator(shapeSeed, valueSeed).Build(shapeSeed % LinqCacheFuzzGenerator.Kinds);
+                    var query = new LinqCacheFuzzGenerator(shapeSeed, valueSeed).Build(Math.Abs(shapeSeed % LinqCacheFuzzGenerator.Kinds));
                     if (AssertParity(mapper, query, enumAsInteger, $"shape seed {shapeSeed}, value seed {valueSeed}: {query}")) translated++;
                 }
             }
@@ -76,6 +79,9 @@ namespace LiteDB.Tests.Mapper
                 default: return mapper.GetExpression((Expression<Func<FuzzRow, FuzzRow>>)query);
             }
         }
+
+        private static int Setting(string name, int fallback) =>
+            int.TryParse(Environment.GetEnvironmentVariable(name), out var value) && value > 0 ? value : fallback;
 
         private static T Capture<T>(Func<T> action, out Exception error)
         {
