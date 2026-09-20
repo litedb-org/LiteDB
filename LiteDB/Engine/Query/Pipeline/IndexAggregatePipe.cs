@@ -11,7 +11,7 @@ namespace LiteDB.Engine
 
         public override IEnumerable<BsonDocument> Pipe(IEnumerable<IndexNode> nodes, QueryPlan query)
         {
-            var count = 0;
+            long count = 0;
             var offset = query.Offset;
             if (query.Limit > 0)
             {
@@ -20,7 +20,7 @@ namespace LiteDB.Engine
                 foreach (var node in nodes)
                 {
                     if (offset > 0) offset--;
-                    else count = checked(count + 1); // Match COUNT's Int32 overflow behavior.
+                    else count = checked(count + 1L);
                     _transaction.Safepoint();
                     if (count > 0 && (!query.RowAggregate.NeedsCount ||
                         (query.Limit < int.MaxValue && count >= query.Limit))) break;

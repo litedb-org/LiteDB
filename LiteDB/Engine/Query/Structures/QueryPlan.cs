@@ -74,7 +74,15 @@ namespace LiteDB.Engine
 
         internal VectorScoreProjection VectorScore { get; set; }
 
+        internal BorrowedPredicateEvaluator BorrowedFilter { get; set; }
+
+        internal BorrowedScalarEvaluator BorrowedOrderBy { get; set; }
+
+        internal BorrowedProjectionEvaluator BorrowedProjection { get; set; }
+
         internal RowAggregate RowAggregate { get; set; }
+
+        internal bool UseIndexAggregate { get; set; }
 
         /// <summary>
         /// Get fields name that will be deserialize from disk
@@ -103,7 +111,7 @@ namespace LiteDB.Engine
         /// </summary>
         public BasePipe GetPipe(TransactionService transaction, Snapshot snapshot, SortDisk tempDisk, EnginePragmas pragmas, uint maxItemsCount)
         {
-            if (this.RowAggregate != null)
+            if (this.UseIndexAggregate)
                 return new IndexAggregatePipe(transaction, tempDisk, pragmas, maxItemsCount);
             if (this.GroupBy == null)
             {
@@ -159,7 +167,7 @@ namespace LiteDB.Engine
             {
                 ["collection"] = this.Collection,
                 ["snaphost"] = this.ForUpdate ? "write" : "read",
-                ["pipe"] = this.RowAggregate != null ? "indexAggregatePipe" : this.GroupBy == null ? "queryPipe" : "groupByPipe"
+                ["pipe"] = this.UseIndexAggregate ? "indexAggregatePipe" : this.GroupBy == null ? "queryPipe" : "groupByPipe"
             };
 
             doc["index"] = new BsonDocument
@@ -173,10 +181,18 @@ namespace LiteDB.Engine
 
             doc["lookup"] = new BsonDocument
             {
-                ["loader"] = this.RowAggregate != null ? "none" : this.Index is IndexVirtual ? "virtual" : (this.IsIndexKeyOnly ? "index" : "document"),
+                ["loader"] = this.UseIndexAggregate ? "none" : this.Index is IndexVirtual ? "virtual" : (this.IsIndexKeyOnly ? "index" : "document"),
                 ["fields"] =
-                    this.RowAggregate != null ? new BsonArray() : this.Fields.Count == 0 ? new BsonValue("$") :
+                    this.UseIndexAggregate ? new BsonArray() : this.Fields.Count == 0 ? new BsonValue("$") :
                     (BsonValue)new BsonArray(this.Fields.Select(x => new BsonValue(x))),
+            };
+
+            doc["borrowed"] = new BsonDocument
+            {
+                ["filter"] = this.BorrowedFilter != null,
+                ["orderBy"] = this.BorrowedOrderBy != null,
+                ["projection"] = this.BorrowedProjection != null,
+                ["aggregate"] = this.RowAggregate != null && !this.UseIndexAggregate
             };
 
             if (this.IncludeBefore.Count > 0)
