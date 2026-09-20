@@ -68,6 +68,8 @@ hash bits to reduce patterned collisions; atomic publication keeps reads lock-fr
 and avoids duplicate concurrent insertions. Its keys contain expression structure, CLR types, members, methods, and
 lambda parameter identity, excluding captured objects and constant values.
 Hash collisions are checked against the full structural key.
+Array and member-initializer child counts preserve nesting boundaries in the key;
+identical preorder node sequences alone do not prove identical shapes.
 
 Each call reevaluates and serializes its parameter slots in the original order,
 including repeated getter accesses. The cache checks the mapper's enum setting

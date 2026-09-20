@@ -168,6 +168,7 @@ namespace LiteDB.Tests.Issues
             max.Source.Should().Be("($.Published>@p0)");
             min.Source.Should().Be("($.Published>@p0)");
             max.Parameters["p0"].AsDateTime.ToUniversalTime().Should().Be(list[0].Published);
+            min.Parameters["p0"].AsDateTime.ToUniversalTime().Should().Be(list[0].Published);
         }
 
         [Fact]

@@ -94,7 +94,7 @@ namespace LiteDB
 
             // if parent call is DbRef and are calling _id field, rename to $id
             var fieldName = _mapper.ResolveAbstractIdField(entity, field);
-            MemberGuards?.Add(new LinqMemberGuard(_mapper, entity, field, fieldName));
+            MemberGuards?.Add(new LinqMemberGuard(_mapper, entity, field, member, fieldName));
             return isParentDbRef && fieldName == "_id" ? "$id" : fieldName;
         }
 

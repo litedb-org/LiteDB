@@ -76,9 +76,11 @@ namespace LiteDB
                     token.Members = creation.Members;
                     break;
                 case LambdaExpression _:
-                case ConditionalExpression _:
-                case MemberInitExpression _:
-                case NewArrayExpression _: break;
+                case ConditionalExpression _: break;
+                // Variable-arity nodes need child counts: a preorder token stream
+                // alone cannot distinguish a nested child from its next sibling.
+                case MemberInitExpression initializer: token.Flags = initializer.Bindings.Count; break;
+                case NewArrayExpression array: token.Flags = array.Expressions.Count; break;
                 default: Supported = false; break;
             }
             Add(token, node);

@@ -138,7 +138,7 @@ namespace LiteDB
                 {
                     var value = _evaluators[i] == null ? LinqExpressionTranslator.Evaluate(shape.Expressions[_slots[i]]) :
                         _evaluators[i].Value(shape.Expressions);
-                    parameters[_names[i]] = value == null ? BsonValue.Null : value is string text ?
+                    parameters[_names[i]] = value == null ? BsonValue.Null : value is BsonValue bson ? bson : value is string text ?
                         new BsonValue(text) : mapper.Serialize(value.GetType(), value);
                 }
                 return _template.Bind(parameters);

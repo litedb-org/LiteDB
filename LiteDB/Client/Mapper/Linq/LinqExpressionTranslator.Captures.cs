@@ -156,14 +156,17 @@ namespace LiteDB
 
             protected override Expression VisitMethodCall(MethodCallExpression node)
             {
+                var sequenceMethod = node.Method.DeclaringType == typeof(Enumerable) ||
+                    node.Method.DeclaringType == typeof(Queryable) ||
+                    (node.Object != null && Reflection.IsEnumerable(node.Object.Type));
                 if (!ParameterExpressionVisitor.Test(node) &&
                     ((node.Method.IsSpecialName && node.Method.Name == "get_Item") ||
                      (node.Method.DeclaringType?.IsArray == true && node.Method.Name == "Get") ||
-                     node.Method.Name == "First" || node.Method.Name == "FirstOrDefault" ||
+                     (sequenceMethod && (node.Method.Name == "First" || node.Method.Name == "FirstOrDefault" ||
                      node.Method.Name == "Last" || node.Method.Name == "LastOrDefault" ||
                      node.Method.Name == "Single" || node.Method.Name == "SingleOrDefault" ||
                      node.Method.Name == "ElementAt" || node.Method.Name == "ElementAtOrDefault" ||
-                     node.Method.Name == "Min" || node.Method.Name == "Max")) Found = true;
+                     node.Method.Name == "Min" || node.Method.Name == "Max")))) Found = true;
                 return base.VisitMethodCall(node);
             }
         }
