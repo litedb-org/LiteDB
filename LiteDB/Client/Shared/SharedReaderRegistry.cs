@@ -15,15 +15,18 @@ namespace LiteDB.Client.Shared
     {
         private static readonly int[] _none = new int[0];
         private readonly string _directory;
+        private readonly Func<string, string, string[]> _getFiles;
 
-        internal SharedReaderRegistry(string filename)
+        internal SharedReaderRegistry(string filename, Func<string, string, string[]> getFiles = null)
         {
             _directory = Path.GetFullPath(filename) + "-readers";
+            _getFiles = getFiles ?? Directory.GetFiles;
         }
 
         internal IDisposable Register(int version)
         {
-            this.LiveVersions();
+            if (this.LiveVersions() == null)
+                throw new IOException("The shared-reader registry could not be inspected.");
             Directory.CreateDirectory(_directory);
             var name = version.ToString(CultureInfo.InvariantCulture) + "-" + Guid.NewGuid().ToString("N") + ".lease";
             return new FileStream(Path.Combine(_directory, name), System.IO.FileMode.CreateNew,
@@ -33,6 +36,10 @@ namespace LiteDB.Client.Shared
         internal int? OldestVersion()
         {
             var versions = this.LiveVersions();
+            // Unknown means a reader may exist. Version zero is only used by
+            // callers as a conservative yes/no signal; checkpointing receives
+            // the null result directly and skips all work.
+            if (versions == null) return 0;
             return versions.Length == 0 ? (int?)null : versions.Min();
         }
 
@@ -42,16 +49,30 @@ namespace LiteDB.Client.Shared
         /// </summary>
         internal int[] LiveVersions()
         {
-            if (!Directory.Exists(_directory)) return _none;
+            string[] paths;
+            try
+            {
+                // Directory.Exists folds access failures into false. Enumeration
+                // distinguishes a definitely absent directory from an unreadable
+                // registry, which must fail closed.
+                paths = _getFiles(_directory, "*.lease");
+            }
+            catch (DirectoryNotFoundException) { return _none; }
+            catch (IOException) { return null; }
+            catch (UnauthorizedAccessException) { return null; }
+
             var versions = new List<int>();
-            foreach (var path in Directory.GetFiles(_directory, "*.lease"))
+            foreach (var path in paths)
             {
                 if (TryRemoveDeadLease(path)) continue;
                 var name = Path.GetFileName(path);
                 var separator = name.IndexOf('-');
-                // An unreadable name pins everything: version zero fails closed.
-                versions.Add(separator > 0 && int.TryParse(name.Substring(0, separator),
-                    NumberStyles.None, CultureInfo.InvariantCulture, out var parsed) ? parsed : 0);
+                // A malformed live lease has no usable snapshot floor. A synthetic
+                // version cannot conservatively represent an unknown floor, so the
+                // entire checkpoint must be skipped.
+                if (separator <= 0 || !int.TryParse(name.Substring(0, separator),
+                    NumberStyles.None, CultureInfo.InvariantCulture, out var parsed)) return null;
+                versions.Add(parsed);
             }
             if (versions.Count == 0) this.TryRemoveDirectory();
             return versions.ToArray();

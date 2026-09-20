@@ -31,7 +31,11 @@ namespace LiteDB.Internals
                 test.Engine.Checkpoint();
                 var reused = this.GrowthOfRound(test, "cold", 1 + ROUND_UPDATES);
 
-                reused.Should().BeLessThan(appended / 2);
+                // Every multi-page transaction must append one transaction-ID
+                // anchor for legacy recovery. Compare the remaining growth to
+                // measure reclaimed data-frame reuse.
+                var anchors = ROUND_UPDATES * Constants.PAGE_SIZE;
+                (reused - anchors).Should().BeLessThan((appended - anchors) / 2);
                 var after = test.Log.ToArray();
                 foreach (var position in pinned)
                 {

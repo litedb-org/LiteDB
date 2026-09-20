@@ -27,9 +27,9 @@ namespace LiteDB.Internals
             {
                 test.Engine.Checkpoint();
                 for (var value = 21; value <= 25; value++) test.Update("cold", value);
-                // Most data frames reuse holes. Confirmations append, and a page that
-                // carried the previous confirmation must keep increasing its offset.
-                test.Log.Length.Should().Be(before.Length + 9 * Constants.PAGE_SIZE);
+                // Most data frames reuse holes. Each new transaction first appends
+                // an ID anchor for legacy recovery, and confirmations append too.
+                test.Log.Length.Should().Be(before.Length + 14 * Constants.PAGE_SIZE);
                 var after = test.Log.ToArray();
                 foreach (var position in pinned)
                 {

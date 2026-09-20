@@ -34,7 +34,9 @@ namespace LiteDB.Internals
             {
                 await MvccProcess.Run("write-cold", Filename, password, value.ToString());
             }
-            new FileInfo(log).Length.Should().Be(length + 9 * Constants.PAGE_SIZE);
+            // Five multi-page commits append one legacy transaction-ID anchor in
+            // addition to the nine pages that cannot use reclaimed positions.
+            new FileInfo(log).Length.Should().Be(length + 14 * Constants.PAGE_SIZE);
             await old.Finish(true);
             await old.Expect("value:20");
             // Only the watermark advances; the other process retains its original index.

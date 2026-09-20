@@ -80,7 +80,11 @@ namespace LiteDB.Engine
             {
                 // Scanning lease files is filesystem work; keep it outside the index
                 // lock. The database mutex already orders it with lease registration.
-                var shared = _sharedReaders?.Invoke() ?? new int[0];
+                var shared = _sharedReaders == null ? new int[0] : _sharedReaders();
+                // Null means the external reader registry could not be inspected.
+                // Neither backfill nor reclamation is safe without the oldest
+                // snapshot version, so leave the WAL untouched and retry later.
+                if (shared == null) return 0;
                 _disk.CheckpointStage("before-index-lock");
                 _indexLock.EnterWriteLock();
                 indexEntered = true;

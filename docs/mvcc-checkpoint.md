@@ -8,8 +8,10 @@ can return zero. Dispose streaming readers promptly to permit full WAL truncatio
 
 `Checkpoint()` therefore no longer guarantees an empty WAL. It waits only briefly
 for open transactions and otherwise backfills what is safe. The data file alone is
-a complete copy of the database only when the WAL is empty afterwards, so a backup
-that copies just the data file must first close its readers or copy both files.
+a complete copy of the database only when the WAL is empty afterwards. A backup
+must either verify an empty WAL after closing readers, or capture the data and WAL
+as one consistent filesystem snapshot while writes and checkpoints are excluded;
+independently copying two live files is not a consistency protocol.
 
 An auto-checkpoint from a commit takes the full path whenever no transaction is
 open. Under readers it does partial work on a back-off (50 ms doubling to 1 s),
@@ -43,10 +45,13 @@ The physical protocol is:
 2. Invalidate obsolete cached frames and overwrite their WAL slots with zero
    pages, without moving any retained offset.
 3. Durably flush the cleared slots before publishing them to the free-slot pool.
-4. Let subsequent unconfirmed writes reuse eligible slots under the WAL writer
-   lock. Failed reused writes are not immediately returned to the pool; reopening
-   only recovers slots that are entirely zero. Abandoned nonzero frames remain
-   until full reset. Transaction-private safepoint reuse remains supported.
+4. Append one unconfirmed frame for each new transaction before letting its later
+   frames reuse eligible slots under the WAL writer lock. This physical-tail
+   anchor preserves the maximum transaction ID for legacy recovery even if the
+   transaction is abandoned. Failed reused writes are not immediately returned
+   to the pool; reopening only recovers slots that are entirely zero. Abandoned
+   nonzero frames remain until full reset. Transaction-private safepoint reuse
+   remains supported.
 5. Append confirmation frames. Their page positions define logical version IDs;
    removing old transactions therefore never renumbers another process's lease.
 
@@ -61,11 +66,13 @@ remain intact. There is no separately published persistent base or free-list fil
 
 Existing v8 engines checkpoint in physical WAL order. A reclaimed slot is eligible
 only if it comes after this page's previous WAL positions, so physical order per
-page still agrees with commit order. Confirmations always append after their
-transaction's frames. This restriction deliberately preserves ordinary v8
+page still agrees with commit order. The first frame of a new transaction and its
+confirmation both append, so LiteDB 5.0.21 also restores a transaction-ID counter
+above every abandoned reused-slot frame. These restrictions preserve ordinary v8
 compatibility and v9 vector compatibility without introducing a format migration.
-The compatibility script opens a reclaimed/reused WAL in LiteDB 5.0.21, updates
-it, checkpoints it, and reopens it in both engines, plain and encrypted.
+The compatibility script leaves an unconfirmed transaction in reclaimed slots,
+opens the WAL in LiteDB 5.0.21, commits an unrelated update, checkpoints, and
+reopens it in both engines, plain and encrypted.
 
 ### Space savings and limits
 
@@ -87,7 +94,7 @@ A Linux measurement using the process-test fixture seeded two collections of 64
 rows with 3,000-byte payloads, updated one collection 20 times, and kept a reader
 open while updating the other collection five times. With checkpoint disabled for
 the control, WAL growth was 1,351,680 bytes; after partial checkpoint/reclamation,
-it was 73,728 bytes: **94.5% less incremental growth**, for both plain and encrypted
+it was 114,688 bytes: **91.5% less incremental growth**, for both plain and encrypted
 files. The initial WAL was about 6 MB and stayed allocated in both runs. This is a
 workload-specific capacity-reuse measurement, not a general storage reduction.
 
@@ -99,6 +106,8 @@ holds no engine, lock or lease, and costs what a shared query cost before. A
 larger result is abandoned and streamed as follows, from the same committed state.
 A failure while producing row N is raised by the `Read` that would have returned
 row N, as a streaming reader does. A larger result pays for up to 101 discarded rows.
+Queries configured with `ReadTransform` skip speculative buffering and immediately
+take the streamed path so user callbacks execute exactly once per produced value.
 
 A streamed query uses a private read-only engine with a fixed WAL
 index and an OS-held lease in `<database filename>-readers/`. Under the existing
@@ -116,7 +125,9 @@ An exclusively opened lease file is the liveness primitive. The process keeps it
 handle open; another participant can only open it exclusively after the OS has
 released that handle. Stale files are then deleted under the database mutex, and
 the directory with the last of them. A lease that cannot be proven dead for any
-reason (sharing violation, access denied, delete-pending) counts as live.
+reason (sharing violation, access denied, delete-pending) counts as live. If the
+lease directory itself cannot be enumerated, checkpoint skips both backfill and
+reclamation; an unknown registry state is never interpreted as no readers.
 No PID reuse or heartbeat timeout can evict a paused but live reader. Interrupted
 registration is safe because replay, registration, and checkpoint are ordered by
 the same mutex. After a machine restart there are no surviving reader handles.
@@ -135,7 +146,10 @@ If a process dies during backfill, the required WAL versions remain authoritativ
 dies during truncation, the data flush has already completed. A killed reader
 loses its OS lease; a killed writer's unconfirmed frames remain invisible. An I/O
 failure in explicit checkpoint closes the engine so subsequent operations must
-reopen and recover.
+reopen and recover. An uncertain confirmed-WAL flush publishes the fatal engine
+state while holding the WAL writer lock, then releases that lock before synchronous
+transaction and snapshot cleanup. This avoids opposing WAL-writer/WAL-index lock
+order with a partial checkpoint while preventing later engine use.
 
 The `Mvcc*` tests cover untouched historical pages, version-zero readers,
 multiple collection snapshots, page reuse, capture/registration races, concurrent

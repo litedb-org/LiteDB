@@ -20,7 +20,7 @@ namespace LiteDB
         public SharedEngine(EngineSettings settings)
         {
             _settings = settings.Clone();
-            _readers = new SharedReaderRegistry(settings.Filename);
+            _readers = new SharedReaderRegistry(settings.Filename, settings.SharedReaderFiles);
             _settings.SharedReaderVersions = _readers.LiveVersions;
 
             var name = SharedMutexNameFactory.Create(settings.Filename, settings.SharedMutexNameStrategy);

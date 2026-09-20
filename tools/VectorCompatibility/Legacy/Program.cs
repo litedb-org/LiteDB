@@ -20,8 +20,9 @@ namespace VectorCompatibility.Legacy
                     {
                         var cold = db.GetCollection("cold");
                         if (cold.Count() != 16 || cold.FindAll().Any(doc => doc["value"].AsInt32 != 21) ||
+                            db.GetCollection("victim").FindAll().Any(doc => doc["value"].AsInt32 != 0) ||
                             db.GetCollection("hot").FindAll().Any(doc => doc["value"].AsInt32 != 20))
-                            throw new Exception("Legacy replay lost reclaimed WAL data");
+                            throw new Exception("Legacy replay exposed abandoned or lost reclaimed WAL data");
                         var changed = cold.FindById(0);
                         changed["value"] = 22;
                         cold.Update(changed);
@@ -29,8 +30,10 @@ namespace VectorCompatibility.Legacy
                     }
                     using var reopened = new LiteDatabase(new ConnectionString { Filename = file, Password = password });
                     if (reopened.GetCollection("cold").FindById(0)["value"].AsInt32 != 22 ||
-                        reopened.GetCollection("cold").FindById(1)["value"].AsInt32 != 21)
-                        throw new Exception("Legacy checkpoint reordered reclaimed WAL data");
+                        reopened.GetCollection("cold").FindAll().Any(doc =>
+                            doc["_id"].AsInt32 != 0 && doc["value"].AsInt32 != 21) ||
+                        reopened.GetCollection("victim").FindAll().Any(doc => doc["value"].AsInt32 != 0))
+                        throw new Exception("Legacy checkpoint committed an abandoned reused-slot write");
                 }
                 else if (args[0] == "create")
                 {

@@ -48,9 +48,14 @@ Checkpoints backfill through the oldest local/shared snapshot and reclaim obsole
 WAL slots while retaining, per page, the floor of every live snapshot, the newest
 version, and required commit markers. Small shared-mode results are buffered under
 the mutex; only larger ones open a leased snapshot engine.
-Reused slots preserve physical order per page for legacy recovery; full truncation
-requires all reader leases to drain. Shared readers register OS-held lease files in
+Reused slots preserve physical order per page for legacy recovery. Before reuse,
+the first frame of each new transaction must append at the physical WAL tail so
+LiteDB 5.0.21 cannot reassign an abandoned transaction ID. Full truncation requires
+all reader leases to drain. Shared readers register OS-held lease files in
 `<database>-readers/`; never remove that directory while the database is in use.
+An unreadable or malformed registry must skip checkpoint work, not use a synthetic
+snapshot version. Queries with `ReadTransform` must bypass speculative buffering so
+user callbacks are not replayed.
 Run the `Mvcc` test filter with `TestingEnabled=true` to cover snapshot races and
 actual child-process crashes. The compatibility script also verifies reclaimed-WAL
 replay and checkpoint by LiteDB 5.0.21. The test build copies SharedMutexHarness into its

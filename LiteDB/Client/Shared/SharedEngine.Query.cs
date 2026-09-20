@@ -37,8 +37,14 @@ namespace LiteDB
             IDisposable lease = null;
             try
             {
-                var buffered = this.TryBufferResult(collection, query);
-                if (buffered != null) return buffered;
+                // A user callback can be stateful. Speculative buffering followed
+                // by snapshot replay would execute it twice for the discarded
+                // prefix, so transformed queries always take the one-pass path.
+                if (_settings.ReadTransform == null)
+                {
+                    var buffered = this.TryBufferResult(collection, query);
+                    if (buffered != null) return buffered;
+                }
 
                 // Replay and registration are ordered with commits/checkpoints by
                 // the mutex. This engine's index never changes for the query lifetime.

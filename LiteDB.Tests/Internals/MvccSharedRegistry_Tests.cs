@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using FluentAssertions;
@@ -68,6 +69,55 @@ namespace LiteDB.Internals
             }
             engine.Checkpoint();
             Directory.Exists(Leases).Should().BeFalse();
+        }
+
+        [Fact]
+        public void LargeResultWithReadTransform_ExecutesEachUserCallbackOnce()
+        {
+            var calls = new Dictionary<int, int>();
+            using var engine = new SharedEngine(new EngineSettings
+            {
+                Filename = Filename,
+                ReadTransform = (_, value) =>
+                {
+                    if (value is BsonDocument document && document.TryGetValue("_id", out var id))
+                    {
+                        calls.TryGetValue(id.AsInt32, out var count);
+                        calls[id.AsInt32] = count + 1;
+                    }
+                    return value;
+                }
+            });
+            engine.Insert("docs", Documents(STREAMED_DOCUMENTS, 0), BsonAutoId.Int32);
+
+            using var reader = engine.Query("docs", new Query());
+            Values(reader).Should().HaveCount(STREAMED_DOCUMENTS);
+            calls.Should().HaveCount(STREAMED_DOCUMENTS);
+            calls.Values.Should().OnlyContain(count => count == 1);
+        }
+
+        [Fact]
+        public void UnreadableRegistrySkipsCheckpointWhileExternalReaderIsLive()
+        {
+            using var setup = new SharedEngine(new EngineSettings { Filename = Filename });
+            setup.Pragma(Pragmas.CHECKPOINT, 0);
+            setup.Insert("docs", Documents(STREAMED_DOCUMENTS, 0), BsonAutoId.Int32);
+            using var readerEngine = new SharedEngine(new EngineSettings { Filename = Filename });
+            using var reader = readerEngine.Query("docs", new Query());
+            Directory.GetFiles(Leases, "*.lease").Should().HaveCount(1);
+
+            using var writer = new SharedEngine(new EngineSettings
+            {
+                Filename = Filename,
+                SharedReaderFiles = (_, __) => throw new UnauthorizedAccessException("injected registry failure")
+            });
+            writer.Update("docs", Documents(STREAMED_DOCUMENTS, 1));
+            var log = FileHelper.GetLogFile(Filename);
+            var before = new FileInfo(log).Length;
+
+            writer.Checkpoint().Should().Be(0);
+            new FileInfo(log).Length.Should().Be(before);
+            Values(reader).Should().HaveCount(STREAMED_DOCUMENTS).And.OnlyContain(value => value == 0);
         }
 
         [Fact]

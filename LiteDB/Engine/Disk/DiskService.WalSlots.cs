@@ -23,11 +23,15 @@ namespace LiteDB.Engine
             }
         }
 
-        private long AllocateLogPosition(uint pageID, bool confirmation)
+        private long AllocateLogPosition(uint pageID, bool confirmation, bool transactionAnchored)
         {
             // Appended confirmations define stable versions and order recovery.
-            // A reused unconfirmed frame is always before its eventual confirmation.
-            if (!confirmation && _freeLogPositions.Count > 0)
+            // Before any holes are reused, one frame for a new transaction must
+            // reach the physical tail. LiteDB 5.0.21 restores the transaction-ID
+            // counter from the last physical frame rather than the maximum ID.
+            // The tail anchor prevents an abandoned reused-slot transaction from
+            // having its ID assigned to a later legacy transaction.
+            if (!confirmation && transactionAnchored && _freeLogPositions.Count > 0)
             {
                 // v8 engines backfill in physical order. Preserve increasing
                 // positions per page, even though commits use reclaimed capacity.
@@ -49,6 +53,7 @@ namespace LiteDB.Engine
         internal void ReclaimLogPages(IReadOnlyCollection<long> positions)
         {
             var stream = _writer.Value;
+            this.CheckpointStage("before-wal-reclaim-lock");
             lock (stream)
             {
                 var empty = new byte[PAGE_SIZE];
