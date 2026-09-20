@@ -210,9 +210,10 @@ leading scalar equalities can use that shared indexed guard while retaining the
 entire OR as a residual filter. Guard extraction is bounded and skips includes;
 it does not move later conditions ahead of throwing or volatile expressions. Separate scalar index
 bounds and IN/BETWEEN constraints are intersected before index selection, with
-only the scan-enforced filters removed. Contradictory scalar path constraints
-produce an empty pipeline input, preserving aggregate behavior. Constant Boolean
-guards expose indexable predicates while respecting short circuits and volatility.
+only the scan-enforced filters removed. Contradictory bounds on a selected index
+produce an empty index range, while a constant-false guard produces an empty
+pipeline input. Constant Boolean guards expose indexable predicates while
+respecting short circuits and volatility.
 Boolean identity comparisons around predicates are removed so composed LINQ
 Contains calls reach the same normalization and index selection. ANY is explicit
 node metadata, preserved through grouping, rewrites, and binding. Normalization

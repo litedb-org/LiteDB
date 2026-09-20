@@ -6,6 +6,17 @@ namespace LiteDB.Engine
     {
         private bool _constantFalse;
 
+        private void UseEmptyInput()
+        {
+            _queryPlan.Index = new IndexEmpty();
+            _queryPlan.IndexExpression = "$._id";
+            _queryPlan.IndexCost = 0;
+            _queryPlan.IsIndexKeyOnly = false;
+            _queryPlan.Filters.Clear();
+            _vectorOrderConsumed = false;
+            _vectorPrimaryOrderMatched = false;
+        }
+
         private BsonExpression SimplifyPredicate(BsonExpression expression, out bool? constant)
         {
             constant = null;

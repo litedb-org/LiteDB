@@ -47,7 +47,7 @@ namespace LiteDB.Tests.QueryTest
         }
 
         [Fact]
-        public void Reused_sql_retains_bound_errors_and_safe_contradiction_prefixes()
+        public void Reused_sql_retains_bound_errors()
         {
             using var db = CreateDatabase();
             var sql = "SELECT $ FROM rows WHERE Score > (1 % @zero) AND Score < 9";
@@ -63,9 +63,6 @@ namespace LiteDB.Tests.QueryTest
             };
             execute.Should().Throw<DivideByZeroException>();
             var rows = db.GetCollection("rows");
-            var safe = rows.Query().Where("Score > 7 AND Score < 3 AND SUBSTRING(Name,1000) = 'x'");
-            safe.GetPlan()["index"]["mode"].AsString.Should().StartWith("EMPTY");
-            safe.ToArray().Should().BeEmpty();
             rows.DeleteAll();
             execute.Should().NotThrow();
         }

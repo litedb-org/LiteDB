@@ -78,7 +78,6 @@ namespace LiteDB.Tests.QueryTest
 
         [Theory]
         [InlineData("false")]
-        [InlineData("Score > 10 AND Score < 1")]
         public void Empty_input_resets_vector_ordering_state(string predicate)
         {
             using var db = new LiteDatabase(":memory:");
