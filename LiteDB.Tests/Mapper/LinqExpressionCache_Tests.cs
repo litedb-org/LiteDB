@@ -101,6 +101,40 @@ namespace LiteDB.Tests.Mapper
         }
 
         [Fact]
+        public void Captured_values_that_select_the_translation_are_reread_on_every_call()
+        {
+            // These branches evaluate a captured value while choosing the IR, so a
+            // published template would freeze the first value.
+            var mapper = new BsonMapper();
+            var document = new BsonDocument { ["State"] = "Ready", ["Tags"] = new BsonDocument { ["a"] = 1, ["b"] = 2 } };
+            var state = State.New;
+            Expression<Func<Row, bool>> byState = x => x.State == state;
+            Expression<Func<Row, bool>> reversed = x => state == x.State;
+            mapper.GetExpression(byState).ExecuteScalar(document).AsBoolean.Should().BeFalse();
+            mapper.GetExpression(reversed).ExecuteScalar(document).AsBoolean.Should().BeFalse();
+            state = State.Ready;
+            mapper.GetExpression(byState).ExecuteScalar(document).AsBoolean.Should().BeTrue();
+            mapper.GetExpression(reversed).ExecuteScalar(document).AsBoolean.Should().BeTrue();
+
+            var key = "a";
+            Expression<Func<Row, int>> byKey = x => x.Tags[key];
+            mapper.GetExpression(byKey).ExecuteScalar(document).AsInt32.Should().Be(1);
+            key = "b";
+            mapper.GetExpression(byKey).ExecuteScalar(document).AsInt32.Should().Be(2);
+
+            // Ordinal adds a plain equality term; reusing that shape for another
+            // mode would reject values that differ only by case under a binary collation.
+            var mode = StringComparison.Ordinal;
+            var names = new BsonDocument { ["Name"] = "READY" };
+            Expression<Func<Row, bool>> byName = x => x.Name.Equals("ready", mode);
+            mapper.GetExpression(byName).ExecuteScalar(names, Collation.Binary).AsBoolean.Should().BeFalse();
+            mode = StringComparison.OrdinalIgnoreCase;
+            mapper.GetExpression(byName).ExecuteScalar(names, Collation.Binary).AsBoolean.Should().BeTrue();
+            mode = StringComparison.Ordinal;
+            mapper.GetExpression(byName).ExecuteScalar(names, Collation.Binary).AsBoolean.Should().BeFalse();
+        }
+
+        [Fact]
         public void Captured_getters_keep_translation_order_and_evaluation_count()
         {
             var mapper = new BsonMapper();
@@ -190,6 +224,8 @@ namespace LiteDB.Tests.Mapper
             public int[] Values { get; set; }
             public bool Enabled { get; set; }
             public State State { get; set; }
+            public string Name { get; set; }
+            public System.Collections.Generic.Dictionary<string, int> Tags { get; set; }
         }
     }
 }
