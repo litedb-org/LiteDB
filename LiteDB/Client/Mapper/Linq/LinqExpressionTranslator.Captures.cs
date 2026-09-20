@@ -162,7 +162,8 @@ namespace LiteDB
                      node.Method.Name == "First" || node.Method.Name == "FirstOrDefault" ||
                      node.Method.Name == "Last" || node.Method.Name == "LastOrDefault" ||
                      node.Method.Name == "Single" || node.Method.Name == "SingleOrDefault" ||
-                     node.Method.Name == "ElementAt" || node.Method.Name == "ElementAtOrDefault")) Found = true;
+                     node.Method.Name == "ElementAt" || node.Method.Name == "ElementAtOrDefault" ||
+                     node.Method.Name == "Min" || node.Method.Name == "Max")) Found = true;
                 return base.VisitMethodCall(node);
             }
         }
