@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Linq.Expressions;
 using FluentAssertions;
 using Xunit;
@@ -94,6 +95,21 @@ namespace LiteDB.Tests.Mapper
                 actual["Items"].AsArray.Count.Should().Be(captured == null ? 0 : 1);
                 if (captured != null) actual["Item"]["$id"].AsInt32.Should().Be(id);
             }
+        }
+
+        [Fact]
+        public void Capture_failures_have_the_same_exception_type_on_cold_and_warm_paths()
+        {
+            var mapper = new BsonMapper();
+            var values = new System.Collections.Generic.List<int> { 1 };
+            Expression<Func<Row, bool>> query = x => x.Id == values.First();
+            mapper.GetExpression(query);
+            mapper.GetExpression(query);
+            values.Clear();
+            Action warm = () => mapper.GetExpression(query);
+            Action cold = () => new BsonMapper().GetExpression(query);
+            var expected = cold.Should().Throw<Exception>().Which;
+            warm.Should().Throw<Exception>().Which.GetType().Should().Be(expected.GetType());
         }
 
         private sealed class TrackingMapper : BsonMapper

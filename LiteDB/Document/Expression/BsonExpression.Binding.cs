@@ -30,6 +30,8 @@ namespace LiteDB
                 UseSource = UseSource, Expression = Expression, IsScalar = IsScalar, IsANY = IsANY,
                 RequiresExactSort = RequiresExactSort,
                 Fields = new HashSet<string>(Fields, StringComparer.OrdinalIgnoreCase),
+                // Grouping fills these renamed @key parameters on the bound copy.
+                GroupKeyAliases = GroupKeyAliases == null ? null : new HashSet<string>(GroupKeyAliases, GroupKeyAliases.Comparer),
                 _funcScalar = _funcScalar, _funcEnumerable = _funcEnumerable
             };
         }
