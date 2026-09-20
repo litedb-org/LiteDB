@@ -111,8 +111,8 @@ public class Order
     public List<Product> Products { get; set; }
 }        
 
-// Re-use mapper from global instance
-var mapper = BsonMapper.Global;
+// Configure one mapper for this database
+var mapper = new BsonMapper();
 
 // "Products" and "Customer" are from other collections (not embedded document)
 mapper.Entity<Order>()
@@ -120,7 +120,7 @@ mapper.Entity<Order>()
     .DbRef(x => x.Products, "products")    // 1 to Many reference
     .Field(x => x.ShippingAddress, "addr"); // Embedded sub document
             
-using(var db = new LiteDatabase("MyOrderDatafile.db"))
+using(var db = new LiteDatabase("MyOrderDatafile.db", mapper))
 {
     var orders = db.GetCollection<Order>("orders");
         

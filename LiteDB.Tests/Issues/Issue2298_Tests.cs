@@ -56,7 +56,8 @@ namespace LiteDB.Tests.Issues
         [Fact]
         public void We_Dont_Need_Ctor()
         {
-            BsonMapper.Global.RegisterType<QuantityRange<Mass>>(
+            var mapper = new BsonMapper();
+            mapper.RegisterType<QuantityRange<Mass>>(
                 serialize: (range) => new BsonDocument
                 {
                     { nameof(QuantityRange<Mass>.Min), range.Min },
@@ -67,7 +68,7 @@ namespace LiteDB.Tests.Issues
             );
 
             var range = new QuantityRange<Mass>(100, 500, Mass.Units.Pound);
-            using var db = DatabaseFactory.Create();
+            using var db = DatabaseFactory.Create(mapper: mapper);
             var collection = db.GetCollection<QuantityRange<Mass>>("DEMO");
             collection.Insert(range);
             var restored = collection.FindAll().First();

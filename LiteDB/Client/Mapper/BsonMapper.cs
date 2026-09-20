@@ -43,7 +43,8 @@ namespace LiteDB
         private readonly ITypeNameBinder _typeNameBinder;
 
         /// <summary>
-        /// Global instance used when no BsonMapper are passed in LiteDatabase ctor
+        /// Global mapper for callers that explicitly choose shared mapper state.
+        /// LiteDatabase creates a local mapper when none is supplied.
         /// </summary>
         public static BsonMapper Global = new BsonMapper();
 
