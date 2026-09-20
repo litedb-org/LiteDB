@@ -3,6 +3,13 @@ using Xunit;
 
 namespace LiteDB.Tests.Database
 {
+    [CollectionDefinition(GlobalMapperCollection.Name, DisableParallelization = true)]
+    public class GlobalMapperCollection
+    {
+        public const string Name = "BsonMapper.Global";
+    }
+
+    [Collection(GlobalMapperCollection.Name)]
     public class MapperOwnership_Tests
     {
         private sealed class Row
@@ -12,15 +19,86 @@ namespace LiteDB.Tests.Database
             public string Name { get; set; }
         }
 
-        [Fact]
-        public void Mapperless_databases_use_independent_local_mappers()
+        private sealed class CustomValue
         {
-            using var first = new LiteDatabase(":memory:");
-            using var second = new LiteDatabase(":memory:");
+            public string Value { get; set; }
+        }
 
-            first.Mapper.Should().NotBeSameAs(BsonMapper.Global);
-            second.Mapper.Should().NotBeSameAs(BsonMapper.Global);
-            first.Mapper.Should().NotBeSameAs(second.Mapper);
+        private sealed class CustomMapper : BsonMapper
+        {
+            public string Marker { get; set; }
+
+            protected override BsonMapper CreateCloneInstance()
+            {
+                return new CustomMapper { Marker = this.Marker };
+            }
+        }
+
+        private sealed class Referenced
+        {
+            public int Id { get; set; }
+
+            public int AlternateId { get; set; }
+        }
+
+        private sealed class Owner
+        {
+            public int Id { get; set; }
+
+            public Referenced Reference { get; set; }
+        }
+
+        [Fact]
+        public void Mapperless_databases_clone_global_configuration_independently()
+        {
+            var original = BsonMapper.Global;
+            var global = new CustomMapper
+            {
+                EnumAsInteger = true,
+                Marker = "cloned"
+            };
+            global.RegisterType<CustomValue>(x => x.Value, x => new CustomValue { Value = x.AsString });
+            global.Entity<Row>().Field(x => x.Name, "global_name");
+            global.Entity<Owner>().DbRef(x => x.Reference, "references");
+            BsonMapper.Global = global;
+
+            try
+            {
+                using var first = new LiteDatabase(":memory:");
+
+                first.Mapper.Should().NotBeSameAs(global);
+                first.Mapper.Should().BeOfType<CustomMapper>()
+                    .Which.Marker.Should().Be("cloned");
+                first.Mapper.EnumAsInteger.Should().BeTrue();
+                first.Mapper.Serialize(new CustomValue { Value = "registered" }).AsString.Should().Be("registered");
+                first.Mapper.ToDocument(new Row { Id = 1, Name = "mapped" })
+                    .ContainsKey("global_name").Should().BeTrue();
+
+                global.EnumAsInteger = false;
+                global.Entity<Row>().Field(x => x.Name, "changed_name");
+                global.Entity<Referenced>().Id(x => x.AlternateId);
+
+                var reference = new Referenced { Id = 10, AlternateId = 20 };
+                var clonedReference = first.Mapper.ToDocument(new Owner { Id = 1, Reference = reference });
+                clonedReference["Reference"]["$id"].AsInt32.Should().Be(10);
+                first.Mapper.EnumAsInteger.Should().BeTrue();
+                first.Mapper.ToDocument(new Row { Id = 1, Name = "mapped" })
+                    .ContainsKey("global_name").Should().BeTrue();
+
+                using var second = new LiteDatabase(":memory:");
+
+                second.Mapper.Should().NotBeSameAs(global);
+                second.Mapper.Should().NotBeSameAs(first.Mapper);
+                second.Mapper.EnumAsInteger.Should().BeFalse();
+                second.Mapper.ToDocument(new Row { Id = 1, Name = "mapped" })
+                    .ContainsKey("changed_name").Should().BeTrue();
+                var secondReference = second.Mapper.ToDocument(new Owner { Id = 2, Reference = reference });
+                secondReference["Reference"]["$id"].AsInt32.Should().Be(20);
+            }
+            finally
+            {
+                BsonMapper.Global = original;
+            }
         }
 
         [Fact]

@@ -32,14 +32,13 @@ namespace LiteDB.Tests.Issues
         [Fact]
         public void Incluced_document_types_should_be_reald()
         {
-            var mapper = new BsonMapper();
-            mapper.Entity<Point>().DbRef(p => p.Project, "activity");
-            mapper.Entity<Point>().DbRef(p => p.Parent, "activity");
-            mapper.Entity<Project>().DbRef(p => p.Points, "activity");
+            BsonMapper.Global.Entity<Point>().DbRef(p => p.Project, "activity");
+            BsonMapper.Global.Entity<Point>().DbRef(p => p.Parent, "activity");
+            BsonMapper.Global.Entity<Project>().DbRef(p => p.Points, "activity");
 
-            //mapper.ResolveCollectionName = (s) => "activity";
+            //BsonMapper.Global.ResolveCollectionName = (s) => "activity";
 
-            using var _database = DatabaseFactory.Create(mapper: mapper);
+            using var _database = DatabaseFactory.Create();
             var projectsCol = _database.GetCollection<Project>("activity");
             var pointsCol = _database.GetCollection<Point>("activity");
 

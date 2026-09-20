@@ -27,10 +27,9 @@ namespace LiteDB.Tests.Issues
         [Fact]
         public void Find_ByRelationId_Success()
         {
-            var mapper = new BsonMapper();
-            mapper.Entity<Order>().DbRef(order => order.Customer);
+            BsonMapper.Global.Entity<Order>().DbRef(order => order.Customer);
 
-            using var _database = DatabaseFactory.Create(mapper: mapper);
+            using var _database = DatabaseFactory.Create();
             var _orderCollection = _database.GetCollection<Order>("Order");
             var _customerCollection = _database.GetCollection<Customer>("Customer");
 

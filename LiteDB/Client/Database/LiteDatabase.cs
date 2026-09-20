@@ -16,11 +16,10 @@ namespace LiteDB
     {
         #region Properties
 
+        private readonly ILiteEngine _engine;
         private readonly LiteDatabaseContext _context;
         private readonly bool _disposeOnClose;
         private readonly int? _checkpointOverride;
-
-        private ILiteEngine _engine => _context.Engine;
 
         /// <summary>
         /// Get the BsonMapper used by this database instance and all objects it creates.
@@ -48,7 +47,9 @@ namespace LiteDB
         {
             if (connectionString == null) throw new ArgumentNullException(nameof(connectionString));
 
-            _context = new LiteDatabaseContext(connectionString.CreateEngine(), mapper ?? new BsonMapper());
+            var resolvedMapper = ResolveMapper(mapper);
+            _engine = connectionString.CreateEngine();
+            _context = new LiteDatabaseContext(_engine, resolvedMapper);
             _disposeOnClose = true;
         }
 
@@ -66,7 +67,9 @@ namespace LiteDB
                 LogStream = logStream
             };
 
-            _context = new LiteDatabaseContext(new LiteEngine(settings), mapper ?? new BsonMapper());
+            var resolvedMapper = ResolveMapper(mapper);
+            _engine = new LiteEngine(settings);
+            _context = new LiteDatabaseContext(_engine, resolvedMapper);
             _disposeOnClose = true;
 
             if (logStream == null && stream is not MemoryStream)
@@ -96,8 +99,19 @@ namespace LiteDB
         /// </summary>
         public LiteDatabase(ILiteEngine engine, BsonMapper mapper = null, bool disposeOnClose = true)
         {
-            _context = new LiteDatabaseContext(engine, mapper ?? new BsonMapper());
+            _engine = engine ?? throw new ArgumentNullException(nameof(engine));
+            _context = new LiteDatabaseContext(_engine, ResolveMapper(mapper));
             _disposeOnClose = disposeOnClose;
+        }
+
+        private static BsonMapper ResolveMapper(BsonMapper mapper)
+        {
+            if (mapper != null) return mapper;
+
+            var global = BsonMapper.Global ??
+                throw new InvalidOperationException("BsonMapper.Global cannot be null when no mapper is supplied.");
+
+            return global.Clone();
         }
 
         #endregion
