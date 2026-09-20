@@ -112,6 +112,32 @@ namespace LiteDB.Tests.Mapper
             warm.Should().Throw<Exception>().Which.GetType().Should().Be(expected.GetType());
         }
 
+        [Fact]
+        public void Closed_local_date_operations_are_evaluated_before_utc_serialization()
+        {
+            var captured = new DateTime(2023, 10, 18, 14, 30, 0, DateTimeKind.Local);
+            Expression<Func<Row, DateTime>> date = x => captured.Date;
+            Expression<Func<Row, DateTime>> added = x => captured.AddDays(2).Date;
+            var mapper = new BsonMapper();
+
+            foreach (var query in new[] { date, added })
+            {
+                foreach (var value in new[]
+                {
+                    new DateTime(2023, 10, 18, 14, 30, 0, DateTimeKind.Local),
+                    new DateTime(2024, 3, 31, 1, 30, 0, DateTimeKind.Local)
+                })
+                {
+                    captured = value;
+                    var expected = new BsonValue(query.Compile()(new Row()));
+                    var actual = mapper.GetExpression(query);
+                    actual.Source.Should().Be("@p0");
+                    actual.Parameters["p0"].Should().Be(expected);
+                    actual.ExecuteScalar(new BsonDocument()).Should().Be(expected);
+                }
+            }
+        }
+
         private sealed class TrackingMapper : BsonMapper
         {
             internal int BsonSerializations;
