@@ -74,6 +74,8 @@
     <ItemGroup>
       <MvccProbeFiles Include="$(MSBuildProjectDirectory)/../LiteDB.Tests.SharedMutexHarness/bin/$(Configuration)/net8.0/*" />
     </ItemGroup>
+    <Error Condition="'@(MvccProbeFiles)' == ''"
+           Text="MVCC probe output not found. Build LiteDB.Tests.SharedMutexHarness before LiteDB.Tests." />
     <Copy SourceFiles="@(MvccProbeFiles)" DestinationFolder="$(OutDir)mvcc-probe" SkipUnchangedFiles="true" />
   </Target>
 </Project>

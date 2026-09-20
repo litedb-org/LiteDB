@@ -47,9 +47,8 @@ namespace LiteDB.Engine
         /// Ascending snapshot versions of this process and of shared readers.
         /// The caller owns the index write lock.
         /// </summary>
-        private int[] LiveVersions()
+        private int[] LiveVersions(int[] shared)
         {
-            var shared = _sharedReaders?.Invoke() ?? new int[0];
             return _snapshots.Keys.Concat(shared).Distinct().OrderBy(version => version).ToArray();
         }
 
@@ -76,10 +75,16 @@ namespace LiteDB.Engine
             // Partial work under readers costs an index scan and two WAL flushes.
             // A commit only pays for it on the same back-off as the waiting attempt.
             if (!exclusive && !wait) return 0;
-            _indexLock.EnterWriteLock();
+            var indexEntered = false;
             try
             {
-                var live = this.LiveVersions();
+                // Scanning lease files is filesystem work; keep it outside the index
+                // lock. The database mutex already orders it with lease registration.
+                var shared = _sharedReaders?.Invoke() ?? new int[0];
+                _disk.CheckpointStage("before-index-lock");
+                _indexLock.EnterWriteLock();
+                indexEntered = true;
+                var live = this.LiveVersions(shared);
                 var target = live.Length == 0 ? _currentReadVersion : live[0];
                 var reclaim = exclusive && live.Length == 0;
 
@@ -124,7 +129,7 @@ namespace LiteDB.Engine
             }
             finally
             {
-                _indexLock.ExitWriteLock();
+                if (indexEntered) _indexLock.ExitWriteLock();
                 if (mustExit) _locker.ExitExclusive();
             }
         }

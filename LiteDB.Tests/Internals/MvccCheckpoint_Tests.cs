@@ -112,11 +112,19 @@ namespace LiteDB.Internals
             {
                 try
                 {
-                    checkpointStarted.Set();
+                    // Signal at the lock boundary, not merely before the call.
+                    test.Engine.CheckpointStage = stage =>
+                    {
+                        if (stage == "before-index-lock") checkpointStarted.Set();
+                    };
                     test.Engine.Checkpoint();
                 }
                 catch (Exception ex) { checkpointError = ex; }
-                finally { checkpointDone.Set(); }
+                finally
+                {
+                    test.Engine.CheckpointStage = null;
+                    checkpointDone.Set();
+                }
             });
             reader.Start();
             try
