@@ -182,55 +182,6 @@ namespace LiteDB.Engine
 
         #endregion
 
-        #region Read Numbers
-        
-        private T ReadNumber<T>(Func<byte[], int, T> convert, int size)
-        {
-            T value;
-
-            // if fits in current segment, use inner array - otherwise copy from multiples segments
-            if (_currentPosition + size <= _current.Count)
-            {
-                value = convert(_current.Array, _current.Offset + _currentPosition);
-
-                this.MoveForward(size);
-            }
-            else
-            {
-                var buffer = _bufferPool.Rent(size);
-                try
-                {
-                    this.Read(buffer, 0, size);
-
-                    value = convert(buffer, 0);
-                }
-                finally
-                {
-                    _bufferPool.Return(buffer, true);
-                }
-            }
-
-            return value;
-        }
-
-        public Int32 ReadInt32() => this.ReadNumber(BitConverter.ToInt32, 4);
-        public Int64 ReadInt64() => this.ReadNumber(BitConverter.ToInt64, 8);
-        public UInt16 ReadUInt16() => this.ReadNumber(BitConverter.ToUInt16, 2);
-        public UInt32 ReadUInt32() => this.ReadNumber(BitConverter.ToUInt32, 4);
-        public Single ReadSingle() => this.ReadNumber(BitConverter.ToSingle, 4);
-        public Double ReadDouble() => this.ReadNumber(BitConverter.ToDouble, 8);
-
-        public Decimal ReadDecimal()
-        {
-            var a = this.ReadInt32();
-            var b = this.ReadInt32();
-            var c = this.ReadInt32();
-            var d = this.ReadInt32();
-            return new Decimal(new int[] { a, b, c, d });
-        }
-
-        #endregion
-
         #region Complex Types
 
         /// <summary>
@@ -260,7 +211,7 @@ namespace LiteDB.Engine
             {
                 Span<byte> buffer = stackalloc byte[16];
 
-                this.Read(buffer);
+                this.ReadInto(buffer);
 
                 value = BufferSliceExtensions.ReadGuid(buffer);
             }
@@ -286,7 +237,7 @@ namespace LiteDB.Engine
             {
                 Span<byte> buffer = stackalloc byte[12];
 
-                this.Read(buffer);
+                this.ReadInto(buffer);
 
                 value = BufferSliceExtensions.ReadObjectId(buffer);
             }

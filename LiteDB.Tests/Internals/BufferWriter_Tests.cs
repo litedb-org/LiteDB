@@ -226,6 +226,42 @@ namespace LiteDB.Internals
         }
 
         [Fact]
+        public void Buffer_Number_Crosses_Segment_Boundaries()
+        {
+            var data = new byte[32];
+            var source = new[]
+            {
+                new BufferSlice(data, 0, 2),
+                new BufferSlice(data, 2, 2),
+                new BufferSlice(data, 4, 2),
+                new BufferSlice(data, 6, 2),
+                new BufferSlice(data, 8, 2),
+                new BufferSlice(data, 10, 2),
+                new BufferSlice(data, 12, 2),
+                new BufferSlice(data, 14, 2),
+                new BufferSlice(data, 16, 16)
+            };
+
+            var expectedInt = 0x01020304;
+            var expectedLong = 0x0102030405060708L;
+            var expectedDouble = 123456789.987654321d;
+
+            using (var w = new BufferWriter(source))
+            {
+                w.Write(expectedInt);
+                w.Write(expectedLong);
+                w.Write(expectedDouble);
+            }
+
+            using (var r = new BufferReader(source))
+            {
+                r.ReadInt32().Should().Be(expectedInt);
+                r.ReadInt64().Should().Be(expectedLong);
+                r.ReadDouble().Should().Be(expectedDouble);
+            }
+        }
+
+        [Fact]
         public void Buffer_Write_Types()
         {
             var source = new BufferSlice(new byte[1000], 0, 1000);

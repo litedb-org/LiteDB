@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 
 [assembly: InternalsVisibleTo("LiteDB.Tests")]
+[assembly: InternalsVisibleTo("LiteDB.Benchmarks")]
 #if DEBUG || TESTING
 [assembly: InternalsVisibleTo("ConsoleApp1")]
 #endif

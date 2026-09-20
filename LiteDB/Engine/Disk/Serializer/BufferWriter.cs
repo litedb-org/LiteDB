@@ -169,50 +169,6 @@ namespace LiteDB.Engine
         
         #endregion
 
-        #region Numbers
-
-        private void WriteNumber<T>(T value, Action<T, byte[], int> toBytes, int size)
-        {
-            if (_currentPosition + size <= _current.Count)
-            {
-                toBytes(value, _current.Array, _current.Offset + _currentPosition);
-
-                this.MoveForward(size);
-            }
-            else
-            {
-                var buffer = _bufferPool.Rent(size);
-                try
-                {
-                    toBytes(value, buffer, 0);
-
-                    this.Write(buffer, 0, size);
-                }
-                finally
-                {
-                    _bufferPool.Return(buffer, true);
-                }
-            }
-        }
-
-        public void Write(Int32 value) => this.WriteNumber(value, BufferExtensions.ToBytes, 4);
-        public void Write(Int64 value) => this.WriteNumber(value, BufferExtensions.ToBytes, 8);
-        public void Write(UInt16 value) => this.WriteNumber(value, BufferExtensions.ToBytes, 2);
-        public void Write(UInt32 value) => this.WriteNumber(value, BufferExtensions.ToBytes, 4);
-        public void Write(Single value) => this.WriteNumber(value, BufferExtensions.ToBytes, 4);
-        public void Write(Double value) => this.WriteNumber(value, BufferExtensions.ToBytes, 8);
-
-        public void Write(Decimal value)
-        {
-            var bits = Decimal.GetBits(value);
-            this.Write(bits[0]);
-            this.Write(bits[1]);
-            this.Write(bits[2]);
-            this.Write(bits[3]);
-        }
-
-        #endregion
-
         #region Complex Types
 
         /// <summary>
@@ -245,7 +201,7 @@ namespace LiteDB.Engine
 
                 BufferSliceExtensions.Write(buffer, value);
 
-                this.Write(buffer);
+                this.WriteFrom(buffer);
             }
         }
 
@@ -269,7 +225,7 @@ namespace LiteDB.Engine
 
                 BufferSliceExtensions.Write(buffer, value);
 
-                this.Write(buffer);
+                this.WriteFrom(buffer);
             }
         }
 
