@@ -67,6 +67,7 @@ namespace LiteDB.Engine
                             "Database '{0}' is empty and cannot be initialized in read-only mode.",
                             settings.Filename ?? _dataFactory.Name);
                     }
+                    this.RejectOrphanWal();
                     LOG($"creating new database: '{Path.GetFileName(_dataFactory.Name)}'", "DISK");
 
                     this.Initialize(_dataPool.Writer.Value, settings.Collation, settings.InitialSize);
@@ -84,7 +85,7 @@ namespace LiteDB.Engine
                 _dataTrailingLength = dataLength % PAGE_SIZE;
                 _dataLength = dataLength - _dataTrailingLength - PAGE_SIZE;
 
-                if (_logFactory.Exists())
+                if (_logFactory.Exists() && !_ignoreCompletedWal)
                 {
                     var logLength = _logFactory.GetLength();
                     _logTrailingLength = logLength % PAGE_SIZE;
@@ -212,6 +213,8 @@ namespace LiteDB.Engine
                     try
                     {
                         ENSURE(page.ShareCounter == BUFFER_WRITABLE, "to enqueue page, page must be writable");
+                        this.EnsureWalPrefix(stream);
+                        previousLogLength = _logLength;
                         previousStreamLength = stream.Length;
                         var pageID = page.ReadUInt32(BasePage.P_PAGE_ID);
                         // Only this transaction can see its unconfirmed slots. Keep
@@ -386,6 +389,7 @@ namespace LiteDB.Engine
         /// </summary>
         public void WriteDataDisk(IEnumerable<PageBuffer> pages)
         {
+            if (_readOnly) throw new NotSupportedException("Cannot checkpoint a read-only database.");
             var stream = _dataPool.Writer.Value;
 
             foreach (var page in pages)
@@ -397,6 +401,9 @@ namespace LiteDB.Engine
                 stream.Position = page.Position;
 
                 this.PreserveFileVersion(page);
+#if DEBUG || TESTING
+                _state.SimulateDataWriteFail?.Invoke(page);
+#endif
                 stream.Write(page.Array, page.Offset, PAGE_SIZE);
             }
 
@@ -444,7 +451,7 @@ namespace LiteDB.Engine
             var errors = new List<Exception>();
             var delete = false;
 
-            TryAction(() => delete = _logFactory.Exists() && _logPool.Writer.Value.Length == 0, errors);
+            if (!_readOnly) TryAction(() => delete = _logFactory.Exists() && _logPool.Writer.Value.Length == 0, errors);
             TryAction(() => _dataPool.Dispose(), errors);
             TryAction(() => _logPool.Dispose(), errors);
             if (delete) TryAction(() => _logFactory.Delete(), errors);

@@ -26,11 +26,17 @@ public sealed class SharedDemoDatabaseFixture : IDisposable
 
     private void TryDeleteFile()
     {
+        TryDeletePath(_filename);
+        TryDeletePath(FileHelper.GetLogFile(_filename));
+    }
+
+    private static void TryDeletePath(string filename)
+    {
         try
         {
-            if (File.Exists(_filename))
+            if (File.Exists(filename))
             {
-                File.Delete(_filename);
+                File.Delete(filename);
             }
         }
         catch (IOException)

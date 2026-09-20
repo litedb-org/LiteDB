@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -293,7 +293,9 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Rebuild all database to remove unused pages - reduce data file
+        /// Rebuild all database to remove unused pages - reduce data file.
+        /// Replaces the canonical -backup file with the current database snapshot.
+        /// Older numbered backups and unrelated files are retained.
         /// Every omitted option (password, collation) keeps its current value; decrypting requires RebuildOptions.RemovePassword.
         /// </summary>
         public long Rebuild(RebuildOptions options = null)

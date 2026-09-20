@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -37,9 +37,9 @@ namespace LiteDB.Engine
             _fileVersion = FileReaderV8.IsVersion(buffer) ? 8 : throw LiteException.InvalidDatabase();
         }
 
-        public long Rebuild(RebuildOptions options, Collation currentCollation = null)
+        public long Rebuild(RebuildOptions options, Collation currentCollation = null, Action<FileOwnership> retainOwnership = null, bool replaceBackup = false)
         {
-            var backupFilename = FileHelper.GetSuffixFile(_settings.Filename, "-backup", true);
+            var backupFilename = FileHelper.GetSuffixFile(_settings.Filename, "-backup", !replaceBackup);
             var backupLogFilename = FileHelper.GetSuffixFile(FileHelper.GetLogFile(_settings.Filename), "-backup", true);
             var tempFilename = FileHelper.GetSuffixFile(_settings.Filename, "-temp", true);
 
@@ -84,6 +84,10 @@ namespace LiteDB.Engine
 
                     // after rebuild, copy log bytes into data file
                     engine.Checkpoint();
+
+                    // Transfer the replacement lock before closing its streams.
+                    // The caller holds it throughout installation and reopening.
+                    if (retainOwnership != null) retainOwnership(engine.DetachOwnership());
                 }
             }
 
@@ -99,14 +103,9 @@ namespace LiteDB.Engine
                 File.Move(logFile, backupLogFilename);
             }
 
-            // rename source filename to backup name
-            FileHelper.Exec(5, () =>
-            {
-                File.Move(_settings.Filename, backupFilename);
-            });
-
-            // rename temp file into filename
-            File.Move(tempFilename, _settings.Filename);
+            // Atomically install the locked replacement. A pair of moves would
+            // expose a missing path where a competing engine could create a file.
+            FileHelper.Exec(5, () => File.Replace(tempFilename, _settings.Filename, backupFilename));
 
 
             return difference;
