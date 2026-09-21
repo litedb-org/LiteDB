@@ -97,6 +97,7 @@ namespace LiteDB.Tests.Internals
             var both = Task.WhenAll(checkpoint.ContinueWith(_ => { }), writer.ContinueWith(_ => { }));
             (await Task.WhenAny(both, Task.Delay(TimeSpan.FromSeconds(10)))).Should().BeSameAs(both);
             (await writer).Should().BeOfType<IOException>();
+            await checkpoint;
             engine.CheckpointStage = null;
             database.Dispose();
             engine.Dispose();

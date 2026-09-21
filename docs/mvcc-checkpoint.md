@@ -45,13 +45,15 @@ The physical protocol is:
 2. Invalidate obsolete cached frames and overwrite their WAL slots with zero
    pages, without moving any retained offset.
 3. Durably flush the cleared slots before publishing them to the free-slot pool.
-4. Append one unconfirmed frame for each new transaction before letting its later
-   frames reuse eligible slots under the WAL writer lock. This physical-tail
-   anchor preserves the maximum transaction ID for legacy recovery even if the
-   transaction is abandoned. Failed reused writes are not immediately returned
-   to the pool; reopening only recovers slots that are entirely zero. Abandoned
-   nonzero frames remain until full reset. Transaction-private safepoint reuse
-   remains supported.
+4. Append one unconfirmed frame for each transaction before letting its later
+   frames reuse eligible slots under the WAL writer lock. If a lower allocated
+   transaction ID reaches the writer after a higher one, advance its ID, durably
+   append the new tail anchor, and rewrite its earlier unconfirmed frames before
+   confirmation. This preserves the maximum transaction ID at the physical tail
+   for legacy recovery even when allocation and write order differ. Failed reused
+   writes are not immediately returned to the pool; reopening only recovers slots
+   that are entirely zero. Abandoned nonzero frames remain until full reset.
+   Transaction-private safepoint reuse remains supported.
 5. Append confirmation frames. Their page positions define logical version IDs;
    removing old transactions therefore never renumbers another process's lease.
 
@@ -66,13 +68,16 @@ remain intact. There is no separately published persistent base or free-list fil
 
 Existing v8 engines checkpoint in physical WAL order. A reclaimed slot is eligible
 only if it comes after this page's previous WAL positions, so physical order per
-page still agrees with commit order. The first frame of a new transaction and its
-confirmation both append, so LiteDB 5.0.21 also restores a transaction-ID counter
-above every abandoned reused-slot frame. These restrictions preserve ordinary v8
-compatibility and v9 vector compatibility without introducing a format migration.
-The compatibility script leaves an unconfirmed transaction in reclaimed slots,
-opens the WAL in LiteDB 5.0.21, commits an unrelated update, checkpoints, and
-reopens it in both engines, plain and encrypted.
+page still agrees with commit order. A transaction whose allocated ID falls behind
+the physical writer order is rebased before its next frame, and both that new-ID
+tail anchor and its confirmation append. LiteDB 5.0.21 therefore restores a
+transaction-ID counter above every abandoned reused-slot frame. These restrictions
+preserve ordinary v8 compatibility and v9 vector compatibility without introducing
+a format migration.
+The compatibility script allocates a lower-ID transaction first, writes and
+abandons a higher-ID transaction, then resumes the lower transaction. It verifies
+the rebased physical tail before LiteDB 5.0.21 commits an unrelated update and
+checkpoints, then reopens the result in both engines, plain and encrypted.
 
 ### Space savings and limits
 

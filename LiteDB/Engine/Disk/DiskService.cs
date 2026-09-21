@@ -319,6 +319,7 @@ namespace LiteDB.Engine
                 {
                     _freeLogPositions.Clear();
                     _lastLogPositions.Clear();
+                    _lastWalTransactionID = 0;
                 }
             }
             else

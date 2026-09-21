@@ -124,7 +124,8 @@ namespace LiteDB.Internals
                 write.Should().Throw<IOException>();
             });
             reused.Should().BeTrue();
-            test.Recover("docs", true).Should().OnlyContain(doc => doc["value"].AsInt32 == 5);
+            test.Recover("cold", false).Should().OnlyContain(doc => doc["value"].AsInt32 == 0);
+            test.Recover("cold", true).Should().OnlyContain(doc => doc["value"].AsInt32 == 0);
         }
     }
 }

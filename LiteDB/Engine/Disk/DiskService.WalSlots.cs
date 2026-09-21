@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using static LiteDB.Constants;
 
@@ -9,6 +11,7 @@ namespace LiteDB.Engine
         // Protected by the WAL writer lock, except during single-threaded open.
         private readonly Dictionary<uint, long> _lastLogPositions = new Dictionary<uint, long>();
         private readonly SortedSet<long> _freeLogPositions = new SortedSet<long>();
+        private uint _lastWalTransactionID;
 
         internal void RegisterFreeLogPosition(long position)
         {
@@ -23,14 +26,39 @@ namespace LiteDB.Engine
             }
         }
 
+        internal void RecordLogTransactionID(uint transactionID)
+        {
+            if (transactionID > _lastWalTransactionID)
+            {
+                _lastWalTransactionID = transactionID;
+            }
+        }
+
+        private void RewriteLogTransactionIDs(Stream stream, IEnumerable<long> positions,
+            uint transactionID)
+        {
+            var bytes = new byte[PAGE_SIZE];
+            var buffer = new BufferSlice(bytes, 0, bytes.Length);
+
+            foreach (var position in positions)
+            {
+                _cache.Invalidate(position, FileOrigin.Log);
+                stream.Position = position;
+                stream.ReadRequired(bytes, 0, bytes.Length);
+                buffer.Write(transactionID, BasePage.P_TRANSACTION_ID);
+                stream.Position = position;
+                stream.Write(bytes, 0, bytes.Length);
+            }
+        }
+
         private long AllocateLogPosition(uint pageID, bool confirmation, bool transactionAnchored)
         {
             // Appended confirmations define stable versions and order recovery.
-            // Before any holes are reused, one frame for a new transaction must
-            // reach the physical tail. LiteDB 5.0.21 restores the transaction-ID
-            // counter from the last physical frame rather than the maximum ID.
-            // The tail anchor prevents an abandoned reused-slot transaction from
-            // having its ID assigned to a later legacy transaction.
+            // Before any holes are reused, one frame for a transaction must reach
+            // the physical tail. If allocations reached the writer out of order,
+            // WriteLogDisk first advances the lower transaction ID and rewrites
+            // its earlier frames. LiteDB 5.0.21 restores its counter from the last
+            // physical frame rather than the maximum observed ID.
             if (!confirmation && transactionAnchored && _freeLogPositions.Count > 0)
             {
                 // v8 engines backfill in physical order. Preserve increasing

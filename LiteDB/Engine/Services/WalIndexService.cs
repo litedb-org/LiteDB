@@ -219,6 +219,7 @@ namespace LiteDB.Engine
                 _disk.RecordLogPosition(pageID, current);
                 var isConfirmed = buffer.ReadBool(BasePage.P_IS_CONFIRMED);
                 var transactionID = buffer.ReadUInt32(BasePage.P_TRANSACTION_ID);
+                _disk.RecordLogTransactionID(transactionID);
 
                 var position = new PagePosition(pageID, current);
 

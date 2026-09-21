@@ -49,8 +49,10 @@ WAL slots while retaining, per page, the floor of every live snapshot, the newes
 version, and required commit markers. Small shared-mode results are buffered under
 the mutex; only larger ones open a leased snapshot engine.
 Reused slots preserve physical order per page for legacy recovery. Before reuse,
-the first frame of each new transaction must append at the physical WAL tail so
-LiteDB 5.0.21 cannot reassign an abandoned transaction ID. Full truncation requires
+each transaction must append a frame at the physical WAL tail. If a lower ID reaches
+the writer after a higher one, advance it, durably append its new-ID anchor, and
+rewrite its earlier frames before confirmation so LiteDB 5.0.21 cannot reassign an
+abandoned transaction ID. Full truncation requires
 all reader leases to drain. Shared readers register OS-held lease files in
 `<database>-readers/`; never remove that directory while the database is in use.
 An unreadable or malformed registry must skip checkpoint work, not use a synthetic

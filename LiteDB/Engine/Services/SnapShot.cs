@@ -21,7 +21,6 @@ namespace LiteDB.Engine
         private readonly WalIndexService _walIndex;
 
         // instances from transaction
-        private readonly uint _transactionID;
         private readonly TransactionPages _transPages;
         private readonly Action _safepoint;
 
@@ -53,7 +52,6 @@ namespace LiteDB.Engine
             LockMode mode, 
             string collectionName, 
             HeaderPage header, 
-            uint transactionID, 
             TransactionPages transPages, 
             LockService locker, 
             WalIndexService walIndex, 
@@ -65,7 +63,6 @@ namespace LiteDB.Engine
             _mode = mode;
             _collectionName = collectionName;
             _header = header;
-            _transactionID = transactionID;
             _transPages = transPages;
             _locker = locker;
             _walIndex = walIndex;
@@ -237,7 +234,7 @@ namespace LiteDB.Engine
                 var page = BasePage.ReadPage<T>(buffer);
                 if (dirty)
                 {
-                    ENSURE(page.TransactionID == _transactionID, "this page must came from same transaction");
+                    ENSURE(page.TransactionID == _transPages.TransactionID, "this page must came from same transaction");
                 }
                 else if (origin == FileOrigin.Log)
                 {
