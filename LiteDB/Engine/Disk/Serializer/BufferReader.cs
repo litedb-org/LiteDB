@@ -35,6 +35,7 @@ namespace LiteDB.Engine
         /// Indicate position are at end of last source array segment
         /// </summary>
         public bool IsEOF => _isEOF;
+        internal bool AllowZeroLengthDocument { get; set; }
 
         public BufferReader(byte[] buffer, bool utcDate = false)
             : this(new BufferSlice(buffer, 0, buffer.Length), utcDate)
@@ -324,6 +325,7 @@ namespace LiteDB.Engine
         /// </summary>
         public bool ReadBoolean()
         {
+            this.EnsureByteAvailable();
             var value = _current[_currentPosition] != 0;
             this.MoveForward(1);
             return value;
@@ -348,9 +350,16 @@ namespace LiteDB.Engine
         /// </summary>
         public byte ReadByte()
         {
+            this.EnsureByteAvailable();
             var value = _current[_currentPosition];
             this.MoveForward(1);
             return value;
+        }
+
+        private void EnsureByteAvailable()
+        {
+            while (!_isEOF && _currentPosition == _current.Count) this.MoveForward(0);
+            ENSURE(!_isEOF && _currentPosition < _current.Count, "cannot read past end of buffer");
         }
 
         /// <summary>
@@ -366,6 +375,7 @@ namespace LiteDB.Engine
         /// </summary>
         public byte[] ReadBytes(int count)
         {
+            ENSURE(count >= 0 && count <= MAX_DOCUMENT_SIZE, "binary length exceeds the document limit");
             var buffer = new byte[count];
             this.Read(buffer, 0, count);
             return buffer;
@@ -385,7 +395,11 @@ namespace LiteDB.Engine
             try
             {
                 var length = this.ReadInt32();
-                var end = _position + length - 5;
+                if (length == 0 && AllowZeroLengthDocument) return doc;
+                ENSURE(length >= 5 && length <= MAX_DOCUMENT_SIZE,
+                    "document length must include its header and terminator and stay within the document limit");
+                var end = (long)_position + length - 5;
+                ENSURE(end <= int.MaxValue, "document length exceeds the supported buffer range");
                 var remaining = fields == null || fields.Count == 0 ? null : new HashSet<string>(fields, StringComparer.OrdinalIgnoreCase);
 
                 while (_position < end && (remaining == null || remaining?.Count > 0))
@@ -402,7 +416,8 @@ namespace LiteDB.Engine
                     }
                 }
 
-                this.MoveForward(1); // skip \0 ** can read disk here!
+                if (_position < end) this.Skip((int)end - _position);
+                ENSURE(this.ReadByte() == 0, "document must end with a null terminator");
 
                 return doc;
             }
@@ -422,7 +437,10 @@ namespace LiteDB.Engine
             try
             {
                 var length = this.ReadInt32();
-                var end = _position + length - 5;
+                ENSURE(length >= 5 && length <= MAX_DOCUMENT_SIZE,
+                    "array length must include its header and terminator and stay within the document limit");
+                var end = (long)_position + length - 5;
+                ENSURE(end <= int.MaxValue, "array length exceeds the supported buffer range");
 
                 while (_position < end)
                 {
@@ -430,7 +448,7 @@ namespace LiteDB.Engine
                     arr.Add(value);
                 }
 
-                this.MoveForward(1); // skip \0
+                ENSURE(this.ReadByte() == 0, "array must end with a null terminator");
 
                 return arr;
             }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using static LiteDB.Constants;
 
 namespace LiteDB.Engine
 {
@@ -43,6 +44,7 @@ namespace LiteDB.Engine
             else if (type == 0x02) // String
             {
                 var length = reader.ReadInt32();
+                ENSURE(length >= 1 && length <= MAX_DOCUMENT_SIZE, "string length exceeds the document limit");
                 var value = reader.ReadString(length - 1);
                 reader.Skip(1); // read '\0'
                 return value;
@@ -58,6 +60,7 @@ namespace LiteDB.Engine
             else if (type == 0x05) // Binary
             {
                 var length = reader.ReadInt32();
+                ENSURE(length >= 0 && length <= MAX_DOCUMENT_SIZE, "binary length exceeds the document limit");
                 var subType = reader.ReadByte();
                 var bytes = reader.ReadBytes(length);
 
