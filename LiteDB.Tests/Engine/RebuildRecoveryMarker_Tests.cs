@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using FluentAssertions;
 using LiteDB.Engine;
 using Xunit;
@@ -127,6 +128,32 @@ namespace LiteDB.Tests.Engine
             // The complete original pair was restored; removing only the guard is safe here.
             File.Delete(Marker);
             db.GetCollection("rows").Count().Should().Be(1);
+        }
+
+        [Fact]
+        public void A_briefly_locked_marker_does_not_undo_or_block_a_completed_rebuild()
+        {
+            // Only Windows refuses to delete a file that is open without FileShare.Delete, which is
+            // how a virus scanner or sync client inspecting the new marker looks to the rebuild.
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
+
+            using var db = Seed();
+            FileStream scanner = null;
+            RebuildService.SimulateInstallFailure = phase =>
+            {
+                if (phase != "before-log-backup") return;
+                scanner = new FileStream(Marker, FileMode.Open, FileAccess.Read, FileShare.Read);
+                Task.Delay(300).ContinueWith(_ => scanner.Dispose());
+            };
+
+            db.Rebuild(new RebuildOptions { Password = "new-password" });
+            RebuildService.SimulateInstallFailure = null;
+
+            scanner.Should().NotBeNull();
+            File.Exists(Marker).Should().BeFalse();
+            db.GetCollection("rows").Count().Should().Be(1);
+            using var fresh = new LiteDatabase(new ConnectionString { Filename = Filename, Password = "new-password" });
+            fresh.GetCollection("rows").Count().Should().Be(1);
         }
 
         [Theory]

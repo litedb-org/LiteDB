@@ -29,7 +29,9 @@ it is a full copy of the database that may lack the original's encryption.
 The original rebuild exception is preserved. Its `Data["LiteDB.Rebuild.LiveState"]`
 reports `original-restored`, `replacement-published` or `incomplete`. Additional
 recovery errors are in its `Data["LiteDB.Rebuild.RollbackErrors"]` aggregate. A failure to remove the marker
-also leaves access blocked, even if a complete database is already live.
+also leaves access blocked, even if a complete database is already live. Removal
+waits up to five seconds for a sharing violation to clear, because virus scanners
+and sync clients briefly open a newly written file on Windows.
 
 ## Recovering a guarded database
 

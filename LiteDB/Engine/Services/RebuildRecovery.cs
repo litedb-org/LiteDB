@@ -12,6 +12,8 @@ namespace LiteDB.Engine
     /// </summary>
     internal static class RebuildRecovery
     {
+        private const int MarkerDeleteTimeoutSeconds = 5;
+
         internal static string GetMarkerFilename(string filename) => FileHelper.GetSuffixFile(filename, "-rebuild", false);
 
         internal static void EnsureAvailable(EngineSettings settings)
@@ -72,7 +74,10 @@ namespace LiteDB.Engine
 #if DEBUG || TESTING
             RebuildService.SimulateInstallFailure?.Invoke("before-recovery-marker-delete");
 #endif
-            File.Delete(GetMarkerFilename(filename));
+            // Closing the new marker invites virus scanners and sync clients to open it, and on
+            // Windows their handle fails the delete. Wait that out like the source rename does;
+            // a marker that stays locked still fails here and keeps the database guarded.
+            FileHelper.Exec(MarkerDeleteTimeoutSeconds, () => File.Delete(GetMarkerFilename(filename)));
         }
     }
 }

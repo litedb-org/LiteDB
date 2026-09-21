@@ -14,6 +14,9 @@ namespace LiteDB.Tests.Engine
     {
         public const string OldValue = "old";
 
+        private static readonly Dictionary<string, KeyValuePair<byte[], byte[]>> Seeds =
+            new Dictionary<string, KeyValuePair<byte[], byte[]>>();
+
         private readonly string _directory;
         private int _hitsAtLastFault;
 
@@ -79,14 +82,7 @@ namespace LiteDB.Tests.Engine
 
         public void Execute()
         {
-            using (var seed = new LiteDatabase(this.Scenario.OriginalConnection(this.Live)))
-            {
-                seed.CheckpointSize = 0;
-                seed.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "checkpointed" });
-                seed.Checkpoint();
-                seed.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 2, ["value"] = "acknowledged" });
-                if (!this.Scenario.Wal) seed.Checkpoint();
-            }
+            this.Seed();
 
             this.FilesBefore = this.ListFiles();
 
@@ -115,6 +111,38 @@ namespace LiteDB.Tests.Engine
                 this.SameHandleWrite = Attempt(() => db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 3 }));
                 this.FilesAfterRefusedUse = this.ListFiles();
             }
+        }
+
+        /// <summary>
+        /// One checkpointed row and one acknowledged row that, with a WAL, exists only there.
+        /// Seeded once per scenario: the matrix starts hundreds of runs from the same files.
+        /// </summary>
+        private void Seed()
+        {
+            KeyValuePair<byte[], byte[]> files;
+            lock (Seeds)
+            {
+                if (!Seeds.TryGetValue(this.Scenario.ToString(), out files))
+                {
+                    using (var seed = new LiteDatabase(this.Scenario.OriginalConnection(this.Live)))
+                    {
+                        seed.CheckpointSize = 0;
+                        seed.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "checkpointed" });
+                        seed.Checkpoint();
+                        seed.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 2, ["value"] = "acknowledged" });
+                        if (!this.Scenario.Wal) seed.Checkpoint();
+                    }
+
+                    files = new KeyValuePair<byte[], byte[]>(
+                        File.ReadAllBytes(this.Live),
+                        File.Exists(this.LiveLog) ? File.ReadAllBytes(this.LiveLog) : null);
+                    Seeds[this.Scenario.ToString()] = files;
+                    return;
+                }
+            }
+
+            File.WriteAllBytes(this.Live, files.Key);
+            if (files.Value != null) File.WriteAllBytes(this.LiveLog, files.Value);
         }
 
         /// <summary>Open a copy of a data file (plus optional WAL) so inspection never mutates the evidence.</summary>

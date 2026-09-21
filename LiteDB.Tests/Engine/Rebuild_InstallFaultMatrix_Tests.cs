@@ -40,13 +40,22 @@ namespace LiteDB.Tests.Engine
             "before-recovery-marker-delete"
         };
 
+        // Hooks with no code between them and the previous hook: failing there is the same program
+        // state, so one run confirms it instead of exploring the identical rollback tree again.
+        private static readonly string[] SameStateAsPreviousFault = { "before-source-backup", "before-temp-install" };
+
+        // Rollback faults explored below the first fault. One scenario goes all the way down; the
+        // others stop just past the contract boundary (one fault survivable, two may end guarded).
+        private const int Exhaustive = int.MaxValue;
+        private const int ContractBoundary = 2;
+
         // A retry only depends on what a failed attempt left behind, so one per outcome is enough.
         private static readonly HashSet<string> Retried = new HashSet<string>();
 
         private static readonly RebuildFaultScenario[] AllScenarios =
         {
-            new RebuildFaultScenario(RebuildChange.SetPassword, true, ConnectionType.Direct),
             new RebuildFaultScenario(RebuildChange.SetPassword, true, ConnectionType.Shared),
+            new RebuildFaultScenario(RebuildChange.SetPassword, true, ConnectionType.Direct),
             new RebuildFaultScenario(RebuildChange.SetPassword, false, ConnectionType.Shared),
             new RebuildFaultScenario(RebuildChange.Collation, true, ConnectionType.Shared)
         };
@@ -57,7 +66,10 @@ namespace LiteDB.Tests.Engine
         public static IEnumerable<object[]> FirstFaults() =>
             from scenario in AllScenarios
             from fault in InstallFaults
-            select new object[] { scenario.Change, scenario.Wal, scenario.Connection, fault };
+            let depth = SameStateAsPreviousFault.Contains(fault) ? 0
+                : scenario == AllScenarios[0] ? Exhaustive
+                : ContractBoundary
+            select new object[] { scenario.Change, scenario.Wal, scenario.Connection, fault, depth };
 
         [Theory]
         [MemberData(nameof(Scenarios))]
@@ -77,7 +89,7 @@ namespace LiteDB.Tests.Engine
         [Theory]
         [MemberData(nameof(FirstFaults))]
         public void Every_reachable_fault_combination_honours_the_rollback_contract(
-            RebuildChange change, bool wal, ConnectionType connection, string firstFault)
+            RebuildChange change, bool wal, ConnectionType connection, string firstFault, int rollbackFaults)
         {
             var scenario = new RebuildFaultScenario(change, wal, connection);
             var violations = new List<string>();
@@ -99,6 +111,8 @@ namespace LiteDB.Tests.Engine
                     outcomes.Add(run.Blocked ? "blocked" : run.LiveState);
                     violations.AddRange(Check(run).Select(problem => run + " => " + problem));
 
+                    if (faults.Length > rollbackFaults) continue;
+
                     foreach (var hook in run.ReachedAfterLastFault.Distinct().Where(h => !faults.Contains(h)))
                     {
                         pending.Push(faults.Concat(new[] { hook }).OrderBy(x => x, StringComparer.Ordinal).ToArray());
@@ -109,7 +123,7 @@ namespace LiteDB.Tests.Engine
             violations.Should().BeEmpty();
 
             // Guard the explorer itself: a failure after publication must reach every outcome.
-            if (firstFault == "after-temp-install")
+            if (firstFault == "after-temp-install" && rollbackFaults >= ContractBoundary)
             {
                 outcomes.Should().Contain(new[]
                 {
