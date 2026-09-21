@@ -26,6 +26,7 @@ namespace LiteDB.Engine
         public RebuildService(EngineSettings settings)
         {
             _settings = settings;
+            RebuildRecovery.EnsureAvailable(settings);
 
             // test for prior version
             var bufferV7 = this.ReadFirstBytes(false);
@@ -102,6 +103,9 @@ namespace LiteDB.Engine
             var movedLog = false;
             var movedSource = false;
             var candidateIsLive = false;
+            // Persist the guard before the first rename. Recovery must not depend
+            // on being able to write a marker after filesystem operations fail.
+            RebuildRecovery.Begin(_settings.Filename, backupFilename, backupLogFilename, tempFilename);
             try
             {
 #if DEBUG || TESTING
@@ -131,6 +135,7 @@ namespace LiteDB.Engine
 #if DEBUG || TESTING
                 SimulateInstallFailure?.Invoke("after-temp-install");
 #endif
+                RebuildRecovery.Complete(_settings.Filename);
             }
             catch (Exception installException)
             {
@@ -196,7 +201,6 @@ namespace LiteDB.Engine
                             sourceIsLive = false;
                         }
                     }, rollbackErrors);
-
                 }
 
                 TryRollback(() =>
@@ -215,6 +219,11 @@ namespace LiteDB.Engine
 
                 if (candidateIsLive)
                     installException.Data[ReplacementPublishedDataKey] = true;
+
+                // Repeated recovery failures leave the marker in place: neither
+                // stale source data nor a missing file may be opened as a database.
+                if (candidateIsLive || (sourceIsLive && logIsLive))
+                    TryRollback(() => RebuildRecovery.Complete(_settings.Filename), rollbackErrors);
 
                 if (rollbackErrors.Count > 0)
                     installException.Data["LiteDB.Rebuild.RollbackErrors"] = new AggregateException(rollbackErrors);

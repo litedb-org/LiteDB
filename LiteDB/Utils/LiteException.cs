@@ -41,6 +41,8 @@ namespace LiteDB
         public const int ENGINE_DISPOSED = 137;
         /// <summary>The file header declares an unsupported engine format.</summary>
         public const int UNSUPPORTED_FILE_VERSION = 138;
+        /// <summary>A rebuild installation requires recovery before the database can be opened.</summary>
+        public const int REBUILD_INCOMPLETE = 139;
 
         public const int INVALID_FORMAT = 200;
         public const int DOCUMENT_MAX_DEPTH = 201;
