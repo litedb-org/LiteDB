@@ -396,7 +396,7 @@ namespace LiteDB.Engine
             {
                 ENSURE(containerDepth <= MAX_BSON_NESTING_DEPTH, "BSON nesting depth exceeds the supported limit");
                 var length = this.ReadInt32();
-                if (length == 0 && AllowZeroLengthDocument) return doc;
+                if (length == 0 && AllowZeroLengthDocument && containerDepth == 1) return doc;
                 ENSURE(length >= 5 && length <= MAX_DOCUMENT_SIZE,
                     "document length must include its header and terminator and stay within the document limit");
                 var end = (long)_position + length - 5;
@@ -405,7 +405,7 @@ namespace LiteDB.Engine
 
                 while (_position < end)
                 {
-                    var value = BsonElementReader.Read(this, remaining, _utcDate, out string name, containerDepth);
+                    var value = BsonElementReader.Read(this, remaining, _utcDate, out string name, containerDepth, end);
 
                     // null value means are not selected field
                     if (value != null)
@@ -446,7 +446,7 @@ namespace LiteDB.Engine
 
                 while (_position < end)
                 {
-                    var value = BsonElementReader.Read(this, null, _utcDate, out string name, containerDepth);
+                    var value = BsonElementReader.Read(this, null, _utcDate, out string name, containerDepth, end);
                     arr.Add(value);
                 }
 
@@ -479,7 +479,7 @@ namespace LiteDB.Engine
                 var type = this.ReadByte();
                 ENSURE(type != 0, "unexpected terminator inside BSON container");
                 BsonElementReader.SkipCString(this);
-                BsonElementReader.SkipValue(this, type, containerDepth);
+                BsonElementReader.SkipValue(this, type, containerDepth, end);
             }
 
             ENSURE(_position == end, "BSON element exceeds its declared container boundary");

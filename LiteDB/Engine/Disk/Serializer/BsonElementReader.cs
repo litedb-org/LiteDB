@@ -10,7 +10,7 @@ namespace LiteDB.Engine
         /// Reads an element (key-value) from an reader
         /// </summary>
         internal static BsonValue Read(BufferReader reader, HashSet<string> remaining, bool utcDate, out string name,
-            int containerDepth)
+            int containerDepth, long containerEnd)
         {
             var type = reader.ReadByte();
 
@@ -18,7 +18,7 @@ namespace LiteDB.Engine
             {
                 name = null;
                 SkipCString(reader);
-                SkipValue(reader, type, containerDepth);
+                SkipValue(reader, type, containerDepth, containerEnd);
                 return null;
             }
 
@@ -27,7 +27,7 @@ namespace LiteDB.Engine
             // check if need skip this element
             if (remaining != null && !remaining.Contains(name))
             {
-                SkipValue(reader, type, containerDepth);
+                SkipValue(reader, type, containerDepth, containerEnd);
                 return null;
             }
 
@@ -39,6 +39,7 @@ namespace LiteDB.Engine
             {
                 var length = reader.ReadInt32();
                 ENSURE(length >= 1 && length <= MAX_DOCUMENT_SIZE, "string length exceeds the document limit");
+                ENSURE(length <= containerEnd - reader.Position, "string payload exceeds its container boundary");
                 var value = reader.ReadString(length - 1);
                 ENSURE(reader.ReadByte() == 0, "string must end with a null terminator");
                 return value;
@@ -53,7 +54,7 @@ namespace LiteDB.Engine
             }
             else if (type == 0x05) // Binary
             {
-                var length = ReadBinaryHeader(reader, out var subType);
+                var length = ReadBinaryHeader(reader, out var subType, containerEnd);
                 var bytes = reader.ReadBytes(length);
 
                 switch (subType)
@@ -115,7 +116,7 @@ namespace LiteDB.Engine
             throw new NotSupportedException("BSON type not supported");
         }
 
-        internal static void SkipValue(BufferReader reader, byte type, int containerDepth)
+        internal static void SkipValue(BufferReader reader, byte type, int containerDepth, long containerEnd)
         {
             switch (type)
             {
@@ -124,13 +125,15 @@ namespace LiteDB.Engine
                     var stringLength = reader.ReadInt32();
                     ENSURE(stringLength >= 1 && stringLength <= MAX_DOCUMENT_SIZE,
                         "string length exceeds the document limit");
+                    ENSURE(stringLength <= containerEnd - reader.Position,
+                        "string payload exceeds its container boundary");
                     reader.Skip(stringLength - 1);
                     ENSURE(reader.ReadByte() == 0, "string must end with a null terminator");
                     return;
                 case 0x03: reader.SkipDocument(containerDepth + 1); return;
                 case 0x04: reader.SkipArray(containerDepth + 1); return;
                 case 0x05:
-                    var binaryLength = ReadBinaryHeader(reader, out _);
+                    var binaryLength = ReadBinaryHeader(reader, out _, containerEnd);
                     reader.Skip(binaryLength);
                     return;
                 case 0x07: reader.ReadObjectId(); return;
@@ -149,13 +152,14 @@ namespace LiteDB.Engine
             }
         }
 
-        internal static int ReadBinaryHeader(BufferReader reader, out byte subtype)
+        internal static int ReadBinaryHeader(BufferReader reader, out byte subtype, long containerEnd)
         {
             var length = reader.ReadInt32();
             ENSURE(length >= 0 && length <= MAX_DOCUMENT_SIZE, "binary length exceeds the document limit");
             subtype = reader.ReadByte();
             ENSURE(subtype == 0x00 || subtype == 0x04, "binary subtype is not supported");
             ENSURE(subtype != 0x04 || length == 16, "GUID binary value must contain 16 bytes");
+            ENSURE(length <= containerEnd - reader.Position, "binary payload exceeds its container boundary");
             return length;
         }
 

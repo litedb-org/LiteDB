@@ -56,6 +56,38 @@ namespace LiteDB.Tests.Issues
         }
 
         [Fact]
+        public void Binary_payload_is_bounded_by_its_container_before_allocation()
+        {
+            var bytes = new byte[]
+            {
+                13, 0, 0, 0,
+                0x05, (byte)'b', 0,
+                0x40, 0x42, 0x0f, 0, 0x00,
+                0
+            };
+
+            Action read = () => BsonSerializer.Deserialize(bytes);
+            read.Should().Throw<LiteException>()
+                .WithMessage("*binary payload exceeds its container boundary*");
+        }
+
+        [Fact]
+        public void Zero_length_header_sentinel_is_rejected_for_nested_documents()
+        {
+            var bytes = new byte[]
+            {
+                12, 0, 0, 0,
+                0x03, (byte)'n', 0,
+                0, 0, 0, 0,
+                0
+            };
+            using var reader = new BufferReader(bytes) { AllowZeroLengthDocument = true };
+
+            Action read = () => reader.ReadDocument().GetValue();
+            read.Should().Throw<LiteException>();
+        }
+
+        [Fact]
         public void Element_cannot_overrun_its_declared_container_boundary()
         {
             var bytes = new byte[] { 7, 0, 0, 0, 0x08, 0, 1, 0 };

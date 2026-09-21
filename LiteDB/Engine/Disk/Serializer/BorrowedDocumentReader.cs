@@ -77,7 +77,7 @@ namespace LiteDB.Engine
                 }
                 else
                 {
-                    this.ReadOrSkipValue(reader, type, terminal, depth, values, ref found);
+                    this.ReadOrSkipValue(reader, type, terminal, depth, end, values, ref found);
                 }
             }
 
@@ -130,12 +130,12 @@ namespace LiteDB.Engine
             return matches;
         }
 
-        private void ReadOrSkipValue(BufferReader reader, byte type, ulong terminal, int depth,
+        private void ReadOrSkipValue(BufferReader reader, byte type, ulong terminal, int depth, long containerEnd,
             BorrowedValueBuffer values, ref ulong found)
         {
             if (terminal == 0)
             {
-                BsonElementReader.SkipValue(reader, type, depth + 1);
+                BsonElementReader.SkipValue(reader, type, depth + 1, containerEnd);
                 return;
             }
 
@@ -155,14 +155,14 @@ namespace LiteDB.Engine
                     break;
                 case 0x03:
                     value = BorrowedBsonValue.FromType(BsonType.Document);
-                    BsonElementReader.SkipValue(reader, type, depth + 1);
+                    BsonElementReader.SkipValue(reader, type, depth + 1, containerEnd);
                     break;
                 case 0x04:
                     value = BorrowedBsonValue.FromType(BsonType.Array);
-                    BsonElementReader.SkipValue(reader, type, depth + 1);
+                    BsonElementReader.SkipValue(reader, type, depth + 1, containerEnd);
                     break;
                 case 0x05:
-                    value = this.ReadBinary(reader);
+                    value = this.ReadBinary(reader, containerEnd);
                     break;
                 case 0x07:
                     value = BorrowedBsonValue.FromType(BsonType.ObjectId);
@@ -203,9 +203,9 @@ namespace LiteDB.Engine
             this.SetTerminalValues(terminal, value, values, ref found);
         }
 
-        private BorrowedBsonValue ReadBinary(BufferReader reader)
+        private BorrowedBsonValue ReadBinary(BufferReader reader, long containerEnd)
         {
-            var length = BsonElementReader.ReadBinaryHeader(reader, out var subtype);
+            var length = BsonElementReader.ReadBinaryHeader(reader, out var subtype, containerEnd);
 
             if (subtype == 0x04)
             {
