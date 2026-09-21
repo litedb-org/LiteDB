@@ -382,7 +382,13 @@ namespace LiteDB.Engine
                 this.ValidateCheckpoint();
                 _disk.SyncLogBeforeCheckpoint();
                 _disk.WriteDataDisk(source());
+#if DEBUG || TESTING
+                _disk.TestCrashPoint("checkpoint-before-clear");
+#endif
                 this.Clear();
+#if DEBUG || TESTING
+                _disk.TestCrashPoint("checkpoint-after-clear");
+#endif
             }
             catch (Exception ex)
             {

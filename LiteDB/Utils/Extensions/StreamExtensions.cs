@@ -51,6 +51,12 @@ namespace LiteDB
             {
                 wal.FlushToDisk();
             }
+#if DEBUG || TESTING
+            else if (stream is IDurableStream durable)
+            {
+                durable.FlushToDisk();
+            }
+#endif
             else
             {
                 stream.Flush();

@@ -18,7 +18,9 @@ namespace LiteDB.Tests.Mapper
         {
             ["Value"] = 7, ["Name"] = "Ready", ["State"] = "Ready",
             ["Next"] = new BsonDocument { ["Value"] = 3 },
-            ["Tags"] = new BsonDocument { ["ak"] = 7, ["Readyk"] = 1 }
+            ["Tags"] = new BsonDocument { ["ak"] = 7, ["Readyk"] = 1 },
+            ["When"] = new DateTime(2024, 3, 10, 7, 30, 0, DateTimeKind.Utc), ["Optional"] = 9,
+            ["Numbers"] = new BsonArray(1, 3, 7), ["Contract"] = new BsonDocument { ["Value"] = 11 }
         };
 
         // One mapper serves every seed of a run, so unrelated shapes share buckets,

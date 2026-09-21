@@ -69,6 +69,9 @@ namespace LiteDB.Engine
             // define IncludeBefore + IncludeAfter
             this.DefineIncludes();
 
+            // make the ownership boundary explicit in the physical plan
+            this.DefineBorrowedExecution();
+
             this.DefineRowAggregate();
 
             return _queryPlan;

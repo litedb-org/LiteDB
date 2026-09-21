@@ -237,8 +237,12 @@ namespace LiteDB.Engine
                         _state.SimulateDiskWriteFail?.Invoke(page);
 #endif
 
+                        this.CrashPoint(page.ReadBool(BasePage.P_IS_CONFIRMED) ?
+                            "wal-confirmation-before-write" : "wal-page-before-write");
                         this.PreserveFileVersion(page);
                         stream.Write(page.Array, page.Offset, PAGE_SIZE);
+                        this.CrashPoint(page.ReadBool(BasePage.P_IS_CONFIRMED) ?
+                            "wal-confirmation-after-write" : "wal-page-after-write");
                         hasConfirmation |= page.ReadBool(BasePage.P_IS_CONFIRMED);
 
                         // Publish only after the bytes are written to the stream.
@@ -277,7 +281,9 @@ namespace LiteDB.Engine
                 {
                     try
                     {
+                        this.CrashPoint("wal-before-durable-flush");
                         this.FlushConfirmedLog(stream);
+                        this.CrashPoint("wal-after-durable-flush");
                     }
                     catch (Exception ex)
                     {
@@ -407,12 +413,16 @@ namespace LiteDB.Engine
 
                 stream.Position = page.Position;
 
+                this.CrashPoint("checkpoint-before-page-write");
                 this.PreserveFileVersion(page);
                 this.StampDataPage(page);
                 stream.Write(page.Array, page.Offset, PAGE_SIZE);
+                this.CrashPoint("checkpoint-after-page-write");
             }
 
+            this.CrashPoint("checkpoint-before-data-flush");
             stream.FlushToDisk();
+            this.CrashPoint("checkpoint-after-data-flush");
         }
 
         /// <summary>
@@ -449,45 +459,5 @@ namespace LiteDB.Engine
 
         #endregion
 
-        public void Dispose()
-        {
-            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
-
-            var errors = new List<Exception>();
-            var delete = false;
-
-            TryAction(() => delete = !_readOnly && _checksums.JournalBytes == 0 && _logFactory.Exists() && _logPool.Writer.Value.Length == 0, errors);
-            TryAction(() => _dataPool.Dispose(), errors);
-            TryAction(() => _logPool.Dispose(), errors);
-            if (delete) TryAction(() => _logFactory.Delete(), errors);
-            TryAction(() => _cache.Dispose(), errors);
-
-            if (errors.Count > 0) throw new AggregateException(errors);
-        }
-
-        private static void TryDispose(IDisposable disposable)
-        {
-            try
-            {
-                disposable?.Dispose();
-            }
-            catch
-            {
-                // Constructor cleanup must preserve the initialization error
-                // while still attempting every remaining resource.
-            }
-        }
-
-        private static void TryAction(Action action, ICollection<Exception> errors)
-        {
-            try
-            {
-                action();
-            }
-            catch (Exception ex)
-            {
-                errors.Add(ex);
-            }
-        }
     }
 }

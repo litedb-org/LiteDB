@@ -17,14 +17,16 @@ namespace LiteDB
         #region Properties
 
         private readonly ILiteEngine _engine;
-        private readonly BsonMapper _mapper;
+        private readonly LiteDatabaseContext _context;
         private readonly bool _disposeOnClose;
         private readonly int? _checkpointOverride;
 
         /// <summary>
-        /// Get current instance of BsonMapper used in this database instance (can be BsonMapper.Global)
+        /// Get the BsonMapper used by this database instance and all objects it creates.
         /// </summary>
-        public BsonMapper Mapper => _mapper;
+        public BsonMapper Mapper => _context.Mapper;
+
+        internal LiteDatabaseContext Context => _context;
 
         #endregion
 
@@ -45,8 +47,9 @@ namespace LiteDB
         {
             if (connectionString == null) throw new ArgumentNullException(nameof(connectionString));
 
+            var resolvedMapper = ResolveMapper(mapper);
             _engine = connectionString.CreateEngine();
-            _mapper = mapper ?? BsonMapper.Global;
+            _context = new LiteDatabaseContext(_engine, resolvedMapper);
             _disposeOnClose = true;
         }
 
@@ -64,8 +67,9 @@ namespace LiteDB
                 LogStream = logStream
             };
 
+            var resolvedMapper = ResolveMapper(mapper);
             _engine = new LiteEngine(settings);
-            _mapper = mapper ?? BsonMapper.Global;
+            _context = new LiteDatabaseContext(_engine, resolvedMapper);
             _disposeOnClose = true;
 
             if (logStream == null && stream is not MemoryStream)
@@ -96,8 +100,18 @@ namespace LiteDB
         public LiteDatabase(ILiteEngine engine, BsonMapper mapper = null, bool disposeOnClose = true)
         {
             _engine = engine ?? throw new ArgumentNullException(nameof(engine));
-            _mapper = mapper ?? BsonMapper.Global;
+            _context = new LiteDatabaseContext(_engine, ResolveMapper(mapper));
             _disposeOnClose = disposeOnClose;
+        }
+
+        private static BsonMapper ResolveMapper(BsonMapper mapper)
+        {
+            if (mapper != null) return mapper;
+
+            var global = BsonMapper.Global ??
+                throw new InvalidOperationException("BsonMapper.Global cannot be null when no mapper is supplied.");
+
+            return global.Clone();
         }
 
         #endregion
@@ -111,7 +125,7 @@ namespace LiteDB
         /// <param name="autoId">Define autoId data type (when object contains no id field)</param>
         public ILiteCollection<T> GetCollection<T>(string name, BsonAutoId autoId = BsonAutoId.ObjectId)
         {
-            return new LiteCollection<T>(name, autoId, _engine, _mapper);
+            return new LiteCollection<T>(name, autoId, _context);
         }
 
         /// <summary>
@@ -139,7 +153,7 @@ namespace LiteDB
         {
             if (name.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(name));
 
-            return new LiteCollection<BsonDocument>(name, autoId, _engine, _mapper);
+            return new LiteCollection<BsonDocument>(name, autoId, _context);
         }
 
         #endregion

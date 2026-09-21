@@ -101,6 +101,11 @@ namespace LiteDB
             if (!ParameterExpressionVisitor.Test(node) && ContainsServerRuntime(node) &&
                 !TryGetResolver(node.Member.DeclaringType, out _) && ContainsClosedElement(node))
                 throw new NotSupportedException("Captured element members containing server runtime expressions are not supported.");
+            // Date constructs a new server-local value from components. Reduce a
+            // closed chain first so its original DateTime kind is not discarded.
+            if (node.Member.DeclaringType == typeof(DateTime) && node.Member.Name == nameof(DateTime.Date) &&
+                !ParameterExpressionVisitor.Test(node) && !ContainsServerRuntime(node))
+                return Bind(Evaluate(node), node);
             if (TryGetResolver(node.Member.DeclaringType, out var resolver))
             {
                 if (resolver is GroupingResolver && !ParameterExpressionVisitor.Test(node))

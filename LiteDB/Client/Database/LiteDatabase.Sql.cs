@@ -8,7 +8,11 @@ namespace LiteDB
 
         private IBsonDataReader ExecuteSql(string command, BsonDocument parameters)
         {
-            var eligible = command.Length <= SqlQueryCache.MaximumCommandLength;
+            var eligible =
+#if DEBUG || TESTING
+                BsonExpression.CacheEnabled &&
+#endif
+                command.Length <= SqlQueryCache.MaximumCommandLength;
             var cache = Volatile.Read(ref _sqlQueryCache);
             var repeated = false;
             if (eligible && cache != null && cache.TryGet(command, out var template, out repeated))

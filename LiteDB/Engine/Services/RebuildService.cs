@@ -15,6 +15,9 @@ namespace LiteDB.Engine
     /// </summary>
     internal class RebuildService
     {
+#if DEBUG || TESTING
+        internal static Action<string> SimulateInstallFailure;
+#endif
         private readonly EngineSettings _settings;
         private readonly int _fileVersion;
 
@@ -94,22 +97,85 @@ namespace LiteDB.Engine
             // if log file exists, rename as backup file
             var logFile = FileHelper.GetLogFile(_settings.Filename);
 
-            if (File.Exists(logFile))
+            var movedLog = false;
+            var movedSource = false;
+            try
             {
-                File.Move(logFile, backupLogFilename);
+#if DEBUG || TESTING
+                SimulateInstallFailure?.Invoke("before-log-backup");
+#endif
+                if (File.Exists(logFile))
+                {
+                    File.Move(logFile, backupLogFilename);
+                    movedLog = true;
+                }
+#if DEBUG || TESTING
+                SimulateInstallFailure?.Invoke("after-log-backup");
+                SimulateInstallFailure?.Invoke("before-source-backup");
+#endif
+
+                // rename source filename to backup name
+                FileHelper.Exec(5, () => File.Move(_settings.Filename, backupFilename));
+                movedSource = true;
+#if DEBUG || TESTING
+                SimulateInstallFailure?.Invoke("after-source-backup");
+                SimulateInstallFailure?.Invoke("before-temp-install");
+#endif
+
+                // rename temp file into filename
+                File.Move(tempFilename, _settings.Filename);
+#if DEBUG || TESTING
+                SimulateInstallFailure?.Invoke("after-temp-install");
+#endif
             }
-
-            // rename source filename to backup name
-            FileHelper.Exec(5, () =>
+            catch (Exception installException)
             {
-                File.Move(_settings.Filename, backupFilename);
-            });
+                var rollbackErrors = new List<Exception>();
 
-            // rename temp file into filename
-            File.Move(tempFilename, _settings.Filename);
+                TryRollback(() =>
+                {
+#if DEBUG || TESTING
+                    SimulateInstallFailure?.Invoke("before-candidate-rollback");
+#endif
+                    // Installation may already have placed the replacement at the
+                    // live path. Move it back out before restoring the old data/WAL
+                    // pair; mixing a new encrypted data file with the old WAL makes
+                    // both otherwise-complete states unreadable.
+                    if (movedSource && File.Exists(backupFilename) && File.Exists(_settings.Filename))
+                        File.Move(_settings.Filename, tempFilename);
+                }, rollbackErrors);
+
+                TryRollback(() =>
+                {
+#if DEBUG || TESTING
+                    SimulateInstallFailure?.Invoke("before-source-rollback");
+#endif
+                    if (movedSource && File.Exists(backupFilename))
+                        File.Move(backupFilename, _settings.Filename);
+                }, rollbackErrors);
+
+                TryRollback(() =>
+                {
+#if DEBUG || TESTING
+                    SimulateInstallFailure?.Invoke("before-log-rollback");
+#endif
+                    if (!File.Exists(logFile) && movedLog && File.Exists(backupLogFilename))
+                        File.Move(backupLogFilename, logFile);
+                }, rollbackErrors);
+
+                if (rollbackErrors.Count > 0)
+                    installException.Data["LiteDB.Rebuild.RollbackErrors"] = new AggregateException(rollbackErrors);
+                throw;
+            }
 
 
             return difference;
+        }
+
+        private static void TryRollback(Action rollback, ICollection<Exception> errors)
+        {
+            try { rollback(); }
+            catch (Exception error) { errors.Add(error); }
         }
 
         /// <summary>

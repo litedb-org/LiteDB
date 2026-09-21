@@ -235,12 +235,25 @@ jobs:
 
       - name: Run tests with verified runtime and architecture
         shell: pwsh
-        timeout-minutes: 5
+        timeout-minutes: 10
         run: >-
           ./scripts/run-ci-tests.ps1
           -RuntimeMajor ${{ matrix.item.runtimeMajor }}
           -Framework "${{ matrix.item.framework }}"
           -Architecture "${{ matrix.arch }}"
+          -Filter "FullyQualifiedName~LiteDB.Tests.Issues."
+          -ResultFile "TestResults-issues.trx"
+
+      - name: Run remaining tests with verified runtime and architecture
+        shell: pwsh
+        timeout-minutes: 10
+        run: >-
+          ./scripts/run-ci-tests.ps1
+          -RuntimeMajor ${{ matrix.item.runtimeMajor }}
+          -Framework "${{ matrix.item.framework }}"
+          -Architecture "${{ matrix.arch }}"
+          -Filter "FullyQualifiedName!~LiteDB.Tests.Issues."
+          -ResultFile "TestResults-remaining.trx"
 
   test-windows-framework:
     name: Test (Windows ${{ matrix.framework }})
