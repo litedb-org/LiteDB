@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using static LiteDB.Constants;
 
 namespace LiteDB.Engine
 {
@@ -8,31 +9,25 @@ namespace LiteDB.Engine
         /// <summary>
         /// Reads an element (key-value) from an reader
         /// </summary>
-        internal static BsonValue Read(BufferReader reader, HashSet<string> remaining, bool utcDate, out string name)
+        internal static BsonValue Read(BufferReader reader, HashSet<string> remaining, bool utcDate, out string name,
+            int containerDepth, long containerEnd)
         {
             var type = reader.ReadByte();
+
+            if (remaining != null && remaining.Count == 0)
+            {
+                name = null;
+                SkipCString(reader);
+                SkipValue(reader, type, containerDepth, containerEnd);
+                return null;
+            }
+
             name = reader.ReadCString();
 
             // check if need skip this element
             if (remaining != null && !remaining.Contains(name))
             {
-                // define skip length according type
-                var length =
-                    (type == 0x0A || type == 0xFF || type == 0x7F) ? 0 : // Null, MinValue, MaxValue
-                    (type == 0x08) ? 1 : // Boolean
-                    (type == 0x10) ? 4 : // Int
-                    (type == 0x01 || type == 0x12 || type == 0x09) ? 8 : // Double, Int64, DateTime
-                    (type == 0x07) ? 12 : // ObjectId
-                    (type == 0x13) ? 16 : // Decimal
-                    (type == 0x02) ? reader.ReadInt32() : // String
-                    (type == 0x05) ? reader.ReadInt32() + 1 : // Binary (+1 for subtype)
-                    (type == 0x03 || type == 0x04) ? reader.ReadInt32() - 4 : 0; // Document, Array (-4 to Length + zero)
-
-                if (length > 0)
-                {
-                    reader.Skip(length);
-                }
-
+                SkipValue(reader, type, containerDepth, containerEnd);
                 return null;
             }
 
@@ -43,28 +38,30 @@ namespace LiteDB.Engine
             else if (type == 0x02) // String
             {
                 var length = reader.ReadInt32();
+                ENSURE(length >= 1 && length <= MAX_DOCUMENT_SIZE, "string length exceeds the document limit");
+                ENSURE(length <= containerEnd - reader.Position, "string payload exceeds its container boundary");
                 var value = reader.ReadString(length - 1);
-                reader.Skip(1); // read '\0'
+                ENSURE(reader.ReadByte() == 0, "string must end with a null terminator");
                 return value;
             }
             else if (type == 0x03) // Document
             {
-                return reader.ReadDocument().GetValue();
+                return reader.ReadDocument(null, containerDepth + 1).GetValue();
             }
             else if (type == 0x04) // Array
             {
-                return reader.ReadArray().GetValue();
+                return reader.ReadArray(containerDepth + 1).GetValue();
             }
             else if (type == 0x05) // Binary
             {
-                var length = reader.ReadInt32();
-                var subType = reader.ReadByte();
+                var length = ReadBinaryHeader(reader, out var subType, containerEnd);
                 var bytes = reader.ReadBytes(length);
 
                 switch (subType)
                 {
                     case 0x00: return bytes;
                     case 0x04: return new Guid(bytes);
+                    default: throw new NotSupportedException("BSON binary subtype not supported");
                 }
             }
             else if (type == 0x07) // ObjectId
@@ -117,6 +114,58 @@ namespace LiteDB.Engine
             }
 
             throw new NotSupportedException("BSON type not supported");
+        }
+
+        internal static void SkipValue(BufferReader reader, byte type, int containerDepth, long containerEnd)
+        {
+            switch (type)
+            {
+                case 0x01: reader.ReadDouble(); return;
+                case 0x02:
+                    var stringLength = reader.ReadInt32();
+                    ENSURE(stringLength >= 1 && stringLength <= MAX_DOCUMENT_SIZE,
+                        "string length exceeds the document limit");
+                    ENSURE(stringLength <= containerEnd - reader.Position,
+                        "string payload exceeds its container boundary");
+                    reader.Skip(stringLength - 1);
+                    ENSURE(reader.ReadByte() == 0, "string must end with a null terminator");
+                    return;
+                case 0x03: reader.SkipDocument(containerDepth + 1); return;
+                case 0x04: reader.SkipArray(containerDepth + 1); return;
+                case 0x05:
+                    var binaryLength = ReadBinaryHeader(reader, out _, containerEnd);
+                    reader.Skip(binaryLength);
+                    return;
+                case 0x07: reader.ReadObjectId(); return;
+                case 0x08: reader.ReadBoolean(); return;
+                case 0x09: reader.ReadInt64(); return;
+                case 0x0A:
+                case 0x7F:
+                case 0xFF: return;
+                case 0x10: reader.ReadInt32(); return;
+                case 0x12: reader.ReadInt64(); return;
+                case 0x13: reader.ReadDecimal(); return;
+                case 0x64:
+                    reader.Skip(checked(reader.ReadUInt16() * 4));
+                    return;
+                default: throw new NotSupportedException("BSON type not supported");
+            }
+        }
+
+        internal static int ReadBinaryHeader(BufferReader reader, out byte subtype, long containerEnd)
+        {
+            var length = reader.ReadInt32();
+            ENSURE(length >= 0 && length <= MAX_DOCUMENT_SIZE, "binary length exceeds the document limit");
+            subtype = reader.ReadByte();
+            ENSURE(subtype == 0x00 || subtype == 0x04, "binary subtype is not supported");
+            ENSURE(subtype != 0x04 || length == 16, "GUID binary value must contain 16 bytes");
+            ENSURE(length <= containerEnd - reader.Position, "binary payload exceeds its container boundary");
+            return length;
+        }
+
+        internal static void SkipCString(BufferReader reader)
+        {
+            while (reader.ReadByte() != 0) { }
         }
 
     }

@@ -147,7 +147,7 @@ namespace LiteDB.Engine
             // create new buffer area to store BsonDocument collections
             var area = _buffer.Slice(P_COLLECTIONS, COLLECTIONS_SIZE);
 
-            using (var r = new BufferReader(new[] { area }, false))
+            using (var r = new BufferReader(new[] { area }, false) { AllowZeroLengthDocument = true })
             {
                 var collections = r.ReadDocument().GetValue();
                 lock (this.PublicationLock) _collections = collections;

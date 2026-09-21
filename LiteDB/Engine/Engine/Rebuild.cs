@@ -26,6 +26,13 @@ namespace LiteDB.Engine
 
             var collation = options.Collation ?? new Collation(this.Pragma(Pragmas.COLLATION));
 
+            // Rebuild replaces the database files and all engine services. Wait for
+            // existing transactions to finish and prevent a new one from being
+            // admitted between that wait and Close(). Close disposes the old lock,
+            // so this exclusive lease intentionally is not released here.
+            if (_locker.IsInTransaction) throw LiteException.AlreadyExistsTransaction();
+            _locker.EnterExclusive();
+
             this.Close();
 
             // run build service
