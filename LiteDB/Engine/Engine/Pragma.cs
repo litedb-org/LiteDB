@@ -26,12 +26,17 @@ namespace LiteDB.Engine
 
             if (_locker.IsInTransaction) throw LiteException.AlreadyExistsTransaction();
 
+            // User input errors must be raised before transaction completion.
+            // Throwing from the commit callback is treated as a potentially partial
+            // persistence failure and intentionally closes the engine.
+            _header.Pragmas.Validate(name, value);
+
             // do a inside transaction to edit pragma on commit event	
             return this.AutoTransaction(transaction =>
             {
                 transaction.Pages.Commit += (h) =>
                 {
-                    h.Pragmas.Set(name, value, true);
+                    h.Pragmas.Set(name, value, false);
                 };
 
                 return true;

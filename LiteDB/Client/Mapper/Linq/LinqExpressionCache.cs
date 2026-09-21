@@ -15,6 +15,9 @@ namespace LiteDB
 
         internal BsonExpression Resolve(BsonMapper mapper, LambdaExpression expression, bool predicate)
         {
+#if DEBUG || TESTING
+            if (!BsonExpression.CacheEnabled) return new LinqExpressionTranslator(mapper, expression).Resolve(predicate);
+#endif
 #if TESTING
             if (BsonExpression.DisableCompilationCache) return new LinqExpressionTranslator(mapper, expression).Resolve(predicate);
 #endif

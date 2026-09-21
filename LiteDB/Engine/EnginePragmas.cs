@@ -194,5 +194,15 @@ namespace LiteDB.Engine
                 throw new LiteException(0, $"Pragma `{name}` not exist");
             }
         }
+
+        public void Validate(string name, BsonValue value)
+        {
+            if (_pragmas.TryGetValue(name, out var pragma))
+            {
+                pragma.Validate(value, _headerPage);
+                return;
+            }
+            throw new LiteException(0, $"Pragma `{name}` not exist");
+        }
     }
 }
