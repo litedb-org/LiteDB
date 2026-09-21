@@ -111,6 +111,7 @@ namespace LiteDB.Engine
                 }
 #if DEBUG || TESTING
                 SimulateInstallFailure?.Invoke("after-log-backup");
+                SimulateInstallFailure?.Invoke("before-source-backup");
 #endif
 
                 // rename source filename to backup name
@@ -118,6 +119,7 @@ namespace LiteDB.Engine
                 movedSource = true;
 #if DEBUG || TESTING
                 SimulateInstallFailure?.Invoke("after-source-backup");
+                SimulateInstallFailure?.Invoke("before-temp-install");
 #endif
 
                 // rename temp file into filename
@@ -132,6 +134,9 @@ namespace LiteDB.Engine
 
                 TryRollback(() =>
                 {
+#if DEBUG || TESTING
+                    SimulateInstallFailure?.Invoke("before-candidate-rollback");
+#endif
                     // Installation may already have placed the replacement at the
                     // live path. Move it back out before restoring the old data/WAL
                     // pair; mixing a new encrypted data file with the old WAL makes
@@ -142,12 +147,18 @@ namespace LiteDB.Engine
 
                 TryRollback(() =>
                 {
+#if DEBUG || TESTING
+                    SimulateInstallFailure?.Invoke("before-source-rollback");
+#endif
                     if (movedSource && File.Exists(backupFilename))
                         File.Move(backupFilename, _settings.Filename);
                 }, rollbackErrors);
 
                 TryRollback(() =>
                 {
+#if DEBUG || TESTING
+                    SimulateInstallFailure?.Invoke("before-log-rollback");
+#endif
                     if (!File.Exists(logFile) && movedLog && File.Exists(backupLogFilename))
                         File.Move(backupLogFilename, logFile);
                 }, rollbackErrors);
