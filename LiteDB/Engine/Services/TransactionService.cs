@@ -214,7 +214,7 @@ namespace LiteDB.Engine
                     var tail = BasePage.ReadPage<BasePage>(buffer);
                     ENSURE(tail.PageType == PageType.Empty, "deleted tail must be an empty page");
                     tail.NextPageID = _header.FreeEmptyPageList;
-                    tail.TransactionID = _transactionID;
+                    tail.TransactionID = this.TransactionID;
                     tail.IsConfirmed = false;
                     _header.FreeEmptyPageList = _transPages.FirstDeletedPageID;
                     tail.UpdateBuffer();
