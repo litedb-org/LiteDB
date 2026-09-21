@@ -148,31 +148,117 @@ internal static class FuzzArtifacts
 
     internal static void MergeInterestingCorpus(IEnumerable<RunResult> results, string root)
     {
-        var entries = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        var entries = new Dictionary<string, InterestingCandidate>(StringComparer.Ordinal);
         var retained = Path.Combine(root, "interesting-corpus.jsonl");
         if (File.Exists(retained))
         {
-            foreach (var line in File.ReadLines(retained)) Add(line);
+            foreach (var line in File.ReadLines(retained))
+            {
+                var item = FuzzCorpus.ParseInteresting(line);
+                if (item != null) Add(new InterestingCandidate(item, null, null));
+            }
         }
         foreach (var result in results.OrderBy(item => item.Target).ThenBy(item => item.Seed))
         {
             var path = Path.Combine(result.Directory, "interesting.jsonl");
             if (!File.Exists(path)) continue;
+            var replayPath = Path.Combine(result.Directory, "replay.json");
+            if (!File.Exists(replayPath)) continue;
+            var replay = ReadReplay(replayPath);
             foreach (var line in File.ReadLines(path))
             {
-                Add(line);
+                var novelty = FuzzCorpus.ParseInteresting(line);
+                if (novelty?.Signature == null) continue;
+                var relativeInput = Path.Combine("interesting-inputs", Safe(novelty.Signature) + ".bin");
+                var input = Path.Combine(result.Directory, "input.bin");
+                var count = Math.Max(1, novelty.Count);
+                var item = novelty with
+                {
+                    Count = count,
+                    Reason = $"Retained semantic-coverage signature {novelty.Signature} from a previous campaign.",
+                    DurationBound = replay.DurationBound,
+                    OriginalDurationSeconds = replay.OriginalDurationSeconds,
+                    InputFile = File.Exists(input) ? relativeInput.Replace('\\', '/') : null,
+                    InputHash = null,
+                    TraceHash = TracePrefixHash(Path.Combine(result.Directory, "trace.jsonl"), count)
+                };
+                var inputLength = File.Exists(input) ? InputLengthForStep(result.Directory, count) : (long?)null;
+                Add(new InterestingCandidate(item, input, inputLength));
             }
         }
         Directory.CreateDirectory(root);
-        File.WriteAllLines(retained, entries.Values);
-
-        void Add(string line)
+        foreach (var candidate in entries.Values)
         {
-            using var document = JsonDocument.Parse(line);
-            if (!document.RootElement.TryGetProperty("signature", out var signature)) return;
-            entries.TryAdd(signature.GetString(), line);
+            if (candidate.SourceInput == null || candidate.Case.InputFile == null || !candidate.InputLength.HasValue) continue;
+            var destination = Path.Combine(root, candidate.Case.InputFile);
+            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+            CopyPrefix(candidate.SourceInput, destination, candidate.InputLength.Value);
+            candidate.Case = candidate.Case with { InputHash = Hash(destination) };
+        }
+        File.WriteAllLines(retained, entries.OrderBy(pair => pair.Key, StringComparer.Ordinal)
+            .Select(pair => System.Text.Json.JsonSerializer.Serialize(pair.Value.Case)));
+
+        void Add(InterestingCandidate candidate)
+        {
+            var key = candidate.Case.Signature ??
+                $"{candidate.Case.Target}:{candidate.Case.Seed}:{candidate.Case.Count}";
+            if (!entries.TryGetValue(key, out var retainedCandidate) ||
+                candidate.Case.Count > retainedCandidate.Case.Count ||
+                candidate.Case.Count == retainedCandidate.Case.Count &&
+                CorpusFidelity(candidate.Case) > CorpusFidelity(retainedCandidate.Case))
+            {
+                entries[key] = candidate;
+            }
         }
     }
+
+    private static long InputLengthForStep(string directory, int count)
+    {
+        var input = Path.Combine(directory, "input.bin");
+        var length = new FileInfo(input).Length;
+        var offsets = Path.Combine(directory, "input-offsets.jsonl");
+        if (!File.Exists(offsets)) return length;
+        foreach (var line in File.ReadLines(offsets))
+        {
+            using var document = JsonDocument.Parse(line);
+            if (document.RootElement.GetProperty("step").GetInt32() == count + 1)
+                return document.RootElement.GetProperty("byteOffset").GetInt64();
+        }
+        return length;
+    }
+
+    private static string TracePrefixHash(string path, int count)
+    {
+        if (!File.Exists(path)) return null;
+        using var hash = System.Security.Cryptography.IncrementalHash.CreateHash(
+            System.Security.Cryptography.HashAlgorithmName.SHA256);
+        foreach (var line in File.ReadLines(path))
+        {
+            using var document = JsonDocument.Parse(line);
+            if (document.RootElement.GetProperty("step").GetInt32() > count) continue;
+            hash.AppendData(Encoding.UTF8.GetBytes(line + "\n"));
+        }
+        return Convert.ToHexString(hash.GetHashAndReset());
+    }
+
+    private static void CopyPrefix(string source, string destination, long length)
+    {
+        using var input = File.OpenRead(source);
+        using var output = new FileStream(destination, FileMode.Create, FileAccess.Write, FileShare.None);
+        var buffer = new byte[81920];
+        var remaining = Math.Min(length, input.Length);
+        while (remaining > 0)
+        {
+            var read = input.Read(buffer, 0, (int)Math.Min(buffer.Length, remaining));
+            if (read == 0) throw new EndOfStreamException("Fuzz input ended before the retained prefix.");
+            output.Write(buffer, 0, read);
+            remaining -= read;
+        }
+    }
+
+    private static int CorpusFidelity(FuzzCorpusCase item) =>
+        (item.InputFile == null ? 0 : 4) + (item.InputHash == null ? 0 : 2) +
+        (item.TraceHash == null ? 0 : 1) + (item.DurationBound ? 1 : 0);
 
     internal static void MergeCoverageCorpus(IEnumerable<RunResult> results, string root)
     {
@@ -268,5 +354,19 @@ internal static class FuzzArtifacts
     {
         using var stream = File.OpenRead(path);
         return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(stream));
+    }
+
+    private sealed class InterestingCandidate
+    {
+        internal InterestingCandidate(FuzzCorpusCase item, string sourceInput, long? inputLength)
+        {
+            Case = item;
+            SourceInput = sourceInput;
+            InputLength = inputLength;
+        }
+
+        internal FuzzCorpusCase Case { get; set; }
+        internal string SourceInput { get; }
+        internal long? InputLength { get; }
     }
 }

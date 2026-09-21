@@ -106,15 +106,15 @@ internal sealed class VectorFuzzer : IFuzzTarget
         var k = Math.Min(model.Count, context.Random.Next(1, Math.Min(model.Count, 12) + 1));
         var results = collection.Query().TopKNearWithScore("Embedding", target, k).ToArray();
         context.Check(results.Length == k, "Vector Top-K returned an unexpected result count.");
-        context.Check(results.Select(result => result.Document.Id).Distinct().Count() == results.Length,
-            "Vector search returned duplicate documents.");
+        FuzzOracle.VerifyDistinct(context, results.Select(result => result.Document.Id),
+            EqualityComparer<int>.Default, "Vector search returned duplicate documents.");
         double? previousScore = null;
         foreach (var result in results)
         {
             context.Check(model.TryGetValue(result.Document.Id, out var live), "Vector search returned a deleted document.");
             context.Check(result.Score.HasValue, "A finite non-zero vector produced no score.");
             var expected = ReferenceScore(live.Embedding, target, metric);
-            context.Check(Math.Abs(result.Score.Value - expected) <= 1e-5,
+            FuzzOracle.VerifyVectorScore(context, result.Score.Value, expected, 1e-5,
                 $"Vector score mismatch for {result.Document.Id}: {result.Score} != {expected}.");
             if (previousScore.HasValue)
             {
@@ -190,8 +190,8 @@ internal sealed class VectorFuzzer : IFuzzTarget
             context.Check(recall >= 0.6d,
                 $"Vector pair {dimensions}/{metric} recall {recall:P0} was below 60%.");
             foreach (var result in actual)
-                context.Check(Math.Abs(result.Score.Value - ReferenceScore(
-                    result.Document.Embedding, target, metric)) <= 1e-5,
+                FuzzOracle.VerifyVectorScore(context, result.Score.Value,
+                    ReferenceScore(result.Document.Embedding, target, metric), 1e-5,
                     $"Independent vector score mismatch for {dimensions}/{metric}.");
             context.ObserveNovelty("vector-pair", dimensions, metric);
             pairs++;

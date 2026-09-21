@@ -206,11 +206,13 @@ internal sealed class IndexFuzzer : IFuzzTarget
             .ThenBy(Id).Select(Id).ToArray();
         var actualOrder = rows.Query().OrderBy("Value").ThenBy("_id").ToArray().Select(Id).ToArray();
         Equal(context, expectedOrder, actualOrder, "index ordering");
-        context.Check(actualOrder.Distinct().Count() == actualOrder.Length, "Index traversal returned duplicate documents.");
+        FuzzOracle.VerifyDistinct(context, actualOrder, EqualityComparer<int>.Default,
+            "Index traversal returned duplicate documents.");
     }
 
     private static void Equal(FuzzContext context, int[] expected, int[] actual, string mode) =>
-        context.Check(expected.SequenceEqual(actual), $"{mode} mismatch: expected [{string.Join(',', expected)}], actual [{string.Join(',', actual)}]");
+        FuzzOracle.VerifySequence(context, actual, expected,
+            $"{mode} mismatch: expected [{string.Join(',', expected)}], actual [{string.Join(',', actual)}]");
 
     private static int Id(BsonDocument document) => document["_id"].AsInt32;
 

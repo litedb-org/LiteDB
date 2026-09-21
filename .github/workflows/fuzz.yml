@@ -5,6 +5,7 @@ on:
     paths:
       - 'LiteDB/**'
       - 'LiteDB.Fuzz/**'
+      - 'LiteDB.Fuzz.Tests/**'
       - 'LiteDB.Fuzz.Legacy/**'
       - 'LiteDB.Tests/Mapper/StableRandom.cs'
       - 'LiteDB.Tests/Mapper/LinqCacheFuzzGenerator.cs'
@@ -18,6 +19,7 @@ on:
     paths:
       - 'LiteDB/**'
       - 'LiteDB.Fuzz/**'
+      - 'LiteDB.Fuzz.Tests/**'
       - 'LiteDB.Fuzz.Legacy/**'
       - 'LiteDB.Tests/Mapper/StableRandom.cs'
       - 'LiteDB.Tests/Mapper/LinqCacheFuzzGenerator.cs'
@@ -280,8 +282,9 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-      - run: dotnet restore LiteDB.Fuzz/LiteDB.Fuzz.csproj
+      - run: dotnet restore LiteDB.Fuzz.Tests/LiteDB.Fuzz.Tests.csproj
       - run: dotnet build LiteDB.Fuzz/LiteDB.Fuzz.csproj -c Release -f net8.0 --no-restore -p:TestingEnabled=true
+      - run: dotnet test LiteDB.Fuzz.Tests/LiteDB.Fuzz.Tests.csproj -c Release --no-restore -p:TestingEnabled=true
       - run: >-
           dotnet run --project LiteDB.Fuzz -c Release -f net8.0 --no-build --
           --target query,index,bson,parser,mapper,value --seed 42947 --count 40

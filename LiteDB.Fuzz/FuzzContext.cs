@@ -97,6 +97,8 @@ internal sealed class FuzzContext : IDisposable
         Metrics["novelStates"] = _novelty.Count;
     }
 
+    internal void PulseHeartbeat() => TouchHeartbeat(true);
+
     internal void Check(bool condition, string message,
         [CallerFilePath] string file = "", [CallerLineNumber] int line = 0)
     {

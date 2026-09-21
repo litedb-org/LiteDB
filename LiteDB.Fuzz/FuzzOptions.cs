@@ -24,6 +24,7 @@ internal sealed class FuzzOptions
     internal string HeartbeatFile { get; private set; }
     internal TimeSpan HangTimeout { get; private set; } = TimeSpan.FromSeconds(90);
     internal TimeSpan EpochDuration { get; private set; } = TimeSpan.FromSeconds(30);
+    internal TimeSpan MinimizationTimeout { get; private set; } = TimeSpan.FromSeconds(30);
     internal bool DeterminismCheck { get; private set; }
     internal string ExpectedInputHash { get; private set; }
     internal string ExpectedTraceHash { get; private set; }
@@ -56,6 +57,7 @@ internal sealed class FuzzOptions
                 case "--heartbeat": options.HeartbeatFile = Value(); break;
                 case "--hang-timeout": options.HangTimeout = ParseDuration(Value()); break;
                 case "--epoch-duration": options.EpochDuration = ParseDuration(Value()); break;
+                case "--minimization-timeout": options.MinimizationTimeout = ParseDuration(Value()); break;
                 case "--determinism-check": options.DeterminismCheck = true; break;
                 case "--expected-input-hash": options.ExpectedInputHash = Value(); break;
                 case "--expected-trace-hash": options.ExpectedTraceHash = Value(); break;
@@ -66,7 +68,8 @@ internal sealed class FuzzOptions
         return options;
     }
 
-    internal static FuzzOptions FromReplay(FuzzReplay replay, string artifactDirectory, string replayPath)
+    internal static FuzzOptions FromReplay(FuzzReplay replay, string artifactDirectory, string replayPath,
+        TimeSpan hangTimeout, TimeSpan minimizationTimeout)
     {
         return new FuzzOptions
         {
@@ -74,7 +77,8 @@ internal sealed class FuzzOptions
             Workers = 1, ArtifactDirectory = artifactDirectory, DurationReplay = replay.DurationBound,
             InputFile = replay.InputFile == null ? null : Path.GetFullPath(Path.Combine(Path.GetDirectoryName(replayPath)!, replay.InputFile)),
             ExpectedInputHash = replay.InputHash,
-            ExpectedTraceHash = replay.FailureId == null ? replay.TraceHash : null
+            ExpectedTraceHash = replay.FailureId == null ? replay.TraceHash : null,
+            HangTimeout = hangTimeout, MinimizationTimeout = minimizationTimeout
         };
     }
 
@@ -84,7 +88,9 @@ internal sealed class FuzzOptions
         {
             Targets = new[] { corpusCase.Target }, Seed = corpusCase.Seed, Count = corpusCase.Count,
             Workers = 1, ArtifactDirectory = artifactDirectory, ExpectedInputHash = corpusCase.InputHash,
-            ExpectedTraceHash = corpusCase.TraceHash
+            ExpectedTraceHash = corpusCase.TraceHash, DurationReplay = corpusCase.DurationBound,
+            InputFile = corpusCase.InputFile == null ? null :
+                Path.GetFullPath(Path.Combine(artifactDirectory, corpusCase.InputFile))
         };
     }
 
