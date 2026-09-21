@@ -363,14 +363,6 @@ namespace LiteDB
             return new LiteException(ENGINE_DISPOSED, "This engine instance already disposed.");
         }
 
-        internal static LiteException RebuildRollbackIncomplete(string filename, Exception rebuildFailure)
-        {
-            return new LiteException(ENGINE_DISPOSED, rebuildFailure,
-                "A failed rebuild of '{0}' could not be rolled back ({1}). This instance is closed; " +
-                "recover the database from its -backup and -temp files before opening it again.",
-                filename, rebuildFailure.Message);
-        }
-
         internal static LiteException InvalidNullCharInString()
         {
             return new LiteException(INVALID_NULL_CHAR_STRING, "Invalid null character (\\0) was found in the string");

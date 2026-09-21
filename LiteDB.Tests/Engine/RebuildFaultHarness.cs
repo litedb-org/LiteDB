@@ -15,6 +15,7 @@ namespace LiteDB.Tests.Engine
         public const string OldValue = "old";
 
         private readonly string _directory;
+        private int _hitsAtLastFault;
 
         public RebuildFaultRun(RebuildFaultScenario scenario, IReadOnlyCollection<string> faults)
         {
@@ -28,6 +29,7 @@ namespace LiteDB.Tests.Engine
             this.Backup = FileHelper.GetSuffixFile(this.Live, "-backup", false);
             this.BackupLog = FileHelper.GetSuffixFile(this.LiveLog, "-backup", false);
             this.Temp = FileHelper.GetSuffixFile(this.Live, "-temp", false);
+            this.Marker = RebuildRecovery.GetMarkerFilename(this.Live);
         }
 
         public RebuildFaultScenario Scenario { get; }
@@ -37,6 +39,7 @@ namespace LiteDB.Tests.Engine
         public string Backup { get; }
         public string BackupLog { get; }
         public string Temp { get; }
+        public string Marker { get; }
 
         /// <summary>Every hook reached, in order.</summary>
         public List<string> Hit { get; } = new List<string>();
@@ -44,16 +47,31 @@ namespace LiteDB.Tests.Engine
         /// <summary>Every hook that threw, in order. The first one is the install failure.</summary>
         public List<string> Thrown { get; } = new List<string>();
 
+        /// <summary>
+        /// Hooks reached after the last fault. Only these can extend this fault sequence: failing an
+        /// earlier hook instead diverts execution before the later faults are ever reached.
+        /// </summary>
+        public IEnumerable<string> ReachedAfterLastFault => this.Hit.Skip(_hitsAtLastFault);
+
         public Exception Failure { get; private set; }
         public string LiveState => this.Failure?.Data[RebuildService.LiveStateDataKey] as string;
         public string[] FilesBefore { get; private set; }
         public string[] FilesAfter { get; private set; }
 
-        /// <summary>Result of reading the seeded row through the handle that ran the failed rebuild.</summary>
+        /// <summary>The recovery marker was left behind: every open of the live path must be refused.</summary>
+        public bool Blocked => this.FilesAfter.Contains(Path.GetFileName(this.Marker));
+
+        /// <summary>A WAL was at the live path when the rebuild returned, before any later use.</summary>
+        public bool HadLiveLog => this.FilesAfter.Contains(Path.GetFileName(this.LiveLog));
+
+        /// <summary>Result of reading the seeded rows through the handle that ran the rebuild.</summary>
         public string SameHandleRead { get; private set; }
 
-        /// <summary>Files present after that read: a refused read must not create or alter anything.</summary>
-        public string[] FilesAfterRead { get; private set; }
+        /// <summary>Result of inserting through that handle, taken after the read.</summary>
+        public string SameHandleWrite { get; private set; }
+
+        /// <summary>Files present after a refused read and write: neither may create or alter anything.</summary>
+        public string[] FilesAfterRefusedUse { get; private set; }
 
         public IEnumerable<Exception> RollbackErrors =>
             (this.Failure?.Data[RebuildService.RollbackErrorsDataKey] as AggregateException)?.InnerExceptions
@@ -63,8 +81,11 @@ namespace LiteDB.Tests.Engine
         {
             using (var seed = new LiteDatabase(this.Scenario.OriginalConnection(this.Live)))
             {
-                if (this.Scenario.Wal) seed.CheckpointSize = 0;
-                seed.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = OldValue });
+                seed.CheckpointSize = 0;
+                seed.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "checkpointed" });
+                seed.Checkpoint();
+                seed.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 2, ["value"] = "acknowledged" });
+                if (!this.Scenario.Wal) seed.Checkpoint();
             }
 
             this.FilesBefore = this.ListFiles();
@@ -79,6 +100,7 @@ namespace LiteDB.Tests.Engine
                     this.Hit.Add(phase);
                     if (!this.Faults.Contains(phase)) return;
                     this.Thrown.Add(phase);
+                    _hitsAtLastFault = this.Hit.Count;
                     throw new IOException("injected " + phase);
                 };
 
@@ -87,8 +109,11 @@ namespace LiteDB.Tests.Engine
                 finally { RebuildService.SimulateInstallFailure = null; }
 
                 this.FilesAfter = this.ListFiles();
-                this.SameHandleRead = Read(() => db.GetCollection("rows").FindById(1));
-                this.FilesAfterRead = this.ListFiles();
+                this.SameHandleRead = Read(db);
+                if (!this.Blocked) return;
+
+                this.SameHandleWrite = Attempt(() => db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 3 }));
+                this.FilesAfterRefusedUse = this.ListFiles();
             }
         }
 
@@ -107,13 +132,7 @@ namespace LiteDB.Tests.Engine
 
             try
             {
-                return Read(() =>
-                {
-                    using (var db = new LiteDatabase(connection))
-                    {
-                        return db.GetCollection("rows").FindById(1);
-                    }
-                });
+                return OpenAndRead(connection);
             }
             finally
             {
@@ -128,16 +147,46 @@ namespace LiteDB.Tests.Engine
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
 
-        private static string Read(Func<BsonDocument> read)
+        /// <summary>Open the live path itself with a fresh handle. Only meaningful when it must be refused.</summary>
+        public string OpenLive(ConnectionType connection, bool replacementSettings)
+        {
+            var settings = replacementSettings
+                ? this.Scenario.ReplacementConnection(this.Live)
+                : this.Scenario.OriginalConnection(this.Live);
+            settings.Connection = connection;
+
+            return OpenAndRead(settings);
+        }
+
+        private static string OpenAndRead(ConnectionString connection) => Attempt(() =>
+        {
+            using (var db = new LiteDatabase(connection))
+            {
+                return Read(db);
+            }
+        });
+
+        /// <summary>"old" only when the checkpointed row and the WAL-only row are both intact.</summary>
+        private static string Read(LiteDatabase db) => Attempt(() =>
+        {
+            var rows = db.GetCollection("rows");
+            var complete = rows.Count() == 2 &&
+                rows.FindById(1)?["value"].AsString == "checkpointed" &&
+                rows.FindById(2)?["value"].AsString == "acknowledged";
+
+            return complete ? OldValue : "ROWS-MISSING";
+        });
+
+        private static string Attempt(Func<object> action)
         {
             try
             {
-                var doc = read();
-                return doc == null ? "ROW-MISSING" : doc["value"].AsString;
+                return action() as string ?? "OK";
             }
             catch (Exception ex)
             {
-                return "THROWS:" + ex.GetType().Name + ":" + ex.Message;
+                var code = ex is LiteException lite ? "#" + lite.ErrorCode : "";
+                return "THROWS:" + ex.GetType().Name + code + ":" + ex.Message;
             }
         }
 

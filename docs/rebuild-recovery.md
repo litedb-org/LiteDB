@@ -19,8 +19,16 @@ and original data missing its required WAL cannot silently serve stale rows.
 An empty or partially written marker also blocks access. Marker access errors
 propagate rather than being treated as evidence that recovery completed.
 
-The original rebuild exception is preserved. Additional recovery errors are in
-its `Data["LiteDB.Rebuild.RollbackErrors"]` aggregate. A failure to remove the marker
+Rollback is deliberately bounded. It settles on the original pair, else on the
+completed replacement, else it stops and keeps the marker: every further
+compensation step would itself be fallible. One failed rollback move still
+leaves a complete, accessible database; only two or more can end guarded.
+When the original pair is restored, the unpublished replacement is deleted, as
+it is a full copy of the database that may lack the original's encryption.
+
+The original rebuild exception is preserved. Its `Data["LiteDB.Rebuild.LiveState"]`
+reports `original-restored`, `replacement-published` or `incomplete`. Additional
+recovery errors are in its `Data["LiteDB.Rebuild.RollbackErrors"]` aggregate. A failure to remove the marker
 also leaves access blocked, even if a complete database is already live.
 
 ## Recovering a guarded database
@@ -44,7 +52,7 @@ Interrupted installations require verification; removing the marker alone does
 not repair a missing data/WAL pair. Caller-provided streams and older LiteDB
 versions do not consult this filename-based guard, so do not use them to bypass it.
 
-Regression coverage includes the repeated-failure cases from #2979, a 192-case
+Regression coverage includes the repeated-failure cases from #2979, an exhaustive
 installation/rollback matrix, marker creation and cleanup failures, reads and
 writes through reused shared connections, fresh opens, encryption and collation
 changes, and original-pair/replacement recoverability.

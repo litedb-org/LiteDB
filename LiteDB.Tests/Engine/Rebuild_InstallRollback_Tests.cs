@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
 using FluentAssertions;
 using LiteDB.Engine;
@@ -48,51 +47,6 @@ namespace LiteDB.Tests.Engine
 
             run.LiveState.Should().Be(RebuildService.LiveStateOriginal);
             run.SameHandleRead.Should().Be(RebuildFaultRun.OldValue);
-        }
-
-        [Theory]
-        [InlineData(ConnectionType.Direct)]
-        [InlineData(ConnectionType.Shared)]
-        public void Missing_live_file_is_reported_and_never_replaced_by_an_empty_database(ConnectionType connection)
-        {
-            using var run = Run(RebuildChange.SetPassword, connection,
-                "before-temp-install", "before-source-rollback", "before-candidate-republish");
-
-            run.LiveState.Should().Be(RebuildService.LiveStateIncomplete);
-            run.Failure.Message.Should().Be("injected before-temp-install");
-            run.RollbackErrors.Select(error => error.Message).Should().Contain(new[]
-            {
-                "injected before-source-rollback", "injected before-candidate-republish"
-            });
-
-            run.SameHandleRead.Should().StartWith("THROWS:");
-            File.Exists(run.Live).Should().BeFalse("the handle must not create an empty database over the missing one");
-            run.ReadCopy(run.Backup, run.BackupLog, false).Should().Be(RebuildFaultRun.OldValue);
-            run.ReadCopy(run.Temp, null, true).Should().Be(RebuildFaultRun.OldValue);
-        }
-
-        [Theory]
-        [InlineData(ConnectionType.Direct)]
-        [InlineData(ConnectionType.Shared)]
-        public void Original_data_stranded_without_its_wal_is_reported_and_never_served(ConnectionType connection)
-        {
-            using var run = Run(RebuildChange.SetPassword, connection,
-                "before-temp-install", "before-log-rollback", "before-source-retraction");
-
-            run.LiveState.Should().Be(RebuildService.LiveStateIncomplete);
-            run.SameHandleRead.Should().StartWith("THROWS:");
-            File.Exists(run.LiveLog).Should().BeFalse("the handle must not start a new WAL over the stranded one");
-            run.ReadCopy(run.Live, run.BackupLog, false).Should().Be(RebuildFaultRun.OldValue, "the pair is still recombinable");
-        }
-
-        [Fact]
-        public void Shared_handle_stays_refused_after_an_incomplete_rollback()
-        {
-            using var run = Run(RebuildChange.SetPassword, ConnectionType.Shared,
-                "before-temp-install", "before-source-rollback", "before-candidate-republish");
-
-            // Nothing about a later call can make the unresolved files safe to open.
-            run.SameHandleRead.Should().Contain(run.Failure.Message);
         }
 
         [Fact]

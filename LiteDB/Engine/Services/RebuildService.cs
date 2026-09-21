@@ -29,12 +29,10 @@ namespace LiteDB.Engine
 
         /// <summary>
         /// Two or more rollback steps failed. The live path is missing or holds the original data
-        /// without its WAL; the complete copies are in the -backup and -temp files.
+        /// without its WAL; the complete copies are in the -backup and -temp files and the
+        /// recovery marker keeps the database from being opened.
         /// </summary>
         internal const string LiveStateIncomplete = "incomplete";
-
-        internal static bool IsIncomplete(Exception exception) =>
-            exception.Data[LiveStateDataKey] as string == LiveStateIncomplete;
 
 #if DEBUG || TESTING
         internal static Action<string> SimulateInstallFailure;
@@ -124,7 +122,20 @@ namespace LiteDB.Engine
             var candidateIsLive = false;
             // Persist the guard before the first rename. Recovery must not depend
             // on being able to write a marker after filesystem operations fail.
-            RebuildRecovery.Begin(_settings.Filename, backupFilename, backupLogFilename, tempFilename);
+            try
+            {
+                RebuildRecovery.Begin(_settings.Filename, backupFilename, backupLogFilename, tempFilename);
+            }
+            catch (Exception markerException)
+            {
+                // No database file has moved, so the replacement will never be published.
+                var cleanupErrors = new List<Exception>();
+                TryRollback(() => File.Delete(tempFilename), cleanupErrors);
+                if (cleanupErrors.Count > 0)
+                    markerException.Data[RollbackErrorsDataKey] = new AggregateException(cleanupErrors);
+                throw;
+            }
+
             try
             {
 #if DEBUG || TESTING
@@ -254,14 +265,16 @@ namespace LiteDB.Engine
                 // Rollback is bounded: it settles on the original pair, else on the
                 // replacement, else it reports what it could not repair. Any of the file
                 // operations above can fail, so no further compensation is attempted.
-                installException.Data[LiveStateDataKey] =
+                var liveState =
                     originalIsLive ? LiveStateOriginal :
                     candidateIsLive ? LiveStateReplacement :
                     LiveStateIncomplete;
 
-                // Repeated recovery failures leave the marker in place: neither
-                // stale source data nor a missing file may be opened as a database.
-                if (candidateIsLive || (sourceIsLive && logIsLive))
+                installException.Data[LiveStateDataKey] = liveState;
+
+                // An incomplete rollback keeps the recovery marker: neither stale source
+                // data nor a missing file may be opened as a database.
+                if (liveState != LiveStateIncomplete)
                     TryRollback(() => RebuildRecovery.Complete(_settings.Filename), rollbackErrors);
 
                 if (rollbackErrors.Count > 0)

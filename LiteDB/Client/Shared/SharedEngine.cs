@@ -15,7 +15,6 @@ namespace LiteDB
         private LiteEngine _engine;
         private volatile bool _transactionRunning = false;
         private int _transactionThreadId;
-        private volatile Exception _incompleteRebuild;
 #if DEBUG || TESTING
         internal Func<LiteEngine> SimulateOpenEngine { get; set; }
 #endif
@@ -47,12 +46,6 @@ namespace LiteDB
         /// <returns>true if successfully opened; false if already open</returns>
         private bool OpenDatabase()
         {
-            // An incomplete rebuild rollback leaves the live path missing or holding the
-            // original data without its WAL. Opening it would create an empty database or
-            // serve one that lacks acknowledged commits, so this handle stays closed.
-            var incompleteRebuild = _incompleteRebuild;
-            if (incompleteRebuild != null) throw LiteException.RebuildRollbackIncomplete(_settings.Filename, incompleteRebuild);
-
             var recoveredAbandonedOwner = false;
             try
             {
@@ -253,15 +246,7 @@ namespace LiteDB
 
         public long Rebuild(RebuildOptions options)
         {
-            try
-            {
-                return QueryDatabase(() => _engine.Rebuild(options));
-            }
-            catch (Exception ex) when (RebuildService.IsIncomplete(ex))
-            {
-                _incompleteRebuild = ex;
-                throw;
-            }
+            return QueryDatabase(() => _engine.Rebuild(options));
         }
 
         public int Insert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId)
