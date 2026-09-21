@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 
 using FluentAssertions;
@@ -46,5 +47,87 @@ namespace LiteDB.Tests.Issues
             Action read = () => BsonSerializer.Deserialize(bytes);
             read.Should().Throw<LiteException>();
         }
+
+        [Fact]
+        public void Projected_out_string_still_requires_its_terminator()
+        {
+            var bytes = MalformedStringDocument();
+            Action full = () => BsonSerializer.Deserialize(bytes);
+            Action projected = () => ReadProjected(bytes, "keep");
+
+            full.Should().Throw<LiteException>();
+            projected.Should().Throw<LiteException>();
+        }
+
+        [Fact]
+        public void Projected_out_nested_document_still_validates_its_boundary()
+        {
+            var nested = new byte[] { 7, 0, 0, 0, 0x08, 0, 1, 0 };
+            var bytes = new byte[]
+            {
+                28, 0, 0, 0,
+                0x03, (byte)'b', (byte)'a', (byte)'d', 0,
+                nested[0], nested[1], nested[2], nested[3], nested[4], nested[5], nested[6], nested[7],
+                0x10, (byte)'k', (byte)'e', (byte)'e', (byte)'p', 0, 1, 0, 0, 0,
+                0
+            };
+
+            Action projected = () => ReadProjected(bytes, "keep");
+            projected.Should().Throw<LiteException>();
+        }
+
+        [Fact]
+        public void Projection_validates_fields_after_the_selected_value()
+        {
+            var bytes = new byte[]
+            {
+                26, 0, 0, 0,
+                0x10, (byte)'k', (byte)'e', (byte)'e', (byte)'p', 0, 1, 0, 0, 0,
+                0x02, (byte)'b', (byte)'a', (byte)'d', 0, 2, 0, 0, 0, (byte)'x', 1,
+                0
+            };
+
+            Action projected = () => ReadProjected(bytes, "keep");
+            projected.Should().Throw<LiteException>();
+        }
+
+        [Fact]
+        public void Projected_out_binary_still_validates_its_length()
+        {
+            var bytes = new byte[]
+            {
+                15, 0, 0, 0,
+                0x05, (byte)'b', (byte)'a', (byte)'d', 0,
+                0xff, 0xff, 0xff, 0x7f, 0,
+                0
+            };
+
+            Action projected = () => ReadProjected(bytes, "keep");
+            projected.Should().Throw<LiteException>();
+        }
+
+        [Fact]
+        public void Segmented_projection_uses_the_same_string_validation()
+        {
+            var bytes = MalformedStringDocument();
+            var segments = bytes.Select((_, index) => new BufferSlice(bytes, index, 1)).ToArray();
+            using var reader = new BufferReader(segments);
+            Action projected = () => reader.ReadDocument(new HashSet<string> { "keep" }).GetValue();
+            projected.Should().Throw<LiteException>();
+        }
+
+        private static BsonDocument ReadProjected(byte[] bytes, string field)
+        {
+            using var reader = new BufferReader(bytes);
+            return reader.ReadDocument(new HashSet<string> { field }).GetValue();
+        }
+
+        private static byte[] MalformedStringDocument() => new byte[]
+        {
+            26, 0, 0, 0,
+            0x02, (byte)'b', (byte)'a', (byte)'d', 0, 2, 0, 0, 0, (byte)'x', 1,
+            0x10, (byte)'k', (byte)'e', (byte)'e', (byte)'p', 0, 1, 0, 0, 0,
+            0
+        };
     }
 }

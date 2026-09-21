@@ -17,23 +17,7 @@ namespace LiteDB.Engine
             // check if need skip this element
             if (remaining != null && !remaining.Contains(name))
             {
-                // define skip length according type
-                var length =
-                    (type == 0x0A || type == 0xFF || type == 0x7F) ? 0 : // Null, MinValue, MaxValue
-                    (type == 0x08) ? 1 : // Boolean
-                    (type == 0x10) ? 4 : // Int
-                    (type == 0x01 || type == 0x12 || type == 0x09) ? 8 : // Double, Int64, DateTime
-                    (type == 0x07) ? 12 : // ObjectId
-                    (type == 0x13) ? 16 : // Decimal
-                    (type == 0x02) ? reader.ReadInt32() : // String
-                    (type == 0x05) ? reader.ReadInt32() + 1 : // Binary (+1 for subtype)
-                    (type == 0x03 || type == 0x04) ? reader.ReadInt32() - 4 : 0; // Document, Array (-4 to Length + zero)
-
-                if (length > 0)
-                {
-                    reader.Skip(length);
-                }
-
+                SkipValue(reader, type);
                 return null;
             }
 
@@ -46,7 +30,7 @@ namespace LiteDB.Engine
                 var length = reader.ReadInt32();
                 ENSURE(length >= 1 && length <= MAX_DOCUMENT_SIZE, "string length exceeds the document limit");
                 var value = reader.ReadString(length - 1);
-                reader.Skip(1); // read '\0'
+                ENSURE(reader.ReadByte() == 0, "string must end with a null terminator");
                 return value;
             }
             else if (type == 0x03) // Document
@@ -68,6 +52,7 @@ namespace LiteDB.Engine
                 {
                     case 0x00: return bytes;
                     case 0x04: return new Guid(bytes);
+                    default: throw new NotSupportedException("BSON binary subtype not supported");
                 }
             }
             else if (type == 0x07) // ObjectId
@@ -120,6 +105,45 @@ namespace LiteDB.Engine
             }
 
             throw new NotSupportedException("BSON type not supported");
+        }
+
+        internal static void SkipValue(BufferReader reader, byte type)
+        {
+            switch (type)
+            {
+                case 0x01: reader.ReadDouble(); return;
+                case 0x02:
+                    var stringLength = reader.ReadInt32();
+                    ENSURE(stringLength >= 1 && stringLength <= MAX_DOCUMENT_SIZE,
+                        "string length exceeds the document limit");
+                    reader.Skip(stringLength - 1);
+                    ENSURE(reader.ReadByte() == 0, "string must end with a null terminator");
+                    return;
+                case 0x03: reader.SkipDocument(); return;
+                case 0x04: reader.SkipArray(); return;
+                case 0x05:
+                    var binaryLength = reader.ReadInt32();
+                    ENSURE(binaryLength >= 0 && binaryLength <= MAX_DOCUMENT_SIZE,
+                        "binary length exceeds the document limit");
+                    var subtype = reader.ReadByte();
+                    ENSURE(subtype == 0x00 || subtype == 0x04, "binary subtype is not supported");
+                    ENSURE(subtype != 0x04 || binaryLength == 16, "GUID binary value must contain 16 bytes");
+                    reader.Skip(binaryLength);
+                    return;
+                case 0x07: reader.ReadObjectId(); return;
+                case 0x08: reader.ReadBoolean(); return;
+                case 0x09: reader.ReadInt64(); return;
+                case 0x0A:
+                case 0x7F:
+                case 0xFF: return;
+                case 0x10: reader.ReadInt32(); return;
+                case 0x12: reader.ReadInt64(); return;
+                case 0x13: reader.ReadDecimal(); return;
+                case 0x64:
+                    reader.Skip(checked(reader.ReadUInt16() * 4));
+                    return;
+                default: throw new NotSupportedException("BSON type not supported");
+            }
         }
 
     }

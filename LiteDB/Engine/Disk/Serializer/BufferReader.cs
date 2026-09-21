@@ -402,7 +402,7 @@ namespace LiteDB.Engine
                 ENSURE(end <= int.MaxValue, "document length exceeds the supported buffer range");
                 var remaining = fields == null || fields.Count == 0 ? null : new HashSet<string>(fields, StringComparer.OrdinalIgnoreCase);
 
-                while (_position < end && (remaining == null || remaining?.Count > 0))
+                while (_position < end)
                 {
                     var value = BsonElementReader.Read(this, remaining, _utcDate, out string name);
 
@@ -416,7 +416,6 @@ namespace LiteDB.Engine
                     }
                 }
 
-                if (_position < end) this.Skip((int)end - _position);
                 ENSURE(_position == end, "document element exceeds its declared container boundary");
                 ENSURE(this.ReadByte() == 0, "document must end with a null terminator");
 
@@ -458,6 +457,30 @@ namespace LiteDB.Engine
             {
                 return new Result<BsonArray>(arr, ex);
             }
+        }
+
+        internal void SkipDocument() => this.SkipContainer("document");
+
+        internal void SkipArray() => this.SkipContainer("array");
+
+        private void SkipContainer(string kind)
+        {
+            var length = this.ReadInt32();
+            ENSURE(length >= 5 && length <= MAX_DOCUMENT_SIZE,
+                "{0} length must include its header and terminator and stay within the document limit", kind);
+            var end = (long)_position + length - 5;
+            ENSURE(end <= int.MaxValue, "{0} length exceeds the supported buffer range", kind);
+
+            while (_position < end)
+            {
+                var type = this.ReadByte();
+                ENSURE(type != 0, "unexpected terminator inside {0}", kind);
+                this.ReadCString();
+                BsonElementReader.SkipValue(this, type);
+            }
+
+            ENSURE(_position == end, "{0} element exceeds its declared container boundary", kind);
+            ENSURE(this.ReadByte() == 0, "{0} must end with a null terminator", kind);
         }
 
 
