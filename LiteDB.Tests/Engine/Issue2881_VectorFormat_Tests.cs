@@ -15,7 +15,11 @@ namespace LiteDB.Tests.Engine
         public void Vector_files_require_a_version_distinguishable_from_legacy_v8(bool index)
         {
             using var stream = new MemoryStream();
-            using (var db = new LiteDatabase(stream))
+            using (var db = new LiteDatabase(new LiteEngine(new EngineSettings
+            {
+                DataStream = stream,
+                CompactStorage = CompactStorageMode.Legacy
+            })))
             {
                 var docs = db.GetCollection("docs");
                 docs.Insert(new BsonDocument { ["_id"] = 1, ["Embedding"] = new BsonVector(new[] { 1f, 0f }) });
@@ -53,7 +57,11 @@ namespace LiteDB.Tests.Engine
             using var file = new TempFile();
             try
             {
-                using (var db = new LiteDatabase(file.Filename))
+                using (var db = new LiteDatabase(new ConnectionString
+                {
+                    Filename = file.Filename,
+                    CompactStorage = CompactStorageMode.Legacy
+                }))
                 {
                     var docs = db.GetCollection("docs");
                     docs.Insert(new BsonDocument { ["_id"] = 1, ["Embedding"] = new BsonVector(new[] { 1f, 0f }) });

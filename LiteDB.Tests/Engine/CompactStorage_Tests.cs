@@ -23,10 +23,10 @@ namespace LiteDB.Tests.Engine
         public void Mixed_documents_survive_reopen_indexes_rename_rebuild_and_downgrade(string password)
         {
             using var file = new TempFile();
-            var connection = new ConnectionString { Filename = file.Filename, Password = password };
+            var connection = new ConnectionString { Filename = file.Filename, Password = password, CompactStorage = CompactStorageMode.Legacy };
             using (var db = new LiteDatabase(connection)) db.GetCollection("docs").Insert(Document(1));
             var original = File.ReadAllBytes(file.Filename);
-            connection.CompactStorage = true;
+            connection.CompactStorage = CompactStorageMode.Compact;
             connection.ReadOnly = true;
             using (var db = new LiteDatabase(connection)) Assert.NotNull(db.GetCollection("docs").FindById(1));
             File.ReadAllBytes(file.Filename).Should().Equal(original);
@@ -42,11 +42,11 @@ namespace LiteDB.Tests.Engine
                 docs.Update(Document(1)).Should().BeTrue();
                 docs.Delete(51).Should().BeTrue();
                 db.RenameCollection("docs", "renamed").Should().BeTrue();
-                db.Rebuild(new RebuildOptions { Password = password, CompactStorage = true });
+                db.Rebuild(new RebuildOptions { Password = password, CompactStorage = CompactStorageMode.Compact });
                 db.GetCollection("renamed").FindAll().Count().Should().Be(50);
-                db.Rebuild(new RebuildOptions { Password = password, CompactStorage = false });
+                db.Rebuild(new RebuildOptions { Password = password, CompactStorage = CompactStorageMode.Legacy });
             }
-            connection.CompactStorage = false;
+            connection.CompactStorage = CompactStorageMode.Legacy;
             using (var db = new LiteDatabase(connection))
             {
                 BsonSerializer.Serialize(db.GetCollection("renamed").FindById(1)).Should().Equal(BsonSerializer.Serialize(Document(1)));
@@ -61,7 +61,7 @@ namespace LiteDB.Tests.Engine
         {
             using var stream = new MemoryStream();
             using var log = new MemoryStream();
-            var settings = new EngineSettings { DataStream = stream, LogStream = log, CompactStorage = true, TransactionPageLimit = 4 };
+            var settings = new EngineSettings { DataStream = stream, LogStream = log, CompactStorage = CompactStorageMode.Compact, TransactionPageLimit = 4 };
             using (var db = new LiteDatabase(new LiteEngine(settings)))
             {
                 db.CheckpointSize = 0;
@@ -95,12 +95,12 @@ namespace LiteDB.Tests.Engine
                 doc["Embedding"] = new BsonVector(new[] { (float)i, 1f });
                 return doc;
             }).ToArray();
-            using (var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, CompactStorage = true }))
+            using (var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, CompactStorage = CompactStorageMode.Compact }))
             {
                 db.GetCollection("docs").Insert(docs);
                 db.GetCollection("docs").EnsureIndex("vector", "$.Embedding", new VectorIndexOptions(2));
                 db.GetCollection("docs").Query().TopKNear("Embedding", new[] { 1f, 1f }, 1).ToArray().Length.Should().Be(1);
-                db.Rebuild(new RebuildOptions { CompactStorage = false });
+                db.Rebuild(new RebuildOptions { CompactStorage = CompactStorageMode.Legacy });
                 db.GetCollection("docs").FindById(1)["Embedding"].IsVector.Should().BeTrue();
             }
             // File.ReadAllBytes cannot share the live engine's file handle on Windows.
@@ -111,9 +111,79 @@ namespace LiteDB.Tests.Engine
         public void Connection_option_round_trips()
         {
             var parsed = new ConnectionString("Filename=:memory:;Compact Storage=true");
-            parsed.CompactStorage.Should().BeTrue();
-            new ConnectionString(parsed.ToString()).CompactStorage.Should().BeTrue();
-            new ConnectionString().CompactStorage.Should().BeFalse();
+            parsed.CompactStorage.Should().Be(CompactStorageMode.Compact);
+            new ConnectionString(parsed.ToString()).CompactStorage.Should().Be(CompactStorageMode.Compact);
+            new ConnectionString("Compact Storage=false").CompactStorage.Should().Be(CompactStorageMode.Legacy);
+            new ConnectionString().CompactStorage.Should().Be(CompactStorageMode.Auto);
+        }
+
+        [Fact]
+        public void Auto_uses_compact_for_new_databases()
+        {
+            using var stream = new MemoryStream();
+
+            using (var db = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = stream })))
+            {
+                stream.ToArray()[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.COMPACT_FILE_VERSION);
+                db.GetCollection("docs").Insert(Enumerable.Range(1, 20).Select(Document));
+                db.Checkpoint();
+            }
+
+            stream.ToArray().Where((value, index) =>
+                index % Constants.PAGE_SIZE == BasePage.P_PAGE_TYPE && value == (byte)PageType.Schema).Any().Should().BeTrue();
+        }
+
+        [Fact]
+        public void Auto_does_not_promote_existing_v8_databases()
+        {
+            using var stream = new MemoryStream();
+
+            using (var db = new LiteDatabase(new LiteEngine(new EngineSettings
+            {
+                DataStream = stream,
+                CompactStorage = CompactStorageMode.Legacy
+            })))
+            {
+                db.GetCollection("docs").Insert(Document(1));
+                db.Checkpoint();
+            }
+
+            using (var db = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = stream })))
+            {
+                db.GetCollection("docs").Insert(Enumerable.Range(2, 20).Select(Document));
+                db.Checkpoint();
+            }
+
+            stream.ToArray()[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.FILE_VERSION);
+        }
+
+        [Fact]
+        public void Auto_keeps_compact_writes_for_existing_v10_databases()
+        {
+            using var stream = new MemoryStream();
+
+            using (var db = new LiteDatabase(new LiteEngine(new EngineSettings
+            {
+                DataStream = stream,
+                CompactStorage = CompactStorageMode.Compact
+            })))
+            {
+                db.GetCollection("arrays").Insert(new BsonDocument
+                {
+                    ["_id"] = 1,
+                    ["values"] = new BsonArray(Enumerable.Range(1, 100).Select(x => new BsonValue(x)))
+                });
+                db.Checkpoint();
+            }
+
+            using (var db = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = stream })))
+            {
+                db.GetCollection("docs").Insert(Enumerable.Range(1, 20).Select(Document));
+                db.Checkpoint();
+            }
+
+            stream.ToArray().Where((value, index) =>
+                index % Constants.PAGE_SIZE == BasePage.P_PAGE_TYPE && value == (byte)PageType.Schema).Any().Should().BeTrue();
         }
     }
 }

@@ -18,7 +18,7 @@ namespace LiteDB.Tests.Engine
         public void Ordinary_v8_files_open_without_rebuild(bool readOnly, bool upgrade)
         {
             using var file = new TempFile();
-            using (var db = new LiteDatabase(file.Filename)) db.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1 });
+            using (var db = OpenLegacy(file.Filename)) db.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1 });
             var original = ReadDataFile(file.Filename);
             original[59].Should().Be(8);
             using (var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, ReadOnly = readOnly, Upgrade = upgrade }))
@@ -37,7 +37,7 @@ namespace LiteDB.Tests.Engine
         public void First_vector_write_promotes_only_the_header_before_commit(string operation)
         {
             using var file = new TempFile();
-            using var db = new LiteDatabase(file.Filename);
+            using var db = OpenLegacy(file.Filename);
             var docs = db.GetCollection("docs");
             docs.Insert(new BsonDocument { ["_id"] = 1, ["Embedding"] = new BsonArray { 1, 0 } });
             docs.EnsureIndex("ordinary", "$.Embedding");
@@ -68,7 +68,12 @@ namespace LiteDB.Tests.Engine
         {
             using var data = new MemoryStream();
             using var log = new MemoryStream();
-            using var db = new LiteDatabase(data, logStream: log);
+            using var db = new LiteDatabase(new LiteEngine(new EngineSettings
+            {
+                DataStream = data,
+                LogStream = log,
+                CompactStorage = CompactStorageMode.Legacy
+            }));
             db.CheckpointSize = 0;
             db.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1 });
             data.ToArray()[59].Should().Be(8);
@@ -94,7 +99,13 @@ namespace LiteDB.Tests.Engine
         public void Shared_connections_observe_the_promoted_version(string password)
         {
             using var file = new TempFile();
-            var connection = new ConnectionString { Filename = file.Filename, Password = password, Connection = ConnectionType.Shared };
+            var connection = new ConnectionString
+            {
+                Filename = file.Filename,
+                Password = password,
+                Connection = ConnectionType.Shared,
+                CompactStorage = CompactStorageMode.Legacy
+            };
             using var first = new LiteDatabase(connection);
             using var second = new LiteDatabase(connection);
             first.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1 });
@@ -109,7 +120,7 @@ namespace LiteDB.Tests.Engine
         public async Task Concurrent_ordinary_and_vector_commits_preserve_promotion()
         {
             using var file = new TempFile();
-            using var db = new LiteDatabase(file.Filename);
+            using var db = OpenLegacy(file.Filename);
             await Task.WhenAll(Task.Run(() => db.GetCollection("ordinary").Insert(new BsonDocument { ["_id"] = 1 })),
                 Task.Run(() => db.GetCollection("vectors").Insert(new BsonDocument { ["_id"] = 1, ["v"] = new BsonVector(new[] { 1f, 0f }) })));
             db.Checkpoint();
@@ -125,6 +136,15 @@ namespace LiteDB.Tests.Engine
             using var copy = new MemoryStream();
             stream.CopyTo(copy);
             return copy.ToArray();
+        }
+
+        private static LiteDatabase OpenLegacy(string filename)
+        {
+            return new LiteDatabase(new ConnectionString
+            {
+                Filename = filename,
+                CompactStorage = CompactStorageMode.Legacy
+            });
         }
 
         private static byte ReadVersion(string filename, string password)

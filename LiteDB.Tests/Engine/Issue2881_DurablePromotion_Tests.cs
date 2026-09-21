@@ -27,7 +27,12 @@ namespace LiteDB.Tests.Engine
         {
             using var file = new TempFile();
             using var stream = new TrackingFileStream(file.Filename);
-            using var engine = new LiteEngine(new EngineSettings { DataStream = stream, Password = password });
+            using var engine = new LiteEngine(new EngineSettings
+            {
+                DataStream = stream,
+                Password = password,
+                CompactStorage = CompactStorageMode.Legacy
+            });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             var docs = db.GetCollection("docs");
             docs.Insert(new BsonDocument { ["_id"] = 1 });
@@ -47,7 +52,13 @@ namespace LiteDB.Tests.Engine
             using var file = new TempFile();
             using var stream = new TrackingFileStream(file.Filename);
             using var log = new MemoryStream();
-            var settings = new EngineSettings { DataStream = stream, LogStream = log, Password = password };
+            var settings = new EngineSettings
+            {
+                DataStream = stream,
+                LogStream = log,
+                Password = password,
+                CompactStorage = CompactStorageMode.Legacy
+            };
             using (var engine = new LiteEngine(settings))
             using (var db = new LiteDatabase(engine, disposeOnClose: false))
             {

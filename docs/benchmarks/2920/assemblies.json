@@ -1,9 +1,41 @@
 {
-  "admission": "3a312ef27a13c93df72b498080c467b11c8a5ec36285962b24488d5013ad01ad",
-  "schema-cache": "fa07a5c622d2ad251d4f2fe0aa165837ad6db9cde37684a75c7468c656fbb33b",
-  "boundary": "8c0e2e68328450830b690c075a97a0ea660567bdd92d3bb46566f203be772f09",
-  "compact-v1": "21b2a2b9530c82ffc083b3c6b9db960959ee8f2158ae511557950de3fc874de1",
-  "fallback": "11d9e1a69280c42739944cc8a098d5eeb0454e2adc7ee3132f777d433d98cbee",
-  "baseline": "4056243bfe441a34c371b723b10078d241a8651d2672c5bf5c06bfda80968076",
-  "final": "6a006c673b54fb21cd914fa17da3f3865b6c587080b2c9f19b794b0525aefebd"
+  "repository": "https://github.com/litedb-org/LiteDB",
+  "stages": {
+    "baseline": {
+      "sha256": "4056243bfe441a34c371b723b10078d241a8651d2672c5bf5c06bfda80968076",
+      "sourceRevision": "f0afcc13ffdab1aacf5f9d2b69824a88e225646a",
+      "availability": "rebuildable"
+    },
+    "boundary": {
+      "sha256": "8c0e2e68328450830b690c075a97a0ea660567bdd92d3bb46566f203be772f09",
+      "sourceRevision": null,
+      "availability": "historical-only"
+    },
+    "compact-v1": {
+      "sha256": "21b2a2b9530c82ffc083b3c6b9db960959ee8f2158ae511557950de3fc874de1",
+      "sourceRevision": null,
+      "availability": "historical-only"
+    },
+    "schema-cache": {
+      "sha256": "fa07a5c622d2ad251d4f2fe0aa165837ad6db9cde37684a75c7468c656fbb33b",
+      "sourceRevision": null,
+      "availability": "historical-only"
+    },
+    "admission": {
+      "sha256": "3a312ef27a13c93df72b498080c467b11c8a5ec36285962b24488d5013ad01ad",
+      "sourceRevision": null,
+      "availability": "historical-only"
+    },
+    "fallback": {
+      "sha256": "11d9e1a69280c42739944cc8a098d5eeb0454e2adc7ee3132f777d433d98cbee",
+      "sourceRevision": null,
+      "availability": "historical-only"
+    },
+    "final": {
+      "sha256": "6a006c673b54fb21cd914fa17da3f3865b6c587080b2c9f19b794b0525aefebd",
+      "sourceRevision": "0151ccc3917fd09dc08d7471225d9bca2393547c",
+      "availability": "rebuildable"
+    }
+  },
+  "historicalOnlyNote": "Intermediate DLLs and exact source snapshots were not retained; their hashes identify the measured local binaries but cannot locate or rebuild them. These stages are retained for audit history and are not reproducible evidence."
 }

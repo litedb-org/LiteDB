@@ -13,7 +13,7 @@ namespace LiteDB.Tests.Engine
         public void Updating_one_off_shapes_does_not_create_catalogs()
         {
             using var stream = new MemoryStream();
-            using var db = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = stream, CompactStorage = true }));
+            using var db = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = stream, CompactStorage = CompactStorageMode.Compact }));
             var docs = Enumerable.Range(1, 1000).Select(id =>
             {
                 var doc = new BsonDocument { ["_id"] = id };
@@ -31,7 +31,7 @@ namespace LiteDB.Tests.Engine
         public void Oversized_logical_bson_remains_invalid_even_with_compact_enabled()
         {
             using var stream = new MemoryStream();
-            using var db = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = stream, CompactStorage = true }));
+            using var db = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = stream, CompactStorage = CompactStorageMode.Compact }));
             Action insert = () => db.GetCollection("docs").Insert(new BsonDocument
             {
                 ["_id"] = 1, ["payload"] = new byte[Constants.MAX_DOCUMENT_SIZE]
@@ -43,7 +43,7 @@ namespace LiteDB.Tests.Engine
         [Fact]
         public void Malformed_unicode_is_rejected_just_as_in_public_bson()
         {
-            using var db = new LiteDatabase(new ConnectionString { Filename = ":memory:", CompactStorage = true });
+            using var db = new LiteDatabase(new ConnectionString { Filename = ":memory:", CompactStorage = CompactStorageMode.Compact });
             var doc = CompactStorage_Tests.Document(1);
             doc["Text"] = "unpaired\ud800";
             Action serialize = () => BsonSerializer.Serialize(doc);

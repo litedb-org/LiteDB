@@ -37,10 +37,14 @@ namespace LiteDB.Engine
             EngineState state,
             int[] memorySegmentSizes)
         {
+            if (!Enum.IsDefined(typeof(CompactStorageMode), settings.CompactStorage))
+            {
+                throw new ArgumentOutOfRangeException(nameof(settings.CompactStorage));
+            }
+
             _cache = new MemoryCache(memorySegmentSizes, settings.GetCacheSize());
             _state = state;
             _readOnly = settings.ReadOnly;
-            CompactStorage = settings.CompactStorage;
             _durableCommits = settings.DurableCommits;
 
             try
@@ -71,12 +75,16 @@ namespace LiteDB.Engine
                     }
                     LOG($"creating new database: '{Path.GetFileName(_dataFactory.Name)}'", "DISK");
 
-                    this.Initialize(_dataPool.Writer.Value, settings.Collation, settings.InitialSize);
+                    this.Initialize(_dataPool.Writer.Value, settings.Collation, settings.InitialSize,
+                        settings.CompactStorage == CompactStorageMode.Auto);
                     dataLength = _dataFactory.GetLength();
                 }
 
                 if (dataLength < PAGE_SIZE) throw LiteException.InvalidDatabase();
-                if (!isNew) this.ValidateExistingData();
+                var header = isNew ? null : this.ValidateExistingData();
+                CompactStorage = settings.CompactStorage == CompactStorageMode.Compact ||
+                    settings.CompactStorage == CompactStorageMode.Auto &&
+                    (isNew || header.FileVersion >= HeaderPage.COMPACT_FILE_VERSION);
 
                 if (settings.ReadOnly == false)
                 {
@@ -116,10 +124,15 @@ namespace LiteDB.Engine
         /// <summary>
         /// Create a new empty database (use synced mode)
         /// </summary>
-        private void Initialize(Stream stream, Collation collation, long initialSize)
+        private void Initialize(Stream stream, Collation collation, long initialSize, bool compactByDefault)
         {
             var buffer = new PageBuffer(new byte[PAGE_SIZE], 0, 0);
             var header = new HeaderPage(buffer, 0);
+
+            if (compactByDefault)
+            {
+                header.EnsureVersion(HeaderPage.COMPACT_FILE_VERSION);
+            }
 
             // update collation
             header.Pragmas.Set(Pragmas.COLLATION, (collation ?? Collation.Default).ToString(), false);

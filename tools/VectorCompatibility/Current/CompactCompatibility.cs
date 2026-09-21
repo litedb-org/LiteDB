@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+
 using LiteDB;
 using LiteDB.Engine;
 
@@ -13,7 +14,7 @@ namespace VectorCompatibility.Current
             foreach (var password in new[] { null, "compatibility-test" })
             {
                 var path = Path.Combine(args[1], "compact-" + (password == null ? "plain.db" : "encrypted.db"));
-                var connection = new ConnectionString { Filename = path, Password = password, CompactStorage = true };
+                var connection = new ConnectionString { Filename = path, Password = password, CompactStorage = CompactStorageMode.Compact };
                 if (args[0] == "compact-promote")
                 {
                     var original = File.ReadAllBytes(path);
@@ -43,7 +44,7 @@ namespace VectorCompatibility.Current
                 {
                     using var db = new LiteDatabase(connection);
                     if (db.GetCollection("docs").FindAll().Count() != 50) throw new Exception("Mixed file lost documents");
-                    var options = new RebuildOptions { CompactStorage = false, Password = password };
+                    var options = new RebuildOptions { CompactStorage = CompactStorageMode.Legacy, Password = password };
                     db.Rebuild(options);
                     if (options.GetErrorReport().Any()) throw new Exception("Downgrade failed");
                 }

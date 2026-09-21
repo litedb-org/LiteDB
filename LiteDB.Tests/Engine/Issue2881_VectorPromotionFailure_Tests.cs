@@ -15,7 +15,13 @@ namespace LiteDB.Tests.Engine
         {
             using var data = new PromotionFailureStream();
             using var log = new MemoryStream();
-            using (var db = new LiteDatabase(data, logStream: log))
+            var settings = new EngineSettings
+            {
+                DataStream = data,
+                LogStream = log,
+                CompactStorage = CompactStorageMode.Legacy
+            };
+            using (var db = new LiteDatabase(new LiteEngine(settings)))
             {
                 var docs = db.GetCollection("docs");
                 docs.Insert(new BsonDocument { ["_id"] = 1, ["value"] = "ordinary" });
@@ -30,7 +36,7 @@ namespace LiteDB.Tests.Engine
                 data.Triggered.Should().BeTrue();
                 log.Length.Should().Be(0, "no vector page may enter the WAL before the format is durable");
             }
-            using var reopened = new LiteDatabase(data, logStream: log);
+            using var reopened = new LiteDatabase(new LiteEngine(settings));
             reopened.GetCollection("docs").Count().Should().Be(1);
             reopened.GetCollection("docs").FindById(1)["value"].AsString.Should().Be("ordinary");
         }

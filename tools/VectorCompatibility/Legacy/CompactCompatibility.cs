@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+
 using LiteDB;
 
 namespace VectorCompatibility.Legacy

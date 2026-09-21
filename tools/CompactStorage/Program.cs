@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
+
 using LiteDB;
 using LiteDB.Engine;
 
@@ -20,14 +21,14 @@ try
             var path = Path.Combine(root, shape + pass + ".db");
             var settings = new EngineSettings { Filename = path };
             // Reflection lets the identical harness measure the pre-feature assembly.
-            typeof(EngineSettings).GetProperty("CompactStorage")?.SetValue(settings, compact && shape != "mixed");
+            SetCompactStorage(settings, compact && shape != "mixed");
             using var db = new LiteEngine(settings);
             db.Pragma("CHECKPOINT", 0);
             var insert = Measure(() => db.Insert("items", docs, BsonAutoId.Int32));
             if (shape == "mixed" && compact)
             {
                 db.Dispose();
-                typeof(EngineSettings).GetProperty("CompactStorage")?.SetValue(settings, true);
+                SetCompactStorage(settings, true);
             }
             using var mixed = shape == "mixed" && compact ? new LiteEngine(settings) : null;
             var engine = mixed ?? db;
@@ -69,7 +70,19 @@ try
         }
     }
 }
-finally { Directory.Delete(root, true); }
+finally
+{
+    Directory.Delete(root, true);
+}
+
+static void SetCompactStorage(EngineSettings settings, bool enabled)
+{
+    var property = typeof(EngineSettings).GetProperty("CompactStorage");
+    if (property == null) return;
+    var value = property.PropertyType == typeof(bool) ?
+        (object)enabled : Enum.Parse(property.PropertyType, enabled ? "Compact" : "Legacy");
+    property.SetValue(settings, value);
+}
 
 static object Measure(Action action)
 {
@@ -82,7 +95,11 @@ static object Measure(Action action)
 static BsonDocument Make(string shape, int id)
 {
     var doc = new BsonDocument { ["_id"] = id };
-    if (shape == "tiny") { doc["x"] = id; return doc; }
+    if (shape == "tiny")
+    {
+        doc["x"] = id;
+        return doc;
+    }
     for (var f = 0; f < 15; f++)
     {
         if (shape == "optional" && id % 5 != 0 && (id + f) % 5 < 2) continue;

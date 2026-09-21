@@ -4,7 +4,7 @@ Measured 2026-09-19 on Ubuntu 24.04/ext4, AMD Ryzen 9 3900X (12 cores/24 threads
 
 Release library builds use `TestingEnabled=false`. Timed runs are serial, use `DOTNET_TieredCompilation=0`, one discarded warmup and five measured trials per workload, with 5,000 pre-generated documents. Tables show medians in milliseconds; smaller is better. Each trial inserts all documents, updates half, reads 1,000 IDs, scans all documents, and rebuilds through the real file path. CHECKPOINT=0 isolates WAL bytes before explicit checkpoints. Data, WAL, indexes and schema pages are included in file sizes. The mixed workload inserts BSON, reopens with compact writes, and updates half; its initial size therefore remains legacy-sized.
 
-Baseline is upstream dev `f0afcc13ffdab1aacf5f9d2b69824a88e225646a`. Each intermediate production assembly was saved before the next change. `pilot/` retains the initial tiered-JIT runs; those runs motivated the controlled rerun and are not used in these tables. This is a warm OS-cache local microbenchmark, not a cold-I/O or multi-process scaling claim. The host was not CPU-isolated; small timing differences are noise. Allocations count the measuring thread, not process peak memory. Catalog cache bytes are conservative accounted retained bytes after reads, excluding active snapshots and bounded admission hints.
+Baseline is upstream dev `f0afcc13ffdab1aacf5f9d2b69824a88e225646a`; final is `0151ccc3917fd09dc08d7471225d9bca2393547c`. The [assembly provenance manifest](assemblies.json) preserves every measured SHA-256. Only baseline and final have retained immutable source revisions and are rebuildable. The intermediate DLLs and their exact uncommitted source snapshots were not retained, so those rows are historical development observations rather than reproducible evidence. `pilot/` retains the initial tiered-JIT runs; those runs motivated the controlled rerun and are not used in these tables. This is a warm OS-cache local microbenchmark, not a cold-I/O or multi-process scaling claim. The host was not CPU-isolated; small timing differences are noise. Allocations count the measuring thread, not process peak memory. Catalog cache bytes are conservative accounted retained bytes after reads, excluding active snapshots and bounded admission hints.
 
 ## Every implementation increment
 
@@ -74,7 +74,7 @@ Stages: `boundary` introduces the BSON-only storage boundary; `compact-v1` adds 
 
 ## Interpretation and reproduction
 
-Stable, optional, nested and type-changing documents save roughly 49–57% of initial file bytes; arrays save 38%. Dynamic dictionaries, tiny documents and large scalar payloads keep BSON and allocate no schema pages. Compact stable/optional/nested inserts still cost more CPU, and converting existing BSON during mixed-file updates costs more than writing BSON again. Array scans and inserts are faster. The feature remains opt-in; these results do not justify changing the default.
+Stable, optional, nested and type-changing documents save roughly 49–57% of initial file bytes; arrays save 38%. Dynamic dictionaries, tiny documents and large scalar payloads keep BSON and allocate no schema pages. Compact stable/optional/nested inserts still cost more CPU, and converting existing BSON during mixed-file updates costs more than writing BSON again. Array scans and inserts are faster. These measurements compare explicit compact and legacy modes and predate the `Auto` write policy.
 
 ```sh
 dotnet build LiteDB/LiteDB.csproj -c Release -f net8.0 -p:TestingEnabled=false
@@ -84,4 +84,4 @@ DOTNET_TieredCompilation=0 dotnet tools/CompactStorage/bin/Release/net8.0/Compac
 python3 scripts/summarize-compact-benchmarks.py
 ```
 
-Pass `legacy` instead of `compact` for default writes. `-p:LiteDBAssembly=/absolute/path/LiteDB.dll` builds the same harness against a saved baseline/intermediate assembly. Use separate output directories when comparing assemblies. Raw JSONL includes every measured trial, page counts, catalog bytes, insert/update WAL, all timed operation allocations, and rebuild size.
+Pass `legacy` instead of `compact` for legacy writes. `-p:LiteDBAssembly=/absolute/path/LiteDB.dll` builds the same harness against another assembly; use the provenance manifest's source revisions for reproducible comparisons and separate output directories. Raw JSONL includes every measured trial, page counts, catalog bytes, insert/update WAL, all timed operation allocations, and rebuild size.

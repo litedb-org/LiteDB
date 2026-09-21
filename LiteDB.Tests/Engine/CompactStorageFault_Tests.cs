@@ -19,7 +19,7 @@ namespace LiteDB.Tests.Engine
                 using var file = new TempFile();
                 var settings = new EngineSettings
                 {
-                    Filename = file.Filename, Password = password, CompactStorage = true, TransactionPageLimit = 4
+                    Filename = file.Filename, Password = password, CompactStorage = CompactStorageMode.Compact, TransactionPageLimit = 4
                 };
                 using (var engine = new LiteEngine(settings))
                 using (var db = new LiteDatabase(engine, disposeOnClose: false))
@@ -56,7 +56,7 @@ namespace LiteDB.Tests.Engine
             using var file = new TempFile();
             using var stream = new FailingFileStream(file.Filename);
             using var log = new MemoryStream();
-            var settings = new EngineSettings { DataStream = stream, LogStream = log, Password = password, CompactStorage = true };
+            var settings = new EngineSettings { DataStream = stream, LogStream = log, Password = password, CompactStorage = CompactStorageMode.Compact };
             using (var engine = new LiteEngine(settings))
             using (var db = new LiteDatabase(engine, disposeOnClose: false))
             {
@@ -83,7 +83,7 @@ namespace LiteDB.Tests.Engine
         public void Corrupt_catalog_fails_loudly_and_rebuild_reports_instead_of_guessing(int offset)
         {
             using var file = new TempFile();
-            using (var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, CompactStorage = true }))
+            using (var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, CompactStorage = CompactStorageMode.Compact }))
                 db.GetCollection("docs").Insert(Enumerable.Range(1, 10).Select(CompactStorage_Tests.Document));
             var bytes = File.ReadAllBytes(file.Filename);
             var page = Enumerable.Range(0, bytes.Length / 8192).First(i => bytes[i * 8192 + 4] == (byte)PageType.Schema);

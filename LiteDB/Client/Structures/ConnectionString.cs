@@ -15,8 +15,11 @@ namespace LiteDB
         private readonly Dictionary<string, string> _values;
         private int? _transactionPageLimit;
 
-        /// <summary>Opt in to compact document writes and lazy v10 promotion. Existing documents stay readable in place.</summary>
-        public bool CompactStorage { get; set; } = false;
+        /// <summary>
+        /// Select how documents are written. Auto uses compact writes for new
+        /// and v10 databases without promoting existing v8/v9 databases.
+        /// </summary>
+        public CompactStorageMode CompactStorage { get; set; } = CompactStorageMode.Auto;
 
         /// <summary>
         /// "memory profile": Balanced (default), LowMemory, or Throughput.
@@ -153,7 +156,10 @@ namespace LiteDB
             {
                 throw new LiteException(0, "`cache size` must be non-negative and `transaction pages` must be greater than zero");
             }
-            this.CompactStorage = _values.GetValue("compact storage", this.CompactStorage);
+            if (_values.TryGetValue("compact storage", out var compactStorage))
+            {
+                this.CompactStorage = ParseCompactStorage(compactStorage);
+            }
             this.ReadOnly = _values.GetValue("readonly", this.ReadOnly);
 
             this.Collation = _values.ContainsKey("collation") ? new Collation(_values.GetValue<string>("collation")) : this.Collation;
@@ -190,6 +196,25 @@ namespace LiteDB
                 firstKey.Equals("memory profile", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("cache size", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("transaction pages", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static CompactStorageMode ParseCompactStorage(string value)
+        {
+            if (bool.TryParse(value, out var enabled))
+            {
+                return enabled ? CompactStorageMode.Compact : CompactStorageMode.Legacy;
+            }
+
+            try
+            {
+                var mode = (CompactStorageMode)Enum.Parse(typeof(CompactStorageMode), value, true);
+                if (!Enum.IsDefined(typeof(CompactStorageMode), mode)) throw new ArgumentException();
+                return mode;
+            }
+            catch (Exception)
+            {
+                throw new LiteException(0, "Invalid connection string value type for `compact storage`");
+            }
         }
 
         /// <summary>
@@ -361,7 +386,12 @@ namespace LiteDB
                     .Append(';');
             }
 
-            if (CompactStorage) bld.Append("Compact Storage=true;");
+            if (CompactStorage != CompactStorageMode.Auto)
+            {
+                bld.Append("Compact Storage=")
+                    .Append(CompactStorage)
+                    .Append(';');
+            }
 
             if (DurableCommits == false)
             {

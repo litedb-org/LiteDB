@@ -13,7 +13,7 @@ namespace LiteDB.Tests.Engine
         [Fact]
         public void Old_reader_keeps_its_catalog_when_another_transaction_commits_a_new_shape()
         {
-            using var db = new LiteDatabase(new ConnectionString { Filename = ":memory:", CompactStorage = true });
+            using var db = new LiteDatabase(new ConnectionString { Filename = ":memory:", CompactStorage = CompactStorageMode.Compact });
             var docs = db.GetCollection("docs");
             docs.Insert(Enumerable.Range(1, 20).Select(CompactStorage_Tests.Document));
             using var reader = docs.FindAll().GetEnumerator();
@@ -43,7 +43,7 @@ namespace LiteDB.Tests.Engine
         public void Single_document_transactions_reuse_shapes_and_checkpoint_cannot_reuse_stale_catalog()
         {
             using var stream = new MemoryStream();
-            using var db = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = stream, CompactStorage = true }));
+            using var db = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = stream, CompactStorage = CompactStorageMode.Compact }));
             var docs = db.GetCollection("docs");
             for (var i = 1; i <= 10; i++) docs.Insert(CompactStorage_Tests.Document(i));
             stream.ToArray()[59].Should().Be(10);
@@ -65,7 +65,7 @@ namespace LiteDB.Tests.Engine
         public void Catalog_budget_is_bounded_and_all_schema_pages_are_reclaimed_on_drop()
         {
             using var stream = new MemoryStream();
-            using var db = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = stream, CompactStorage = true, TransactionPageLimit = 4 }));
+            using var db = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = stream, CompactStorage = CompactStorageMode.Compact, TransactionPageLimit = 4 }));
             var docs = Enumerable.Range(0, 600).Select(i =>
             {
                 var doc = new BsonDocument { ["_id"] = i };
@@ -88,8 +88,8 @@ namespace LiteDB.Tests.Engine
         public void Shared_connections_read_compact_data_and_can_keep_writing_legacy_documents()
         {
             using var file = new TempFile();
-            using var compact = new LiteDatabase(new ConnectionString { Filename = file.Filename, Connection = ConnectionType.Shared, CompactStorage = true });
-            using var legacyWrites = new LiteDatabase(new ConnectionString { Filename = file.Filename, Connection = ConnectionType.Shared });
+            using var compact = new LiteDatabase(new ConnectionString { Filename = file.Filename, Connection = ConnectionType.Shared, CompactStorage = CompactStorageMode.Compact });
+            using var legacyWrites = new LiteDatabase(new ConnectionString { Filename = file.Filename, Connection = ConnectionType.Shared, CompactStorage = CompactStorageMode.Legacy });
             compact.GetCollection("docs").Insert(Enumerable.Range(1, 10).Select(CompactStorage_Tests.Document));
             legacyWrites.GetCollection("docs").FindById(2)["RepeatedPropertyName0"].AsInt32.Should().Be(2);
             legacyWrites.GetCollection("docs").Insert(CompactStorage_Tests.Document(11));

@@ -19,8 +19,11 @@ namespace LiteDB.Engine
     {
         private int? _transactionPageLimit;
 
-        /// <summary>Opt in to compact document writes and lazy v10 promotion. Existing documents stay readable in place.</summary>
-        public bool CompactStorage { get; set; } = false;
+        /// <summary>
+        /// Select how documents are written. Auto uses compact writes for new
+        /// and v10 databases without promoting existing v8/v9 databases.
+        /// </summary>
+        public CompactStorageMode CompactStorage { get; set; } = CompactStorageMode.Auto;
 
         /// <summary>
         /// Memory and transaction defaults for this database. Explicit limits

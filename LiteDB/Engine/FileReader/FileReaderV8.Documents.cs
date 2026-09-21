@@ -116,18 +116,20 @@ namespace LiteDB.Engine
                             using (var r = new BufferReader(docBytes, false))
                             {
                                 var docResult = DocumentStorageCodec.Read(r, null, () => ReadSchemas(colID), false, collection, new PageAddress(dataPage, (byte)i));
+
+                                if (docResult.Fail)
+                                {
+                                    this.HandleError(docResult.Exception, pageInfo);
+                                    doc = null;
+                                    continue;
+                                }
+
                                 var id = docResult.Value["_id"];
 
                                 ENSURE(!(id == BsonValue.Null || id == BsonValue.MinValue || id == BsonValue.MaxValue), "Invalid _id value: {0}", id);
                                 ENSURE(uniqueIDs.Contains(id) == false, "Duplicated _id value: {0}", id);
 
                                 uniqueIDs.Add(id);
-
-                                if (docResult.Fail)
-                                {
-                                    this.HandleError(docResult.Exception, pageInfo);
-                                }
-
                                 doc = docResult.Value;
                             }
                         }

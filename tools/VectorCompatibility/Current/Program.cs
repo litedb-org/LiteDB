@@ -10,7 +10,11 @@ namespace VectorCompatibility.Current
     {
         private static void Main(string[] args)
         {
-            if (args[0].StartsWith("compact-", StringComparison.Ordinal)) { CompactCompatibility.Run(args); return; }
+            if (args[0].StartsWith("compact-", StringComparison.Ordinal))
+            {
+                CompactCompatibility.Run(args);
+                return;
+            }
             foreach (var encrypted in new[] { false, true })
             {
                 var suffix = encrypted ? "encrypted.db" : "plain.db";
@@ -50,7 +54,8 @@ namespace VectorCompatibility.Current
                 if (mode == "create") continue;
                 using var ordinary = new LiteDatabase(new ConnectionString
                 {
-                    Filename = Path.Combine(args[1], "current-v8-" + suffix), Password = password
+                    Filename = Path.Combine(args[1], "current-v8-" + suffix), Password = password,
+                    CompactStorage = CompactStorageMode.Legacy
                 });
                 if (mode == "ordinary") ordinary.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "current" });
                 else if (mode == "promote") ordinary.GetCollection("empty").EnsureIndex("vector", "$.Embedding", new VectorIndexOptions(2));
