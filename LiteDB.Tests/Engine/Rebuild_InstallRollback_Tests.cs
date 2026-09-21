@@ -50,6 +50,25 @@ namespace LiteDB.Tests.Engine
         }
 
         [Fact]
+        public void Wal_probe_reports_absence_only_when_the_file_is_known_to_be_absent()
+        {
+            using var file = new TempFile();
+            File.WriteAllText(file.Filename, "present");
+            var missingDirectory = Path.Combine(Path.GetDirectoryName(file.Filename), Guid.NewGuid().ToString("n"), "data-log.db");
+
+            FileHelper.ExistsOrThrow(file.Filename).Should().BeTrue();
+            FileHelper.ExistsOrThrow(file.Filename + ".missing").Should().BeFalse();
+            FileHelper.ExistsOrThrow(missingDirectory).Should().BeFalse();
+
+            // File.Exists answers "false" to a probe it could not perform. Installing a replacement
+            // on that answer would leave an unseen original WAL live beside it.
+            var unprobeable = file.Filename + "\0";
+            File.Exists(unprobeable).Should().BeFalse();
+            Action probe = () => FileHelper.ExistsOrThrow(unprobeable);
+            probe.Should().Throw<Exception>();
+        }
+
+        [Fact]
         public void A_real_sharing_violation_on_the_source_restores_the_wal()
         {
             // Only Windows refuses to rename a file that is open without FileShare.Delete.

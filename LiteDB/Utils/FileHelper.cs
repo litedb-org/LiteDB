@@ -35,6 +35,21 @@ namespace LiteDB
         }
 
         /// <summary>
+        /// File.Exists answers false when it could not look, so it cannot prove a file is absent.
+        /// Returns false only for a file or directory known to be missing; other errors propagate.
+        /// </summary>
+        public static bool ExistsOrThrow(string filename)
+        {
+            try
+            {
+                File.GetAttributes(filename);
+                return true;
+            }
+            catch (FileNotFoundException) { return false; }
+            catch (DirectoryNotFoundException) { return false; }
+        }
+
+        /// <summary>
         /// Get LOG file based on data file
         /// </summary>
         public static string GetLogFile(string filename) => GetSuffixFile(filename, "-log", false);

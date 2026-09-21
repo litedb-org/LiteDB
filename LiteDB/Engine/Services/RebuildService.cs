@@ -141,7 +141,9 @@ namespace LiteDB.Engine
 #if DEBUG || TESTING
                 SimulateInstallFailure?.Invoke("before-log-backup");
 #endif
-                if (File.Exists(logFile))
+                // An original WAL that stays live would be replayed over the replacement, so
+                // "could not look" must fail the installation instead of reading as "no WAL".
+                if (FileHelper.ExistsOrThrow(logFile))
                 {
                     File.Move(logFile, backupLogFilename);
                     movedLog = true;
