@@ -48,7 +48,7 @@ namespace LiteDB.Engine
             {
                 // SharedEngine retains this settings instance after disposing the
                 // failed inner engine. Match it to a replacement left at the live path.
-                if (ex.Data[RebuildService.ReplacementPublishedDataKey] is true)
+                if (ex.Data[RebuildService.LiveStateDataKey] as string == RebuildService.LiveStateReplacement)
                 {
                     _settings.Password = password;
                     _settings.Collation = collation;

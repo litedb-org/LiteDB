@@ -15,7 +15,26 @@ namespace LiteDB.Engine
     /// </summary>
     internal class RebuildService
     {
-        internal const string ReplacementPublishedDataKey = "LiteDB.Rebuild.ReplacementPublished";
+        /// <summary>
+        /// Exception.Data key on a failed installation: which database the rollback left at the live path.
+        /// </summary>
+        internal const string LiveStateDataKey = "LiteDB.Rebuild.LiveState";
+        internal const string RollbackErrorsDataKey = "LiteDB.Rebuild.RollbackErrors";
+
+        /// <summary>The original data file and WAL are back at their live paths.</summary>
+        internal const string LiveStateOriginal = "original-restored";
+
+        /// <summary>The completed replacement is live; the original pair stays at the backup paths.</summary>
+        internal const string LiveStateReplacement = "replacement-published";
+
+        /// <summary>
+        /// Two or more rollback steps failed. The live path is missing or holds the original data
+        /// without its WAL; the complete copies are in the -backup and -temp files.
+        /// </summary>
+        internal const string LiveStateIncomplete = "incomplete";
+
+        internal static bool IsIncomplete(Exception exception) =>
+            exception.Data[LiveStateDataKey] as string == LiveStateIncomplete;
 
 #if DEBUG || TESTING
         internal static Action<string> SimulateInstallFailure;
@@ -213,14 +232,33 @@ namespace LiteDB.Engine
                     }
                 }, rollbackErrors);
 
-                if (candidateIsLive)
-                    installException.Data[ReplacementPublishedDataKey] = true;
+                var originalIsLive = sourceIsLive && logIsLive;
+
+                if (originalIsLive)
+                {
+                    // The unpublished replacement is a full copy of the database, possibly
+                    // without the encryption of the original. Do not leave it behind.
+                    TryRollback(() =>
+                    {
+#if DEBUG || TESTING
+                        SimulateInstallFailure?.Invoke("before-candidate-cleanup");
+#endif
+                        File.Delete(tempFilename);
+                    }, rollbackErrors);
+                }
+
+                // Rollback is bounded: it settles on the original pair, else on the
+                // replacement, else it reports what it could not repair. Any of the file
+                // operations above can fail, so no further compensation is attempted.
+                installException.Data[LiveStateDataKey] =
+                    originalIsLive ? LiveStateOriginal :
+                    candidateIsLive ? LiveStateReplacement :
+                    LiveStateIncomplete;
 
                 if (rollbackErrors.Count > 0)
-                    installException.Data["LiteDB.Rebuild.RollbackErrors"] = new AggregateException(rollbackErrors);
+                    installException.Data[RollbackErrorsDataKey] = new AggregateException(rollbackErrors);
                 throw;
             }
-
 
             return difference;
         }
