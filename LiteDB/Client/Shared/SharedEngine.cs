@@ -89,7 +89,7 @@ namespace LiteDB
 #endif
                     return new LiteEngine(_settings);
                 }
-                catch (IOException) when (recoveredAbandonedOwner && attempt < retries)
+                catch (IOException ex) when (recoveredAbandonedOwner && IsWindowsLockViolation(ex) && attempt < retries)
                 {
                     // On Windows an abandoned mutex can become available just before
                     // the dead process' file handles finish closing. Keep ownership
@@ -97,6 +97,14 @@ namespace LiteDB
                     Thread.Sleep(20);
                 }
             }
+        }
+
+        private static bool IsWindowsLockViolation(IOException exception)
+        {
+            const int ERROR_SHARING_VIOLATION = 32;
+            const int ERROR_LOCK_VIOLATION = 33;
+            var errorCode = exception.HResult & 0xFFFF;
+            return errorCode == ERROR_SHARING_VIOLATION || errorCode == ERROR_LOCK_VIOLATION;
         }
 
         /// <summary>

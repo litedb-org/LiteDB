@@ -34,7 +34,7 @@ namespace LiteDB.Tests.Issues
             var attempts = 0;
             engine.SimulateOpenEngine = () =>
             {
-                if (attempts++ == 0) throw new IOException("sharing violation");
+                if (attempts++ == 0) throw SharingViolation();
                 return new LiteEngine(settings);
             };
 
@@ -59,5 +59,32 @@ namespace LiteDB.Tests.Issues
             open.Should().Throw<IOException>().WithMessage("ordinary failure");
             attempts.Should().Be(1);
         }
+
+        [Fact]
+        public void Abandoned_owner_does_not_retry_an_unrelated_io_failure()
+        {
+            using var file = new TempFile();
+            var settings = new EngineSettings { Filename = file.Filename };
+            using var engine = new SharedEngine(settings);
+            var mutexName = SharedMutexNameFactory.Create(settings.Filename, settings.SharedMutexNameStrategy);
+            using var mutex = SharedMutexFactory.Create(mutexName);
+            var owner = new Thread(() => mutex.WaitOne());
+            owner.Start();
+            owner.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
+
+            var attempts = 0;
+            engine.SimulateOpenEngine = () =>
+            {
+                attempts++;
+                throw new IOException("unrelated I/O failure");
+            };
+
+            Action open = () => engine.Pragma(Pragmas.USER_VERSION);
+            open.Should().Throw<IOException>().WithMessage("unrelated I/O failure");
+            attempts.Should().Be(1);
+        }
+
+        private static IOException SharingViolation() =>
+            new IOException("sharing violation", unchecked((int)0x80070020));
     }
 }
