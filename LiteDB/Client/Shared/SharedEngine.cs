@@ -15,6 +15,9 @@ namespace LiteDB
         private LiteEngine _engine;
         private volatile bool _transactionRunning = false;
         private int _transactionThreadId;
+#if DEBUG || TESTING
+        internal Func<LiteEngine> SimulateOpenEngine { get; set; }
+#endif
 
         public SharedEngine(EngineSettings settings)
         {
@@ -43,12 +46,13 @@ namespace LiteDB
         /// <returns>true if successfully opened; false if already open</returns>
         private bool OpenDatabase()
         {
+            var recoveredAbandonedOwner = false;
             try
             {
                 // Acquire mutex for every call to open DB.
                 _mutex.WaitOne();
             }
-            catch (AbandonedMutexException) { }
+            catch (AbandonedMutexException) { recoveredAbandonedOwner = true; }
 
             try { RejectAbandonedTransaction(); }
             catch { _mutex.ReleaseMutex(); throw; }
@@ -58,7 +62,7 @@ namespace LiteDB
             {
                 try
                 {
-                    _engine = new LiteEngine(_settings);
+                    _engine = OpenEngine(recoveredAbandonedOwner);
                     return true;
                 }
                 catch
@@ -70,6 +74,28 @@ namespace LiteDB
             else
             {
                 return false;
+            }
+        }
+
+        private LiteEngine OpenEngine(bool recoveredAbandonedOwner)
+        {
+            const int retries = 100;
+            for (var attempt = 0; ; attempt++)
+            {
+                try
+                {
+#if DEBUG || TESTING
+                    if (SimulateOpenEngine != null) return SimulateOpenEngine();
+#endif
+                    return new LiteEngine(_settings);
+                }
+                catch (IOException) when (recoveredAbandonedOwner && attempt < retries)
+                {
+                    // On Windows an abandoned mutex can become available just before
+                    // the dead process' file handles finish closing. Keep ownership
+                    // while the transient sharing violation clears.
+                    Thread.Sleep(20);
+                }
             }
         }
 
