@@ -23,6 +23,9 @@ namespace LiteDB.Engine
 #if TESTING
         internal Action BeforeTransactionAdmission { get; set; }
 #endif
+#if DEBUG || TESTING
+        internal Action BeforeExclusiveAdmission { get; set; }
+#endif
 
         internal LockService(EnginePragmas pragmas)
         {
@@ -90,6 +93,9 @@ namespace LiteDB.Engine
         /// </summary>
         public bool EnterExclusive()
         {
+#if DEBUG || TESTING
+            BeforeExclusiveAdmission?.Invoke();
+#endif
             // if current thread already in exclusive mode
             if (_transaction.IsWriteLockHeld) return false;
 
