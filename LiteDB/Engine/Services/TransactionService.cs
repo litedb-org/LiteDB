@@ -151,6 +151,7 @@ namespace LiteDB.Engine
         private int PersistDirtyPages(bool commit)
         {
             var dirty = 0;
+            var deletedTailLinked = false;
 
             // inner method to get all dirty pages
             IEnumerable<PageBuffer> source()
@@ -188,6 +189,7 @@ namespace LiteDB.Engine
 
                         // and now, set header free list page to this new list
                         _header.FreeEmptyPageList = _transPages.FirstDeletedPageID;
+                        deletedTailLinked = true;
                     }
 
                     page.Item.UpdateBuffer();
@@ -198,6 +200,26 @@ namespace LiteDB.Engine
 
                     dirty++;
 
+                }
+
+                // A safepoint can persist and evict every deleted page before
+                // Commit. Re-emit the tail so it links the new deleted-page
+                // chain to the previous header free list before publishing the
+                // header that points at the chain's head.
+                if (commit && _transPages.DeletedPages > 0 && !deletedTailLinked)
+                {
+                    ENSURE(_transPages.DirtyPages.TryGetValue(_transPages.LastDeletedPageID, out var position),
+                        "deleted tail must have a persisted WAL position");
+                    var buffer = _reader.ReadPage(position.Position, true, FileOrigin.Log);
+                    var tail = BasePage.ReadPage<BasePage>(buffer);
+                    ENSURE(tail.PageType == PageType.Empty, "deleted tail must be an empty page");
+                    tail.NextPageID = _header.FreeEmptyPageList;
+                    tail.TransactionID = _transactionID;
+                    tail.IsConfirmed = false;
+                    _header.FreeEmptyPageList = _transPages.FirstDeletedPageID;
+                    tail.UpdateBuffer();
+                    yield return tail.TakeBuffer();
+                    dirty++;
                 }
 
                 // A final safepoint can leave every changed page on disk. Append
