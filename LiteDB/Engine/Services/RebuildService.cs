@@ -131,6 +131,7 @@ namespace LiteDB.Engine
             catch (Exception installException)
             {
                 var rollbackErrors = new List<Exception>();
+                var sourceIsLive = !movedSource;
 
                 TryRollback(() =>
                 {
@@ -151,11 +152,17 @@ namespace LiteDB.Engine
                     SimulateInstallFailure?.Invoke("before-source-rollback");
 #endif
                     if (movedSource && File.Exists(backupFilename))
+                    {
                         File.Move(backupFilename, _settings.Filename);
+                        sourceIsLive = true;
+                    }
                 }, rollbackErrors);
 
                 TryRollback(() =>
                 {
+                    // The original WAL is only compatible with the original data
+                    // file. Keep it at the backup path when data restoration failed.
+                    if (!sourceIsLive) return;
 #if DEBUG || TESTING
                     SimulateInstallFailure?.Invoke("before-log-rollback");
 #endif
