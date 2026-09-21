@@ -24,7 +24,8 @@ public partial class BsonMapper
             return mapper;
         }
 
-        using var cts = new CancellationTokenSource();
+        var cts = new CancellationTokenSource();
+        var published = false;
         try
         {
             // We need to add the empty shell, because ``BuildEntityMapper`` may use this method recursively
@@ -32,10 +33,12 @@ public partial class BsonMapper
             mapper = _entities.GetOrAdd(type, newMapper);
             if (ReferenceEquals(mapper, newMapper))
             {
+                published = true;
                 try
                 {
                     this.BuildEntityMapper(mapper);
                     mapper.IsInitialized = true;
+                    published = true;
                 }
                 catch (Exception ex)
                 {
@@ -49,6 +52,9 @@ public partial class BsonMapper
         {
             // Allow the Mapper to be used for de-/serialization
             cts.Cancel();
+            // A published mapper retains this token. Disposing its source can race
+            // with another caller acquiring the token's wait handle.
+            if (!published) cts.Dispose();
         }
 
         return mapper;
