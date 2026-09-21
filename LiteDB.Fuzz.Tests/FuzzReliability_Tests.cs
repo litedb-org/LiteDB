@@ -73,6 +73,21 @@ public sealed class FuzzReliability_Tests
     }
 
     [Fact]
+    public async Task Equal_signatures_from_different_seeds_keep_distinct_inputs()
+    {
+        using var root = new TemporaryDirectory();
+        var first = await CreateInterestingRun(root.Path, 101);
+        var second = await CreateInterestingRun(root.Path, 202);
+
+        FuzzArtifacts.MergeInterestingCorpus(new[] { first, second }, root.Path);
+
+        var retained = FuzzCorpus.LoadInteresting(root.Path);
+        Assert.Equal(2, retained.Count);
+        Assert.Equal(2, retained.Select(item => item.InputFile).Distinct().Count());
+        Assert.All(retained, item => Assert.True(File.Exists(Path.Combine(root.Path, item.InputFile))));
+    }
+
+    [Fact]
     public async Task Oracle_mutations_use_and_fail_the_real_verification_paths()
     {
         using var directory = new TemporaryDirectory();
@@ -141,6 +156,17 @@ public sealed class FuzzReliability_Tests
     {
         using var random = new FuzzInputRandom(seed, path, null);
         return PowerLossScenario.Generate(random, 5);
+    }
+
+    private static async Task<RunResult> CreateInterestingRun(string root, int seed)
+    {
+        var run = Path.Combine(root, "run-" + seed);
+        using var context = new FuzzContext("collision-probe", seed, 1, null, run);
+        Assert.True(context.Next());
+        _ = context.Random.Next();
+        context.ObserveNovelty("same-signature", 1);
+        await FuzzArtifacts.WriteResultAsync(context, DateTimeOffset.UtcNow, null);
+        return new RunResult("collision-probe", seed, run, true);
     }
 
     private sealed class TemporaryDirectory : IDisposable

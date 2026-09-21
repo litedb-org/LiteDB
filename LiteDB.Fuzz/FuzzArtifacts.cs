@@ -169,7 +169,8 @@ internal static class FuzzArtifacts
             {
                 var novelty = FuzzCorpus.ParseInteresting(line);
                 if (novelty?.Signature == null) continue;
-                var relativeInput = Path.Combine("interesting-inputs", Safe(novelty.Signature) + ".bin");
+                var relativeInput = Path.Combine("interesting-inputs",
+                    $"{Safe(novelty.Target)}-s{novelty.Seed}-{Safe(novelty.Signature)}.bin");
                 var input = Path.Combine(result.Directory, "input.bin");
                 var count = Math.Max(1, novelty.Count);
                 var item = novelty with
@@ -200,8 +201,8 @@ internal static class FuzzArtifacts
 
         void Add(InterestingCandidate candidate)
         {
-            var key = candidate.Case.Signature ??
-                $"{candidate.Case.Target}:{candidate.Case.Seed}:{candidate.Case.Count}";
+            var key = $"{candidate.Case.Target}:{candidate.Case.Seed}:" +
+                (candidate.Case.Signature ?? candidate.Case.Count.ToString(CultureInfo.InvariantCulture));
             if (!entries.TryGetValue(key, out var retainedCandidate) ||
                 candidate.Case.Count > retainedCandidate.Case.Count ||
                 candidate.Case.Count == retainedCandidate.Case.Count &&

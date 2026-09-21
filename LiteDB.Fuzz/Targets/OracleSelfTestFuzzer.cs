@@ -10,12 +10,10 @@ internal sealed class OracleSelfTestFuzzer : IFuzzTarget
         var killed = 0;
         while (context.Next())
         {
-            var expected = new[] { Document(1, 10), Document(2, 20) };
-            killed += Reject(() => FuzzOracle.VerifyExactDocuments(context,
-                new[] { Document(1, 10) }, expected, "acknowledged commit loss"));
-            killed += Reject(() => FuzzOracle.VerifyAtomicDocuments(context,
-                new[] { Document(1, 10), Document(2, 999) }, expected, expected,
-                "partial transaction"));
+            killed += Reject(() => FuzzOracle.VerifyAtomicState(context,
+                false, false, false, false, "acknowledged commit loss"));
+            killed += Reject(() => FuzzOracle.VerifyAtomicState(context,
+                true, false, false, true, "mixed transaction branches"));
             killed += Reject(() => FuzzOracle.VerifyCrashMarker(context,
                 "3|outer-after-commit", "4|outer-after-commit"));
             killed += Reject(() => FuzzOracle.VerifyBsonValue(context, 20, 10,
@@ -36,11 +34,15 @@ internal sealed class OracleSelfTestFuzzer : IFuzzTarget
 
     private static int Reject(Action verification)
     {
-        try { verification(); }
-        catch (FuzzFailureException) { return 1; }
+        try
+        {
+            verification();
+        }
+        catch (FuzzFailureException)
+        {
+            return 1;
+        }
         throw new FuzzFailureException("ORACLE_MUTATION_SURVIVED",
             "A controlled mutation survived a real fuzz-target verification path.");
     }
-
-    private static BsonDocument Document(int id, int value) => new() { ["_id"] = id, ["value"] = value };
 }

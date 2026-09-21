@@ -9,15 +9,12 @@ internal static class FuzzOracle
         actual.Zip(expected, (left, right) => BsonSerializer.Serialize(left)
             .SequenceEqual(BsonSerializer.Serialize(right))).All(equal => equal);
 
-    internal static void VerifyExactDocuments(FuzzContext context, IReadOnlyList<BsonDocument> actual,
-        IReadOnlyList<BsonDocument> expected, string message,
+    internal static void VerifyAtomicState(FuzzContext context,
+        bool acknowledgedDocuments, bool acknowledgedFile,
+        bool inFlightDocuments, bool inFlightFile, string message,
         [CallerFilePath] string file = "", [CallerLineNumber] int line = 0) =>
-        context.Check(DocumentsEqual(actual, expected), message, file, line);
-
-    internal static void VerifyAtomicDocuments(FuzzContext context, IReadOnlyList<BsonDocument> actual,
-        IReadOnlyList<BsonDocument> acknowledged, IReadOnlyList<BsonDocument> inFlight, string message,
-        [CallerFilePath] string file = "", [CallerLineNumber] int line = 0) =>
-        context.Check(DocumentsEqual(actual, acknowledged) || DocumentsEqual(actual, inFlight), message, file, line);
+        context.Check(acknowledgedDocuments && acknowledgedFile ||
+            inFlightDocuments && inFlightFile, message, file, line);
 
     internal static void VerifyCrashMarker(FuzzContext context, string actual, string expected,
         [CallerFilePath] string file = "", [CallerLineNumber] int line = 0) =>

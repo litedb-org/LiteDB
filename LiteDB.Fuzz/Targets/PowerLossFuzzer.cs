@@ -127,15 +127,16 @@ internal sealed class PowerLossFuzzer : IFuzzTarget
                 .OrderBy(document => document["_id"]).ToArray();
             isCommitted = FuzzOracle.DocumentsEqual(actual, acknowledgedDocuments);
             var includesInFlight = FuzzOracle.DocumentsEqual(actual, possibleDocuments);
-            FuzzOracle.VerifyAtomicDocuments(context, actual, acknowledgedDocuments, possibleDocuments,
-                "Power loss exposed a partially durable transaction.");
-            context.Check(!acknowledged || isCommitted || includesInFlight,
-                "Power loss discarded a commit that had already been acknowledged.");
             using var output = new MemoryStream();
             recovered.FileStorage.Download("power-file", output);
-            context.Check(output.ToArray().SequenceEqual(acknowledgedFile) ||
-                inFlightFile != null && output.ToArray().SequenceEqual(inFlightFile),
-                "Power loss exposed a partial FileStorage replacement.");
+            var recoveredFile = output.ToArray();
+            var acknowledgedFileMatches = recoveredFile.SequenceEqual(acknowledgedFile);
+            var inFlightFileMatches = inFlightFile != null && recoveredFile.SequenceEqual(inFlightFile);
+            FuzzOracle.VerifyAtomicState(context, isCommitted, acknowledgedFileMatches,
+                includesInFlight, inFlightFileMatches,
+                "Power loss mixed document and FileStorage states from different transactions.");
+            context.Check(!acknowledged || isCommitted || includesInFlight,
+                "Power loss discarded a commit that had already been acknowledged.");
             var values = rows.Query().OrderBy("Value").ToArray().Select(row => row["Value"].AsInt32).ToArray();
             FuzzOracle.VerifySequence(context, values,
                 actual.Select(row => row["Value"].AsInt32).OrderBy(value => value),
