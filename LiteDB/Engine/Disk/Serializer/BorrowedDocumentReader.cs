@@ -37,10 +37,14 @@ namespace LiteDB.Engine
         private void ReadDocument(BufferReader reader, ulong active, int depth,
             BorrowedValueBuffer values, ref ulong found)
         {
+            ENSURE(depth < BufferReader.MAX_BSON_NESTING_DEPTH,
+                "BSON nesting depth exceeds the supported limit");
             var length = reader.ReadInt32();
-            ENSURE(length >= 5, "BSON document length must be at least 5 bytes");
+            ENSURE(length >= 5 && length <= MAX_DOCUMENT_SIZE,
+                "BSON document length must include its terminator and stay within the document limit");
 
-            var end = reader.Position + length - 5;
+            var end = (long)reader.Position + length - 5;
+            ENSURE(end <= int.MaxValue, "BSON document length exceeds the supported buffer range");
 
             while (reader.Position < end)
             {
@@ -73,7 +77,7 @@ namespace LiteDB.Engine
                 }
                 else
                 {
-                    this.ReadOrSkipValue(reader, type, terminal, values, ref found);
+                    this.ReadOrSkipValue(reader, type, terminal, depth, end, values, ref found);
                 }
             }
 
@@ -126,12 +130,12 @@ namespace LiteDB.Engine
             return matches;
         }
 
-        private void ReadOrSkipValue(BufferReader reader, byte type, ulong terminal,
+        private void ReadOrSkipValue(BufferReader reader, byte type, ulong terminal, int depth, long containerEnd,
             BorrowedValueBuffer values, ref ulong found)
         {
             if (terminal == 0)
             {
-                SkipValue(reader, type);
+                BsonElementReader.SkipValue(reader, type, depth + 1, containerEnd);
                 return;
             }
 
@@ -144,20 +148,21 @@ namespace LiteDB.Engine
                     break;
                 case 0x02:
                     var stringLength = reader.ReadInt32();
-                    ENSURE(stringLength > 0, "BSON string length must include a terminator");
+                    ENSURE(stringLength >= 1 && stringLength <= MAX_DOCUMENT_SIZE,
+                        "BSON string length must include a terminator and stay within the document limit");
                     value = BorrowedBsonValue.FromString(reader.ReadString(stringLength - 1));
                     ENSURE(reader.ReadByte() == 0, "missing BSON string terminator");
                     break;
                 case 0x03:
                     value = BorrowedBsonValue.FromType(BsonType.Document);
-                    SkipContainer(reader);
+                    BsonElementReader.SkipValue(reader, type, depth + 1, containerEnd);
                     break;
                 case 0x04:
                     value = BorrowedBsonValue.FromType(BsonType.Array);
-                    SkipContainer(reader);
+                    BsonElementReader.SkipValue(reader, type, depth + 1, containerEnd);
                     break;
                 case 0x05:
-                    value = this.ReadBinary(reader);
+                    value = this.ReadBinary(reader, containerEnd);
                     break;
                 case 0x07:
                     value = BorrowedBsonValue.FromType(BsonType.ObjectId);
@@ -198,13 +203,11 @@ namespace LiteDB.Engine
             this.SetTerminalValues(terminal, value, values, ref found);
         }
 
-        private BorrowedBsonValue ReadBinary(BufferReader reader)
+        private BorrowedBsonValue ReadBinary(BufferReader reader, long containerEnd)
         {
-            var length = reader.ReadInt32();
-            ENSURE(length >= 0, "BSON binary length must not be negative");
-            var subtype = reader.ReadByte();
+            var length = BsonElementReader.ReadBinaryHeader(reader, out var subtype, containerEnd);
 
-            if (subtype == 0x04 && length == 16)
+            if (subtype == 0x04)
             {
                 return BorrowedBsonValue.FromGuid(reader.ReadGuid());
             }
@@ -220,49 +223,6 @@ namespace LiteDB.Engine
 
             var date = BsonValue.UnixEpoch.AddMilliseconds(timestamp);
             return _utcDate ? date : date.ToLocalTime();
-        }
-
-        private static void SkipValue(BufferReader reader, byte type)
-        {
-            switch (type)
-            {
-                case 0x0A:
-                case 0x7F:
-                case 0xFF: return;
-                case 0x08: reader.Skip(1); return;
-                case 0x10: reader.Skip(4); return;
-                case 0x01:
-                case 0x09:
-                case 0x12: reader.Skip(8); return;
-                case 0x07: reader.Skip(12); return;
-                case 0x13: reader.Skip(16); return;
-                case 0x02:
-                    var stringLength = reader.ReadInt32();
-                    ENSURE(stringLength > 0, "BSON string length must include a terminator");
-                    reader.Skip(stringLength);
-                    return;
-                case 0x03:
-                case 0x04:
-                    SkipContainer(reader);
-                    return;
-                case 0x05:
-                    var binaryLength = reader.ReadInt32();
-                    ENSURE(binaryLength >= 0, "BSON binary length must not be negative");
-                    reader.Skip(checked(binaryLength + 1));
-                    return;
-                case 0x64:
-                    reader.Skip(checked(reader.ReadUInt16() * 4));
-                    return;
-                default:
-                    throw new NotSupportedException("BSON type not supported");
-            }
-        }
-
-        private static void SkipContainer(BufferReader reader)
-        {
-            var length = reader.ReadInt32();
-            ENSURE(length >= 5, "BSON container length must be at least 5 bytes");
-            reader.Skip(length - 4);
         }
 
         private void SetTerminalTypes(ulong terminal, BsonType type,
