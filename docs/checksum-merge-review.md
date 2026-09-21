@@ -27,6 +27,7 @@ syncs must persist bytes.
 | Does migration preserve unused preallocation? | `AutomaticConversion_PreservesUnusedPreallocation`. | Padding stays zero and later allocation/checkpoint/reopen works. |
 | Can an older engine append commits after interrupted conversion? | `LegacyCommitsAfterAConversionFooter_AreReplayedBeforeConversion` and the separate-process 5.0.21 compatibility runner. | Later commits survive read-only recovery, writable conversion, and reopening, with and without a legacy checkpoint. |
 | Can encrypted disposal undo WAL truncation? | `DisposingAfterCheckpoint_DoesNotReextendTheTruncatedWal`. | The truncated writer position is clamped before CryptoStream disposal. |
+| Do CI platform labels describe the process executing the tests? | `RequestedRuntimeAndArchitecture_AreActuallyRunning` and `LoadedLibrary_ContainsTheRequiredEngineTestHooks`, required by `scripts/run-ci-tests.ps1` even for filtered runs. | Each modern-runtime job pins an isolated test host and asserts its runtime major and architecture. Windows x86 selects an x86 host; Linux ARM64 uses a native runner. A mismatched runtime was observed to fail the guard during local validation. |
 
 Run the focused matrix with:
 
@@ -39,6 +40,12 @@ runs the released LiteDB 5.0.21 in another process against interrupted conversio
 normal conversion, encrypted files, and the v10 rejection boundary. CI must pass
 on the final PR commit before merging; superseded runs do not substitute for
 that gate.
+
+The shared-mode CI tests use concurrent tasks, not separate processes. Their
+workers await completion without nested blocking thread-pool waits, retain the
+30-second deadline and document-count assertions, and finish cancellation before
+fixture cleanup. The legacy compatibility runner does launch separate processes.
+Do not infer broader process-locking coverage from the shared-mode test names.
 
 ## Acceptance boundaries
 

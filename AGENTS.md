@@ -21,6 +21,14 @@ PR diff, with limits fixed at their size before the check was introduced.
 ## Testing Guidelines
 Tests are written with xUnit and FluentAssertions; mirror the production folder names (`Engine`, `Query`, `Issues`, etc.) when adding scenarios. Name files after the type under test and choose expressive `[Fact]` / `[Theory]` method names describing the behavior. Long-running tests must finish within the 300-second session timeout defined in `tests.runsettings`; run focused suites with `dotnet test LiteDB.Tests --filter FullyQualifiedName~Engine` to triage regressions quickly.
 
+CI runs prebuilt tests through `scripts/run-ci-tests.ps1`, which selects an isolated
+runtime and checks the actual test-host runtime, architecture, and engine test
+hooks. Keep these guards in filtered runs. Restore `TestingEnabled=true` outputs
+after production compatibility/measurement builds before packaging test artifacts.
+Linux ARM64 uses a native ARM64 runner; Windows x86 uses an x86 test host.
+`CrossProcess_Shared_Tests` exercises concurrent tasks in one process; do not cite
+it as evidence of separate-process locking.
+
 ## Commit & Pull Request Guidelines
 Commits use concise, present-tense subject lines (e.g., `Add test run settings`) and may reference issues inline (`Fix #123`). Each PR should describe the problem, the approach, and include before/after notes or perf metrics when touching storage internals. Link to tracking issues, attach shell transcripts or benchmarks where relevant, and confirm `dotnet test` output so reviewers can spot regressions.
 
