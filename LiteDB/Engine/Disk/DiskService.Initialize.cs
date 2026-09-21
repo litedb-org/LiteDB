@@ -11,6 +11,12 @@ namespace LiteDB.Engine
         /// </summary>
         private void Initialize(Stream stream, Collation collation, long initialSize, bool compactByDefault)
         {
+            if (initialSize > 0)
+            {
+                if (stream is AesStream) throw LiteException.InitialSizeCryptoNotSupported();
+                if (initialSize % PAGE_SIZE != 0) throw LiteException.InvalidInitialSize();
+            }
+
             var buffer = new PageBuffer(new byte[PAGE_SIZE], 0, 0);
             var header = new HeaderPage(buffer, 0);
 
@@ -25,8 +31,6 @@ namespace LiteDB.Engine
 
             if (initialSize > 0)
             {
-                if (stream is AesStream) throw LiteException.InitialSizeCryptoNotSupported();
-                if (initialSize % PAGE_SIZE != 0) throw LiteException.InvalidInitialSize();
                 stream.SetLength(initialSize);
             }
 

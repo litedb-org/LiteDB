@@ -94,11 +94,19 @@ internal static class Program
         ["Payload"] = BitConverter.GetBytes(mixed)
     };
 
-    private static LiteDatabase Open(string file, string password) => new(new ConnectionString
+    private static LiteDatabase Open(string file, string password)
     {
-        Filename = file,
-        Password = password
-    });
+        var connection = new ConnectionString
+        {
+            Filename = file,
+            Password = password
+        };
+#if CURRENT_LITEDB
+        // This differential intentionally produces files that LiteDB 5.0.21 can open.
+        connection.CompactStorage = CompactStorageMode.Legacy;
+#endif
+        return new LiteDatabase(connection);
+    }
 
     private static uint Mix(int seed, int value)
     {
