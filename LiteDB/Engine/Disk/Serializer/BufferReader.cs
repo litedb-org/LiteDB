@@ -417,6 +417,7 @@ namespace LiteDB.Engine
                 }
 
                 if (_position < end) this.Skip((int)end - _position);
+                ENSURE(_position == end, "document element exceeds its declared container boundary");
                 ENSURE(this.ReadByte() == 0, "document must end with a null terminator");
 
                 return doc;
@@ -448,6 +449,7 @@ namespace LiteDB.Engine
                     arr.Add(value);
                 }
 
+                ENSURE(_position == end, "array element exceeds its declared container boundary");
                 ENSURE(this.ReadByte() == 0, "array must end with a null terminator");
 
                 return arr;

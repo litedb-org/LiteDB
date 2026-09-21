@@ -38,5 +38,13 @@ namespace LiteDB.Tests.Issues
             Action read = () => BsonSerializer.Deserialize(bytes);
             read.Should().Throw<LiteException>();
         }
+
+        [Fact]
+        public void Element_cannot_overrun_its_declared_container_boundary()
+        {
+            var bytes = new byte[] { 7, 0, 0, 0, 0x08, 0, 1, 0 };
+            Action read = () => BsonSerializer.Deserialize(bytes);
+            read.Should().Throw<LiteException>();
+        }
     }
 }
