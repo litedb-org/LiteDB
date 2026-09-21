@@ -190,17 +190,20 @@ namespace LiteDB.Engine
                         }
                     }, rollbackErrors);
 
-                    TryRollback(() =>
+                }
+
+                TryRollback(() =>
+                {
+                    // Prefer the completed replacement at the live path whenever
+                    // restoration of the original data/WAL pair did not finish.
+                    if (!sourceIsLive && File.Exists(tempFilename) && !File.Exists(_settings.Filename))
                     {
 #if DEBUG || TESTING
                         SimulateInstallFailure?.Invoke("before-candidate-republish");
 #endif
-                        // Prefer the completed replacement at the live path when
-                        // restoration of the original data/WAL pair did not finish.
-                        if (!sourceIsLive && File.Exists(tempFilename) && !File.Exists(_settings.Filename))
-                            File.Move(tempFilename, _settings.Filename);
-                    }, rollbackErrors);
-                }
+                        File.Move(tempFilename, _settings.Filename);
+                    }
+                }, rollbackErrors);
 
                 if (rollbackErrors.Count > 0)
                     installException.Data["LiteDB.Rebuild.RollbackErrors"] = new AggregateException(rollbackErrors);
