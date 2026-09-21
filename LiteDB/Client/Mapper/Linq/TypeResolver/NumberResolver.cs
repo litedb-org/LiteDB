@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -18,26 +18,26 @@ namespace LiteDB
             _parseMethod = parseMethod;
         }
 
-        public string ResolveMethod(MethodInfo method)
+        public LinqExpressionBinding ResolveMethod(MethodInfo method)
         {
             switch (method.Name)
             {
                 // instance methods
                 case "ToString":
                     var pars = method.GetParameters();
-                    if (pars.Length == 0) return "STRING(#)";
-                    else if (pars.Length == 1 && pars[0].ParameterType == typeof(string)) return "FORMAT(#, @0)";
+                    if (pars.Length == 0) return c => c.Call("STRING", c.Object());
+                    else if (pars.Length == 1 && pars[0].ParameterType == typeof(string)) return c => c.Call("FORMAT", c.Object(), c.Argument(0));
                     break;
 
                 // static methods
-                case "Parse": return $"{_parseMethod}(@0)";
-                case "Equals": return "# = @0";
+                case "Parse": return c => c.Call(_parseMethod, c.Argument(0));
+                case "Equals": return c => c.Binary("=", c.Object(), c.Argument(0));
             };
 
             return null;
         }
 
-        public string ResolveMember(MemberInfo member) => null;
-        public string ResolveCtor(ConstructorInfo ctor) => null;
+        public LinqExpressionBinding ResolveMember(MemberInfo member) => null;
+        public LinqExpressionBinding ResolveCtor(ConstructorInfo ctor) => null;
     }
 }

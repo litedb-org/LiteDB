@@ -122,37 +122,6 @@ namespace LiteDB.Engine
         public MemoryCache Cache => _cache;
 
         /// <summary>
-        /// Create a new empty database (use synced mode)
-        /// </summary>
-        private void Initialize(Stream stream, Collation collation, long initialSize, bool compactByDefault)
-        {
-            var buffer = new PageBuffer(new byte[PAGE_SIZE], 0, 0);
-            var header = new HeaderPage(buffer, 0);
-
-            if (compactByDefault)
-            {
-                header.EnsureVersion(HeaderPage.COMPACT_FILE_VERSION);
-            }
-
-            // update collation
-            header.Pragmas.Set(Pragmas.COLLATION, (collation ?? Collation.Default).ToString(), false);
-
-            // update buffer
-            header.UpdateBuffer();
-
-            stream.Write(buffer.Array, buffer.Offset, PAGE_SIZE);
-
-            if (initialSize > 0)
-            {
-                if (stream is AesStream) throw LiteException.InitialSizeCryptoNotSupported();
-                if (initialSize % PAGE_SIZE != 0) throw LiteException.InvalidInitialSize();
-                stream.SetLength(initialSize);
-            }
-
-            stream.FlushToDisk();
-        }
-
-        /// <summary>
         /// Get a new instance for read data/log pages. This instance are not thread-safe - must request 1 per thread (used in Transaction)
         /// </summary>
         public DiskReader GetReader()
@@ -248,8 +217,12 @@ namespace LiteDB.Engine
                         _state.SimulateDiskWriteFail?.Invoke(page);
 #endif
 
+                        this.CrashPoint(page.ReadBool(BasePage.P_IS_CONFIRMED) ?
+                            "wal-confirmation-before-write" : "wal-page-before-write");
                         this.PreserveFileVersion(page);
                         stream.Write(page.Array, page.Offset, PAGE_SIZE);
+                        this.CrashPoint(page.ReadBool(BasePage.P_IS_CONFIRMED) ?
+                            "wal-confirmation-after-write" : "wal-page-after-write");
                         hasConfirmation |= page.ReadBool(BasePage.P_IS_CONFIRMED);
 
                         // Publish only after the bytes are written to the stream.
@@ -288,7 +261,9 @@ namespace LiteDB.Engine
                 {
                     try
                     {
+                        this.CrashPoint("wal-before-durable-flush");
                         this.FlushConfirmedLog(stream);
+                        this.CrashPoint("wal-after-durable-flush");
                     }
                     catch (Exception ex)
                     {
@@ -411,11 +386,15 @@ namespace LiteDB.Engine
 
                 stream.Position = page.Position;
 
+                this.CrashPoint("checkpoint-before-page-write");
                 this.PreserveFileVersion(page);
                 stream.Write(page.Array, page.Offset, PAGE_SIZE);
+                this.CrashPoint("checkpoint-after-page-write");
             }
 
+            this.CrashPoint("checkpoint-before-data-flush");
             stream.FlushToDisk();
+            this.CrashPoint("checkpoint-after-data-flush");
         }
 
         /// <summary>

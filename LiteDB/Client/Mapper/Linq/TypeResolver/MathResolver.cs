@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,23 +11,23 @@ namespace LiteDB
 {
     internal class MathResolver : ITypeResolver
     {
-        public string ResolveMethod(MethodInfo method)
+        public LinqExpressionBinding ResolveMethod(MethodInfo method)
         {
             var qtParams = method.GetParameters().Length;
 
             switch (method.Name)
             {
-                case "Abs": return "ABS(@0)";
-                case "Pow": return "POW(@0, @1)";
+                case "Abs": return c => c.Call("ABS", c.Argument(0));
+                case "Pow": return c => c.Call("POW", c.Argument(0), c.Argument(1));
                 case "Round":
                     if (qtParams != 2 || method.GetParameters()[1].ParameterType != typeof(int)) return null;
-                    return "ROUND(@0, @1)";
+                    return c => c.Call("ROUND", c.Argument(0), c.Argument(1));
             }
 
             return null;
         }
 
-        public string ResolveMember(MemberInfo member) => null;
-        public string ResolveCtor(ConstructorInfo ctor) => null;
+        public LinqExpressionBinding ResolveMember(MemberInfo member) => null;
+        public LinqExpressionBinding ResolveCtor(ConstructorInfo ctor) => null;
     }
 }

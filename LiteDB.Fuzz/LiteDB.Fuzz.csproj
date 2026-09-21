@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <AssemblyName>LiteDB.Fuzz</AssemblyName>
+    <RootNamespace>LiteDB.Fuzz</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\LiteDB\LiteDB.csproj" AdditionalProperties="TestingEnabled=true" />
+    <Compile Include="..\LiteDB.Tests\Mapper\StableRandom.cs" Link="StableRandom.cs" />
+    <Compile Include="..\LiteDB.Tests\Mapper\LinqCacheFuzzGenerator.cs" Link="Targets\LinqCacheFuzzGenerator.cs" />
+    <None Include="Corpus\regressions.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\LiteDB.Tests\Resources\Issue2255_Before2753.db" Link="Corpus\Legacy\Issue2255_Before2753.db" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\LiteDB.Tests\Resources\v4.db" Link="Corpus\Legacy\v4.db" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\LiteDB.Tests\Resources\Issue_2494_EncryptedV4.db" Link="Corpus\Legacy\Issue_2494_EncryptedV4.db" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

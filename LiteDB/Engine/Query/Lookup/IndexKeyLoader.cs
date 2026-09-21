@@ -9,12 +9,14 @@ namespace LiteDB.Engine
     /// </summary>
     internal class IndexLookup : IDocumentLookup
     {
+        private readonly IndexService _indexer;
         private readonly string _name;
         private readonly IDocumentLookup _documentLookup;
         private readonly bool _utcDate;
 
-        public IndexLookup(string name, IDocumentLookup documentLookup, bool utcDate)
+        public IndexLookup(IndexService indexer, string name, IDocumentLookup documentLookup, bool utcDate)
         {
+            _indexer = indexer;
             _name = name;
             _documentLookup = documentLookup;
             _utcDate = utcDate;
@@ -27,14 +29,22 @@ namespace LiteDB.Engine
             // Index keys use legacy date decoding for comparisons. Read date-bearing
             // projections from the document to honor UtcDate and preserve the stored
             // value without changing the interpretation/order of existing indexes.
-            if (ContainsDate(node.Key)) return this.Load(node.DataBlock);
+            if (ContainsDate(node.Key))
+            {
+                var document = _documentLookup.Load(node.DataBlock);
+                document = _utcDate ? document : ConvertDates(document).AsDocument;
+                document.RawId = node.Position;
+                return document;
+            }
 
             var doc = new BsonDocument
             {
                 [_name] = node.Key,
             };
 
-            doc.RawId = node.DataBlock;
+            // Sort and aggregate replay return this address to this same lookup.
+            // It loads index nodes, so retain their positions rather than data blocks.
+            doc.RawId = node.Position;
 
             return doc;
         }
@@ -57,9 +67,7 @@ namespace LiteDB.Engine
 
         public BsonDocument Load(PageAddress rawId)
         {
-            // RawId is a data-block address, including sort and aggregate replay.
-            var document = _documentLookup.Load(rawId);
-            return _utcDate ? document : ConvertDates(document).AsDocument;
+            return this.Load(_indexer.GetNode(rawId));
         }
 
         private static BsonValue ConvertDates(BsonValue value)

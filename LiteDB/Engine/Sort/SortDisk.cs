@@ -83,6 +83,9 @@ namespace LiteDB.Engine
         /// </summary>
         public void Write(long position, BufferSlice buffer)
         {
+#if DEBUG || TESTING
+            EngineState.ObserveSortSpill?.Invoke(position);
+#endif
             var writer = _pool.Writer.Value;
 
             // there is only a single writer instance, must be lock to ensure only 1 single thread are writing

@@ -376,7 +376,13 @@ namespace LiteDB.Engine
             _disk.WriteDataDisk(source());
 
             // clear log file, clear wal index, memory cache,
+#if DEBUG || TESTING
+            _disk.TestCrashPoint("checkpoint-before-clear");
+#endif
             this.Clear();
+#if DEBUG || TESTING
+            _disk.TestCrashPoint("checkpoint-after-clear");
+#endif
 
             return counter;
         }

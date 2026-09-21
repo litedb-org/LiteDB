@@ -56,7 +56,7 @@ namespace LiteDB.Engine
             Func<SchemaCatalog> catalog = null, bool utcDate = false, string collection = null, PageAddress address = default)
         {
             var discriminator = reader.ReadInt32();
-            if (discriminator >= 5) return reader.ReadDocument(fields, discriminator);
+            if (discriminator >= 5) return reader.ReadDocument(fields, storedLength: discriminator);
             CompactDocumentReader decoder = null;
             try
             {

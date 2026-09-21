@@ -18,6 +18,8 @@ namespace LiteDB.Engine
         /// </summary>
         public long Rebuild(RebuildOptions options)
         {
+            if (_settings.ReadOnly) throw new IOException("Cannot rebuild a read-only database.");
+
             // Every omitted option keeps its current value; conflicting options fail before the engine closes.
             options = options ?? new RebuildOptions();
             var password = options.ResolvePassword(_settings.Password);
@@ -25,6 +27,13 @@ namespace LiteDB.Engine
             if (string.IsNullOrEmpty(_settings.Filename)) return 0; // works only with os file
 
             var collation = options.Collation ?? new Collation(this.Pragma(Pragmas.COLLATION));
+
+            // Rebuild replaces the database files and all engine services. Wait for
+            // existing transactions to finish and prevent a new one from being
+            // admitted between that wait and Close(). Close disposes the old lock,
+            // so this exclusive lease intentionally is not released here.
+            if (_locker.IsInTransaction) throw LiteException.AlreadyExistsTransaction();
+            _locker.EnterExclusive();
 
             this.Close();
 

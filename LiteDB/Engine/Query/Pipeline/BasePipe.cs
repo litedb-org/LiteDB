@@ -8,7 +8,7 @@ namespace LiteDB.Engine
     /// <summary>
     /// Abstract class with workflow method to be used in pipeline implementation
     /// </summary>
-    internal abstract class BasePipe
+    internal abstract partial class BasePipe
     {
         protected readonly TransactionService _transaction;
         protected readonly IDocumentLookup _lookup;
@@ -158,10 +158,68 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
+        /// Evaluate all compatible residual filters while the BSON is still borrowed,
+        /// yielding only addresses that may need owning materialization.
+        /// </summary>
+        protected IEnumerable<IndexNode> FilterBorrowed(IEnumerable<IndexNode> source,
+            DatafileLookup lookup, BorrowedPredicateEvaluator predicate,
+            IReadOnlyList<BsonExpression> fallbackFilters)
+        {
+            using var values = new BorrowedValueBuffer(predicate.SlotCount);
+            var reader = lookup.CreateBorrowedReader(predicate);
+
+            try
+            {
+                foreach (var node in source)
+                {
+                    BorrowedQueryDiagnostics.Examined();
+                    BorrowedQueryDiagnostics.Executed();
+
+                    var supported = lookup.TryEvaluate(node, reader, predicate, values,
+                        _pragmas.Collation, out var matches);
+
+                    if (!supported)
+                    {
+                        BorrowedQueryDiagnostics.FellBack();
+                        matches = this.Matches(lookup.Load(node), fallbackFilters);
+                    }
+
+                    if (matches)
+                    {
+                        yield return node;
+                    }
+
+                    _transaction.Safepoint();
+                }
+            }
+            finally
+            {
+                reader.Dispose();
+            }
+        }
+
+        private bool Matches(BsonDocument document, IReadOnlyList<BsonExpression> filters)
+        {
+            for (var i = 0; i < filters.Count; i++)
+            {
+                var result = filters[i].ExecuteScalar(document, _pragmas.Collation);
+
+                if (!result.IsBoolean || !result.AsBoolean) return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
         /// ORDER BY: Sort documents according orderby expression and order asc/desc
         /// </summary>
         protected IEnumerable<BsonDocument> OrderBy(IEnumerable<BsonDocument> source, OrderBy orderBy, int offset, int limit)
         {
+            if (offset >= 0 && limit > 0 && (long)offset + limit <= TopNSort.MaximumCapacity)
+            {
+                foreach (var doc in this.OrderTopN(source, orderBy, offset, limit)) yield return doc;
+                yield break;
+            }
             var segments = orderBy.Segments;
 
             if (segments.Count == 1)
@@ -220,6 +278,120 @@ namespace LiteDB.Engine
                         _transaction.Safepoint();
                     }
                 }
+            }
+        }
+
+        /// <summary>
+        /// Sort by scalar keys extracted from borrowed BSON, retaining only the
+        /// owning key and address until the final window is known.
+        /// </summary>
+        protected IEnumerable<BsonDocument> OrderByBorrowed(IEnumerable<IndexNode> source,
+            DatafileLookup lookup, OrderBy orderBy, BorrowedScalarEvaluator scalar,
+            int offset, int limit)
+        {
+            var orders = orderBy.Segments.Select(x => x.Order).ToArray();
+            var keyValues = this.ExtractBorrowedKeys(source, lookup, orderBy, scalar, orders);
+
+            using (var sorter = new SortService(_tempDisk, orders, _pragmas))
+            {
+                sorter.Insert(keyValues);
+
+                LOG($"sort {sorter.Count} borrowed keys in {sorter.Containers.Count} containers", "SORT");
+
+                foreach (var keyValue in sorter.Sort().Skip(offset).Take(limit))
+                {
+                    yield return lookup.Load(keyValue.Value);
+                    _transaction.Safepoint();
+                }
+            }
+        }
+
+        private IEnumerable<KeyValuePair<BsonValue, PageAddress>> ExtractBorrowedKeys(
+            IEnumerable<IndexNode> source, DatafileLookup lookup, OrderBy orderBy,
+            BorrowedScalarEvaluator scalar, int[] orders)
+        {
+            using var borrowed = new BorrowedValueBuffer(scalar.SlotCount);
+            var reader = lookup.CreateBorrowedReader(scalar);
+
+            try
+            {
+                foreach (var node in source)
+                {
+                    var supported = lookup.ReadBorrowed(node, reader, borrowed, scalar.SlotCount);
+                    BsonValue key;
+
+                    if (scalar.ValueCount == 1)
+                    {
+                        if (!supported || !scalar.TryGetValue(borrowed, 0, out key))
+                        {
+                            key = orderBy.Segments[0].ExecuteScalar(
+                                lookup.Load(node), _pragmas.Collation);
+                        }
+                    }
+                    else
+                    {
+                        var values = new BsonValue[scalar.ValueCount];
+
+                        if (!supported || !scalar.TryGetValues(borrowed, values))
+                        {
+                            var document = lookup.Load(node);
+
+                            for (var i = 0; i < values.Length; i++)
+                            {
+                                values[i] = orderBy.Segments[i].ExecuteScalar(
+                                    document, _pragmas.Collation);
+                            }
+                        }
+
+                        key = SortKey.FromValues(values, orders);
+                    }
+
+                    yield return new KeyValuePair<BsonValue, PageAddress>(key, node.DataBlock);
+                    _transaction.Safepoint();
+                }
+            }
+            finally
+            {
+                reader.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// Build a direct-field result document from borrowed values without an
+        /// intermediate owning source document.
+        /// </summary>
+        protected IEnumerable<BsonDocument> ProjectBorrowed(IEnumerable<IndexNode> source,
+            DatafileLookup lookup, BorrowedProjectionEvaluator projection,
+            BsonExpression select)
+        {
+            using var borrowed = new BorrowedValueBuffer(projection.SlotCount);
+            var reader = lookup.CreateBorrowedReader(projection);
+            var defaultName = select.DefaultFieldName();
+
+            try
+            {
+                foreach (var node in source)
+                {
+                    var supported = lookup.ReadBorrowed(node, reader, borrowed, projection.SlotCount);
+
+                    if (supported && projection.TryProject(borrowed, out var result))
+                    {
+                        yield return result;
+                    }
+                    else
+                    {
+                        var value = select.ExecuteScalar(lookup.Load(node), _pragmas.Collation);
+                        yield return value.IsDocument
+                            ? value.AsDocument
+                            : new BsonDocument { [defaultName] = value, IsProjectionValue = true };
+                    }
+
+                    _transaction.Safepoint();
+                }
+            }
+            finally
+            {
+                reader.Dispose();
             }
         }
     }

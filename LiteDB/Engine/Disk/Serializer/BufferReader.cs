@@ -1,7 +1,7 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
-using System.IO;
+using System.Runtime.InteropServices;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -11,8 +11,13 @@ namespace LiteDB.Engine
     /// </summary>
     internal partial class BufferReader : IDisposable
     {
+        internal const int MAX_BSON_NESTING_DEPTH = 256;
         private IEnumerator<BufferSlice> _source;
+        private readonly DataService _dataSource;
         private readonly bool _utcDate;
+
+        private PageAddress _nextAddress;
+        private ulong _dataBlockCount;
 
         private BufferSlice _current;
         private int _currentPosition = 0; // position in _current
@@ -31,6 +36,7 @@ namespace LiteDB.Engine
         /// Indicate position are at end of last source array segment
         /// </summary>
         public bool IsEOF => _isEOF;
+        internal bool AllowZeroLengthDocument { get; set; }
 
         public BufferReader(byte[] buffer, bool utcDate = false)
             : this(new BufferSlice(buffer, 0, buffer.Length), utcDate)
@@ -40,6 +46,7 @@ namespace LiteDB.Engine
         public BufferReader(BufferSlice buffer, bool utcDate = false)
         {
             _source = null;
+            _dataSource = null;
             _utcDate = utcDate;
 
             _current = buffer;
@@ -47,6 +54,7 @@ namespace LiteDB.Engine
 
         public BufferReader(IEnumerable<BufferSlice> source, bool utcDate = false, ArrayPool<byte> bufferPool = null)
         {
+            _dataSource = null;
             _bufferPool = bufferPool ?? ArrayPool<byte>.Shared;
             _source = source.GetEnumerator();
             _utcDate = utcDate;
@@ -61,6 +69,26 @@ namespace LiteDB.Engine
                 _source.Dispose();
                 throw;
             }
+        }
+
+        internal BufferReader(DataService source, bool utcDate)
+        {
+            _source = null;
+            _dataSource = source;
+            _utcDate = utcDate;
+            _current = null;
+            _isEOF = true;
+        }
+
+        internal void Reset(PageAddress address)
+        {
+            ENSURE(_dataSource != null, "only a data-service reader can be reset");
+
+            _nextAddress = address;
+            _dataBlockCount = 0;
+            _currentPosition = 0;
+            _position = 0;
+            _isEOF = !_dataSource.TryRead(ref _nextAddress, ref _dataBlockCount, out _current);
         }
 
         #region Basic Read
@@ -82,14 +110,19 @@ namespace LiteDB.Engine
             // request new source array if _current all consumed
             if (_currentPosition == _current.Count)
             {
-                if (_source == null || _source.MoveNext() == false)
-                {
-                    _isEOF = true;
-                }
-                else
+                if (_source != null && _source.MoveNext())
                 {
                     _current = _source.Current;
                     _currentPosition = 0;
+                }
+                else if (_dataSource != null &&
+                    _dataSource.TryRead(ref _nextAddress, ref _dataBlockCount, out _current))
+                {
+                    _currentPosition = 0;
+                }
+                else
+                {
+                    _isEOF = true;
                 }
 
                 return true;
@@ -184,41 +217,28 @@ namespace LiteDB.Engine
 
         #region Read Numbers
         
-        private T ReadNumber<T>(Func<byte[], int, T> convert, int size)
+        private T ReadNumber<T>(int size) where T : struct
         {
-            T value;
-
-            // if fits in current segment, use inner array - otherwise copy from multiples segments
-            if (_currentPosition + size <= _current.Count)
+            if (this.TryGetContiguousSpan(size, out var source))
             {
-                value = convert(_current.Array, _current.Offset + _currentPosition);
-
+                var value = MemoryMarshal.Read<T>(source);
                 this.MoveForward(size);
-            }
-            else
-            {
-                var buffer = _bufferPool.Rent(size);
-                try
-                {
-                    this.Read(buffer, 0, size);
-
-                    value = convert(buffer, 0);
-                }
-                finally
-                {
-                    _bufferPool.Return(buffer, true);
-                }
+                return value;
             }
 
-            return value;
+            Span<byte> scratch = stackalloc byte[8];
+            var valueBytes = scratch.Slice(0, size);
+            this.Read(valueBytes);
+
+            return MemoryMarshal.Read<T>(valueBytes);
         }
 
-        public Int32 ReadInt32() => this.ReadNumber(BitConverter.ToInt32, 4);
-        public Int64 ReadInt64() => this.ReadNumber(BitConverter.ToInt64, 8);
-        public UInt16 ReadUInt16() => this.ReadNumber(BitConverter.ToUInt16, 2);
-        public UInt32 ReadUInt32() => this.ReadNumber(BitConverter.ToUInt32, 4);
-        public Single ReadSingle() => this.ReadNumber(BitConverter.ToSingle, 4);
-        public Double ReadDouble() => this.ReadNumber(BitConverter.ToDouble, 8);
+        public Int32 ReadInt32() => this.ReadNumber<Int32>(4);
+        public Int64 ReadInt64() => this.ReadNumber<Int64>(8);
+        public UInt16 ReadUInt16() => this.ReadNumber<UInt16>(2);
+        public UInt32 ReadUInt32() => this.ReadNumber<UInt32>(4);
+        public Single ReadSingle() => this.ReadNumber<Single>(4);
+        public Double ReadDouble() => this.ReadNumber<Double>(8);
 
         public Decimal ReadDecimal()
         {
@@ -226,7 +246,14 @@ namespace LiteDB.Engine
             var b = this.ReadInt32();
             var c = this.ReadInt32();
             var d = this.ReadInt32();
-            return new Decimal(new int[] { a, b, c, d });
+            var scale = (byte)((d >> 16) & 0xFF);
+
+            if ((d & 0x7F00FFFF) != 0 || scale > 28)
+            {
+                throw new ArgumentException("Invalid decimal flags in BSON value.");
+            }
+
+            return new Decimal(a, b, c, (d & unchecked((int)0x80000000)) != 0, scale);
         }
 
         #endregion
@@ -299,6 +326,7 @@ namespace LiteDB.Engine
         /// </summary>
         public bool ReadBoolean()
         {
+            this.EnsureByteAvailable();
             var value = _current[_currentPosition] != 0;
             this.MoveForward(1);
             return value;
@@ -323,9 +351,16 @@ namespace LiteDB.Engine
         /// </summary>
         public byte ReadByte()
         {
+            this.EnsureByteAvailable();
             var value = _current[_currentPosition];
             this.MoveForward(1);
             return value;
+        }
+
+        private void EnsureByteAvailable()
+        {
+            while (!_isEOF && _currentPosition == _current.Count) this.MoveForward(0);
+            ENSURE(!_isEOF && _currentPosition < _current.Count, "cannot read past end of buffer");
         }
 
         /// <summary>
@@ -341,79 +376,36 @@ namespace LiteDB.Engine
         /// </summary>
         public byte[] ReadBytes(int count)
         {
+            ENSURE(count >= 0 && count <= MAX_DOCUMENT_SIZE, "binary length exceeds the document limit");
             var buffer = new byte[count];
             this.Read(buffer, 0, count);
             return buffer;
         }
 
-        /// <summary>
-        /// Read a single IndexKey, including the extended string/binary length encoded in its type byte.
-        /// </summary>
-        public BsonValue ReadIndexKey()
-        {
-            var typeByte = this.ReadByte();
-            ExtendedLengthHelper.ReadLength(typeByte, 0, out var type, out _);
-            if (type != BsonType.String && type != BsonType.Binary)
-            {
-                type = (BsonType)typeByte;
-            }
-
-            switch (type)
-            {
-                case BsonType.Null: return BsonValue.Null;
-
-                case BsonType.Int32: return this.ReadInt32();
-                case BsonType.Int64: return this.ReadInt64();
-                case BsonType.Double: return this.ReadDouble();
-                case BsonType.Decimal: return this.ReadDecimal();
-
-                case BsonType.String:
-                    ExtendedLengthHelper.ReadLength(typeByte, this.ReadByte(), out _, out var stringLength);
-                    return this.ReadString(stringLength);
-
-                case BsonType.Document: return this.ReadDocument(null).GetValue();
-                case BsonType.Array: return this.ReadArray().GetValue();
-
-                case BsonType.Binary:
-                    ExtendedLengthHelper.ReadLength(typeByte, this.ReadByte(), out _, out var binaryLength);
-                    return this.ReadBytes(binaryLength);
-                case BsonType.ObjectId: return this.ReadObjectId();
-                case BsonType.Guid: return this.ReadGuid();
-
-                case BsonType.Boolean: return this.ReadBoolean();
-                case BsonType.DateTime: return this.ReadDateTime();
-
-                case BsonType.MinValue: return BsonValue.MinValue;
-                case BsonType.MaxValue: return BsonValue.MaxValue;
-
-                case BsonType.Vector: return this.ReadVector();
-
-                default: throw new NotImplementedException();
-            }
-        }
-
-        
-
         #endregion
-
         #region BsonDocument as SPECS
 
         /// <summary>
         /// Read a BsonDocument from reader
         /// </summary>
-        public Result<BsonDocument> ReadDocument(HashSet<string> fields = null, int? storedLength = null)
+        public Result<BsonDocument> ReadDocument(HashSet<string> fields = null, int containerDepth = 1, int? storedLength = null)
         {
             var doc = new BsonDocument();
 
             try
             {
+                ENSURE(containerDepth <= MAX_BSON_NESTING_DEPTH, "BSON nesting depth exceeds the supported limit");
                 var length = storedLength ?? this.ReadInt32();
-                var end = _position + length - 5;
+                if (length == 0 && AllowZeroLengthDocument && containerDepth == 1) return doc;
+                ENSURE(length >= 5 && length <= MAX_DOCUMENT_SIZE,
+                    "document length must include its header and terminator and stay within the document limit");
+                var end = (long)_position + length - 5;
+                ENSURE(end <= int.MaxValue, "document length exceeds the supported buffer range");
                 var remaining = fields == null || fields.Count == 0 ? null : new HashSet<string>(fields, StringComparer.OrdinalIgnoreCase);
 
-                while (_position < end && (remaining == null || remaining?.Count > 0))
+                while (_position < end)
                 {
-                    var value = BsonElementReader.Read(this, remaining, _utcDate, out string name);
+                    var value = BsonElementReader.Read(this, remaining, _utcDate, out string name, containerDepth, end);
 
                     // null value means are not selected field
                     if (value != null)
@@ -425,7 +417,8 @@ namespace LiteDB.Engine
                     }
                 }
 
-                this.MoveForward(1); // skip \0 ** can read disk here!
+                ENSURE(_position == end, "document element exceeds its declared container boundary");
+                ENSURE(this.ReadByte() == 0, "document must end with a null terminator");
 
                 return doc;
             }
@@ -438,22 +431,27 @@ namespace LiteDB.Engine
         /// <summary>
         /// Read an BsonArray from reader
         /// </summary>
-        public Result<BsonArray> ReadArray()
+        public Result<BsonArray> ReadArray(int containerDepth = 1)
         {
             var arr = new BsonArray();
 
             try
             {
+                ENSURE(containerDepth <= MAX_BSON_NESTING_DEPTH, "BSON nesting depth exceeds the supported limit");
                 var length = this.ReadInt32();
-                var end = _position + length - 5;
+                ENSURE(length >= 5 && length <= MAX_DOCUMENT_SIZE,
+                    "array length must include its header and terminator and stay within the document limit");
+                var end = (long)_position + length - 5;
+                ENSURE(end <= int.MaxValue, "array length exceeds the supported buffer range");
 
                 while (_position < end)
                 {
-                    var value = BsonElementReader.Read(this, null, _utcDate, out string name);
+                    var value = BsonElementReader.Read(this, null, _utcDate, out string name, containerDepth, end);
                     arr.Add(value);
                 }
 
-                this.MoveForward(1); // skip \0
+                ENSURE(_position == end, "array element exceeds its declared container boundary");
+                ENSURE(this.ReadByte() == 0, "array must end with a null terminator");
 
                 return arr;
             }
@@ -461,6 +459,31 @@ namespace LiteDB.Engine
             {
                 return new Result<BsonArray>(arr, ex);
             }
+        }
+
+        internal void SkipDocument(int containerDepth) => this.SkipContainer(containerDepth);
+
+        internal void SkipArray(int containerDepth) => this.SkipContainer(containerDepth);
+
+        private void SkipContainer(int containerDepth)
+        {
+            ENSURE(containerDepth <= MAX_BSON_NESTING_DEPTH, "BSON nesting depth exceeds the supported limit");
+            var length = this.ReadInt32();
+            ENSURE(length >= 5 && length <= MAX_DOCUMENT_SIZE,
+                "BSON container length must include its header and terminator and stay within the document limit");
+            var end = (long)_position + length - 5;
+            ENSURE(end <= int.MaxValue, "BSON container length exceeds the supported buffer range");
+
+            while (_position < end)
+            {
+                var type = this.ReadByte();
+                ENSURE(type != 0, "unexpected terminator inside BSON container");
+                BsonElementReader.SkipCString(this);
+                BsonElementReader.SkipValue(this, type, containerDepth, end);
+            }
+
+            ENSURE(_position == end, "BSON element exceeds its declared container boundary");
+            ENSURE(this.ReadByte() == 0, "BSON container must end with a null terminator");
         }
 
 

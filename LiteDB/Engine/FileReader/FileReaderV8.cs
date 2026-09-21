@@ -179,7 +179,7 @@ namespace LiteDB.Engine
 
             var area = header.Buffer.Slice(HeaderPage.P_COLLECTIONS, HeaderPage.COLLECTIONS_SIZE);
 
-            using (var r = new BufferReader(new[] { area }, false))
+            using (var r = new BufferReader(new[] { area }, false) { AllowZeroLengthDocument = true })
             {
                 var result = r.ReadDocument();
 

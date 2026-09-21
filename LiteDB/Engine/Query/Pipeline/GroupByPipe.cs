@@ -179,7 +179,9 @@ namespace LiteDB.Engine
 
                     BsonValue value;
 
-                    if (ReferenceEquals(groupBy.Select, BsonExpression.Root))
+                    // Bound root templates keep their meaning without sharing the
+                    // singleton's mutable parameter document across executions.
+                    if (groupBy.Select.Type == BsonExpressionType.Path && groupBy.Select.Source == "$")
                     {
                         var items = new BsonArray();
 

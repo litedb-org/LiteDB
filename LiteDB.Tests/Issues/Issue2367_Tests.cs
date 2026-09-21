@@ -157,6 +157,21 @@ namespace LiteDB.Tests.Issues
         }
 
         [Fact]
+        public void Captured_min_and_max_members_are_evaluated_by_the_CLR_in_every_time_zone()
+        {
+            // DATETIME(YEAR(@p0),...) would be computed in the server's local zone,
+            // so the theory below only notices a server-side Date outside UTC.
+            var list = new List<Video> { new Video { Id = 1, Published = new DateTime(2023, 1, 2, 0, 0, 0, DateTimeKind.Utc) } };
+            var mapper = new BsonMapper();
+            var max = mapper.GetExpression<Video, bool>(x => x.Published > list.Max(v => v.Published).Date);
+            var min = mapper.GetExpression<Video, bool>(x => x.Published > list.Min(v => v.Published).Date);
+            max.Source.Should().Be("($.Published>@p0)");
+            min.Source.Should().Be("($.Published>@p0)");
+            max.Parameters["p0"].AsDateTime.ToUniversalTime().Should().Be(list[0].Published);
+            min.Parameters["p0"].AsDateTime.ToUniversalTime().Should().Be(list[0].Published);
+        }
+
+        [Fact]
         public void Conditional_element_members_preserve_short_circuit_evaluation()
         {
             var chosen = new VideoIndexer { Value = new Video { Id = 42 } };
