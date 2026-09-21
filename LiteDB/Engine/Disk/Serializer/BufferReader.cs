@@ -11,6 +11,7 @@ namespace LiteDB.Engine
     /// </summary>
     internal partial class BufferReader : IDisposable
     {
+        internal const int MAX_BSON_NESTING_DEPTH = 100;
         private IEnumerator<BufferSlice> _source;
         private readonly DataService _dataSource;
         private readonly bool _utcDate;
@@ -382,18 +383,18 @@ namespace LiteDB.Engine
         }
 
         #endregion
-
         #region BsonDocument as SPECS
 
         /// <summary>
         /// Read a BsonDocument from reader
         /// </summary>
-        public Result<BsonDocument> ReadDocument(HashSet<string> fields = null)
+        public Result<BsonDocument> ReadDocument(HashSet<string> fields = null, int containerDepth = 1)
         {
             var doc = new BsonDocument();
 
             try
             {
+                ENSURE(containerDepth <= MAX_BSON_NESTING_DEPTH, "BSON nesting depth exceeds the supported limit");
                 var length = this.ReadInt32();
                 if (length == 0 && AllowZeroLengthDocument) return doc;
                 ENSURE(length >= 5 && length <= MAX_DOCUMENT_SIZE,
@@ -404,7 +405,7 @@ namespace LiteDB.Engine
 
                 while (_position < end)
                 {
-                    var value = BsonElementReader.Read(this, remaining, _utcDate, out string name);
+                    var value = BsonElementReader.Read(this, remaining, _utcDate, out string name, containerDepth);
 
                     // null value means are not selected field
                     if (value != null)
@@ -430,12 +431,13 @@ namespace LiteDB.Engine
         /// <summary>
         /// Read an BsonArray from reader
         /// </summary>
-        public Result<BsonArray> ReadArray()
+        public Result<BsonArray> ReadArray(int containerDepth = 1)
         {
             var arr = new BsonArray();
 
             try
             {
+                ENSURE(containerDepth <= MAX_BSON_NESTING_DEPTH, "BSON nesting depth exceeds the supported limit");
                 var length = this.ReadInt32();
                 ENSURE(length >= 5 && length <= MAX_DOCUMENT_SIZE,
                     "array length must include its header and terminator and stay within the document limit");
@@ -444,7 +446,7 @@ namespace LiteDB.Engine
 
                 while (_position < end)
                 {
-                    var value = BsonElementReader.Read(this, null, _utcDate, out string name);
+                    var value = BsonElementReader.Read(this, null, _utcDate, out string name, containerDepth);
                     arr.Add(value);
                 }
 
@@ -459,28 +461,29 @@ namespace LiteDB.Engine
             }
         }
 
-        internal void SkipDocument() => this.SkipContainer("document");
+        internal void SkipDocument(int containerDepth) => this.SkipContainer(containerDepth);
 
-        internal void SkipArray() => this.SkipContainer("array");
+        internal void SkipArray(int containerDepth) => this.SkipContainer(containerDepth);
 
-        private void SkipContainer(string kind)
+        private void SkipContainer(int containerDepth)
         {
+            ENSURE(containerDepth <= MAX_BSON_NESTING_DEPTH, "BSON nesting depth exceeds the supported limit");
             var length = this.ReadInt32();
             ENSURE(length >= 5 && length <= MAX_DOCUMENT_SIZE,
-                "{0} length must include its header and terminator and stay within the document limit", kind);
+                "BSON container length must include its header and terminator and stay within the document limit");
             var end = (long)_position + length - 5;
-            ENSURE(end <= int.MaxValue, "{0} length exceeds the supported buffer range", kind);
+            ENSURE(end <= int.MaxValue, "BSON container length exceeds the supported buffer range");
 
             while (_position < end)
             {
                 var type = this.ReadByte();
-                ENSURE(type != 0, "unexpected terminator inside {0}", kind);
-                this.ReadCString();
-                BsonElementReader.SkipValue(this, type);
+                ENSURE(type != 0, "unexpected terminator inside BSON container");
+                BsonElementReader.SkipCString(this);
+                BsonElementReader.SkipValue(this, type, containerDepth);
             }
 
-            ENSURE(_position == end, "{0} element exceeds its declared container boundary", kind);
-            ENSURE(this.ReadByte() == 0, "{0} must end with a null terminator", kind);
+            ENSURE(_position == end, "BSON element exceeds its declared container boundary");
+            ENSURE(this.ReadByte() == 0, "BSON container must end with a null terminator");
         }
 
 

@@ -37,6 +37,8 @@ namespace LiteDB.Engine
         private void ReadDocument(BufferReader reader, ulong active, int depth,
             BorrowedValueBuffer values, ref ulong found)
         {
+            ENSURE(depth < BufferReader.MAX_BSON_NESTING_DEPTH,
+                "BSON nesting depth exceeds the supported limit");
             var length = reader.ReadInt32();
             ENSURE(length >= 5 && length <= MAX_DOCUMENT_SIZE,
                 "BSON document length must include its terminator and stay within the document limit");
@@ -75,7 +77,7 @@ namespace LiteDB.Engine
                 }
                 else
                 {
-                    this.ReadOrSkipValue(reader, type, terminal, values, ref found);
+                    this.ReadOrSkipValue(reader, type, terminal, depth, values, ref found);
                 }
             }
 
@@ -128,12 +130,12 @@ namespace LiteDB.Engine
             return matches;
         }
 
-        private void ReadOrSkipValue(BufferReader reader, byte type, ulong terminal,
+        private void ReadOrSkipValue(BufferReader reader, byte type, ulong terminal, int depth,
             BorrowedValueBuffer values, ref ulong found)
         {
             if (terminal == 0)
             {
-                BsonElementReader.SkipValue(reader, type);
+                BsonElementReader.SkipValue(reader, type, depth + 1);
                 return;
             }
 
@@ -153,11 +155,11 @@ namespace LiteDB.Engine
                     break;
                 case 0x03:
                     value = BorrowedBsonValue.FromType(BsonType.Document);
-                    BsonElementReader.SkipValue(reader, type);
+                    BsonElementReader.SkipValue(reader, type, depth + 1);
                     break;
                 case 0x04:
                     value = BorrowedBsonValue.FromType(BsonType.Array);
-                    BsonElementReader.SkipValue(reader, type);
+                    BsonElementReader.SkipValue(reader, type, depth + 1);
                     break;
                 case 0x05:
                     value = this.ReadBinary(reader);
@@ -203,12 +205,7 @@ namespace LiteDB.Engine
 
         private BorrowedBsonValue ReadBinary(BufferReader reader)
         {
-            var length = reader.ReadInt32();
-            ENSURE(length >= 0 && length <= MAX_DOCUMENT_SIZE,
-                "BSON binary length must stay within the document limit");
-            var subtype = reader.ReadByte();
-            ENSURE(subtype == 0x00 || subtype == 0x04, "BSON binary subtype is not supported");
-            ENSURE(subtype != 0x04 || length == 16, "GUID binary value must contain 16 bytes");
+            var length = BsonElementReader.ReadBinaryHeader(reader, out var subtype);
 
             if (subtype == 0x04)
             {

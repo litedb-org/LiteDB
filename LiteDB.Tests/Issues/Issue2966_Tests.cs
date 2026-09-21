@@ -41,6 +41,21 @@ namespace LiteDB.Tests.Issues
         }
 
         [Fact]
+        public void Invalid_guid_length_is_rejected_before_reading_its_payload()
+        {
+            var bytes = new byte[]
+            {
+                30, 0, 0, 0,
+                0x05, (byte)'g', 0,
+                17, 0, 0, 0, 0x04
+            };
+
+            Action read = () => BsonSerializer.Deserialize(bytes);
+            read.Should().Throw<LiteException>()
+                .WithMessage("*GUID binary value must contain 16 bytes*");
+        }
+
+        [Fact]
         public void Element_cannot_overrun_its_declared_container_boundary()
         {
             var bytes = new byte[] { 7, 0, 0, 0, 0x08, 0, 1, 0 };
@@ -116,6 +131,29 @@ namespace LiteDB.Tests.Issues
             projected.Should().Throw<LiteException>();
         }
 
+        [Theory]
+        [InlineData(0x03)]
+        [InlineData(0x04)]
+        public void Deeply_nested_projected_out_containers_are_rejected_without_stack_overflow(int containerType)
+        {
+            var nested = BuildNestedContainer(BufferReader.MAX_BSON_NESTING_DEPTH, (byte)containerType);
+            var bytes = new List<byte> { 0, 0, 0, 0 };
+            bytes.AddRange(new byte[]
+            {
+                0x10, (byte)'k', (byte)'e', (byte)'e', (byte)'p', 0, 1, 0, 0, 0,
+                (byte)containerType, (byte)'d', (byte)'e', (byte)'e', (byte)'p', 0
+            });
+            bytes.AddRange(nested);
+            bytes.Add(0);
+            WriteInt32(bytes, 0, bytes.Count);
+
+            Action full = () => BsonSerializer.Deserialize(bytes.ToArray());
+            Action projected = () => ReadProjected(bytes.ToArray(), "keep");
+
+            full.Should().Throw<LiteException>().WithMessage("*nesting depth*");
+            projected.Should().Throw<LiteException>().WithMessage("*nesting depth*");
+        }
+
         private static BsonDocument ReadProjected(byte[] bytes, string field)
         {
             using var reader = new BufferReader(bytes);
@@ -129,5 +167,29 @@ namespace LiteDB.Tests.Issues
             0x10, (byte)'k', (byte)'e', (byte)'e', (byte)'p', 0, 1, 0, 0, 0,
             0
         };
+
+        private static byte[] BuildNestedContainer(int wrappers, byte containerType)
+        {
+            var nested = new List<byte> { 5, 0, 0, 0, 0 };
+
+            for (var i = 0; i < wrappers; i++)
+            {
+                var parent = new List<byte> { 0, 0, 0, 0, containerType, (byte)'x', 0 };
+                parent.AddRange(nested);
+                parent.Add(0);
+                WriteInt32(parent, 0, parent.Count);
+                nested = parent;
+            }
+
+            return nested.ToArray();
+        }
+
+        private static void WriteInt32(IList<byte> bytes, int offset, int value)
+        {
+            bytes[offset] = (byte)value;
+            bytes[offset + 1] = (byte)(value >> 8);
+            bytes[offset + 2] = (byte)(value >> 16);
+            bytes[offset + 3] = (byte)(value >> 24);
+        }
     }
 }
