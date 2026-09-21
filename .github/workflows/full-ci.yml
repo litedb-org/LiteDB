@@ -20,7 +20,7 @@ jobs:
 
   notify-ci-failure:
     name: Report scheduled full CI failure
-    if: ${{ always() && (needs.ci-checks.result == 'failure' || needs.reprorunner.result == 'failure') }}
+    if: ${{ github.event_name == 'schedule' && always() && (needs.ci-checks.result == 'failure' || needs.reprorunner.result == 'failure') }}
     needs: [ci-checks, reprorunner]
     runs-on: ubuntu-latest
     permissions:

@@ -139,6 +139,7 @@ jobs:
           name: logs-${{ matrix.repro }}-${{ matrix.os }}
           path: |
             artifacts
+            reprorunner-cli/runs
             LiteDB.ReproRunner/LiteDB.ReproRunner.Cli/bin/**/runs
           if-no-files-found: ignore
 

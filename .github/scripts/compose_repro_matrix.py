@@ -13,6 +13,7 @@ def as_iterable(value):
 
 
 def main():
+    """Compose the requested CI-tier repro matrix and write workflow outputs."""
     workspace = Path(os.getenv("GITHUB_WORKSPACE", Path.cwd()))
     os_matrix_path = workspace / ".github" / "os-matrix.json"
     repros_path = workspace / "repros.json"
