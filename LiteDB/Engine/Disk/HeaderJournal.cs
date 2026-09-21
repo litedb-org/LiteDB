@@ -25,7 +25,7 @@ namespace LiteDB.Engine
         internal bool Legacy => Header[HeaderPage.P_FILE_VERSION] < HeaderPage.CHECKSUM_FILE_VERSION;
         internal bool ConfirmsLegacyBackup { get; private set; }
         internal long FooterBytes { get; private set; } = Size;
-        private bool IntentOnly { get; set; }
+        internal bool IntentOnly { get; private set; }
         private uint BodyChecksum { get; set; }
 
         internal void ValidateCheckpointWal(Stream stream, byte[] selectedHeader)

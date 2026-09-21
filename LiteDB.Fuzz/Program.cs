@@ -137,6 +137,9 @@ internal static class Program
             var failureText = error.ToString();
             Console.Error.WriteLine($"FUZZ FAILURE {target.Name} seed={seed} step={context.Steps}\n{failureText}");
             await File.WriteAllTextAsync(Path.Combine(directory, "failure-before-minimization.txt"), failureText);
+            // Flush the recording before a child tries to replay its final words.
+            // Otherwise buffered input at the failing step can look truncated.
+            _ = context.Input.Hash();
             context.MinimizedCount = await MinimizeAsync(target, context, FailureIdentity.Get(error));
         }
         await FuzzArtifacts.WriteResultAsync(context, started, failure);

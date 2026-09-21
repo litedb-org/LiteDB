@@ -53,6 +53,8 @@ changes cannot silently change a regression.
 Duration failures store their actual executed prefix and duration-mode metadata,
 so replay does not silently fall back to the default count. Invariant failures
 also carry stable call-site IDs; prefix minimization accepts only the same ID.
+The failure path flushes its random-input recording before spawning minimizer
+children, so their replay includes the final words of the failing step.
 The parent watches a heartbeat updated by `Next()`. Ninety seconds without progress
 is recorded as a stable `HANG_*` failure after attempting a process dump; hard exits
 also receive parent-written `run.json`, stderr/stdout, and replay metadata.
@@ -132,9 +134,11 @@ ordinary `Flush()` leaves data volatile, the engine's durable flush promotes it,
 and each modeled power cut discards the remaining volatile state before recovery.
 
 Ordinary v8 compatibility has a separate process-level differential campaign.
-Both current dev and LiteDB 5.0.21 create plain and encrypted files, the other
-engine mutates them, and the creator reopens them and compares logical and
-secondary-index snapshots:
+LiteDB 5.0.21 creates plain/encrypted v8 files; current read-only opens preserve
+them. Identical generated mutations run independently on the legacy file, an
+automatically converted copy, and a new checksum file, then compare full logical
+and secondary-index snapshots. The released engine must reject both converted
+and new checksum files without changing their data/WAL bytes:
 
 ```bash
 python3 scripts/test-v8-differential.py --seeds 3 --operations 80

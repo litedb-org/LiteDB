@@ -90,14 +90,6 @@
       "traceHash": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
     },
     {
-      "target": "checksum-crash",
-      "seed": 2954,
-      "count": 28,
-      "reason": "Torn writes and lost volatile bytes during cutover, checkpoint and repeated recovery preserve acknowledged documents and indexes.",
-      "inputHash": "5EC7D9B03C1443344D6FC8B894C4D6766188762090009778D6C5A0D1467B8180",
-      "traceHash": "CC1CAC658785D04A03EAA37AD4A8BF530021E73DBD52F3F871C0270C7EA4D183"
-    },
-    {
       "target": "checksum-migration",
       "seed": 2954,
       "count": 28,
@@ -120,6 +112,22 @@
       "reason": "Damaged frames, stale generations and CRC-valid confirmation mutations must recover exactly the preceding committed prefix.",
       "inputHash": "7C3B59A6BFFD16578B211FDDB79BE10976CDB9CBB9709BC706546A899E56CA53",
       "traceHash": "28B07E2299CB2AFB945194FEF7D2D453D8855D5A9B7770EA917640B22C466EB1"
+    },
+    {
+      "target": "checksum-crash",
+      "seed": 4058733,
+      "count": 111,
+      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite.",
+      "inputHash": "3A10DAA3254B1A6846EB50F9ADCF432C906F0F859177B818DFC9E8580225B995",
+      "traceHash": "A46EECBDEAB16F57A2E165EF6892B19F08F621306690E01EF075C80A19220888"
+    },
+    {
+      "target": "checksum-crash",
+      "seed": 3163459,
+      "count": 201,
+      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite.",
+      "inputHash": "A850F468B4B0ED2B51437B625BB5B548E557C64D8E11119FC00094976FF69CDD",
+      "traceHash": "81A2531F628F62E1D2935481C078316B8AF3E3FB5994917C0C5998FE4B975D2B"
     }
   ]
 }

@@ -137,3 +137,15 @@ sector while preserving the acknowledged prefix and allowing later confirmation
 sectors to persist. Storage that tears previously synced neighboring bytes outside
 the write range violates this assumption and can lose acknowledged commits; the
 checksums do not replace device power-loss protection.
+
+### Repeated crashes while only an intent exists
+
+An unsealed conversion intent is evidence that the primary legacy header has not
+yet been replaced. Recovery checks that primary against the intent, excluding only
+transaction/journal metadata, and keeps the exact primary bytes. It must not copy
+intent metadata into page zero: a second crash could tear that unnecessary write
+inside an AES block, while no sealed redo exists to repair the result. The next
+conversion writes the header only after publishing complete recovery records.
+`ConversionIntentRecovery_Tests` exercises v8/v9, plain/encrypted files and torn
+writes during that subsequent publication. Fuzz seeds 4058733 and 3163459 pin the
+repeated-recovery workloads that exposed the premature write.

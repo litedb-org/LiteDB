@@ -43,7 +43,11 @@ namespace LiteDB.Engine
                 if (journal == null) return;
                 var published = journal.IsPublished(header);
                 journal.ValidateCheckpointWal(reader.RawStream, published ? header : journal.Header);
-                if (!published)
+                // An intent-only journal proves the primary still matches the
+                // legacy header. Keep those exact bytes: rewriting the intent
+                // metadata here can tear an AES block without sealed redo to
+                // repair it after another crash.
+                if (!published && !journal.IntentOnly)
                 {
                     header = journal.Header;
                     _recoveredHeader = header;
