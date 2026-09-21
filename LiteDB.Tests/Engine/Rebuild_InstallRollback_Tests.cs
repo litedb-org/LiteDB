@@ -50,6 +50,38 @@ namespace LiteDB.Tests.Engine
         }
 
         [Fact]
+        public void A_failed_build_leaves_no_partial_replacement_behind()
+        {
+            using var file = new TempFile();
+            using (var seed = new LiteDatabase(new ConnectionString { Filename = file.Filename, Password = "secret" }))
+            {
+                seed.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "old" });
+            }
+
+            // The replacement is built through its own WAL. A directory in that place lets the build
+            // create the replacement file and then fail, with no injected fault involved.
+            var temp = FileHelper.GetSuffixFile(file.Filename, "-temp", false);
+            var tempLog = FileHelper.GetLogFile(temp);
+            Directory.CreateDirectory(tempLog);
+            try
+            {
+                var settings = new EngineSettings { Filename = file.Filename, Password = "secret" };
+                var failure = Record.Exception(() => new RebuildService(settings).Rebuild(new RebuildOptions { RemovePassword = true }));
+
+                failure.Should().NotBeNull();
+                File.Exists(temp).Should().BeFalse("it would be a partial, unencrypted copy of the database");
+                File.Exists(RebuildRecovery.GetMarkerFilename(file.Filename)).Should().BeFalse();
+
+                using var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, Password = "secret" });
+                db.GetCollection("rows").FindById(1)["value"].AsString.Should().Be("old");
+            }
+            finally
+            {
+                Directory.Delete(tempLog, true);
+            }
+        }
+
+        [Fact]
         public void Wal_probe_reports_absence_only_when_the_file_is_known_to_be_absent()
         {
             using var file = new TempFile();

@@ -23,8 +23,12 @@ Rollback is deliberately bounded. It settles on the original pair, else on the
 completed replacement, else it stops and keeps the marker: every further
 compensation step would itself be fallible. One failed rollback move still
 leaves a complete, accessible database; only two or more can end guarded.
-When the original pair is restored, the unpublished replacement is deleted, as
-it is a full copy of the database that may lack the original's encryption.
+A replacement that will not be published is deleted, together with its WAL: when
+building it fails, when the marker cannot be created, and when the original pair
+is restored. It is a full copy of the database that may lack the original's
+encryption. If it cannot be deleted, that is reported with the other recovery
+errors, but it does not guard the database: blocking an intact original would
+not remove the file.
 
 The original rebuild exception is preserved. Its `Data["LiteDB.Rebuild.LiveState"]`
 reports `original-restored`, `replacement-published` or `incomplete`. Additional

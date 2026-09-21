@@ -34,6 +34,8 @@ namespace LiteDB.Engine
         /// </summary>
         internal const string LiveStateIncomplete = "incomplete";
 
+        private const int ReplacementDeleteTimeoutSeconds = 5;
+
 #if DEBUG || TESTING
         internal static Action<string> SimulateInstallFailure;
 #endif
@@ -66,7 +68,15 @@ namespace LiteDB.Engine
             var backupLogFilename = FileHelper.GetSuffixFile(FileHelper.GetLogFile(_settings.Filename), "-backup", true);
             var tempFilename = FileHelper.GetSuffixFile(_settings.Filename, "-temp", true);
 
-            this.BuildReplacement(tempFilename, options, currentCollation);
+            try
+            {
+                this.BuildReplacement(tempFilename, options, currentCollation);
+            }
+            catch (Exception buildException)
+            {
+                DiscardReplacement(tempFilename, buildException);
+                throw;
+            }
 
             return this.Install(backupFilename, backupLogFilename, tempFilename);
         }
@@ -147,10 +157,7 @@ namespace LiteDB.Engine
             catch (Exception markerException)
             {
                 // No database file has moved, so the replacement will never be published.
-                var cleanupErrors = new List<Exception>();
-                TryRollback(() => File.Delete(tempFilename), cleanupErrors);
-                if (cleanupErrors.Count > 0)
-                    markerException.Data[RollbackErrorsDataKey] = new AggregateException(cleanupErrors);
+                DiscardReplacement(tempFilename, markerException);
                 throw;
             }
 
@@ -278,7 +285,7 @@ namespace LiteDB.Engine
 #if DEBUG || TESTING
                         SimulateInstallFailure?.Invoke("before-candidate-cleanup");
 #endif
-                        File.Delete(tempFilename);
+                        DeleteReplacement(tempFilename);
                     }, rollbackErrors);
                 }
 
@@ -303,6 +310,25 @@ namespace LiteDB.Engine
             }
 
             return difference;
+        }
+
+        /// <summary>
+        /// A replacement that will not be published is a full copy of the database, possibly without
+        /// the encryption of the original. While it is built its content is in its WAL as well.
+        /// </summary>
+        private static void DeleteReplacement(string tempFilename)
+        {
+            // Wait out a virus scanner or sync client inspecting the new file, as for the marker.
+            FileHelper.Exec(ReplacementDeleteTimeoutSeconds, () => File.Delete(tempFilename));
+            FileHelper.Exec(ReplacementDeleteTimeoutSeconds, () => File.Delete(FileHelper.GetLogFile(tempFilename)));
+        }
+
+        private static void DiscardReplacement(string tempFilename, Exception failure)
+        {
+            var cleanupErrors = new List<Exception>();
+            TryRollback(() => DeleteReplacement(tempFilename), cleanupErrors);
+            if (cleanupErrors.Count > 0)
+                failure.Data[RollbackErrorsDataKey] = new AggregateException(cleanupErrors);
         }
 
         private static void TryRollback(Action rollback, ICollection<Exception> errors)
