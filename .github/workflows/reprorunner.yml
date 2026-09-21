@@ -11,6 +11,14 @@ on:
         description: Git ref (branch, tag, or SHA) to check out
         required: false
         type: string
+      tier:
+        description: Repro coverage tier (pr or full)
+        required: false
+        type: choice
+        options:
+          - full
+          - pr
+        default: full
   workflow_call:
     inputs:
       filter:
@@ -19,6 +27,10 @@ on:
       ref:
         required: false
         type: string
+      tier:
+        required: false
+        type: string
+        default: full
 
 jobs:
   generate-matrix:
@@ -32,7 +44,6 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
           ref: ${{ inputs.ref && inputs.ref || github.ref }}
 
       - name: Set up .NET SDK
@@ -61,9 +72,20 @@ jobs:
       - name: Compose matrix
         id: compose
         shell: bash
+        env:
+          CI_TIER: ${{ inputs.tier }}
         run: |
           set -euo pipefail
           python .github/scripts/compose_repro_matrix.py
+
+      - name: Package ReproRunner CLI
+        run: tar -czf reprorunner-cli.tar.gz -C LiteDB.ReproRunner/LiteDB.ReproRunner.Cli/bin/Release/net8.0 .
+
+      - name: Upload ReproRunner CLI
+        uses: actions/upload-artifact@v4
+        with:
+          name: reprorunner-cli
+          path: reprorunner-cli.tar.gz
 
       - name: Upload repro inventory
         if: always()
@@ -84,7 +106,6 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
           ref: ${{ inputs.ref && inputs.ref || github.ref }}
 
       - name: Set up .NET SDK
@@ -92,18 +113,23 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Restore ReproRunner CLI
-        run: dotnet restore LiteDB.ReproRunner/LiteDB.ReproRunner.Cli/LiteDB.ReproRunner.Cli.csproj
+      - name: Download ReproRunner CLI
+        uses: actions/download-artifact@v4
+        with:
+          name: reprorunner-cli
 
-      - name: Build ReproRunner CLI
-        run: dotnet build LiteDB.ReproRunner/LiteDB.ReproRunner.Cli/LiteDB.ReproRunner.Cli.csproj --configuration Release --no-restore
+      - name: Extract ReproRunner CLI
+        shell: bash
+        run: |
+          mkdir -p reprorunner-cli
+          tar -xzf reprorunner-cli.tar.gz -C reprorunner-cli
 
       - name: Execute repro
         id: run
         shell: bash
         run: |
           set -euo pipefail
-          dotnet run --project LiteDB.ReproRunner/LiteDB.ReproRunner.Cli --configuration Release -- \
+          dotnet reprorunner-cli/LiteDB.ReproRunner.Cli.dll \
             run ${{ matrix.repro }} --ci --target-os "${{ matrix.os }}"
 
       - name: Upload repro artifacts
