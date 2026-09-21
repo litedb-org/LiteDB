@@ -11,7 +11,7 @@ namespace LiteDB.Engine
     /// </summary>
     internal partial class BufferReader : IDisposable
     {
-        internal const int MAX_BSON_NESTING_DEPTH = 100;
+        internal const int MAX_BSON_NESTING_DEPTH = 256;
         private IEnumerator<BufferSlice> _source;
         private readonly DataService _dataSource;
         private readonly bool _utcDate;
