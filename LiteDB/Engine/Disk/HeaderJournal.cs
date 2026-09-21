@@ -9,7 +9,7 @@ namespace LiteDB.Engine
     /// uses staged intent, redo, preparation, and confirmation records so torn
     /// encrypted metadata cannot masquerade as a committed transaction.
     /// </summary>
-    internal sealed class HeaderJournal
+    internal sealed partial class HeaderJournal
     {
         internal const int Size = 2 * PAGE_SIZE;
         private const long Magic = 0x314C4E524A42444C; // LDBJRNL1
@@ -25,6 +25,19 @@ namespace LiteDB.Engine
         internal bool ConfirmsLegacyBackup { get; private set; }
         internal long FooterBytes { get; private set; } = Size;
         private bool IntentOnly { get; set; }
+        private uint BodyChecksum { get; set; }
+
+        internal void ValidateCheckpointWal(Stream stream, byte[] selectedHeader)
+        {
+            if (Legacy) return;
+            // A new, validated salt proves data was synced before publication.
+            // Otherwise this WAL can be needed to finish partial data overwrites;
+            // discarding its damaged tail would certify a partial transaction.
+            for (var i = 0; i < 16; i++)
+                if (selectedHeader[WalChecksum.SaltPosition + i] != Header[WalChecksum.SaltPosition + i]) return;
+            if (BodyChecksum != ComputeBody(stream, Position, out _))
+                throw new PageChecksumException(FileOrigin.Log, 0);
+        }
 
         internal bool IsPublished(byte[] header)
         {
@@ -95,6 +108,7 @@ namespace LiteDB.Engine
             var journal = new HeaderJournal
             {
                 Header = header, Position = position, ConfirmsLegacyBackup = descriptor.ReadBool(BasePage.P_IS_CONFIRMED),
+                BodyChecksum = descriptor.ReadUInt32(P_BODY_CRC),
                 FooterBytes = position + Size == stream.Length ? Size : 0
             };
             var version = header[HeaderPage.P_FILE_VERSION];
@@ -138,7 +152,7 @@ namespace LiteDB.Engine
             return null;
         }
 
-        internal static void Write(Stream stream, byte[] header, bool conversion = false)
+        internal static void Write(Stream stream, byte[] header, bool conversion, WalChecksum checksums)
         {
             var bytes = new byte[Size];
             Buffer.BlockCopy(header, 0, bytes, 0, PAGE_SIZE);
@@ -147,9 +161,12 @@ namespace LiteDB.Engine
             descriptor.Write(Magic, P_MAGIC);
             var length = stream.Length;
             descriptor.Write(length, P_POSITION);
+            var transactionID = 0u;
+            descriptor.Write(checksums.Enabled
+                ? ComputeVerifiedBody(stream, length, header, checksums)
+                : ComputeBody(stream, length, out transactionID), P_BODY_CRC);
             if (header[HeaderPage.P_FILE_VERSION] < HeaderPage.CHECKSUM_FILE_VERSION)
             {
-                descriptor.Write(ComputeBody(stream, length, out var transactionID), P_BODY_CRC);
                 // Use a fresh, unconfirmed ID: legacy checkpoint must never copy
                 // the footer, nor may a future transaction accidentally commit it.
                 transactionID = conversion ? 1 : checked(transactionID + 1);
@@ -188,9 +205,11 @@ namespace LiteDB.Engine
             stream.Position = 0;
             for (long position = 0; position < length; position += PAGE_SIZE)
             {
-                stream.ReadRequired(bytes, 0, bytes.Length);
-                transactionID = Math.Max(transactionID, new BufferSlice(bytes, 0, PAGE_SIZE).ReadUInt32(BasePage.P_TRANSACTION_ID));
-                crc = Crc32C.Update(crc, bytes, 0, bytes.Length);
+                var count = (int)Math.Min(bytes.Length, length - position);
+                stream.ReadRequired(bytes, 0, count);
+                if (count >= BasePage.P_TRANSACTION_ID + 4)
+                    transactionID = Math.Max(transactionID, new BufferSlice(bytes, 0, PAGE_SIZE).ReadUInt32(BasePage.P_TRANSACTION_ID));
+                crc = Crc32C.Update(crc, bytes, 0, count);
             }
             return ~crc;
         }

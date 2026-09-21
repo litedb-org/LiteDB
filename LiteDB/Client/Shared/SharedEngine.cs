@@ -13,6 +13,7 @@ namespace LiteDB
         private readonly EngineSettings _settings;
         private readonly Mutex _mutex;
         private LiteEngine _engine;
+        private WalRecoveryReport _recoveryReport;
         private volatile bool _transactionRunning = false;
         private int _transactionThreadId;
 
@@ -59,6 +60,8 @@ namespace LiteDB
                 try
                 {
                     _engine = new LiteEngine(_settings);
+                    _recoveryReport = _engine.RecoveryReport ?? _recoveryReport;
+                    _engine.RecoveryReport = _recoveryReport;
                     return true;
                 }
                 catch

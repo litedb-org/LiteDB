@@ -17,7 +17,7 @@ namespace LiteDB.Engine
                 return;
             }
             var log = ((ChecksummedWalStream)_writer.Value).RawStream;
-            HeaderJournal.Write(log, header, conversion);
+            HeaderJournal.Write(log, header, conversion, _checksums);
             _checksums.JournalBytes = HeaderJournal.Size;
             if (conversion || !ChecksumsEnabled) log.FlushToDisk();
             else FlushLogToDisk(_writer.Value);
@@ -42,6 +42,7 @@ namespace LiteDB.Engine
                 var journal = HeaderJournal.Read(reader.RawStream);
                 if (journal == null) return;
                 var published = journal.IsPublished(header);
+                journal.ValidateCheckpointWal(reader.RawStream, published ? header : journal.Header);
                 if (!published)
                 {
                     header = journal.Header;

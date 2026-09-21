@@ -12,6 +12,54 @@ namespace LiteDB.Internals
     public class WalPowerLoss_Tests
     {
         [Theory]
+        [InlineData(null, 512)]
+        [InlineData("secret", 512)]
+        [InlineData(null, 4096)]
+        [InlineData("secret", 4096)]
+        public void SectorTearsOfNewAppends_PreserveAcknowledgedPrefix(string password, int sectorSize)
+        {
+            using var source = new WalTestDatabase(password);
+            source.Seed("docs");
+            source.Database.GetCollection("docs").EnsureIndex("value");
+            source.Database.Checkpoint();
+            source.Update("docs", 1);
+            var acknowledged = source.Log.ToArray();
+            var expected = source.Database.GetCollection("docs").FindAll().ToArray();
+            var end = acknowledged.Length;
+            (end % sectorSize).Should().NotBe(0, "the next append must share a physical sector with the acknowledged confirmation");
+            source.Update("docs", 2);
+            var torn = source.Log.ToArray();
+            // Lose the new bytes in the sector shared with the acknowledged
+            // frame, while later sectors (including confirmation) persist.
+            // Power-safe overwrite preserves old bytes outside the write range.
+            Array.Clear(torn, end, sectorSize - end % sectorSize);
+            torn.Take(end).Should().Equal(acknowledged);
+            using var data = ChecksumTestFiles.Copy(source.Data.ToArray());
+            using var log = ChecksumTestFiles.Copy(torn);
+            var beforeData = data.ToArray();
+            var settings = new EngineSettings { DataStream = data, LogStream = log, Password = password, ReadOnly = true };
+            using (var engine = new LiteEngine(settings))
+            using (var db = new LiteDatabase(engine, disposeOnClose: false))
+            {
+                db.GetCollection("docs").FindAll().Should().BeEquivalentTo(expected);
+                db.GetCollection("docs").Find(Query.EQ("value", 1)).Should().HaveCount(expected.Length);
+                data.ToArray().Should().Equal(beforeData);
+                log.ToArray().Should().Equal(torn);
+            }
+            settings.ReadOnly = false;
+            using (var engine = new LiteEngine(settings))
+            using (var db = new LiteDatabase(engine, disposeOnClose: false))
+            {
+                db.GetCollection("docs").FindAll().Should().BeEquivalentTo(expected);
+                db.Checkpoint();
+            }
+            using var reopenedEngine = new LiteEngine(settings);
+            using var reopened = new LiteDatabase(reopenedEngine, disposeOnClose: false);
+            reopened.GetCollection("docs").FindAll().Should().BeEquivalentTo(expected);
+            reopened.GetCollection("docs").Find(Query.EQ("value", 1)).Should().HaveCount(expected.Length);
+        }
+
+        [Theory]
         [InlineData(null, false)]
         [InlineData("secret", false)]
         [InlineData(null, true)]

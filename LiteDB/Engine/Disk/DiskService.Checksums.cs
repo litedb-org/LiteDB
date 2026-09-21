@@ -8,7 +8,7 @@ namespace LiteDB.Engine
     {
         private readonly WalChecksum _checksums = new WalChecksum();
         internal bool ChecksumsEnabled => _checksums.Enabled;
-        internal long DiscardedWalBytes { get; private set; }
+        internal WalRecoveryReport RecoveryReport { get; private set; }
 
         private void LoadChecksums(BufferSlice header)
         {
@@ -104,10 +104,10 @@ namespace LiteDB.Engine
             stream.FlushToDisk();
         }
 
-        internal void DiscardWalTail(long end)
+        internal void DiscardWalTail(long end, bool invalidTail)
         {
-            DiscardedWalBytes += (GetFileLength(FileOrigin.Log) - end) / PAGE_SIZE * WalChecksum.FrameSize + _logTrailingLength;
-            LOG($"WAL checksum recovery discarded {DiscardedWalBytes} bytes after logical position {end}", "RECOVERY");
+            var bytes = (GetFileLength(FileOrigin.Log) - end) / PAGE_SIZE * WalChecksum.FrameSize + _logTrailingLength;
+            RecoveryReport = new WalRecoveryReport(bytes, invalidTail);
             if (!_readOnly)
             {
                 SetLength(end, FileOrigin.Log);
@@ -120,7 +120,7 @@ namespace LiteDB.Engine
         internal void FinishWalRecovery(WalRecovery recovery)
         {
             if (recovery.InvalidTail || recovery.ConfirmedEnd < GetFileLength(FileOrigin.Log) || _logTrailingLength != 0)
-                DiscardWalTail(recovery.ConfirmedEnd);
+                DiscardWalTail(recovery.ConfirmedEnd, recovery.InvalidTail || _logTrailingLength != 0);
             _checksums.Recovered(recovery.Sequence, recovery.ConfirmedEnd);
         }
 

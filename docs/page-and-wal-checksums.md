@@ -87,15 +87,24 @@ Operational I/O exceptions propagate and never trigger checksum-tail truncation.
 Explicit rebuild uses the same verifier instead of trusting confirmation bits.
 
 `$database.checksums` reports whether checksums are enabled.
-`$database.recoveryDiscardedWalBytes` reports bytes excluded during this open
-(including incomplete or uncommitted tails); recovery also emits a `RECOVERY` log
-message. The diagnostic is per-open, not persisted.
+`$database.recoveryDiscardedWalBytes` reports bytes excluded by the last recovery
+with a nonempty tail (including incomplete or uncommitted tails).
+`$database.recoveryInvalidWalTail` distinguishes a failed integrity check or
+partial frame from an intact, unconfirmed tail. It cannot determine whether a
+damaged frame belonged to an acknowledged commit. Shared mode retains this
+report across its internal engine reopenings for the lifetime of that
+`LiteDatabase`/`SharedEngine` instance. A new independent owner starts a new report;
+it is not persisted or a process-wide history.
 
 Checkpoint first validates the entire checksummed WAL and its committed
 transaction set before changing either file. It then appends a 16 KiB header recovery record and syncs the WAL before
 copying pages, syncs all data pages, then writes
 and syncs a fresh generation salt in the data header before truncating the WAL.
-Stale frames left behind by a crash during truncation cannot match that salt.
+The recovery record binds a CRC of the preceding WAL. If that redo changes after
+data overwrites start, reopening fails before repair or truncation, preserving
+both sources instead of exposing a partial checkpoint as healthy data. A valid
+header with a newer salt proves publication completed and allows obsolete WAL
+to be ignored. Stale frames left behind by a crash during truncation cannot match that salt.
 Torn headers bootstrap recovery from that verified record. Conversion retains
 legacy redo and an independently verified preparation so torn ciphertext or a
 torn confirmation cannot publish a partial backup. Read-only recovery preserves
@@ -198,3 +207,10 @@ plain and 3.3 ms encrypted in this paired run. Absolute timings varied from the
 earlier header-journal run; compare within each table rather than combining
 medians from separate runs. Preflight retains transaction summaries, not all page
 payloads, and leaves both files unchanged if the live committed set cannot verify.
+
+Binding verified WAL bytes into the checkpoint journal adds another streaming
+verification pass. A paired comparison against `295666869`, using the same fixture
+and production settings, measured plain checkpoint medians of **24.84 → 27.43 ms**
+and encrypted medians of **30.24 → 32.89 ms**. The additional protection cost about
+2.6 ms for this 4.4 MiB fixture. Conversion medians were 56.04 → 55.26 ms plain and
+77.91 → 80.46 ms encrypted; the conversion protocol is unchanged by this binding.

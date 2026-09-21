@@ -9,7 +9,9 @@ backup before writable open if backward compatibility is required.
 
 Recovery validates salted WAL frame checksums, transaction page counts/digests,
 and commit order. Missing, torn, or stale frames discard the incomplete transaction
-and its dependent tail; `$database.recoveryDiscardedWalBytes` reports the loss.
+and its dependent tail; `$database.recoveryDiscardedWalBytes` reports excluded bytes
+and `$database.recoveryInvalidWalTail` distinguishes invalid/partial frames from
+intact unconfirmed tails. Shared mode retains the report across internal reopenings.
 Checkpointed data pages also have checksums and fail explicitly when damaged.
 Checkpoint uses a temporary header journal to recover torn header writes.
 Automatic conversion keeps verified legacy redo until v10 publication is durable,

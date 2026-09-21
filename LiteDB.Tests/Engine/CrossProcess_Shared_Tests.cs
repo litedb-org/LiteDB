@@ -16,6 +16,8 @@ public class CrossProcess_Shared_Tests : IDisposable
     private readonly ITestOutputHelper _output;
     private readonly string _dbPath;
     private readonly string _testId;
+    private readonly List<Task> _workers = new List<Task>();
+    private Task _cleanup = Task.CompletedTask;
 
     public CrossProcess_Shared_Tests(ITestOutputHelper output)
     {
@@ -29,7 +31,33 @@ public class CrossProcess_Shared_Tests : IDisposable
 
     public void Dispose()
     {
-        TryDeleteDatabase();
+        // A timed-out worker may still own the files. Report its timeout now,
+        // but defer cleanup until every worker actually releases its resources.
+        _cleanup = Task.WhenAll(_workers).ContinueWith(completed =>
+        {
+            _ = completed.Exception; // Observe late worker failures too.
+            TryDeleteDatabase();
+        }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+    }
+
+    [Fact]
+    public async Task StalledWorker_TimesOutBeforeCompletion_AndDefersFileCleanup()
+    {
+        var worker = new TaskCompletionSource<bool>();
+        using var cancellation = new CancellationTokenSource();
+        File.WriteAllText(_dbPath, "worker still owns this file");
+        var waiting = AwaitWorker(worker.Task, cancellation, "injected worker", 20);
+        try
+        {
+            (await Task.WhenAny(waiting, Task.Delay(1000))).Should().BeSameAs(waiting);
+            await Assert.ThrowsAsync<TimeoutException>(() => waiting);
+            cancellation.IsCancellationRequested.Should().BeTrue();
+            Dispose();
+            File.Exists(_dbPath).Should().BeTrue();
+        }
+        finally { worker.TrySetResult(true); }
+        await _cleanup;
+        File.Exists(_dbPath).Should().BeFalse();
     }
 
     private void TryDeleteDatabase()
@@ -175,6 +203,7 @@ public class CrossProcess_Shared_Tests : IDisposable
     private async Task RunInsertTask(int taskId, int documentCount)
     {
         using var cancellation = new CancellationTokenSource();
+        var cancellationToken = cancellation.Token;
         var elapsed = Stopwatch.StartNew();
         var task = Task.Run(() =>
         {
@@ -192,7 +221,7 @@ public class CrossProcess_Shared_Tests : IDisposable
 
                 for (int i = 0; i < documentCount; i++)
                 {
-                    cancellation.Token.ThrowIfCancellationRequested();
+                    cancellationToken.ThrowIfCancellationRequested();
                     var doc = new BsonDocument
                     {
                         ["task_id"] = taskId,
@@ -222,6 +251,7 @@ public class CrossProcess_Shared_Tests : IDisposable
     private async Task RunChildProcess(int processId, int documentCount)
     {
         using var cancellation = new CancellationTokenSource();
+        var cancellationToken = cancellation.Token;
         var elapsed = Stopwatch.StartNew();
         // Instead of spawning actual processes, we'll use Tasks to simulate concurrent access
         // This is safer for CI environments and still tests the shared mode locking
@@ -241,7 +271,7 @@ public class CrossProcess_Shared_Tests : IDisposable
 
                 for (int i = 0; i < documentCount; i++)
                 {
-                    cancellation.Token.ThrowIfCancellationRequested();
+                    cancellationToken.ThrowIfCancellationRequested();
                     var doc = new BsonDocument
                     {
                         ["source"] = $"process_{processId}",
@@ -268,15 +298,13 @@ public class CrossProcess_Shared_Tests : IDisposable
         await AwaitWorker(task, cancellation, $"Task {processId}");
     }
 
-    private async Task AwaitWorker(Task task, CancellationTokenSource cancellation, string name)
+    private async Task AwaitWorker(Task task, CancellationTokenSource cancellation, string name, int timeoutMilliseconds = 30000)
     {
-        if (await Task.WhenAny(task, Task.Delay(30000)) != task)
+        _workers.Add(task);
+        if (await Task.WhenAny(task, Task.Delay(timeoutMilliseconds)) != task)
         {
-            _output.WriteLine($"{name} exceeded its 30-second deadline; cancelling remaining inserts");
+            _output.WriteLine($"{name} exceeded its {timeoutMilliseconds}-ms deadline; cancelling remaining inserts");
             cancellation.Cancel();
-            // Observe completion before the fixture deletes files. A blocked
-            // engine is still bounded by the runner's session timeout.
-            try { await task; } catch { }
             throw new TimeoutException($"{name} timed out");
         }
         await task;

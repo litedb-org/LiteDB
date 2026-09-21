@@ -9,6 +9,9 @@ syncs must persist bytes.
 | Question | Test evidence | Answer |
 | --- | --- | --- |
 | Can checkpoint certify part of a damaged live WAL transaction? | `CorruptCommittedWal_IsRejectedBeforeCheckpointChangesAnyData` and `StaleSafepointFrames_CannotBeCertifiedByCheckpoint`. | A full preflight rejects damaged CRCs, counts, digests, sequences, missing/truncated confirmations, and genuine stale safepoint frames before changing either file. Subsequent writes stop; recovery and another checkpoint retain only the valid prefix. |
+| What if WAL damage occurs after checkpoint preflight or its first data write? | `WalChangesDuringJournalBinding_AreRejectedBeforeDataWrites`, `WalDamageAfterDataCopyStarts_CannotExposeAPartialTransaction`, and `PublishedGeneration_DoesNotRequireTheOldCheckpointWal`. | The journal validates the exact WAL bytes it binds. Reopening with the old generation rejects changed redo and preserves both files; a verified newer generation can ignore obsolete damaged redo. Both plain/encrypted cases are covered. |
+| Can Shared mode lose the recovery report before it is queried? | `SharedReopen_PreservesTheLastRecoveryReport`. | The owner retains the last nonempty report across engine reopenings and checkpoint. A new independent owner starts fresh. Invalid/partial frames are distinguished from intact unconfirmed tails. |
+| What if an append shares the acknowledged confirmation's physical sector? | `SectorTearsOfNewAppends_PreserveAcknowledgedPrefix` uses 512/4096-byte boundaries, plain/encrypted files, read-only recovery, and checkpoint/reopen with full documents and index lookups. | Torn new bytes reject the entire later transaction even if its confirmation persists. Previously synced bytes outside the addressed write range must survive (power-safe overwrite). |
 | Can checkpoint resume between page writes? | `EveryCheckpointWriteBoundary_RecoversAcknowledgedCommits` captures data and WAL before every write. | Acknowledged collections survive replay, checkpoint, and reopen, plain and encrypted. |
 | Can checkpoint recover torn headers and other pages? | `TornCheckpointPages_IncludingHeaders_RecoverAcknowledgedCommits` tears actual captured writes, including a collection map spanning sectors. | Recovery succeeds at tested cuts from 1 to 4096 bytes. Read-only opens preserve both images. |
 | Can repeated checkpoints recover a changing database rather than only fresh inserts? | `RepeatedGenerations_WithPageReuseAndSectorTears_PreserveCommittedModel` runs six generations of deterministic insert/update/delete/rollback transactions with forced safepoints and variable-size overflow documents. | Full documents, nonunique and unique index lookups match an independent model after alternating 16/512-byte sector tears, out-of-order page persistence, read-only recovery, new writes, checkpoint, and reopening. |
@@ -32,7 +35,7 @@ syncs must persist bytes.
 Run the focused matrix with:
 
 ```sh
-dotnet test LiteDB.Tests -c Release -f net8.0 -p:TestingEnabled=true --settings tests.runsettings --filter 'FullyQualifiedName~Checksum|FullyQualifiedName~HeaderJournal|FullyQualifiedName~ConversionJournalCrash|FullyQualifiedName~LegacyJournalTail|FullyQualifiedName~WalTransactionBoundary|FullyQualifiedName~WalPowerLoss'
+dotnet test LiteDB.Tests -c Release -f net8.0 -p:TestingEnabled=true --settings tests.runsettings --filter 'FullyQualifiedName~Checksum|FullyQualifiedName~HeaderJournal|FullyQualifiedName~ConversionJournalCrash|FullyQualifiedName~LegacyJournalTail|FullyQualifiedName~WalTransactionBoundary|FullyQualifiedName~WalPowerLoss|FullyQualifiedName~CheckpointWalBinding|FullyQualifiedName~WalRecoveryReport'
 ```
 
 Use `-f net10.0` for the second runtime. The compatibility script additionally
@@ -42,9 +45,11 @@ on the final PR commit before merging; superseded runs do not substitute for
 that gate.
 
 The shared-mode CI tests use concurrent tasks, not separate processes. Their
-workers await completion without nested blocking thread-pool waits, retain the
-30-second deadline and document-count assertions, and finish cancellation before
-fixture cleanup. The legacy compatibility runner does launch separate processes.
+workers await completion without nested blocking thread-pool waits and retain the
+30-second deadline and document-count assertions. `StalledWorker_TimesOutBeforeCompletion_AndDefersFileCleanup`
+verifies that a worker which ignores cancellation cannot block reporting failure;
+fixture cleanup waits asynchronously until workers release the files. The legacy
+compatibility runner does launch separate processes.
 Do not infer broader process-locking coverage from the shared-mode test names.
 
 ## Acceptance boundaries

@@ -70,6 +70,11 @@ transaction IDs to the live committed set before changing either file. Per-frame
 validation during copying alone can certify a partial transaction before a later
 read fails. Hold the exclusive lock across validation and copying, and retain
 summaries rather than buffering all WAL page payloads.
+The header journal binds the preceding WAL bytes. Before repairing or removing
+it, verify that binding unless a validated newer header salt proves checkpoint
+publication completed. Never discard damaged redo needed by partial data writes.
+Keep the last nonempty recovery report across SharedEngine reopenings; distinguish
+invalid/partial WAL tails from intact unconfirmed tails in `$database` diagnostics.
 
 ## Query Frontends
 LINQ and SQL share `BsonExpressionFactory`; LINQ bindings must construct nodes

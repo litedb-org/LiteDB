@@ -18,6 +18,7 @@ namespace LiteDB.Engine
             if (journal != null)
             {
                 var published = journal.IsPublished(bytes);
+                journal.ValidateCheckpointWal(_logStream, published ? bytes : journal.Header);
                 if (!published) bytes = _recoveredHeader = journal.Header;
                 _checksums.JournalBytes = journal.Legacy && published ? _logStream.Length : journal.FooterBytes;
                 if (journal.ConfirmsLegacyBackup && !published && journal.FooterBytes != 0)
