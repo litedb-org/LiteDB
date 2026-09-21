@@ -2,12 +2,23 @@ name: CI
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
   workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event.action != 'labeled' || github.event.label.name == 'full-ci' }}
 
 jobs:
   build-and-test:
+    if: github.event.action != 'labeled' || github.event.label.name == 'full-ci'
     uses: ./.github/workflows/_reusable-ci.yml
+    with:
+      tier: ${{ contains(github.event.pull_request.labels.*.name, 'full-ci') && 'full' || 'pr' }}
 
   repro-runner:
+    if: github.event.action != 'labeled' || github.event.label.name == 'full-ci'
     uses: ./.github/workflows/reprorunner.yml
+    with:
+      tier: ${{ contains(github.event.pull_request.labels.*.name, 'full-ci') && 'full' || 'pr' }}
     secrets: inherit

@@ -13,18 +13,24 @@ def as_iterable(value):
 
 
 def main():
+    """Compose the requested CI-tier repro matrix and write workflow outputs."""
     workspace = Path(os.getenv("GITHUB_WORKSPACE", Path.cwd()))
     os_matrix_path = workspace / ".github" / "os-matrix.json"
     repros_path = workspace / "repros.json"
 
     os_matrix = json.loads(os_matrix_path.read_text(encoding="utf-8"))
+    tier = os.getenv("CI_TIER", "full").lower()
+    if tier not in {"pr", "full"}:
+        raise ValueError(f"Unsupported CI tier: {tier}")
+
     platform_labels: dict[str, list[str]] = {}
     label_platform: dict[str, str] = {}
 
     for platform, labels in os_matrix.items():
         normalized = platform.lower()
         platform_labels[normalized] = []
-        for label in labels:
+        selected_labels = labels[:1] if tier == "pr" else labels
+        for label in selected_labels:
             platform_labels[normalized].append(label)
             label_platform[label] = normalized
 
