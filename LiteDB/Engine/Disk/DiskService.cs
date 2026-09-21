@@ -233,8 +233,12 @@ namespace LiteDB.Engine
                         _state.SimulateDiskWriteFail?.Invoke(page);
 #endif
 
+                        this.CrashPoint(page.ReadBool(BasePage.P_IS_CONFIRMED) ?
+                            "wal-confirmation-before-write" : "wal-page-before-write");
                         this.PreserveFileVersion(page);
                         stream.Write(page.Array, page.Offset, PAGE_SIZE);
+                        this.CrashPoint(page.ReadBool(BasePage.P_IS_CONFIRMED) ?
+                            "wal-confirmation-after-write" : "wal-page-after-write");
                         hasConfirmation |= page.ReadBool(BasePage.P_IS_CONFIRMED);
 
                         // Publish only after the bytes are written to the stream.
@@ -273,7 +277,9 @@ namespace LiteDB.Engine
                 {
                     try
                     {
+                        this.CrashPoint("wal-before-durable-flush");
                         this.FlushConfirmedLog(stream);
+                        this.CrashPoint("wal-after-durable-flush");
                     }
                     catch (Exception ex)
                     {
@@ -396,11 +402,15 @@ namespace LiteDB.Engine
 
                 stream.Position = page.Position;
 
+                this.CrashPoint("checkpoint-before-page-write");
                 this.PreserveFileVersion(page);
                 stream.Write(page.Array, page.Offset, PAGE_SIZE);
+                this.CrashPoint("checkpoint-after-page-write");
             }
 
+            this.CrashPoint("checkpoint-before-data-flush");
             stream.FlushToDisk();
+            this.CrashPoint("checkpoint-after-data-flush");
         }
 
         /// <summary>

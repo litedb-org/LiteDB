@@ -23,6 +23,9 @@ namespace LiteDB.Engine
         public Action<PageBuffer> SimulateDiskReadFail = null;
         public Action<PageBuffer> SimulateDiskWriteFail = null;
         internal Action<PageBuffer> SimulateDataWriteFail;
+        internal static Action<string> SimulateProcessCrash;
+        internal static Action<long> ObserveSortSpill;
+        internal static Action<PageBuffer> ObserveCacheEviction;
 #endif
 
         public EngineState(LiteEngine engine, EngineSettings settings)
@@ -52,6 +55,13 @@ namespace LiteDB.Engine
 
             return true;
         }
+
+#if DEBUG || TESTING
+        internal void CrashPoint(string phase)
+        {
+            SimulateProcessCrash?.Invoke(phase);
+        }
+#endif
 
         internal void Stop(Exception ex)
         {

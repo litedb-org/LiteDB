@@ -318,7 +318,13 @@ namespace LiteDB.Engine
             // update wal-index (if any page was added into log disk)
             if (count > 0)
             {
+#if DEBUG || TESTING
+                _disk.TestCrashPoint("wal-before-index-confirmation");
+#endif
                 _walIndex.ConfirmTransaction(_transactionID, _transPages.DirtyPages.Values);
+#if DEBUG || TESTING
+                _disk.TestCrashPoint("wal-after-index-confirmation");
+#endif
             }
         }
 

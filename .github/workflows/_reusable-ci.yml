@@ -262,8 +262,8 @@ jobs:
           --no-dependencies
           ${{ matrix.item.msbuildProps }}
 
-      - name: Run tests (${{ matrix.arch }})
-        timeout-minutes: 5
+      - name: Run issue tests (${{ matrix.arch }})
+        timeout-minutes: 10
         run: >-
           dotnet test LiteDB.Tests/LiteDB.Tests.csproj
           --configuration Release
@@ -271,7 +271,22 @@ jobs:
           --framework ${{ matrix.item.framework }}
           --verbosity normal
           --settings tests.runsettings
-          --logger "trx;LogFileName=TestResults-${{ matrix.arch }}.trx"
+          --filter "FullyQualifiedName~LiteDB.Tests.Issues."
+          --logger "trx;LogFileName=TestResults-${{ matrix.arch }}-issues.trx"
+          --logger "console;verbosity=detailed"
+          ${{ matrix.item.msbuildProps }}
+
+      - name: Run remaining tests (${{ matrix.arch }})
+        timeout-minutes: 10
+        run: >-
+          dotnet test LiteDB.Tests/LiteDB.Tests.csproj
+          --configuration Release
+          --no-build
+          --framework ${{ matrix.item.framework }}
+          --verbosity normal
+          --settings tests.runsettings
+          --filter "FullyQualifiedName!~LiteDB.Tests.Issues."
+          --logger "trx;LogFileName=TestResults-${{ matrix.arch }}-remaining.trx"
           --logger "console;verbosity=detailed"
           ${{ matrix.item.msbuildProps }}
 
