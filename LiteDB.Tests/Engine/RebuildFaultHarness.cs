@@ -17,11 +17,17 @@ namespace LiteDB.Tests.Engine
         private static readonly Dictionary<string, KeyValuePair<byte[], byte[]>> Seeds =
             new Dictionary<string, KeyValuePair<byte[], byte[]>>();
 
+        // The slow verifications - opening copies, probing the live path, retrying the rebuild -
+        // depend only on what a run left on disk. Hundreds of fault sequences end in the same few
+        // disk states, so each distinct state is verified once and every run is still executed.
+        private static readonly Dictionary<string, string> Verified = new Dictionary<string, string>();
+
         private readonly string _directory;
         private int _hitsAtLastFault;
 
-        public RebuildFaultRun(RebuildFaultScenario scenario, IReadOnlyCollection<string> faults)
+        public RebuildFaultRun(RebuildFaultScenario scenario, IReadOnlyCollection<string> faults, bool installOnly = false)
         {
+            this.InstallOnly = installOnly;
             this.Scenario = scenario;
             this.Faults = faults;
             _directory = Path.Combine(Path.GetTempPath(), "litedb-rebuild-" + Guid.NewGuid().ToString("n").Substring(0, 8));
@@ -36,6 +42,13 @@ namespace LiteDB.Tests.Engine
         }
 
         public RebuildFaultScenario Scenario { get; }
+
+        /// <summary>
+        /// Drive only the installation of a replacement built once per scenario. Building it is the
+        /// slow, disk-heavy part of a rebuild and is identical for every fault sequence; the install
+        /// and its rollback are what the faults exercise. No database handle exists in this mode.
+        /// </summary>
+        public bool InstallOnly { get; }
         public IReadOnlyCollection<string> Faults { get; }
         public string Live { get; }
         public string LiveLog { get; }
@@ -64,6 +77,12 @@ namespace LiteDB.Tests.Engine
         /// <summary>The recovery marker was left behind: every open of the live path must be refused.</summary>
         public bool Blocked => this.FilesAfter.Contains(Path.GetFileName(this.Marker));
 
+        /// <summary>
+        /// Identifies the disk state a run ended in: the scenario, the reported state, and for every
+        /// file its name and whether it still is the original data file or the original WAL.
+        /// </summary>
+        public string Signature { get; private set; }
+
         /// <summary>A WAL was at the live path when the rebuild returned, before any later use.</summary>
         public bool HadLiveLog => this.FilesAfter.Contains(Path.GetFileName(this.LiveLog));
 
@@ -86,31 +105,66 @@ namespace LiteDB.Tests.Engine
 
             this.FilesBefore = this.ListFiles();
 
+            if (this.InstallOnly)
+            {
+                this.ExecuteInstall();
+                return;
+            }
+
             var connection = this.Scenario.OriginalConnection(this.Live);
             connection.Connection = this.Scenario.Connection;
 
             using (var db = new LiteDatabase(connection))
             {
-                RebuildService.SimulateInstallFailure = phase =>
-                {
-                    this.Hit.Add(phase);
-                    if (!this.Faults.Contains(phase)) return;
-                    this.Thrown.Add(phase);
-                    _hitsAtLastFault = this.Hit.Count;
-                    throw new IOException("injected " + phase);
-                };
+                this.Inject();
 
                 try { db.Rebuild(this.Scenario.CreateOptions()); }
                 catch (Exception ex) { this.Failure = ex; }
                 finally { RebuildService.SimulateInstallFailure = null; }
 
-                this.FilesAfter = this.ListFiles();
+                this.Capture();
                 this.SameHandleRead = Read(db);
                 if (!this.Blocked) return;
 
                 this.SameHandleWrite = Attempt(() => db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 3 }));
                 this.FilesAfterRefusedUse = this.ListFiles();
             }
+        }
+
+        private void ExecuteInstall()
+        {
+            File.WriteAllBytes(this.Temp, this.Scenario.Replacement());
+
+            var settings = new EngineSettings
+            {
+                Filename = this.Live,
+                Password = this.Scenario.OriginalConnection(this.Live).Password
+            };
+
+            this.Inject();
+            try { new RebuildService(settings).Install(this.Backup, this.BackupLog, this.Temp); }
+            catch (Exception ex) { this.Failure = ex; }
+            finally { RebuildService.SimulateInstallFailure = null; }
+
+            this.Capture();
+        }
+
+        private void Inject()
+        {
+            RebuildService.SimulateInstallFailure = phase =>
+            {
+                this.Hit.Add(phase);
+                if (!this.Faults.Contains(phase)) return;
+                this.Thrown.Add(phase);
+                _hitsAtLastFault = this.Hit.Count;
+                throw new IOException("injected " + phase);
+            };
+        }
+
+        private void Capture()
+        {
+            this.FilesAfter = this.ListFiles();
+            this.Signature = this.Scenario.Key + "|" + this.LiveState + "|" + string.Join(",", this.FilesAfter.Select(this.Identify));
         }
 
         /// <summary>
@@ -122,7 +176,7 @@ namespace LiteDB.Tests.Engine
             KeyValuePair<byte[], byte[]> files;
             lock (Seeds)
             {
-                if (!Seeds.TryGetValue(this.Scenario.ToString(), out files))
+                if (!Seeds.TryGetValue(this.Scenario.Key, out files))
                 {
                     using (var seed = new LiteDatabase(this.Scenario.OriginalConnection(this.Live)))
                     {
@@ -136,7 +190,7 @@ namespace LiteDB.Tests.Engine
                     files = new KeyValuePair<byte[], byte[]>(
                         File.ReadAllBytes(this.Live),
                         File.Exists(this.LiveLog) ? File.ReadAllBytes(this.LiveLog) : null);
-                    Seeds[this.Scenario.ToString()] = files;
+                    Seeds[this.Scenario.Key] = files;
                     return;
                 }
             }
@@ -149,6 +203,13 @@ namespace LiteDB.Tests.Engine
         public string ReadCopy(string data, string log, bool replacementSettings)
         {
             if (!File.Exists(data)) return "NOFILE";
+
+            var key = $"{this.Signature}|copy|{Path.GetFileName(data)}|{Path.GetFileName(log ?? "")}|{replacementSettings}";
+            return Once(key, () => this.ReadCopyCore(data, log, replacementSettings));
+        }
+
+        private string ReadCopyCore(string data, string log, bool replacementSettings)
+        {
 
             var copy = Path.Combine(_directory, "copy-" + Guid.NewGuid().ToString("n").Substring(0, 8) + ".db");
             File.Copy(data, copy);
@@ -178,12 +239,50 @@ namespace LiteDB.Tests.Engine
         /// <summary>Open the live path itself with a fresh handle. Only meaningful when it must be refused.</summary>
         public string OpenLive(ConnectionType connection, bool replacementSettings)
         {
+            return Once($"{this.Signature}|open|{connection}|{replacementSettings}", () => this.OpenLiveCore(connection, replacementSettings));
+        }
+
+        private string OpenLiveCore(ConnectionType connection, bool replacementSettings)
+        {
             var settings = replacementSettings
                 ? this.Scenario.ReplacementConnection(this.Live)
                 : this.Scenario.OriginalConnection(this.Live);
             settings.Connection = connection;
 
             return OpenAndRead(settings);
+        }
+
+        private static string Once(string key, Func<string> verify)
+        {
+            lock (Verified)
+            {
+                if (!Verified.TryGetValue(key, out var result)) Verified[key] = result = verify();
+                return result;
+            }
+        }
+
+        public byte[] ReadLive() => this.ReadShared(this.Live);
+
+        // A direct handle keeps the rebuilt file open, so read alongside it.
+        private byte[] ReadShared(string path)
+        {
+            using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            using (var buffer = new MemoryStream())
+            {
+                stream.CopyTo(buffer);
+                return buffer.ToArray();
+            }
+        }
+
+        private string Identify(string name)
+        {
+            var bytes = this.ReadShared(Path.Combine(_directory, name));
+            var seed = Seeds[this.Scenario.Key];
+            var identity = bytes.SequenceEqual(seed.Key) ? "original-data"
+                : seed.Value != null && bytes.SequenceEqual(seed.Value) ? "original-wal"
+                : "other";
+
+            return name + "=" + identity;
         }
 
         private static string OpenAndRead(ConnectionString connection) => Attempt(() =>
@@ -227,52 +326,5 @@ namespace LiteDB.Tests.Engine
             RebuildService.SimulateInstallFailure = null;
             try { Directory.Delete(_directory, true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
         }
-    }
-
-    public enum RebuildChange { None, SetPassword, RemovePassword, Collation }
-
-    public sealed class RebuildFaultScenario
-    {
-        private const string Password = "rebuild-password";
-
-        public RebuildFaultScenario(RebuildChange change, bool wal, ConnectionType connection)
-        {
-            this.Change = change;
-            this.Wal = wal;
-            this.Connection = connection;
-        }
-
-        public RebuildChange Change { get; }
-        public bool Wal { get; }
-        public ConnectionType Connection { get; }
-
-        public RebuildOptions CreateOptions()
-        {
-            switch (this.Change)
-            {
-                case RebuildChange.SetPassword: return new RebuildOptions { Password = Password };
-                case RebuildChange.RemovePassword: return new RebuildOptions { RemovePassword = true };
-                case RebuildChange.Collation: return new RebuildOptions { Collation = new Collation("en-US/IgnoreCase") };
-                default: return new RebuildOptions();
-            }
-        }
-
-        public ConnectionString OriginalConnection(string filename) => new ConnectionString
-        {
-            Filename = filename,
-            Password = this.Change == RebuildChange.RemovePassword ? Password : null,
-            Collation = new Collation("en-US/None")
-        };
-
-        public ConnectionString ReplacementConnection(string filename) => new ConnectionString
-        {
-            Filename = filename,
-            Password = this.Change == RebuildChange.SetPassword ? Password
-                : this.Change == RebuildChange.RemovePassword ? null
-                : this.OriginalConnection(filename).Password,
-            Collation = this.Change == RebuildChange.Collation ? new Collation("en-US/IgnoreCase") : new Collation("en-US/None")
-        };
-
-        public override string ToString() => $"{this.Change}/{(this.Wal ? "wal" : "nowal")}/{this.Connection}";
     }
 }

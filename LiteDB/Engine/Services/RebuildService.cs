@@ -66,6 +66,16 @@ namespace LiteDB.Engine
             var backupLogFilename = FileHelper.GetSuffixFile(FileHelper.GetLogFile(_settings.Filename), "-backup", true);
             var tempFilename = FileHelper.GetSuffixFile(_settings.Filename, "-temp", true);
 
+            this.BuildReplacement(tempFilename, options, currentCollation);
+
+            return this.Install(backupFilename, backupLogFilename, tempFilename);
+        }
+
+        /// <summary>
+        /// Read everything the file reader can recover into a new, checkpointed database file.
+        /// </summary>
+        private void BuildReplacement(string tempFilename, RebuildOptions options, Collation currentCollation)
+        {
             // open file reader
             using (var reader = _fileVersion == 7 ?
                 new FileReaderV7(_settings) :
@@ -110,6 +120,14 @@ namespace LiteDB.Engine
                 }
             }
 
+        }
+
+        /// <summary>
+        /// Publish the completed replacement at the live path, keeping the original data file and
+        /// WAL as backups. On failure roll back to a complete database or leave access guarded.
+        /// </summary>
+        internal long Install(string backupFilename, string backupLogFilename, string tempFilename)
+        {
             // Read metadata before installation, so no fallible work separates the
             // completed replacement from the caller updating its engine settings.
             var difference = new FileInfo(_settings.Filename).Length - new FileInfo(tempFilename).Length;
