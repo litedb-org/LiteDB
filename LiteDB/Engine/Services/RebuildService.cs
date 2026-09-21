@@ -15,6 +15,8 @@ namespace LiteDB.Engine
     /// </summary>
     internal class RebuildService
     {
+        internal const string ReplacementPublishedDataKey = "LiteDB.Rebuild.ReplacementPublished";
+
 #if DEBUG || TESTING
         internal static Action<string> SimulateInstallFailure;
 #endif
@@ -99,6 +101,7 @@ namespace LiteDB.Engine
 
             var movedLog = false;
             var movedSource = false;
+            var candidateIsLive = false;
             try
             {
 #if DEBUG || TESTING
@@ -124,6 +127,7 @@ namespace LiteDB.Engine
 
                 // rename temp file into filename
                 File.Move(tempFilename, _settings.Filename);
+                candidateIsLive = true;
 #if DEBUG || TESTING
                 SimulateInstallFailure?.Invoke("after-temp-install");
 #endif
@@ -144,7 +148,10 @@ namespace LiteDB.Engine
                     // pair; mixing a new encrypted data file with the old WAL makes
                     // both otherwise-complete states unreadable.
                     if (movedSource && File.Exists(backupFilename) && File.Exists(_settings.Filename))
+                    {
                         File.Move(_settings.Filename, tempFilename);
+                        candidateIsLive = false;
+                    }
                 }, rollbackErrors);
 
                 TryRollback(() =>
@@ -202,8 +209,12 @@ namespace LiteDB.Engine
                         SimulateInstallFailure?.Invoke("before-candidate-republish");
 #endif
                         File.Move(tempFilename, _settings.Filename);
+                        candidateIsLive = true;
                     }
                 }, rollbackErrors);
+
+                if (candidateIsLive)
+                    installException.Data[ReplacementPublishedDataKey] = true;
 
                 if (rollbackErrors.Count > 0)
                     installException.Data["LiteDB.Rebuild.RollbackErrors"] = new AggregateException(rollbackErrors);

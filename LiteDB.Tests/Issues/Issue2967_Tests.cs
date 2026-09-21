@@ -230,5 +230,51 @@ namespace LiteDB.Tests.Issues
                 File.Delete(recoveryLogFile);
             }
         }
+
+        [Fact]
+        public void Shared_engine_uses_republished_candidate_settings_after_rebuild_failure()
+        {
+            const string oldPassword = "old-password";
+            const string newPassword = "new-password";
+            using var file = new TempFile();
+            using (var seed = new LiteDatabase(new ConnectionString
+            {
+                Filename = file.Filename,
+                Password = oldPassword
+            }))
+            {
+                seed.CheckpointSize = 0;
+                seed.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "old" });
+            }
+
+            var logFile = FileHelper.GetLogFile(file.Filename);
+            var backupFile = FileHelper.GetSuffixFile(file.Filename, "-backup", false);
+            var backupLogFile = FileHelper.GetSuffixFile(logFile, "-backup", false);
+            RebuildService.SimulateInstallFailure = phase =>
+            {
+                if (phase == "after-temp-install") throw new IOException("install failure");
+                if (phase == "before-source-rollback") throw new IOException("source rollback failure");
+            };
+            try
+            {
+                using var db = new LiteDatabase(new ConnectionString
+                {
+                    Filename = file.Filename,
+                    Password = oldPassword,
+                    Connection = ConnectionType.Shared
+                });
+
+                Action rebuild = () => db.Rebuild(new RebuildOptions { Password = newPassword });
+                rebuild.Should().Throw<IOException>().WithMessage("install failure");
+
+                db.GetCollection("rows").FindById(1)["value"].AsString.Should().Be("old");
+            }
+            finally
+            {
+                RebuildService.SimulateInstallFailure = null;
+                File.Delete(backupFile);
+                File.Delete(backupLogFile);
+            }
+        }
     }
 }
