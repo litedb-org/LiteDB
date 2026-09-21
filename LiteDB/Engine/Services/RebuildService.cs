@@ -126,25 +126,45 @@ namespace LiteDB.Engine
                 SimulateInstallFailure?.Invoke("after-temp-install");
 #endif
             }
-            catch
+            catch (Exception installException)
             {
-                if (movedSource && File.Exists(backupFilename))
+                var rollbackErrors = new List<Exception>();
+
+                TryRollback(() =>
                 {
                     // Installation may already have placed the replacement at the
                     // live path. Move it back out before restoring the old data/WAL
                     // pair; mixing a new encrypted data file with the old WAL makes
                     // both otherwise-complete states unreadable.
-                    if (File.Exists(_settings.Filename))
+                    if (movedSource && File.Exists(backupFilename) && File.Exists(_settings.Filename))
                         File.Move(_settings.Filename, tempFilename);
-                    File.Move(backupFilename, _settings.Filename);
-                }
-                if (!File.Exists(logFile) && movedLog && File.Exists(backupLogFilename))
-                    File.Move(backupLogFilename, logFile);
+                }, rollbackErrors);
+
+                TryRollback(() =>
+                {
+                    if (movedSource && File.Exists(backupFilename))
+                        File.Move(backupFilename, _settings.Filename);
+                }, rollbackErrors);
+
+                TryRollback(() =>
+                {
+                    if (!File.Exists(logFile) && movedLog && File.Exists(backupLogFilename))
+                        File.Move(backupLogFilename, logFile);
+                }, rollbackErrors);
+
+                if (rollbackErrors.Count > 0)
+                    installException.Data["LiteDB.Rebuild.RollbackErrors"] = new AggregateException(rollbackErrors);
                 throw;
             }
 
 
             return difference;
+        }
+
+        private static void TryRollback(Action rollback, ICollection<Exception> errors)
+        {
+            try { rollback(); }
+            catch (Exception error) { errors.Add(error); }
         }
 
         /// <summary>
