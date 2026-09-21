@@ -554,20 +554,10 @@ namespace LiteDB
             // first, test if types are different
             if (this.Type != other.Type)
             {
-                // if both values are number, convert them to Decimal (128 bits) to compare
-                // it's the slowest way, but more secure
+                // numbers of different types are compared by their exact value
                 if (this.IsNumber && other.IsNumber)
                 {
-                    if (IsDecimalConvertible(this) && IsDecimalConvertible(other))
-                    {
-                        return Convert.ToDecimal(this.RawValue).CompareTo(Convert.ToDecimal(other.RawValue));
-                    }
-
-                    // exactly one side is a double that decimal cannot hold (NaN, infinity or |x| >= 2^96).
-                    // it can never equal the other side, so only its sign decides the order
-                    return IsDecimalConvertible(this)
-                        ? -OutOfDecimalRangeSign(other.AsDouble)
-                        : OutOfDecimalRangeSign(this.AsDouble);
+                    return BsonNumericComparer.Compare(this, other);
                 }
                 // if not, order by sort type order
                 else

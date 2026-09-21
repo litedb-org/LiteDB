@@ -237,38 +237,41 @@ namespace LiteDB.Engine
         private bool IsNumber() => this.Type == BsonType.Int32 || this.Type == BsonType.Int64 ||
             this.Type == BsonType.Double || this.Type == BsonType.Decimal;
 
-        private bool IsDecimalConvertible()
-        {
-            if (this.Type != BsonType.Double) return true;
-
-            return !Double.IsNaN(_double) && !Double.IsInfinity(_double) &&
-                _double < (double)Decimal.MaxValue && _double > (double)Decimal.MinValue;
-        }
-
         private decimal AsDecimal()
         {
             switch (this.Type)
             {
                 case BsonType.Int32:
                 case BsonType.Int64: return _integer;
-                case BsonType.Double: return Convert.ToDecimal(_double);
-                default: return _decimal;
+                case BsonType.Decimal: return _decimal;
+                default: throw new NotSupportedException($"{this.Type} has no exact decimal value.");
             }
         }
 
         private static int CompareNumbers(BorrowedBsonValue left, BorrowedBsonValue right)
         {
-            var leftConvertible = left.IsDecimalConvertible();
-            var rightConvertible = right.IsDecimalConvertible();
+            if (left.Type == BsonType.Double)
+            {
+                if (right.Type == BsonType.Double) return left._double.CompareTo(right._double);
 
-            if (leftConvertible && rightConvertible)
+                return right.Type == BsonType.Decimal
+                    ? -BsonNumericComparer.CompareDecimalToDouble(right._decimal, left._double)
+                    : -BsonNumericComparer.CompareInt64ToDouble(right._integer, left._double);
+            }
+
+            if (right.Type == BsonType.Double)
+            {
+                return left.Type == BsonType.Decimal
+                    ? BsonNumericComparer.CompareDecimalToDouble(left._decimal, right._double)
+                    : BsonNumericComparer.CompareInt64ToDouble(left._integer, right._double);
+            }
+
+            if (left.Type == BsonType.Decimal || right.Type == BsonType.Decimal)
             {
                 return left.AsDecimal().CompareTo(right.AsDecimal());
             }
 
-            return leftConvertible
-                ? -(right._double > 0 ? 1 : -1)
-                : (left._double > 0 ? 1 : -1);
+            return left._integer.CompareTo(right._integer);
         }
     }
 }
