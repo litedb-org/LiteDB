@@ -325,7 +325,29 @@ namespace LiteDB.Engine
                 groupOrderBy = new OrderBy(new[] { new OrderByItem(expression, Query.Ascending) });
             }
 
+            // the pipe writes the current group key into these expressions' parameters, so each one gets
+            // a private document rather than the one the caller passed to Execute
+            select = IsolateParameters(select);
+            having = IsolateParameters(having);
+
+            if (_queryPlan.OrderBy != null)
+            {
+                _queryPlan.OrderBy = new OrderBy(_queryPlan.OrderBy.Segments
+                    .Select(x => new OrderByItem(IsolateParameters(x.Expression), x.Order)));
+            }
+
             _queryPlan.GroupBy = new GroupBy(expression, select, having, groupOrderBy);
+        }
+
+        private static BsonExpression IsolateParameters(BsonExpression expression)
+        {
+            if (expression?.Parameters == null) return expression;
+
+            var parameters = new BsonDocument();
+
+            foreach (var parameter in expression.Parameters) parameters[parameter.Key] = parameter.Value;
+
+            return expression.Bind(parameters);
         }
 
         #endregion
