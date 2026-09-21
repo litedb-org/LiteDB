@@ -8,6 +8,7 @@ namespace LiteDB.Engine
     {
         private readonly WalChecksum _checksums = new WalChecksum();
         private byte[] _recoveredHeader;
+        private readonly DataChecksumPolicy _dataChecksums = new DataChecksumPolicy();
 
         private void InitializeChecksums()
         {
@@ -26,8 +27,10 @@ namespace LiteDB.Engine
             }
             if (bytes[HeaderPage.P_FILE_VERSION] != HeaderPage.CHECKSUM_FILE_VERSION &&
                 new BufferSlice(bytes, 0, PAGE_SIZE).ReadUInt32(WalChecksum.MarkerPosition) != WalChecksum.HeaderMarker) return;
-            // Salvage still reads other intact pages if the header is damaged;
-            // ReadPage validates its checksum when consuming its actual fields.
+            // Mixed-page permissions must only come from a verified header.
+            var header = new BufferSlice(bytes, 0, PAGE_SIZE);
+            PageChecksum.Validate(header, 0);
+            _dataChecksums.Load(header);
             var salt = new byte[16];
             Buffer.BlockCopy(bytes, WalChecksum.SaltPosition, salt, 0, salt.Length);
             _checksums.Reset(salt);

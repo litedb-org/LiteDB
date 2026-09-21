@@ -32,7 +32,7 @@ internal static class MaintenanceBenchmarks
                         if (run >= 0) checkpoint[run] = watch.Elapsed.TotalMilliseconds;
                     }
                     bytes = new FileInfo(file).Length;
-                    MakeLegacyHeader(file, password);
+                    MakeLegacyPages(file, password);
                     var open = Stopwatch.StartNew();
                     using (var db = new LiteDatabase(connection))
                     {
@@ -54,7 +54,7 @@ internal static class MaintenanceBenchmarks
         }
     }
 
-    private static void MakeLegacyHeader(string file, string password)
+    private static void MakeLegacyPages(string file, string password)
     {
         // Page payloads are unchanged; legacy readers ignore the persisted
         // transaction field. Exercise automatic metadata conversion, not rebuild.
@@ -62,17 +62,25 @@ internal static class MaintenanceBenchmarks
         using var encrypted = password == null ? null : new AesStream(password, raw);
         var stream = (Stream)encrypted ?? raw;
         var page = new byte[8192];
-        var read = 0;
-        while (read < page.Length)
+        for (long position = 0; position < stream.Length; position += page.Length)
         {
-            var count = stream.Read(page, read, page.Length - read);
-            if (count == 0) throw new EndOfStreamException();
-            read += count;
+            stream.Position = position;
+            var read = 0;
+            while (read < page.Length)
+            {
+                var count = stream.Read(page, read, page.Length - read);
+                if (count == 0) throw new EndOfStreamException();
+                read += count;
+            }
+            page[31] = 0; // Legacy page format marker.
+            if (position == 0)
+            {
+                page[59] = 8;
+                Array.Clear(page, 125, 4);
+            }
+            stream.Position = position;
+            stream.Write(page, 0, page.Length);
         }
-        page[59] = 8;
-        Array.Clear(page, 125, 4);
-        stream.Position = 0;
-        stream.Write(page, 0, page.Length);
         stream.Flush();
         raw.Flush(true);
     }

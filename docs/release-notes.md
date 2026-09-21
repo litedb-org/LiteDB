@@ -3,7 +3,8 @@
 ## Data-page and WAL checksums (#2935)
 
 New files use format v10. Writable v8/v9 opens automatically recover the legacy
-WAL, add page checksums, and durably publish v10 before accepting writes.
+WAL and durably publish v10 before accepting writes. Existing pages gain
+checksums lazily when written; cutover only rewrites the header.
 Read-only legacy opens preserve their files. Older engines refuse v10, so keep a
 backup before writable open if backward compatibility is required.
 
@@ -15,7 +16,10 @@ intact unconfirmed tails. Shared mode retains the report across internal reopeni
 Checkpointed data pages also have checksums and fail explicitly when damaged.
 Checkpoint uses a temporary header journal to recover torn header writes.
 Automatic conversion keeps verified legacy redo until v10 publication is durable,
-requiring temporary WAL space proportional to allocated database pages.
+using 32 KiB of temporary WAL, independent of database size (plus the encryption
+preamble). `$database.checksumCoverage` distinguishes Mixed from Complete
+protection. Explicit rebuild completes coverage; cold legacy pages remain
+unchecksummed until written or rebuilt.
 Plain and encrypted files use the same validation. See the
 [format, conversion, and recovery details](page-and-wal-checksums.md).
 

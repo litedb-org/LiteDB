@@ -44,8 +44,15 @@ this fork is `JKamsker/LiteDB` (remote `origin`). Issues are tracked upstream, s
 
 ## Vector File Compatibility
 New files use format v10 with data-page and WAL checksums. Writable v8/v9 opens
-recover/checkpoint the legacy WAL, checksum existing pages, sync them, and only
-then durably publish v10. Read-only legacy opens preserve their bytes. `Upgrade=true`
+recover/checkpoint and sync the legacy WAL, then durably publish v10 with Mixed
+data-page coverage. Cutover backs up only the header (32 KiB temporary WAL);
+ordinary writes/checkpoints lazily checksum old pages. Byte 31 is 00 for legacy,
+A5 for checksummed, and FF reserved for a future globally promoted file format.
+Unknown markers fail closed. Only Mixed non-header pages at or below the
+checksum-validated LegacyLastPageID may be legacy. Header bytes 160..164 store
+coverage and the boundary; new/rebuilt files use Complete. Keep coverage Mixed
+conservatively until explicit rebuild; there is no background migration.
+Read-only legacy opens preserve their bytes. `Upgrade=true`
 continues to rebuild v7 files before applying read-only access. Data checksums use
 bytes 14..17 (the unused persisted transaction ID); WAL frames append 64 plaintext
 metadata bytes and keep logical 8192-byte page addresses. Rotate the WAL salt only
@@ -59,7 +66,7 @@ automatic conversion, and old-engine rejection, including encrypted files.
 See `docs/page-and-wal-checksums.md` and `docs/vector-query-compatibility.md`.
 Header overwrites require a synced WAL recovery footer; recover it before the
 primary-header checksum gate, and sync repairs before removing the footer.
-Conversion keeps legacy redo: durably publish its intent before writing backup
+Conversion keeps legacy header redo: durably publish its intent before writing backup
 pages, sync redo before preparation, and sync preparation before confirmation.
 Incomplete encrypted redo can look confirmed, so never feed it to legacy replay
 without checking the intent/preparation records. Keep read-only recovery byte

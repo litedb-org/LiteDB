@@ -14,6 +14,7 @@ namespace LiteDB.Engine
         internal const int Size = 2 * PAGE_SIZE;
         private const long Magic = 0x314C4E524A42444C; // LDBJRNL1
         private const long PreparedMagic = 0x315045525042444C; // LDBPREP1
+        private const long HeaderIntentMagic = 0x324E49474542444C; // LDBEGIN2: header-only backup
         private const long IntentMagic = 0x314E49474542444C; // LDBEGIN1
         private const int P_MAGIC = 132;
         private const int P_POSITION = 140;
@@ -47,7 +48,12 @@ namespace LiteDB.Engine
             if (valid && header[HeaderPage.P_FILE_VERSION] > HeaderPage.CHECKSUM_FILE_VERSION)
                 throw LiteException.UnsupportedFileVersion(header[HeaderPage.P_FILE_VERSION]);
             var published = valid && header[HeaderPage.P_FILE_VERSION] == HeaderPage.CHECKSUM_FILE_VERSION;
-            if (published) _ = new HeaderPage(new PageBuffer(header, 0, 0));
+            if (published)
+            {
+                PageChecksum.Validate(page, 0);
+                new DataChecksumPolicy().Load(page);
+                _ = new HeaderPage(new PageBuffer(header, 0, 0));
+            }
             if (IntentOnly && !published)
                 for (var i = 0; i < PAGE_SIZE; i++)
                 {
@@ -69,7 +75,8 @@ namespace LiteDB.Engine
             stream.Position = 0;
             stream.ReadRequired(bytes, 0, bytes.Length);
             var page = new BufferSlice(bytes, 0, PAGE_SIZE);
-            if (page.ReadInt64(P_MAGIC) != IntentMagic || (bytes[HeaderPage.P_FILE_VERSION] != 8 && bytes[HeaderPage.P_FILE_VERSION] != 9)) return null;
+            var headerOnly = page.ReadInt64(P_MAGIC) == HeaderIntentMagic;
+            if ((!headerOnly && page.ReadInt64(P_MAGIC) != IntentMagic) || (bytes[HeaderPage.P_FILE_VERSION] != 8 && bytes[HeaderPage.P_FILE_VERSION] != 9)) return null;
             var expected = page.ReadUInt32(P_CRC);
             page.Write(0u, P_CRC);
             var actual = ~Crc32C.Update(uint.MaxValue, bytes, 0, bytes.Length);
@@ -79,7 +86,7 @@ namespace LiteDB.Engine
             // An older engine may append commits after a completed conversion
             // backup. Find its footer at the position derived from the intent;
             // those later legacy transactions must not be discarded with it.
-            var footer = ((long)page.ReadUInt32(HeaderPage.P_LAST_PAGE_ID) + 2) * PAGE_SIZE;
+            var footer = headerOnly ? 2L * PAGE_SIZE : ((long)page.ReadUInt32(HeaderPage.P_LAST_PAGE_ID) + 2) * PAGE_SIZE;
             if (stream.Length >= footer + Size)
             {
                 var complete = ReadComplete(stream, footer);
@@ -114,7 +121,12 @@ namespace LiteDB.Engine
             var version = header[HeaderPage.P_FILE_VERSION];
             if (version != 8 && version != 9 && version != HeaderPage.CHECKSUM_FILE_VERSION) return null;
             if (position % (journal.Legacy ? PAGE_SIZE : WalChecksum.FrameSize) != 0) return null;
-            if (!journal.Legacy) PageChecksum.Validate(new BufferSlice(header, 0, PAGE_SIZE), 0);
+            if (!journal.Legacy)
+            {
+                var page = new BufferSlice(header, 0, PAGE_SIZE);
+                PageChecksum.Validate(page, 0);
+                new DataChecksumPolicy().Load(page);
+            }
             else if (descriptor.ReadUInt32(P_BODY_CRC) != ComputeBody(stream, position, out _))
                 throw new PageChecksumException(FileOrigin.Log, 0);
             if (journal.ConfirmsLegacyBackup && (!journal.Legacy || position < PAGE_SIZE)) return null;
@@ -214,8 +226,8 @@ namespace LiteDB.Engine
             return ~crc;
         }
 
-        /// <summary>Keep complete legacy redo while adding checksums in place.</summary>
-        internal static void BackupLegacyPages(Stream data, Stream log, byte[] header, uint lastPageID)
+        /// <summary>Keep bounded legacy header redo while publishing mixed v10 coverage.</summary>
+        internal static void BackupLegacyHeader(Stream log, byte[] header)
         {
             if (log.Length != 0) throw new IOException("Conversion requires a checkpointed WAL.");
             log.Position = 0;
@@ -223,7 +235,7 @@ namespace LiteDB.Engine
             Buffer.BlockCopy(header, 0, page.Array, 0, PAGE_SIZE);
             page.Write(1u, BasePage.P_TRANSACTION_ID);
             page.Write(false, BasePage.P_IS_CONFIRMED);
-            page.Write(IntentMagic, P_MAGIC);
+            page.Write(HeaderIntentMagic, P_MAGIC);
             page.Write(0L, P_POSITION);
             page.Write(0u, P_BODY_CRC);
             page.Write(0u, P_CRC);
@@ -235,14 +247,6 @@ namespace LiteDB.Engine
             log.FlushToDisk();
             log.Write(page.Array, 32, PAGE_SIZE - 32);
             log.FlushToDisk();
-            for (long id = 1; id <= lastPageID; id++)
-            {
-                data.Position = id * PAGE_SIZE;
-                data.ReadRequired(page.Array, 0, PAGE_SIZE);
-                page.Write(1u, BasePage.P_TRANSACTION_ID);
-                page.Write(false, BasePage.P_IS_CONFIRMED);
-                log.Write(page.Array, 0, PAGE_SIZE);
-            }
             Buffer.BlockCopy(header, 0, page.Array, 0, PAGE_SIZE);
             page.Write(1u, BasePage.P_TRANSACTION_ID);
             page.Write(false, BasePage.P_IS_CONFIRMED);

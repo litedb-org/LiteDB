@@ -16,11 +16,20 @@ namespace LiteDB.Engine
                 PAGE_SIZE - BasePage.P_IS_CONFIRMED);
         }
 
-        internal static void Write(BufferSlice page) => page.Write(Compute(page), BasePage.P_TRANSACTION_ID);
+        internal const byte Legacy = 0x00;
+        internal const byte Checksummed = 0xA5;
+        internal const byte Extended = 0xFF; // Requires a future global file version.
+
+        internal static void Write(BufferSlice page)
+        {
+            page[BasePage.P_PAGE_FORMAT] = Checksummed;
+            page.Write(Compute(page), BasePage.P_TRANSACTION_ID);
+        }
 
         internal static void Validate(BufferSlice page, long position)
         {
-            if (page.ReadUInt32(BasePage.P_TRANSACTION_ID) != Compute(page) ||
+            if (page[BasePage.P_PAGE_FORMAT] != Checksummed ||
+                page.ReadUInt32(BasePage.P_TRANSACTION_ID) != Compute(page) ||
                 page.ReadUInt32(BasePage.P_PAGE_ID) != position / PAGE_SIZE)
                 throw new PageChecksumException(FileOrigin.Data, position);
         }

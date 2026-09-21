@@ -146,7 +146,7 @@ namespace LiteDB.Engine
         /// </summary>
         public DiskReader GetReader()
         {
-            return new DiskReader(_state, _cache, _dataPool, _logPool, ChecksumsEnabled);
+            return new DiskReader(_state, _cache, _dataPool, _logPool, ChecksumsEnabled ? _dataChecksums : null);
         }
 
         /// <summary>
@@ -375,7 +375,7 @@ namespace LiteDB.Engine
                     ENSURE(bytesRead == PAGE_SIZE, "ReadFull must read PAGE_SIZE bytes [{0}]", bytesRead);
                     this.ReadRecoveredHeader(buffer, position, origin);
                     if (origin == FileOrigin.Data && ChecksumsEnabled)
-                        PageChecksum.Validate(new BufferSlice(buffer, 0, PAGE_SIZE), position);
+                        _dataChecksums.Validate(new BufferSlice(buffer, 0, PAGE_SIZE), position);
 
                     yield return new PageBuffer(buffer, 0, 0)
                     {

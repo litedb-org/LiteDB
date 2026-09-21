@@ -24,10 +24,20 @@ namespace LiteDB.Internals
             {
                 var page = new byte[PAGE_SIZE];
                 stream.ReadRequired(page, 0, page.Length);
-                page[HeaderPage.P_FILE_VERSION] = version;
-                new BufferSlice(page, 0, PAGE_SIZE).Write(0u, WalChecksum.MarkerPosition);
-                stream.Position = 0;
-                stream.Write(page, 0, page.Length);
+                var lastPageID = new BufferSlice(page, 0, PAGE_SIZE).ReadUInt32(HeaderPage.P_LAST_PAGE_ID);
+                for (long id = 0; id <= lastPageID; id++)
+                {
+                    stream.Position = id * PAGE_SIZE;
+                    stream.ReadRequired(page, 0, page.Length);
+                    page[BasePage.P_PAGE_FORMAT] = PageChecksum.Legacy;
+                    if (id == 0)
+                    {
+                        page[HeaderPage.P_FILE_VERSION] = version;
+                        new BufferSlice(page, 0, PAGE_SIZE).Write(0u, WalChecksum.MarkerPosition);
+                    }
+                    stream.Position = id * PAGE_SIZE;
+                    stream.Write(page, 0, page.Length);
+                }
             }
             if (log.Length == 0) return;
             using var source = new StreamFactory(log, password);
@@ -41,6 +51,7 @@ namespace LiteDB.Internals
                 {
                     input.Position = position;
                     input.ReadRequired(frame, 0, frame.Length);
+                    frame[BasePage.P_PAGE_FORMAT] = PageChecksum.Legacy;
                     if (frame[BasePage.P_PAGE_TYPE] == (byte)PageType.Header)
                     {
                         frame[HeaderPage.P_FILE_VERSION] = version;

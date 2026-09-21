@@ -75,8 +75,9 @@ have no specified relative order unless the query supplies a tie-breaker.
 
 New databases use format **10**, which supports vectors and checksums for data
 pages and WAL frames. A writable open automatically converts v8/v9 files after
-recovering and checkpointing their legacy WAL. This changes persisted metadata
-without rebuilding documents or indexes. Temporary WAL redo protects conversion;
+recovering and checkpointing their legacy WAL. This publishes a checksummed header
+without scanning or rewriting the old data pages; they are checksummed lazily on
+subsequent writes. A 32 KiB temporary WAL header backup protects cutover;
 no permanent backup file is created. Read-only
 v8/v9 opens preserve their original format. LiteDB 5.0.21 refuses v10 before it
 can interpret the new WAL. See [the checksum format and recovery rules](page-and-wal-checksums.md).

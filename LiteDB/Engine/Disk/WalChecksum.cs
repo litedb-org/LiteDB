@@ -58,6 +58,7 @@ namespace LiteDB.Engine
 
         internal Frame Prepare(BufferSlice page, BufferSlice metadata, long position)
         {
+            page[BasePage.P_PAGE_FORMAT] = PageChecksum.Checksummed;
             metadata.Clear();
             metadata.Write(Magic, 0);
             Buffer.BlockCopy(Salt, 0, metadata.Array, metadata.Offset + 8, Salt.Length);
@@ -97,7 +98,8 @@ namespace LiteDB.Engine
 
         internal Frame Validate(BufferSlice page, BufferSlice metadata, long position)
         {
-            if (metadata.ReadUInt32(0) != Magic || metadata.ReadInt64(24) != position)
+            if (page[BasePage.P_PAGE_FORMAT] != PageChecksum.Checksummed ||
+                metadata.ReadUInt32(0) != Magic || metadata.ReadInt64(24) != position)
                 throw new PageChecksumException(FileOrigin.Log, position);
             for (var i = 0; i < Salt.Length; i++)
                 if (metadata[8 + i] != Salt[i]) throw new PageChecksumException(FileOrigin.Log, position);

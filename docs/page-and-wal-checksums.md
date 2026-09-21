@@ -1,15 +1,16 @@
 # Data-page and WAL checksums (#2935)
 
-New databases use format **10**. Writable opens of formats 8 and 9 automatically
-recover their legacy WAL, checkpoint it, and add checksums to existing pages.
-The page checksums are synced before the v10 header is written and synced. This
-is an in-place metadata conversion, with work proportional to the allocated
-database pages. Temporary legacy redo and a header journal protect interrupted
-conversion; allow approximately the allocated file size plus 24 KiB of WAL space.
+New databases use format **10** with complete data-page checksum coverage.
+Writable opens of formats 8 and 9 automatically recover/checkpoint their legacy
+WAL, sync both files, and durably publish v10 with **mixed** data-page coverage.
+Cutover overwrites only the header and uses **32 KiB** of temporary WAL (plus the
+8 KiB encryption preamble when encrypted), independent of allocated data size.
+Untouched data pages stay legacy; ordinary writes/checkpoints checksum them lazily.
+Draining an existing legacy WAL still requires its normal checkpoint work.
 Documents and indexes are not rebuilt and no permanent backup is created.
 Keep a backup if the file must remain usable by an older engine. Read-only legacy
 opens do not convert or modify either file. The `Upgrade=true` v7 rebuild path
-remains available and produces v10.
+remains available and produces fully checksummed v10.
 
 Older engines reject the v10 data header before reading the new WAL layout.
 Legacy WALs retain the legacy recovery rules until conversion: checksums cannot
@@ -18,18 +19,48 @@ rejected. Do not edit the version byte to bypass the format boundary.
 
 ## Data pages
 
-Pages remain 8192 bytes, with unchanged payload and index layouts. Bytes 14–17,
-formerly the unused transaction ID in checkpointed data pages, hold a little-endian
-CRC32C (Castagnoli). The CRC covers the entire plaintext page with those four bytes
-treated as zero. Reads validate the CRC and page ID before parsing page contents.
-Checkpoint, initial creation, conversion, recovery-marker writes, and WAL-salt
-rotation all regenerate the data checksum.
+Pages remain 8192 bytes, with unchanged payload and index layouts. Byte 31 is the
+page-format marker:
 
-The database header reserves bytes 109–124 for a random 128-bit WAL-generation
-salt and bytes 125–128 for the `CRC1` marker. The marker is checked independently
-of the version byte, so a damaged version byte cannot silently disable validation.
-Both fields are covered by the header checksum. Unallocated preallocation beyond
-`LastPageID` remains zero-filled; it receives checksums when real pages are written.
+| Marker | Meaning |
+| --- | --- |
+| `00` | Legacy; allowed only for non-header pages at or below `LegacyLastPageID` while coverage is `Mixed` |
+| `A5` | Checksummed v1; CRC validation is mandatory |
+| `FF` | Reserved extended page format; rejected by this engine |
+| All other values | Unknown; rejected |
+
+Legacy and checksummed markers differ in four bits. A single-bit change cannot
+downgrade a checksummed page to legacy, and every single-bit change of either
+marker fails closed. This is not protection against deliberate edits or arbitrary
+multi-bit corruption that recreates a valid legacy marker. Future engines must
+durably promote the global file version before writing an extended page format;
+reserving `FF` does not authorize v10 writers to use it.
+
+For checksummed data pages, bytes 14–17 (the old persisted transaction ID) hold a
+little-endian CRC32C (Castagnoli). The CRC covers the entire plaintext page,
+including the marker, with those four checksum bytes treated as zero. Reads
+validate the CRC and page ID before parsing. Legacy pages retain their historical
+transaction field and still undergo page-ID validation. Every v10 WAL payload
+uses `A5`, but retains its live transaction ID and relies on the frame CRC.
+Checkpoint stamps the data CRC when writing that payload to the data file.
+
+The database header is always checksummed. It reserves bytes 109–124 for a random
+128-bit WAL-generation salt and bytes 125–128 for the `CRC1` marker, checked
+independently of the version byte. Byte 160 holds coverage (`A5` = Mixed,
+`5A` = Complete); bytes 161–164 hold little-endian `LegacyLastPageID`, zero for
+Complete. These permissions come only from a checksum-validated header. New
+pages beyond the legacy boundary always require checksums, including pages
+allocated from previously unused preallocation. Reused legacy page IDs are stamped
+with checksums on write. Rollback does not migrate data pages.
+
+`$database.checksums` identifies the v10 checksum/WAL format; it does **not** imply
+all old data pages are protected. `$database.checksumCoverage` reports `Legacy`,
+`Mixed`, or `Complete`, and `$database.legacyLastPageID` reports the old-page bound.
+Coverage remains conservatively Mixed even if normal writes have eventually
+converted every old page. There is no background scan or migration cursor in
+this change. An explicit `Rebuild()` produces Complete coverage, after which any
+legacy marker is corruption. Until then, untouched legacy payload damage has the
+same detection limits as the legacy format.
 
 Data checksum failures raise `LiteException.CHECKSUM_MISMATCH` (139), including the
 file origin and byte position, and stop an active engine. They are not silently
@@ -86,7 +117,6 @@ syncs the tail; read-only recovery exposes the same prefix without changing byte
 Operational I/O exceptions propagate and never trigger checksum-tail truncation.
 Explicit rebuild uses the same verifier instead of trusting confirmation bits.
 
-`$database.checksums` reports whether checksums are enabled.
 `$database.recoveryDiscardedWalBytes` reports bytes excluded by the last recovery
 with a nonempty tail (including incomplete or uncommitted tails).
 `$database.recoveryInvalidWalTail` distinguishes a failed integrity check or
@@ -122,6 +152,11 @@ frames, stale reused slots, confirmation counts, commit-sequence gaps, read-only
 recovery, truncation, subsequent writes, and a second open after checkpoint.
 `WalPowerLoss_Tests` uses a storage double that persists confirmation while losing
 a middle frame, both with opted-out commits and an interrupted durable commit.
+`LazyChecksumCutover_Tests` proves bounded header I/O and 32 KiB WAL use on a
+500 GiB sparse model. `LazyChecksumMigration_Tests`, `LazyChecksumMarker_Tests`,
+and `LazyChecksumCheckpoint_Tests` cover mixed reads, out-of-order conversion,
+marker corruption/extension rejection, rollback/page reuse, torn mixed checkpoints,
+and explicit rebuild completion, plain and encrypted.
 `PageChecksum_Tests` covers known CRC vectors, portable/hardware agreement,
 plain/encrypted data damage, legacy WAL recovery, and v8/v9 conversion.
 Existing transaction-boundary, slot-reuse, flush-failure, and vector suites cover
@@ -168,9 +203,30 @@ checksum-related speedup. These numbers exclude one-time legacy conversion and
 checkpoint's additional generation-header sync.
 
 
-### Header recovery maintenance cost
+### Lazy cutover cost
 
-The following comparison isolates the header-recovery protocol against checksum
+A paired production comparison against `69db46c9c` used the same 10000-document,
+approximately 4.4 MiB fixture, one warmup and five samples, with tiered compilation
+disabled. Legacy fixture creation (including resetting byte 31) was outside timing.
+
+| Encryption | Operation | Eager baseline median (ms) | Lazy median (ms) |
+| --- | --- | ---: | ---: |
+| No | Automatic conversion on open | 53.39 | 40.88 |
+| Yes | Automatic conversion on open | 77.91 | 58.55 |
+| No | Checkpoint | 27.09 | 26.37 |
+| Yes | Checkpoint | 32.96 | 32.17 |
+
+The fixed durability barriers still dominate this small fixture. These timings
+are not an estimate for a 500 GiB database. The sparse-stream test proves bounded
+cutover I/O without allocating or writing 500 GiB: any access past the physically
+stored header throws, while the stream reports that large logical length.
+Draining a nonempty legacy WAL remains proportional to its checkpoint workload.
+
+### Earlier eager-conversion measurements (superseded)
+
+The following historical comparison predates lazy conversion; its conversion
+cost and temporary-space requirement do not describe the current implementation.
+It isolates the header-recovery protocol against checksum
 implementation `9c87328e6`, before that protocol was added. It uses durable files,
 10000 documents with 256-character payloads (approximately 4.4 MiB allocated),
 one warmup and five samples on the same Linux x64 host with production assemblies.
@@ -187,11 +243,11 @@ DOTNET_TieredCompilation=0 dotnet run --project tools/WalChecksumBenchmarks -c R
 | No | Automatic conversion on open | 19.58 | 89.40 |
 | Yes | Automatic conversion on open | 44.81 | 119.91 |
 
-Checkpoint now writes and syncs a 16 KiB recovery footer even when the preceding
-WAL was already synced. One-time conversion writes complete legacy redo and uses
+That implementation wrote and synced a 16 KiB recovery footer even when the preceding
+WAL was already synced. Its eager conversion wrote complete legacy redo and used
 additional durability barriers before changing data. These shared-host samples
-show that cost; they are not a throughput or latency guarantee. Conversion also
-requires temporary WAL space approximately equal to allocated data plus 24 KiB.
+show that cost; they are not a throughput or latency guarantee. That conversion also
+required temporary WAL space approximately equal to allocated data plus 24 KiB.
 
 The additional checkpoint preflight was measured separately against `187fac92e`
 (header journaling already enabled), with the same maintenance fixture and
@@ -213,4 +269,4 @@ verification pass. A paired comparison against `295666869`, using the same fixtu
 and production settings, measured plain checkpoint medians of **24.84 → 27.43 ms**
 and encrypted medians of **30.24 → 32.89 ms**. The additional protection cost about
 2.6 ms for this 4.4 MiB fixture. Conversion medians were 56.04 → 55.26 ms plain and
-77.91 → 80.46 ms encrypted; the conversion protocol is unchanged by this binding.
+77.91 → 80.46 ms encrypted; that binding change did not alter the then-eager conversion protocol.

@@ -74,7 +74,7 @@ namespace LiteDB.Internals
         [InlineData("secret", 8)]
         [InlineData(null, 9)]
         [InlineData("secret", 9)]
-        public void LegacyConversion_CanResumeAtEveryPageWriteBoundary(string password, byte version)
+        public void LazyConversion_CanResumeAtEveryHeaderWriteBoundary(string password, byte version)
         {
             using var original = new WalTestDatabase(password);
             original.Seed("docs");
@@ -87,9 +87,7 @@ namespace LiteDB.Internals
             using (var factory = new StreamFactory(data, password))
             using (var stream = factory.GetStream(true, false))
             {
-                // MakeLegacy changes the header, but its source already has data
-                // CRCs. Restore legacy transaction fields so conversion rewrites
-                // real metadata, including changed ciphertext in encrypted files.
+                // Untouched legacy transaction fields are not data checksums.
                 var page = new byte[PAGE_SIZE];
                 for (long position = PAGE_SIZE; position < stream.Length; position += PAGE_SIZE)
                 {
@@ -104,7 +102,7 @@ namespace LiteDB.Internals
             data.Capture = true;
             using (var converted = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, Password = password })) { }
             data.Capture = false;
-            data.Writes.Should().HaveCount((bytes.Length - (password == null ? 0 : PAGE_SIZE)) / PAGE_SIZE);
+            data.Writes.Should().ContainSingle();
             foreach (var write in data.Writes)
             {
                 AssertRecovered(write.Before, write.Wal, password, new[] { "docs" }, WalTestDatabase.DocumentCount, 0);

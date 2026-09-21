@@ -464,7 +464,7 @@ namespace LiteDB.Engine
                 ENSURE(read == PAGE_SIZE, "Page position {0} read only than {1} bytes (instead {2})", stream.Position, read, PAGE_SIZE);
 
                 if (_checksums.Enabled && pageInfo.Origin == FileOrigin.Data)
-                    PageChecksum.Validate(pageBuffer, pageInfo.Position);
+                    _dataChecksums.Validate(pageBuffer, pageInfo.Position);
                 var page = new BasePage(pageBuffer);
 
                 pageInfo.ColID = page.ColID;

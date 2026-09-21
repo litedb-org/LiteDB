@@ -8,6 +8,9 @@ namespace LiteDB.Engine
     {
         private readonly WalChecksum _checksums = new WalChecksum();
         internal bool ChecksumsEnabled => _checksums.Enabled;
+        private readonly DataChecksumPolicy _dataChecksums = new DataChecksumPolicy();
+        internal string ChecksumCoverage => ChecksumsEnabled ? (_dataChecksums.Mixed ? "Mixed" : "Complete") : "Legacy";
+        internal uint LegacyLastPageID => _dataChecksums.LegacyLastPageID;
         internal WalRecoveryReport RecoveryReport { get; private set; }
 
         private void LoadChecksums(BufferSlice header)
@@ -16,6 +19,7 @@ namespace LiteDB.Engine
             if (FileVersion != HeaderPage.CHECKSUM_FILE_VERSION && header.ReadUInt32(WalChecksum.MarkerPosition) != WalChecksum.HeaderMarker) return;
             PageChecksum.Validate(header, 0);
             if (FileVersion != HeaderPage.CHECKSUM_FILE_VERSION) throw LiteException.UnsupportedFileVersion(FileVersion);
+            _dataChecksums.Load(header);
             var salt = new byte[16];
             Buffer.BlockCopy(header.Array, header.Offset + WalChecksum.SaltPosition, salt, 0, salt.Length);
             _checksums.Reset(salt);
@@ -28,6 +32,7 @@ namespace LiteDB.Engine
             {
                 Buffer.BlockCopy(_checksums.Salt, 0, page.Array, page.Offset + WalChecksum.SaltPosition, 16);
                 page.Write(WalChecksum.HeaderMarker, WalChecksum.MarkerPosition);
+                _dataChecksums.Write(page);
             }
             PageChecksum.Write(page);
         }
@@ -46,9 +51,9 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// Legacy WAL must be checkpointed first. Checksums occupy bytes ignored by
-        /// legacy readers. Keep legacy redo and a header journal until v10 and all
-        /// existing data pages are synced, including encrypted page metadata.
+        /// Drain legacy WAL first, then publish v10 with mixed page coverage.
+        /// Only the header is overwritten; a bounded, synced header backup
+        /// protects publication, including torn encrypted header writes.
         /// </summary>
         internal void EnableChecksums(ref HeaderPage header)
         {
@@ -58,22 +63,13 @@ namespace LiteDB.Engine
             stream.Position = 0;
             stream.ReadRequired(buffer.Array, 0, PAGE_SIZE);
             var log = ((ChecksummedWalStream)_writer.Value).RawStream;
-            HeaderJournal.BackupLegacyPages(stream, log, buffer.Array, header.LastPageID);
-            BeginHeaderJournal(buffer.Array, conversion: true);
-            for (long position = PAGE_SIZE; position < GetFileLength(FileOrigin.Data); position += PAGE_SIZE)
-            {
-                stream.Position = position;
-                stream.ReadRequired(buffer.Array, 0, PAGE_SIZE);
-                // Preallocated pages beyond LastPageID are not database pages yet.
-                if (position / PAGE_SIZE > header.LastPageID) break;
-                PageChecksum.Write(buffer);
-                stream.Position = position;
-                stream.Write(buffer.Array, 0, PAGE_SIZE);
-            }
+            // Successful syncs are required before crossing the format boundary.
             stream.FlushToDisk();
-            stream.Position = 0;
-            stream.ReadRequired(buffer.Array, 0, PAGE_SIZE);
+            log.FlushToDisk();
+            HeaderJournal.BackupLegacyHeader(log, buffer.Array);
+            BeginHeaderJournal(buffer.Array, conversion: true);
             buffer[HeaderPage.P_FILE_VERSION] = HeaderPage.CHECKSUM_FILE_VERSION;
+            _dataChecksums.InitializeMixed(header.LastPageID);
             _checksums.Reset(Guid.NewGuid().ToByteArray());
             StampDataPage(buffer);
             stream.Position = 0;
@@ -83,8 +79,7 @@ namespace LiteDB.Engine
             log.FlushToDisk();
             _recoveredHeader = null;
             FileVersion = HeaderPage.CHECKSUM_FILE_VERSION;
-            header.EnsureVersion(FileVersion);
-            Buffer.BlockCopy(_checksums.Salt, 0, header.Buffer.Array, header.Buffer.Offset + WalChecksum.SaltPosition, 16);
+            header = new HeaderPage(buffer);
             _cache.Clear();
         }
 

@@ -52,12 +52,12 @@ Rebuild's reader uses the same journal selection and WAL verification rules.
 
 ## Automatic v8/v9 conversion
 
-Encryption makes even an in-place checksum-field update capable of damaging
-other page-header fields if a ciphertext block tears. Conversion therefore keeps
-temporary **legacy redo for every allocated page**, not just a header copy. The
-redo occupies approximately the allocated database size plus 24 KiB, excluding
-the encryption preamble. Unallocated preallocation is not copied. Documents and
-indexes are not rebuilt, and no permanent backup file is created.
+After recovering/checkpointing the legacy WAL and syncing both files, cutover
+only overwrites page zero. Other allocated pages keep their legacy representation
+until ordinary writes checkpoint them. The temporary legacy header redo and
+journal occupy **32 KiB**, excluding the encryption preamble, independent of the
+data-file size. Documents and indexes are not rebuilt, and no permanent backup
+file is created. Draining a nonempty legacy WAL still costs its normal checkpoint.
 
 The conversion protocol is:
 
@@ -65,14 +65,20 @@ The conversion protocol is:
    32 bytes before extending it; a torn initial write is shorter than a legacy
    page. Write and sync the remainder, containing the original header and an
    independent CRC. No database page has changed yet.
-2. Write unconfirmed legacy redo pages and a final header page, then sync them.
+2. Write and sync one unconfirmed legacy header redo page.
 3. Append and sync a prepared header copy, independently checksummed and binding
    a CRC of the entire redo prefix.
 4. Append and sync the footer descriptor, which is also a legacy header
    confirmation. Its checksum covers both footer pages. Confirmation cannot
    precede the durable redo and prepared copy.
-5. Write data-page checksums and sync data. Publish and sync the v10 header with
-   its generation salt. Only then truncate and sync the temporary WAL.
+5. Publish and sync the v10 header with its generation salt, `Mixed` coverage,
+   and `LegacyLastPageID` from the checkpointed legacy header (`Complete` for an
+   empty database). Only then truncate and sync the temporary WAL. Subsequent
+   transactions use exclusively v10 WAL frames.
+
+There is no in-place data-page rewrite during cutover, including with encryption.
+Subsequent checkpoints use the normal verified v10 WAL and header journal when
+converting touched pages; torn data/marker writes replay from that WAL.
 
 An intact intent without a verified preparation means the backup was incomplete:
 current readers ignore it and use the unchanged legacy data. This matters for
@@ -111,7 +117,9 @@ Footer descriptor offsets, relative to its second 8192-byte page, are:
 
 Conversion's prepared copy uses `LDBPREP1` at offset 132 and a page-local CRC at
 148, plus the redo position and CRC at the same offsets. The intent uses
-`LDBEGIN1`, position zero, and its own page-local CRC. These offsets are reserved
+`LDBEGIN2`, position zero, and its own page-local CRC. Its completed footer
+starts at 16384 bytes, after intent and header redo. The reader also recognizes
+the earlier draft `LDBEGIN1` intent and its page-count-derived footer position. These offsets are reserved
 header bytes, outside pragmas and the collection map. All checksums cover
 plaintext; the stream encrypts complete AES blocks afterward.
 
