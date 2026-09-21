@@ -72,6 +72,10 @@ using the same artifact root automatically replays the retained coverage corpus.
 | `linq-cache` | cached vs direct translation, CLR scalar evaluation, concurrent shared mapper |
 | `transaction` | independent multi-collection committed/pending state model |
 | `wal` | generated multi-transaction recovery with event-indexed I/O failures and partial writes |
+| `checksum-page` | independent CRC32C, random bit damage, CRC-valid unknown markers/identities/coverage, Mixed legacy boundaries |
+| `checksum-wal` | 14 frame/confirmation mutations, stale salt, lost confirmation, and exact committed-prefix recovery |
+| `checksum-migration` | v8/v9 plain/encrypted dirty-WAL cutover, byte preservation, random CRUD/rollback and fixed boundary |
+| `checksum-crash` | volatile/durable devices, torn writes across cutover/checkpoint, interrupted repair and exact document/index models |
 | `page` | slot payload model plus page/footer/accounting/overlap invariants |
 | `index` | scalar, multikey, unique, ordering, and key-moving update checks |
 | `shared` | real child processes, acknowledged ledgers, and owner-process death |
@@ -180,3 +184,34 @@ scripts/publish-fuzz-artifacts.sh artifacts_temp/fuzz issue-2947-smoke
 
 The publisher refuses dirty artifact clones, creates a date/label directory,
 commits the unchanged raw files plus summaries, and pushes `main`.
+
+## Targeted checksum campaigns
+
+The `Checksums` CI jobs run pinned corpus cases and 28-case deterministic smoke
+replays on Linux/.NET 8 and Windows/.NET 10 for PRs and `dev` pushes. Every day at
+02:23 UTC they additionally run the four checksum targets for a **three-minute
+wall-clock budget per platform**, with two seed shards and 30-second fresh-process
+epochs. Seeds rotate with the workflow run ID. A failed target fails its job after
+uploading the raw probe images, random input, traces and replay descriptor. This
+short daily campaign is separate from the existing 150-minute general nightly job.
+Manual `smoke`/`nightly` dispatches exercise the short campaign too.
+
+Run a longer local campaign (on Linux, `/dev/shm` keeps artifact writes in RAM):
+
+```bash
+dotnet run --project LiteDB.Fuzz -c Release -f net8.0 --no-build -- \
+  --target checksum-page,checksum-wal,checksum-migration,checksum-crash \
+  --seed 2954001 --duration 12m --workers 2 --epoch-duration 30s \
+  --artifact-dir /dev/shm/litedb-checksum-fuzz
+```
+
+Each case uses a small in-memory database. Only the latest data/WAL probe is
+persisted per epoch, and successful duration epochs remove those images and raw
+input. Preserve failure directories before reboot when using `/dev/shm`.
+The crash device distinguishes ordinary flush from durable sync and samples
+physical write prefixes (including AES block/sector/header boundaries), durable
+snapshots and fully visible process-crash snapshots. It then interrupts repair a
+second time. These are modeled storage failures, not claims about actual hardware
+power-loss behavior. The model does not simulate corruption of previously synced,
+untouched sectors. CRCs detect accidental corruption; they do not authenticate
+adversarially rewritten content. Legacy payloads remain unprotected until written.

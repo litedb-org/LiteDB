@@ -149,6 +149,58 @@ jobs:
           path: artifacts/fuzz
           if-no-files-found: error
 
+  checksums:
+    name: Checksums (${{ matrix.os }}, ${{ matrix.framework }})
+    if: github.event_name != 'workflow_dispatch' || inputs.tier != 'campaign'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            framework: net8.0
+          - os: windows-latest
+            framework: net10.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'schedule' && 'dev' || github.ref }}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - run: dotnet build LiteDB.Fuzz/LiteDB.Fuzz.csproj -c Release -f "${{ matrix.framework }}" -p:TestingEnabled=true
+      - name: Checksum smoke and deterministic replay
+        run: >-
+          dotnet run --project LiteDB.Fuzz -c Release -f "${{ matrix.framework }}" --no-build --
+          --target checksum-page,checksum-wal,checksum-migration,checksum-crash
+          --seed 2954 --count 28 --determinism-check --artifact-dir artifacts/checksum-smoke
+      - name: Short daily checksum campaign
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        env:
+          FUZZ_FRAMEWORK: ${{ matrix.framework }}
+        run: |
+          $fuzzSeed = [int](([long]$env:GITHUB_RUN_ID % 1900000000) + 2954)
+          dotnet run --project LiteDB.Fuzz -c Release -f $env:FUZZ_FRAMEWORK --no-build -- `
+            --target checksum-page,checksum-wal,checksum-migration,checksum-crash `
+            --seed $fuzzSeed --duration 3m --workers 2 --epoch-duration 30s `
+            --artifact-dir artifacts/checksum-daily
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Summarize checksum findings
+        if: always()
+        run: python scripts/summarize-fuzz-artifacts.py artifacts --output artifacts/checksum-findings.json --github-summary
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fuzz-checksums-${{ matrix.os }}-${{ matrix.framework }}
+          path: artifacts
+          retention-days: 14
+          if-no-files-found: error
+
   nightly:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.tier == 'nightly')
     runs-on: ubuntu-latest

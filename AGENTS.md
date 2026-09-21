@@ -64,6 +64,13 @@ encryption, caller-stream, and checksum wrappers. Run
 `python3 scripts/test-vector-compatibility.py` for legacy read-only compatibility,
 automatic conversion, and old-engine rejection, including encrypted files.
 See `docs/page-and-wal-checksums.md` and `docs/vector-query-compatibility.md`.
+Run `LiteDB.Fuzz` targets `checksum-page,checksum-wal,checksum-migration,checksum-crash`
+for format/recovery changes. Keep their pinned input/trace corpus replayable. The
+short daily CI campaign uses three minutes per platform; longer local campaigns
+can put artifacts under `/dev/shm` to avoid sustained physical disk writes.
+Checksum oracles must verify complete document payloads and secondary-index
+results, not merely successful open or row counts. CRC-valid malformed metadata
+must be tested separately from random bit corruption.
 Header overwrites require a synced WAL recovery footer; recover it before the
 primary-header checksum gate, and sync repairs before removing the footer.
 Conversion keeps legacy header redo: durably publish its intent before writing backup
