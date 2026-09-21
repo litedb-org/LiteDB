@@ -132,6 +132,7 @@ namespace LiteDB.Engine
             {
                 var rollbackErrors = new List<Exception>();
                 var sourceIsLive = !movedSource;
+                var logIsLive = !movedLog;
 
                 TryRollback(() =>
                 {
@@ -167,8 +168,39 @@ namespace LiteDB.Engine
                     SimulateInstallFailure?.Invoke("before-log-rollback");
 #endif
                     if (!File.Exists(logFile) && movedLog && File.Exists(backupLogFilename))
+                    {
                         File.Move(backupLogFilename, logFile);
+                        logIsLive = true;
+                    }
                 }, rollbackErrors);
+
+                if (sourceIsLive && !logIsLive)
+                {
+                    TryRollback(() =>
+                    {
+#if DEBUG || TESTING
+                        SimulateInstallFailure?.Invoke("before-source-retraction");
+#endif
+                        // A source without its WAL can silently omit acknowledged
+                        // commits. Retract it so the backup remains a coherent pair.
+                        if (File.Exists(_settings.Filename) && !File.Exists(backupFilename))
+                        {
+                            File.Move(_settings.Filename, backupFilename);
+                            sourceIsLive = false;
+                        }
+                    }, rollbackErrors);
+
+                    TryRollback(() =>
+                    {
+#if DEBUG || TESTING
+                        SimulateInstallFailure?.Invoke("before-candidate-republish");
+#endif
+                        // Prefer the completed replacement at the live path when
+                        // restoration of the original data/WAL pair did not finish.
+                        if (!sourceIsLive && File.Exists(tempFilename) && !File.Exists(_settings.Filename))
+                            File.Move(tempFilename, _settings.Filename);
+                    }, rollbackErrors);
+                }
 
                 if (rollbackErrors.Count > 0)
                     installException.Data["LiteDB.Rebuild.RollbackErrors"] = new AggregateException(rollbackErrors);
