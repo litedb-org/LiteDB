@@ -329,11 +329,16 @@ namespace LiteDB
                 throw new NotSupportedException("Captured unary expressions containing unsupported server runtime combinations are not supported.");
             if (node.NodeType == ExpressionType.Not)
             {
+                if (node.Operand.Type != typeof(bool) && node.Operand.Type != typeof(bool?)) return TranslateComplement(node);
+
                 var operand = Translate(node.Operand);
                 return node.Operand.NodeType == ExpressionType.MemberAccess ?
                     Group(Binary("=", operand, Constant(false, _parameters), _context, _parameters)) :
                     Binary("=", Group(operand), Constant(false, _parameters), _context, _parameters);
             }
+            if (node.NodeType == ExpressionType.Negate || node.NodeType == ExpressionType.NegateChecked)
+                return Subtract(Zero(node.Operand.Type), node.Operand);
+            if (node.NodeType == ExpressionType.OnesComplement) return TranslateComplement(node);
             if (node.NodeType == ExpressionType.ArrayLength)
                 return Call("LENGTH", new[] { Translate(node.Operand) }, _context, _parameters);
             if (node.NodeType == ExpressionType.Convert &&
@@ -344,6 +349,36 @@ namespace LiteDB
             }
             return Translate(node.Operand);
         }
+
+        private BsonExpression TranslateComplement(UnaryExpression node)
+        {
+            var operand = node.Operand;
+
+            // the compiler widens a narrower operand to int before ~, and an enum back again afterwards
+            while (operand is UnaryExpression conversion &&
+                (conversion.NodeType == ExpressionType.Convert || conversion.NodeType == ExpressionType.ConvertChecked))
+            {
+                operand = conversion.Operand;
+            }
+
+            if (!IsComplementSupported(operand.Type))
+                throw Unsupported(node, $"~{operand.Type.Name} (supported for signed and small unsigned integers; cast the value or filter in memory)");
+
+            return Subtract(operand.Type == typeof(long) ? new BsonValue(-1L) : new BsonValue(-1), node.Operand);
+        }
+
+        private static bool IsComplementSupported(Type type) =>
+            !type.GetTypeInfo().IsEnum &&
+            (type == typeof(int) || type == typeof(long) || type == typeof(short) ||
+             type == typeof(ushort) || type == typeof(byte) || type == typeof(sbyte));
+
+        private BsonExpression Subtract(BsonValue left, Expression right) =>
+            Group(Binary("-", Constant(left, _parameters), Translate(right), _context, _parameters));
+
+        private static BsonValue Zero(Type type) =>
+            type == typeof(double) || type == typeof(float) ? new BsonValue(0d) :
+            type == typeof(long) || type == typeof(ulong) ? new BsonValue(0L) :
+            new BsonValue(0);
 
         private BsonExpression AsPredicate(Expression node, bool predicate)
         {
