@@ -15,6 +15,9 @@ namespace LiteDB.Engine
     /// </summary>
     internal class RebuildService
     {
+#if DEBUG || TESTING
+        internal static Action<string> SimulateInstallFailure;
+#endif
         private readonly EngineSettings _settings;
         private readonly int _fileVersion;
 
@@ -94,19 +97,51 @@ namespace LiteDB.Engine
             // if log file exists, rename as backup file
             var logFile = FileHelper.GetLogFile(_settings.Filename);
 
-            if (File.Exists(logFile))
+            var movedLog = false;
+            var movedSource = false;
+            try
             {
-                File.Move(logFile, backupLogFilename);
+#if DEBUG || TESTING
+                SimulateInstallFailure?.Invoke("before-log-backup");
+#endif
+                if (File.Exists(logFile))
+                {
+                    File.Move(logFile, backupLogFilename);
+                    movedLog = true;
+                }
+#if DEBUG || TESTING
+                SimulateInstallFailure?.Invoke("after-log-backup");
+#endif
+
+                // rename source filename to backup name
+                FileHelper.Exec(5, () => File.Move(_settings.Filename, backupFilename));
+                movedSource = true;
+#if DEBUG || TESTING
+                SimulateInstallFailure?.Invoke("after-source-backup");
+#endif
+
+                // rename temp file into filename
+                File.Move(tempFilename, _settings.Filename);
+#if DEBUG || TESTING
+                SimulateInstallFailure?.Invoke("after-temp-install");
+#endif
             }
-
-            // rename source filename to backup name
-            FileHelper.Exec(5, () =>
+            catch
             {
-                File.Move(_settings.Filename, backupFilename);
-            });
-
-            // rename temp file into filename
-            File.Move(tempFilename, _settings.Filename);
+                if (movedSource && File.Exists(backupFilename))
+                {
+                    // Installation may already have placed the replacement at the
+                    // live path. Move it back out before restoring the old data/WAL
+                    // pair; mixing a new encrypted data file with the old WAL makes
+                    // both otherwise-complete states unreadable.
+                    if (File.Exists(_settings.Filename))
+                        File.Move(_settings.Filename, tempFilename);
+                    File.Move(backupFilename, _settings.Filename);
+                }
+                if (!File.Exists(logFile) && movedLog && File.Exists(backupLogFilename))
+                    File.Move(backupLogFilename, logFile);
+                throw;
+            }
 
 
             return difference;
