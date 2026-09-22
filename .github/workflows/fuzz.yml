@@ -180,7 +180,7 @@ jobs:
       - name: Checksum smoke and deterministic replay
         run: >-
           dotnet run --project LiteDB.Fuzz -c Release -f "${{ matrix.framework }}" --no-build --
-          --target checksum-page,checksum-wal,checksum-migration,checksum-crash,compact-crash,mvcc-retirement
+          --target checksum-page,checksum-wal,checksum-migration,checksum-crash,compact-crash,mvcc-retirement,mvcc-checkpoint
           --seed 2954 --count 28 --determinism-check --artifact-dir artifacts/checksum-smoke
       - name: Short daily checksum campaign
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
@@ -190,7 +190,7 @@ jobs:
         run: |
           $fuzzSeed = [int](([long]$env:GITHUB_RUN_ID % 1900000000) + 2954)
           dotnet run --project LiteDB.Fuzz -c Release -f $env:FUZZ_FRAMEWORK --no-build -- `
-            --target checksum-page,checksum-wal,checksum-migration,checksum-crash,compact-crash,mvcc-retirement `
+            --target checksum-page,checksum-wal,checksum-migration,checksum-crash,compact-crash,mvcc-retirement,mvcc-checkpoint `
             --seed $fuzzSeed --duration 3m --workers 2 --epoch-duration 30s `
             --artifact-dir artifacts/checksum-daily
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

@@ -220,6 +220,14 @@
       "inputHash": "C024CA4380FB6633E03BEEB36DD6BFBCC5B0E3A9EC71AFB0D956F57857A0EC51",
       "traceHash": "B37B4B25941D3C58B7498917A00CC362BFC2C3EEEC357AD0A9E7D2415FB1E19A",
       "reason": "v13 witness publication, repeated torn header repair, encrypted/compact slot reuse and writer safepoints across checkpoint preserve full payloads, secondary indexes and the pinned reader."
+    },
+    {
+      "target": "mvcc-checkpoint",
+      "seed": 3000003,
+      "count": 64,
+      "inputHash": "5EE622EAA659938AC8F8BDA43E1E38A31EFCEF2F44B5CCF27C428C3A22A29C38",
+      "traceHash": "EA8D2ADB6361BAF9619B26E8E35E29035A77CD74075A63C176D57C9A19419D1C",
+      "reason": "Full checkpoint from a published v13 retirement root survives lost/torn writes, failed journal/data/header syncs and two torn repairs while preserving complete documents, indexes, read-only bytes and safe root/salt retirement."
     }
   ]
 }

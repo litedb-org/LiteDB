@@ -1,6 +1,6 @@
 using System;
 using System.IO;
-using FluentAssertions;
+using System.Linq;
 using LiteDB.Engine;
 using LiteDB.Tests.Engine;
 using static LiteDB.Constants;
@@ -10,11 +10,12 @@ namespace LiteDB.Internals
     internal static class MvccRootedCheckpointScenario
     {
         internal static void Run(string password, bool compact, string phase, string fault, int prefix = 59,
-            bool repeatRepair = false)
+            bool repeatRepair = false, Action<byte[], byte[]> inspect = null, int[] repairPrefixes = null)
         {
             MvccRetirementScenario.Run(password, compact, null, priorReclaims: 1, inspect: (dataBytes, logBytes) =>
             {
-                ReadRoot(dataBytes, password).Should().BeGreaterThan(0, "the fault must start with a published retirement chain");
+                inspect?.Invoke(dataBytes, logBytes);
+                Require(ReadRoot(dataBytes, password) > 0, "The fault must start with a published retirement chain");
                 using var data = new PromotionPowerLossStream(dataBytes);
                 using var log = new PromotionPowerLossStream(logBytes);
                 var fired = false;
@@ -59,14 +60,14 @@ namespace LiteDB.Internals
                     {
                         engine.CheckpointStage = crash;
                         EngineState.SimulateProcessCrash = crash;
-                        Action checkpoint = () => db.Checkpoint();
-                        checkpoint.Should().Throw<IOException>();
-                        fired.Should().BeTrue("the requested full-checkpoint failure must execute");
+                        ExpectIOException(() => db.Checkpoint());
+                        Require(fired, "The requested full-checkpoint failure must execute");
                     }
                     finally
                     {
                         engine.CheckpointStage = null;
                         EngineState.SimulateProcessCrash = null;
+                        inspect?.Invoke(data.DurableBytes, log.DurableBytes);
                     }
                 }
 
@@ -74,13 +75,14 @@ namespace LiteDB.Internals
                 var savedLog = log.DurableBytes;
                 if (repeatRepair)
                     for (var attempt = 0; attempt < 2; attempt++)
-                        TearRepair(ref savedData, ref savedLog, password, compact);
+                        TearRepair(ref savedData, ref savedLog, password, compact, repairPrefixes?[attempt] ?? 171, inspect);
                 MvccRetirementScenario.Verify(savedData, savedLog, password);
                 VerifyRootRemoval(savedData, savedLog, password, compact);
             });
         }
 
-        private static void TearRepair(ref byte[] dataBytes, ref byte[] logBytes, string password, bool compact)
+        private static void TearRepair(ref byte[] dataBytes, ref byte[] logBytes, string password, bool compact,
+            int prefix, Action<byte[], byte[]> inspect)
         {
             using var data = new PromotionPowerLossStream(dataBytes);
             using var log = new PromotionPowerLossStream(logBytes);
@@ -93,26 +95,29 @@ namespace LiteDB.Internals
                     data.TearNextWrite = (bytes, offset, count) =>
                     {
                         fired = true;
-                        data.TearWrite(bytes, offset, count, 171, damage: true);
+                        data.TearWrite(bytes, offset, count, prefix, damage: true);
                         log.PowerCut();
                     };
                 };
-                Action open = () =>
+                ExpectIOException(() =>
                 {
                     using var engine = new LiteEngine(Settings(data, log, password, compact));
-                };
-                open.Should().Throw<IOException>();
-                fired.Should().BeTrue("the old rooted header must be repaired from the checkpoint journal");
+                });
+                Require(fired, "The old rooted header must be repaired from the checkpoint journal");
             }
-            finally { EngineState.SimulateProcessCrash = null; }
+            finally
+            {
+                EngineState.SimulateProcessCrash = null;
+                inspect?.Invoke(data.DurableBytes, log.DurableBytes);
+            }
             dataBytes = data.DurableBytes;
             logBytes = log.DurableBytes;
         }
 
         private static void VerifyRootRemoval(byte[] dataBytes, byte[] logBytes, string password, bool compact)
         {
-            using var data = ChecksumTestFiles.Copy(dataBytes);
-            using var log = ChecksumTestFiles.Copy(logBytes);
+            using var data = Copy(dataBytes);
+            using var log = Copy(logBytes);
             using (var engine = new LiteEngine(Settings(data, log, password, compact)))
             using (var db = new LiteDatabase(engine, disposeOnClose: false))
             {
@@ -120,12 +125,12 @@ namespace LiteDB.Internals
                 var rootedBefore = ReadRoot(data.ToArray(), password) != 0;
                 var saltBefore = ReadSalt(data.ToArray(), password);
                 db.Checkpoint();
-                ReadRoot(data.ToArray(), password).Should().Be(0);
-                if (rootedBefore) ReadSalt(data.ToArray(), password).Should().NotEqual(saltBefore);
-                using var logSource = ChecksumTestFiles.Copy(log.ToArray());
+                Require(ReadRoot(data.ToArray(), password) == 0, "Full checkpoint retained the retirement root");
+                if (rootedBefore) Require(!ReadSalt(data.ToArray(), password).SequenceEqual(saltBefore), "Full checkpoint did not rotate the WAL salt");
+                using var logSource = Copy(log.ToArray());
                 using var factory = new StreamFactory(logSource, password);
                 using var plainLog = factory.GetStream(false, false);
-                plainLog.Length.Should().Be(0, "full checkpoint must retire the root and its WAL generation together");
+                Require(plainLog.Length == 0, "Full checkpoint must retire the root and its WAL generation together");
                 MvccRetirementScenario.VerifyDatabase(db);
             }
             MvccRetirementScenario.Verify(data.ToArray(), log.ToArray(), password);
@@ -134,7 +139,7 @@ namespace LiteDB.Internals
         private static long ReadRoot(byte[] bytes, string password)
         {
             var header = ReadHeader(bytes, password);
-            header[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.MVCC_FILE_VERSION);
+            Require(header[HeaderPage.P_FILE_VERSION] == HeaderPage.MVCC_FILE_VERSION, "Expected a v13 header");
             return new BufferSlice(header, 0, PAGE_SIZE).ReadInt64(WalRetirement.RootPosition);
         }
 
@@ -147,12 +152,32 @@ namespace LiteDB.Internals
 
         private static byte[] ReadHeader(byte[] bytes, string password)
         {
-            using var source = ChecksumTestFiles.Copy(bytes);
+            using var source = Copy(bytes);
             using var factory = new StreamFactory(source, password);
             using var stream = factory.GetStream(false, false);
             var header = new byte[PAGE_SIZE];
             stream.ReadRequired(header, 0, header.Length);
             return header;
+        }
+
+        private static MemoryStream Copy(byte[] bytes)
+        {
+            var stream = new MemoryStream();
+            stream.Write(bytes, 0, bytes.Length);
+            stream.Position = 0;
+            return stream;
+        }
+
+        private static void Require(bool value, string message)
+        {
+            if (!value) throw new InvalidOperationException(message);
+        }
+
+        private static void ExpectIOException(Action action)
+        {
+            try { action(); }
+            catch (IOException) { return; }
+            throw new InvalidOperationException("The injected checkpoint or repair failure did not throw IOException");
         }
 
         private static EngineSettings Settings(Stream data, Stream log, string password, bool compact) => new EngineSettings

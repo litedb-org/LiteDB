@@ -11,6 +11,7 @@
     <ProjectReference Include="..\LiteDB\LiteDB.csproj" AdditionalProperties="TestingEnabled=true" />
     <Compile Include="..\LiteDB.Tests\Mapper\StableRandom.cs" Link="StableRandom.cs" />
     <Compile Include="..\LiteDB.Tests\Internals\MvccRetirementScenario.cs" Link="Targets\MvccRetirementScenario.cs" />
+    <Compile Include="..\LiteDB.Tests\Internals\MvccRootedCheckpointScenario.cs" Link="Targets\MvccRootedCheckpointScenario.cs" />
     <Compile Include="..\LiteDB.Tests\Engine\PromotionPowerLossStream.cs" Link="Targets\PromotionPowerLossStream.cs" />
     <Compile Include="..\LiteDB.Tests\Engine\PromotionPowerLossScenario.cs" Link="Targets\PromotionPowerLossScenario.cs" />
     <Compile Include="..\LiteDB.Tests\Mapper\LinqCacheFuzzGenerator.cs" Link="Targets\LinqCacheFuzzGenerator.cs" />
