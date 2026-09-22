@@ -42,7 +42,7 @@ internal sealed class SharedWorkerProcessDump
         var arguments = $"-accepteula -ma -r -at 5 {current.Id} \"{dump}\"";
         var report = new StringBuilder()
             .AppendLine($"Dump requested UTC: {DateTime.UtcNow:O}; PID={current.Id}; processBits={IntPtr.Size * 8}")
-            .AppendLine("Worker deadline has already failed; cancellation waits only for this bounded diagnostic attempt.")
+            .AppendLine("Worker deadline has already failed; cancellation follows this diagnostic attempt (10-second process-wait budget; OS start and file I/O may add delay).")
             .AppendLine($"Command: {_executable} {arguments}");
         var output = new StringBuilder();
         var elapsed = Stopwatch.StartNew();
@@ -56,7 +56,7 @@ internal sealed class SharedWorkerProcessDump
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
 
-            // Reserve part of the ten-second bound for graceful cancellation and
+            // Reserve part of the ten-second process-wait budget for graceful cancellation and
             // cleanup. No unbounded WaitForExit or pipe drain runs on this path.
             if (!process.WaitForExit(Math.Max(1, _timeoutMilliseconds * 7 / 10)))
             {
@@ -64,10 +64,14 @@ internal sealed class SharedWorkerProcessDump
                 Cancel(process, current.Id, elapsed, report);
             }
             if (process.HasExited) report.AppendLine($"Dump exit code: {process.ExitCode}");
-            else report.AppendLine("Dump process did not exit within the diagnostic bound.");
+            else report.AppendLine("Dump process did not exit within the diagnostic process-wait budget.");
 
-            var valid = process.HasExited && process.ExitCode == 0 && HasDumpHeader(dump);
-            report.AppendLine($"Dump valid MDMP header: {valid}; path={dump}");
+            // Signed ProcDump 12.01 returned 1 after completing one dump in the
+            // Windows smoke. This is an observed tool contract, not a generic
+            // nonzero-success assumption: require complete matching dump data.
+            var valid = process.HasExited && (process.ExitCode == 0 || process.ExitCode == 1) &&
+                SharedWorkerDumpFormat.Validate(dump, current.Id, IntPtr.Size * 8);
+            report.AppendLine($"Dump validated full process structure: {valid}; path={dump}");
             if (File.Exists(dump)) report.AppendLine($"Dump bytes: {new FileInfo(dump).Length}");
         }
         catch (Exception ex)
@@ -115,7 +119,10 @@ internal sealed class SharedWorkerProcessDump
         UseShellExecute = false,
         CreateNoWindow = true,
         RedirectStandardOutput = redirect,
-        RedirectStandardError = redirect
+        RedirectStandardError = redirect,
+        // ProcDump 12.01 writes UTF-16LE when its console output is redirected.
+        StandardOutputEncoding = redirect ? Encoding.Unicode : null,
+        StandardErrorEncoding = redirect ? Encoding.Unicode : null
     };
 
     private static void AppendOutput(StringBuilder output, string line)
@@ -127,11 +134,4 @@ internal sealed class SharedWorkerProcessDump
         }
     }
 
-    internal static bool HasDumpHeader(string path)
-    {
-        if (!File.Exists(path)) return false;
-        using var stream = File.OpenRead(path);
-        return stream.Length > 32 && stream.ReadByte() == 'M' && stream.ReadByte() == 'D' &&
-            stream.ReadByte() == 'M' && stream.ReadByte() == 'P';
-    }
 }

@@ -8,7 +8,7 @@ using Xunit;
 
 namespace LiteDB.Tests.Engine;
 
-public class SharedWorkerDump_Tests : IDisposable
+public partial class SharedWorkerDump_Tests : IDisposable
 {
     private readonly string _directory = Path.Combine(
         Environment.GetEnvironmentVariable("LITEDB_SHARED_DIAGNOSTICS") ?? Path.GetTempPath(),
@@ -97,7 +97,7 @@ public class SharedWorkerDump_Tests : IDisposable
     }
 
     [Fact]
-    public void NonzeroToolExit_IsReportedAndDoesNotCertifyCapture()
+    public void FailedToolExit_IsReportedAndDoesNotCertifyCapture()
     {
         ProcessStartInfo requested = null;
         var capture = new SharedWorkerProcessDump("configured-procdump.exe", _directory, start: info =>
@@ -106,8 +106,10 @@ public class SharedWorkerDump_Tests : IDisposable
             return Child(sleep: false, exitCode: 7, redirect: true);
         });
         var report = capture.Capture();
-        report.Should().Contain("Dump exit code: 7").And.Contain("Dump valid MDMP header: False");
+        report.Should().Contain("Dump exit code: 7").And.Contain("Dump validated full process structure: False");
         requested.FileName.Should().Be("configured-procdump.exe");
+        requested.StandardOutputEncoding.Should().Be(System.Text.Encoding.Unicode);
+        requested.StandardErrorEncoding.Should().Be(System.Text.Encoding.Unicode);
         requested.Arguments.Should().StartWith("-accepteula -ma -r -at 5 ").And.NotContain("-64");
         using var current = Process.GetCurrentProcess();
         requested.Arguments.Should().Contain(" " + current.Id + " ");
@@ -148,12 +150,13 @@ public class SharedWorkerDump_Tests : IDisposable
         var diagnostics = new SharedWorkerDiagnostics(_directory, true, capture);
         diagnostics.Track("capture smoke").Progress("intentional timeout capture", 0);
         var report = diagnostics.Timeout("capture smoke");
-        report.Should().Contain("Dump exit code: 0").And.Contain("Dump valid MDMP header: True");
+        report.Should().Contain("Dump exit code:").And.Contain("Dump validated full process structure: True");
         report.Should().Contain("processBits=" + IntPtr.Size * 8);
         var dump = Directory.GetFiles(_directory, "*.dmp").Single();
-        SharedWorkerProcessDump.HasDumpHeader(dump).Should().BeTrue();
+        using var current = Process.GetCurrentProcess();
+        SharedWorkerDumpFormat.Validate(dump, current.Id, IntPtr.Size * 8).Should().BeTrue();
         File.WriteAllText(Path.Combine(_directory, "successful-smoke.txt"), report +
-            "\nSuccessful smoke dump removed after validating MDMP header; capture report retained.");
+            "\nSuccessful smoke dump removed after validating full dump structure, process identity and architecture; capture report retained.");
         File.Delete(dump);
     }
 
