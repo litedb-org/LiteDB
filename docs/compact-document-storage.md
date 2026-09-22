@@ -54,6 +54,24 @@ flushed data. The compact power-loss tests and `compact-power-loss` fuzzer cover
 promotion, journal/header tears, interrupted recovery, WAL/checkpoint cut points,
 read-only opens, and subsequent WAL reuse for plain and encrypted v8/v9 files.
 
+The regression evidence is organized by invariant:
+
+| Invariant | Discriminating coverage |
+| --- | --- |
+| No header overwrite without durable recovery bytes | Cuts and short/torn journal writes before the first promotion flush |
+| Torn header is recoverable | Byte-boundary and damaged-suffix header writes, plain and encrypted |
+| Recovery remains recoverable | Repeated repair cuts and torn repairs using initially OS-cached journals |
+| Existing committed state is retained | Independent document/index model, a WAL-only collection, and sequential v9/v10 promotion |
+| Old journal cannot reappear in a new WAL epoch | Checkpoint/retirement cuts followed by new writes and another restart |
+| Recovery does not mutate read-only or unrelated files | Real-file recovery snapshots, byte comparisons, and unrelated-file sentinel |
+| Invalid recovery bytes cannot authorize repair | Damaged image/checksum rejection with unchanged files |
+
+These cases live in `CompactPromotionPowerLoss_Tests` and
+`CompactPromotionFileRecovery_Tests`; the shared fault model also drives the
+`compact-power-loss` fuzzer. Hosted PR checks exercise the current revision on
+Windows, Linux, and macOS. Compatibility scripts additionally use released
+LiteDB 5.0.21 processes against real data/WAL files.
+
 `Rebuild(new RebuildOptions { CompactStorage = CompactStorageMode.Compact })`
 converts useful shapes and regenerates catalogs through the existing temporary-
 file/backup process. `Legacy` explicitly writes BSON to the rebuilt file; vector

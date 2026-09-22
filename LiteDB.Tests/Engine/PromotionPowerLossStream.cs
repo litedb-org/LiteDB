@@ -30,13 +30,14 @@ namespace LiteDB.Tests.Engine
 
         internal void PowerCut() => _powered = false;
 
-        internal void TearWrite(byte[] buffer, int offset, int count, int prefix, bool damage)
+        internal void TearWrite(byte[] buffer, int offset, int count, int prefix, bool damage, bool shortFile = false)
         {
             // A partial device write can reach durable media before the requested flush.
             var start = checked((int)Position);
-            if (_durable.Length < start + count) Array.Resize(ref _durable, start + count);
+            var end = start + (shortFile ? Math.Min(prefix, count) : count);
+            if (_durable.Length < end) Array.Resize(ref _durable, end);
             Buffer.BlockCopy(buffer, offset, _durable, start, Math.Min(prefix, count));
-            if (damage) Array.Clear(_durable, start + Math.Min(prefix, count), count - Math.Min(prefix, count));
+            if (damage && !shortFile) Array.Clear(_durable, start + Math.Min(prefix, count), count - Math.Min(prefix, count));
             PowerCut();
         }
 

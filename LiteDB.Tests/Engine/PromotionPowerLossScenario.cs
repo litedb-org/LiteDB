@@ -23,7 +23,8 @@ namespace LiteDB.Tests.Engine
 
         internal static void Run(string password, bool vector, string phase, int occurrence = 1,
             int tornPrefix = -1, string recoveryPhase = null, bool readOnly = false, bool damage = false,
-            int tornJournalPart = -1, bool cachedJournal = false, bool tearRecovery = false, bool keepVectorJournal = false)
+            int tornJournalPart = -1, bool cachedJournal = false, bool tearRecovery = false, bool keepVectorJournal = false,
+            Action<byte[], byte[]> inspectFiles = null, bool shortJournal = false)
         {
             using var data = new PromotionPowerLossStream();
             using var log = new PromotionPowerLossStream();
@@ -62,7 +63,7 @@ namespace LiteDB.Tests.Engine
                         {
                             if (tornJournalPart >= 0 && writes++ != tornJournalPart) return;
                             fired = true;
-                            device.TearWrite(bytes, offset, count, tornPrefix, damage);
+                            device.TearWrite(bytes, offset, count, tornPrefix, damage, shortJournal);
                             data.PowerCut();
                             log.PowerCut();
                         };
@@ -128,6 +129,7 @@ namespace LiteDB.Tests.Engine
                 }
             }
 
+            inspectFiles?.Invoke(savedData, savedLog);
             using var recoveredData = new PromotionPowerLossStream(savedData);
             using var recoveredLog = new PromotionPowerLossStream(savedLog);
             using (var recovered = Open(recoveredData, recoveredLog, password, CompactStorageMode.Auto, readOnly))
@@ -156,7 +158,7 @@ namespace LiteDB.Tests.Engine
             }
         }
 
-        private static void Verify(LiteDatabase db, bool acknowledged, bool vector)
+        internal static void Verify(LiteDatabase db, bool acknowledged, bool vector)
         {
             var actual = db.GetCollection("rows").Query().OrderBy("_id").ToArray();
             Require(actual.Length == 8 || (!acknowledged && actual.Length == 4), "Partial/lost transaction after power loss");

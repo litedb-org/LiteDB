@@ -114,5 +114,16 @@ namespace LiteDB.Tests.Engine
             PromotionPowerLossScenario.Run(password, true, "promotion-before-header-write",
                 tornPrefix: 59, damage: true, keepVectorJournal: true);
         }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("secret")]
+        public void Short_journal_files_are_discarded_without_losing_committed_WAL(string password)
+        {
+            foreach (var prefix in new[] { 0, 1, 15, 16, 511, 4096, 8191 })
+            for (var part = 0; part < 2; part++)
+                PromotionPowerLossScenario.Run(password, false, "promotion-before-journal-write",
+                    tornPrefix: prefix, tornJournalPart: part, shortJournal: true);
+        }
     }
 }
