@@ -80,6 +80,13 @@ internal sealed class ChecksumFixture : IDisposable
         return result;
     }
 
+    internal static byte[] WalBytes(MemoryStream physical, string password)
+    {
+        var bytes = Plain(physical, password);
+        Array.Resize(ref bytes, bytes.Length / WalChecksum.FrameSize * WalChecksum.FrameSize);
+        return bytes;
+    }
+
     internal static void Replace(MemoryStream physical, byte[] plain, string password)
     {
         using var factory = new StreamFactory(physical, password);
@@ -96,7 +103,7 @@ internal sealed class ChecksumFixture : IDisposable
         var log = Plain(Log, Password);
         for (var offset = 0; offset < data.Length; offset += PageSize) Legacy(data, offset, version);
         using var oldLog = new MemoryStream();
-        for (var offset = 0; offset < log.Length; offset += WalChecksum.FrameSize)
+        for (var offset = 0; offset + WalChecksum.FrameSize <= log.Length; offset += WalChecksum.FrameSize)
         {
             Legacy(log, offset, version);
             oldLog.Write(log, offset, PageSize);

@@ -17,6 +17,14 @@ namespace LiteDB.Engine
                 return;
             }
             var log = ((ChecksummedWalStream)_writer.Value).RawStream;
+            // Released engines trim unaligned WAL tails before checking the file version.
+            if (ChecksumsEnabled)
+            {
+                WalPadding.Pad(log, log.Length / WalChecksum.FrameSize * WalChecksum.FrameSize, initialize: true);
+                // A persisted footer must never depend on padding that existed
+                // only in cache when its own write reached the device.
+                log.FlushToDisk();
+            }
             HeaderJournal.Write(log, header, conversion, _checksums, promotion);
             _checksums.JournalBytes = HeaderJournal.Size;
             if (conversion || promotion || requireDurable || !ChecksumsEnabled) log.FlushToDisk();
@@ -76,7 +84,7 @@ namespace LiteDB.Engine
                 this.CrashPoint("promotion-recovery-after-header-flush");
                 if (journal.Legacy && !published) return;
                 var writer = ((ChecksummedWalStream)_writer.Value).RawStream;
-                writer.SetLength(journal.Legacy ? 0 : journal.Position);
+                writer.SetLength(journal.Legacy ? 0 : WalPadding.AlignedLength(journal.Position));
                 writer.FlushToDisk();
                 _checksums.JournalBytes = 0;
                 _recoveredHeader = null;

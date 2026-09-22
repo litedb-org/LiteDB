@@ -47,7 +47,7 @@ namespace LiteDB.Tests.Engine
             {
                 var size = legacy ? PAGE_SIZE : WalChecksum.FrameSize;
                 var frame = new byte[size];
-                for (long position = 0; position < stream.Length; position += size)
+                for (long position = 0; position + size <= stream.Length; position += size)
                 {
                     stream.Position = position;
                     stream.ReadRequired(frame, 0, size);

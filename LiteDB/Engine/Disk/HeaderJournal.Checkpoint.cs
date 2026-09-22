@@ -9,7 +9,7 @@ namespace LiteDB.Engine
     {
         private static uint ComputeVerifiedBody(Stream stream, long length, byte[] header, WalChecksum expected)
         {
-            if (length % WalChecksum.FrameSize != 0) throw new PageChecksumException(FileOrigin.Log, length);
+            if (WalPadding.TrailingBytes(length) != 0) throw new PageChecksumException(FileOrigin.Log, length);
             var salt = new byte[16];
             Buffer.BlockCopy(header, WalChecksum.SaltPosition, salt, 0, salt.Length);
             var checksums = new WalChecksum();
@@ -22,7 +22,7 @@ namespace LiteDB.Engine
             {
                 var bytes = new byte[WalChecksum.FrameSize];
                 stream.Position = 0;
-                for (long position = 0; position < length; position += bytes.Length)
+                for (long position = 0; position + bytes.Length <= length; position += bytes.Length)
                 {
                     stream.ReadRequired(bytes, 0, bytes.Length);
                     crc = Crc32C.Update(crc, bytes, 0, bytes.Length);
@@ -41,6 +41,10 @@ namespace LiteDB.Engine
             if (recovery.InvalidTail || recovery.Sequence != expected.Sequence ||
                 recovery.ConfirmedEnd != expected.LastConfirmedPosition + PAGE_SIZE)
                 throw new PageChecksumException(FileOrigin.Log, recovery.ConfirmedEnd);
+            var padding = new byte[length % WalChecksum.FrameSize];
+            stream.Position = length - padding.Length;
+            stream.ReadRequired(padding, 0, padding.Length);
+            crc = Crc32C.Update(crc, padding, 0, padding.Length);
             return ~crc;
         }
     }
