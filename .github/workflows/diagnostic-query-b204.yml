@@ -1,0 +1,67 @@
+name: Diagnostic b204 query session
+
+on:
+  push:
+    branches: [codex/diagnostic-query-b204]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  query:
+    name: Windows x86 .NET 8 query trace (${{ matrix.host }})
+    runs-on: windows-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        host: [1, 2]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Use the exact original b204 Windows build artifact
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 35790860650
+          name: tests-build-windows
+          path: .
+      - name: Record provenance and install the original runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force LiteDB.Tests/TestResults | Out-Null
+          $result = 'LiteDB.Tests/TestResults/provenance.txt'
+          git rev-parse HEAD | Out-File $result
+          git rev-parse HEAD:LiteDB | Out-File $result -Append
+          git rev-parse b204fce9c364c1651aa88194b6a7d2e32b50d220:LiteDB | Out-File $result -Append
+          Get-FileHash LiteDB.Tests/bin/Release/net8.0/LiteDB.Tests.dll, LiteDB.Tests/bin/Release/net8.0/LiteDB.dll, tests.runsettings | Format-List | Out-File $result -Append
+          $runtime = Join-Path $env:RUNNER_TEMP 'query-runtime-8-x86'
+          $installer = Join-Path $env:RUNNER_TEMP 'query-dotnet-install.ps1'
+          Invoke-WebRequest 'https://dot.net/v1/dotnet-install.ps1' -OutFile $installer
+          & $installer -Runtime dotnet -Version 8.0.31 -Architecture x86 -InstallDir $runtime -NoPath
+          if (!(Test-Path (Join-Path $runtime 'dotnet.exe'))) { throw 'Original x86 runtime unavailable' }
+          "QUERY_RUNTIME=$runtime" | Out-File $env:GITHUB_ENV -Append
+      - name: Trace every test start and result without changing the 300-second session cap
+        timeout-minutes: 7
+        shell: pwsh
+        env:
+          LITEDB_QUERY_DIAGNOSTICS: '1'
+        run: |
+          ./scripts/run-ci-tests.ps1 -RuntimeMajor 8 -Framework net8.0 -Architecture x86 `
+            -RuntimeDirectory $env:QUERY_RUNTIME -Filter 'FullyQualifiedName~LiteDB.Tests.QueryTest.' `
+            -ResultFile QueryTrace.trx
+      - name: Retain complete diagnostic evidence even on abort
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: query-b204-trace-${{ matrix.host }}
+          path: LiteDB.Tests/TestResults
+          if-no-files-found: error
+          retention-days: 14

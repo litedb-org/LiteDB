@@ -71,6 +71,10 @@ $arguments = @(
     "/Logger:trx;LogFileName=$ResultFile", '/Logger:console;verbosity=detailed'
 )
 if ($Filter) { $arguments += "/TestCaseFilter:($Filter)|FullyQualifiedName~TestHost_Tests" }
+if ($env:LITEDB_QUERY_DIAGNOSTICS) {
+    $arguments += "/Diag:$(Join-Path $results 'query-vstest.log');tracelevel=verbose"
+    $arguments += '/Blame'
+}
 $arguments += '--', "RunConfiguration.DotNetHostPath=$testHost"
 & dotnet @arguments
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
