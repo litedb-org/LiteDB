@@ -81,7 +81,11 @@ namespace LiteDB.Engine
                 }
 
                 if (dataLength < PAGE_SIZE) throw LiteException.InvalidDatabase();
-                if (!isNew) this.ValidateExistingData();
+                if (!isNew)
+                {
+                    this.RecoverHeaderPromotion();
+                    this.ValidateExistingData();
+                }
                 CompactStorage = settings.CompactStorage != CompactStorageMode.Legacy;
 
                 if (settings.ReadOnly == false)
@@ -355,6 +359,9 @@ namespace LiteDB.Engine
 
                     ENSURE(bytesRead == PAGE_SIZE, "ReadFull must read PAGE_SIZE bytes [{0}]", bytesRead);
 
+                    if (origin == FileOrigin.Data && position == 0 && _readOnlyPromotionHeader != null)
+                        Buffer.BlockCopy(_readOnlyPromotionHeader, 0, buffer, 0, PAGE_SIZE);
+
                     yield return new PageBuffer(buffer, 0, 0)
                     {
                         Position = position,
@@ -415,6 +422,7 @@ namespace LiteDB.Engine
 
             if (origin == FileOrigin.Log)
             {
+                if (length == 0) this.RetireHeaderPromotion(stream.Value);
                 _logFactory.TrimCapacity(stream.Value);
             }
         }

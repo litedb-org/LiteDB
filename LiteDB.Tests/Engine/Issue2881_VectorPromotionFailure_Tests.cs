@@ -34,7 +34,11 @@ namespace LiteDB.Tests.Engine
                 });
                 insert.Should().Throw<IOException>().WithMessage("Injected promotion failure");
                 data.Triggered.Should().BeTrue();
-                log.Length.Should().Be(0, "no vector page may enter the WAL before the format is durable");
+                log.Length.Should().Be(2 * Constants.PAGE_SIZE,
+                    "only the durable header recovery record may precede format promotion");
+                var journal = log.ToArray();
+                new PageBuffer(journal, 0, 0).IsBlank().Should().BeTrue();
+                new PageBuffer(journal, Constants.PAGE_SIZE, 0).IsBlank().Should().BeTrue();
             }
             using var reopened = new LiteDatabase(new LiteEngine(settings));
             reopened.GetCollection("docs").Count().Should().Be(1);

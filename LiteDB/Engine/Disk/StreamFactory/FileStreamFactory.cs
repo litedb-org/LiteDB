@@ -11,7 +11,7 @@ namespace LiteDB.Engine
     /// FileStream disk implementation of disk factory
     /// [ThreadSafe]
     /// </summary>
-    internal class FileStreamFactory : IStreamFactory
+    internal partial class FileStreamFactory : IStreamFactory
     {
         private readonly string _filename;
         private readonly string _password;

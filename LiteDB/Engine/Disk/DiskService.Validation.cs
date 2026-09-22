@@ -20,6 +20,9 @@ namespace LiteDB.Engine
                     offset += read;
                 }
 
+                if (_readOnlyPromotionHeader != null)
+                    System.Buffer.BlockCopy(_readOnlyPromotionHeader, 0, bytes, 0, PAGE_SIZE);
+
                 if (bytes[0] == 1)
                     throw new LiteException(LiteException.INVALID_PASSWORD, "This data file is encrypted and needs a password to open");
 

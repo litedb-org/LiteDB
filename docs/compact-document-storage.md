@@ -24,6 +24,36 @@ write can leave a v10 file containing only BSON.
 Older engines reject v10; simultaneous writable access by different engine
 versions is not supported.
 
+### Power-loss recovery during promotion
+
+Opening an intact legacy database does not perform a compact upgrade or rewrite
+its documents. The first compact write reads the 8 KiB persisted header, changes
+only its version, and first appends a SHA-256-checked recovery image in two 8 KiB
+WAL padding pages. It durably flushes the WAL (and its directory entry on Unix)
+before overwriting and durably flushing the data header. This is a fixed 16 KiB
+WAL append plus one 8 KiB header rewrite, independent of database size, with two
+durability barriers. Schema/document pages use the normal transaction afterward.
+
+Startup validates the recovery image before validating the data header, so a
+torn header write can be repaired. A writable open re-syncs the recovery image
+before repair; a read-only open uses it in memory. Committed WAL headers are then
+replayed normally, retaining collections and allocations newer than the persisted
+header. Recovery is repeatable if power fails again. The record remains until
+checkpoint has synced the data; WAL truncation is then synced before slots can be
+reused. That retirement adds a one-time WAL flush. Encrypted records retain the
+raw blank-page sentinel, so even a torn record cannot become a transaction page;
+the recovery payload remains encrypted. Both v9 vector and v10 compact promotion
+use this protocol. Normal transaction replay ignores the padding records.
+
+These guarantees assume storage honors successful durable flushes and the data
+file and its WAL are retained together. Caller-owned streams must provide their
+own persistence contract; ordinary MemoryStream.Flush cannot model real disk
+durability. This does not strengthen the existing transaction guarantees when
+`DurableCommits=false`, nor protect against media failure that destroys already
+flushed data. The compact power-loss tests and `compact-power-loss` fuzzer cover
+promotion, journal/header tears, interrupted recovery, WAL/checkpoint cut points,
+read-only opens, and subsequent WAL reuse for plain and encrypted v8/v9 files.
+
 `Rebuild(new RebuildOptions { CompactStorage = CompactStorageMode.Compact })`
 converts useful shapes and regenerates catalogs through the existing temporary-
 file/backup process. `Legacy` explicitly writes BSON to the rebuilt file; vector

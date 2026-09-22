@@ -36,10 +36,14 @@ namespace LiteDB.Engine
                     throw LiteException.UnsupportedFileVersion(header[HeaderPage.P_FILE_VERSION]);
                 }
                 header[HeaderPage.P_FILE_VERSION] = Math.Max(requiredVersion, header[HeaderPage.P_FILE_VERSION]);
+                this.JournalHeaderPromotion(header);
                 stream.Position = 0;
                 // A full page also works with encrypted streams; all other header fields are preserved.
+                this.CrashPoint("promotion-before-header-write");
                 stream.Write(header, 0, header.Length);
+                this.CrashPoint("promotion-after-header-write");
                 stream.FlushToDisk();
+                this.CrashPoint("promotion-after-header-flush");
                 FileVersion = header[HeaderPage.P_FILE_VERSION];
             }
         }

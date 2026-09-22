@@ -52,6 +52,12 @@ the collection transaction; read-version catalog caches must be cleared when WAL
 versions reset. Run `python3 scripts/test-compact-compatibility.py` alongside the
 vector compatibility script. See `docs/compact-document-storage.md` for layout,
 bounds, downgrade options, and benchmark results.
+Format promotion journals the persisted header in checksummed WAL padding before
+overwriting it. Keep the journal durable (including the Unix directory entry),
+recover before header validation, and sync WAL retirement before slot reuse.
+Encrypted recovery pages must retain their raw blank-page prefix so torn records
+cannot be replayed as transactions. Run the `compact-power-loss` fuzzer when
+changing promotion, recovery, encryption, or WAL retirement.
 
 ## Query Frontends
 LINQ and SQL share `BsonExpressionFactory`; LINQ bindings must construct nodes
