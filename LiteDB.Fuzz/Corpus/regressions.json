@@ -117,17 +117,31 @@
       "target": "checksum-crash",
       "seed": 4058733,
       "count": 111,
-      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with durable recovery-journal sync before primary repair.",
-      "inputHash": "C04738E2544CCBD56F44A46AD610BC9CC08ACB5A45D31C6C10BB1F89C85DB352",
-      "traceHash": "66A4FFD8EC369F9BC6346C59B04D8C6ED56C332EBFF479113A1D8FBEE54495E2"
+      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with durable recovery-journal sync before primary repair. Replayed with durable aligned WAL/header-journal padding; prior hashes retained in previousHashes.",
+      "inputHash": "40338F9EDA52B8E85E11AE6C315E4AF88AC0CE060E90D4B278B9B51F32268BFB",
+      "traceHash": "21EA2F561A566CE06D4C792177E43656A70B31E2304190612C2723255E432E03",
+      "previousHashes": [
+        {
+          "inputHash": "C04738E2544CCBD56F44A46AD610BC9CC08ACB5A45D31C6C10BB1F89C85DB352",
+          "traceHash": "66A4FFD8EC369F9BC6346C59B04D8C6ED56C332EBFF479113A1D8FBEE54495E2",
+          "reason": "Before durable WAL/header-journal padding changed the sampled I/O event sequence in this stack layer."
+        }
+      ]
     },
     {
       "target": "checksum-crash",
       "seed": 3163459,
       "count": 201,
-      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with durable recovery-journal sync before primary repair.",
-      "inputHash": "1FAD764125FB05B8C92315BF60ADC2D3B0AC7543EADEC8BAB3E3461508E48E98",
-      "traceHash": "19848C65C3F40110A335602C52F26357330E3A5BFB1928318970A8B75483E305"
+      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with durable recovery-journal sync before primary repair. Replayed with durable aligned WAL/header-journal padding; prior hashes retained in previousHashes.",
+      "inputHash": "D861B81EFAE68EE34B0F755A9BCBD18B9B466C50A4E57F6849D9E6CDBE230C7A",
+      "traceHash": "915232CE2080EB50A6EACD08D04F0DBA87C9FD4335F7D2A2C204A6D5FBD933B3",
+      "previousHashes": [
+        {
+          "inputHash": "1FAD764125FB05B8C92315BF60ADC2D3B0AC7543EADEC8BAB3E3461508E48E98",
+          "traceHash": "19848C65C3F40110A335602C52F26357330E3A5BFB1928318970A8B75483E305",
+          "reason": "Before durable WAL/header-journal padding changed the sampled I/O event sequence in this stack layer."
+        }
+      ]
     },
     {
       "target": "transaction-gate",
