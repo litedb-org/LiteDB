@@ -12,12 +12,17 @@ internal sealed class SharedWorkerDiagnostics
     private readonly ConcurrentDictionary<string, Worker> _workers = new();
     private readonly string _directory;
     private readonly bool _retainOnTimeout;
+    private readonly Func<string> _captureDump;
+    private readonly object _captureLock = new();
+    private bool _captureAttempted;
+    private string _captureReport;
     private int _retainFiles;
 
-    internal SharedWorkerDiagnostics(string directory, bool retainOnTimeout)
+    internal SharedWorkerDiagnostics(string directory, bool retainOnTimeout, Func<string> captureDump = null)
     {
         _directory = directory;
         _retainOnTimeout = retainOnTimeout;
+        _captureDump = captureDump;
     }
 
     internal bool RetainFiles => Volatile.Read(ref _retainFiles) != 0;
@@ -40,6 +45,22 @@ internal sealed class SharedWorkerDiagnostics
         catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
         {
             report += $"\nDiagnostic capture failed: {ex.GetType().Name}: {ex.Message}";
+        }
+        // Every timeout caller must wait for the same capture before returning
+        // to cancellation. Otherwise another worker could alter the stalled state
+        // while the first caller is still starting the dump process.
+        if (_captureDump != null)
+        {
+            lock (_captureLock)
+            {
+                if (!_captureAttempted)
+                {
+                    _captureAttempted = true;
+                    try { _captureReport = _captureDump(); }
+                    catch (Exception ex) { _captureReport = $"Dump capture failed: {ex.GetType().Name}: {ex.Message}"; }
+                }
+                report += "\n" + _captureReport;
+            }
         }
         return report;
     }
