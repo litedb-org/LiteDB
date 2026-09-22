@@ -38,7 +38,7 @@ public partial class SharedWorkerDump_Tests
     // Minimal synthetic MINIDUMP structures, not a debugger-readable process.
     // The real Windows smoke separately proves an actual capture can be opened
     // structurally with the same checks before deleting its large memory payload.
-    private static void WriteDump(string path, string fixture)
+    internal static void WriteDump(string path, string fixture)
     {
         using var current = Process.GetCurrentProcess();
         using var stream = File.Create(path);
