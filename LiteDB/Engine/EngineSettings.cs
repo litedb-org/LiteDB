@@ -193,24 +193,24 @@ namespace LiteDB.Engine
         {
             if (this.LogStream != null)
             {
-                return new StreamFactory(this.LogStream, this.Password, false);
+                return new StreamFactory(this.LogStream, this.Password, false, isLog: true);
             }
             else if (this.Filename == ":memory:")
             {
-                return new StreamFactory(new MemoryStream(), this.Password, true);
+                return new StreamFactory(new MemoryStream(), this.Password, true, isLog: true);
             }
             else if (this.Filename == ":temp:")
             {
-                return new StreamFactory(new TempStream(), this.Password, true);
+                return new StreamFactory(new TempStream(), this.Password, true, isLog: true);
             }
             else if (!string.IsNullOrEmpty(this.Filename))
             {
                 var logName = FileHelper.GetLogFile(this.Filename);
 
-                return new FileStreamFactory(logName, this.Password, this.ReadOnly, false);
+                return new FileStreamFactory(logName, this.Password, this.ReadOnly, false, isLog: true);
             }
 
-            return new StreamFactory(new MemoryStream(), this.Password, true);
+            return new StreamFactory(new MemoryStream(), this.Password, true, isLog: true);
         }
 
         /// <summary>
