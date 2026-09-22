@@ -108,6 +108,44 @@ namespace LiteDB.Internals
             });
         }
 
+        [Fact]
+        public void TornEncryptedRetiredSlot_HasTheSameJournalBindingDuringPublicationAndRecovery()
+        {
+            const string password = "secret";
+            MvccRetirementScenario.Run(password, true, null, inspect: (dataBytes, logBytes) =>
+            {
+                var header = new BufferSlice(Plain(dataBytes, password), 0, PAGE_SIZE);
+                var root = header.ReadInt64(WalRetirement.RootPosition) - PAGE_SIZE;
+                var record = new BufferSlice(Plain(logBytes, password), checked((int)(root / PAGE_SIZE * WalChecksum.FrameSize)), PAGE_SIZE);
+                var retired = checked((int)(record.ReadInt64(WalRetirement.EntriesPosition) / PAGE_SIZE * WalChecksum.FrameSize)) + PAGE_SIZE;
+                // A torn encrypted overwrite can leave zero ciphertext at its
+                // start. AES blank-page normalization must not make the journal
+                // binding depend on whether it reads 8192 or 8256 bytes at once.
+                for (var i = 0; i < WalChecksum.FrameSize; i++) logBytes[retired + i] = i < 16 ? (byte)0 : (byte)(i % 251);
+                using var data = ChecksumTestFiles.Copy(dataBytes);
+                using var log = ChecksumTestFiles.Copy(logBytes);
+                var fired = false;
+                using (var engine = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, Password = password }))
+                using (var db = new LiteDatabase(engine, disposeOnClose: false))
+                {
+                    try
+                    {
+                        EngineState.SimulateProcessCrash = phase =>
+                        {
+                            if (phase != "checkpoint-after-page-write") return;
+                            fired = true;
+                            throw new IOException("interrupt checkpoint with sealed redo");
+                        };
+                        Action checkpoint = () => db.Checkpoint();
+                        checkpoint.Should().Throw<IOException>();
+                        fired.Should().BeTrue();
+                    }
+                    finally { EngineState.SimulateProcessCrash = null; }
+                }
+                MvccRetirementScenario.Verify(data.ToArray(), log.ToArray(), password);
+            });
+        }
+
         private static byte[] Plain(byte[] physical, string password)
         {
             using var source = ChecksumTestFiles.Copy(physical);

@@ -117,14 +117,19 @@
       "target": "checksum-crash",
       "seed": 4058733,
       "count": 111,
-      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with journal durability barriers and split compact publication writes. Replayed with v13 retirement and aligned WAL/header-journal padding; original hashes retained in previousHashes.",
-      "inputHash": "FB86D1F99A69BD5774C0894DD66A4AE9454B5483FB1056211E9F3C21A168EF6D",
-      "traceHash": "05D06D54CCFBF486B2983B39D6EBE6FF7168C013690204CBC5F1FD1C41F56EE2",
+      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with journal durability barriers and split compact publication writes. Replayed with v13 retirement and aligned WAL/header-journal padding; original hashes retained in previousHashes. Replayed after synchronizing padding before footer publication.",
+      "inputHash": "AE8E6F188F9951560212CC7D182766450FC8316E32BFF89ED5295E33F0E6D49D",
+      "traceHash": "DFBD2E090B670F57FF5AF1D30F1920FDBA98EE4FBFAD6F3D3ADED3A11099303B",
       "previousHashes": [
         {
           "inputHash": "C04738E2544CCBD56F44A46AD610BC9CC08ACB5A45D31C6C10BB1F89C85DB352",
           "traceHash": "66A4FFD8EC369F9BC6346C59B04D8C6ED56C332EBFF479113A1D8FBEE54495E2",
           "reason": "Before v13 retirement and aligned WAL/header-journal padding changed the sampled I/O event sequence."
+        },
+        {
+          "inputHash": "FB86D1F99A69BD5774C0894DD66A4AE9454B5483FB1056211E9F3C21A168EF6D",
+          "traceHash": "05D06D54CCFBF486B2983B39D6EBE6FF7168C013690204CBC5F1FD1C41F56EE2",
+          "reason": "Before the pre-footer padding durability barrier changed sampled I/O events."
         }
       ]
     },
@@ -132,14 +137,19 @@
       "target": "checksum-crash",
       "seed": 3163459,
       "count": 201,
-      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with journal durability barriers and split compact publication writes. Replayed with v13 retirement and aligned WAL/header-journal padding; original hashes retained in previousHashes.",
-      "inputHash": "487C95E516D71A96ECD5763814FCA106548CEA306C6D60B0F02EEE6252212510",
-      "traceHash": "F7BDA817A3EDDB5F3E65F4B6315D7EF52105A91486446477C04899EEC6F40CE2",
+      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with journal durability barriers and split compact publication writes. Replayed with v13 retirement and aligned WAL/header-journal padding; original hashes retained in previousHashes. Replayed after synchronizing padding before footer publication.",
+      "inputHash": "B79ABCA20757223A9DAF535A26CF8EFBEC45308D5D7991C353E6DD667B8CC122",
+      "traceHash": "6FBC3BBEFF0B6B97B5B056B75829F7EB98BF3A630B9B25C5DA41614E7078C8F7",
       "previousHashes": [
         {
           "inputHash": "1FAD764125FB05B8C92315BF60ADC2D3B0AC7543EADEC8BAB3E3461508E48E98",
           "traceHash": "19848C65C3F40110A335602C52F26357330E3A5BFB1928318970A8B75483E305",
           "reason": "Before v13 retirement and aligned WAL/header-journal padding changed the sampled I/O event sequence."
+        },
+        {
+          "inputHash": "487C95E516D71A96ECD5763814FCA106548CEA306C6D60B0F02EEE6252212510",
+          "traceHash": "F7BDA817A3EDDB5F3E65F4B6315D7EF52105A91486446477C04899EEC6F40CE2",
+          "reason": "Before the pre-footer padding durability barrier changed sampled I/O events."
         }
       ]
     },
@@ -179,14 +189,19 @@
       "target": "compact-crash",
       "seed": 2937,
       "count": 64,
-      "reason": "Stacked v11/v12 promotion, compact transaction and checkpoint power loss preserve complete payloads and index results. Replayed with journal durability barriers and split compact publication writes. Replayed with v13 retirement and aligned WAL/header-journal padding; original hashes retained in previousHashes.",
-      "inputHash": "1D2D2C5C8D10A422BEC9999300816BA759A3909537C43D7B1C4F3B5FC1F57F6D",
-      "traceHash": "5CA3567E9D9C762727DD3EDAB5F757B13746AF89A0A5149C78F8E3F370C2AA73",
+      "reason": "Stacked v11/v12 promotion, compact transaction and checkpoint power loss preserve complete payloads and index results. Replayed with journal durability barriers and split compact publication writes. Replayed with v13 retirement and aligned WAL/header-journal padding; original hashes retained in previousHashes. Replayed after synchronizing padding before footer publication.",
+      "inputHash": "7017F28902BB833CFA10F818398BC6E7ABA13DB433AAE52F2EA1A894BA3A1542",
+      "traceHash": "A1F6C22B07E7407B79757E53E19C21AC44D11AD71F2CD9E338347DAC624FDC1D",
       "previousHashes": [
         {
           "inputHash": "EEBA1555D62FDBCAA7FCAB01C2CC4595DC5DE3D4C9748D68EF5C7BFB633E0B89",
           "traceHash": "7881DCF92B4E2F0E359C80EEB2A886EA3927778D894AC07E7361AEF8F684FF03",
           "reason": "Before v13 retirement and aligned WAL/header-journal padding changed the sampled I/O event sequence."
+        },
+        {
+          "inputHash": "1D2D2C5C8D10A422BEC9999300816BA759A3909537C43D7B1C4F3B5FC1F57F6D",
+          "traceHash": "5CA3567E9D9C762727DD3EDAB5F757B13746AF89A0A5149C78F8E3F370C2AA73",
+          "reason": "Before the pre-footer padding durability barrier changed sampled I/O events."
         }
       ]
     },

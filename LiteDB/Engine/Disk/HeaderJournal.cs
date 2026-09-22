@@ -36,7 +36,11 @@ namespace LiteDB.Engine
             // discarding its damaged tail would certify a partial transaction.
             for (var i = 0; i < 16; i++)
                 if (selectedHeader[WalChecksum.SaltPosition + i] != Header[WalChecksum.SaltPosition + i]) return;
-            if (BodyChecksum != ComputeBody(stream, Position, out _))
+            // v13 may retain torn ciphertext in witnessed slots. Match the
+            // verifier's frame-sized reads because AES blank-page normalization
+            // otherwise makes the plaintext binding depend on chunk boundaries.
+            var blockSize = Header[HeaderPage.P_FILE_VERSION] >= HeaderPage.MVCC_FILE_VERSION ? WalChecksum.FrameSize : PAGE_SIZE;
+            if (BodyChecksum != ComputeBody(stream, Position, out _, blockSize))
                 throw new PageChecksumException(FileOrigin.Log, 0);
         }
 
@@ -219,13 +223,13 @@ namespace LiteDB.Engine
             else stream.Write(bytes, 0, bytes.Length);
         }
 
-        private static uint ComputeBody(Stream stream, long length, out uint transactionID)
+        private static uint ComputeBody(Stream stream, long length, out uint transactionID, int blockSize = PAGE_SIZE)
         {
-            var bytes = new byte[PAGE_SIZE];
+            var bytes = new byte[blockSize];
             var crc = uint.MaxValue;
             transactionID = 0;
             stream.Position = 0;
-            for (long position = 0; position < length; position += PAGE_SIZE)
+            for (long position = 0; position < length; position += blockSize)
             {
                 var count = (int)Math.Min(bytes.Length, length - position);
                 stream.ReadRequired(bytes, 0, count);
