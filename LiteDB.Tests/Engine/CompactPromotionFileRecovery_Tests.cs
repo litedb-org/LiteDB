@@ -46,12 +46,7 @@ namespace LiteDB.Tests.Engine
                         damaged[damaged.Length - Constants.PAGE_SIZE + 128] ^= 1;
                         File.WriteAllBytes(file.Filename, data);
                         File.WriteAllBytes(logName, damaged);
-                        Assert.Throws<LiteException>(() =>
-                        {
-                            using var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, Password = password });
-                        });
-                        Assert.Equal(data, File.ReadAllBytes(file.Filename));
-                        Assert.Equal(damaged, File.ReadAllBytes(logName));
+                        CompactPromotionRejection.AssertUnchanged(file.Filename, password, data, damaged);
                     });
             }
             finally { File.Delete(logName); }
