@@ -87,6 +87,8 @@ namespace LiteDB.Tests.Engine
                 base.Write(buffer, offset, count);
             }
 
+            public override void WriteByte(byte value) => Write(new[] { value }, 0, 1);
+
             public override void SetLength(long value)
             {
                 _device.Capture(this, "before-truncate");

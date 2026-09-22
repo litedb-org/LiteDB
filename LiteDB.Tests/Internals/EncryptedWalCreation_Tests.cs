@@ -37,28 +37,35 @@ namespace LiteDB.Internals
         }
 
         [Theory]
-        [InlineData(1)]
-        [InlineData(7)]
-        [InlineData(16)]
-        [InlineData(33)]
-        [InlineData(47)]
-        [InlineData(63)]
-        public void FileBackedShortPreamble_PreservesBytesUntilWritableRecovery(int length)
+        [InlineData(1, true)]
+        [InlineData(7, true)]
+        [InlineData(16, true)]
+        [InlineData(33, true)]
+        [InlineData(47, true)]
+        [InlineData(63, true)]
+        [InlineData(1, false)]
+        [InlineData(7, false)]
+        [InlineData(16, false)]
+        [InlineData(33, false)]
+        [InlineData(47, false)]
+        [InlineData(63, false)]
+        public void FileBackedShortPreamble_PreservesBytesUntilWritableRecovery(int length, bool legacy)
         {
             using var file = new TempFile();
             var wal = FileHelper.GetLogFile(file.Filename);
-            var data = LegacyData();
+            var data = LegacyData(legacy);
             var prefix = Preamble().Take(length).ToArray();
             File.WriteAllBytes(file.Filename, data);
             File.WriteAllBytes(wal, prefix);
             try
             {
                 var connection = new ConnectionString { Filename = file.Filename, Password = Password, ReadOnly = true };
-                using (var db = new LiteDatabase(connection)) AssertRows(db);
+                AssertReadOnly(() => new LiteDatabase(connection), legacy);
                 File.ReadAllBytes(file.Filename).Should().Equal(data);
                 File.ReadAllBytes(wal).Should().Equal(prefix);
                 connection.ReadOnly = false;
                 using (var db = new LiteDatabase(connection)) AssertRows(db);
+                connection.ReadOnly = true;
                 using (var db = new LiteDatabase(connection)) AssertRows(db);
             }
             finally { File.Delete(wal); }
@@ -144,17 +151,42 @@ namespace LiteDB.Internals
         {
             using var data = ChecksumTestFiles.Copy(dataBytes);
             using var log = ChecksumTestFiles.Copy(logBytes);
+            bool migrationRequired;
+            using (var copy = ChecksumTestFiles.Copy(dataBytes))
+            using (var factory = new StreamFactory(copy, Password))
+            using (var plain = factory.GetStream(false, false))
+            {
+                var header = new byte[PAGE_SIZE];
+                plain.ReadRequired(header, 0, header.Length);
+                migrationRequired = header[HeaderPage.P_FILE_VERSION] < HeaderPage.INDEX_FILE_VERSION ||
+                    header[EnginePragmas.P_INDEX_ORDER_VERSION] != EnginePragmas.INDEX_ORDER_VERSION;
+            }
             foreach (var readOnly in new[] { true, false, true })
             {
                 var beforeData = data.ToArray();
                 var beforeLog = log.ToArray();
-                using (var db = Open(data, log, readOnly)) AssertRows(db);
+                if (readOnly) AssertReadOnly(() => Open(data, log, true), migrationRequired);
+                else
+                {
+                    using (var db = Open(data, log)) AssertRows(db);
+                    migrationRequired = false;
+                }
                 if (readOnly)
                 {
                     data.ToArray().Should().Equal(beforeData);
                     log.ToArray().Should().Equal(beforeLog);
                 }
             }
+        }
+
+        private static void AssertReadOnly(Func<LiteDatabase> open, bool migrationRequired)
+        {
+            if (migrationRequired)
+            {
+                Action attempt = () => { using var db = open(); };
+                attempt.Should().Throw<LiteException>().WithMessage("*index ordering/collation requires migration*");
+            }
+            else using (var db = open()) AssertRows(db);
         }
 
         internal static byte[] LegacyData(bool legacy = true)
