@@ -34,6 +34,15 @@ issues, pull requests, CI runs, and releases. Upstream is `litedb-org/LiteDB` (r
 this fork is `JKamsker/LiteDB` (remote `origin`). Issues are tracked upstream, so pass
 `-R litedb-org/LiteDB` when searching or viewing them.
 
+## Rebuild Recovery
+File-backed opens must check the rebuild recovery marker before upgrade,
+automatic rebuild, or database creation. Create and flush the marker before
+installation renames; clear it only after confirming a complete original
+data/WAL pair or the completed replacement is live. Repeated recovery failures
+must block both direct and shared opens, including when the live file is missing.
+Keep the original exception and rollback errors, and synchronize retained engine
+settings if the replacement remains live. See `docs/rebuild-recovery.md`.
+
 ## Vector File Compatibility
 Ordinary files remain on format v8 and open without migration. The first vector
 write durably promotes the header to v9 before vector pages can enter the WAL;

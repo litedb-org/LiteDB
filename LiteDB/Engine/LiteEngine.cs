@@ -93,6 +93,10 @@ namespace LiteDB.Engine
                 // initialize engine state 
                 _state = new EngineState(this, _settings);
 
+                // A failed rebuild may have left stale data or no canonical file.
+                // Check before upgrade, recovery, or DiskService can create a new file.
+                RebuildRecovery.EnsureAvailable(_settings);
+
                 // before initilize, try if must be upgrade
                 if (_settings.Upgrade) this.TryUpgrade();
 
