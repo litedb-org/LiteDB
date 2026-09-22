@@ -62,7 +62,7 @@ this change. An explicit `Rebuild()` produces Complete coverage, after which any
 legacy marker is corruption. Until then, untouched legacy payload damage has the
 same detection limits as the legacy format.
 
-Data checksum failures raise `LiteException.CHECKSUM_MISMATCH` (139), including the
+Data checksum failures raise `LiteException.CHECKSUM_MISMATCH` (140), including the
 file origin and byte position, and stop an active engine. They are not silently
 repaired or marked for automatic rebuild. Explicit rebuild validates pages and
 records unreadable pages as salvage errors. Checksums detect damage; they do not
