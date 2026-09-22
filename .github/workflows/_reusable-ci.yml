@@ -53,7 +53,7 @@ jobs:
         run: dotnet build tools/MemoryValidation/MemoryValidation.csproj --configuration Release
 
       - name: Verify rejection by the actual preceding format
-        run: python3 scripts/test-parent-format-compatibility.py --max-version 12 --v12-ref 34820faff
+        run: python3 scripts/test-parent-format-compatibility.py --max-version 12 --v12-ref a2ea9a65a469f6449bb8838592f5266b078758b3
 
       - name: Build memory profile measurements
         run: dotnet build tools/MemoryProfiles/MemoryProfiles.csproj --configuration Release
