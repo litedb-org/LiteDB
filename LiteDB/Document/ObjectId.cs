@@ -131,22 +131,12 @@ namespace LiteDB
         /// </summary>
         private static byte[] FromHex(string value)
         {
+            if (TryParseHex(value, out var bytes)) return bytes;
+
             if (string.IsNullOrEmpty(value)) throw new ArgumentNullException(nameof(value));
             if (value.Length != ObjectIdStringLength) throw new ArgumentException(string.Format("ObjectId strings should be 24 hex characters, got {0} : \"{1}\"", value.Length, value));
 
-            var hex = value.AsSpan();
-
-#if NET8_0_OR_GREATER
-            return Convert.FromHexString(hex);
-#else
-            Span<byte> buffer = stackalloc byte[ObjectIdByteLength];
-            WriteBytesFromHex(hex, buffer);
-
-            var result = new byte[ObjectIdByteLength];
-            buffer.CopyTo(result);
-
-            return result;
-#endif
+            throw new FormatException(string.Format("ObjectId string contains non-hexadecimal characters: \"{0}\"", value));
         }
 
         #endregion
@@ -294,41 +284,6 @@ namespace LiteDB
             return (char)(value < 10 ? '0' + value : 'a' + (value - 10));
         }
 
-#if !NET8_0_OR_GREATER
-        private static void WriteBytesFromHex(ReadOnlySpan<char> hex, Span<byte> destination)
-        {
-            if (destination.Length < ObjectIdByteLength)
-            {
-                throw new ArgumentException("Destination span is too short.", nameof(destination));
-            }
-
-            for (var i = 0; i < destination.Length; i++)
-            {
-                var high = ParseHexDigit(hex[i * 2]);
-                var low = ParseHexDigit(hex[i * 2 + 1]);
-
-                destination[i] = (byte)((high << 4) | low);
-            }
-        }
-
-        private static int ParseHexDigit(char c)
-        {
-            if ((uint)(c - '0') <= 9)
-            {
-                return c - '0';
-            }
-
-            var lowered = (char)(c | 0x20);
-
-            if ((uint)(lowered - 'a') <= 5)
-            {
-                return lowered - 'a' + 10;
-            }
-
-            throw new FormatException(string.Format("Invalid hex character '{0}' in ObjectId.", c));
-        }
-#endif
-
         #endregion
 
         #region Operators
@@ -428,6 +383,65 @@ namespace LiteDB
             var inc = Interlocked.Increment(ref _increment) & 0x00ffffff;
 
             return new ObjectId((int)timestamp, _machine, _pid, inc);
+        }
+
+        /// <summary>
+        /// Creates a new ObjectId.
+        /// </summary>
+        public static ObjectId GenerateNewId() => NewObjectId();
+
+        /// <summary>
+        /// Converts a 24-character hexadecimal string to an ObjectId.
+        /// </summary>
+        public static ObjectId Parse(string value)
+        {
+            return new ObjectId(FromHex(value));
+        }
+
+        /// <summary>
+        /// Attempts to convert a 24-character hexadecimal string to an ObjectId.
+        /// </summary>
+        public static bool TryParse(string value, out ObjectId objectId)
+        {
+            if (TryParseHex(value, out var bytes))
+            {
+                objectId = new ObjectId(bytes);
+                return true;
+            }
+
+            objectId = null;
+            return false;
+        }
+
+        private static bool TryParseHex(string value, out byte[] bytes)
+        {
+            bytes = null;
+
+            if (value == null || value.Length != 24) return false;
+
+            var result = new byte[12];
+
+            for (var i = 0; i < value.Length; i += 2)
+            {
+                var high = ParseHexDigit(value[i]);
+                var low = ParseHexDigit(value[i + 1]);
+
+                if (high < 0 || low < 0) return false;
+
+                result[i / 2] = (byte)((high << 4) | low);
+            }
+
+            bytes = result;
+            return true;
+        }
+
+        private static int ParseHexDigit(char value)
+        {
+            if (value >= '0' && value <= '9') return value - '0';
+            if (value >= 'a' && value <= 'f') return value - 'a' + 10;
+            if (value >= 'A' && value <= 'F') return value - 'A' + 10;
+
+            return -1;
         }
 
         #endregion
