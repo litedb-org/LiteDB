@@ -30,22 +30,8 @@ namespace LiteDB.Tests.Engine
                 db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1 });
             }
             var log = FileHelper.GetLogFile(file.Filename);
-            var target = wal ? log : file.Filename;
-            using (var factory = new FileStreamFactory(target, password, false, false))
-            using (var stream = factory.GetStream(true, wal))
-            {
-                var buffer = new byte[Constants.PAGE_SIZE];
-                for (long offset = 0; offset < stream.Length; offset += buffer.Length)
-                {
-                    stream.Position = offset;
-                    stream.Read(buffer, 0, buffer.Length).Should().Be(buffer.Length);
-                    if (buffer[BasePage.P_PAGE_TYPE] != (byte)PageType.Header) continue;
-                    buffer[EnginePragmas.P_COLLATION_STAMP] ^= 1;
-                    stream.Position = offset;
-                    stream.Write(buffer, 0, buffer.Length);
-                }
-                stream.FlushToDisk();
-            }
+            IndexMigrationFixtures.Rewrite(file.Filename, password,
+                header => header[EnginePragmas.P_COLLATION_STAMP] ^= 1, changeData: !wal, changeWal: wal);
             if (tail)
             {
                 using (var stream = File.Open(file.Filename, FileMode.Append)) stream.Write(new byte[17], 0, 17);

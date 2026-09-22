@@ -9,12 +9,13 @@ namespace LiteDB.Engine
             "original compatible environment and import here. For culture-only changes, an Ordinal rebuild " +
             "in the original environment can also prepare the file.");
 
-        private void ValidateCollationStamp()
+        private void ValidateCollationStamp(HeaderPage header = null)
         {
-            if (_header.Pragmas.IndexOrderVersion > EnginePragmas.INDEX_ORDER_VERSION)
+            header = header ?? _header;
+            if (header.Pragmas.IndexOrderVersion > EnginePragmas.INDEX_ORDER_VERSION)
                 throw CollationMismatch();
-            var stored = _header.Pragmas.CollationStamp;
-            if (stored != 0 && stored != CollationFingerprint.Compute(_header.Pragmas.Collation))
+            var stored = header.Pragmas.CollationStamp;
+            if (stored != 0 && stored != CollationFingerprint.Compute(header.Pragmas.Collation))
                 throw CollationMismatch();
         }
 

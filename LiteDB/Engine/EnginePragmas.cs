@@ -27,7 +27,7 @@ namespace LiteDB.Engine
         public const int P_UTC_DATE = 96; // 96-96 (1 byte)
         public const int P_CHECKPOINT = 97; // 97-100 (4 bytes)
         public const int P_LIMIT_SIZE = 101; // 101-108 (8 bytes)
-        public const int P_INDEX_ORDER_VERSION = 109; // 109 (1 byte)
+        public const int P_INDEX_ORDER_VERSION = 165; // 165 (1 byte)
         internal const byte INDEX_ORDER_VERSION = 1;
 
         /// <summary>
@@ -173,7 +173,7 @@ namespace LiteDB.Engine
             }
 
             this.CollationStamp = buffer.ReadUInt32(P_COLLATION_STAMP);
-            this.IndexOrderVersion = buffer.ReadByte(P_INDEX_ORDER_VERSION);
+            this.IndexOrderVersion = buffer[HeaderPage.P_FILE_VERSION] >= HeaderPage.INDEX_FILE_VERSION ? buffer.ReadByte(P_INDEX_ORDER_VERSION) : (byte)0;
             _newFile = false;
             _isDirty = false;
         }
@@ -218,6 +218,16 @@ namespace LiteDB.Engine
             {
                 throw new LiteException(0, $"Pragma `{name}` not exist");
             }
+        }
+
+        public void Validate(string name, BsonValue value)
+        {
+            if (_pragmas.TryGetValue(name, out var pragma))
+            {
+                pragma.Validate(value, _headerPage);
+                return;
+            }
+            throw new LiteException(0, $"Pragma `{name}` not exist");
         }
     }
 }

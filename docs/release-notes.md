@@ -1,18 +1,41 @@
 # Release notes: bounded memory management
 
-## Index ordering migration (format v10)
+## Index ordering migration (format v11)
 
-New files use v10. Writable opens automatically migrate v8/v9 indexes for corrected
+New files use v11. Writable opens automatically migrate v8/v9 indexes for corrected
 nested collation, unsigned ObjectId, canonical document and exact numeric ordering.
 Read-only files needing migration must first be opened writable. Unique-key
 collisions abort before changing data or WAL. Computed/multikey keys regenerate
 from documents; scalar member-path indexes reuse their pages. Old readers reject
-v10, and interrupted migrations resume through WAL recovery. Migration can require
+v11, and interrupted migrations resume through WAL recovery. Migration can require
 substantial temporary/WAL space. See [the compatibility contract](collation-runtime-compatibility.md).
 Finite `LIMIT_SIZE` is checked before promotion; insufficient budgets leave legacy
 files unchanged. Computed-index pages are reused during regeneration. An explicit
 `index migration limit size` connection option raises the budget atomically with
-a successful migration and allows retrying previously interrupted v10 migrations.
+a successful migration and allows retrying previously interrupted v11 migrations.
+
+## Data-page and WAL checksums (#2935)
+
+New files use format v10. Writable v8/v9 opens automatically recover the legacy
+WAL and durably publish v10 before accepting writes. Existing pages gain
+checksums lazily when written; cutover only rewrites the header.
+Read-only legacy opens preserve their files. Older engines refuse v10, so keep a
+backup before writable open if backward compatibility is required.
+
+Recovery validates salted WAL frame checksums, transaction page counts/digests,
+and commit order. Missing, torn, or stale frames discard the incomplete transaction
+and its dependent tail; `$database.recoveryDiscardedWalBytes` reports excluded bytes
+and `$database.recoveryInvalidWalTail` distinguishes invalid/partial frames from
+intact unconfirmed tails. Shared mode retains the report across internal reopenings.
+Checkpointed data pages also have checksums and fail explicitly when damaged.
+Checkpoint uses a temporary header journal to recover torn header writes.
+Automatic conversion keeps verified legacy redo until v10 publication is durable,
+using 32 KiB of temporary WAL, independent of database size (plus the encryption
+preamble). `$database.checksumCoverage` distinguishes Mixed from Complete
+protection. Explicit rebuild completes coverage; cold legacy pages remain
+unchecksummed until written or rebuilt.
+Plain and encrypted files use the same validation. See the
+[format, conversion, and recovery details](page-and-wal-checksums.md).
 
 ## `BsonValue` CLR collection compatibility
 

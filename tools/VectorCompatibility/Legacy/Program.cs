@@ -13,20 +13,32 @@ namespace VectorCompatibility.Legacy
             {
                 var suffix = encrypted ? "encrypted.db" : "plain.db";
                 var password = encrypted ? "compatibility-test" : null;
-                if (args[0] == "create")
+                if (args[0] == "resume")
                 {
-                    Refuse(Path.Combine(args[1], "v9-" + suffix), password);
                     using var legacy = new LiteDatabase(new ConnectionString
                     {
-                        Filename = Path.Combine(args[1], "v8-" + suffix), Password = password
+                        Filename = Path.Combine(args[1], "interrupted-" + suffix), Password = password
+                    });
+                    legacy.CheckpointSize = 0;
+                    var docs = legacy.GetCollection("docs");
+                    if (docs.FindById(1)["value"].AsString != "legacy") throw new Exception("Interrupted conversion lost data");
+                    docs.Insert(new BsonDocument { ["_id"] = 2, ["value"] = "resumed" });
+                    var sourceFile = Path.Combine(args[1], "interrupted-" + suffix);
+                    var copy = Path.Combine(args[1], "interrupted-wal-" + suffix);
+                    File.Copy(sourceFile, copy);
+                    File.Copy(Path.ChangeExtension(sourceFile, null) + "-log.db", Path.ChangeExtension(copy, null) + "-log.db");
+                    legacy.Checkpoint();
+                }
+                else if (args[0] == "create")
+                {
+                    Refuse(Path.Combine(args[1], "current-" + suffix), password);
+                    using var legacy = new LiteDatabase(new ConnectionString
+                    {
+                        Filename = Path.Combine(args[1], "legacy-" + suffix), Password = password
                     });
                     legacy.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "legacy" });
                 }
-                else
-                {
-                    Refuse(Path.Combine(args[1], "v8-" + suffix), password);
-                    Refuse(Path.Combine(args[1], "current-v8-" + suffix), password);
-                }
+                else Refuse(Path.Combine(args[1], "legacy-" + suffix), password);
             }
             Console.WriteLine("LiteDB 5.0.21: " + args[0] + " passed (plain and encrypted)");
         }
@@ -52,9 +64,7 @@ namespace VectorCompatibility.Legacy
                     rejected = true;
                 }
                 if (!rejected || !original.SequenceEqual(File.ReadAllBytes(file)))
-                {
                     throw new Exception("Legacy engine must reject v10 without changing the file: " + mode);
-                }
             }
         }
     }

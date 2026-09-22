@@ -34,19 +34,21 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
-        /// Opted-out commits leave the log in the OS cache while a checkpoint overwrites data pages in place.
+        /// Opted-out or recovered commits may still reside in the OS cache when checkpoint starts.
         /// Sync the log first, so that a power loss during the checkpoint can still be redone from it.
         /// Caller holds the exclusive database lock.
         /// </summary>
         internal void SyncLogBeforeCheckpoint()
         {
-            if (_durableCommits || _readOnly) return;
+            if (_readOnly) return;
 
             var stream = _writer.Value;
 
             lock (stream)
             {
-                this.FlushLogToDisk(stream);
+                // Sync both the header recovery copy and preceding WAL before
+                // overwriting data. Unsupported sync retains the reported fallback.
+                this.PrepareCheckpointHeader();
             }
         }
 

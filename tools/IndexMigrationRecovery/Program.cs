@@ -55,13 +55,21 @@ internal static class Program
         using var file = new FileStream(filename, FileMode.Open, FileAccess.ReadWrite);
         using var stream = password == null ? (Stream)file : new AesStream(password, file);
         var header = new byte[8192];
-        stream.Position = 0;
-        stream.ReadExactly(header);
-        header[59] = 8;
-        Array.Clear(header, 92, 4);
-        header[109] = 0;
-        stream.Position = 0;
-        stream.Write(header, 0, header.Length);
+        for (long position = 0; position < stream.Length; position += header.Length)
+        {
+            stream.Position = position;
+            stream.ReadExactly(header);
+            header[31] = 0; // Legacy page marker; remove checksums from the fixture.
+            if (position == 0)
+            {
+                header[59] = 8;
+                Array.Clear(header, 92, 4);
+                Array.Clear(header, 125, 4);
+                header[165] = 0;
+            }
+            stream.Position = position;
+            stream.Write(header, 0, header.Length);
+        }
         stream.Flush();
         file.Flush(true);
     }
@@ -103,10 +111,10 @@ internal static class Program
 
         internal bool ShouldFail(bool log, long position, byte[] buffer, int offset, int count)
         {
-            if (_triggered || count != 8192) return false;
+            if (_triggered || count != (log ? 8256 : 8192)) return false;
             var commit = log && BitConverter.ToUInt32(buffer, offset) == 0 &&
-                buffer[offset + 18] != 0 && buffer[offset + 109] == 1;
-            var hit = (_stage == "promotion" && !log && position == 0 && buffer[offset + 59] == 10) ||
+                buffer[offset + 18] != 0 && buffer[offset + 165] == 1;
+            var hit = (_stage == "promotion" && !log && position == 0 && buffer[offset + 59] == 11) ||
                 (_stage == "wal" && log && ++_walPages == 3) ||
                 (_stage == "commit" && commit) || (_stage == "checkpoint" && !log && _committed);
             _committed |= commit;

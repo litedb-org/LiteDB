@@ -56,6 +56,12 @@ namespace LiteDB.Tests.Engine
             }
             changed.Should().Be(1);
             MarkLegacy(bytes);
+            using (var data = LiteDB.Internals.ChecksumTestFiles.Copy(bytes))
+            using (var log = new MemoryStream())
+            {
+                LiteDB.Internals.ChecksumTestFiles.MakeLegacy(data, log, null);
+                bytes = data.ToArray();
+            }
             File.WriteAllBytes(file.Filename, bytes);
             Action open = () => { using var db = new LiteDatabase(file.Filename); };
             open.Should().Throw<LiteException>().WithMessage("*Invalid key while migrating index values*");

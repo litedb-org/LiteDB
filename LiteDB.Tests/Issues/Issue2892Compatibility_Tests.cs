@@ -34,6 +34,7 @@ namespace LiteDB.Tests.Issues
             previous.Should().NotBe(CollationFingerprint.Compute(Collation.Binary));
             var bytes = File.ReadAllBytes(file.Filename);
             Array.Copy(BitConverter.GetBytes(previous), 0, bytes, EnginePragmas.P_COLLATION_STAMP, 4);
+            PageChecksum.Write(new BufferSlice(bytes, 0, Constants.PAGE_SIZE));
             File.WriteAllBytes(file.Filename, bytes);
             Action open = () => { using var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, ReadOnly = true }); };
             open.Should().Throw<LiteException>().WithMessage("*ordering/collation*");

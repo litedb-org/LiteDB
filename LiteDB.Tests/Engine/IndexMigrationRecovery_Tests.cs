@@ -45,6 +45,7 @@ namespace LiteDB.Tests.Engine
                 data.Position = offset + oldExpression.Length - 2;
                 data.WriteByte((byte)'*');
             }
+            LiteDB.Internals.ChecksumTestFiles.MakeLegacy(data, log, null);
             data.Position = HeaderPage.P_FILE_VERSION;
             data.WriteByte(8);
             data.Position = EnginePragmas.P_INDEX_ORDER_VERSION;
@@ -61,7 +62,7 @@ namespace LiteDB.Tests.Engine
             Action open = () => { using var engine = new LiteEngine(settings); };
             open.Should().Throw<IOException>().WithMessage("Injected migration WAL failure");
             log.Triggered.Should().BeTrue();
-            data.ToArray()[HeaderPage.P_FILE_VERSION].Should().Be(10);
+            data.ToArray()[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.INDEX_FILE_VERSION);
             BitConverter.ToInt64(data.ToArray(), EnginePragmas.P_LIMIT_SIZE)
                 .Should().Be(BitConverter.ToInt64(legacyBytes, EnginePragmas.P_LIMIT_SIZE));
             using (var db = new LiteDatabase(new LiteEngine(settings)))
@@ -92,7 +93,7 @@ namespace LiteDB.Tests.Engine
 
             public override void Write(byte[] buffer, int offset, int count)
             {
-                if (Armed && count == Constants.PAGE_SIZE)
+                if (Armed && count == WalChecksum.FrameSize)
                 {
                     var confirmed = buffer[offset + BasePage.P_IS_CONFIRMED] != 0;
                     if ((_confirmed && confirmed) || (!_confirmed && ++_pages >= 3 && BitConverter.ToUInt32(buffer, offset + BasePage.P_PAGE_ID) >= MinimumPage))

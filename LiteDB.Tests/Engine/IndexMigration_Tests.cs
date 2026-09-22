@@ -55,7 +55,7 @@ namespace LiteDB.Tests.Engine
                 db.Checkpoint();
             }
             using (var db = Open(file.Filename, password, true)) db.GetCollection("rows").Count().Should().Be(299);
-            ReadHeader(file.Filename, password)[HeaderPage.P_FILE_VERSION].Should().Be(10);
+            ReadHeader(file.Filename, password)[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.INDEX_FILE_VERSION);
             ReadHeader(file.Filename, password)[EnginePragmas.P_INDEX_ORDER_VERSION].Should().Be(1);
         }
 
@@ -82,7 +82,7 @@ namespace LiteDB.Tests.Engine
         [Theory]
         [InlineData(false)]
         [InlineData(true)]
-        public void Promotion_interrupted_before_migration_resumes_with_old_wal_headers(bool wal)
+        public void Checksum_only_format_migrates_with_outstanding_wal(bool wal)
         {
             using var file = new TempFile();
             using (var db = Open(file.Filename, null))
@@ -92,21 +92,16 @@ namespace LiteDB.Tests.Engine
             }
             RewriteHeaders(file.Filename, null, header =>
             {
-                header[HeaderPage.P_FILE_VERSION] = 8;
+                header[HeaderPage.P_FILE_VERSION] = HeaderPage.CHECKSUM_FILE_VERSION;
                 header[EnginePragmas.P_INDEX_ORDER_VERSION] = 0;
                 Array.Clear(header, EnginePragmas.P_COLLATION_STAMP, 4);
             });
-            using (var stream = File.Open(file.Filename, FileMode.Open, FileAccess.Write))
-            {
-                stream.Position = HeaderPage.P_FILE_VERSION;
-                stream.WriteByte(10);
-            }
             using (var db = Open(file.Filename, null))
             {
                 Assert.NotNull(db.GetCollection("rows").FindById(1));
                 db.Checkpoint();
             }
-            ReadHeader(file.Filename, null)[HeaderPage.P_FILE_VERSION].Should().Be(10);
+            ReadHeader(file.Filename, null)[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.INDEX_FILE_VERSION);
             ReadHeader(file.Filename, null)[EnginePragmas.P_INDEX_ORDER_VERSION].Should().Be(1);
         }
 
@@ -126,24 +121,6 @@ namespace LiteDB.Tests.Engine
         }
 
         internal static void RewriteHeaders(string file, string password, Action<byte[]> change)
-        {
-            foreach (var path in new[] { file, FileHelper.GetLogFile(file) })
-            {
-                if (!File.Exists(path)) continue;
-                using var factory = new FileStreamFactory(path, password, false, false);
-                using var stream = factory.GetStream(true, path != file);
-                var header = new byte[Constants.PAGE_SIZE];
-                for (long offset = 0; offset < stream.Length; offset += header.Length)
-                {
-                    stream.Position = offset;
-                    if (stream.Read(header, 0, header.Length) != header.Length) break;
-                    if (header[BasePage.P_PAGE_TYPE] != (byte)PageType.Header) continue;
-                    change(header);
-                    stream.Position = offset;
-                    stream.Write(header, 0, header.Length);
-                }
-                stream.FlushToDisk();
-            }
-        }
+            => IndexMigrationFixtures.Rewrite(file, password, change);
     }
 }

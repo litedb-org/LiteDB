@@ -21,6 +21,14 @@ PR diff, with limits fixed at their size before the check was introduced.
 ## Testing Guidelines
 Tests are written with xUnit and FluentAssertions; mirror the production folder names (`Engine`, `Query`, `Issues`, etc.) when adding scenarios. Name files after the type under test and choose expressive `[Fact]` / `[Theory]` method names describing the behavior. Long-running tests must finish within the 300-second session timeout defined in `tests.runsettings`; run focused suites with `dotnet test LiteDB.Tests --filter FullyQualifiedName~Engine` to triage regressions quickly.
 
+CI runs prebuilt tests through `scripts/run-ci-tests.ps1`, which selects an isolated
+runtime and checks the actual test-host runtime, architecture, and engine test
+hooks. Keep these guards in filtered runs. Restore `TestingEnabled=true` outputs
+after production compatibility/measurement builds before packaging test artifacts.
+Linux ARM64 uses a native ARM64 runner; Windows x86 uses an x86 test host.
+`CrossProcess_Shared_Tests` exercises concurrent tasks in one process; do not cite
+it as evidence of separate-process locking.
+
 ## Commit & Pull Request Guidelines
 Commits use concise, present-tense subject lines (e.g., `Add test run settings`) and may reference issues inline (`Fix #123`). Each PR should describe the problem, the approach, and include before/after notes or perf metrics when touching storage internals. Link to tracking issues, attach shell transcripts or benchmarks where relevant, and confirm `dotnet test` output so reviewers can spot regressions.
 
@@ -34,18 +42,27 @@ issues, pull requests, CI runs, and releases. Upstream is `litedb-org/LiteDB` (r
 this fork is `JKamsker/LiteDB` (remote `origin`). Issues are tracked upstream, so pass
 `-R litedb-org/LiteDB` when searching or viewing them.
 
+## Rebuild Recovery
+File-backed opens must check the rebuild recovery marker before upgrade,
+automatic rebuild, or database creation. Create and flush the marker before
+installation renames; clear it only after confirming a complete original
+data/WAL pair or the completed replacement is live. Repeated recovery failures
+must block both direct and shared opens, including when the live file is missing.
+Keep the original exception and rollback errors, and synchronize retained engine
+settings if the replacement remains live. See `docs/rebuild-recovery.md`.
+
 ## Vector File Compatibility
-New files use format v10. Writable opens automatically migrate v8/v9 indexes;
+New files use format v11 (v10 introduced checksums). Writable opens migrate v8/v9/v10 indexes;
 read-only opens requiring migration must request a writable open first. Validate
 unique keys before mutation, durably promote the data header before migration WAL
-writes, and commit every rebuilt index with ordering revision byte 109. Rollback,
+writes, and commit every rebuilt index with ordering revision byte 165. Rollback,
 WAL replay, and checkpoint must never downgrade the version. Re-evaluate secondary
 computed/multikey keys from documents, since old equality can have omitted keys.
 Reorder proven scalar member-path indexes in place to preserve page capacity.
 Reuse empty computed-index pages within their own index during regeneration;
 do not expose transaction-deleted pages to other snapshots. Preflight finite
 LIMIT_SIZE before promotion. Explicit IndexMigrationLimitSize increases are
-transaction-local until migration commits, including retries of pending v10 files. Preserve
+transaction-local until migration commits, including retries of pending v11 files. Preserve
 simple member-path vector indexes and rebuild computed vector expressions.
 `Upgrade=true` continues to rebuild v7 files before applying read-only access.
 Durable flushes must reach the underlying file through encryption and caller-stream
@@ -55,6 +72,53 @@ Run `python3 scripts/test-index-migration-recovery.py` for real process-death an
 partial encrypted I/O recovery. Cross-runtime CI must exchange legacy fixtures
 between Windows/NLS and Linux/ICU; same-host tests do not cover that transition.
 See `docs/collation-runtime-compatibility.md` and `docs/vector-query-compatibility.md`.
+
+Format v10 introduced data-page and WAL checksums; v11 retains their layout. Writable v8/v9 opens
+recover/checkpoint and sync the legacy WAL, then durably publish v10 with Mixed
+data-page coverage. Cutover backs up only the header (32 KiB temporary WAL);
+ordinary writes/checkpoints lazily checksum old pages. Byte 31 is 00 for legacy,
+A5 for checksummed, and FF reserved for a future globally promoted file format.
+Unknown markers fail closed. Only Mixed non-header pages at or below the
+checksum-validated LegacyLastPageID may be legacy. Header bytes 160..164 store
+coverage and the boundary; new/rebuilt files use Complete. Keep coverage Mixed
+conservatively until explicit rebuild; there is no background migration.
+Read-only legacy opens requiring ordering migration reject without changing bytes. `Upgrade=true`
+continues to rebuild v7 files before applying read-only access. Data checksums use
+bytes 14..17 (the unused persisted transaction ID); WAL frames append 64 plaintext
+metadata bytes and keep logical 8192-byte page addresses. Rotate the WAL salt only
+after checkpointed data is durable and before recycling log positions. Never
+rewrite an unconfirmed slot before the latest confirmation. Recovery validates
+frame CRCs, transaction counts/digests, and commit sequence before publishing;
+rebuild must use the same verifier. Flushes must reach the underlying file through
+encryption, caller-stream, and checksum wrappers. Run
+`python3 scripts/test-vector-compatibility.py` for legacy read-only compatibility,
+automatic conversion, and old-engine rejection, including encrypted files.
+See `docs/page-and-wal-checksums.md` and `docs/vector-query-compatibility.md`.
+Run `LiteDB.Fuzz` targets `checksum-page,checksum-wal,checksum-migration,checksum-crash`
+for format/recovery changes. Keep their pinned input/trace corpus replayable. The
+short daily CI campaign uses three minutes per platform; longer local campaigns
+can put artifacts under `/dev/shm` to avoid sustained physical disk writes.
+Checksum oracles must verify complete document payloads and secondary-index
+results, not merely successful open or row counts. CRC-valid malformed metadata
+must be tested separately from random bit corruption.
+Header overwrites require a synced WAL recovery footer; recover it before the
+primary-header checksum gate, and sync repairs before removing the footer.
+Conversion keeps legacy header redo: durably publish its intent before writing backup
+pages, sync redo before preparation, and sync preparation before confirmation.
+Incomplete encrypted redo can look confirmed, so never feed it to legacy replay
+without checking the intent/preparation records. Keep read-only recovery byte
+preserving. See `docs/header-publication.md` and the crash-boundary tests.
+
+Checkpoint must verify the entire checksummed WAL and match its confirmed
+transaction IDs to the live committed set before changing either file. Per-frame
+validation during copying alone can certify a partial transaction before a later
+read fails. Hold the exclusive lock across validation and copying, and retain
+summaries rather than buffering all WAL page payloads.
+The header journal binds the preceding WAL bytes. Before repairing or removing
+it, verify that binding unless a validated newer header salt proves checkpoint
+publication completed. Never discard damaged redo needed by partial data writes.
+Keep the last nonempty recovery report across SharedEngine reopenings; distinguish
+invalid/partial WAL tails from intact unconfirmed tails in `$database` diagnostics.
 
 ## Query Frontends
 LINQ and SQL share `BsonExpressionFactory`; LINQ bindings must construct nodes
@@ -141,3 +205,11 @@ not characters, and valid key payloads can exceed 255 bytes. Preserve full
 non-length type codes, including vectors. Multi-block merge ties retain the active
 block first, then original block order; keep this policy when changing sorting.
 Use `tools/QueryOptimizationBenchmarks` for per-optimization end-to-end comparisons.
+
+## Transaction Ownership
+Reader cursors can outlive the thread that opened them. Use the retained `Thread`
+identity for transaction admission, lookup, cleanup, and completion guards; managed
+thread IDs can be recycled and are only suitable for diagnostics. Keep cross-thread
+query disposal separate from the caller's explicit transaction. Run the
+`transaction-gate`, `cursor-handoff`, and `concurrent` fuzz targets when changing
+reader leases or exclusive admission.

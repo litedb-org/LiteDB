@@ -15,7 +15,7 @@ namespace LiteDB.Engine
         /// </summary>
         private bool EnsureIndexReadOnly(string collection, string name, string expression, VectorIndexOptions vector = null)
         {
-            var exists = this.AutoTransaction(transaction =>
+            var exists = this.AutoReadTransaction(transaction =>
             {
                 var snapshot = transaction.CreateSnapshot(LockMode.Read, collection, false);
                 var current = snapshot.CollectionPage?.GetCollectionIndex(name);

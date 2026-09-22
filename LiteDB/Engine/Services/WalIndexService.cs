@@ -12,7 +12,7 @@ namespace LiteDB.Engine
     /// Do all WAL index services based on LOG file - has only single instance per engine
     /// [Singleton - ThreadSafe]
     /// </summary>
-    internal class WalIndexService
+    internal partial class WalIndexService
     {
         private const int READER_WAIT_MILLISECONDS = 10;
         private const int NO_WAIT_MILLISECONDS = 0;
@@ -83,6 +83,8 @@ namespace LiteDB.Engine
                 // clear cache
                 _disk.Cache.Clear();
 
+                // Invalidate the old generation only after checkpoint synced data.
+                _disk.RotateWalSalt();
                 // clear log file (sync)
                 _disk.SetLength(0, FileOrigin.Log);
             }
@@ -196,14 +198,16 @@ namespace LiteDB.Engine
         /// Load all confirmed transactions from log file (used only when open datafile)
         /// Don't need lock because it's called on ctor of LiteEngine
         /// </summary>
-        public void RestoreIndex(ref HeaderPage header)
+        public void RestoreIndex(ref HeaderPage header, Action<HeaderPage> validateHeader = null)
         {
             // get all page positions
             var positions = new Dictionary<long, List<PagePosition>>();
             var current = 0L;
 
-            // read all pages to get confirmed transactions (do not read page content, only page header)
-            foreach (var buffer in _disk.ReadFull(FileOrigin.Log))
+            var recovery = new WalRecovery();
+            var pages = _disk.ReadFull(FileOrigin.Log);
+            if (_disk.ChecksumsEnabled) pages = recovery.Read(pages);
+            foreach (var buffer in pages)
             {
                 if(buffer.IsBlank())
                 {
@@ -261,6 +265,11 @@ namespace LiteDB.Engine
                 }
 
                 current += PAGE_SIZE;
+            }
+            if (_disk.ChecksumsEnabled)
+            {
+                validateHeader?.Invoke(header);
+                _disk.FinishWalRecovery(recovery);
             }
         }
 
@@ -369,13 +378,26 @@ namespace LiteDB.Engine
                 }
             }
 
-            _disk.SyncLogBeforeCheckpoint();
-
-            // write all log pages into data file (sync)
-            _disk.WriteDataDisk(source());
-
-            // clear log file, clear wal index, memory cache,
-            this.Clear();
+            try
+            {
+                this.ValidateCheckpoint();
+                _disk.SyncLogBeforeCheckpoint();
+                _disk.WriteDataDisk(source());
+#if DEBUG || TESTING
+                _disk.TestCrashPoint("checkpoint-before-clear");
+#endif
+                this.Clear();
+#if DEBUG || TESTING
+                _disk.TestCrashPoint("checkpoint-after-clear");
+#endif
+            }
+            catch (Exception ex)
+            {
+                // A generation-header write or sync may have reached storage.
+                // Never accept another commit with an uncertain generation.
+                _disk.StopAfterCheckpointFailure(ex);
+                throw;
+            }
 
             return counter;
         }

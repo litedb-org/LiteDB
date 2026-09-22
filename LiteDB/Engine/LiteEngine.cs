@@ -93,6 +93,10 @@ namespace LiteDB.Engine
                 // initialize engine state 
                 _state = new EngineState(this, _settings);
 
+                // A failed rebuild may have left stale data or no canonical file.
+                // Check before upgrade, recovery, or DiskService can create a new file.
+                RebuildRecovery.EnsureAvailable(_settings);
+
                 // before initilize, try if must be upgrade
                 if (_settings.Upgrade) this.TryUpgrade();
 
@@ -148,9 +152,9 @@ namespace LiteDB.Engine
                 _walIndex = new WalIndexService(_disk, _locker);
 
                 // if exists log file, restore wal index references (can update full _header instance)
-                if (_disk.GetFileLength(FileOrigin.Log) > 0)
+                if (_disk.GetFileLength(FileOrigin.Log) > 0 || _disk.ChecksumsEnabled)
                 {
-                    _walIndex.RestoreIndex(ref _header);
+                    _walIndex.RestoreIndex(ref _header, this.ValidateCollationStamp);
                 }
 
                 this.ValidateCollationStamp();
@@ -261,6 +265,9 @@ namespace LiteDB.Engine
         internal TransactionMonitor GetMonitor() => _monitor;
         internal Action<PageBuffer> SimulateDiskReadFail { set => _state.SimulateDiskReadFail = value; }
         internal Action<PageBuffer> SimulateDiskWriteFail { set => _state.SimulateDiskWriteFail = value; }
+        internal Action SimulateBeforeTransactionAdmission { set => _locker.BeforeTransactionAdmission = value; }
+        internal Action SimulateBeforeExclusiveAdmission { set => _locker.BeforeExclusiveAdmission = value; }
+        internal Action SimulateAfterExclusiveAdmission { set => _locker.AfterExclusiveAdmission = value; }
 #endif
 
         /// <summary>

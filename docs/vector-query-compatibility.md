@@ -71,9 +71,9 @@ require O(N log N) work and temporary disk space. Simple bounded top-k queries
 retain the existing ANN performance characteristics. Equal-distance neighbors
 have no specified relative order unless the query supplies a tie-breaker.
 
-## Legacy v8/v9 migration and vector format 10
+## Legacy v8/v9 migration and vector format 11
 
-New databases now use **format v10**, which protects both vector pages and the
+New databases now use **format v11**, which protects both vector pages and the
 persisted comparison changes described in [index compatibility](collation-runtime-compatibility.md).
 Writable opens of v8/v9 files migrate indexes automatically; read-only opens that
 need migration request a writable open first. Simple member-path vector indexes
@@ -81,9 +81,9 @@ retain their graph and metadata. Computed vector indexes are regenerated because
 comparison changes can affect their expressions. Existing v7 `Upgrade=true`
 rebuild and read-only upgrade semantics remain available.
 
-The v10 boundary is durably written before migrated pages enter WAL and cannot
+The v11 boundary is durably written before migrated pages enter WAL and cannot
 be lowered by rollback, replay, or checkpoint. Encryption and caller-stream
-wrappers forward durable flushes. Released v8/v9 readers reject v10, including
+wrappers forward durable flushes. Released v8/v9 readers reject v11, including
 ordinary databases. Unknown versions report `UNSUPPORTED_FILE_VERSION`. Do not
 change the version byte to bypass this protection.
 
@@ -105,7 +105,7 @@ passing regression before the query follow-up fix.
 `Issue2881_VectorFormat_Tests`, `Issue2881_VectorPromotion_Tests`, and
 `Issue2881_VectorPromotionFailure_Tests` cover version gating, unchanged ordinary
 files, the current format through commit/rollback, older WAL headers, encryption, shared
-connections, concurrent writes, failed writes/flushes, and vector rebuild. These tests now include the v10 index-migration boundary. Existing
+connections, concurrent writes, failed writes/flushes, and vector rebuild. These tests now include the v11 index-migration boundary. Existing
 recovery fixtures run with their original version headers.
 
 Run `python3 scripts/test-vector-compatibility.py` for the cross-version check.

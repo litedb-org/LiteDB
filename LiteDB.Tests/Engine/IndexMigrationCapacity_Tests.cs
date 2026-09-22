@@ -30,7 +30,7 @@ namespace LiteDB.Tests.Engine
             }
             IndexMigration_Tests.RewriteHeaders(file.Filename, password, header =>
             {
-                header[HeaderPage.P_FILE_VERSION] = (byte)(pending ? 10 : 8);
+                header[HeaderPage.P_FILE_VERSION] = (byte)(pending ? HeaderPage.INDEX_FILE_VERSION : 8);
                 header[EnginePragmas.P_INDEX_ORDER_VERSION] = 0;
                 Array.Clear(header, EnginePragmas.P_COLLATION_STAMP, 4);
             });
@@ -91,8 +91,8 @@ namespace LiteDB.Tests.Engine
             new ConnectionString(settings.ToString()).IndexMigrationLimitSize.Should().Be(settings.IndexMigrationLimitSize);
             using var data = new MemoryStream();
             using (var db = new LiteDatabase(data)) db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1 });
-            data.Position = EnginePragmas.P_INDEX_ORDER_VERSION;
-            data.WriteByte(0);
+            using var log = new MemoryStream();
+            IndexMigrationFixtures.Rewrite(data, log, null, header => header[EnginePragmas.P_INDEX_ORDER_VERSION] = 0);
             var before = data.ToArray();
             Action open = () => { using var engine = new LiteEngine(new EngineSettings { DataStream = data, IndexMigrationLimitSize = 8 * 1024 * 1024 }); };
             open.Should().Throw<ArgumentException>().WithMessage("*at least the stored LIMIT_SIZE*");

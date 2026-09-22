@@ -65,11 +65,13 @@ namespace LiteDB.Engine
                 member.Arguments[1] is ConstantExpression && IsCurrentPath(member.Arguments[0]);
         }
 
-        internal BsonDocument Project(int count)
+        internal BsonDocument Project(long count)
         {
             var result = new BsonDocument();
             for (var i = 0; i < _names.Length; i++)
-                result[_names[i]] = _counts[i] ? new BsonValue(count) : new BsonValue(count != 0);
+                result[_names[i]] = _counts[i]
+                    ? BsonExpressionMethods.CountValue(count)
+                    : new BsonValue(count != 0);
             return result;
         }
     }

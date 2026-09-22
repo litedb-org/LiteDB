@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -14,7 +14,7 @@ namespace LiteDB.Engine
     /// <summary>
     /// Internal class to read all datafile documents - use only Stream - no cache system. Read log file (read commited transtraction)
     /// </summary>
-    internal class FileReaderV8 : IFileReader
+    internal partial class FileReaderV8 : IFileReader
     {
         private struct PageInfo
         {
@@ -67,14 +67,19 @@ namespace LiteDB.Engine
                 _maxPageID = (uint)(dataFactory.GetLength() / PAGE_SIZE + logFactory.GetLength() / PAGE_SIZE);
 
                 _dataStream = dataFactory.GetStream(true, false);
+                if (logFactory.Exists()) _logStream = logFactory.GetStream(false, true);
 
+                this.InitializeChecksums();
                 _dataStream.Position = 0;
 
-                if (logFactory.Exists())
+                if (_logStream != null)
                 {
-                    _logStream = logFactory.GetStream(false, true);
-
-                    this.LoadIndexMap();
+                    _logStream = new ChecksummedWalStream(_logStream, _checksums);
+                    if (_checksums.Enabled)
+                    {
+                        this.LoadChecksummedIndexMap();
+                    }
+                    else this.LoadIndexMap();
                 }
 
                 this.LoadPragmas();
@@ -317,7 +322,7 @@ namespace LiteDB.Engine
 
             var area = header.Buffer.Slice(HeaderPage.P_COLLECTIONS, HeaderPage.COLLECTIONS_SIZE);
 
-            using (var r = new BufferReader(new[] { area }, false))
+            using (var r = new BufferReader(new[] { area }, false) { AllowZeroLengthDocument = true })
             {
                 var result = r.ReadDocument();
 
@@ -418,86 +423,8 @@ namespace LiteDB.Engine
             // buffer[0] = 1 when datafile is encrypted (this feature was added in v8 only)
             // all other version has this buffer[0] = 0
 
-            return (header == HeaderPage.HEADER_INFO && (version == HeaderPage.FILE_VERSION || version == HeaderPage.VECTOR_FILE_VERSION || version == HeaderPage.INDEX_FILE_VERSION)) ||
+            return (header == HeaderPage.HEADER_INFO && (version == HeaderPage.FILE_VERSION || version == HeaderPage.VECTOR_FILE_VERSION || version == HeaderPage.INDEX_FILE_VERSION || version == HeaderPage.CHECKSUM_FILE_VERSION)) ||
                 buffer[0] == 1;
-        }
-
-        /// <summary>
-        /// Load log file to build index map (wal map index)
-        /// </summary>
-        private void LoadIndexMap()
-        {
-            var buffer = new PageBuffer(new byte[PAGE_SIZE], 0, 0);
-            var transactions = new Dictionary<uint, List<PagePosition>>();
-            var confirmedTransactions = new List<uint>();
-            var currentPosition = 0L;
-            var pageInfo = new PageInfo { Origin = FileOrigin.Log };
-
-            _logStream.Position = 0;
-
-            while (_logStream.Position < _logStream.Length)
-            {
-                try
-                {
-                    _logStream.Position = pageInfo.Position = currentPosition;
-
-                    var read = _logStream.ReadFully(buffer.Array, buffer.Offset, PAGE_SIZE);
-
-                    if (buffer.IsBlank())
-                    {
-                        // this should not happen, but if it does, it means there's a zeroed page in the file
-                        // just skip it
-                        currentPosition += PAGE_SIZE;
-                        continue;
-                    }
-
-                    var pageID = buffer.ReadUInt32(BasePage.P_PAGE_ID);
-                    var isConfirmed = buffer.ReadBool(BasePage.P_IS_CONFIRMED);
-                    var transactionID = buffer.ReadUInt32(BasePage.P_TRANSACTION_ID);
-
-                    pageInfo.PageID = pageID;
-                    pageInfo.ColID = buffer.ReadUInt32(BasePage.P_COL_ID);
-
-                    ENSURE(read == PAGE_SIZE, "Page position {0} read only than {1} bytes (instead {2})", _logStream, read, PAGE_SIZE);
-
-                    var position = new PagePosition(pageID, currentPosition);
-
-                    if (transactions.TryGetValue(transactionID, out var list))
-                    {
-                        list.Add(position);
-                    }
-                    else
-                    {
-                        transactions[transactionID] = new List<PagePosition> { position };
-                    }
-
-                    // when page confirm transaction, add to confirmed transaction list
-                    if (isConfirmed)
-                    {
-                        confirmedTransactions.Add(transactionID);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    this.HandleError(ex, pageInfo);
-                }
-                finally
-                {
-                    currentPosition += PAGE_SIZE;
-                }
-            }
-
-            // now, log index map using only confirmed transactions (override with last transactionID)
-            foreach (var transactionID in confirmedTransactions)
-            {
-                var mapIndexPages = transactions[transactionID];
-
-                // update
-                foreach (var page in mapIndexPages)
-                {
-                    _logIndexMap[page.PageID] = page.Position;
-                }
-            }
         }
 
         /// <summary>
@@ -532,9 +459,12 @@ namespace LiteDB.Engine
                 stream.Position = pageInfo.Position;
 
                 read = stream.ReadFully(pageBuffer.Array, pageBuffer.Offset, pageBuffer.Count);
+                this.ReadRecoveredHeader(pageBuffer, pageID, pageInfo.Origin);
 
                 ENSURE(read == PAGE_SIZE, "Page position {0} read only than {1} bytes (instead {2})", stream.Position, read, PAGE_SIZE);
 
+                if (_checksums.Enabled && pageInfo.Origin == FileOrigin.Data)
+                    _dataChecksums.Validate(pageBuffer, pageInfo.Position);
                 var page = new BasePage(pageBuffer);
 
                 pageInfo.ColID = page.ColID;

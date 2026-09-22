@@ -15,8 +15,31 @@ namespace VectorCompatibility.Current
                 var suffix = encrypted ? "encrypted.db" : "plain.db";
                 var password = encrypted ? "compatibility-test" : null;
                 var mode = args[0];
-                var file = Path.Combine(args[1], (mode == "create" ? "v9-" : "v8-") + suffix);
-                using (var db = new LiteDatabase(new ConnectionString { Filename = file, Password = password, Upgrade = true }))
+                if (mode == "interrupt")
+                {
+                    InterruptedConversion.Create(args[1], suffix, password);
+                    continue;
+                }
+                var prefix = mode == "create" ? "current-" : mode == "resumed" ? "interrupted-" : mode == "resumed-wal" ? "interrupted-wal-" : "legacy-";
+                var file = Path.Combine(args[1], prefix + suffix);
+                var original = File.Exists(file) ? File.ReadAllBytes(file) : null;
+                if (mode == "readonly")
+                {
+                    try
+                    {
+                        using var rejected = new LiteDatabase(new ConnectionString
+                            { Filename = file, Password = password, ReadOnly = true });
+                        throw new Exception("Legacy read-only open must request index migration.");
+                    }
+                    catch (LiteException error) when (error.Message.Contains("index ordering/collation requires migration")) { }
+                    if (!System.Linq.Enumerable.SequenceEqual(original, File.ReadAllBytes(file)))
+                        throw new Exception("Rejected read-only migration changed data.");
+                    continue;
+                }
+                using (var db = new LiteDatabase(new ConnectionString
+                {
+                    Filename = file, Password = password, Upgrade = true, ReadOnly = mode == "readonly"
+                }))
                 {
                     var docs = db.GetCollection("docs");
                     if (mode == "create")
@@ -24,36 +47,24 @@ namespace VectorCompatibility.Current
                         docs.Insert(new BsonDocument { ["_id"] = 1, ["Embedding"] = new BsonVector(new[] { 1f, 0f }) });
                         docs.EnsureIndex("embedding_idx", "$.Embedding", new VectorIndexOptions(2));
                         db.Rebuild(new RebuildOptions { Password = password });
-                        var result = docs.Query().TopKNear("Embedding", new[] { 1f, 0f }, 1).ToArray();
-                        if (result.Length != 1 || !result[0]["Embedding"].IsVector) throw new Exception("Vector rebuild lost data");
+                        if (docs.Query().TopKNear("Embedding", new[] { 1f, 0f }, 1).ToArray().Length != 1)
+                            throw new Exception("Vector rebuild lost data");
                     }
                     else
                     {
                         if (docs.FindById(1)["value"].AsString != "legacy") throw new Exception("Lost legacy document");
-                        if (mode == "ordinary") docs.Insert(new BsonDocument { ["_id"] = 2, ["value"] = "current" });
-                        else if (mode == "promote")
-                        {
-                            if (docs.Count() != 2) throw new Exception("Ordinary round trip lost documents");
-                            docs.Insert(new BsonDocument { ["_id"] = 4, ["Embedding"] = new BsonVector(new[] { 1f, 0f }) });
-                        }
-                        else if (docs.Count() != 3 || !docs.FindById(4)["Embedding"].IsVector)
-                        {
-                            throw new Exception("Promotion lost data");
-                        }
+                        if (mode == "convert")
+                            docs.Insert(new BsonDocument { ["_id"] = 2, ["Embedding"] = new BsonVector(new[] { 1f, 0f }) });
+                        else if (mode == "verify" && (docs.Count() != 2 || !docs.FindById(2)["Embedding"].IsVector))
+                            throw new Exception("Conversion lost data");
+                        else if (mode.StartsWith("resumed") && (docs.Count() != 2 || docs.FindById(2)["value"].AsString != "resumed"))
+                            throw new Exception("Resuming conversion lost a legacy write");
                     }
                 }
+                if (mode == "readonly" && !System.Linq.Enumerable.SequenceEqual(original, File.ReadAllBytes(file)))
+                    throw new Exception("Read-only legacy opens must preserve the file");
                 if (mode != "create" && File.Exists(Path.ChangeExtension(file, null) + "-backup.db"))
-                {
-                    throw new Exception("Ordinary opening and vector promotion must not rebuild the database");
-                }
-                if (mode == "create") continue;
-                using var ordinary = new LiteDatabase(new ConnectionString
-                {
-                    Filename = Path.Combine(args[1], "current-v8-" + suffix), Password = password
-                });
-                if (mode == "ordinary") ordinary.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "current" });
-                else if (mode == "promote") ordinary.GetCollection("empty").EnsureIndex("vector", "$.Embedding", new VectorIndexOptions(2));
-                else if (ordinary.GetCollection("docs").Count() != 1) throw new Exception("Empty index promotion lost ordinary data");
+                    throw new Exception("Automatic conversion must not require rebuilding the database");
             }
             Console.WriteLine("Current engine: " + args[0] + " passed (plain and encrypted)");
         }

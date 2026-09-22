@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using FluentAssertions;
 using LiteDB.Engine;
+using LiteDB.Internals;
 using Xunit;
 
 namespace LiteDB.Tests.Engine
@@ -11,7 +12,7 @@ namespace LiteDB.Tests.Engine
         [Theory]
         [InlineData(false)]
         [InlineData(true)]
-        public void Failed_header_write_or_flush_prevents_index_migration(bool failFlush)
+        public void Failed_header_write_or_flush_prevents_checksum_conversion(bool failFlush)
         {
             using var data = new PromotionFailureStream();
             using var log = new MemoryStream();
@@ -21,16 +22,13 @@ namespace LiteDB.Tests.Engine
                 docs.Insert(new BsonDocument { ["_id"] = 1, ["value"] = "ordinary" });
                 db.Checkpoint();
             }
-            data.Position = HeaderPage.P_FILE_VERSION;
-            data.WriteByte(8);
-            data.Position = EnginePragmas.P_INDEX_ORDER_VERSION;
-            data.WriteByte(0);
+            ChecksumTestFiles.MakeLegacy(data, log, null);
             data.FailFlush = failFlush;
             data.Armed = true;
             Action open = () => { using var db = new LiteDatabase(data, logStream: log); };
             open.Should().Throw<IOException>().WithMessage("Injected promotion failure");
             data.Triggered.Should().BeTrue();
-            log.Length.Should().Be(0, "no migrated page may enter the WAL before the format is durable");
+            HeaderJournal.Read(log).Should().NotBeNull("only legacy redo and the recovery journal may precede publication");
             using var reopened = new LiteDatabase(data, logStream: log);
             reopened.GetCollection("docs").Count().Should().Be(1);
             reopened.GetCollection("docs").FindById(1)["value"].AsString.Should().Be("ordinary");
@@ -45,7 +43,7 @@ namespace LiteDB.Tests.Engine
 
             public override void Write(byte[] buffer, int offset, int count)
             {
-                if (Armed && Position == 0 && count == Constants.PAGE_SIZE && buffer[offset + HeaderPage.P_FILE_VERSION] == 10)
+                if (Armed && Position == 0 && count == Constants.PAGE_SIZE && buffer[offset + HeaderPage.P_FILE_VERSION] == HeaderPage.CHECKSUM_FILE_VERSION)
                 {
                     if (!FailFlush) this.Fail();
                     _promotionWritten = true;

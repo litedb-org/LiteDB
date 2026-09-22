@@ -4,7 +4,7 @@ PR #2924 changes persisted comparison rules. Existing skip lists can produce
 incorrect seeks and ranges under the new comparer even though their page layout
 is readable. This requires a file-format boundary, not just a package version bump.
 
-New databases use **format v10**, including databases without vectors. Writable
+New databases use **format v11**, including databases without vectors. Writable
 opens of v8/v9 databases automatically migrate their indexes before exposing the
 connection. Read-only opens requiring migration fail with instructions to open
 writable once. `Upgrade=true` retains the separate v7 rebuild/backup path, including
@@ -18,7 +18,7 @@ with the current comparer. Unique-key collisions or expression errors stop this
 preflight before data/WAL mutation. Resolve collisions in the original compatible
 environment; migration never silently removes documents.
 
-The engine then durably promotes the persisted data header to v10 **before** any
+The engine then durably promotes the persisted data header to v11 **before** any
 migration pages enter the WAL. It reorders primary and proven scalar member-path skip lists while preserving
 node/data addresses and document index chains, without allocating replacement pages.
 It clears and regenerates computed and multikey BSON indexes from documents,
@@ -28,7 +28,7 @@ omit values collapsed by the old equality rules. Simple member-path vector index
 are retained; computed vector indexes are regenerated with their dimensions and
 metric because comparison changes can also affect their input expressions.
 
-All index changes and the completed ordering revision (header byte 109, currently
+All index changes and the completed ordering revision (header byte 165, currently
 1) commit in one transaction. Documents, user version, collation, encryption and
 other pragmas are retained. Revision zero means migration is still required,
 including after interrupted promotion or an unconfirmed migration transaction.
@@ -57,7 +57,7 @@ The error reports an upper-bound budget in bytes. Retry with, for example,
 to that byte budget. The requested limit must be at least the stored limit and
 logical database size. This option applies only to pending index migration and
 persists the increased `LIMIT_SIZE` in the same successful transaction as the
-indexes. It also recovers v10 files left pending by an earlier migration attempt;
+indexes. It also recovers v11 files left pending by an earlier migration attempt;
 failed or unconfirmed transactions do not persist the new limit.
 
 Worst-case skip-list heights make this budget larger than typical actual growth;
@@ -81,7 +81,7 @@ backup/error-report behavior. It can run before compatibility rejection.
 For a fingerprint mismatch, export with the original compatible engine and import
 with this engine. For culture-only differences, an Ordinal rebuild in the original
 environment can also prepare a portable file. A rejected connection cannot call
-`Rebuild()`. New/migrated v10 files are rejected by 5.0.21 and earlier v8/v9 readers;
+`Rebuild()`. New/migrated v11 files are rejected by 5.0.21 and earlier v8/v9 readers;
 do not edit the version byte to bypass that boundary.
 
 ## Changed comparisons

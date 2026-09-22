@@ -8,9 +8,9 @@ on:
         type: string
         default: |
           [
-            { "display": ".NET 8",  "sdk": "8.0.x",           "framework": "net8.0", "includePrerelease": false, "msbuildProps": "" },
-            { "display": ".NET 9",  "sdk": "9.0.x\n8.0.x",    "framework": "net8.0", "includePrerelease": true,  "msbuildProps": "" },
-            { "display": ".NET 10", "sdk": "10.0.x",          "framework": "net10.0", "includePrerelease": false, "msbuildProps": "" }
+            { "display": ".NET 8", "runtimeMajor": 8,  "sdk": "8.0.x",           "framework": "net8.0", "includePrerelease": false, "msbuildProps": "" },
+            { "display": ".NET 9", "runtimeMajor": 9,  "sdk": "9.0.x\n8.0.x",    "framework": "net8.0", "includePrerelease": true,  "msbuildProps": "" },
+            { "display": ".NET 10", "runtimeMajor": 10, "sdk": "10.0.x",          "framework": "net10.0", "includePrerelease": false, "msbuildProps": "" }
           ]
 
 jobs:
@@ -53,6 +53,11 @@ jobs:
       - name: Build memory profile measurements
         run: dotnet build tools/MemoryProfiles/MemoryProfiles.csproj --configuration Release
 
+      # Compatibility/measurement tools build production assemblies. Restore the
+      # hook-enabled outputs before packaging any test artifacts.
+      - name: Restore test-hook assemblies
+        run: dotnet build LiteDB.sln --configuration Release --no-restore /p:TestingEnabled=true
+
       - name: Package build outputs
         run: tar -czf tests-build-linux.tar.gz LiteDB/bin/Release LiteDB/obj/Release LiteDB.Tests/bin/Release LiteDB.Tests/obj/Release
 
@@ -91,26 +96,13 @@ jobs:
       - name: Extract build artifacts
         run: tar -xzf tests-build-linux.tar.gz
 
-      - name: Build test project for target framework
-        run: >-
-          dotnet build LiteDB.Tests/LiteDB.Tests.csproj
-          --configuration Release
-          --framework ${{ matrix.item.framework }}
-          --no-dependencies
-          ${{ matrix.item.msbuildProps }}
-
-      - name: Run tests
+      - name: Run tests with verified runtime and architecture
+        shell: pwsh
         timeout-minutes: 5
         run: >-
-          dotnet test LiteDB.Tests/LiteDB.Tests.csproj
-          --configuration Release
-          --no-build
-          --framework ${{ matrix.item.framework }}
-          --verbosity normal
-          --settings tests.runsettings
-          --logger "trx;LogFileName=TestResults.trx"
-          --logger "console;verbosity=detailed"
-          ${{ matrix.item.msbuildProps }}
+          ./scripts/run-ci-tests.ps1
+          -RuntimeMajor ${{ matrix.item.runtimeMajor }}
+          -Framework "${{ matrix.item.framework }}"
 
   build-macos:
     name: Build (macOS)
@@ -173,26 +165,13 @@ jobs:
       - name: Extract build artifacts
         run: tar -xzf tests-build-macos.tar.gz
 
-      - name: Build test project for target framework
-        run: >-
-          dotnet build LiteDB.Tests/LiteDB.Tests.csproj
-          --configuration Release
-          --framework ${{ matrix.item.framework }}
-          --no-dependencies
-          ${{ matrix.item.msbuildProps }}
-
-      - name: Run tests
+      - name: Run tests with verified runtime and architecture
+        shell: pwsh
         timeout-minutes: 5
         run: >-
-          dotnet test LiteDB.Tests/LiteDB.Tests.csproj
-          --configuration Release
-          --no-build
-          --framework ${{ matrix.item.framework }}
-          --verbosity normal
-          --settings tests.runsettings
-          --logger "trx;LogFileName=TestResults.trx"
-          --logger "console;verbosity=detailed"
-          ${{ matrix.item.msbuildProps }}
+          ./scripts/run-ci-tests.ps1
+          -RuntimeMajor ${{ matrix.item.runtimeMajor }}
+          -Framework "${{ matrix.item.framework }}"
 
   build-windows:
     name: Build (Windows)
@@ -256,26 +235,27 @@ jobs:
           name: tests-build-windows
           path: .
 
-      - name: Build test project for target framework (${{ matrix.arch }})
+      - name: Run tests with verified runtime and architecture
+        shell: pwsh
+        timeout-minutes: 10
         run: >-
-          dotnet build LiteDB.Tests/LiteDB.Tests.csproj
-          --configuration Release
-          --framework ${{ matrix.item.framework }}
-          --no-dependencies
-          ${{ matrix.item.msbuildProps }}
+          ./scripts/run-ci-tests.ps1
+          -RuntimeMajor ${{ matrix.item.runtimeMajor }}
+          -Framework "${{ matrix.item.framework }}"
+          -Architecture "${{ matrix.arch }}"
+          -Filter "FullyQualifiedName~LiteDB.Tests.Issues."
+          -ResultFile "TestResults-issues.trx"
 
-      - name: Run tests (${{ matrix.arch }})
-        timeout-minutes: 5
+      - name: Run remaining tests with verified runtime and architecture
+        shell: pwsh
+        timeout-minutes: 10
         run: >-
-          dotnet test LiteDB.Tests/LiteDB.Tests.csproj
-          --configuration Release
-          --no-build
-          --framework ${{ matrix.item.framework }}
-          --verbosity normal
-          --settings tests.runsettings
-          --logger "trx;LogFileName=TestResults-${{ matrix.arch }}.trx"
-          --logger "console;verbosity=detailed"
-          ${{ matrix.item.msbuildProps }}
+          ./scripts/run-ci-tests.ps1
+          -RuntimeMajor ${{ matrix.item.runtimeMajor }}
+          -Framework "${{ matrix.item.framework }}"
+          -Architecture "${{ matrix.arch }}"
+          -Filter "FullyQualifiedName!~LiteDB.Tests.Issues."
+          -ResultFile "TestResults-remaining.trx"
 
   test-windows-framework:
     name: Test (Windows ${{ matrix.framework }})
@@ -329,7 +309,7 @@ jobs:
           if ($total -eq 0) { throw "The $framework runner discovered zero tests." }
 
   test-windows-crossprocess:
-    name: Cross-Process Tests (Windows ${{ matrix.os }} - ${{ matrix.arch }} - ${{ matrix.item.display }})
+    name: Shared-mode concurrency (Windows ${{ matrix.os }} - ${{ matrix.arch }} - ${{ matrix.item.display }})
     runs-on: ${{ matrix.os }}
     needs: build-windows
     strategy:
@@ -357,26 +337,16 @@ jobs:
           name: tests-build-windows
           path: .
 
-      - name: Build test project for target framework (${{ matrix.arch }})
-        run: >-
-          dotnet build LiteDB.Tests/LiteDB.Tests.csproj
-          --configuration Release
-          --framework ${{ matrix.item.framework }}
-          --no-dependencies
-          ${{ matrix.item.msbuildProps }}
-
-      - name: Run cross-process shared mode tests (${{ matrix.arch }})
+      - name: Run shared-mode concurrency tests (${{ matrix.arch }})
+        shell: pwsh
         timeout-minutes: 10
         run: >-
-          dotnet test LiteDB.Tests/LiteDB.Tests.csproj
-          --configuration Release
-          --no-build
-          --framework ${{ matrix.item.framework }}
-          --filter "FullyQualifiedName~CrossProcess_Shared_Tests"
-          --verbosity normal
-          --logger "trx;LogFileName=CrossProcessTestResults-${{ matrix.arch }}.trx"
-          --logger "console;verbosity=detailed"
-          ${{ matrix.item.msbuildProps }}
+          ./scripts/run-ci-tests.ps1
+          -RuntimeMajor ${{ matrix.item.runtimeMajor }}
+          -Framework "${{ matrix.item.framework }}"
+          -Architecture "${{ matrix.arch }}"
+          -Filter "FullyQualifiedName~CrossProcess_Shared_Tests"
+          -ResultFile "CrossProcessTestResults-${{ matrix.arch }}.trx"
 
       - name: Upload cross-process test results
         if: always()
@@ -387,7 +357,7 @@ jobs:
 
   test-linux-arm64:
     name: Test (Linux ARM64 - ${{ matrix.item.display }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     needs: build-linux
     strategy:
       fail-fast: false
@@ -399,11 +369,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Set up QEMU for ARM64 emulation
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
 
       - name: Set up .NET SDK ${{ matrix.item.display }}
         uses: actions/setup-dotnet@v4
@@ -419,22 +384,11 @@ jobs:
       - name: Extract build artifacts
         run: tar -xzf tests-build-linux.tar.gz
 
-      - name: Build test project for ARM64
-        run: >-
-          dotnet build LiteDB.Tests/LiteDB.Tests.csproj
-          --configuration Release
-          --framework ${{ matrix.item.framework }}
-          --no-dependencies
-          ${{ matrix.item.msbuildProps }}
-
-      - name: Run tests (ARM64 via QEMU)
+      - name: Run tests with verified runtime and architecture
+        shell: pwsh
         timeout-minutes: 10
         run: >-
-          dotnet test LiteDB.Tests/LiteDB.Tests.csproj
-          --configuration Release
-          --no-build
-          --framework ${{ matrix.item.framework }}
-          --verbosity normal
-          --logger "trx;LogFileName=TestResults-arm64.trx"
-          --logger "console;verbosity=detailed"
-          ${{ matrix.item.msbuildProps }}
+          ./scripts/run-ci-tests.ps1
+          -RuntimeMajor ${{ matrix.item.runtimeMajor }}
+          -Framework "${{ matrix.item.framework }}"
+          -Architecture arm64

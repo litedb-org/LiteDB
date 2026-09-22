@@ -7,6 +7,7 @@ using System.Threading;
 
 [assembly: InternalsVisibleTo("LiteDB.Tests")]
 #if DEBUG || TESTING
+[assembly: InternalsVisibleTo("LiteDB.Fuzz")]
 [assembly: InternalsVisibleTo("ConsoleApp1")]
 #endif
 

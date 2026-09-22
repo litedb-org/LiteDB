@@ -41,6 +41,8 @@ namespace LiteDB.Tests.Issues
                 changed++;
             }
             changed.Should().Be(2, "both the primary-index key and BSON _id must change");
+            for (var page = 0; page < bytes.Length; page += Constants.PAGE_SIZE)
+                PageChecksum.Write(new BufferSlice(bytes, page, Constants.PAGE_SIZE));
             File.WriteAllBytes(file.Filename, bytes);
             Action open = () => { using var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, ReadOnly = readOnly }); };
             open.Should().Throw<LiteException>().WithMessage("*index ordering*Export*");
@@ -58,6 +60,8 @@ namespace LiteDB.Tests.Issues
             const uint previousStamp = 764264600;
             CollationFingerprint.Compute(Collation.Binary).Should().NotBe(previousStamp);
             Array.Copy(BitConverter.GetBytes(previousStamp), 0, bytes, EnginePragmas.P_COLLATION_STAMP, 4);
+            for (var page = 0; page < bytes.Length; page += Constants.PAGE_SIZE)
+                PageChecksum.Write(new BufferSlice(bytes, page, Constants.PAGE_SIZE));
             File.WriteAllBytes(file.Filename, bytes);
             Action open = () => { using var db = new LiteDatabase(file.Filename); };
             open.Should().Throw<LiteException>().WithMessage("*index ordering*Export*");
@@ -82,7 +86,9 @@ namespace LiteDB.Tests.Issues
             if (legacy)
             {
                 Array.Clear(bytes, EnginePragmas.P_COLLATION_STAMP, 4);
-                File.WriteAllBytes(file.Filename, bytes);
+                for (var page = 0; page < bytes.Length; page += Constants.PAGE_SIZE)
+                PageChecksum.Write(new BufferSlice(bytes, page, Constants.PAGE_SIZE));
+            File.WriteAllBytes(file.Filename, bytes);
             }
             using (var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, ReadOnly = true }))
             {

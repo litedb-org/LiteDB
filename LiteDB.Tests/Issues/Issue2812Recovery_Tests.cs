@@ -28,6 +28,7 @@ namespace LiteDB.Tests.Issues
             if (!stamped) Array.Clear(bytes, EnginePragmas.P_COLLATION_STAMP, 4);
             Array.Copy(BitConverter.GetBytes((int)CompareOptions.IgnoreCase), 0, bytes, EnginePragmas.P_COLLATION_SORT, 4);
             bytes[HeaderPage.P_INVALID_DATAFILE_STATE] = 1;
+            PageChecksum.Write(new BufferSlice(bytes, 0, Constants.PAGE_SIZE));
             File.WriteAllBytes(file.Filename, bytes);
             var settings = new ConnectionString { Filename = file.Filename, AutoRebuild = true, ReadOnly = true };
             if (conflict)
@@ -67,6 +68,7 @@ namespace LiteDB.Tests.Issues
             var bytes = File.ReadAllBytes(file.Filename);
             Array.Clear(bytes, EnginePragmas.P_COLLATION_STAMP, 4);
             Array.Copy(BitConverter.GetBytes((int)CompareOptions.IgnoreCase), 0, bytes, EnginePragmas.P_COLLATION_SORT, 4);
+            PageChecksum.Write(new BufferSlice(bytes, 0, Constants.PAGE_SIZE));
             File.WriteAllBytes(file.Filename, bytes);
             var settings = new ConnectionString { Filename = file.Filename, AutoRebuild = true };
             Action open = () => { using var db = new LiteDatabase(settings); };

@@ -21,6 +21,7 @@ namespace LiteDB.Tests.Issues
             var bytes = File.ReadAllBytes(file.Filename);
             BitConverter.ToUInt32(bytes, EnginePragmas.P_COLLATION_STAMP).Should().NotBe(0);
             bytes[EnginePragmas.P_COLLATION_STAMP] ^= 1;
+            PageChecksum.Write(new BufferSlice(bytes, 0, Constants.PAGE_SIZE));
             File.WriteAllBytes(file.Filename, bytes);
             Action open = () => { using var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, ReadOnly = readOnly }); };
             open.Should().Throw<LiteException>().WithMessage("*collation*Rebuild*");
@@ -43,6 +44,7 @@ namespace LiteDB.Tests.Issues
             Array.Clear(bytes, EnginePragmas.P_COLLATION_STAMP, 4);
             Array.Copy(BitConverter.GetBytes((int)(equivalentKeys ? CompareOptions.IgnoreCase : CompareOptions.None)), 0,
                 bytes, EnginePragmas.P_COLLATION_SORT, 4);
+            PageChecksum.Write(new BufferSlice(bytes, 0, Constants.PAGE_SIZE));
             File.WriteAllBytes(file.Filename, bytes);
             Action open = () => { using var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, ReadOnly = true }); };
             open.Should().Throw<LiteException>().WithMessage("*collation*Rebuild*");
@@ -62,6 +64,7 @@ namespace LiteDB.Tests.Issues
             }
             var bytes = File.ReadAllBytes(file.Filename);
             Array.Clear(bytes, EnginePragmas.P_COLLATION_STAMP, 4);
+            PageChecksum.Write(new BufferSlice(bytes, 0, Constants.PAGE_SIZE));
             File.WriteAllBytes(file.Filename, bytes);
             using (var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, ReadOnly = true }))
             {
@@ -83,12 +86,10 @@ namespace LiteDB.Tests.Issues
                 db.CheckpointSize = 0;
                 db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = "one" });
             }
-            var bytes = log.ToArray();
-            var position = Enumerable.Range(0, bytes.Length / 8192).Select(page => page * 8192)
-                .Last(offset => Encoding.UTF8.GetString(bytes, offset + HeaderPage.P_HEADER_INFO, HeaderPage.HEADER_INFO.Length) == HeaderPage.HEADER_INFO);
-            bytes[position + EnginePragmas.P_COLLATION_STAMP] ^= 1;
+            LiteDB.Tests.Engine.IndexMigrationFixtures.Rewrite(data, log, null,
+                header => header[EnginePragmas.P_COLLATION_STAMP] ^= 1, changeData: false);
             using var copiedData = new MemoryStream(data.ToArray());
-            using var changedLog = new MemoryStream(bytes);
+            using var changedLog = new MemoryStream(log.ToArray());
             Action open = () => { using var db = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = copiedData, LogStream = changedLog, ReadOnly = true })); };
             open.Should().Throw<LiteException>().WithMessage("*collation*Rebuild*");
         }

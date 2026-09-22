@@ -16,6 +16,8 @@ public class CrossProcess_Shared_Tests : IDisposable
     private readonly ITestOutputHelper _output;
     private readonly string _dbPath;
     private readonly string _testId;
+    private readonly List<Task> _workers = new List<Task>();
+    private Task _cleanup = Task.CompletedTask;
 
     public CrossProcess_Shared_Tests(ITestOutputHelper output)
     {
@@ -29,7 +31,33 @@ public class CrossProcess_Shared_Tests : IDisposable
 
     public void Dispose()
     {
-        TryDeleteDatabase();
+        // A timed-out worker may still own the files. Report its timeout now,
+        // but defer cleanup until every worker actually releases its resources.
+        _cleanup = Task.WhenAll(_workers).ContinueWith(completed =>
+        {
+            _ = completed.Exception; // Observe late worker failures too.
+            TryDeleteDatabase();
+        }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+    }
+
+    [Fact]
+    public async Task StalledWorker_TimesOutBeforeCompletion_AndDefersFileCleanup()
+    {
+        var worker = new TaskCompletionSource<bool>();
+        using var cancellation = new CancellationTokenSource();
+        File.WriteAllText(_dbPath, "worker still owns this file");
+        var waiting = AwaitWorker(worker.Task, cancellation, "injected worker", 20);
+        try
+        {
+            (await Task.WhenAny(waiting, Task.Delay(1000))).Should().BeSameAs(waiting);
+            await Assert.ThrowsAsync<TimeoutException>(() => waiting);
+            cancellation.IsCancellationRequested.Should().BeTrue();
+            Dispose();
+            File.Exists(_dbPath).Should().BeTrue();
+        }
+        finally { worker.TrySetResult(true); }
+        await _cleanup;
+        File.Exists(_dbPath).Should().BeFalse();
     }
 
     private void TryDeleteDatabase()
@@ -40,7 +68,7 @@ public class CrossProcess_Shared_Tests : IDisposable
             {
                 File.Delete(_dbPath);
             }
-            var logPath = _dbPath + "-log";
+            var logPath = FileHelper.GetLogFile(_dbPath);
             if (File.Exists(logPath))
             {
                 File.Delete(logPath);
@@ -79,7 +107,7 @@ public class CrossProcess_Shared_Tests : IDisposable
         for (int i = 1; i <= processCount; i++)
         {
             var processId = i;
-            tasks.Add(Task.Run(() => RunChildProcess(processId, documentsPerProcess)));
+            tasks.Add(RunChildProcess(processId, documentsPerProcess));
         }
 
         // Wait for all tasks to complete
@@ -141,7 +169,7 @@ public class CrossProcess_Shared_Tests : IDisposable
         for (int i = 1; i <= taskCount; i++)
         {
             var taskId = i;
-            tasks.Add(Task.Run(() => RunInsertTask(taskId, documentsPerTask)));
+            tasks.Add(RunInsertTask(taskId, documentsPerTask));
         }
 
         await Task.WhenAll(tasks);
@@ -172,13 +200,16 @@ public class CrossProcess_Shared_Tests : IDisposable
         _output.WriteLine("Concurrent insert test completed successfully");
     }
 
-    private void RunInsertTask(int taskId, int documentCount)
+    private async Task RunInsertTask(int taskId, int documentCount)
     {
+        using var cancellation = new CancellationTokenSource();
+        var cancellationToken = cancellation.Token;
+        var elapsed = Stopwatch.StartNew();
         var task = Task.Run(() =>
         {
             try
             {
-                _output.WriteLine($"Insert task {taskId} starting with {documentCount} documents");
+                _output.WriteLine($"Insert task {taskId} starting with {documentCount} documents after {elapsed.ElapsedMilliseconds} ms");
 
                 using var db = new LiteDatabase(new ConnectionString
                 {
@@ -190,6 +221,7 @@ public class CrossProcess_Shared_Tests : IDisposable
 
                 for (int i = 0; i < documentCount; i++)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     var doc = new BsonDocument
                     {
                         ["task_id"] = taskId,
@@ -204,7 +236,7 @@ public class CrossProcess_Shared_Tests : IDisposable
                     Thread.Sleep(2);
                 }
 
-                _output.WriteLine($"Insert task {taskId} completed {documentCount} insertions");
+                _output.WriteLine($"Insert task {taskId} completed {documentCount} insertions after {elapsed.ElapsedMilliseconds} ms");
             }
             catch (Exception ex)
             {
@@ -213,19 +245,14 @@ public class CrossProcess_Shared_Tests : IDisposable
             }
         });
 
-        if (!task.Wait(30000)) // 30 second timeout
-        {
-            throw new TimeoutException($"Insert task {taskId} timed out");
-        }
-
-        if (task.IsFaulted)
-        {
-            throw new Exception($"Insert task {taskId} faulted", task.Exception);
-        }
+        await AwaitWorker(task, cancellation, $"Insert task {taskId}");
     }
 
-    private void RunChildProcess(int processId, int documentCount)
+    private async Task RunChildProcess(int processId, int documentCount)
     {
+        using var cancellation = new CancellationTokenSource();
+        var cancellationToken = cancellation.Token;
+        var elapsed = Stopwatch.StartNew();
         // Instead of spawning actual processes, we'll use Tasks to simulate concurrent access
         // This is safer for CI environments and still tests the shared mode locking
         var task = Task.Run(() =>
@@ -244,6 +271,7 @@ public class CrossProcess_Shared_Tests : IDisposable
 
                 for (int i = 0; i < documentCount; i++)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     var doc = new BsonDocument
                     {
                         ["source"] = $"process_{processId}",
@@ -258,7 +286,7 @@ public class CrossProcess_Shared_Tests : IDisposable
                     Thread.Sleep(10);
                 }
 
-                _output.WriteLine($"Task {processId} completed writing {documentCount} documents");
+                _output.WriteLine($"Task {processId} completed writing {documentCount} documents after {elapsed.ElapsedMilliseconds} ms");
             }
             catch (Exception ex)
             {
@@ -267,14 +295,18 @@ public class CrossProcess_Shared_Tests : IDisposable
             }
         });
 
-        if (!task.Wait(30000)) // 30 second timeout
-        {
-            throw new TimeoutException($"Task {processId} timed out");
-        }
+        await AwaitWorker(task, cancellation, $"Task {processId}");
+    }
 
-        if (task.IsFaulted)
+    private async Task AwaitWorker(Task task, CancellationTokenSource cancellation, string name, int timeoutMilliseconds = 30000)
+    {
+        _workers.Add(task);
+        if (await Task.WhenAny(task, Task.Delay(timeoutMilliseconds)) != task)
         {
-            throw new Exception($"Task {processId} faulted", task.Exception);
+            _output.WriteLine($"{name} exceeded its {timeoutMilliseconds}-ms deadline; cancelling remaining inserts");
+            cancellation.Cancel();
+            throw new TimeoutException($"{name} timed out");
         }
+        await task;
     }
 }

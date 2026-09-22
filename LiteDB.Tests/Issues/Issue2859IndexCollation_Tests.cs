@@ -32,6 +32,8 @@ namespace LiteDB.Tests.Issues
             var bytes = File.ReadAllBytes(file.Filename);
             Array.Clear(bytes, EnginePragmas.P_COLLATION_STAMP, 4);
             Array.Copy(BitConverter.GetBytes((int)CompareOptions.IgnoreCase), 0, bytes, EnginePragmas.P_COLLATION_SORT, 4);
+            for (var page = 0; page < bytes.Length; page += Constants.PAGE_SIZE)
+                PageChecksum.Write(new BufferSlice(bytes, page, Constants.PAGE_SIZE));
             File.WriteAllBytes(file.Filename, bytes);
             Action open = () => { using var db = new LiteDatabase(new ConnectionString { Filename = file.Filename, ReadOnly = true }); };
             open.Should().Throw<LiteException>().WithMessage("*collation*Rebuild*");

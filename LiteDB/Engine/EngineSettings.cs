@@ -116,8 +116,8 @@ namespace LiteDB.Engine
         /// system crash. This costs about one device sync per commit; transactions that batch many writes and
         /// InsertBulk pay it once. When false (the behaviour before 6.0), committed data is handed to the operating
         /// system only: it survives a crash of the process, but a power loss or operating system crash can lose the
-        /// most recent commits, and because unsynced log pages may reach the device in any order it can, rarely,
-        /// leave the last transactions partially applied. Checkpoints and file creation are synced either way.
+        /// most recent commits. Checksummed WAL recovery discards incomplete transactions and their dependent tail.
+        /// Checkpoints and file creation are synced either way.
         /// Not stored in the data file: the same file can be opened with either value. Has no effect on
         /// <c>:memory:</c>, <c>:temp:</c> and non-file streams, which cannot be synced. (default: true)
         /// </summary>
