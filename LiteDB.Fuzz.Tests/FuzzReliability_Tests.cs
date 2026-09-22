@@ -156,9 +156,11 @@ public sealed class FuzzReliability_Tests
     public void Finding_fingerprints_remove_volatile_values_without_merging_defects()
     {
         var first = FuzzFindingRegistry.Normalize(
-            "orphan seed=17 step 44 page 0006:21 doc_id=81 count=3");
+            "orphan seed=17 step 44 page 0006:21 doc_id=81 count=3 " +
+            "request_id=110ec58a-a0f2-4ac4-8393-c866d813b8d1 value_0x1234");
         var repeated = FuzzFindingRegistry.Normalize(
-            "orphan seed=99 step 101 page 0004:08 doc_id=92 count=7");
+            "orphan seed=99 step 101 page 0004:08 doc_id=92 count=7 " +
+            "request_id=220ec58a-a0f2-4ac4-8393-c866d813b8d2 value_0xabcd");
         var different = FuzzFindingRegistry.Normalize(
             "backlink seed=17 step 44 page 0006:21 doc_id=81 count=3");
 

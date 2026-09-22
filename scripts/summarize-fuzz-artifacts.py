@@ -20,7 +20,7 @@ def normalize_fingerprint(value: str | None) -> str:
         return "UNKNOWN_FUZZ_FAILURE"
     normalized = value.upper()
     normalized = re.sub(
-        r"\b[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}\b",
+        r"(?<![0-9A-F])[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}(?![0-9A-F])",
         "_VALUE_", normalized)
     normalized = re.sub(
         r"(?<![0-9A-F])[0-9A-F]{2,8}:[0-9A-F]{2,8}(?![0-9A-F])",
@@ -29,7 +29,7 @@ def normalize_fingerprint(value: str | None) -> str:
         r"(?<![A-Z0-9])(SEED|STEP|PAGE|ADDRESS|ORDINAL|DOCUMENT_ID|DOCUMENTID|DOC_ID|DOCID|COUNT|RANDOM)"
         r"\s*[:=#_-]?\s*(?:0X)?[0-9A-F]+\b",
         lambda match: f"_{match.group(1)}_VALUE_", normalized)
-    normalized = re.sub(r"\b0X[0-9A-F]+\b", "_VALUE_", normalized)
+    normalized = re.sub(r"(?<![A-Z0-9])0X[0-9A-F]+(?![A-Z0-9])", "_VALUE_", normalized)
     normalized = re.sub(r"[^A-Z0-9]+", "_", normalized)
     return re.sub(r"_+", "_", normalized).strip("_")
 

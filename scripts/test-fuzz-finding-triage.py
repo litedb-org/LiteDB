@@ -27,8 +27,10 @@ class FuzzFindingTriageTests(unittest.TestCase):
         self.assertEqual("file", TRIAGE.triage_action("unknown", None))
 
     def test_fingerprint_removes_volatile_values_but_keeps_defect_identity(self):
-        first = "orphan seed=17 step 44 page 0006:21 doc_id=81 count=3"
-        second = "orphan seed=99 step 101 page 0004:08 doc_id=92 count=7"
+        first = ("orphan seed=17 step 44 page 0006:21 doc_id=81 count=3 "
+                 "request_id=110ec58a-a0f2-4ac4-8393-c866d813b8d1 value_0x1234")
+        second = ("orphan seed=99 step 101 page 0004:08 doc_id=92 count=7 "
+                  "request_id=220ec58a-a0f2-4ac4-8393-c866d813b8d2 value_0xabcd")
         different = "backlink seed=17 step 44 page 0006:21 doc_id=81 count=3"
 
         self.assertEqual(TRIAGE.normalize_fingerprint(first), TRIAGE.normalize_fingerprint(second))

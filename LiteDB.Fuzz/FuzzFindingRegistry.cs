@@ -118,7 +118,7 @@ internal static partial class FuzzFindingRegistry
 
     private static string DefaultPath() => Path.Combine(AppContext.BaseDirectory, "Corpus", "known-findings.json");
 
-    [GeneratedRegex(@"\b[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}\b")]
+    [GeneratedRegex(@"(?<![0-9A-F])[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}(?![0-9A-F])")]
     private static partial Regex GuidPattern();
 
     [GeneratedRegex(@"(?<![0-9A-F])[0-9A-F]{2,8}:[0-9A-F]{2,8}(?![0-9A-F])")]
@@ -127,7 +127,7 @@ internal static partial class FuzzFindingRegistry
     [GeneratedRegex(@"(?<![A-Z0-9])(SEED|STEP|PAGE|ADDRESS|ORDINAL|DOCUMENT_ID|DOCUMENTID|DOC_ID|DOCID|COUNT|RANDOM)\s*[:=#_-]?\s*(?:0X)?[0-9A-F]+\b")]
     private static partial Regex VolatileValuePattern();
 
-    [GeneratedRegex(@"\b0X[0-9A-F]+\b")]
+    [GeneratedRegex(@"(?<![A-Z0-9])0X[0-9A-F]+(?![A-Z0-9])")]
     private static partial Regex HexValuePattern();
 
     [GeneratedRegex(@"[^A-Z0-9]+")]
