@@ -325,6 +325,8 @@ jobs:
     name: Shared-mode concurrency (Windows ${{ matrix.os }} - ${{ matrix.arch }} - ${{ matrix.item.display }})
     runs-on: ${{ matrix.os }}
     needs: build-windows
+    env:
+      LITEDB_SHARED_EXPECT_TEMP_VOLUME: '1'
     strategy:
       fail-fast: false
       matrix:
@@ -350,10 +352,33 @@ jobs:
           name: tests-build-windows
           path: .
 
+      - name: Preserve the original system-temp storage volume
+        shell: pwsh
+        run: |
+          $diagnostics = Join-Path ([IO.Path]::GetTempPath()) 'litedb-shared-diagnostics-${{ github.run_id }}-${{ strategy.job-index }}'
+          Write-Host "Original temp directory: $([IO.Path]::GetTempPath())"
+          Write-Host "Database and diagnostics root: $diagnostics"
+          "LITEDB_SHARED_DIAGNOSTICS=$diagnostics" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Install and verify Microsoft ProcDump
+        if: matrix.os == 'windows-latest' && matrix.arch == 'x86' && matrix.item.runtimeMajor == 8
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'Procdump.zip'
+          $directory = Join-Path $env:RUNNER_TEMP 'litedb-procdump'
+          Invoke-WebRequest 'https://download.sysinternals.com/files/Procdump.zip' -OutFile $archive
+          Expand-Archive $archive $directory
+          $executable = Join-Path $directory 'procdump.exe'
+          $signature = Get-AuthenticodeSignature $executable
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') {
+            throw "Untrusted ProcDump signature: $($signature.Status) $($signature.SignerCertificate.Subject)"
+          }
+          Get-FileHash $archive, $executable -Algorithm SHA256 | Format-List
+          (Get-Item $executable).VersionInfo | Format-List FileVersion, ProductVersion
+          "LITEDB_SHARED_PROCDUMP=$executable" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+
       - name: Run shared-mode concurrency tests (${{ matrix.arch }})
         shell: pwsh
-        env:
-          LITEDB_SHARED_DIAGNOSTICS: ${{ github.workspace }}/LiteDB.Tests/TestResults/SharedWorkerDiagnostics
         timeout-minutes: 10
         run: >-
           ./scripts/run-ci-tests.ps1
@@ -363,12 +388,23 @@ jobs:
           -Filter "FullyQualifiedName~CrossProcess_Shared_Tests"
           -ResultFile "CrossProcessTestResults-${{ matrix.arch }}.trx"
 
-      - name: Repeat Windows x86 .NET 8 concurrent inserts with diagnostics
+      - name: Verify Windows x86 dump and storage-volume contracts
         if: matrix.os == 'windows-latest' && matrix.arch == 'x86' && matrix.item.runtimeMajor == 8
         shell: pwsh
         timeout-minutes: 5
         env:
-          LITEDB_SHARED_DIAGNOSTICS: ${{ github.workspace }}/LiteDB.Tests/TestResults/SharedWorkerDiagnostics
+          LITEDB_SHARED_DUMP_SMOKE: '1'
+        run: |
+          $runtime = Join-Path $env:RUNNER_TEMP 'litedb-runtime-8-x86'
+          ./scripts/run-ci-tests.ps1 -RuntimeMajor 8 -Framework net8.0 -Architecture x86 `
+            -RuntimeDirectory $runtime -Filter 'FullyQualifiedName~SharedWorkerDump' `
+            -ResultFile 'SharedDumpContracts.trx'
+          if ($LASTEXITCODE -ne 0) { throw 'Diagnostic contract tests failed.' }
+
+      - name: Repeat Windows x86 .NET 8 concurrent inserts with diagnostics
+        if: matrix.os == 'windows-latest' && matrix.arch == 'x86' && matrix.item.runtimeMajor == 8
+        shell: pwsh
+        timeout-minutes: 5
         run: |
           $runtime = Join-Path $env:RUNNER_TEMP 'litedb-runtime-8-x86'
           for ($repeat = 1; $repeat -le 4; $repeat++) {
@@ -378,12 +414,13 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "Concurrent insert repeat $repeat failed." }
           }
 
-      - name: Upload original shared-worker timeout files and diagnostics
-        if: failure()
+      - name: Upload source-volume diagnostics after test-host exit
+        if: always() && env.LITEDB_SHARED_DIAGNOSTICS != ''
         uses: actions/upload-artifact@v4
         with:
           name: shared-worker-timeouts-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.item.display }}
-          path: LiteDB.Tests/TestResults/SharedWorkerDiagnostics/
+          path: ${{ env.LITEDB_SHARED_DIAGNOSTICS }}/
+          retention-days: 14
           if-no-files-found: ignore
 
       - name: Upload cross-process test results
@@ -394,6 +431,7 @@ jobs:
           path: |
             LiteDB.Tests/TestResults/CrossProcessTestResults-${{ matrix.arch }}.trx
             LiteDB.Tests/TestResults/CrossProcessRepeat-*.trx
+            LiteDB.Tests/TestResults/SharedDumpContracts.trx
 
   test-linux-arm64:
     name: Test (Linux ARM64 - ${{ matrix.item.display }})
