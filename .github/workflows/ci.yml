@@ -76,3 +76,13 @@ jobs:
           path: LiteDB.Tests/TestResults/
           if-no-files-found: error
           retention-days: 14
+      - name: Preserve exact symbols and x86 runtime after failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shared-x86-binaries-${{ matrix.shard }}
+          path: |
+            LiteDB.Tests/bin/Release/net8.0/
+            ${{ runner.temp }}/litedb-runtime-8-x86/shared/Microsoft.NETCore.App/
+          if-no-files-found: warn
+          retention-days: 14
