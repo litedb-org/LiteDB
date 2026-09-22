@@ -17,6 +17,52 @@ namespace LiteDB.Tests.Engine
         private readonly ITestOutputHelper _output;
         public IndexMigrationPowerLoss_Tests(ITestOutputHelper output) { _output = output; }
 
+        [Theory]
+        [InlineData(null)]
+        [InlineData("migration-power-loss")]
+        public void Released_document_pages_remain_identical_after_migration_and_checkpoint(string password)
+        {
+            var original = Fixture(password, out var originalLog);
+            var documentOffsets = DocumentOffsets(original, password);
+            documentOffsets.Should().NotBeEmpty();
+            using var device = new IndexMigrationCrashDevice(original, originalLog) { Armed = false };
+            Migrate(device, password);
+            var completedData = device.Data.ToArray();
+            var completedLog = device.Log.ToArray();
+            DocumentOffsets(completedData, password).Should().Equal(documentOffsets);
+            foreach (var offset in documentOffsets)
+                completedData.Skip(offset).Take(Constants.PAGE_SIZE).Should().Equal(
+                    original.Skip(offset).Take(Constants.PAGE_SIZE), "document page at physical offset {0} stays legacy", offset);
+
+            // Successful writable opens and checkpoints after migration must not
+            // perform another conversion, including beneath the AES wrapper.
+            device.Data.WrittenBytes = device.Log.WrittenBytes = 0;
+            Migrate(device, password);
+            Migrate(device, password);
+            device.Data.WrittenBytes.Should().Be(0);
+            device.Log.WrittenBytes.Should().Be(0);
+            device.Data.ToArray().Should().Equal(completedData);
+            device.Log.ToArray().Should().Equal(completedLog);
+        }
+
+        private static List<int> DocumentOffsets(byte[] bytes, string password)
+        {
+            var documentOffsets = new List<int>();
+            using (var physical = ChecksumTestFiles.Copy(bytes))
+            using (var factory = new StreamFactory(physical, password))
+            using (var plain = factory.GetStream(false, false))
+            {
+                var page = new byte[Constants.PAGE_SIZE];
+                for (var offset = 0; offset < plain.Length; offset += page.Length)
+                {
+                    plain.ReadRequired(page, 0, page.Length);
+                    if (page[BasePage.P_PAGE_TYPE] == (byte)PageType.Data)
+                        documentOffsets.Add(offset + (password == null ? 0 : Constants.PAGE_SIZE));
+                }
+            }
+            return documentOffsets;
+        }
+
         [Fact]
         public void Encrypted_migration_recovers_an_interrupted_new_wal_preamble()
         {
