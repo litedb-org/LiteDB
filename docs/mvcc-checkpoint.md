@@ -1,5 +1,17 @@
 # Snapshot-aware checkpointing
 
+> **Stack integration is pending.** This PR now follows #2954 (v10 checksums),
+> #2924 (v11 index ordering), and #2937 (v12 compact storage). The implementation
+> below still describes the original legacy WAL protocol and has not been merged
+> with those parents. It must remain draft: clearing committed frames invalidates
+> the checksum transaction count/digest and confirmation sequence. A durable
+> reclamation protocol and a new format boundary must be implemented and tested
+> before this layer can merge. Do not disable checksum verification or accept
+> arbitrary zero frames to resolve the conflict. Earlier test results and space
+> measurements apply only to the legacy implementation.
+>
+> See the [stack integration requirements](https://github.com/litedb-org/LiteDB/blob/codex/stack-compact/docs/storage-pr-stack.md).
+
 An ordinary query pins its logical read version for its entire lifetime, including
 pages it has not visited. Checkpoint backfills the newest committed image of each
 page at or below the oldest live snapshot. It does not wait for readers to finish.
