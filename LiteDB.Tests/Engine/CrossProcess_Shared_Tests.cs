@@ -26,12 +26,25 @@ public class CrossProcess_Shared_Tests : IDisposable
         _output = output;
         _testId = Guid.NewGuid().ToString("N");
         var artifactRoot = Environment.GetEnvironmentVariable("LITEDB_SHARED_DIAGNOSTICS");
-        _diagnosticDirectory = Path.Combine(artifactRoot ?? Path.GetTempPath(), "litedb-shared-" + _testId);
-        Directory.CreateDirectory(_diagnosticDirectory);
+        var tempPath = Path.GetFullPath(Path.GetTempPath());
+        _diagnosticDirectory = Path.GetFullPath(Path.Combine(artifactRoot ?? tempPath, "litedb-shared-" + _testId));
         _dbPath = Path.Combine(_diagnosticDirectory, "database.db");
+        _output.WriteLine($"Database path: {_dbPath}; volume={Path.GetPathRoot(_dbPath)}; " +
+            $"temp path={tempPath}; temp volume={Path.GetPathRoot(tempPath)}");
+        if (Environment.GetEnvironmentVariable("LITEDB_SHARED_EXPECT_TEMP_VOLUME") == "1")
+            RequireTempVolume(_dbPath, tempPath);
+        Directory.CreateDirectory(_diagnosticDirectory);
         _diagnostics = new SharedWorkerDiagnostics(_diagnosticDirectory, artifactRoot != null,
             SharedWorkerProcessDump.FromEnvironment(_diagnosticDirectory));
 
+    }
+
+    internal static void RequireTempVolume(string databasePath, string tempPath)
+    {
+        var databaseVolume = Path.GetPathRoot(Path.GetFullPath(databasePath));
+        var tempVolume = Path.GetPathRoot(Path.GetFullPath(tempPath));
+        Assert.True(string.Equals(databaseVolume, tempVolume, StringComparison.OrdinalIgnoreCase),
+            $"Database volume '{databaseVolume}' must match Path.GetTempPath volume '{tempVolume}': {databasePath}");
     }
 
     public void Dispose()
@@ -151,7 +164,6 @@ public class CrossProcess_Shared_Tests : IDisposable
         const int documentsPerProcess = 10;
 
         _output.WriteLine($"Starting shared mode concurrent access test with {processCount} tasks");
-        _output.WriteLine($"Database path: {_dbPath}");
 
         // Initialize the database in the main process
         using (var db = new LiteDatabase(new ConnectionString

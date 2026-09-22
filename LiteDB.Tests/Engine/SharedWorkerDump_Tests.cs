@@ -88,6 +88,16 @@ public partial class SharedWorkerDump_Tests : IDisposable
     }
 
     [Fact]
+    public void ExpectedTempVolume_AcceptsSameDriveAndRejectsWorkspaceDrive()
+    {
+        if (Environment.OSVersion.Platform != PlatformID.Win32NT) return;
+        CrossProcess_Shared_Tests.RequireTempVolume(@"C:\capture\database.db", @"c:\Users\runneradmin\AppData\Local\Temp\");
+        Action differentDrive = () => CrossProcess_Shared_Tests.RequireTempVolume(
+            @"D:\a\LiteDB\database.db", @"C:\Users\runneradmin\AppData\Local\Temp\");
+        differentDrive.Should().Throw<Xunit.Sdk.TrueException>().WithMessage("*must match Path.GetTempPath volume*");
+    }
+
+    [Fact]
     public void MissingTool_IsReportedWithoutThrowingOrCreatingAFalseDump()
     {
         var capture = new SharedWorkerProcessDump(Path.Combine(_directory, "missing-procdump.exe"), _directory);
