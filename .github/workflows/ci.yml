@@ -53,7 +53,7 @@ jobs:
           LITEDB_SHARED_DUMP_SMOKE: '1'
         run: |
           ./scripts/run-ci-tests.ps1 -RuntimeMajor 8 -Framework net8.0 -Architecture x86 `
-            -Filter 'FullyQualifiedName~CrossProcess_Shared_Tests|FullyQualifiedName~SharedWorkerDump_Tests' `
+            -Filter 'FullyQualifiedName~CrossProcess_Shared_Tests|FullyQualifiedName~SharedWorkerDump' `
             -ResultFile 'SharedDiagnosticContracts.trx'
           if ($LASTEXITCODE -ne 0) { throw 'Diagnostic contract tests failed.' }
       - name: Run one hundred cold-host concurrent-write repetitions
