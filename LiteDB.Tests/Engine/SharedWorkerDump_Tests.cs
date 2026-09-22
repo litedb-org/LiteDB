@@ -120,9 +120,8 @@ public partial class SharedWorkerDump_Tests : IDisposable
         requested.FileName.Should().Be("configured-procdump.exe");
         requested.StandardOutputEncoding.Should().Be(System.Text.Encoding.Unicode);
         requested.StandardErrorEncoding.Should().Be(System.Text.Encoding.Unicode);
-        requested.Arguments.Should().StartWith("-accepteula -ma -r -at 5 ").And.NotContain("-64");
         using var current = Process.GetCurrentProcess();
-        requested.Arguments.Should().Contain(" " + current.Id + " ");
+        SharedWorkerDumpArguments.AssertCaptureCommand(requested.Arguments, current.Id);
     }
 
     [Fact]
