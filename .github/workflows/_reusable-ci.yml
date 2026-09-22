@@ -414,6 +414,17 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "Concurrent insert repeat $repeat failed." }
           }
 
+      - name: Preserve exact symbols and x86 runtime after failure
+        if: failure() && matrix.os == 'windows-latest' && matrix.arch == 'x86' && matrix.item.runtimeMajor == 8
+        uses: actions/upload-artifact@v4
+        with:
+          name: shared-worker-binaries-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.item.display }}
+          path: |
+            LiteDB.Tests/bin/Release/net8.0/
+            ${{ runner.temp }}/litedb-runtime-8-x86/shared/Microsoft.NETCore.App/
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Upload source-volume diagnostics after test-host exit
         if: always() && env.LITEDB_SHARED_DIAGNOSTICS != ''
         uses: actions/upload-artifact@v4
