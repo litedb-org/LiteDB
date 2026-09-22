@@ -37,7 +37,7 @@ namespace LiteDB.Engine
                     var originalLength = rawLog.Length;
                     var compact = version >= HeaderPage.COMPACT_FILE_VERSION;
                     if (compact) this.CrashPoint("promotion-before-journal-write");
-                    BeginHeaderJournal(header.Array, promotion: compact, requireDurable: true);
+                    BeginHeaderJournal(header.Array, promotion: compact);
                     if (compact) this.CrashPoint("promotion-after-journal-flush");
                     header[HeaderPage.P_FILE_VERSION] = version;
                     if (version == HeaderPage.MVCC_FILE_VERSION) new WalRetirement().WriteHeader(header);

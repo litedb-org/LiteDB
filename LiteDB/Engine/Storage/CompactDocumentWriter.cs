@@ -117,6 +117,7 @@ namespace LiteDB.Engine
                     _writer.Write(Convert.ToInt64((utc - BsonValue.UnixEpoch).TotalMilliseconds));
                     break;
                 case BsonType.Vector:
+                    Constants.ENSURE(value.AsVector.Length <= ushort.MaxValue, "Vector length must fit into UInt16");
                     _writer.Write((ushort)value.AsVector.Length);
                     foreach (var item in value.AsVector) _writer.Write(item);
                     break;

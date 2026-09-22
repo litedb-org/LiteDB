@@ -11,6 +11,7 @@ internal sealed class CompactCodecFuzzer : IFuzzTarget
 
     public Task RunAsync(FuzzContext context)
     {
+        VerifyVectorBounds(context);
         var catalog = new SchemaCatalog();
         var decoded = 0;
         var projected = 0;
@@ -89,6 +90,45 @@ internal sealed class CompactCodecFuzzer : IFuzzTarget
         context.Metrics["mutationRejections"] = rejected;
         context.Metrics["schemas"] = catalog.Count;
         return Task.CompletedTask;
+    }
+
+    private static void VerifyVectorBounds(FuzzContext context)
+    {
+        // Exercise the persisted UInt16 boundary once per campaign, without
+        // making ordinary random documents or recorded inputs enormous.
+        foreach (var dimensions in new[] { 65535, 65536 })
+        foreach (var nesting in new[] { 0, 1, 2 })
+        {
+            var vector = new BsonVector(Enumerable.Range(0, dimensions).Select(i => (float)(i % 101 - 50)).ToArray());
+            var document = new BsonDocument
+            {
+                ["_id"] = 1,
+                ["vector"] = nesting == 0 ? (BsonValue)vector : nesting == 1 ?
+                    new BsonDocument { ["embedding"] = vector } : (BsonValue)new BsonArray { vector },
+                ["values"] = new BsonArray(Enumerable.Range(0, 200).Select(i => new BsonValue(i)))
+            };
+            byte[] bson = null;
+            try { bson = BsonSerializer.Serialize(document); }
+            catch (LiteException) { }
+
+            var catalog = new SchemaCatalog();
+            byte[] payload = null;
+            using (var writer = new CompactDocumentWriter(catalog))
+            {
+                try { payload = writer.Encode(document); }
+                catch (LiteException) { }
+                foreach (var schema in writer.Pending) catalog.Add(schema);
+            }
+            context.Check((payload != null) == (bson != null), "Compact and BSON vector dimension admission differs.");
+            if (payload != null)
+            {
+                context.Check(payload.Length + 8 < bson.Length, "Vector boundary fixture did not benefit from compact encoding.");
+                context.Check(BsonSerializer.Serialize(Decode(payload, catalog, false)).SequenceEqual(bson),
+                    "Compact vector dimension boundary round trip differs from BSON.");
+            }
+            context.Trace("compact-vector-boundary", new { dimensions, nesting, accepted = payload != null });
+        }
+        context.Metrics["vectorBoundaryCases"] = 6;
     }
 
     private static BsonDocument Decode(byte[] payload, SchemaCatalog catalog, bool utcDate)

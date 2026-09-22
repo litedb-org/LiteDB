@@ -33,6 +33,7 @@
   <ItemGroup>
     <EmbeddedResource Include="Resources\person.json" />
     <EmbeddedResource Include="Resources\zip.json" />
+    <EmbeddedResource Include="Resources\IndexMigration_5_0_21.zip" />
   </ItemGroup>
 
   <ItemGroup>

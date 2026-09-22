@@ -7,11 +7,11 @@ write using the synced header recovery journal. Earlier formats first perform th
 checksum and index-ordering migrations below. No document scan occurs merely to
 enable compact writes. Legacy mode and explicit BSON rebuild use v11, retaining
 checksums and corrected indexes; they cannot downgrade to released v8/v9 engines.
-See `compact-document-storage.md`.: bounded memory management
+See `compact-document-storage.md`.
 
 ## Index ordering migration (format v11)
 
-New files use v11. Writable opens automatically migrate v8/v9 indexes for corrected
+New files use v11. Writable opens automatically migrate v8/v9/v10 indexes for corrected
 nested collation, unsigned ObjectId, canonical document and exact numeric ordering.
 Read-only files needing migration must first be opened writable. Unique-key
 collisions abort before changing data or WAL. Computed/multikey keys regenerate

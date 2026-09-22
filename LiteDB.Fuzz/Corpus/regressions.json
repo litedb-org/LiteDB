@@ -206,6 +206,14 @@
       ]
     },
     {
+      "target": "compact-codec",
+      "seed": 2999,
+      "count": 64,
+      "reason": "UInt16 vector dimension boundary matches public BSON admission for direct, nested-document and array values; oversized vectors must never produce compact payloads.",
+      "inputHash": "222B67FA01E5D9BF86248EAEC4DA5A0C3F27B506C4E050BA913184A08DC80E6A",
+      "traceHash": "689EE33F26471CD31DDBFB4ADA2C496B1850645392F0B83CE6AA388F8E9281C3"
+    },
+    {
       "target": "compact-power-loss",
       "seed": 2937,
       "count": 64,

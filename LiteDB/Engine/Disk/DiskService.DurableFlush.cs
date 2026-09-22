@@ -38,7 +38,7 @@ namespace LiteDB.Engine
         /// Sync the log first, so that a power loss during the checkpoint can still be redone from it.
         /// Caller holds the exclusive database lock.
         /// </summary>
-        internal void SyncLogBeforeCheckpoint(bool requireDurable = false)
+        internal void SyncLogBeforeCheckpoint()
         {
             if (_readOnly) return;
 
@@ -47,8 +47,9 @@ namespace LiteDB.Engine
             lock (stream)
             {
                 // Sync both the header recovery copy and preceding WAL before
-                // overwriting data. Unsupported sync retains the reported fallback.
-                this.PrepareCheckpointHeader(requireDurable);
+                // overwriting data. Unsupported sync must stop checkpoint before
+                // any data overwrite; commit fallback cannot make redo durable.
+                this.PrepareCheckpointHeader();
             }
         }
 

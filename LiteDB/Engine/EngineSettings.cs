@@ -28,7 +28,7 @@ namespace LiteDB.Engine
 
         /// <summary>
         /// Select how documents are written. Auto uses compact writes when
-        /// beneficial and lazily promotes existing v8/v9 databases.
+        /// beneficial and lazily promotes existing v11 databases to v12.
         /// </summary>
         public CompactStorageMode CompactStorage { get; set; } = CompactStorageMode.Auto;
 
@@ -107,7 +107,7 @@ namespace LiteDB.Engine
         public bool AutoRebuild { get; set; } = false;
 
         /// <summary>
-        /// Rebuild format v7 files before opening, retaining a backup. Writable v8/v9 opens migrate indexes automatically.
+        /// Rebuild format v7 files before opening, retaining a backup. Writable v8/v9/v10 opens migrate indexes automatically.
         /// </summary>
         public bool Upgrade { get; set; } = false;
 

@@ -8,12 +8,14 @@ namespace LiteDB.Engine
     {
         private byte[] _recoveredHeader;
 
-        private void BeginHeaderJournal(byte[] header, bool conversion = false, bool promotion = false, bool requireDurable = false)
+        private void BeginHeaderJournal(byte[] header, bool conversion = false, bool promotion = false)
         {
+            // Every caller overwrites existing data or its sole header. Commit
+            // fallback may lose recent transactions, but must never let an
+            // in-place overwrite proceed without durable recovery information.
             if (_checksums.JournalBytes != 0)
             {
-                if (ChecksumsEnabled && !requireDurable && !promotion) FlushLogToDisk(_writer.Value);
-                else _writer.Value.FlushToDisk();
+                _writer.Value.FlushToDisk();
                 return;
             }
             var log = ((ChecksummedWalStream)_writer.Value).RawStream;
@@ -24,24 +26,22 @@ namespace LiteDB.Engine
                 WalPadding.Pad(log, log.Length / WalChecksum.FrameSize * WalChecksum.FrameSize, initialize: true);
                 // A persisted footer must never depend on padding that existed
                 // only in cache when its own write reached the device.
-                if (conversion || promotion || requireDurable) log.FlushToDisk();
-                else FlushLogToDisk(log);
+                log.FlushToDisk();
             }
             HeaderJournal.Write(log, header, conversion, _checksums, promotion);
             _checksums.JournalBytes = HeaderJournal.Size;
-            if (conversion || promotion || requireDurable || !ChecksumsEnabled) log.FlushToDisk();
-            else FlushLogToDisk(_writer.Value);
+            log.FlushToDisk();
             ((ChecksummedWalFactory)_logFactory).SyncDirectory();
         }
 
-        private void PrepareCheckpointHeader(bool requireDurable)
+        private void PrepareCheckpointHeader()
         {
             var header = new byte[PAGE_SIZE];
             var data = _dataPool.Writer.Value;
             data.Position = 0;
             data.ReadRequired(header, 0, header.Length);
             if (ChecksumsEnabled) PageChecksum.Validate(new BufferSlice(header, 0, PAGE_SIZE), 0);
-            BeginHeaderJournal(header, requireDurable: requireDurable);
+            BeginHeaderJournal(header);
         }
 
         private void RecoverHeaderJournal(ref byte[] header)

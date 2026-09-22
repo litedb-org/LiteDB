@@ -17,7 +17,7 @@ namespace LiteDB
 
         /// <summary>
         /// Select how documents are written. Auto uses compact writes when
-        /// beneficial and lazily promotes existing v8/v9 databases.
+        /// beneficial and lazily promotes existing v11 databases to v12.
         /// </summary>
         public CompactStorageMode CompactStorage { get; set; } = CompactStorageMode.Auto;
 
