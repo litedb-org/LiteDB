@@ -1,13 +1,78 @@
 name: CI
 
 on:
-  pull_request:
   workflow_dispatch:
 
-jobs:
-  build-and-test:
-    uses: ./.github/workflows/_reusable-ci.yml
+permissions:
+  contents: read
 
-  repro-runner:
-    uses: ./.github/workflows/reprorunner.yml
-    secrets: inherit
+jobs:
+  shared-x86-diagnostic:
+    name: Windows x86 shared-write diagnostic (${{ matrix.shard }})
+    runs-on: windows-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    env:
+      LITEDB_SHARED_DIAGNOSTICS: ${{ github.workspace }}/LiteDB.Tests/TestResults/SharedWorkerDiagnostics
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.x
+            8.0.x
+      - name: Build exact test candidate
+        shell: pwsh
+        run: |
+          git rev-parse HEAD
+          dotnet build LiteDB.Tests/LiteDB.Tests.csproj -c Release -f net8.0 -p:TestingEnabled=true
+          if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
+      - name: Install and verify Microsoft ProcDump
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'Procdump.zip'
+          $directory = Join-Path $env:RUNNER_TEMP 'litedb-procdump'
+          Invoke-WebRequest 'https://download.sysinternals.com/files/Procdump.zip' -OutFile $archive
+          Expand-Archive $archive $directory
+          $executable = Join-Path $directory 'procdump.exe'
+          $signature = Get-AuthenticodeSignature $executable
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') {
+            throw "Untrusted ProcDump signature: $($signature.Status) $($signature.SignerCertificate.Subject)"
+          }
+          Get-FileHash $archive, $executable -Algorithm SHA256 | Format-List
+          (Get-Item $executable).VersionInfo | Format-List FileVersion, ProductVersion
+          "LITEDB_SHARED_PROCDUMP=$executable" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Verify runtime and diagnostic contracts
+        shell: pwsh
+        env:
+          LITEDB_SHARED_DUMP_SMOKE: '1'
+        run: |
+          ./scripts/run-ci-tests.ps1 -RuntimeMajor 8 -Framework net8.0 -Architecture x86 `
+            -Filter 'FullyQualifiedName~CrossProcess_Shared_Tests|FullyQualifiedName~SharedWorkerDump_Tests' `
+            -ResultFile 'SharedDiagnosticContracts.trx'
+          if ($LASTEXITCODE -ne 0) { throw 'Diagnostic contract tests failed.' }
+      - name: Run one hundred cold-host concurrent-write repetitions
+        shell: pwsh
+        timeout-minutes: 25
+        run: |
+          $runtime = Join-Path $env:RUNNER_TEMP 'litedb-runtime-8-x86'
+          for ($repeat = 1; $repeat -le 100; $repeat++) {
+            Write-Host "Shard ${{ matrix.shard }}; cold-host repetition $repeat of 100"
+            ./scripts/run-ci-tests.ps1 -RuntimeMajor 8 -Framework net8.0 -Architecture x86 `
+              -RuntimeDirectory $runtime -Filter 'FullyQualifiedName~CrossProcess_Shared_ConcurrentWrites_InsertDocuments' `
+              -ResultFile "SharedInsert-$repeat.trx"
+            if ($LASTEXITCODE -ne 0) { throw "Concurrent insert repetition $repeat failed; preserving diagnostics." }
+          }
+      - name: Preserve results and any timeout evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shared-x86-diagnostic-${{ matrix.shard }}
+          path: LiteDB.Tests/TestResults/
+          if-no-files-found: error
+          retention-days: 14
