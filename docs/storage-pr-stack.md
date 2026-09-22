@@ -18,6 +18,10 @@ is not merge-readiness evidence. After a parent lands, integrate the new trunk,
 check the child's resulting diff and revalidate it. Keep dependent branches until
 their children no longer need them; do not assign one version to incompatible layouts.
 
+Use the [storage stack safety acceptance map](storage-stack-safety.md) to connect
+each layer's persistent invariants to regression suites, fuzz targets and actual
+predecessor compatibility probes, with the fault-model and operational limits.
+
 Checksum migration changes only the header after legacy WAL recovery; old pages
 receive checksums lazily. Index migration separately validates and rewrites affected
 indexes atomically. Compact storage changes new writes. MVCC adds durable retirement
