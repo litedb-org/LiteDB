@@ -238,6 +238,7 @@ public class CrossProcess_Shared_Tests : IDisposable
             col.EnsureIndex("task_id");
         }
 
+        var startedUtc = DateTime.UtcNow;
         // Spawn concurrent tasks that will insert documents
         var tasks = new List<Task>();
         for (int i = 1; i <= taskCount; i++)
@@ -247,6 +248,7 @@ public class CrossProcess_Shared_Tests : IDisposable
         }
 
         await Task.WhenAll(tasks);
+        var finishedUtc = DateTime.UtcNow;
 
         // Verify all documents were inserted
         using (var db = new LiteDatabase(new ConnectionString
@@ -256,19 +258,7 @@ public class CrossProcess_Shared_Tests : IDisposable
         }))
         {
             var col = db.GetCollection<BsonDocument>("concurrent_inserts");
-            var totalDocs = col.Count();
-
-            var expectedCount = taskCount * documentsPerTask;
-            totalDocs.Should().Be(expectedCount,
-                $"Expected {expectedCount} documents ({taskCount} tasks × {documentsPerTask} docs each)");
-
-            // Verify each task inserted the correct number
-            for (int i = 1; i <= taskCount; i++)
-            {
-                var taskDocs = col.Count(Query.EQ("task_id", i));
-                taskDocs.Should().Be(documentsPerTask,
-                    $"Task {i} should have inserted {documentsPerTask} documents");
-            }
+            SharedWriteOracle.Verify(col, taskCount, documentsPerTask, startedUtc, finishedUtc);
         }
 
         _output.WriteLine("Concurrent insert test completed successfully");
@@ -389,11 +379,12 @@ public class CrossProcess_Shared_Tests : IDisposable
     private async Task AwaitWorker(Task task, CancellationTokenSource cancellation, string name, int timeoutMilliseconds = 30000)
     {
         _workers.Add(task);
-        if (await Task.WhenAny(task, Task.Delay(timeoutMilliseconds)) != task)
+        var progress = _diagnostics.Track(name);
+        if (!await SharedWorkerWatchdog.WaitAsync(task, () => progress.CompletedIdleMilliseconds, timeoutMilliseconds))
         {
             var report = _diagnostics.Timeout(name);
             _output.WriteLine(report);
-            _output.WriteLine($"{name} exceeded its {timeoutMilliseconds}-ms deadline; cancelling remaining inserts");
+            _output.WriteLine($"{name} made no completed-insert progress for {timeoutMilliseconds} ms; cancelling remaining inserts");
             cancellation.Cancel();
             throw new TimeoutException($"{name} timed out\n{report}");
         }

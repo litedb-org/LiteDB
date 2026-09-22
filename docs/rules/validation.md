@@ -44,6 +44,11 @@ exclude. A test that merely mirrors the implementation is insufficient evidence.
 - For races, force the relevant interleaving and test lifetime/failure paths.
   Do not remove concurrency to make a test green. If the test itself races on
   unsupported shared state, isolate that state and retain concurrent engine calls.
+- Distinguish liveness limits from throughput budgets in concurrent I/O tests.
+  A per-worker progress deadline must advance only when that worker completes
+  real work, never from peer activity or diagnostic stage changes. Keep a hard
+  session limit, test stalled scheduling/disposal and timer races, and retain the
+  completed-work timestamp that explains a timeout.
 - Run focused tests first, then the appropriate broader checks. xUnit and
   FluentAssertions tests live under the matching feature area. Keep filters
   broad enough to include newly split test classes; check the discovered count.
