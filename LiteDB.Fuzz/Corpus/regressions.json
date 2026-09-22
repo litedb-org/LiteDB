@@ -117,17 +117,31 @@
       "target": "checksum-crash",
       "seed": 4058733,
       "count": 111,
-      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the durable recovery-journal sync before primary repair.",
-      "inputHash": "846447838B08A16712AC7907CA8453A5CAB636DC46D2B9BF6B97950CA5A3A850",
-      "traceHash": "54F77B2A2E870EC4D76FC13430D0E5922543234F96038EE636DB0F3E0506F6B5"
+      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the durable recovery-journal sync before primary repair. Replayed with durable aligned padding; original hashes retained in previousHashes. FooterReachingDiskBeforeItsSync_CannotDependOnVolatilePadding independently pins the new failure found by seed 3163459 at step 109.",
+      "inputHash": "4B2684A8111B47B409B63F3BB1E23215CC77BE1BFA3EC2EBF6378C059ABEF642",
+      "traceHash": "4AA4F6EB12CA8961B94CAB4E4780BB463BE1C0FFBE35D6F16A6FB790515928F0",
+      "previousHashes": [
+        {
+          "inputHash": "846447838B08A16712AC7907CA8453A5CAB636DC46D2B9BF6B97950CA5A3A850",
+          "traceHash": "54F77B2A2E870EC4D76FC13430D0E5922543234F96038EE636DB0F3E0506F6B5",
+          "reason": "Before aligned WAL/header-journal padding and its pre-footer durability barrier changed sampled I/O events."
+        }
+      ]
     },
     {
       "target": "checksum-crash",
       "seed": 3163459,
       "count": 201,
-      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the durable recovery-journal sync before primary repair.",
-      "inputHash": "94FE4873BF16FD4C4A37BA28B1F806CE8734D9D8A66684B7D5420A1EDE6C14DC",
-      "traceHash": "5D16086B4CF37827B2E8A346B22E23139A09DA95AE9BC923271EA240CECE3993"
+      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the durable recovery-journal sync before primary repair. Replayed with durable aligned padding; original hashes retained in previousHashes. FooterReachingDiskBeforeItsSync_CannotDependOnVolatilePadding independently pins the new failure found by seed 3163459 at step 109.",
+      "inputHash": "54D37513BDCB4EB57B9A78A0CD4DFD542BB90DA0AD3CFDCB770C2BA758B83DFB",
+      "traceHash": "8C0D44D87F2F1C780144FEC9F4D2835B6B3CADA46999C9740D993A4B5B083D18",
+      "previousHashes": [
+        {
+          "inputHash": "94FE4873BF16FD4C4A37BA28B1F806CE8734D9D8A66684B7D5420A1EDE6C14DC",
+          "traceHash": "5D16086B4CF37827B2E8A346B22E23139A09DA95AE9BC923271EA240CECE3993",
+          "reason": "Before aligned WAL/header-journal padding and its pre-footer durability barrier changed sampled I/O events."
+        }
+      ]
     },
     {
       "target": "transaction-gate",
