@@ -88,6 +88,38 @@
       "reason": "A failure after password-changing rebuild installation must restore a matching original data/WAL pair.",
       "inputHash": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
       "traceHash": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "target": "transaction-gate",
+      "seed": 2991,
+      "count": 20,
+      "reason": "Issue #2991: nested reader leases must retain owner identity and release independently across threads.",
+      "inputHash": "2387A6A95F9F18A9812B85A15D50FE5AAE4E0C98B62D58EB7232B6E1E68D6AB5",
+      "traceHash": "9FCA76F1DB92F62A1A4B13039394DACB8CC0CE4D5131B81179513875987E2831"
+    },
+    {
+      "target": "cursor-handoff",
+      "seed": 2991,
+      "count": 20,
+      "reason": "Issue #2991: retired-thread cursors must not alias fresh threads or block checkpoint after foreign disposal.",
+      "inputHash": "0A092B10C46DEAB0D2646E0B7FD6406D58309515B8D493822E6123D0D4BD5E6A",
+      "traceHash": "038FAF0298AA258346AD02521E4D6C218E907381821F75680023B5CE33257757"
+    },
+    {
+      "target": "concurrent",
+      "seed": 1682725737,
+      "count": 67,
+      "reason": "Issue #2991: original failing seed/prefix; checkpoint after async cursor handoff (schedule dependent).",
+      "inputHash": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "traceHash": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "target": "concurrent",
+      "seed": 1681725734,
+      "count": 178,
+      "reason": "Issue #2991: original failing seed/prefix; checkpoint after async cursor handoff (schedule dependent).",
+      "inputHash": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "traceHash": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
     }
   ]
 }

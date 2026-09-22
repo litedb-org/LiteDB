@@ -94,6 +94,8 @@ using the same artifact root automatically replays the retained coverage corpus.
 | `snapshot` | process-isolated cursor snapshots while writers commit and reuse WAL/pages |
 | `threaded-snapshot` | barrier-forced same-process writer/checkpoint overlap with multiple live snapshots |
 | `concurrent` | one-database multithreaded commits, unique contention, cursors, checkpoint, and rebuild |
+| `transaction-gate` | modeled reader counts, retired owners, foreign releases, and exclusive admission |
+| `cursor-handoff` | retired-thread cursor snapshots, independent foreign transactions, and overlapping checkpoints |
 | `conflict` | barrier-forced writer/schema/drop/storage/rebuild conflicts with acknowledged-state checks |
 | `power-loss` | volatile/durable device model cut at every internal WAL/checkpoint phase |
 | `recovery` | dirty-WAL recovery interrupted again by transient and persistent I/O failures |
@@ -186,3 +188,23 @@ scripts/publish-fuzz-artifacts.sh artifacts_temp/fuzz issue-2947-smoke
 
 The publisher refuses dirty artifact clones, creates a date/label directory,
 commits the unchanged raw files plus summaries, and pushes `main`.
+
+## Reader ownership regression (#2991)
+
+The `concurrent` target exposed numeric managed-thread ID reuse after an async
+continuation opened a cursor on a short-lived thread. A later checkpoint thread
+could inherit that ID while the cursor still held its reader lease. Gate and
+transaction ownership now retain the actual `Thread`; numeric IDs remain diagnostic.
+
+`transaction-gate` randomizes nested reader counts and foreign release order against
+an independent lease model. `cursor-handoff` forces owner retirement and GC, churns
+new threads, varies early disposal versus full drain, checks snapshot contents and
+rollback isolation, and overlaps the final release with a real checkpoint. Both
+record random decisions and verify input/trace determinism; runtime scheduling and
+thread IDs are deliberately excluded from the trace.
+
+```bash
+dotnet run --project LiteDB.Fuzz -c Release -f net10.0 -- \
+  --target transaction-gate,cursor-handoff,concurrent --seed 2991 \
+  --duration 5m --workers 2 --artifact-dir artifacts_temp/fuzz-2991
+```

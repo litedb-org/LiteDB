@@ -128,3 +128,11 @@ not characters, and valid key payloads can exceed 255 bytes. Preserve full
 non-length type codes, including vectors. Multi-block merge ties retain the active
 block first, then original block order; keep this policy when changing sorting.
 Use `tools/QueryOptimizationBenchmarks` for per-optimization end-to-end comparisons.
+
+## Transaction Ownership
+Reader cursors can outlive the thread that opened them. Use the retained `Thread`
+identity for transaction admission, lookup, cleanup, and completion guards; managed
+thread IDs can be recycled and are only suitable for diagnostics. Keep cross-thread
+query disposal separate from the caller's explicit transaction. Run the
+`transaction-gate`, `cursor-handoff`, and `concurrent` fuzz targets when changing
+reader leases or exclusive admission.

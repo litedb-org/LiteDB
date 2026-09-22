@@ -68,7 +68,7 @@ jobs:
         include:
           - name: linux-core-utc
             os: ubuntu-latest
-            targets: query,transaction,wal,page,shared,bson,snapshot,threaded-snapshot,concurrent,conflict,power-loss,recovery,chaos,boundary,read-only
+            targets: query,transaction,wal,page,shared,bson,snapshot,threaded-snapshot,concurrent,transaction-gate,cursor-handoff,conflict,power-loss,recovery,chaos,boundary,read-only
             seed: 2947
             timezone: UTC
             culture: en_US.UTF-8
@@ -76,7 +76,7 @@ jobs:
             count: 30
           - name: linux-cache-vienna
             os: ubuntu-latest
-            targets: linq-cache,parser,sql-dml,value,api-boundary,oracle-selftest
+            targets: linq-cache,parser,sql-dml,value,api-boundary,oracle-selftest,transaction-gate,cursor-handoff
             seed: 102947
             timezone: Europe/Vienna
             culture: tr_TR.UTF-8
@@ -166,7 +166,7 @@ jobs:
             seedOffset: 500000
             framework: net8.0
           - shard: persistence
-            targets: wal,shared,storage,storage-failure,rebuild,rebuild-transition,vector,mapper,integrity,snapshot,threaded-snapshot,concurrent,conflict,power-loss,recovery,chaos,boundary,read-only,compatibility,malformed-file
+            targets: wal,shared,storage,storage-failure,rebuild,rebuild-transition,vector,mapper,integrity,snapshot,threaded-snapshot,concurrent,transaction-gate,cursor-handoff,conflict,power-loss,recovery,chaos,boundary,read-only,compatibility,malformed-file
             seedOffset: 1500000
             framework: net10.0
     env:

@@ -15,7 +15,7 @@ namespace LiteDB.Tests.Issues
         {
             using var locker = new LockService(new EnginePragmas((HeaderPage)null));
             locker.EnterTransaction();
-            var owner = Environment.CurrentManagedThreadId;
+            var owner = Thread.CurrentThread;
             using var acquired = new ManualResetEventSlim();
             using var release = new ManualResetEventSlim();
             var checkpoint = Task.Run(() =>
@@ -41,7 +41,7 @@ namespace LiteDB.Tests.Issues
                 await checkpoint;
             }
             locker.EnterTransaction();
-            locker.ExitTransaction(Environment.CurrentManagedThreadId);
+            locker.ExitTransaction(Thread.CurrentThread);
         }
 
         [Fact]
@@ -49,7 +49,7 @@ namespace LiteDB.Tests.Issues
         {
             using var locker = new LockService(new EnginePragmas((HeaderPage)null));
             locker.EnterTransaction();
-            var owner = Environment.CurrentManagedThreadId;
+            var owner = Thread.CurrentThread;
             try
             {
                 locker.TryEnterExclusive(out _, waitForReaders: true).Should().BeFalse();
@@ -63,7 +63,7 @@ namespace LiteDB.Tests.Issues
         {
             using var locker = new LockService(new EnginePragmas((HeaderPage)null));
             locker.EnterTransaction();
-            var owner = Environment.CurrentManagedThreadId;
+            var owner = Thread.CurrentThread;
             try
             {
                 var checkpoint = Task.Run(() =>
@@ -78,7 +78,7 @@ namespace LiteDB.Tests.Issues
                 await Task.Run(() =>
                 {
                     locker.EnterTransaction();
-                    locker.ExitTransaction(Environment.CurrentManagedThreadId);
+                    locker.ExitTransaction(Thread.CurrentThread);
                 });
             }
             finally { locker.ExitTransaction(owner); }
