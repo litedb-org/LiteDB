@@ -89,4 +89,48 @@ public class Issue2922_Tests
 
         cities.Should().Equal("City0", "City1", "City2");
     }
+
+    [Fact]
+    public void Group_by_does_not_disturb_an_indexed_filter_while_it_is_still_being_read()
+    {
+        using var db = CreateDatabase();
+        db.GetCollection("rows").EnsureIndex("City");
+
+        var parameters = new BsonDocument { ["key"] = "City0" };
+        var cities = new System.Collections.Generic.List<string>();
+
+        using (var reader = db.Execute("SELECT { city: @key, n: COUNT(*) } FROM rows WHERE City != @key GROUP BY City", parameters))
+        {
+            while (reader.Read()) cities.Add(reader.Current["city"].AsString);
+        }
+
+        cities.Should().BeEquivalentTo(new[] { "City1", "City2" });
+        parameters["key"].AsString.Should().Be("City0");
+    }
+
+    [Fact]
+    public void Group_by_isolates_expressions_that_share_a_parameter_name()
+    {
+        using var db = CreateDatabase();
+
+        var select = BsonExpression.Create("{ city: @key, n: COUNT(*) }");
+        var having = BsonExpression.Create("COUNT(*) >= @least");
+
+        select.Parameters["key"] = "unused";
+        having.Parameters["least"] = 6;
+
+        var parameters = new BsonDocument { ["key"] = "caller", ["least"] = 6 };
+        var cities = new System.Collections.Generic.List<string>();
+
+        using (var reader = db.Execute("SELECT { city: @key, n: COUNT(*) } FROM rows GROUP BY City HAVING COUNT(*) >= @least", parameters))
+        {
+            while (reader.Read()) cities.Add(reader.Current["city"].AsString);
+        }
+
+        cities.Should().BeEquivalentTo(new[] { "City0", "City1", "City2" });
+        parameters["key"].AsString.Should().Be("caller");
+        parameters["least"].AsInt32.Should().Be(6);
+        select.Parameters["key"].AsString.Should().Be("unused");
+        having.Parameters["least"].AsInt32.Should().Be(6);
+    }
 }
