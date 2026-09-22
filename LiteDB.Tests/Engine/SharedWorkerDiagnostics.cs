@@ -32,8 +32,15 @@ internal sealed class SharedWorkerDiagnostics
             $"ThreadPool available/max: workers={availableWorkers}/{maxWorkers}, io={availableIo}/{maxIo}\n" +
             "Retained files are original files after test-host exit, not an atomic snapshot.\n" +
             string.Join("\n", _workers.OrderBy(x => x.Key).Select(x => x.Key + ": " + x.Value.Snapshot()));
-        Directory.CreateDirectory(_directory);
-        File.WriteAllText(Path.Combine(_directory, "timeout-" + Guid.NewGuid().ToString("N") + ".txt"), report);
+        try
+        {
+            Directory.CreateDirectory(_directory);
+            File.WriteAllText(Path.Combine(_directory, "timeout-" + Guid.NewGuid().ToString("N") + ".txt"), report);
+        }
+        catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+        {
+            report += $"\nDiagnostic capture failed: {ex.GetType().Name}: {ex.Message}";
+        }
         return report;
     }
 

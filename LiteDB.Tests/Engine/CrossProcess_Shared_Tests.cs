@@ -98,6 +98,27 @@ public class CrossProcess_Shared_Tests : IDisposable
         }
     }
 
+    [Fact]
+    public async Task FailedDiagnosticWrite_StillCancelsAndDefersFileCleanup()
+    {
+        File.WriteAllText(_dbPath, "worker owns this file");
+        // A file in place of the diagnostic directory forces bounded I/O failure.
+        _diagnostics = new SharedWorkerDiagnostics(_dbPath, retainOnTimeout: false);
+        var worker = new TaskCompletionSource<bool>();
+        using var cancellation = new CancellationTokenSource();
+        try
+        {
+            var error = await Assert.ThrowsAsync<TimeoutException>(() => AwaitWorker(worker.Task, cancellation, "injected worker", 20));
+            error.Message.Should().Contain("Diagnostic capture failed:");
+            cancellation.IsCancellationRequested.Should().BeTrue();
+            Dispose();
+            File.ReadAllText(_dbPath).Should().Be("worker owns this file");
+        }
+        finally { worker.TrySetResult(true); }
+        await _cleanup;
+        File.Exists(_dbPath).Should().BeFalse();
+    }
+
     private void TryDeleteDatabase()
     {
         if (_diagnostics.RetainFiles) return;
@@ -357,10 +378,11 @@ public class CrossProcess_Shared_Tests : IDisposable
         _workers.Add(task);
         if (await Task.WhenAny(task, Task.Delay(timeoutMilliseconds)) != task)
         {
-            _output.WriteLine(_diagnostics.Timeout(name));
+            var report = _diagnostics.Timeout(name);
+            _output.WriteLine(report);
             _output.WriteLine($"{name} exceeded its {timeoutMilliseconds}-ms deadline; cancelling remaining inserts");
             cancellation.Cancel();
-            throw new TimeoutException($"{name} timed out");
+            throw new TimeoutException($"{name} timed out\n{report}");
         }
         await task;
     }
