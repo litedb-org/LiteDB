@@ -129,9 +129,11 @@ does compiling a Framework target establish that tests ran on CLR 4. See the
 Long-lived readers can keep the WAL nonempty indefinitely. Retirement reuses
 payload slots but retains witness metadata; it does not bound growth or recovery
 cost and does not punch holes. Shared readers require one-host mutex/file-sharing
-coordination and intact lease files. A backup must capture data and WAL consistently,
-or first verify an empty WAL after readers drain; a successful partial checkpoint
-does not make the data file alone a complete backup.
+coordination and intact lease files. Exclude writes and checkpoints throughout
+backup preparation and capture. Under that exclusion, capture data and WAL
+consistently, or drain readers and verify an empty WAL before copying the data
+file. An empty-WAL check is not a lock against later writes, and a successful
+partial checkpoint does not make the data file alone a complete backup.
 
 For final acceptance, run relevant focused suites and broader regressions on the
 integrated head, replay the pinned fuzz corpus, and execute the affected predecessor
