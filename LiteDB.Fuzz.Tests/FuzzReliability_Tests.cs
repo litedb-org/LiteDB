@@ -152,6 +152,57 @@ public sealed class FuzzReliability_Tests
             "trial-timeout.json", SearchOption.AllDirectories));
     }
 
+    [Fact]
+    public void Finding_fingerprints_remove_volatile_values_without_merging_defects()
+    {
+        var first = FuzzFindingRegistry.Normalize(
+            "orphan seed=17 step 44 page 0006:21 doc_id=81 count=3");
+        var repeated = FuzzFindingRegistry.Normalize(
+            "orphan seed=99 step 101 page 0004:08 doc_id=92 count=7");
+        var different = FuzzFindingRegistry.Normalize(
+            "backlink seed=17 step 44 page 0006:21 doc_id=81 count=3");
+
+        Assert.Equal(first, repeated);
+        Assert.NotEqual(first, different);
+    }
+
+    [Fact]
+    public void Discovery_continues_only_for_active_known_or_expected_findings()
+    {
+        using var directory = new TemporaryDirectory();
+        var registry = Path.Combine(directory.Path, "known-findings.json");
+        File.WriteAllText(registry, """
+            {
+              "schemaVersion": 1,
+              "findings": [
+                { "target": "vector", "fingerprint": "ORPHAN_PAGE_0006:21", "issue": 1, "status": "known" },
+                { "target": "rebuild", "fingerprint": "CHECKSUM_COUNT=7", "issue": 2, "status": "expected" },
+                { "target": "api", "fingerprint": "HANG_API", "issue": 3, "status": "fixed" }
+              ]
+            }
+            """);
+        var known = FuzzFindingRegistry.Resolve("vector", "ORPHAN_PAGE_0004:08", registry);
+        var expected = FuzzFindingRegistry.Resolve("rebuild", "CHECKSUM_COUNT=99", registry);
+        var fixedFinding = FuzzFindingRegistry.Resolve("api", "HANG_API", registry);
+        var unknown = FuzzFindingRegistry.Resolve("value", "NEW_DEFECT", registry);
+
+        Assert.True(FuzzProcessRunner.ShouldContinueDiscovery(
+            new RunResult("vector", 1, directory.Path, false, true, known)));
+        Assert.True(FuzzProcessRunner.ShouldContinueDiscovery(
+            new RunResult("rebuild", 1, directory.Path, false, true, expected)));
+        Assert.False(FuzzProcessRunner.ShouldContinueDiscovery(
+            new RunResult("api", 1, directory.Path, false, true, fixedFinding)));
+        Assert.False(FuzzProcessRunner.ShouldContinueDiscovery(
+            new RunResult("value", 1, directory.Path, false, true, unknown)));
+        Assert.False(FuzzFindingRegistry.ShouldMinimize(true, known));
+        Assert.False(FuzzFindingRegistry.ShouldMinimize(true, expected));
+        Assert.True(FuzzFindingRegistry.ShouldMinimize(true, fixedFinding));
+        Assert.True(FuzzFindingRegistry.ShouldMinimize(true, unknown));
+        Assert.True(FuzzFindingRegistry.ShouldMinimize(false, known));
+        Assert.True(new RunResult("vector", 1, directory.Path, false, false, known).BlocksBuild);
+        Assert.False(new RunResult("vector", 1, directory.Path, false, true, known).BlocksBuild);
+    }
+
     private static PowerLossScenario Generate(int seed, string path)
     {
         using var random = new FuzzInputRandom(seed, path, null);

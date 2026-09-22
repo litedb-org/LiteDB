@@ -33,8 +33,9 @@ internal static class FuzzProcessRunner
                 var duration = remaining < options.EpochDuration ? remaining : options.EpochDuration;
                 if (duration < TimeSpan.FromMilliseconds(100)) break;
                 var result = await RunCoreAsync(target, options, worker, epoch, duration, null);
+                if (!result.Passed) result = FuzzFindingRegistry.Classify(result);
                 results.Add(result);
-                if (!result.Passed) break;
+                if (!ShouldContinueDiscovery(result)) break;
             }
             return results;
         }
@@ -198,6 +199,9 @@ internal static class FuzzProcessRunner
         }
         return true;
     }
+
+    internal static bool ShouldContinueDiscovery(RunResult result) =>
+        result.Passed || result.Finding?.AllowsDiscoveryToContinue == true;
 
     private static ProcessStartInfo CreateStartInfo(bool coverage, string directory)
     {

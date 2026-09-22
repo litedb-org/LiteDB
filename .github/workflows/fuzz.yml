@@ -12,6 +12,7 @@ on:
       - 'tools/V8Differential/**'
       - 'scripts/test-v8-differential.py'
       - 'scripts/summarize-fuzz-artifacts.py'
+      - 'scripts/test-fuzz-finding-triage.py'
       - '.config/dotnet-tools.json'
       - '.github/workflows/fuzz.yml'
   push:
@@ -26,6 +27,7 @@ on:
       - 'tools/V8Differential/**'
       - 'scripts/test-v8-differential.py'
       - 'scripts/summarize-fuzz-artifacts.py'
+      - 'scripts/test-fuzz-finding-triage.py'
       - '.config/dotnet-tools.json'
       - '.github/workflows/fuzz.yml'
   schedule:
@@ -202,39 +204,48 @@ jobs:
           dotnet run --project LiteDB.Fuzz -c Release -f "$FUZZ_FRAMEWORK" --no-build -- \
             --target "$FUZZ_TARGETS" --seed "$FUZZ_SEED" --duration 150m --workers 2 \
             --epoch-duration 2m --coverage-guided --artifact-dir artifacts/fuzz
+      - name: Classify findings by canonical fingerprint
+        if: always()
+        run: python3 scripts/summarize-fuzz-artifacts.py artifacts/fuzz --output artifacts/fuzz/failure-groups.json --github-summary
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: fuzz-nightly-${{ matrix.shard }}
           path: artifacts/fuzz
           if-no-files-found: error
-      - name: Group failures by stable ID
-        if: always()
-        run: python3 scripts/summarize-fuzz-artifacts.py artifacts/fuzz --output artifacts/fuzz/failure-groups.json --github-summary
       - name: File or update nightly findings
-        if: steps.fuzz.outcome == 'failure' && github.event_name == 'schedule'
+        if: always() && github.event_name == 'schedule'
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
             const groups = JSON.parse(fs.readFileSync('artifacts/fuzz/failure-groups.json', 'utf8'));
             for (const group of groups.failures) {
-              const title = `[fuzz] ${group.failureId}`;
-              const query = `repo:${context.repo.owner}/${context.repo.repo} is:issue is:open in:title "${title}"`;
+              if (group.action === 'record' || group.action === 'suppress') continue;
+              const regression = group.action === 'regression';
+              const title = `[fuzz${regression ? ' regression' : ''}] ${group.fingerprint}`;
+              const state = regression ? 'is:open ' : '';
+              const query = `repo:${context.repo.owner}/${context.repo.repo} is:issue ${state}in:title "${title}"`;
               const found = await github.rest.search.issuesAndPullRequests({ q: query });
-              const body = `Nightly fuzzing reproduced **${group.failureId}** ${group.count} time(s).\n\n` +
-                `Targets: ${group.targets.join(', ')}\nSeeds: ${group.seeds.join(', ')}\n` +
+              if (found.data.total_count !== 0) continue;
+              const canonical = group.canonicalIssue
+                ? `\nCanonical finding: #${group.canonicalIssue}\n`
+                : '';
+              const marker = `<!-- fuzz-fingerprint:${group.target}:${group.fingerprint} -->`;
+              const body = `${marker}\nNightly fuzzing reproduced **${group.fingerprint}** ${group.count} time(s).\n\n` +
+                `Target: ${group.target}\nRaw failure IDs: ${group.failureIds.join(', ')}\n` +
+                `Seeds: ${group.seeds.join(', ')}\n` + canonical +
                 `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\n` +
                 `Download the workflow artifact for raw inputs, traces, dumps, and replay files.`;
-              if (found.data.total_count === 0) {
-                await github.rest.issues.create({ ...context.repo, title, body });
-              } else {
-                await github.rest.issues.createComment({ ...context.repo, issue_number: found.data.items[0].number, body });
-              }
+              await github.rest.issues.create({ ...context.repo, title, body });
             }
       - name: Fail after artifact triage
-        if: steps.fuzz.outcome == 'failure'
-        run: exit 1
+        if: always()
+        env:
+          FUZZ_OUTCOME: ${{ steps.fuzz.outcome }}
+        run: |
+          test "$FUZZ_OUTCOME" != failure
+          jq -e '.blockingFailures == 0' artifacts/fuzz/failure-groups.json
 
   v8-differential:
     if: github.event_name == 'schedule' || (github.event_name != 'workflow_dispatch' || inputs.tier == 'smoke')
@@ -285,6 +296,7 @@ jobs:
       - run: dotnet restore LiteDB.Fuzz.Tests/LiteDB.Fuzz.Tests.csproj
       - run: dotnet build LiteDB.Fuzz/LiteDB.Fuzz.csproj -c Release -f net8.0 --no-restore -p:TestingEnabled=true
       - run: dotnet test LiteDB.Fuzz.Tests/LiteDB.Fuzz.Tests.csproj -c Release --no-restore -p:TestingEnabled=true
+      - run: python3 scripts/test-fuzz-finding-triage.py
       - run: >-
           dotnet run --project LiteDB.Fuzz -c Release -f net8.0 --no-build --
           --target query,index,bson,parser,mapper,value --seed 42947 --count 40
