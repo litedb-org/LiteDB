@@ -47,7 +47,7 @@ jobs:
       - name: Verify vector file compatibility with LiteDB 5.0.21
         run: python3 scripts/test-vector-compatibility.py
       - name: Verify MVCC file rejection by the v12 parent
-        run: python3 scripts/test-mvcc-compatibility.py
+        run: python3 scripts/test-mvcc-compatibility.py --parent-ref a2ea9a65a469f6449bb8838592f5266b078758b3
 
       - name: Build memory validation runner
         run: dotnet build tools/MemoryValidation/MemoryValidation.csproj --configuration Release
