@@ -60,6 +60,10 @@ Unused entry bytes are reserved. Proofs retain metadata, not old page payloads.
 The root CRC and each backward-link CRC bind the precise witness bytes; frame CRCs
 also bind salt and physical placement.
 
+For v13 journal verification, encrypted WAL reads use the same 8,256-byte chunks
+as retirement replay. This preserves the binding when torn ciphertext in an
+authorized retired slot triggers the encryption stream's blank-page handling.
+
 ## Recovery
 
 At each physical slot, replay its witnesses before considering its current bytes.
