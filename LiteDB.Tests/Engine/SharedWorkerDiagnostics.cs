@@ -68,27 +68,44 @@ internal sealed class SharedWorkerDiagnostics
     internal sealed class Worker
     {
         private readonly object _sync = new();
-        private readonly Stopwatch _elapsed = Stopwatch.StartNew();
+        private readonly Func<long> _elapsedMilliseconds;
         private string _stage = "queued";
         private int _completed;
         private int _thread;
         private long _lastProgress;
+        private long _lastCompleted;
+
+        internal Worker(Func<long> elapsedMilliseconds = null)
+        {
+            var elapsed = elapsedMilliseconds == null ? Stopwatch.StartNew() : null;
+            _elapsedMilliseconds = elapsedMilliseconds ?? (() => elapsed.ElapsedMilliseconds);
+            _lastCompleted = _elapsedMilliseconds();
+        }
+
+        internal long CompletedIdleMilliseconds
+        {
+            get { lock (_sync) return _elapsedMilliseconds() - _lastCompleted; }
+        }
 
         internal void Progress(string stage, int? completed = null)
         {
             lock (_sync)
             {
                 _stage = stage;
-                if (completed.HasValue) _completed = completed.Value;
+                if (completed.HasValue && completed.Value > _completed)
+                {
+                    _completed = completed.Value;
+                    _lastCompleted = _elapsedMilliseconds();
+                }
                 _thread = Environment.CurrentManagedThreadId;
-                _lastProgress = _elapsed.ElapsedMilliseconds;
+                _lastProgress = _elapsedMilliseconds();
             }
         }
 
         internal string Snapshot()
         {
             lock (_sync)
-                return $"stage={_stage}; completed={_completed}; thread={_thread}; elapsedMs={_elapsed.ElapsedMilliseconds}; lastProgressMs={_lastProgress}; idleMs={_elapsed.ElapsedMilliseconds - _lastProgress}";
+                return $"stage={_stage}; completed={_completed}; thread={_thread}; elapsedMs={_elapsedMilliseconds()}; lastProgressMs={_lastProgress}; idleMs={_elapsedMilliseconds() - _lastProgress}; lastCompletedMs={_lastCompleted}; completedIdleMs={_elapsedMilliseconds() - _lastCompleted}";
         }
     }
 }
