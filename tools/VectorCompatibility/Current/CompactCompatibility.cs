@@ -57,9 +57,27 @@ namespace VectorCompatibility.Current
                         for (var f = 0; f < 15; f++)
                             if (doc["RepeatedPropertyName" + f] != doc["_id"].AsInt32 + f) throw new Exception("BSON rebuild changed payload");
                     }
+                    // Inspect only after releasing engine handles, including on Windows.
+                    db.Dispose();
+                    VerifyBsonFile(path, password);
                 }
             }
             Console.WriteLine("Current engine: " + args[0] + " passed (plain and encrypted)");
+        }
+
+        private static void VerifyBsonFile(string path, string password)
+        {
+            using var file = File.OpenRead(path);
+            using var data = password == null ? (Stream)file : new AesStream(password, file, allowRecovery: false);
+            var page = new byte[8192];
+            for (long offset = 0; offset < data.Length; offset += page.Length)
+            {
+                data.ReadExactly(page);
+                if (offset == 0 && page[59] != 11)
+                    throw new Exception("BSON rebuild did not persist format v11");
+                if (page[4] == 6)
+                    throw new Exception("BSON rebuild retained a compact schema page at " + offset);
+            }
         }
     }
 }

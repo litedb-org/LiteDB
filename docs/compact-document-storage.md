@@ -112,7 +112,9 @@ schema. Public BSON and unrelated engine metadata retain their existing codecs.
 
 Run `python3 scripts/test-compact-compatibility.py` for generated v8, mixed-v12,
 array-only-v12, and encrypted fixtures, old-engine rejection in direct/shared
-modes, and a BSON rebuild read by LiteDB 5.0.21. Run the existing vector compatibility
+modes, and a BSON rebuild validated by the current engine and rejected by LiteDB
+5.0.21. Both plain and encrypted BSON rebuilds must persist v11 without compact
+schema pages. Run the existing vector compatibility
 script too. Focused tests are selected with `FullyQualifiedName~Compact`.
 
 The benchmark harness is `tools/CompactStorage`. See the immutable
