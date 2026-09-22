@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate v8/mixed-v10/array-only-v10 fixtures, verify old-engine rejection and downgrade."""
+"""Generate v8/mixed-v12/array-only-v12 fixtures; verify BSON rebuild and old-engine rejection."""
 import pathlib
 import subprocess
 import tempfile
@@ -20,4 +20,4 @@ with tempfile.TemporaryDirectory(prefix="litedb-compact-compatibility-") as dire
     run("Current", "compact-promote", directory)
     run("Legacy", "compact-reject", directory)
     run("Current", "compact-downgrade", directory)
-    run("Legacy", "compact-verify", directory)
+    run("Legacy", "compact-reject", directory)

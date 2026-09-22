@@ -20,10 +20,12 @@ namespace LiteDB.Engine
                     offset += read;
                 }
 
+                this.RecoverHeaderJournal(ref bytes);
                 if (bytes[0] == 1)
                     throw new LiteException(LiteException.INVALID_PASSWORD, "This data file is encrypted and needs a password to open");
 
                 // Validate identity and the complete header before permitting any repair.
+                this.LoadChecksums(new BufferSlice(bytes, 0, PAGE_SIZE));
                 return new HeaderPage(new PageBuffer(bytes, 0, 0));
             }
             finally

@@ -47,6 +47,10 @@ namespace LiteDB
             {
                 concurrent.FlushToDisk();
             }
+            else if (stream is ChecksummedWalStream wal)
+            {
+                wal.FlushToDisk();
+            }
 #if DEBUG || TESTING
             else if (stream is IDurableStream durable)
             {

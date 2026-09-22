@@ -36,7 +36,7 @@ namespace VectorCompatibility.Legacy
                             db.GetCollection("docs").FindAll().ToArray();
                         }
                         catch (LiteException ex) when (ex.ErrorCode == LiteException.INVALID_DATABASE) { rejected = true; }
-                        if (!rejected || !before.SequenceEqual(File.ReadAllBytes(file))) throw new Exception("Old engine must reject v10 without mutation");
+                        if (!rejected || !before.SequenceEqual(File.ReadAllBytes(file))) throw new Exception("Old engine must reject checksummed formats without mutation");
                     }
                 }
                 else

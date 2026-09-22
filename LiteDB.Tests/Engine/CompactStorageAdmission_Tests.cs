@@ -23,7 +23,7 @@ namespace LiteDB.Tests.Engine
             db.GetCollection("docs").Insert(docs);
             db.GetCollection("docs").Update(docs);
             db.Checkpoint();
-            stream.ToArray()[59].Should().Be(8);
+            stream.ToArray()[59].Should().Be(HeaderPage.INDEX_FILE_VERSION);
             db.GetCollection("docs").FindAll().Count().Should().Be(1000);
         }
 
@@ -37,7 +37,7 @@ namespace LiteDB.Tests.Engine
                 ["_id"] = 1, ["payload"] = new byte[Constants.MAX_DOCUMENT_SIZE]
             });
             insert.Should().Throw<LiteException>().WithMessage("Document size exceed*");
-            stream.ToArray()[59].Should().Be(8);
+            stream.ToArray()[59].Should().Be(HeaderPage.INDEX_FILE_VERSION);
         }
 
         [Fact]

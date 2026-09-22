@@ -19,8 +19,12 @@ namespace VectorCompatibility.Current
                 {
                     var original = File.ReadAllBytes(path);
                     connection.ReadOnly = true;
-                    using (var db = new LiteDatabase(connection))
-                        if (db.GetCollection("docs").FindById(1)["value"] != "legacy") throw new Exception("Lost legacy document");
+                    try
+                    {
+                        using var rejected = new LiteDatabase(connection);
+                        throw new Exception("Legacy read-only open must request index migration.");
+                    }
+                    catch (LiteException error) when (error.Message.Contains("index ordering/collation requires migration")) { }
                     if (!original.SequenceEqual(File.ReadAllBytes(path))) throw new Exception("Read-only open mutated legacy file");
                     connection.ReadOnly = false;
                     using (var db = new LiteDatabase(connection))
@@ -46,7 +50,13 @@ namespace VectorCompatibility.Current
                     if (db.GetCollection("docs").FindAll().Count() != 50) throw new Exception("Mixed file lost documents");
                     var options = new RebuildOptions { CompactStorage = CompactStorageMode.Legacy, Password = password };
                     db.Rebuild(options);
-                    if (options.GetErrorReport().Any()) throw new Exception("Downgrade failed");
+                    if (options.GetErrorReport().Any()) throw new Exception("BSON rebuild failed");
+                    if (db.GetCollection("docs").FindById(1)["value"] != "legacy") throw new Exception("Lost legacy document");
+                    foreach (var doc in db.GetCollection("docs").FindAll().Where(doc => doc["_id"].AsInt32 > 1))
+                    {
+                        for (var f = 0; f < 15; f++)
+                            if (doc["RepeatedPropertyName" + f] != doc["_id"].AsInt32 + f) throw new Exception("BSON rebuild changed payload");
+                    }
                 }
             }
             Console.WriteLine("Current engine: " + args[0] + " passed (plain and encrypted)");

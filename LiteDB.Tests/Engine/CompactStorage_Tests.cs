@@ -53,7 +53,7 @@ namespace LiteDB.Tests.Engine
                 db.DropCollection("renamed").Should().BeTrue();
                 db.GetCollection("new").Insert(Enumerable.Range(1, 50).Select(Document));
             }
-            if (password == null) File.ReadAllBytes(file.Filename)[HeaderPage.P_FILE_VERSION].Should().Be(8);
+            if (password == null) File.ReadAllBytes(file.Filename)[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.INDEX_FILE_VERSION);
         }
 
         [Fact]
@@ -69,7 +69,7 @@ namespace LiteDB.Tests.Engine
                 db.Checkpoint();
                 db.BeginTrans();
                 db.GetCollection("docs").Insert(Enumerable.Range(2, 200).Select(Document));
-                stream.ToArray()[59].Should().Be(10);
+                stream.ToArray()[59].Should().Be(HeaderPage.COMPACT_FILE_VERSION);
                 db.Rollback();
                 db.GetCollection("docs").FindAll().Select(d => d["_id"].AsInt32).Should().Equal(1);
                 db.GetCollection("docs").Insert(Enumerable.Range(2, 100).Select(Document));
@@ -78,7 +78,7 @@ namespace LiteDB.Tests.Engine
             {
                 db.GetCollection("docs").FindAll().Count().Should().Be(101);
                 db.Checkpoint();
-                stream.ToArray()[59].Should().Be(10);
+                stream.ToArray()[59].Should().Be(HeaderPage.COMPACT_FILE_VERSION);
                 db.DropCollection("docs");
                 db.GetCollection("replacement").Insert(Enumerable.Range(1, 100).Select(Document));
                 BsonSerializer.Serialize(db.GetCollection("replacement").FindById(10)).Should().Equal(BsonSerializer.Serialize(Document(10)));
@@ -86,7 +86,7 @@ namespace LiteDB.Tests.Engine
         }
 
         [Fact]
-        public void Compact_storage_preserves_vector_queries_and_v9_downgrade_floor()
+        public void Compact_storage_preserves_vector_queries_and_v11_BSON_rebuild_floor()
         {
             using var file = new TempFile();
             var docs = Enumerable.Range(1, 20).Select(i =>
@@ -104,7 +104,7 @@ namespace LiteDB.Tests.Engine
                 db.GetCollection("docs").FindById(1)["Embedding"].IsVector.Should().BeTrue();
             }
             // File.ReadAllBytes cannot share the live engine's file handle on Windows.
-            File.ReadAllBytes(file.Filename)[59].Should().Be(9);
+            File.ReadAllBytes(file.Filename)[59].Should().Be(HeaderPage.INDEX_FILE_VERSION);
         }
 
         [Fact]
@@ -134,7 +134,7 @@ namespace LiteDB.Tests.Engine
         }
 
         [Fact]
-        public void Auto_promotes_existing_v8_databases_on_first_compact_write()
+        public void Auto_promotes_existing_v11_databases_on_first_compact_write()
         {
             using var stream = new MemoryStream();
 
@@ -150,7 +150,7 @@ namespace LiteDB.Tests.Engine
 
             using (var db = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = stream })))
             {
-                stream.ToArray()[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.FILE_VERSION);
+                stream.ToArray()[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.INDEX_FILE_VERSION);
                 db.GetCollection("docs").Insert(Enumerable.Range(2, 20).Select(Document));
                 db.Checkpoint();
             }
@@ -159,7 +159,7 @@ namespace LiteDB.Tests.Engine
         }
 
         [Fact]
-        public void Auto_rebuild_promotes_an_existing_v8_database()
+        public void Auto_rebuild_promotes_an_existing_v11_database()
         {
             using var file = new TempFile();
             using (var db = new LiteDatabase(new ConnectionString
@@ -171,7 +171,7 @@ namespace LiteDB.Tests.Engine
                 db.GetCollection("docs").Insert(Enumerable.Range(1, 20).Select(Document));
                 db.Checkpoint();
             }
-            File.ReadAllBytes(file.Filename)[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.FILE_VERSION);
+            File.ReadAllBytes(file.Filename)[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.INDEX_FILE_VERSION);
 
             using (var db = new LiteDatabase(file.Filename))
             {
@@ -183,7 +183,7 @@ namespace LiteDB.Tests.Engine
         }
 
         [Fact]
-        public void Auto_keeps_compact_writes_for_existing_v10_databases()
+        public void Auto_keeps_compact_writes_for_existing_v12_databases()
         {
             using var stream = new MemoryStream();
 

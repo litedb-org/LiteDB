@@ -118,7 +118,7 @@ internal sealed class CompactStorageFuzzer : IFuzzTarget
             db.Checkpoint();
         }
         context.Check(ReadVersion(autoFile) == HeaderPage.COMPACT_FILE_VERSION,
-            "Auto did not create a v10 database.");
+            "Auto did not create a v12 database.");
         context.Check(HasSchemaPage(autoFile), "Auto did not persist a schema for repeated compact documents.");
         DatabaseIntegrityVerifier.Verify(context, autoFile);
 
@@ -128,24 +128,24 @@ internal sealed class CompactStorageFuzzer : IFuzzTarget
             db.GetCollection("docs").Insert(Enumerable.Range(1, 4).Select(CompactFuzzDocuments.Fixed));
             db.Checkpoint();
         }
-        context.Check(ReadVersion(legacyFile) == HeaderPage.FILE_VERSION,
-            "Legacy mode did not retain v8.");
+        context.Check(ReadVersion(legacyFile) == HeaderPage.INDEX_FILE_VERSION,
+            "Legacy mode did not retain v11.");
         using (var db = Open(legacyFile))
         {
             db.GetCollection("docs").Insert(Enumerable.Range(5, 8).Select(CompactFuzzDocuments.Fixed));
             db.Checkpoint();
         }
         context.Check(ReadVersion(legacyFile) == HeaderPage.COMPACT_FILE_VERSION,
-            "Auto did not lazily promote an existing v8 database.");
+            "Auto did not lazily promote an existing v11 database.");
 
         using (var db = Open(legacyFile))
             db.Rebuild(new RebuildOptions { CompactStorage = CompactStorageMode.Legacy });
-        context.Check(ReadVersion(legacyFile) == HeaderPage.FILE_VERSION,
-            "Legacy rebuild did not downgrade a compact database to v8.");
+        context.Check(ReadVersion(legacyFile) == HeaderPage.INDEX_FILE_VERSION,
+            "Legacy rebuild did not downgrade a compact database to v11.");
         using (var db = Open(legacyFile))
             db.Rebuild(new RebuildOptions { CompactStorage = CompactStorageMode.Auto });
         context.Check(ReadVersion(legacyFile) == HeaderPage.COMPACT_FILE_VERSION,
-            "Auto rebuild did not promote a v8 database.");
+            "Auto rebuild did not promote a v11 database.");
         using (var db = Open(legacyFile))
             db.Rebuild(new RebuildOptions { CompactStorage = CompactStorageMode.Legacy });
         using (var db = Open(legacyFile))
@@ -167,7 +167,7 @@ internal sealed class CompactStorageFuzzer : IFuzzTarget
             db.Rollback();
         }
         context.Check(ReadVersion(rollbackFile) == HeaderPage.COMPACT_FILE_VERSION,
-            "Rolled-back first compact write lost its durable v10 promotion.");
+            "Rolled-back first compact write lost its durable v12 promotion.");
         using (var db = Open(rollbackFile))
             context.Check(db.GetCollection("docs").Count() == 1, "Rollback published compact documents or schemas.");
         DatabaseIntegrityVerifier.Verify(context, rollbackFile);
@@ -205,9 +205,10 @@ internal sealed class CompactStorageFuzzer : IFuzzTarget
     private static void VerifyKindQuery(FuzzContext context, ILiteCollection<BsonDocument> rows,
         IReadOnlyDictionary<int, BsonDocument> expected, int kind)
     {
-        var actual = rows.Find(Query.EQ("$.Kind", kind)).Select(document => document["_id"].AsInt32).Order().ToArray();
-        var modeled = expected.Where(pair => pair.Value["Kind"].AsInt32 == kind).Select(pair => pair.Key).Order().ToArray();
-        context.Check(actual.SequenceEqual(modeled), "Compact secondary-index query differs from the model.");
+        var actual = rows.Find(Query.EQ("$.Kind", kind)).OrderBy(document => document["_id"].AsInt32).ToArray();
+        var modeled = expected.Where(pair => pair.Value["Kind"].AsInt32 == kind).OrderBy(pair => pair.Key).Select(pair => pair.Value).ToArray();
+        context.Check(actual.Length == modeled.Length && actual.Zip(modeled, CompactFuzzDocuments.Equal).All(equal => equal),
+            "Compact secondary-index payloads differ from the model.");
     }
 
     private static byte ReadVersion(string file) => File.ReadAllBytes(file)[HeaderPage.P_FILE_VERSION];

@@ -3,36 +3,33 @@
 Issue: https://github.com/litedb-org/LiteDB/issues/2920
 
 `CompactStorageMode` controls writes in `EngineSettings`, `ConnectionString`, and
-`RebuildOptions`. `Auto` is the default: new databases are created as v10 and all
-databases use compact writes when beneficial. Existing v8/v9 databases are lazily
-promoted on their first compact write. `Legacy` always writes BSON. `Compact`
-also enables compact writes, but unlike `Auto` a new empty database remains v8
-until it actually stores a beneficial compact document.
-Connection strings use `Compact Storage=Auto|Legacy|Compact`; the earlier Boolean
-spellings remain accepted as aliases for `Compact` and `Legacy`.
+`RebuildOptions`. `Auto` is the default: new databases use **format v12** and
+compact writes when beneficial. `Legacy` always writes BSON. `Compact` also
+uses compact writes, but a new empty database starts at v11 until its first
+beneficial compact write. Connection strings accept `Auto|Legacy|Compact`;
+the Boolean aliases still select `Compact` and `Legacy`.
+
+This feature is stacked on v10 checksums and v11 index ordering. Writable v8/v9/v10
+opens perform those earlier migrations first. Read-only opens requiring index
+migration reject without changing bytes. A v11 file does not promote merely
+because it is opened: its first beneficial compact write durably publishes v12
+through the checksum header recovery journal before schema or compact document
+pages enter the WAL. Interrupted publication is recoverable. Promotion is
+monotonic through rollback, replay and checkpoint; a rolled-back compact write
+can leave a v12 file containing only BSON. Older engines reject unsupported
+versions. Concurrent access by different engine versions is unsupported.
 
 All modes read BSON and compact documents. Changing the mode does not scan or
-rewrite existing documents. Read-only and idle opens of existing databases do not
-promote the file. Public `BsonSerializer` continues to produce BSON.
+rewrite existing documents. Public `BsonSerializer` continues to produce BSON.
 
-New `Auto` databases start at v10 so later opens can retain their write policy.
-For an existing v8/v9 database opened with `Auto` or `Compact`, the first
-beneficial compact write durably promotes the file to v10 before schema or document pages can reach
-the WAL. `Legacy` files remain v8 unless vectors require v9, and promotion is
-monotonic through rollback, replay, and checkpoint. A rolled-back first compact
-write can leave a v10 file containing only BSON.
-Older engines reject v10; simultaneous writable access by different engine
-versions is not supported.
-
-`Rebuild(new RebuildOptions { CompactStorage = CompactStorageMode.Compact })`
-converts useful shapes and regenerates catalogs through the existing temporary-
-file/backup process. `Legacy` explicitly writes BSON to the rebuilt file; vector
-data/indexes still impose the v9 floor. A null rebuild option retains the engine
-policy. `Auto` rebuilds into a new v10 database and uses compact writes; select
-`Legacy` explicitly to retain or restore the old format. The setting on the
-existing engine remains unchanged after rebuild;
-reopen with `Legacy` before using a downgraded file with old software. Explicit
-rebuild options retain the existing password/collation semantics.
+Explicit rebuild regenerates useful compact shapes and schema catalogs through
+the temporary-file/backup process protected by rebuild recovery (#2978).
+`Rebuild(new RebuildOptions { CompactStorage = CompactStorageMode.Legacy })`
+produces BSON in a v11 file, retaining checksums and current index ordering.
+It does **not** make the file readable by released v8/v9 engines. `Auto` rebuilds
+into v12. A null rebuild option retains the engine policy; explicit options retain
+the existing password/collation semantics. Reopen with `Legacy` if subsequent
+writes must also remain BSON.
 
 ## V1 layout
 
@@ -113,9 +110,9 @@ schema. Public BSON and unrelated engine metadata retain their existing codecs.
 
 ## Validation and measurements
 
-Run `python3 scripts/test-compact-compatibility.py` for generated v8, mixed-v10,
-array-only-v10, and encrypted fixtures, old-engine rejection in direct/shared
-modes, and a downgrade read by LiteDB 5.0.21. Run the existing vector compatibility
+Run `python3 scripts/test-compact-compatibility.py` for generated v8, mixed-v12,
+array-only-v12, and encrypted fixtures, old-engine rejection in direct/shared
+modes, and a BSON rebuild read by LiteDB 5.0.21. Run the existing vector compatibility
 script too. Focused tests are selected with `FullyQualifiedName~Compact`.
 
 The benchmark harness is `tools/CompactStorage`. See the immutable

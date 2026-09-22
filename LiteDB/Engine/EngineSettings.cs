@@ -62,6 +62,13 @@ namespace LiteDB.Engine
         public long InitialSize { get; set; } = 0;
 
         /// <summary>
+        /// Optional increased LIMIT_SIZE, in bytes, used only when migrating legacy indexes.
+        /// Must be at least the stored limit. Persisted with successful migration; null preserves it.
+        /// Allows retrying an incomplete migration whose stored limit is too small.
+        /// </summary>
+        public long? IndexMigrationLimitSize { get; set; }
+
+        /// <summary>
         /// Soft page-cache target in bytes. Zero selects the storage-specific
         /// default of the selected <see cref="MemoryProfile"/>.
         /// </summary>
@@ -93,7 +100,7 @@ namespace LiteDB.Engine
         public bool AutoRebuild { get; set; } = false;
 
         /// <summary>
-        /// Rebuild format v7 files before opening, retaining a backup. Ordinary v8 files remain compatible without migration.
+        /// Rebuild format v7 files before opening, retaining a backup. Writable v8/v9 opens migrate indexes automatically.
         /// </summary>
         public bool Upgrade { get; set; } = false;
 
@@ -115,8 +122,8 @@ namespace LiteDB.Engine
         /// system crash. This costs about one device sync per commit; transactions that batch many writes and
         /// InsertBulk pay it once. When false (the behaviour before 6.0), committed data is handed to the operating
         /// system only: it survives a crash of the process, but a power loss or operating system crash can lose the
-        /// most recent commits, and because unsynced log pages may reach the device in any order it can, rarely,
-        /// leave the last transactions partially applied. Checkpoints and file creation are synced either way.
+        /// most recent commits. Checksummed WAL recovery discards incomplete transactions and their dependent tail.
+        /// Checkpoints and file creation are synced either way.
         /// Not stored in the data file: the same file can be opened with either value. Has no effect on
         /// <c>:memory:</c>, <c>:temp:</c> and non-file streams, which cannot be synced. (default: true)
         /// </summary>

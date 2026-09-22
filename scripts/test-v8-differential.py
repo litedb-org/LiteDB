@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Fuzz ordinary v8 files across the current and released engines in separate processes."""
+"""Compare generated workloads across released v8 and current checksum files."""
 import argparse
 import pathlib
 import subprocess
+import shutil
 import tempfile
 
 root = pathlib.Path(__file__).resolve().parent.parent
@@ -34,27 +35,45 @@ with tempfile.TemporaryDirectory(prefix="litedb-v8-differential-") as temporary:
     directory = pathlib.Path(temporary)
     for shard in range(args.seeds):
         seed = 2947 + shard * 1000003
-        for creator, verifier in (("Legacy", "Current"), ("Current", "Legacy")):
-            for encrypted in (False, True):
-                password = "compatibility-secret" if encrypted else ""
-                label = f"{creator.lower()}-{shard}-{'encrypted' if encrypted else 'plain'}"
-                database = directory / (label + ".db")
-                first = directory / (label + "-first.json")
-                second = directory / (label + "-second.json")
-                create_args = ["create", database, first, seed, 0]
+        for encrypted in (False, True):
+            password = "compatibility-secret" if encrypted else ""
+            label = f"{shard}-{'encrypted' if encrypted else 'plain'}"
+            legacy = directory / (label + "-legacy.db")
+            converted = directory / (label + "-converted.db")
+            fresh = directory / (label + "-fresh.db")
+            baseline = directory / (label + "-baseline.json")
+            expected = directory / (label + "-expected.json")
+            actual = directory / (label + "-actual.json")
+
+            def invoke(engine, action, file, snapshot, operation_seed=seed, operations=0):
+                arguments = [action, file, snapshot, operation_seed, operations]
                 if password:
-                    create_args.append(password)
-                run(creator, *create_args)
-                verify_args = ["verify", database, first, seed, 0]
-                if password:
-                    verify_args.append(password)
-                run(verifier, *verify_args)
-                mutate_args = ["mutate", database, second, seed ^ 0x51ED270B, args.operations]
-                if password:
-                    mutate_args.append(password)
-                run(verifier, *mutate_args)
-                verify_second = ["verify", database, second, seed, 0]
-                if password:
-                    verify_second.append(password)
-                run(creator, *verify_second)
-print(f"v8 differential: {args.seeds * 4} cross-engine cases passed")
+                    arguments.append(password)
+                run(engine, *arguments)
+
+            invoke("Legacy", "create", legacy, baseline)
+            shutil.copyfile(legacy, converted)
+            before = converted.read_bytes()
+            invoke("Current", "needs-migration", converted, baseline)
+            if converted.read_bytes() != before:
+                raise AssertionError("Read-only legacy verification changed its file")
+            mutation_seed = seed ^ 0x51ED270B
+            invoke("Legacy", "mutate", legacy, expected, mutation_seed, args.operations)
+            invoke("Current", "mutate", converted, actual, mutation_seed, args.operations)
+            if expected.read_bytes() != actual.read_bytes():
+                raise AssertionError("Converted workload differs from the released engine")
+            invoke("Current", "verify", converted, expected)
+            invoke("Legacy", "reject", converted, expected)
+            before = legacy.read_bytes()
+            invoke("Current", "needs-migration", legacy, expected)
+            if legacy.read_bytes() != before:
+                raise AssertionError("Read-only legacy verification changed its file")
+            invoke("Current", "create", fresh, actual)
+            if baseline.read_bytes() != actual.read_bytes():
+                raise AssertionError("New checksum file differs from the released engine")
+            invoke("Legacy", "reject", fresh, baseline)
+            invoke("Current", "mutate", fresh, actual, mutation_seed, args.operations)
+            if expected.read_bytes() != actual.read_bytes():
+                raise AssertionError("New checksum workload differs from the released engine")
+            invoke("Current", "verify", fresh, expected)
+print(f"v8/checksum differential: {args.seeds * 2} plain/encrypted cases passed (converted and new files)")

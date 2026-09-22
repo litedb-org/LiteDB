@@ -48,6 +48,12 @@ namespace LiteDB
         public long InitialSize { get; set; } = 0;
 
         /// <summary>
+        /// "index migration limit size": Optional increased LIMIT_SIZE for legacy index migration.
+        /// Supports KB/MB/GB; persisted with successful migration. Null preserves the stored limit.
+        /// </summary>
+        public long? IndexMigrationLimitSize { get; set; }
+
+        /// <summary>
         /// "cache size": Soft page-cache target in bytes. Supports KB, MB,
         /// and GB suffixes. Zero selects the profile's storage-specific default.
         /// </summary>
@@ -91,7 +97,7 @@ namespace LiteDB
         /// survives power loss and operating system crashes, at about one device sync per commit. Set to false for
         /// the behaviour before 6.0: commits are handed to the operating system only, which is much faster for many
         /// small transactions and still survives a process crash, but a power loss or operating system crash can lose
-        /// the most recent commits or, rarely, leave them partially applied. Not stored in the data file (default: true)
+        /// the most recent commits. Checksums prevent partial WAL transactions from being recovered. Not stored in the data file (default: true)
         /// </summary>
         public bool DurableCommits { get; set; } = true;
 
@@ -160,6 +166,8 @@ namespace LiteDB
             {
                 this.CompactStorage = ParseCompactStorage(compactStorage);
             }
+            if (_values.ContainsKey("index migration limit size"))
+                this.IndexMigrationLimitSize = _values.GetFileSize("index migration limit size", 0);
             this.ReadOnly = _values.GetValue("readonly", this.ReadOnly);
 
             this.Collation = _values.ContainsKey("collation") ? new Collation(_values.GetValue<string>("collation")) : this.Collation;
@@ -184,6 +192,7 @@ namespace LiteDB
             return firstKey.Equals("filename", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("connection", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("password", StringComparison.OrdinalIgnoreCase) ||
+                firstKey.Equals("index migration limit size", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("initialsize", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("initial size", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("compact storage", StringComparison.OrdinalIgnoreCase) ||
@@ -259,6 +268,7 @@ namespace LiteDB
                 Filename = this.Filename,
                 Password = this.Password,
                 InitialSize = this.InitialSize,
+                IndexMigrationLimitSize = this.IndexMigrationLimitSize,
                 MemoryProfile = this.MemoryProfile,
                 CacheSize = this.CacheSize,
                 TransactionPageLimit = this.TransactionPageLimit,
@@ -321,6 +331,9 @@ namespace LiteDB
             }
 
             var fileNameLength = bld.Length;
+
+            if (IndexMigrationLimitSize.HasValue)
+                bld.Append("index migration limit size=").AppendFormat(CultureInfo.InvariantCulture, "{0:D}", IndexMigrationLimitSize.Value).Append(';');
 
             if (Connection != ConnectionType.Direct)
             {

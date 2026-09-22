@@ -370,6 +370,7 @@ namespace LiteDB.Engine
             }
 
             _state = TransactionState.Aborted;
+            _disk.ForgetWalTransaction(_transactionID);
         }
 
         /// <summary>

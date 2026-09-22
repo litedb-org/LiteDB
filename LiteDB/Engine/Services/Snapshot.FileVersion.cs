@@ -18,7 +18,7 @@ namespace LiteDB.Engine
             lock (_header)
             {
                 if (_header.FileVersion >= requiredVersion) return;
-                _disk.RequireFileVersion(requiredVersion);
+                _disk.PromoteFileFormat(requiredVersion);
                 _header.EnsureVersion(requiredVersion);
             }
         }

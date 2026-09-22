@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 
 using static LiteDB.Constants;
@@ -27,6 +28,9 @@ namespace LiteDB.Engine
 
             header.Pragmas.Set(Pragmas.COLLATION, (collation ?? Collation.Default).ToString(), false);
             header.UpdateBuffer();
+            _checksums.Reset(Guid.NewGuid().ToByteArray());
+            FileVersion = header.FileVersion;
+            this.StampDataPage(buffer);
             stream.Write(buffer.Array, buffer.Offset, PAGE_SIZE);
 
             if (initialSize > 0)

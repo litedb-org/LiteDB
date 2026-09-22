@@ -31,6 +31,7 @@ namespace LiteDB.Engine
         /// Get/Set page bytes origin (data/log)
         /// </summary>
         public FileOrigin Origin;
+        internal WalChecksum.Frame WalFrame;
 
         /// <summary>
         /// Get/Set how many read-share threads are using this page. -1 means 1 thread are using as writable

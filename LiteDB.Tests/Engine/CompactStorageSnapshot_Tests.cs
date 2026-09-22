@@ -46,7 +46,7 @@ namespace LiteDB.Tests.Engine
             using var db = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = stream, CompactStorage = CompactStorageMode.Compact }));
             var docs = db.GetCollection("docs");
             for (var i = 1; i <= 10; i++) docs.Insert(CompactStorage_Tests.Document(i));
-            stream.ToArray()[59].Should().Be(10);
+            stream.ToArray()[59].Should().Be(HeaderPage.COMPACT_FILE_VERSION);
             docs.FindById(2)["RepeatedPropertyName0"].AsInt32.Should().Be(2);
             db.Checkpoint();
             db.DropCollection("docs");

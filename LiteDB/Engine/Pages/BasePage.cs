@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using static LiteDB.Constants;
 
@@ -42,6 +41,7 @@ namespace LiteDB.Engine
         public const int P_FRAGMENTED_BYTES = 26; // 26-27 [ushort]
         public const int P_NEXT_FREE_POSITION = 28; // 28-29 [ushort]
         public const int P_HIGHEST_INDEX = 30; // 30-30 [byte]
+        public const int P_PAGE_FORMAT = 31; // legacy / checksummed / future format
 
         #endregion
 

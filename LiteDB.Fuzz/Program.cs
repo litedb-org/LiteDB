@@ -14,8 +14,9 @@ internal static class Program
         new PowerLossFuzzer(), new BoundaryFuzzer(), new ReadOnlyFuzzer(), new SqlDmlFuzzer(),
         new CompatibilityFuzzer(), new RecoveryFuzzer(), new ChaosFuzzer(), new ApiBoundaryFuzzer(),
         new StorageFailureFuzzer(), new OracleSelfTestFuzzer(), new PressureFuzzer(), new MalformedFileFuzzer(),
-        new RebuildTransitionFuzzer(), new ConflictFuzzer(), new CompactCodecFuzzer(),
-        new CompactStorageFuzzer(), new TransactionGateFuzzer(), new CursorHandoffFuzzer()
+        new RebuildTransitionFuzzer(), new ConflictFuzzer(), new TransactionGateFuzzer(), new CursorHandoffFuzzer(),
+        new ChecksumPageFuzzer(), new ChecksumWalFuzzer(), new ChecksumMigrationFuzzer(), new ChecksumCrashFuzzer(),
+        new CompactCodecFuzzer(), new CompactStorageFuzzer(), new CompactCrashFuzzer()
     };
 
     internal static async Task<int> Main(string[] args)
@@ -145,6 +146,7 @@ internal static class Program
             var failureText = error.ToString();
             Console.Error.WriteLine($"FUZZ FAILURE {target.Name} seed={seed} step={context.Steps}\n{failureText}");
             await File.WriteAllTextAsync(Path.Combine(directory, "failure-before-minimization.txt"), failureText);
+            // Persist the original failure and flush recorded input before minimization replays it.
             await FuzzArtifacts.WriteResultAsync(context, started, failure);
             try
             {

@@ -21,9 +21,21 @@ internal static class Program
         if (action == "create") Create(file, snapshot, seed, password);
         else if (action == "mutate") Mutate(file, snapshot, seed, operations, password);
         else if (action == "verify") Verify(file, snapshot, password);
+        else if (action == "reject") Reject(file, password);
+        else if (action == "needs-migration") NeedsMigration(file, password);
         else throw new ArgumentException("Unknown action " + action);
         Console.WriteLine($"{typeof(LiteDatabase).Assembly.GetName().Version}: {action} passed for {Path.GetFileName(file)}");
         return 0;
+    }
+
+    private static void NeedsMigration(string file, string password)
+    {
+        try
+        {
+            using var db = Open(file, password, readOnly: true);
+            throw new InvalidDataException("Legacy read-only open must request index migration.");
+        }
+        catch (LiteException error) when (error.Message.Contains("index ordering/collation requires migration")) { }
     }
 
     private static void Create(string file, string snapshot, int seed, string password)
@@ -60,7 +72,7 @@ internal static class Program
     private static void Verify(string file, string snapshot, string password)
     {
         var expected = System.Text.Json.JsonSerializer.Deserialize<SnapshotRow[]>(File.ReadAllText(snapshot));
-        using var db = Open(file, password);
+        using var db = Open(file, password, readOnly: true);
         var actual = Rows(db).ToArray();
         if (!expected.SequenceEqual(actual)) throw new InvalidDataException("Cross-version logical snapshot mismatch.");
         var indexed = db.GetCollection("rows").Query().OrderBy("Value").ToArray()
@@ -72,7 +84,7 @@ internal static class Program
 
     private static void Save(string file, string snapshot, string password)
     {
-        using var db = Open(file, password);
+        using var db = Open(file, password, readOnly: true);
         File.WriteAllText(snapshot, System.Text.Json.JsonSerializer.Serialize(Rows(db),
             new JsonSerializerOptions { WriteIndented = true }));
     }
@@ -94,18 +106,31 @@ internal static class Program
         ["Payload"] = BitConverter.GetBytes(mixed)
     };
 
-    private static LiteDatabase Open(string file, string password)
+    private static LiteDatabase Open(string file, string password, bool readOnly = false) => new(new ConnectionString
     {
-        var connection = new ConnectionString
+        Filename = file,
+        Password = password,
+        ReadOnly = readOnly
+    });
+
+    private static void Reject(string file, string password)
+    {
+        var before = File.ReadAllBytes(file);
+        var log = Path.ChangeExtension(file, null) + "-log.db";
+        var beforeLog = File.Exists(log) ? File.ReadAllBytes(log) : Array.Empty<byte>();
+        foreach (var readOnly in new[] { true, false })
         {
-            Filename = file,
-            Password = password
-        };
-#if CURRENT_LITEDB
-        // This differential intentionally produces files that LiteDB 5.0.21 can open.
-        connection.CompactStorage = CompactStorageMode.Legacy;
-#endif
-        return new LiteDatabase(connection);
+            var rejected = false;
+            try
+            {
+                using var db = Open(file, password, readOnly);
+                db.GetCollection("rows").Count();
+            }
+            catch (LiteException error) when (error.ErrorCode == LiteException.INVALID_DATABASE) { rejected = true; }
+            var afterLog = File.Exists(log) ? File.ReadAllBytes(log) : Array.Empty<byte>();
+            if (!rejected || !before.SequenceEqual(File.ReadAllBytes(file)) || !beforeLog.SequenceEqual(afterLog))
+                throw new InvalidDataException("Released engine must reject checksum files without changing data or WAL.");
+        }
     }
 
     private static uint Mix(int seed, int value)

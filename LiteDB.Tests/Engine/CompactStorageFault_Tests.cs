@@ -44,7 +44,7 @@ namespace LiteDB.Tests.Engine
                     db.Checkpoint();
                 }
                 // Inspect the persisted header after releasing the engine's Windows file handle.
-                if (password == null) File.ReadAllBytes(file.Filename)[59].Should().Be(10);
+                if (password == null) File.ReadAllBytes(file.Filename)[59].Should().Be(HeaderPage.COMPACT_FILE_VERSION);
             }
         }
 
@@ -88,6 +88,8 @@ namespace LiteDB.Tests.Engine
             var bytes = File.ReadAllBytes(file.Filename);
             var page = Enumerable.Range(0, bytes.Length / 8192).First(i => bytes[i * 8192 + 4] == (byte)PageType.Schema);
             bytes[page * 8192 + offset] ^= 0x40;
+            // Exercise malformed catalog semantics even when the enclosing CRC is valid.
+            PageChecksum.Write(new BufferSlice(bytes, page * Constants.PAGE_SIZE, Constants.PAGE_SIZE));
             File.WriteAllBytes(file.Filename, bytes);
             using (var db = new LiteDatabase(file.Filename))
             {

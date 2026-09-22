@@ -7,17 +7,17 @@ namespace LiteDB
     public enum CompactStorageMode
     {
         /// <summary>
-        /// Use compact writes when beneficial. New databases start at v10;
-        /// existing v8/v9 databases are promoted on their first compact write.
+        /// Use compact writes when beneficial. New databases start at v12;
+        /// existing v11 databases are promoted on their first compact write.
         /// </summary>
         Auto = 0,
 
-        /// <summary>Always write legacy BSON documents.</summary>
+        /// <summary>Always write BSON documents; checksums and current index ordering remain required.</summary>
         Legacy = 1,
 
         /// <summary>
         /// Use compact writes when beneficial, lazily promoting existing
-        /// v8/v9 databases to v10 on the first compact write.
+        /// v11 databases to v12 on the first compact write.
         /// </summary>
         Compact = 2
     }
