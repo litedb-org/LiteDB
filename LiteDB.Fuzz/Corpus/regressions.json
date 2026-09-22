@@ -130,6 +130,11 @@
           "inputHash": "FB86D1F99A69BD5774C0894DD66A4AE9454B5483FB1056211E9F3C21A168EF6D",
           "traceHash": "05D06D54CCFBF486B2983B39D6EBE6FF7168C013690204CBC5F1FD1C41F56EE2",
           "reason": "Before the pre-footer padding durability barrier changed sampled I/O events."
+        },
+        {
+          "inputHash": "40338F9EDA52B8E85E11AE6C315E4AF88AC0CE060E90D4B278B9B51F32268BFB",
+          "traceHash": "21EA2F561A566CE06D4C792177E43656A70B31E2304190612C2723255E432E03",
+          "reason": "Before clearing modern ordering metadata from legacy fixtures; revalidated after strict durable journals and recoverable encrypted WAL initialization."
         }
       ]
     },
@@ -150,6 +155,11 @@
           "inputHash": "487C95E516D71A96ECD5763814FCA106548CEA306C6D60B0F02EEE6252212510",
           "traceHash": "F7BDA817A3EDDB5F3E65F4B6315D7EF52105A91486446477C04899EEC6F40CE2",
           "reason": "Before the pre-footer padding durability barrier changed sampled I/O events."
+        },
+        {
+          "inputHash": "D861B81EFAE68EE34B0F755A9BCBD18B9B466C50A4E57F6849D9E6CDBE230C7A",
+          "traceHash": "915232CE2080EB50A6EACD08D04F0DBA87C9FD4335F7D2A2C204A6D5FBD933B3",
+          "reason": "Before clearing modern ordering metadata from legacy fixtures; revalidated after strict durable journals and recoverable encrypted WAL initialization."
         }
       ]
     },

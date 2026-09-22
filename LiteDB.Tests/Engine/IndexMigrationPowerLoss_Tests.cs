@@ -24,9 +24,16 @@ namespace LiteDB.Tests.Engine
             var original = Fixture(password, out _);
             using var device = new IndexMigrationCrashDevice(original, Array.Empty<byte>());
             Migrate(device, password);
-            var markerOnly = device.Images.First(x => x.Event == "migration:log.torn-write" && x.Log.Length == 1);
-            markerOnly.Log.Should().Equal(new byte[] { 1 });
-            try { AssertRecovered(markerOnly, password); }
+            // Preserve the exact failure image even if the repaired writer now
+            // groups its marker/salt write and no longer emits that boundary.
+            var markerOnly = new IndexMigrationCrashDevice.Image { Data = original, Log = new byte[] { 1 } };
+            var shortPreambles = device.Images.Where(x => x.Log.Length > 0 && x.Log.Length < Constants.PAGE_SIZE).ToArray();
+            shortPreambles.Should().NotBeEmpty();
+            try
+            {
+                AssertRecovered(markerOnly, password);
+                foreach (var image in shortPreambles) AssertRecovered(image, password);
+            }
             catch
             {
                 var directory = Path.Combine(Path.GetTempPath(), "litedb-index-migration-preamble");
