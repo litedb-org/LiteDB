@@ -23,10 +23,15 @@ internal sealed class PowerLossFuzzer : IFuzzTarget
         var cuts = 0;
         while (context.Next())
         {
-            var phase = Phases[(context.Steps - 1) % Phases.Length];
-            var occurrence = 1 + (context.Steps / Phases.Length) % 3;
-            Exercise(context, phase, occurrence);
-            context.ObserveNovelty("power-cut", phase, occurrence);
+            var matrixIndex = context.Steps - 1;
+            var phase = Phases[matrixIndex % Phases.Length];
+            var matrixOccurrence = 1 + matrixIndex / Phases.Length % 3;
+            var occurrence = matrixIndex < Phases.Length * 3
+                ? matrixOccurrence
+                : 1 + context.Random.Next(5);
+            var scenario = PowerLossScenario.Generate(context.Random, occurrence + 5);
+            Exercise(context, phase, occurrence, scenario);
+            context.ObserveNovelty("power-cut", phase, matrixOccurrence, occurrence);
             cuts++;
         }
         if (context.Steps >= Phases.Length)
@@ -36,18 +41,16 @@ internal sealed class PowerLossFuzzer : IFuzzTarget
         return Task.CompletedTask;
     }
 
-    private static void Exercise(FuzzContext context, string phase, int occurrence)
+    private static void Exercise(FuzzContext context, string phase, int occurrence, PowerLossScenario scenario)
     {
         using var baselineData = new DurableMemoryStream();
         using var baselineLog = new DurableMemoryStream();
-        var password = context.Steps % 2 == 0 ? "power-password" : null;
-        var initialFile = Enumerable.Range(0, 9000).Select(index => (byte)index).ToArray();
-        using (var seed = Open(baselineData, baselineLog, password))
+        using (var seed = Open(baselineData, baselineLog, scenario.Password))
         {
             var rows = seed.GetCollection("rows");
             rows.EnsureIndex("value", "Value");
             rows.Insert(Enumerable.Range(1, 4).Select(id => Document(id, id * 10, id * 2500)));
-            using var source = new MemoryStream(initialFile);
+            using var source = new MemoryStream(scenario.InitialFile);
             seed.FileStorage.Upload("power-file", "baseline.bin", source);
             seed.Checkpoint();
         }
@@ -59,7 +62,7 @@ internal sealed class PowerLossFuzzer : IFuzzTarget
         var phaseHits = 0;
         var acknowledgedState = Enumerable.Range(1, 4)
             .ToDictionary(id => id, id => Document(id, id * 10, id * 2500));
-        var acknowledgedFile = initialFile;
+        var acknowledgedFile = scenario.InitialFile;
         Dictionary<int, BsonDocument> inFlightState = null;
         byte[] inFlightFile = null;
         LiteDatabase db = null;
@@ -74,41 +77,27 @@ internal sealed class PowerLossFuzzer : IFuzzTarget
         };
         try
         {
-            db = Open(data, log, password);
+            db = Open(data, log, scenario.Password);
             var rows = db.GetCollection("rows");
-            for (var attempt = 1; attempt <= occurrence; attempt++)
+            for (var attempt = 0; attempt < scenario.Transactions.Length && !fired; attempt++)
             {
-                var operation = (context.Steps + attempt) % 5;
                 inFlightState = Clone(acknowledgedState);
                 inFlightFile = acknowledgedFile.ToArray();
-                switch (operation)
+                context.Check(db.BeginTrans(), "Power-loss scenario could not begin a transaction.");
+                foreach (var operation in scenario.Transactions[attempt].Operations)
                 {
-                    case 0:
-                        var added = Document(10 + attempt, context.Steps * 10 + attempt,
-                            9000 + attempt * 3000);
-                        inFlightState[added["_id"].AsInt32] = added;
-                        rows.Upsert(Clone(added));
-                        break;
-                    case 1:
-                        var updated = Document(1, -context.Steps - attempt, 16000 + attempt * 2000);
-                        inFlightState[1] = updated;
-                        rows.Update(Clone(updated));
-                        break;
-                    case 2:
-                        inFlightState.Remove(4);
-                        rows.Delete(4);
-                        break;
-                    case 3:
-                        context.Check(rows.DropIndex("value"),
-                            "Generated power-loss index mutation unexpectedly became a no-op.");
-                        break;
-                    case 4:
-                        inFlightFile = Enumerable.Range(0, 12000 + attempt * 1000)
-                            .Select(index => (byte)(index ^ context.Steps)).ToArray();
-                        using (var source = new MemoryStream(inFlightFile))
-                            db.FileStorage.Upload("power-file", "replacement.bin", source);
-                        break;
+                    Apply(rows, db, inFlightState, ref inFlightFile, operation);
                 }
+                context.Trace("power-transaction", new
+                {
+                    phase, occurrence, attempt,
+                    operations = scenario.Transactions[attempt].Operations.Select(operation => new
+                    {
+                        operation.Kind, operation.Id, operation.Value, operation.PayloadLength,
+                        operation.FileLength, operation.Pattern
+                    })
+                });
+                context.Check(db.Commit(), "Power-loss scenario commit returned false.");
                 acknowledgedState = inFlightState;
                 acknowledgedFile = inFlightFile;
                 acknowledged = true;
@@ -129,42 +118,71 @@ internal sealed class PowerLossFuzzer : IFuzzTarget
         using var recoveredData = data.CloneDurable();
         using var recoveredLog = log.CloneDurable();
         var isCommitted = false;
-        using (var recovered = Open(recoveredData, recoveredLog, password))
+        using (var recovered = Open(recoveredData, recoveredLog, scenario.Password))
         {
             var rows = recovered.GetCollection("rows");
             var actual = rows.Query().OrderBy("_id").ToArray();
             var acknowledgedDocuments = acknowledgedState.Values.OrderBy(document => document["_id"]).ToArray();
             var possibleDocuments = (inFlightState ?? acknowledgedState).Values
                 .OrderBy(document => document["_id"]).ToArray();
-            isCommitted = Equal(actual, acknowledgedDocuments);
-            var includesInFlight = Equal(actual, possibleDocuments);
-            context.Check(isCommitted || includesInFlight,
-                "Power loss exposed a partially durable transaction.");
-            context.Check(!acknowledged || isCommitted || includesInFlight,
-                "Power loss discarded a commit that had already been acknowledged.");
+            isCommitted = FuzzOracle.DocumentsEqual(actual, acknowledgedDocuments);
+            var includesInFlight = FuzzOracle.DocumentsEqual(actual, possibleDocuments);
             using var output = new MemoryStream();
             recovered.FileStorage.Download("power-file", output);
-            context.Check(output.ToArray().SequenceEqual(acknowledgedFile) ||
-                inFlightFile != null && output.ToArray().SequenceEqual(inFlightFile),
-                "Power loss exposed a partial FileStorage replacement.");
+            var recoveredFile = output.ToArray();
+            var acknowledgedFileMatches = recoveredFile.SequenceEqual(acknowledgedFile);
+            var inFlightFileMatches = inFlightFile != null && recoveredFile.SequenceEqual(inFlightFile);
+            FuzzOracle.VerifyAtomicState(context, isCommitted, acknowledgedFileMatches,
+                includesInFlight, inFlightFileMatches,
+                "Power loss mixed document and FileStorage states from different transactions.");
+            context.Check(!acknowledged || isCommitted || includesInFlight,
+                "Power loss discarded a commit that had already been acknowledged.");
             var values = rows.Query().OrderBy("Value").ToArray().Select(row => row["Value"].AsInt32).ToArray();
-            context.Check(values.SequenceEqual(actual.Select(row => row["Value"].AsInt32).OrderBy(value => value)),
+            FuzzOracle.VerifySequence(context, values,
+                actual.Select(row => row["Value"].AsInt32).OrderBy(value => value),
                 "Power-loss recovery produced invalid secondary-index order.");
             recovered.Checkpoint();
         }
         var file = context.RegisterFile(Path.Combine(context.DirectoryPath, $"power-{phase}.db"));
         File.WriteAllBytes(file, recoveredData.DurableBytes);
-        DatabaseIntegrityVerifier.Verify(context, file, password);
-        context.Trace("power-cut-result", new { phase, occurrence, phaseHits, acknowledged, recovered = isCommitted ? "acknowledged-prefix" : "in-flight-durable" });
+        DatabaseIntegrityVerifier.Verify(context, file, scenario.Password);
+        context.Trace("power-cut-result", new
+        {
+            phase, occurrence, phaseHits, acknowledged,
+            encrypted = scenario.Password != null,
+            transactions = scenario.Transactions.Length,
+            recovered = isCommitted ? "acknowledged-prefix" : "in-flight-durable"
+        });
+    }
+
+    private static void Apply(ILiteCollection<BsonDocument> rows, LiteDatabase db,
+        Dictionary<int, BsonDocument> state, ref byte[] file, PowerLossOperation operation)
+    {
+        switch (operation.Kind)
+        {
+            case 0:
+            case 1:
+            case 2:
+                var document = Document(operation.Id, operation.Value, operation.PayloadLength);
+                state[operation.Id] = document;
+                rows.Upsert(Clone(document));
+                break;
+            case 3:
+                state.Remove(operation.Id);
+                rows.Delete(operation.Id);
+                break;
+            default:
+                file = PowerLossScenario.Bytes(operation.FileLength, operation.Pattern);
+                using (var source = new MemoryStream(file))
+                    db.FileStorage.Upload("power-file", "replacement.bin", source);
+                break;
+        }
     }
 
     private static BsonDocument Document(int id, int value, int payload) => new()
     {
         ["_id"] = id, ["Value"] = value, ["Payload"] = new byte[payload]
     };
-
-    private static bool Equal(BsonDocument[] actual, BsonDocument[] expected) => actual.Length == expected.Length &&
-        actual.Zip(expected, (left, right) => BsonSerializer.Serialize(left).SequenceEqual(BsonSerializer.Serialize(right))).All(value => value);
 
     private static BsonDocument Clone(BsonDocument document) =>
         BsonSerializer.Deserialize(BsonSerializer.Serialize(document));

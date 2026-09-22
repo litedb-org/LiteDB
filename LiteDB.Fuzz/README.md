@@ -27,7 +27,9 @@ Novel state signatures and their replayable seeds are retained in
 `interesting.jsonl`; the parent runner deduplicates them across isolated target
 processes into `interesting-corpus.jsonl`. Existing entries are preserved and
 replayed automatically on the next campaign using the same artifact root, so
-new semantic coverage feeds future runs rather than being report-only. Targets with persistent state also
+new semantic coverage feeds future runs rather than being report-only. Retained
+entries keep the longest interesting prefix for each target/seed together with
+duration mode, exact recorded input prefix, and input/trace hashes. Targets with persistent state also
 preserve database/WAL files. Replay a failure
 without remembering the original command:
 
@@ -58,6 +60,10 @@ children, so their replay includes the final words of the failing step.
 The parent watches a heartbeat updated by `Next()`. Ninety seconds without progress
 is recorded as a stable `HANG_*` failure after attempting a process dump; hard exits
 also receive parent-written `run.json`, stderr/stdout, and replay metadata.
+The original failure artifacts are written before minimization begins. Every
+minimization prefix has its own 30-second bound (configurable with
+`--minimization-timeout`), and minimization pulses the parent heartbeat without
+being allowed to replace the original failure ID.
 `--determinism-check` replays recorded bytes and compares trace hashes.
 
 Nightly and campaign runs add `--coverage-guided`. The runner collects actual
@@ -94,6 +100,8 @@ using the same artifact root automatically replays the retained coverage corpus.
 | `snapshot` | process-isolated cursor snapshots while writers commit and reuse WAL/pages |
 | `threaded-snapshot` | barrier-forced same-process writer/checkpoint overlap with multiple live snapshots |
 | `concurrent` | one-database multithreaded commits, unique contention, cursors, checkpoint, and rebuild |
+| `transaction-gate` | modeled reader counts, retired owners, foreign releases, and exclusive admission |
+| `cursor-handoff` | retired-thread cursor snapshots, independent foreign transactions, and overlapping checkpoints |
 | `conflict` | barrier-forced writer/schema/drop/storage/rebuild conflicts with acknowledged-state checks |
 | `power-loss` | volatile/durable device model cut at every internal WAL/checkpoint phase |
 | `recovery` | dirty-WAL recovery interrupted again by transient and persistent I/O failures |
@@ -219,3 +227,23 @@ second time. These are modeled storage failures, not claims about actual hardwar
 power-loss behavior. The model does not simulate corruption of previously synced,
 untouched sectors. CRCs detect accidental corruption; they do not authenticate
 adversarially rewritten content. Legacy payloads remain unprotected until written.
+
+## Reader ownership regression (#2991)
+
+The `concurrent` target exposed numeric managed-thread ID reuse after an async
+continuation opened a cursor on a short-lived thread. A later checkpoint thread
+could inherit that ID while the cursor still held its reader lease. Gate and
+transaction ownership now retain the actual `Thread`; numeric IDs remain diagnostic.
+
+`transaction-gate` randomizes nested reader counts and foreign release order against
+an independent lease model. `cursor-handoff` forces owner retirement and GC, churns
+new threads, varies early disposal versus full drain, checks snapshot contents and
+rollback isolation, and overlaps the final release with a real checkpoint. Both
+record random decisions and verify input/trace determinism; runtime scheduling and
+thread IDs are deliberately excluded from the trace.
+
+```bash
+dotnet run --project LiteDB.Fuzz -c Release -f net10.0 -- \
+  --target transaction-gate,cursor-handoff,concurrent --seed 2991 \
+  --duration 5m --workers 2 --artifact-dir artifacts_temp/fuzz-2991
+```
