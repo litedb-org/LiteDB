@@ -168,6 +168,14 @@
       "reason": "Stacked v11/v12 promotion, compact transaction and checkpoint power loss preserve complete payloads and index results. Replayed with journal durability barriers and split compact publication writes.",
       "inputHash": "EEBA1555D62FDBCAA7FCAB01C2CC4595DC5DE3D4C9748D68EF5C7BFB633E0B89",
       "traceHash": "7881DCF92B4E2F0E359C80EEB2A886EA3927778D894AC07E7361AEF8F684FF03"
+    },
+    {
+      "target": "compact-power-loss",
+      "seed": 2937,
+      "count": 64,
+      "reason": "Repeated torn compact promotion/recovery and OS-cached journal probes on the shared checksum journal.",
+      "inputHash": "7078B1D7D4A80D8CBDD9115DEA328D2BBFCF85D1A77E668F0D81CFDB5581E9E2",
+      "traceHash": "7AB1BB212B6C84D7CA6770790C2C35900747DB6CE51FDA833B89D42AF14CADC6"
     }
   ]
 }

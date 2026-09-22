@@ -12,7 +12,7 @@ namespace LiteDB.Engine
         {
             if (_checksums.JournalBytes != 0)
             {
-                if (ChecksumsEnabled) FlushLogToDisk(_writer.Value);
+                if (ChecksumsEnabled && !requireDurable && !promotion) FlushLogToDisk(_writer.Value);
                 else _writer.Value.FlushToDisk();
                 return;
             }
