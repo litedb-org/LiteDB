@@ -93,6 +93,7 @@ binary configured to reject a version does not exercise predecessor startup I/O.
 | Probe | Boundary exercised |
 | --- | --- |
 | [test-vector-compatibility.py](../scripts/test-vector-compatibility.py) | Released LiteDB 5.0.21, legacy conversion/vector boundaries and newer-format rejection. |
+| [test-v9-compatibility.py](../scripts/test-v9-compatibility.py) | Actual v9 predecessor creates vector/scalar indexes and clean/dirty WAL; current migrates through checksums/index ordering, compact writes and rooted v13 retirement. Full payloads, vector self-neighbors, scalar plans/results, reopen and v9 rejection preserve the bridge across all layers, plain/encrypted. |
 | [test-index-compatibility.py](../scripts/test-index-compatibility.py) | Released 5.0.21 creates genuine old indexes; current migrates/verifies them and the released reader refuses the promoted format. |
 | [test-compact-compatibility.py](../scripts/test-compact-compatibility.py) | Released legacy fixtures, mixed/array-only compact promotion, BSON rebuild and released-reader rejection. |
 | [test-parent-format-compatibility.py](../scripts/test-parent-format-compatibility.py) | Pinned actual v10 and v11 predecessors reject v11 and v12 fixtures without changing data or WAL. |

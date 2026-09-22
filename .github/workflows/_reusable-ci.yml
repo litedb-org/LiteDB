@@ -46,6 +46,8 @@ jobs:
         run: python3 scripts/test-index-compatibility.py
       - name: Verify vector file compatibility with LiteDB 5.0.21
         run: python3 scripts/test-vector-compatibility.py
+      - name: Verify genuine v9 vectors through the storage stack
+        run: python3 scripts/test-v9-compatibility.py
       - name: Verify MVCC file rejection by the v12 parent
         run: python3 scripts/test-mvcc-compatibility.py --parent-ref a2ea9a65a469f6449bb8838592f5266b078758b3
 
