@@ -18,7 +18,7 @@ internal sealed class ChecksumWalFuzzer : IFuzzTarget
                 previous.CheckpointSize = 0;
                 // Same logical contents, but an earlier WAL generation.
                 previous.GetCollection("rows").Update(ChecksumFixture.Clone(fixture.Rows.Values.First()));
-                stale = ChecksumFixture.Plain(fixture.Log, fixture.Password);
+                stale = ChecksumFixture.WalBytes(fixture.Log, fixture.Password);
                 previous.Checkpoint();
             }
             var models = new List<SortedDictionary<int, BsonDocument>> { new(fixture.Rows) };
@@ -39,10 +39,10 @@ internal sealed class ChecksumWalFuzzer : IFuzzTarget
                     }
                     db.Commit();
                     models.Add(model);
-                    ends.Add(ChecksumFixture.Plain(fixture.Log, fixture.Password).Length);
+                    ends.Add(ChecksumFixture.WalBytes(fixture.Log, fixture.Password).Length);
                 }
             }
-            var bytes = ChecksumFixture.Plain(fixture.Log, fixture.Password);
+            var bytes = ChecksumFixture.WalBytes(fixture.Log, fixture.Password);
             var transactionIndex = context.Random.Next(4);
             var kind = (context.Steps - 1) % 14;
             var frameSize = WalChecksum.FrameSize;

@@ -25,7 +25,8 @@ namespace LiteDB.Internals
             source.Update("docs", 2);
             if (!corrupt) source.Engine.GetMonitor().GetThreadTransaction().Safepoint();
             var wal = source.Log.ToArray();
-            if (corrupt) wal[wal.Length - WalChecksum.FrameSize + 400] ^= 1;
+            var preamble = password == null ? 0 : PAGE_SIZE;
+            if (corrupt) wal[((wal.Length - preamble) / WalChecksum.FrameSize - 1) * WalChecksum.FrameSize + preamble + 400] ^= 1;
             using var file = new TempFile();
             var logPath = FileHelper.GetLogFile(file.Filename);
             File.WriteAllBytes(file.Filename, source.Data.ToArray());

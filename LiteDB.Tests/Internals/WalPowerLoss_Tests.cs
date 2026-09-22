@@ -25,7 +25,8 @@ namespace LiteDB.Internals
             source.Update("docs", 1);
             var acknowledged = source.Log.ToArray();
             var expected = source.Database.GetCollection("docs").FindAll().ToArray();
-            var end = acknowledged.Length;
+            var preamble = password == null ? 0 : PAGE_SIZE;
+            var end = (acknowledged.Length - preamble) / WalChecksum.FrameSize * WalChecksum.FrameSize + preamble;
             (end % sectorSize).Should().NotBe(0, "the next append must share a physical sector with the acknowledged confirmation");
             source.Update("docs", 2);
             var torn = source.Log.ToArray();
@@ -33,7 +34,7 @@ namespace LiteDB.Internals
             // frame, while later sectors (including confirmation) persist.
             // Power-safe overwrite preserves old bytes outside the write range.
             Array.Clear(torn, end, sectorSize - end % sectorSize);
-            torn.Take(end).Should().Equal(acknowledged);
+            torn.Take(end).Should().Equal(acknowledged.Take(end));
             using var data = ChecksumTestFiles.Copy(source.Data.ToArray());
             using var log = ChecksumTestFiles.Copy(torn);
             var beforeData = data.ToArray();

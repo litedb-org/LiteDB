@@ -53,7 +53,8 @@ namespace LiteDB.Internals
             db.Checkpoint();
             var original = data.ToArray();
             docs.Update(Documents(1));
-            var lastFrame = log.Length - WalChecksum.FrameSize;
+            var preamble = password == null ? 0 : PAGE_SIZE;
+            var lastFrame = ((log.Length - preamble) / WalChecksum.FrameSize - 1) * WalChecksum.FrameSize + preamble;
             data.AfterWrite = () =>
             {
                 // Preflight succeeded and a data page has already been copied.
@@ -150,7 +151,8 @@ namespace LiteDB.Internals
             {
                 if (Armed && Position == Start && ++_passes == 2)
                 {
-                    GetBuffer()[Length - WalChecksum.FrameSize + 400] ^= 1;
+                    var lastFrame = ((Length - Start) / WalChecksum.FrameSize - 1) * WalChecksum.FrameSize + Start;
+                    GetBuffer()[lastFrame + 400] ^= 1;
                     Changed = true;
                 }
                 return base.Read(buffer, offset, count);
