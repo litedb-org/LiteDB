@@ -73,7 +73,8 @@ internal sealed class LinqCacheFuzzer : IFuzzTarget
         var cachedValue = Capture(() => cached.ExecuteScalar(document, Collation.Binary), out var cachedRun);
         var freshValue = Capture(() => fresh.ExecuteScalar(document, Collation.Binary), out var freshRun);
         context.Check(cachedRun?.GetType() == freshRun?.GetType(), $"{label}: execution error mismatch");
-        if (cachedRun == null) context.Check(cachedValue.Equals(freshValue), $"{label}: cached value {cachedValue} != fresh value {freshValue}");
+        if (cachedRun == null) FuzzOracle.VerifyBsonValue(context, cachedValue, freshValue,
+            $"{label}: cached value {cachedValue} != fresh value {freshValue}");
 
         if (cachedRun == null && (query.ReturnType == typeof(bool) || query.ReturnType == typeof(int)) && !ContainsNewArray(query))
         {

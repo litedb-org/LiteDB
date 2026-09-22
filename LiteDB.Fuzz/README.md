@@ -27,7 +27,9 @@ Novel state signatures and their replayable seeds are retained in
 `interesting.jsonl`; the parent runner deduplicates them across isolated target
 processes into `interesting-corpus.jsonl`. Existing entries are preserved and
 replayed automatically on the next campaign using the same artifact root, so
-new semantic coverage feeds future runs rather than being report-only. Targets with persistent state also
+new semantic coverage feeds future runs rather than being report-only. Retained
+entries keep the longest interesting prefix for each target/seed together with
+duration mode, exact recorded input prefix, and input/trace hashes. Targets with persistent state also
 preserve database/WAL files. Replay a failure
 without remembering the original command:
 
@@ -56,6 +58,10 @@ also carry stable call-site IDs; prefix minimization accepts only the same ID.
 The parent watches a heartbeat updated by `Next()`. Ninety seconds without progress
 is recorded as a stable `HANG_*` failure after attempting a process dump; hard exits
 also receive parent-written `run.json`, stderr/stdout, and replay metadata.
+The original failure artifacts are written before minimization begins. Every
+minimization prefix has its own 30-second bound (configurable with
+`--minimization-timeout`), and minimization pulses the parent heartbeat without
+being allowed to replace the original failure ID.
 `--determinism-check` replays recorded bytes and compares trace hashes.
 
 Nightly and campaign runs add `--coverage-guided`. The runner collects actual

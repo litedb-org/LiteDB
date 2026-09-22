@@ -21,11 +21,11 @@ internal sealed class SnapshotFuzzer : IFuzzTarget
         var checkpoints = 0;
         while (context.Next())
         {
-            using var firstPrimary = new ReaderProcess(file,
+            using var firstPrimary = new ReaderProcess(context, file,
                 Path.Combine(context.DirectoryPath, $"reader-{context.Steps}-first-primary"), 0);
             CommitPastReaders(writer, rows, context, firstPrimary);
             firstPrimary.Stop();
-            using var secondSecondary = new ReaderProcess(file,
+            using var secondSecondary = new ReaderProcess(context, file,
                 Path.Combine(context.DirectoryPath, $"reader-{context.Steps}-second-secondary"), 1);
             CommitPastReaders(writer, rows, context, secondSecondary);
             if (context.Steps % 5 == 0)
@@ -135,11 +135,13 @@ internal sealed class SnapshotFuzzer : IFuzzTarget
     {
         private readonly Process _process;
         private readonly string _prefix;
+        private readonly FuzzContext _context;
         private int _validation;
         private bool _stopped;
 
-        internal ReaderProcess(string database, string prefix, int mode)
+        internal ReaderProcess(FuzzContext context, string database, string prefix, int mode)
         {
+            _context = context;
             _prefix = prefix;
             var start = new ProcessStartInfo("dotnet")
             {
@@ -171,8 +173,7 @@ internal sealed class SnapshotFuzzer : IFuzzTarget
             WaitFor(sharedResult, "Snapshot reader did not return a validation.");
             var value = File.ReadAllText(sharedResult);
             File.Move(sharedResult, result, true);
-            if (value != "ok") throw new FuzzFailureException("SNAPSHOT_IMPOSSIBLE_VIEW",
-                "A long-lived reader observed data outside its starting snapshot.");
+            FuzzOracle.VerifySnapshotResult(_context, value);
         }
 
         public void Dispose()

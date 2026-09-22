@@ -34,7 +34,11 @@ internal static class Program
         var replaying = options.Replay != null;
         if (replaying)
         {
-            try { options = FuzzOptions.FromReplay(FuzzArtifacts.ReadReplay(options.Replay), options.ArtifactDirectory, options.Replay); }
+            try
+            {
+                options = FuzzOptions.FromReplay(FuzzArtifacts.ReadReplay(options.Replay),
+                    options.ArtifactDirectory, options.Replay, options.HangTimeout, options.MinimizationTimeout);
+            }
             catch (Exception error) { Console.Error.WriteLine($"Invalid replay file: {error.Message}"); return 2; }
         }
 
@@ -97,6 +101,8 @@ internal static class Program
         var results = (await Task.WhenAll(runs)).SelectMany(result => result).ToArray();
         FuzzArtifacts.MergeInterestingCorpus(results, options.ArtifactDirectory);
         if (options.CoverageGuided) FuzzArtifacts.MergeCoverageCorpus(results, options.ArtifactDirectory);
+        foreach (var result in results.Where(item => item.Passed && item.PruneSuccessfulArtifacts))
+            FuzzArtifacts.PruneSuccessfulDurationRun(result.Directory);
         var failed = results.Count(result => !result.Passed);
         Console.WriteLine($"FUZZ SUMMARY: {results.Length - failed} passed, {failed} failed");
         foreach (var result in results)
@@ -136,31 +142,44 @@ internal static class Program
             var failureText = error.ToString();
             Console.Error.WriteLine($"FUZZ FAILURE {target.Name} seed={seed} step={context.Steps}\n{failureText}");
             await File.WriteAllTextAsync(Path.Combine(directory, "failure-before-minimization.txt"), failureText);
-            context.MinimizedCount = await MinimizeAsync(target, context, FailureIdentity.Get(error));
+            await FuzzArtifacts.WriteResultAsync(context, started, failure);
+            try
+            {
+                context.MinimizedCount = await MinimizeAsync(target, context, FailureIdentity.Get(error),
+                    options.MinimizationTimeout, options.HeartbeatFile);
+            }
+            catch (Exception minimizationError)
+            {
+                await File.WriteAllTextAsync(Path.Combine(directory, "minimization-error.txt"),
+                    minimizationError.ToString());
+            }
         }
         await FuzzArtifacts.WriteResultAsync(context, started, failure);
         return new RunResult(target.Name, seed, directory, failure == null);
     }
 
-    private static async Task<int?> MinimizeAsync(IFuzzTarget target, FuzzContext failed, string failureId)
+    private static async Task<int?> MinimizeAsync(IFuzzTarget target, FuzzContext failed, string failureId,
+        TimeSpan trialTimeout, string parentHeartbeat)
     {
         const int maximumSteps = 100_000;
         var low = 1;
         var high = Math.Min(Math.Max(1, failed.Steps), maximumSteps);
-        if (await Replay(high) != failureId) return null;
+        if ((await Replay(high)).FailureId != failureId) return null;
         while (low < high)
         {
             var middle = low + (high - low) / 2;
-            if (await Replay(middle) == failureId) high = middle;
+            if ((await Replay(middle)).FailureId == failureId) high = middle;
             else low = middle + 1;
         }
         return high;
 
-        async Task<string> Replay(int count)
+        async Task<FuzzTrialResult> Replay(int count)
         {
             var directory = Path.Combine(failed.DirectoryPath, "minimization", count.ToString());
-            return await FuzzProcessRunner.RunTrialAsync(target.Name, failed.Seed, count,
-                failed.DurationBound, directory, failed.Input.OutputPath);
+            var result = await FuzzProcessRunner.RunTrialAsync(target.Name, failed.Seed, count,
+                failed.DurationBound, directory, failed.Input.OutputPath, trialTimeout, parentHeartbeat);
+            failed.PulseHeartbeat();
+            return result;
         }
     }
 
@@ -181,6 +200,7 @@ internal static class Program
         Console.WriteLine("  --duration <hh:mm:ss|Nm>    total wall-clock budget shared across selected runs");
         Console.WriteLine("  --epoch-duration <Nm>       fresh-process epoch bound (default: 30s)");
         Console.WriteLine("  --hang-timeout <Nm>         no-progress watchdog (default: 90s)");
+        Console.WriteLine("  --minimization-timeout <Nm> per-prefix minimization bound (default: 30s)");
         Console.WriteLine("  --workers <int>             parallel deterministic seed shards");
         Console.WriteLine("  --artifact-dir <path>       raw traces and summaries");
         Console.WriteLine("  --replay <replay.json>      replay one saved target/seed/count");
@@ -191,4 +211,5 @@ internal static class Program
 
 }
 
-internal sealed record RunResult(string Target, int Seed, string Directory, bool Passed);
+internal sealed record RunResult(string Target, int Seed, string Directory, bool Passed,
+    bool PruneSuccessfulArtifacts = false);
