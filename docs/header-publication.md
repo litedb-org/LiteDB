@@ -123,10 +123,14 @@ the earlier draft `LDBEGIN1` intent and its page-count-derived footer position. 
 header bytes, outside pragmas and the collection map. All checksums cover
 plaintext; the stream encrypts complete AES blocks afterward.
 
-Automatic conversion requires successful durable WAL flushes and fails before
-editing data if the backup cannot be made durable. Existing v10 commit/checkpoint
-fallback for storage that rejects sync remains reported by
-`$database.durableLogFlush=false`; that mode cannot promise power-loss durability.
+Automatic conversion and checkpoint require successful durable WAL flushes and
+fail before editing data if the recovery information cannot be made durable.
+The v10 commit fallback for storage that rejects sync remains reported by
+`$database.durableLogFlush=false`; recent commits in that mode can be lost after
+power loss. Checkpoint still attempts a durable sync, even after commit fallback,
+and closes the engine on failure while preserving data and recovery frames.
+Semantic-error marker writes require the same durable journal before changing
+the header; an unsupported sync leaves that header intact during shutdown.
 Successful syncs must actually persist the bytes. Independent damage to both the
 primary data and its durable recovery copies can still require restore or salvage.
 

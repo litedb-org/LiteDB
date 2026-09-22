@@ -147,27 +147,33 @@ namespace LiteDB.Tests.Issues
             storage.SyncOrder.Should().Equal("log", "log", "data", "data"); // Sync padding, seal redo, then publish data and salt.
         }
 
-        [Fact]
-        public void Opted_out_checkpoint_tolerates_log_storage_that_cannot_sync()
+        [Theory]
+        [InlineData(null)]
+        [InlineData("secret")]
+        public void Opted_out_checkpoint_rejects_log_storage_that_cannot_sync(string password)
         {
             using var storage = new Storage();
 
-            using (var engine = storage.Open(durableCommits: false, password: null))
+            using (var engine = storage.Open(durableCommits: false, password))
             using (var db = new LiteDatabase(engine, disposeOnClose: false))
             {
                 var rows = WarmUp(db);
                 CommitFourTransactions(db, rows);
+                var before = ReadShared(storage.Data.Name);
                 storage.Log.DurableFailure = new UnauthorizedAccessException("Access to the path is denied.");
 
-                db.Checkpoint();
-                rows.Insert(new BsonDocument { ["_id"] = 100 });
-                db.Checkpoint();
-
-                rows.Count().Should().Be(7);
-                storage.Log.DurableFlushes.Should().Be(1, "a rejected sync is remembered, not retried");
+                Action checkpoint = () => db.Checkpoint();
+                checkpoint.Should().Throw<UnauthorizedAccessException>();
+                ReadShared(storage.Data.Name).Should().Equal(before);
+                Action write = () => rows.Insert(new BsonDocument { ["_id"] = 100 });
+                write.Should().Throw<LiteException>().WithMessage("*Dispose and reopen*");
             }
 
             storage.Log.DurableFailure = null;
+            using var reopenedEngine = storage.Open(durableCommits: true, password);
+            using var reopened = new LiteDatabase(reopenedEngine, disposeOnClose: false);
+            reopened.GetCollection("rows").Count().Should().Be(6);
+            reopened.Checkpoint();
         }
 
         [Theory]

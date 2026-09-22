@@ -8,12 +8,14 @@ namespace LiteDB.Engine
     {
         private byte[] _recoveredHeader;
 
-        private void BeginHeaderJournal(byte[] header, bool conversion = false, bool requireDurable = false)
+        private void BeginHeaderJournal(byte[] header, bool conversion = false)
         {
+            // Every caller overwrites existing data or its sole header. Commit
+            // fallback may lose recent transactions, but must never let an
+            // in-place overwrite proceed without durable recovery information.
             if (_checksums.JournalBytes != 0)
             {
-                if (ChecksumsEnabled && !requireDurable) FlushLogToDisk(_writer.Value);
-                else _writer.Value.FlushToDisk();
+                _writer.Value.FlushToDisk();
                 return;
             }
             var log = ((ChecksummedWalStream)_writer.Value).RawStream;
@@ -23,13 +25,11 @@ namespace LiteDB.Engine
                 WalPadding.Pad(log, log.Length / WalChecksum.FrameSize * WalChecksum.FrameSize, initialize: true);
                 // A persisted footer must never depend on padding that existed
                 // only in cache when its own write reached the device.
-                if (conversion || requireDurable) log.FlushToDisk();
-                else FlushLogToDisk(log);
+                log.FlushToDisk();
             }
             HeaderJournal.Write(log, header, conversion, _checksums);
             _checksums.JournalBytes = HeaderJournal.Size;
-            if (conversion || requireDurable || !ChecksumsEnabled) log.FlushToDisk();
-            else FlushLogToDisk(_writer.Value);
+            log.FlushToDisk();
             ((ChecksummedWalFactory)_logFactory).SyncDirectory();
         }
 
