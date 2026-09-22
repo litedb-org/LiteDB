@@ -5,99 +5,34 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
-  shared-x86-diagnostic:
-    name: Windows x86 shared-write diagnostic (${{ matrix.shard }})
+  analyze-shared-x86:
+    name: Analyze retained Windows x86 shared-write dump
     runs-on: windows-latest
-    timeout-minutes: 35
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2]
-    env:
-      LITEDB_SHARED_EXPECT_TEMP_VOLUME: '1'
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
-          fetch-depth: 0
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: |
-            10.0.x
-            8.0.x
-      - name: Preserve the original system-temp storage volume
+          repository: litedb-org/LiteDB
+          run-id: 35783032832
+          github-token: ${{ github.token }}
+          artifact-ids: 10719655935,10719188460,10718957169
+          path: retained
+      - name: Verify evidence and analyze managed threads
         shell: pwsh
-        run: |
-          $diagnostics = Join-Path ([IO.Path]::GetTempPath()) 'litedb-shared-diagnostics-${{ github.run_id }}-${{ matrix.shard }}'
-          Write-Host "Original temp directory: $([IO.Path]::GetTempPath())"
-          Write-Host "Database and diagnostics root: $diagnostics"
-          "LITEDB_SHARED_DIAGNOSTICS=$diagnostics" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
-      - name: Build exact test candidate
+        run: ./scripts/analyze-shared-x86.ps1
+      - name: Analyze native threads using Windows debugging tools
+        if: always()
         shell: pwsh
-        run: |
-          git rev-parse HEAD
-          dotnet build LiteDB.Tests/LiteDB.Tests.csproj -c Release -f net8.0 -p:TestingEnabled=true
-          if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
-      - name: Install and verify Microsoft ProcDump
-        shell: pwsh
-        run: |
-          $archive = Join-Path $env:RUNNER_TEMP 'Procdump.zip'
-          $directory = Join-Path $env:RUNNER_TEMP 'litedb-procdump'
-          Invoke-WebRequest 'https://download.sysinternals.com/files/Procdump.zip' -OutFile $archive
-          Expand-Archive $archive $directory
-          $executable = Join-Path $directory 'procdump.exe'
-          $signature = Get-AuthenticodeSignature $executable
-          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') {
-            throw "Untrusted ProcDump signature: $($signature.Status) $($signature.SignerCertificate.Subject)"
-          }
-          Get-FileHash $archive, $executable -Algorithm SHA256 | Format-List
-          (Get-Item $executable).VersionInfo | Format-List FileVersion, ProductVersion
-          "LITEDB_SHARED_PROCDUMP=$executable" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
-      - name: Verify runtime and diagnostic contracts
-        shell: pwsh
-        env:
-          LITEDB_SHARED_DUMP_SMOKE: '1'
-        run: |
-          ./scripts/run-ci-tests.ps1 -RuntimeMajor 8 -Framework net8.0 -Architecture x86 `
-            -Filter 'FullyQualifiedName~CrossProcess_Shared_Tests|FullyQualifiedName~SharedWorkerDump' `
-            -ResultFile 'SharedDiagnosticContracts.trx'
-          if ($LASTEXITCODE -ne 0) { throw 'Diagnostic contract tests failed.' }
-      - name: Run one hundred cold-host concurrent-write repetitions
-        shell: pwsh
-        timeout-minutes: 25
-        run: |
-          $runtime = Join-Path $env:RUNNER_TEMP 'litedb-runtime-8-x86'
-          for ($repeat = 1; $repeat -le 100; $repeat++) {
-            Write-Host "Shard ${{ matrix.shard }}; cold-host repetition $repeat of 100"
-            ./scripts/run-ci-tests.ps1 -RuntimeMajor 8 -Framework net8.0 -Architecture x86 `
-              -RuntimeDirectory $runtime -Filter 'FullyQualifiedName~CrossProcess_Shared_ConcurrentWrites_InsertDocuments' `
-              -ResultFile "SharedInsert-$repeat.trx"
-            if ($LASTEXITCODE -ne 0) { throw "Concurrent insert repetition $repeat failed; preserving diagnostics." }
-          }
-      - name: Preserve results and any timeout evidence
+        run: ./scripts/analyze-shared-x86-native.ps1
+      - name: Retain analysis output
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: shared-x86-diagnostic-${{ matrix.shard }}
-          path: LiteDB.Tests/TestResults/
+          name: shared-x86-dump-analysis
+          path: analysis
           if-no-files-found: error
-          retention-days: 14
-      - name: Preserve source-volume diagnostics after test-host exit
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: shared-x86-source-volume-${{ matrix.shard }}
-          path: ${{ env.LITEDB_SHARED_DIAGNOSTICS }}/
-          if-no-files-found: warn
-          retention-days: 14
-      - name: Preserve exact symbols and x86 runtime after failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: shared-x86-binaries-${{ matrix.shard }}
-          path: |
-            LiteDB.Tests/bin/Release/net8.0/
-            ${{ runner.temp }}/litedb-runtime-8-x86/shared/Microsoft.NETCore.App/
-          if-no-files-found: warn
           retention-days: 14
