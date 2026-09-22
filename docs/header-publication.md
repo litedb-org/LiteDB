@@ -157,3 +157,25 @@ repeated-recovery workloads that exposed the premature write.
 WAL directory entries are synced on Unix before journal-protected data overwrites.
 Writable repair also syncs the selected journal before replacing a damaged header;
 a failed journal sync leaves the primary and recovery bytes untouched.
+
+### Interrupted encrypted WAL creation
+
+An encrypted WAL may be interrupted before its hidden 8192-byte preamble exists.
+Writable completion occurs only after the main data stream has authenticated the
+password. A short preamble must contain the encryption marker, only zero reserved
+bytes, and an intact prefix of the password-check ciphertext expected for its salt
+and password. Completion retains all existing salt and check-prefix bytes and
+fills only the missing suffix. Foreign markers, non-prefix ciphertext, or other
+content fail without changing either source. Generic data-file preamble rules
+remain unchanged, and WAL files at or above the hidden-page boundary use ordinary
+encrypted-stream validation; this is not a repair for missing WAL payloads.
+
+New WAL creation syncs the salt before writing the check block and syncs the check
+before extending the hidden page. These barriers also apply to resumed creation,
+so another interruption cannot leave later preamble bytes without their durable
+prerequisites. Read-only opens and rebuild inspection validate a short preamble
+and expose an empty logical WAL without changing its physical bytes.
+Failure of any preamble sync aborts initialization or closes the committing engine;
+it never uses the ordinary commit-sync fallback. Tests inject both I/O failures and
+unsupported-sync errors at all three barriers and verify recovery of cached and
+durable images, as well as repeated tears of the initial and resumed writes.
