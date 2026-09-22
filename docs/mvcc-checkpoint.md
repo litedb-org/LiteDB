@@ -14,11 +14,12 @@ can return zero. Dispose streaming readers promptly to permit full WAL truncatio
 `Checkpoint()` therefore no longer guarantees an empty WAL. It waits only briefly
 for open transactions and otherwise backfills what is safe. The data file alone is
 a complete copy of the database only when the WAL is empty afterwards. Exclude
-writes and checkpoints throughout backup preparation and capture. Under that
-exclusion, either close readers, drain and verify an empty WAL, then copy the data
-file; or capture the data and WAL as one consistent filesystem snapshot. Keep the
-exclusion until capture finishes: checking an empty WAL does not prevent a later
-write. Independently copying two live files is not a consistency protocol.
+concurrent writers and checkpoints throughout backup preparation and capture.
+Under that exclusive control, either close readers, complete a checkpoint and
+verify an empty WAL before copying the data file; or capture the data and WAL as
+one consistent filesystem snapshot. Keep the exclusion until capture finishes:
+checking an empty WAL does not prevent a later write. Independently copying two
+live files is not a consistency protocol.
 
 An auto-checkpoint from a commit takes the full path whenever no transaction is
 open. Under readers it does partial work on a back-off (50 ms doubling to 1 s),
