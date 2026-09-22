@@ -49,18 +49,28 @@ internal sealed class CursorHandoffFuzzer : IFuzzTarget
                         var cursor = cursors[index];
                         var last = cursors.Count == 1;
                         using var checkpointStarted = new ManualResetEventSlim();
+                        using var handoffStarted = new ManualResetEventSlim();
                         Task checkpoint = null;
                         if (last)
                         {
-                            engine.SimulateBeforeExclusiveAdmission = checkpointStarted.Set;
-                            engine.SimulateAfterExclusiveAdmission = () => context.Check(
-                                engine.GetMonitor().Transactions.Count == 0, "Checkpoint passed a live cursor.");
+                            // MVCC checkpoint can proceed under a live cursor.
+                            // Pause before index admission, then release both the
+                            // checkpointer and foreign handoff from one barrier.
+                            engine.CheckpointStage = stage =>
+                            {
+                                if (stage != "before-index-lock") return;
+                                context.Check(engine.GetMonitor().Transactions.Count == 1,
+                                    "Checkpoint did not overlap the final pinned cursor.");
+                                checkpointStarted.Set();
+                                context.Check(handoffStarted.Wait(TimeSpan.FromSeconds(5)), "Foreign handoff did not start.");
+                            };
                             checkpoint = Task.Factory.StartNew(db.Checkpoint, CancellationToken.None,
                                 TaskCreationOptions.LongRunning, TaskScheduler.Default);
                             context.Check(checkpointStarted.Wait(TimeSpan.FromSeconds(5)), "Checkpoint did not start.");
                         }
                         FuzzThread.Run(() =>
                         {
+                            handoffStarted.Set();
                             // Disposing an old query must not release this independent transaction.
                             if (!last) context.Check(db.BeginTrans(), "Foreign explicit transaction was unavailable.");
                             try
@@ -89,8 +99,7 @@ internal sealed class CursorHandoffFuzzer : IFuzzTarget
                         {
                             context.Check(checkpoint.Wait(TimeSpan.FromSeconds(10)), "Checkpoint did not finish after handoff.");
                             checkpoint.GetAwaiter().GetResult();
-                            engine.SimulateBeforeExclusiveAdmission = null;
-                            engine.SimulateAfterExclusiveAdmission = null;
+                            engine.CheckpointStage = null;
                         }
                         cursors.RemoveAt(index);
                         context.Check(engine.GetMonitor().Transactions.Count == cursors.Count,
@@ -103,7 +112,11 @@ internal sealed class CursorHandoffFuzzer : IFuzzTarget
                         "Handoff or checkpoint changed committed data.");
                     context.ObserveNovelty("cursor-handoff", count, rebuild);
                 }
-                finally { foreach (var cursor in cursors) cursor.Dispose(); }
+                finally
+                {
+                    engine.CheckpointStage = null;
+                    foreach (var cursor in cursors) cursor.Dispose();
+                }
             }
             db.Checkpoint();
             context.Metrics["cursorsHandedOff"] = handedOff;
