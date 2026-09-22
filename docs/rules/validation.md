@@ -29,6 +29,11 @@ exclude. A test that merely mirrors the implementation is insufficient evidence.
   comparison. A nearby symptom is not proof of the original issue. Where the
   current branch no longer reproduces, try the reported historical version and
   record exactly which versions and cases were checked.
+- For I/O and timeout investigations, preserve the original file location and
+  storage volume when adding diagnostics. Verify the actual paths in the test
+  host; moving databases into a workspace artifact directory can change I/O
+  latency and hide the reported condition. Collect retained sources after their
+  workers or test host exit, and identify any changed reproduction conditions.
 - Assert observable behavior with an independent expected result. Include a
   positive control and boundary cases that defeat a trivial workaround such as
   rejecting all input, returning an empty result, or skipping a code path.
