@@ -103,10 +103,12 @@ internal static class Program
         if (options.CoverageGuided) FuzzArtifacts.MergeCoverageCorpus(results, options.ArtifactDirectory);
         foreach (var result in results.Where(item => item.Passed && item.PruneSuccessfulArtifacts))
             FuzzArtifacts.PruneSuccessfulDurationRun(result.Directory);
-        var failed = results.Count(result => !result.Passed);
-        Console.WriteLine($"FUZZ SUMMARY: {results.Length - failed} passed, {failed} failed");
+        var failed = results.Count(result => result.BlocksBuild);
+        var recorded = results.Count(result => !result.Passed && !result.BlocksBuild);
+        Console.WriteLine($"FUZZ SUMMARY: {results.Count(result => result.Passed)} passed, " +
+            $"{recorded} known/expected, {failed} blocking failures");
         foreach (var result in results)
-            Console.WriteLine($"{(result.Passed ? "PASS" : "FAIL")} {result.Target} seed={result.Seed} artifacts={result.Directory}");
+            Console.WriteLine($"{ResultLabel(result)} {result.Target} seed={result.Seed} artifacts={result.Directory}");
         return failed == 0 ? 0 : 1;
     }
 
@@ -145,8 +147,13 @@ internal static class Program
             await FuzzArtifacts.WriteResultAsync(context, started, failure);
             try
             {
-                context.MinimizedCount = await MinimizeAsync(target, context, FailureIdentity.Get(error),
-                    options.MinimizationTimeout, options.HeartbeatFile);
+                var failureId = FailureIdentity.Get(error);
+                var finding = FuzzFindingRegistry.Resolve(target.Name, failureId);
+                if (FuzzFindingRegistry.ShouldMinimize(options.Duration.HasValue, finding))
+                {
+                    context.MinimizedCount = await MinimizeAsync(target, context, failureId,
+                        options.MinimizationTimeout, options.HeartbeatFile);
+                }
             }
             catch (Exception minimizationError)
             {
@@ -209,7 +216,17 @@ internal static class Program
         Console.WriteLine("  --list                      list targets");
     }
 
+    private static string ResultLabel(RunResult result)
+    {
+        if (result.Passed) return "PASS";
+        return result.Finding == null ? "FAIL" : result.Finding.Status.ToString().ToUpperInvariant();
+    }
+
 }
 
 internal sealed record RunResult(string Target, int Seed, string Directory, bool Passed,
-    bool PruneSuccessfulArtifacts = false);
+    bool PruneSuccessfulArtifacts = false, FuzzFindingResolution Finding = null)
+{
+    internal bool BlocksBuild => !Passed &&
+        (!PruneSuccessfulArtifacts || Finding?.AllowsDiscoveryToContinue != true);
+}
