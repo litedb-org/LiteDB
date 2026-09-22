@@ -117,6 +117,8 @@ internal sealed class ChecksumFixture : IDisposable
         bytes[offset + 31] = 0;
         if (BitConverter.ToUInt32(bytes, offset) != 0) return;
         bytes[offset + HeaderPage.P_FILE_VERSION] = version;
+        bytes[offset + EnginePragmas.P_INDEX_ORDER_VERSION] = 0;
+        Array.Clear(bytes, offset + EnginePragmas.P_COLLATION_STAMP, 4);
         Array.Clear(bytes, offset + WalChecksum.MarkerPosition, 4);
     }
 
