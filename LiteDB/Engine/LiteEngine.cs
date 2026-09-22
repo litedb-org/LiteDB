@@ -93,6 +93,10 @@ namespace LiteDB.Engine
                 // initialize engine state 
                 _state = new EngineState(this, _settings);
 
+                // A failed rebuild may have left stale data or no canonical file.
+                // Check before upgrade, recovery, or DiskService can create a new file.
+                RebuildRecovery.EnsureAvailable(_settings);
+
                 // before initilize, try if must be upgrade
                 if (_settings.Upgrade) this.TryUpgrade();
 
@@ -108,7 +112,6 @@ namespace LiteDB.Engine
                 // read header database page
                 _header = new HeaderPage(buffer);
                 _disk.FileVersion = _header.FileVersion;
-                _disk.TrimTrailingPages();
 
                 // if database is set to invalid state, need rebuild
                 if (buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0 && _settings.AutoRebuild)
@@ -134,6 +137,8 @@ namespace LiteDB.Engine
                     _disk.FileVersion = _header.FileVersion;
                 }
 
+                this.ValidateCollationStamp();
+
                 // test for same collation
                 if (_settings.Collation != null && _settings.Collation.ToString() != _header.Pragmas.Collation.ToString())
                 {
@@ -144,19 +149,24 @@ namespace LiteDB.Engine
                 _locker = new LockService(_header.Pragmas);
 
                 // initialize wal-index service
-                _walIndex = new WalIndexService(_disk, _locker, _settings.SharedReaderVersions);
+                _walIndex = new WalIndexService(_disk, _locker, _settings.SharedReaderVersions, _header);
 
                 // if exists log file, restore wal index references (can update full _header instance)
-                if (_disk.GetFileLength(FileOrigin.Log) > 0)
+                if (_disk.GetFileLength(FileOrigin.Log) > 0 || _disk.ChecksumsEnabled)
                 {
-                    _walIndex.RestoreIndex(ref _header);
+                    _walIndex.RestoreIndex(ref _header, this.ValidateCollationStamp);
                 }
+
+                this.ValidateCollationStamp();
 
                 // initialize sort temp disk
                 _sortDisk = new SortDisk(_settings.CreateTempFactory(), CONTAINER_SORT_SIZE, _header.Pragmas);
 
                 // initialize transaction monitor as last service
                 _monitor = new TransactionMonitor(_header, _locker, _disk, _walIndex, _settings.TransactionPageLimit);
+
+                this.MigrateIndexOrdering();
+                _disk.TrimTrailingPages();
 
                 // register system collections
                 this.InitializeSystemCollections();
@@ -258,6 +268,9 @@ namespace LiteDB.Engine
         internal TransactionMonitor GetMonitor() => _monitor;
         internal Action<PageBuffer> SimulateDiskReadFail { set => _state.SimulateDiskReadFail = value; }
         internal Action<PageBuffer> SimulateDiskWriteFail { set => _state.SimulateDiskWriteFail = value; }
+        internal Action SimulateBeforeTransactionAdmission { set => _locker.BeforeTransactionAdmission = value; }
+        internal Action SimulateBeforeExclusiveAdmission { set => _locker.BeforeExclusiveAdmission = value; }
+        internal Action SimulateAfterExclusiveAdmission { set => _locker.AfterExclusiveAdmission = value; }
 #endif
 
         /// <summary>

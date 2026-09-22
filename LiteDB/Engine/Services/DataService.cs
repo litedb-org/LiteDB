@@ -25,14 +25,16 @@ namespace LiteDB.Engine
             _maxItemsCount = maxItemsCount;
         }
 
+        internal Result<BsonDocument> ReadDocument(BufferReader reader, HashSet<string> fields, bool utcDate, PageAddress address) =>
+            DocumentStorageCodec.Read(reader, fields, () => _snapshot.Schemas, utcDate, _snapshot.CollectionName, address);
+
         /// <summary>
         /// Insert BsonDocument into new data pages
         /// </summary>
         public PageAddress Insert(BsonDocument doc)
         {
-            var bytesLeft = doc.GetBytesCount(true);
-
-            if (bytesLeft > MAX_DOCUMENT_SIZE) throw new LiteException(0, "Document size exceed {0} limit", MAX_DOCUMENT_SIZE);
+            var plan = DocumentStorageCodec.PrepareWrite(doc, _snapshot);
+            var bytesLeft = plan.EncodedLength;
             _snapshot.CheckVectorVersion(doc);
 
             var firstBlock = PageAddress.Empty;
@@ -70,7 +72,7 @@ namespace LiteDB.Engine
             using (var w = new BufferWriter(source()))
             {
                 // already bytes count calculate at method start
-                w.WriteDocument(doc, false);
+                DocumentStorageCodec.Write(plan, w);
                 w.Consume();
             }
 
@@ -82,9 +84,8 @@ namespace LiteDB.Engine
         /// </summary>
         public void Update(CollectionPage col, PageAddress blockAddress, BsonDocument doc)
         {
-            var bytesLeft = doc.GetBytesCount(true);
-
-            if (bytesLeft > MAX_DOCUMENT_SIZE) throw new LiteException(0, "Document size exceed {0} limit", MAX_DOCUMENT_SIZE);
+            var plan = DocumentStorageCodec.PrepareWrite(doc, _snapshot);
+            var bytesLeft = plan.EncodedLength;
             _snapshot.CheckVectorVersion(doc);
 
             DataBlock lastBlock = null;
@@ -153,7 +154,7 @@ namespace LiteDB.Engine
             using (var w = new BufferWriter(source()))
             {
                 // already bytes count calculate at method start
-                w.WriteDocument(doc, false);
+                DocumentStorageCodec.Write(plan, w);
                 w.Consume();
             }
         }

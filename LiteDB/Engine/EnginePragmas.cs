@@ -23,10 +23,12 @@ namespace LiteDB.Engine
         public const int P_COLLATION_LCID = 80; // 80-83 (4 bytes)
         public const int P_COLLATION_SORT = 84; // 84-87 (4 bytes)
         public const int P_TIMEOUT = 88; // 88-91 (4 bytes)
-        // reserved 92-95 (4 bytes)
+        public const int P_COLLATION_STAMP = 92; // 92-95 (4 bytes)
         public const int P_UTC_DATE = 96; // 96-96 (1 byte)
         public const int P_CHECKPOINT = 97; // 97-100 (4 bytes)
         public const int P_LIMIT_SIZE = 101; // 101-108 (8 bytes)
+        public const int P_INDEX_ORDER_VERSION = 165; // 165 (1 byte)
+        internal const byte INDEX_ORDER_VERSION = 1;
 
         /// <summary>
         /// Internal user version control to detect database changes
@@ -61,6 +63,16 @@ namespace LiteDB.Engine
 
         private readonly Dictionary<string, Pragma> _pragmas;
         private bool _isDirty = false;
+        private bool _newFile = true;
+        internal uint CollationStamp { get; private set; }
+        internal byte IndexOrderVersion { get; private set; } = INDEX_ORDER_VERSION;
+
+        internal void CompleteIndexMigration()
+        {
+            IndexOrderVersion = INDEX_ORDER_VERSION;
+            CollationStamp = CollationFingerprint.Compute(Collation);
+            _isDirty = true;
+        }
         private readonly HeaderPage _headerPage;
 
         /// <summary>
@@ -88,7 +100,14 @@ namespace LiteDB.Engine
                     Name = Engine.Pragmas.COLLATION,
                     Get = () => this.Collation.ToString(),
                     Set = (v) => this.Collation = new Collation(v.AsString),
-                    Read = (b) => this.Collation = new Collation(b.ReadInt32(P_COLLATION_LCID), (CompareOptions)b.ReadInt32(P_COLLATION_SORT)),
+                    Read = (b) =>
+                    {
+                        try { this.Collation = new Collation(b.ReadInt32(P_COLLATION_LCID), (CompareOptions)b.ReadInt32(P_COLLATION_SORT)); }
+                        catch (CultureNotFoundException ex)
+                        {
+                            throw new LiteException(0, ex, "Database collation is unavailable in this globalization runtime. Rebuild in the original environment using Ordinal collation.");
+                        }
+                    },
                     Validate = (v, h) => { throw new LiteException(0, "Pragma COLLATION is read only. Use Rebuild options."); },
                     Write = (b) =>
                     {
@@ -153,6 +172,9 @@ namespace LiteDB.Engine
                 pragma.Read(buffer);
             }
 
+            this.CollationStamp = buffer.ReadUInt32(P_COLLATION_STAMP);
+            this.IndexOrderVersion = buffer[HeaderPage.P_FILE_VERSION] >= HeaderPage.INDEX_FILE_VERSION ? buffer.ReadByte(P_INDEX_ORDER_VERSION) : (byte)0;
+            _newFile = false;
             _isDirty = false;
         }
 
@@ -165,6 +187,9 @@ namespace LiteDB.Engine
                 pragma.Value.Write(buffer);
             }
 
+            if (_newFile) this.CollationStamp = CollationFingerprint.Compute(this.Collation);
+            buffer.Write(this.CollationStamp, P_COLLATION_STAMP);
+            buffer.Write(this.IndexOrderVersion, P_INDEX_ORDER_VERSION);
             _isDirty = false;
         }
 
@@ -193,6 +218,16 @@ namespace LiteDB.Engine
             {
                 throw new LiteException(0, $"Pragma `{name}` not exist");
             }
+        }
+
+        public void Validate(string name, BsonValue value)
+        {
+            if (_pragmas.TryGetValue(name, out var pragma))
+            {
+                pragma.Validate(value, _headerPage);
+                return;
+            }
+            throw new LiteException(0, $"Pragma `{name}` not exist");
         }
     }
 }

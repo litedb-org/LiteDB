@@ -366,7 +366,7 @@ namespace LiteDB.Engine
                     // checks if not exceeded data file limit size
                     var newLength = (_header.LastPageID + 1) * PAGE_SIZE;
 
-                    if (newLength > _header.Pragmas.LimitSize) throw LiteException.FileSizeExceeded(_header.Pragmas.LimitSize);
+                    if (newLength > (_transPages.IndexMigrationLimitSize ?? _header.Pragmas.LimitSize)) throw LiteException.FileSizeExceeded(_transPages.IndexMigrationLimitSize ?? _header.Pragmas.LimitSize);
 
                     var savepoint = _header.Savepoint();
                     try
@@ -455,7 +455,7 @@ namespace LiteDB.Engine
             var mustKeep = newSlot == 0;
 
             // first, test if page should be deleted
-            if (page.ItemsCount == 0)
+            if (page.ItemsCount == 0 && !RetainEmptyIndexPages)
             {
                 if (isOnList)
                 {
@@ -714,7 +714,7 @@ namespace LiteDB.Engine
                 }
             }
 
-            // remove collection name (in header) at commit time
+            this.DropSchemas(safePoint);
             _transPages.Commit += (h) => h.DeleteCollection(_collectionName);
         }
 

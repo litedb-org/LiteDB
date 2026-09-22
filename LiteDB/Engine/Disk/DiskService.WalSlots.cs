@@ -51,7 +51,7 @@ namespace LiteDB.Engine
             }
         }
 
-        private long AllocateLogPosition(uint pageID, bool confirmation, bool transactionAnchored)
+        private long AllocateLogPosition(uint pageID, bool confirmation, bool transactionAnchored, long transactionMinimum)
         {
             // Appended confirmations define stable versions and order recovery.
             // Before any holes are reused, one frame for a transaction must reach
@@ -59,11 +59,13 @@ namespace LiteDB.Engine
             // WriteLogDisk first advances the lower transaction ID and rewrites
             // its earlier frames. LiteDB 5.0.21 restores its counter from the last
             // physical frame rather than the maximum observed ID.
-            if (!confirmation && transactionAnchored && _freeLogPositions.Count > 0)
+            if (!confirmation && (ChecksumsEnabled || transactionAnchored) && _freeLogPositions.Count > 0)
             {
                 // v8 engines backfill in physical order. Preserve increasing
                 // positions per page, even though commits use reclaimed capacity.
-                var minimum = _lastLogPositions.TryGetValue(pageID, out var previous) ? previous + PAGE_SIZE : 0;
+                var minimum = transactionMinimum;
+                if (!ChecksumsEnabled && _lastLogPositions.TryGetValue(pageID, out var previous))
+                    minimum = Math.Max(minimum, previous + PAGE_SIZE);
                 using (var eligible = _freeLogPositions.GetViewBetween(minimum, long.MaxValue).GetEnumerator())
                 {
                     if (eligible.MoveNext())
@@ -84,12 +86,15 @@ namespace LiteDB.Engine
             this.CheckpointStage("before-wal-reclaim-lock");
             lock (stream)
             {
-                var empty = new byte[PAGE_SIZE];
+                var empty = new byte[ChecksumsEnabled ? WalChecksum.FrameSize : PAGE_SIZE];
+                var target = ChecksumsEnabled ? ((ChecksummedWalStream)stream).RawStream : stream;
                 foreach (var position in positions)
                 {
                     _cache.Invalidate(position, FileOrigin.Log);
-                    stream.Position = position;
-                    stream.Write(empty, 0, empty.Length);
+                    if (ChecksumsEnabled && !Retirement.Slots.ContainsKey(position))
+                        throw new PageChecksumException(FileOrigin.Log, position);
+                    target.Position = ChecksumsEnabled ? position / PAGE_SIZE * WalChecksum.FrameSize : position;
+                    target.Write(empty, 0, empty.Length);
                     this.CheckpointStage("wal-slot-cleared");
                 }
                 // Publish capacity only after clearing is durable. A failed/reused

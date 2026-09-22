@@ -31,7 +31,10 @@ namespace LiteDB.Internals
             var log = FileHelper.GetLogFile(Filename);
             var bytes = File.ReadAllBytes(log);
             await MvccProcess.Run("checkpoint", Filename, password);
-            new FileInfo(log).Length.Should().Be(bytes.Length, "reclamation must not move live WAL offsets");
+            var preamble = password == null ? 0 : Constants.PAGE_SIZE;
+            ((new FileInfo(log).Length - preamble) / WalChecksum.FrameSize).Should().Be(
+                (bytes.Length - preamble) / WalChecksum.FrameSize + 1,
+                "one retirement record appends while live offsets remain stable");
             AssertDataFileValue(password, 0);
             using (var latest = new MvccProcess("read", Filename, password))
             {
@@ -134,6 +137,20 @@ namespace LiteDB.Internals
             // Read a copy without the WAL to inspect the physical checkpoint boundary.
             var copy = Path.Combine(_directory, Guid.NewGuid().ToString("N") + ".db");
             File.Copy(Filename, copy);
+            // A live v13 data file is intentionally not a standalone backup: its
+            // root binds the retained WAL. Clear that root only in this disposable
+            // inspection copy so this test can inspect the backfilled watermark.
+            using (var factory = new FileStreamFactory(copy, password, false, false))
+            using (var stream = factory.GetStream(true, false))
+            {
+                var bytes = new byte[Constants.PAGE_SIZE];
+                stream.ReadRequired(bytes, 0, bytes.Length);
+                var header = new BufferSlice(bytes, 0, bytes.Length);
+                new WalRetirement().WriteHeader(header);
+                PageChecksum.Write(header);
+                stream.Position = 0;
+                stream.Write(bytes, 0, bytes.Length);
+            }
             using var engine = new LiteEngine(new EngineSettings { Filename = copy, Password = password, ReadOnly = true });
             using var database = new LiteDatabase(engine, disposeOnClose: false);
             var docs = database.GetCollection("docs").FindAll().ToArray();

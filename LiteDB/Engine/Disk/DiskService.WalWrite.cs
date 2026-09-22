@@ -45,7 +45,7 @@ namespace LiteDB.Engine
                     if (!iterator.MoveNext()) return 0;
 
                     var transactionAnchored = transactionPages != null && transactionPages.Count > 0;
-                    var rebase = transactionState != null &&
+                    var rebase = !ChecksumsEnabled && transactionState != null &&
                         transactionState.TransactionID < _lastWalTransactionID;
                     var previousPositions = rebase
                         ? transactionPages.Values.Select(x => x.Position).Distinct().ToArray()
@@ -123,7 +123,9 @@ namespace LiteDB.Engine
                 {
                     try
                     {
+                        this.CrashPoint("wal-before-durable-flush");
                         this.FlushConfirmedLog(stream);
+                        this.CrashPoint("wal-after-durable-flush");
                     }
                     catch (Exception ex)
                     {
@@ -166,14 +168,20 @@ namespace LiteDB.Engine
                 // Only this transaction can see its unconfirmed slots. Keep the
                 // confirmation page last so recovery sees every page.
                 if (!forceAppend && !isConfirmed && transactionPages != null &&
-                    transactionPages.TryGetValue(pageID, out var previous))
+                    transactionPages.TryGetValue(pageID, out var previous) && _checksums.CanReuse(previous.Position))
                 {
                     page.Position = previous.Position;
                     _cache.Invalidate(page.Position, FileOrigin.Log);
                 }
                 else
                 {
-                    page.Position = this.AllocateLogPosition(pageID, isConfirmed, transactionAnchored);
+                    // Recovery selects a transaction's last physical occurrence
+                    // of a page. A checkpoint may add earlier free slots between
+                    // safepoints, but a rewritten page must stay after its own
+                    // earlier occurrence (other transactions may reuse freely).
+                    var minimum = transactionPages != null && transactionPages.TryGetValue(pageID, out var prior)
+                        ? prior.Position + PAGE_SIZE : 0;
+                    page.Position = this.AllocateLogPosition(pageID, isConfirmed, transactionAnchored, minimum);
                 }
                 this.RecordLogPosition(pageID, page.Position);
                 this.RecordLogTransactionID(page.ReadUInt32(BasePage.P_TRANSACTION_ID));
@@ -184,8 +192,10 @@ namespace LiteDB.Engine
                 _state.SimulateDiskWriteFail?.Invoke(page);
 #endif
 
+                this.CrashPoint(isConfirmed ? "wal-confirmation-before-write" : "wal-page-before-write");
                 this.PreserveFileVersion(page);
                 stream.Write(page.Array, page.Offset, PAGE_SIZE);
+                this.CrashPoint(isConfirmed ? "wal-confirmation-after-write" : "wal-page-after-write");
                 hasConfirmation |= isConfirmed;
 
                 // Publish only after the bytes are written to the stream.

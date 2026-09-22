@@ -18,13 +18,18 @@ namespace VectorCompatibility.Current
                 var file = Path.Combine(directory, "reclaimed-" + (encrypted ? "encrypted.db" : "plain.db"));
                 if (!create)
                 {
-                    using var check = new LiteDatabase(new ConnectionString { Filename = file, Password = password });
-                    if (check.GetCollection("cold").FindById(0)["value"].AsInt32 != 22 ||
+                    using var reopened = new LiteEngine(new EngineSettings { Filename = file, Password = password });
+                    using var check = new LiteDatabase(reopened, disposeOnClose: false);
+                    check.BeginTrans();
+                    if (reopened.GetMonitor().GetThreadTransaction().TransactionID <= uint.Parse(File.ReadAllText(file + ".maxid")))
+                        throw new Exception("Recovery reused an abandoned transaction identity");
+                    check.Rollback();
+                    if (check.GetCollection("cold").FindById(0)["value"].AsInt32 != 21 ||
                         check.GetCollection("cold").FindById(1)["value"].AsInt32 != 21 ||
                         check.GetCollection("victim").FindAll().Any(doc => doc["value"].AsInt32 != 0) ||
                         check.GetCollection("hot").FindById(0)["value"].AsInt32 != 20 ||
                         check.GetCollection("tail").FindAll().Any(doc => doc["value"].AsInt32 != 1))
-                        throw new Exception("Legacy checkpoint lost reclaimed WAL updates");
+                        throw new Exception("Recovery lost reclaimed WAL updates: " + string.Join("; ", new[] { "cold", "victim", "hot", "tail" }.Select(name => name + "=" + string.Join(",", check.GetCollection(name).FindAll().Select(doc => doc["value"].AsInt32)))));
                     continue;
                 }
 
@@ -45,10 +50,10 @@ namespace VectorCompatibility.Current
                 tail.Insert(Documents(0));
                 for (var value = 1; value <= 20; value++) hot.Update(Documents(value));
                 using var reader = engine.Query("hot", new Query());
-                var length = new FileInfo(LogName(source)).Length;
                 engine.Checkpoint();
+                var length = new FileInfo(LogName(source)).Length;
                 Task.Run(() => cold.Update(Documents(21))).GetAwaiter().GetResult();
-                if (new FileInfo(LogName(source)).Length > length + 3 * 8192)
+                if (new FileInfo(LogName(source)).Length > length + 2 * Constants.PAGE_SIZE)
                     throw new Exception("The compatibility fixture must actually reuse WAL slots");
                 using var lowAllocated = new ManualResetEventSlim();
                 using var highWritten = new ManualResetEventSlim();
@@ -88,16 +93,14 @@ namespace VectorCompatibility.Current
                     }
                 });
                 Task.WhenAll(low, high).GetAwaiter().GetResult();
-                if (afterAbandoned != beforeAbandoned + Constants.PAGE_SIZE)
+                if (afterAbandoned != beforeAbandoned)
                     throw new Exception("The abandoned transaction did not reuse reclaimed WAL slots: " +
                         (afterAbandoned - beforeAbandoned));
-                if (provisionalLow >= abandonedHigh || finalLow <= abandonedHigh)
-                    throw new Exception($"The fixture did not rebase the delayed transaction: " +
+                if (provisionalLow >= abandonedHigh || finalLow != provisionalLow)
+                    throw new Exception($"The fixture did not preserve the delayed transaction identity: " +
                         $"{provisionalLow}, {abandonedHigh}, {finalLow}");
 
-                var ids = ReadTransactionIds(LogName(source), password);
-                if (!ids.Contains(abandonedHigh) || ids.Last() != finalLow || ids.Max() != finalLow)
-                    throw new Exception("The physical WAL tail does not dominate the abandoned transaction ID");
+                File.WriteAllText(file + ".maxid", abandonedHigh.ToString());
                 // Preserve the reclaimed, reused WAL before reader disposal permits reset.
                 File.Copy(source, file);
                 File.Copy(LogName(source), LogName(file));
@@ -113,19 +116,5 @@ namespace VectorCompatibility.Current
         private static string LogName(string filename) =>
             Path.Combine(Path.GetDirectoryName(filename), Path.GetFileNameWithoutExtension(filename) + "-log" + Path.GetExtension(filename));
 
-        private static uint[] ReadTransactionIds(string filename, string password)
-        {
-            using var file = new FileStream(filename, FileMode.Open, FileAccess.Read,
-                FileShare.ReadWrite | FileShare.Delete);
-            using var stream = password == null ? (Stream)file : new AesStream(password, file);
-            var bytes = new byte[Constants.PAGE_SIZE];
-            var page = new PageBuffer(bytes, 0, 0);
-            var ids = new System.Collections.Generic.List<uint>();
-            while (stream.ReadFully(bytes, 0, bytes.Length) == bytes.Length)
-            {
-                if (!page.IsBlank()) ids.Add(page.ReadUInt32(BasePage.P_TRANSACTION_ID));
-            }
-            return ids.ToArray();
-        }
     }
 }

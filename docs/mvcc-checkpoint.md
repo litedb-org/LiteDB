@@ -1,16 +1,9 @@
 # Snapshot-aware checkpointing
 
-> **Stack integration is pending.** This PR now follows #2954 (v10 checksums),
-> #2924 (v11 index ordering), and #2937 (v12 compact storage). The implementation
-> below still describes the original legacy WAL protocol and has not been merged
-> with those parents. It must remain draft: clearing committed frames invalidates
-> the checksum transaction count/digest and confirmation sequence. A durable
-> reclamation protocol and a new format boundary must be implemented and tested
-> before this layer can merge. Do not disable checksum verification or accept
-> arbitrary zero frames to resolve the conflict. Earlier test results and space
-> measurements apply only to the legacy implementation.
->
-> See the [stack integration requirements](https://github.com/litedb-org/LiteDB/blob/codex/stack-compact/docs/storage-pr-stack.md).
+This is the v13 reclamation layer of native stack #3001:
+#2998 checksums → #2924 index ordering → #2999 compact storage → #3000 MVCC.
+It retains complete transaction verification while allowing unreachable WAL
+payloads to be reclaimed. See [the format](mvcc-retirement-format.md).
 
 An ordinary query pins its logical read version for its entire lifetime, including
 pages it has not visited. Checkpoint backfills the newest committed image of each
@@ -27,7 +20,7 @@ independently copying two live files is not a consistency protocol.
 
 An auto-checkpoint from a commit takes the full path whenever no transaction is
 open. Under readers it does partial work on a back-off (50 ms doubling to 1 s),
-because that work scans the index under its write lock and flushes the WAL twice.
+because that work scans the index and requires multiple durable publication barriers.
 
 ## Backfill and reclamation
 
@@ -51,69 +44,85 @@ reader suspended after resolving an offset but before reading its bytes. Backfil
 still stops at the oldest snapshot. If no WAL version exists at or below S,
 backfill at or below S cannot change that page's original data-file image.
 
+The checkpointer excludes commit publication with the header monitor, then takes
+the index write lock and WAL writer monitor. This orders the live committed set
+with the WAL being verified and excludes safepoint writes until copying and
+publication finish. Shared leases are inspected under the database mutex before
+these locks. Failed confirmed-flush teardown releases the writer monitor before
+cleaning up snapshots; checkpoint failures stop the engine after releasing locks.
+
 The physical protocol is:
 
-1. Flush the WAL, copy the safe page images, and durably flush the data file.
-2. Invalidate obsolete cached frames and overwrite their WAL slots with zero
-   pages, without moving any retained offset.
-3. Durably flush the cleared slots before publishing them to the free-slot pool.
-4. Append one unconfirmed frame for each transaction before letting its later
-   frames reuse eligible slots under the WAL writer lock. If a lower allocated
-   transaction ID reaches the writer after a higher one, advance its ID, durably
-   append the new tail anchor, and rewrite its earlier unconfirmed frames before
-   confirmation. This preserves the maximum transaction ID at the physical tail
-   for legacy recovery even when allocation and write order differ. Failed reused
-   writes are not immediately returned to the pool; reopening only recovers slots
-   that are entirely zero. Abandoned nonzero frames remain until full reset.
-   Transaction-private safepoint reuse remains supported.
-5. Append confirmation frames. Their page positions define logical version IDs;
-   removing old transactions therefore never renumbers another process's lease.
+1. Verify the complete WAL, including earlier retirement witnesses, and match its
+   confirmed transaction IDs to the live committed set before modifying either file.
+2. Before the first retirement, durably promote the data header to v13 through the
+   existing WAL-bound header journal. This changes one header, not documents or indexes.
+3. Append and sync retirement records retaining the original identity, position,
+   contribution, count/digest and confirmation sequence of each obsolete frame.
+   These records are not yet permission to overwrite anything.
+4. Seal and sync a header recovery journal bound to the entire verified WAL.
+   Copy safe page images and sync the data file.
+5. Publish and sync the witness-chain root and minimum commit sequence in the
+   checksummed data header. Durably remove the header journal before changing WAL bytes.
+6. Invalidate obsolete cached frames, clear their payload slots, sync the clears,
+   then publish reusable capacity. Retained offsets never move.
+7. Reuse witnessed slots for nonconfirmation frames; confirmations always append.
+   Their physical positions remain stable snapshot version IDs across processes.
 
 ### Recovery and compatibility
 
-Recovery rebuilds the free-slot pool from zero pages. Retained floor frames and
-their confirmation records reconstruct every required page version. Versions are
-sparse confirmation-position IDs, not counts of surviving confirmations. An
-interruption during clearing can leave some obsolete frames present or some old
-transactions without confirmations; required page images and their confirmations
-remain intact. There is no separately published persistent base or free-list file.
+Recovery validates the chain rooted in header bytes 168–187 before trusting any
+hole. It replays each retired frame's original witness at its original position,
+then any current payload incarnation at that position. The existing transaction
+count/digest and consecutive confirmation-sequence checks remain mandatory.
+Missing/corrupt frames without witnesses still fail those checks. A torn new
+unconfirmed incarnation at an authorized slot cannot invalidate an older commit;
+if that incarnation was committed, its missing contribution invalidates its later
+confirmation. A published root's minimum sequence prevents recovery from discarding
+commits needed by partially backfilled data. Rebuild uses the same witness reader
+and transaction verifier. Read-only recovery preserves data and WAL bytes.
 
-Existing v8 engines checkpoint in physical WAL order. A reclaimed slot is eligible
-only if it comes after this page's previous WAL positions, so physical order per
-page still agrees with commit order. A transaction whose allocated ID falls behind
-the physical writer order is rebased before its next frame, and both that new-ID
-tail anchor and its confirmation append. LiteDB 5.0.21 therefore restores a
-transaction-ID counter above every abandoned reused-slot frame. These restrictions
-preserve ordinary v8 compatibility and v9 vector compatibility without introducing
-a format migration.
-The compatibility script allocates a lower-ID transaction first, writes and
-abandons a higher-ID transaction, then resumes the lower transaction. It verifies
-the rebased physical tail before LiteDB 5.0.21 commits an unrelated update and
-checkpoints, then reopens the result in both engines, plain and encrypted.
+A transaction keeps its ID across interleaved commits. Recovery restores the
+maximum observed ID, including witnesses and intact abandoned frames. Rewrites
+within one transaction must keep increasing physical positions for each page;
+otherwise holes created between safepoints could make physical replay select an
+older image. Unconfirmed slots preceding an acknowledgement remain protected
+against in-place rewrite. Different transactions can reuse a page's earlier slots.
+
+New files retain the parent's BSON v11 / Auto compact v12 creation policy. Existing
+v8/v9/v10 writable opens first perform the parent's checksum/index migrations.
+v11/v12 files promote lazily on the first checkpoint that retires obsolete frames.
+Promotion and witness publication are separate durable steps: an interrupted
+attempt may leave a valid v13 file with no retirement root. A later writable open
+recovers automatically; a subsequent checkpoint can retry reclamation. There is no
+whole-database rebuild or background conversion for this layer. The inherited
+index migration has separate index-rewrite and temporary-space costs.
+
+Released engines and the preceding v12 engine reject v13. A WAL/data pair must
+stay together while a root is present: even a data-only copy of the backfilled
+watermark is not a supported backup. A full checkpoint clears the root and rotates
+the WAL salt only after all data is durable, then resets the WAL. It does not
+lower the file version. Explicit rebuild can produce the parent's BSON v11 or
+compact v12 representation because it creates a new database without retained WAL
+history; this does not restore compatibility with released v8/v9 engines.
 
 ### Space savings and limits
 
-Reclamation provides reusable capacity inside the existing WAL. It does **not**
-shrink the live file or punch filesystem holes. Full truncation, index reset, and
-version-counter reset require exclusive local transaction ownership and no shared
-reader leases, and happen only after the data flush.
+The 8 KiB logical address space and 64-byte WAL checksum trailers remain unchanged.
+Retirement witnesses occupy 56 bytes each; up to 145 fit in one 8,256-byte WAL
+frame. The initial version promotion and subsequent root publications use a
+transient 16 KiB header journal. No per-page payload backups or database-wide data
+rewrite are required. Witness pages remain append-only until full checkpoint;
+small batches still cost one whole witness frame. Recovery retains witness
+metadata rather than buffering old payloads, and scans the WAL to verify complete
+transactions. Long-held readers can grow metadata and recovery work indefinitely.
 
-Retained floors, the newest versions, and necessary commit markers cannot be
-reclaimed. Confirmation frames always append, and a single-page transaction is
-only a confirmation frame. A workload of single-page commits therefore grows the
-WAL by one page per commit for as long as any snapshot blocks full truncation.
-Not every freed slot is eligible for every page: a page whose previous frame is
-near the WAL tail may still need to append, preserving legacy replay order.
-Consequently this reduces growth when usable obsolete slots exist, rather than
-guaranteeing bounded storage for arbitrary long-running readers or hot-page writes.
-
-A Linux measurement using the process-test fixture seeded two collections of 64
-rows with 3,000-byte payloads, updated one collection 20 times, and kept a reader
-open while updating the other collection five times. With checkpoint disabled for
-the control, WAL growth was 1,351,680 bytes; after partial checkpoint/reclamation,
-it was 114,688 bytes: **91.5% less incremental growth**, for both plain and encrypted
-files. The initial WAL was about 6 MB and stayed allocated in both runs. This is a
-workload-specific capacity-reuse measurement, not a general storage reduction.
+Reclamation reuses allocated WAL capacity; it does not shrink the live file or
+punch holes. Retained floors and newest versions cannot be reclaimed. Confirmations
+always append, so single-page commits and workloads with insufficient reusable
+slots still grow the WAL. Full truncation requires exclusive local transaction
+ownership and no shared leases. Storage savings from the original legacy PR are
+historical and are not measurements of this protocol.
 
 ## Shared mode
 
@@ -187,5 +196,23 @@ dotnet test LiteDB.Tests -c Release -f net8.0 -p:TestingEnabled=true --filter Fu
 
 The test build copies the process harness into its output. Process tests run on
 the modern .NET targets; the remaining MVCC tests also compile for the .NET
-Framework targets. These tests simulate process failures and write-boundary
-interruptions, not arbitrary storage-controller corruption or torn sectors.
+Framework targets. `MvccRetirement*` additionally tests durable versus volatile bytes, torn physical
+writes to records/headers/reused slots, repeated torn recovery, failed syncs,
+CRC-valid malformed witnesses, full document/index oracles, and real-file rebuild.
+`MvccSafepointRetirement_Tests` exercises new holes between active-writer safepoints.
+The `mvcc-retirement` fuzz target randomizes these failures and repeated retirement
+cycles; it joins the daily three-minute checksum campaign. Local artifacts can be
+placed under `/dev/shm` to avoid sustained physical disk writes.
+
+The fault model assumes successful durable flushes persist addressed bytes and
+power-safe overwrite preserves previously synced bytes outside the write range.
+Retirement requires working durable sync; its barriers do not use the ordinary
+commit fallback. These tests do not promise recovery from arbitrary independent
+damage to both data and required recovery evidence. CRCs detect accidental damage,
+not deliberate tampering.
+
+The actual v12 parent is tested in a separate process by
+`python3 scripts/test-mvcc-compatibility.py`; its default revision is pinned so
+this probe cannot accidentally run a v13-capable engine.
+`python3 scripts/test-vector-compatibility.py` additionally exercises released
+LiteDB 5.0.21. Both require data **and WAL** byte preservation on rejection.

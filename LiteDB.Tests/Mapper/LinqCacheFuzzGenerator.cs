@@ -13,7 +13,7 @@ namespace LiteDB.Tests.Mapper
     /// </summary>
     internal sealed class LinqCacheFuzzGenerator
     {
-        internal const int Kinds = 4;
+        internal const int Kinds = 5;
 
         private static readonly string[] Words = { "a", "Ready", "READY", "ready", "", "zz" };
         private static readonly StringComparison[] Modes =
@@ -23,15 +23,27 @@ namespace LiteDB.Tests.Mapper
         };
         private static readonly MethodInfo CountMethod = typeof(LinqCacheFuzzGenerator).GetMethod(nameof(Count));
         private static readonly MethodInfo ListContains = typeof(List<int>).GetMethod(nameof(List<int>.Contains));
+        private static readonly MethodInfo EnumerableAny = typeof(Enumerable).GetMethods()
+            .Single(method => method.Name == nameof(Enumerable.Any) && method.GetParameters().Length == 2)
+            .MakeGenericMethod(typeof(int));
+        private static readonly MethodInfo EnumerableAll = typeof(Enumerable).GetMethods()
+            .Single(method => method.Name == nameof(Enumerable.All) && method.GetParameters().Length == 2)
+            .MakeGenericMethod(typeof(int));
+        private static readonly MethodInfo EnumerableSelect = typeof(Enumerable).GetMethods()
+            .Where(method => method.Name == nameof(Enumerable.Select) && method.GetParameters().Length == 2)
+            .Single(method => method.GetParameters()[1].ParameterType.GetGenericArguments().Length == 2)
+            .MakeGenericMethod(typeof(int), typeof(int));
+        private static readonly ConstructorInfo BsonRefConstructor = typeof(BsonRefId<FuzzReference>)
+            .GetConstructor(new[] { typeof(BsonValue) });
 
         private readonly ParameterExpression _row = Expression.Parameter(typeof(FuzzRow), "x");
-        private readonly Random _shape;
-        private readonly Random _values;
+        private readonly StableRandom _shape;
+        private readonly StableRandom _values;
 
         internal LinqCacheFuzzGenerator(int shapeSeed, int valueSeed)
         {
-            _shape = new Random(shapeSeed);
-            _values = new Random(valueSeed);
+            _shape = new StableRandom(shapeSeed);
+            _values = new StableRandom(valueSeed);
         }
 
         public static int Count(object[] values) => values.Length;
@@ -43,22 +55,27 @@ namespace LiteDB.Tests.Mapper
                 case 0: return Expression.Lambda<Func<FuzzRow, bool>>(Bool(3), _row);
                 case 1: return Expression.Lambda<Func<FuzzRow, int>>(Int(3), _row);
                 case 2: return Expression.Lambda<Func<FuzzRow, object[]>>(Array(3), _row);
-                default: return Expression.Lambda<Func<FuzzRow, FuzzRow>>(Init(3), _row);
+                case 3: return Expression.Lambda<Func<FuzzRow, FuzzRow>>(Init(3), _row);
+                default: return SequencePredicate();
             }
         }
 
         private Expression Int(int depth)
         {
-            switch (_shape.Next(depth <= 0 ? 4 : 9))
+            switch (_shape.Next(depth <= 0 ? 7 : 12))
             {
                 case 0: return Expression.Property(_row, nameof(FuzzRow.Value));
                 case 1: return Expression.Property(Expression.Property(_row, nameof(FuzzRow.Next)), nameof(FuzzRow.Value));
                 case 2: return Capture(_values.Next(-5, 50));
                 case 3: return Expression.Constant(_shape.Next(4));
-                case 4: return Expression.Add(Int(depth - 1), Int(depth - 1));
-                case 5: return Expression.Multiply(Int(depth - 1), Int(depth - 1));
-                case 6: return Expression.Condition(Bool(depth - 1), Int(depth - 1), Int(depth - 1));
-                case 7: return Expression.Call(_shape.Next(2) == 0 ? MathMethod("Min") : MathMethod("Max"), Int(depth - 1), Int(depth - 1));
+                case 4: return Expression.Property(Expression.Property(_row, nameof(FuzzRow.When)), nameof(DateTime.Year));
+                case 5: return Expression.Call(Expression.Property(_row, nameof(FuzzRow.Optional)),
+                    typeof(int?).GetMethod(nameof(Nullable<int>.GetValueOrDefault), Type.EmptyTypes));
+                case 6: return Expression.Property(Expression.Property(_row, nameof(FuzzRow.Contract)), nameof(IFuzzContract.Value));
+                case 7: return Expression.Add(Int(depth - 1), Int(depth - 1));
+                case 8: return Expression.Multiply(Int(depth - 1), Int(depth - 1));
+                case 9: return Expression.Condition(Bool(depth - 1), Int(depth - 1), Int(depth - 1));
+                case 10: return Expression.Call(_shape.Next(2) == 0 ? MathMethod("Min") : MathMethod("Max"), Int(depth - 1), Int(depth - 1));
                 default: return Expression.Call(CountMethod, ClosedArray(depth - 1));
             }
         }
@@ -77,7 +94,7 @@ namespace LiteDB.Tests.Mapper
 
         private Expression Bool(int depth)
         {
-            switch (_shape.Next(depth <= 0 ? 7 : 11))
+            switch (_shape.Next(depth <= 0 ? 8 : 12))
             {
                 case 0: return Compare(Int(depth - 1), Int(depth - 1));
                 case 1: return Expression.Equal(Text(depth - 1), Text(depth - 1));
@@ -87,11 +104,27 @@ namespace LiteDB.Tests.Mapper
                 case 5: return Expression.Call(Capture(Enumerable.Range(0, _values.Next(4)).ToList()), ListContains, Int(0));
                 case 6: return Expression.Equal(Expression.Property(Expression.Property(_row, nameof(FuzzRow.Tags)), "Item",
                     Capture(Words[_values.Next(3)] + "k")), Int(0));
-                case 7: return Expression.AndAlso(Bool(depth - 1), Bool(depth - 1));
-                case 8: return Expression.OrElse(Bool(depth - 1), Bool(depth - 1));
-                case 9: return Expression.Not(Bool(depth - 1));
+                case 7: return Expression.Property(Expression.Property(_row, nameof(FuzzRow.Optional)), nameof(Nullable<int>.HasValue));
+                case 8: return Expression.AndAlso(Bool(depth - 1), Bool(depth - 1));
+                case 9: return Expression.OrElse(Bool(depth - 1), Bool(depth - 1));
+                case 10: return Expression.Not(Bool(depth - 1));
                 default: return Expression.Equal(Array(depth - 1), Array(depth - 1));
             }
+        }
+
+        private LambdaExpression SequencePredicate()
+        {
+            var item = Expression.Parameter(typeof(int), "item");
+            var numbers = Expression.Property(_row, nameof(FuzzRow.Numbers));
+            var threshold = Capture(_values.Next(-5, 10));
+            var predicate = Expression.Lambda<Func<int, bool>>(Expression.GreaterThan(item, threshold), item);
+            if (_shape.Next(3) == 0)
+                return Expression.Lambda<Func<FuzzRow, bool>>(Expression.Call(EnumerableAll, numbers, predicate), _row);
+            if (_shape.Next(2) == 0)
+                return Expression.Lambda<Func<FuzzRow, bool>>(Expression.Call(EnumerableAny, numbers, predicate), _row);
+            var selector = Expression.Lambda<Func<int, int>>(Expression.Add(item, Capture(_values.Next(-3, 4))), item);
+            var selected = Expression.Call(EnumerableSelect, numbers, selector);
+            return Expression.Lambda<Func<FuzzRow, bool>>(Expression.Call(EnumerableAny, selected, predicate), _row);
         }
 
         private Expression Compare(Expression left, Expression right)
@@ -179,6 +212,12 @@ namespace LiteDB.Tests.Mapper
             if (_shape.Next(2) == 0) bindings.Add(Expression.Bind(typeof(FuzzRow).GetProperty(nameof(FuzzRow.Name)), Text(depth - 1)));
             if (depth > 0 && _shape.Next(2) == 0)
                 bindings.Add(Expression.Bind(typeof(FuzzRow).GetProperty(nameof(FuzzRow.Next)), Init(depth - 1)));
+            if (_shape.Next(4) == 0)
+            {
+                var reference = Expression.New(BsonRefConstructor, Capture(new BsonValue(_values.Next(1, 50))));
+                bindings.Add(Expression.Bind(typeof(FuzzRow).GetProperty(nameof(FuzzRow.Reference)),
+                    Expression.Convert(reference, typeof(FuzzReference))));
+            }
             return Expression.MemberInit(Expression.New(typeof(FuzzRow)), bindings);
         }
 
@@ -204,6 +243,21 @@ namespace LiteDB.Tests.Mapper
     public enum FuzzState { New, Ready, Done }
     public enum FuzzOther { New, Ready }
 
+    public interface IFuzzContract
+    {
+        int Value { get; }
+    }
+
+    public class FuzzContract : IFuzzContract
+    {
+        public int Value { get; set; }
+    }
+
+    public class FuzzReference
+    {
+        public int Id { get; set; }
+    }
+
     public class FuzzRow
     {
         public int Value { get; set; }
@@ -211,5 +265,11 @@ namespace LiteDB.Tests.Mapper
         public FuzzState State { get; set; }
         public FuzzRow Next { get; set; }
         public Dictionary<string, int> Tags { get; set; }
+        public DateTime When { get; set; }
+        public int? Optional { get; set; }
+        public List<int> Numbers { get; set; }
+        public IFuzzContract Contract { get; set; }
+        [BsonRef("references")]
+        public FuzzReference Reference { get; set; }
     }
 }

@@ -54,7 +54,7 @@ namespace LiteDB.Internals
             try
             {
                 resolved.Wait(TimeSpan.FromSeconds(20)).Should().BeTrue();
-                var offset = (int)position + (password == null ? 0 : Constants.PAGE_SIZE);
+                var offset = (int)(position / Constants.PAGE_SIZE * WalChecksum.FrameSize) + (password == null ? 0 : Constants.PAGE_SIZE);
                 var bytes = test.Log.ToArray().Skip(offset).Take(Constants.PAGE_SIZE).ToArray();
                 test.Engine.Checkpoint();
                 for (var value = 1; value <= 5; value++) test.Update("cold", value);

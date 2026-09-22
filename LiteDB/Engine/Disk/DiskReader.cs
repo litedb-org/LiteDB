@@ -27,13 +27,15 @@ namespace LiteDB.Engine
         private readonly Lazy<Stream> _dataStream;
         private readonly Lazy<Stream> _logStream;
         private int _disposed;
+        private readonly DataChecksumPolicy _checksums;
 
-        public DiskReader(EngineState state, MemoryCache cache, StreamPool dataPool, StreamPool logPool)
+        public DiskReader(EngineState state, MemoryCache cache, StreamPool dataPool, StreamPool logPool, DataChecksumPolicy checksums = null)
         {
             _state = state;
             _cache = cache;
             _dataPool = dataPool;
             _logPool = logPool;
+            _checksums = checksums;
 
             _dataStream = new Lazy<Stream>(() => _dataPool.Rent());
             _logStream = new Lazy<Stream>(() => _logPool.Rent());
@@ -83,6 +85,7 @@ namespace LiteDB.Engine
             stream.Position = position;
 
             stream.ReadRequired(buffer.Array, buffer.Offset, buffer.Count);
+            if (_checksums != null && !(stream is ChecksummedWalStream)) _checksums.Validate(buffer, position);
 
             DEBUG(buffer.All(0) == false, "check if are not reading out of file length");
         }

@@ -1,6 +1,7 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -25,14 +26,15 @@ namespace LiteDB.Engine
         private readonly TransactionPages _transPages = new TransactionPages();
 
         // transaction info
-        private readonly int _threadID = Environment.CurrentManagedThreadId;
+        private readonly Thread _ownerThread = Thread.CurrentThread;
         private readonly DateTime _startTime;
         private long _headerPosition = long.MaxValue;
         private LockMode _mode = LockMode.Read;
         private TransactionState _state = TransactionState.Active;
 
         // expose (as read only)
-        public int ThreadID => _threadID;
+        public int ThreadID => _ownerThread.ManagedThreadId;
+        internal Thread OwnerThread => _ownerThread;
         public uint TransactionID => _transPages.TransactionID;
         public TransactionState State => _state;
         public LockMode Mode => _mode;
@@ -321,7 +323,13 @@ namespace LiteDB.Engine
             // update wal-index (if any page was added into log disk)
             if (count > 0)
             {
-                _walIndex.ConfirmTransaction(this.TransactionID, _transPages.DirtyPages.Values, _headerPosition);
+#if DEBUG || TESTING
+                _disk.TestCrashPoint("wal-before-index-confirmation");
+#endif
+                _walIndex.ConfirmTransaction(_transPages.TransactionID, _transPages.DirtyPages.Values, _headerPosition);
+#if DEBUG || TESTING
+                _disk.TestCrashPoint("wal-after-index-confirmation");
+#endif
             }
         }
 
@@ -365,6 +373,7 @@ namespace LiteDB.Engine
             }
 
             _state = TransactionState.Aborted;
+            _disk.ForgetWalTransaction(_transPages.TransactionID);
         }
 
         /// <summary>
@@ -467,7 +476,7 @@ namespace LiteDB.Engine
                 foreach (var snapshot in this.Snapshots)
                 {
                     TransactionPageCleanup.Release(snapshot, _disk.Cache,
-                        _threadID == Environment.CurrentManagedThreadId, ref errors);
+                        _ownerThread == Thread.CurrentThread, ref errors);
                 }
             }
 

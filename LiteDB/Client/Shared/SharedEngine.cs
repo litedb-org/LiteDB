@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Collections.Generic;
 using System.Threading;
 using LiteDB.Client.Shared;
@@ -13,9 +14,13 @@ namespace LiteDB
         private readonly Mutex _mutex;
         private readonly SharedReaderRegistry _readers;
         private LiteEngine _engine;
+        private WalRecoveryReport _recoveryReport;
         private volatile bool _transactionRunning = false;
         private int _transactionThreadId;
         private int _databaseUsers;
+#if DEBUG || TESTING
+        internal Func<LiteEngine> SimulateOpenEngine { get; set; }
+#endif
 
         public SharedEngine(EngineSettings settings)
         {
@@ -46,12 +51,13 @@ namespace LiteDB
         /// <returns>true if successfully opened; false if already open</returns>
         private bool OpenDatabase()
         {
+            var recoveredAbandonedOwner = false;
             try
             {
                 // Acquire mutex for every call to open DB.
                 _mutex.WaitOne();
             }
-            catch (AbandonedMutexException) { }
+            catch (AbandonedMutexException) { recoveredAbandonedOwner = true; }
 
             try { RejectAbandonedTransaction(); }
             catch { _mutex.ReleaseMutex(); throw; }
@@ -61,13 +67,9 @@ namespace LiteDB
             {
                 try
                 {
-                    var settings = _settings;
-                    if (settings.AutoRebuild && _readers.OldestVersion().HasValue)
-                    {
-                        settings = settings.Clone();
-                        settings.AutoRebuild = false;
-                    }
-                    _engine = new LiteEngine(settings);
+                    _engine = OpenEngine(recoveredAbandonedOwner);
+                    _recoveryReport = _engine.RecoveryReport ?? _recoveryReport;
+                    _engine.RecoveryReport = _recoveryReport;
                     _databaseUsers++;
                     return true;
                 }
@@ -82,6 +84,42 @@ namespace LiteDB
                 _databaseUsers++;
                 return false;
             }
+        }
+
+        private LiteEngine OpenEngine(bool recoveredAbandonedOwner)
+        {
+            const int retries = 100;
+            for (var attempt = 0; ; attempt++)
+            {
+                try
+                {
+#if DEBUG || TESTING
+                    if (SimulateOpenEngine != null) return SimulateOpenEngine();
+#endif
+                    var settings = _settings;
+                    if (settings.AutoRebuild && _readers.OldestVersion().HasValue)
+                    {
+                        settings = settings.Clone();
+                        settings.AutoRebuild = false;
+                    }
+                    return new LiteEngine(settings);
+                }
+                catch (IOException ex) when (recoveredAbandonedOwner && IsWindowsLockViolation(ex) && attempt < retries)
+                {
+                    // On Windows an abandoned mutex can become available just before
+                    // the dead process' file handles finish closing. Keep ownership
+                    // while the transient sharing violation clears.
+                    Thread.Sleep(20);
+                }
+            }
+        }
+
+        private static bool IsWindowsLockViolation(IOException exception)
+        {
+            const int ERROR_SHARING_VIOLATION = 32;
+            const int ERROR_LOCK_VIOLATION = 33;
+            var errorCode = exception.HResult & 0xFFFF;
+            return errorCode == ERROR_SHARING_VIOLATION || errorCode == ERROR_LOCK_VIOLATION;
         }
 
         /// <summary>

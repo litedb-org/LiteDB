@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -22,6 +22,9 @@ namespace LiteDB.Engine
         private readonly Dictionary<uint, List<KeyValuePair<int, long>>> _index = new Dictionary<uint, List<KeyValuePair<int, long>>>();
         private readonly ReaderWriterLockSlim _indexLock = new ReaderWriterLockSlim();
 
+        private readonly HashSet<uint> _confirmTransactions = new HashSet<uint>();
+        private readonly object _commitLock;
+
         private int _currentReadVersion = 0;
 
         /// <summary>
@@ -29,11 +32,12 @@ namespace LiteDB.Engine
         /// </summary>
         private int _lastTransactionID = 0;
 
-        public WalIndexService(DiskService disk, LockService locker, Func<int[]> sharedReaders = null)
+        public WalIndexService(DiskService disk, LockService locker, Func<int[]> sharedReaders = null, object commitLock = null)
         {
             _disk = disk;
             _locker = locker;
             _sharedReaders = sharedReaders;
+            _commitLock = commitLock ?? new object();
         }
 
         /// <summary>
@@ -72,6 +76,7 @@ namespace LiteDB.Engine
             {
                 // reset 
                 _confirmationPositions.Clear();
+                _confirmTransactions.Clear();
                 _index.Clear();
 
                 _lastTransactionID = 0;
@@ -79,8 +84,11 @@ namespace LiteDB.Engine
                 _backfillVersion = 0;
 
                 // clear cache
+                _disk.ClearSchemaCache();
                 _disk.Cache.Clear();
 
+                // Invalidate the old generation only after checkpoint synced data.
+                _disk.RotateWalSalt();
                 // clear log file (sync)
                 _disk.SetLength(0, FileOrigin.Log);
             }
@@ -170,6 +178,7 @@ namespace LiteDB.Engine
                     ? pagePositions.Max(page => page.Position) : headerPosition;
                 _currentReadVersion = checked((int)(confirmation / PAGE_SIZE + 1));
                 _confirmationPositions[_currentReadVersion] = confirmation;
+                _confirmTransactions.Add(transactionID);
 
                 // update wal-index
                 foreach (var pos in headerPosition == long.MaxValue ? pagePositions :
@@ -197,49 +206,59 @@ namespace LiteDB.Engine
         /// Load all confirmed transactions from log file (used only when open datafile)
         /// Don't need lock because it's called on ctor of LiteEngine
         /// </summary>
-        public void RestoreIndex(ref HeaderPage header)
+        public void RestoreIndex(ref HeaderPage header, Action<HeaderPage> validateHeader = null)
         {
             // get all page positions
             var positions = new Dictionary<long, List<PagePosition>>();
-            var current = 0L;
 
-            // read all pages to get confirmed transactions (do not read page content, only page header)
-            foreach (var buffer in _disk.ReadFull(FileOrigin.Log))
+
+            var recovery = new WalRecovery();
+            var pages = _disk.ReadFull(FileOrigin.Log);
+            if (_disk.ChecksumsEnabled) pages = recovery.Read(pages);
+            foreach (var buffer in pages)
             {
+                var current = buffer.Position;
                 if(buffer.IsBlank())
                 {
                     // Durably cleared slots can be reused by later unconfirmed frames.
                     _disk.RegisterFreeLogPosition(current);
-                    current += PAGE_SIZE;
                     continue;
                 }
 
                 // read direct from buffer to avoid create BasePage structure
                 var pageID = buffer.ReadUInt32(BasePage.P_PAGE_ID);
-                _disk.RecordLogPosition(pageID, current);
+                if (!buffer.WalFrame.Retired) _disk.RecordLogPosition(pageID, current);
                 var isConfirmed = buffer.ReadBool(BasePage.P_IS_CONFIRMED);
                 var transactionID = buffer.ReadUInt32(BasePage.P_TRANSACTION_ID);
                 _disk.RecordLogTransactionID(transactionID);
 
                 var position = new PagePosition(pageID, current);
 
-                if (positions.TryGetValue(transactionID, out var list))
-                {
-                    list.Add(position);
-                }
-                else
-                {
-                    positions[transactionID] = new List<PagePosition> { position };
-                }
+                if (!positions.TryGetValue(transactionID, out var list))
+                    positions[transactionID] = list = new List<PagePosition>();
+                if (!buffer.WalFrame.Retired) list.Add(position);
 
                 if (isConfirmed)
                 {
-                    this.ConfirmTransaction(transactionID, positions[transactionID]);
+                    // Retired confirmation payloads are not live header/page images.
+                    // Their witnesses still confirm the surviving frames at the same
+                    // stable physical version as before reclamation.
+                    var version = checked((int)(current / PAGE_SIZE + 1));
+                    _confirmTransactions.Add(transactionID);
+                    _currentReadVersion = version;
+                    if (!buffer.WalFrame.Retired) _confirmationPositions[version] = current;
+                    foreach (var entry in list)
+                    {
+                        if (!_index.TryGetValue(entry.PageID, out var versions))
+                            _index[entry.PageID] = versions = new List<KeyValuePair<int, long>>();
+                        versions.Add(new KeyValuePair<int, long>(version, entry.Position));
+                    }
+                    positions.Remove(transactionID);
 
                     var pageType = (PageType)buffer.ReadByte(BasePage.P_PAGE_TYPE);
 
                     // when a header is modified in transaction, must always be the last page inside log file (per transaction)
-                    if (pageType == PageType.Header)
+                    if (pageType == PageType.Header && !buffer.WalFrame.Retired)
                     {
                         // page buffer instance can't change
                         var headerBuffer = header.Buffer;
@@ -263,7 +282,14 @@ namespace LiteDB.Engine
                     _lastTransactionID = unchecked((int)transactionID);
                 }
 
-                current += PAGE_SIZE;
+            }
+            if (_disk.ChecksumsEnabled)
+            {
+                validateHeader?.Invoke(header);
+                _disk.FinishWalRecovery(recovery);
+                var occupied = new HashSet<long>(_index.Values.SelectMany(x => x).Select(x => x.Value));
+                foreach (var position in _disk.Retirement.Slots.Keys)
+                    if (!occupied.Contains(position)) _disk.RegisterFreeLogPosition(position);
             }
         }
 

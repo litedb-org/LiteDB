@@ -64,6 +64,16 @@ namespace LiteDB.Engine
         /// </summary>
         private int TryCheckpoint(bool rationed)
         {
+            try { return TryCheckpointCore(rationed); }
+            catch (Exception error)
+            {
+                _disk.StopAfterCheckpointFailure(error);
+                throw;
+            }
+        }
+
+        private int TryCheckpointCore(bool rationed)
+        {
             if (_disk.GetFileLength(FileOrigin.Log) == 0) return 0;
 
             // Acquire transaction exclusion before the index lock. Snapshot disposal
@@ -76,6 +86,8 @@ namespace LiteDB.Engine
             // A commit only pays for it on the same back-off as the waiting attempt.
             if (!exclusive && !wait) return 0;
             var indexEntered = false;
+            var commitEntered = false;
+            var writerEntered = false;
             try
             {
                 // Scanning lease files is filesystem work; keep it outside the index
@@ -85,9 +97,13 @@ namespace LiteDB.Engine
                 // Neither backfill nor reclamation is safe without the oldest
                 // snapshot version, so leave the WAL untouched and retry later.
                 if (shared == null) return 0;
+                _disk.CheckpointStage("before-commit-lock");
+                System.Threading.Monitor.Enter(_commitLock, ref commitEntered);
                 _disk.CheckpointStage("before-index-lock");
                 _indexLock.EnterWriteLock();
                 indexEntered = true;
+                System.Threading.Monitor.Enter(_disk.WalWriterLock, ref writerEntered);
+                this.ValidateCheckpoint();
                 var live = this.LiveVersions(shared);
                 var target = live.Length == 0 ? _currentReadVersion : live[0];
                 var reclaim = exclusive && live.Length == 0;
@@ -107,9 +123,12 @@ namespace LiteDB.Engine
 
                 // WAL must be durable before its pages can reach the data file.
                 // The data flush completes before truncation can become durable.
-                _disk.SyncLogBeforeCheckpoint();
+                var retirement = _disk.PrepareRetirement(obsolete);
+                _disk.SyncLogBeforeCheckpoint(requireDurable: !reclaim);
                 _disk.WriteDataDisk(_disk.ReadCheckpointPages(pages));
                 _backfillVersion = target;
+
+                if (!reclaim) _disk.CompletePartialCheckpoint(retirement);
 
                 if (obsolete.Count > 0)
                 {
@@ -119,11 +138,20 @@ namespace LiteDB.Engine
                 if (reclaim)
                 {
                     // Clear takes the same non-recursive lock; perform its steps here.
+                    _disk.ClearSchemaCache();
                     _disk.Cache.Clear();
                     _disk.CheckpointStage("before-reclaim");
+                    _disk.RotateWalSalt();
+#if DEBUG || TESTING
+                    _disk.TestCrashPoint("checkpoint-before-clear");
+#endif
                     _disk.SetLength(0, FileOrigin.Log);
+#if DEBUG || TESTING
+                    _disk.TestCrashPoint("checkpoint-after-clear");
+#endif
                     _disk.CheckpointStage("after-reclaim");
                     _confirmationPositions.Clear();
+                    _confirmTransactions.Clear();
                     _index.Clear();
                     _lastTransactionID = 0;
                     _currentReadVersion = 0;
@@ -133,7 +161,9 @@ namespace LiteDB.Engine
             }
             finally
             {
+                if (writerEntered) System.Threading.Monitor.Exit(_disk.WalWriterLock);
                 if (indexEntered) _indexLock.ExitWriteLock();
+                if (commitEntered) System.Threading.Monitor.Exit(_commitLock);
                 if (mustExit) _locker.ExitExclusive();
             }
         }

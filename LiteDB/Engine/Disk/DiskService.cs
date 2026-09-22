@@ -15,6 +15,7 @@ namespace LiteDB.Engine
         private readonly MemoryCache _cache;
         private readonly EngineState _state;
         private readonly bool _readOnly;
+        internal bool CompactStorage { get; }
 
         private IStreamFactory _dataFactory;
         private readonly IStreamFactory _logFactory;
@@ -36,6 +37,11 @@ namespace LiteDB.Engine
             EngineState state,
             int[] memorySegmentSizes)
         {
+            if (!Enum.IsDefined(typeof(CompactStorageMode), settings.CompactStorage))
+            {
+                throw new ArgumentOutOfRangeException(nameof(settings.CompactStorage));
+            }
+
             _cache = new MemoryCache(memorySegmentSizes, settings.GetCacheSize());
             _state = state;
             _readOnly = settings.ReadOnly;
@@ -44,7 +50,7 @@ namespace LiteDB.Engine
             try
             {
                 _dataFactory = settings.CreateDataFactory();
-                _logFactory = settings.CreateLogFactory();
+                _logFactory = new ChecksummedWalFactory(settings.CreateLogFactory(), _checksums);
 
                 _dataPool = new StreamPool(_dataFactory, false);
                 _logPool = new StreamPool(_logFactory, true);
@@ -69,12 +75,14 @@ namespace LiteDB.Engine
                     }
                     LOG($"creating new database: '{Path.GetFileName(_dataFactory.Name)}'", "DISK");
 
-                    this.Initialize(_dataPool.Writer.Value, settings.Collation, settings.InitialSize);
+                    this.Initialize(_dataPool.Writer.Value, settings.Collation, settings.InitialSize,
+                        settings.CompactStorage == CompactStorageMode.Auto);
                     dataLength = _dataFactory.GetLength();
                 }
 
                 if (dataLength < PAGE_SIZE) throw LiteException.InvalidDatabase();
                 if (!isNew) this.ValidateExistingData();
+                CompactStorage = settings.CompactStorage != CompactStorageMode.Legacy;
 
                 if (settings.ReadOnly == false)
                 {
@@ -87,8 +95,8 @@ namespace LiteDB.Engine
                 if (_logFactory.Exists())
                 {
                     var logLength = _logFactory.GetLength();
-                    _logTrailingLength = logLength % PAGE_SIZE;
-                    _logLength = logLength - _logTrailingLength - PAGE_SIZE;
+                    _logTrailingLength = ((ChecksummedWalFactory)_logFactory).TrailingBytes;
+                    _logLength = logLength - logLength % PAGE_SIZE - PAGE_SIZE;
                 }
                 else
                 {
@@ -112,37 +120,11 @@ namespace LiteDB.Engine
         public MemoryCache Cache => _cache;
 
         /// <summary>
-        /// Create a new empty database (use synced mode)
-        /// </summary>
-        private void Initialize(Stream stream, Collation collation, long initialSize)
-        {
-            var buffer = new PageBuffer(new byte[PAGE_SIZE], 0, 0);
-            var header = new HeaderPage(buffer, 0);
-
-            // update collation
-            header.Pragmas.Set(Pragmas.COLLATION, (collation ?? Collation.Default).ToString(), false);
-
-            // update buffer
-            header.UpdateBuffer();
-
-            stream.Write(buffer.Array, buffer.Offset, PAGE_SIZE);
-
-            if (initialSize > 0)
-            {
-                if (stream is AesStream) throw LiteException.InitialSizeCryptoNotSupported();
-                if (initialSize % PAGE_SIZE != 0) throw LiteException.InvalidInitialSize();
-                stream.SetLength(initialSize);
-            }
-
-            stream.FlushToDisk();
-        }
-
-        /// <summary>
         /// Get a new instance for read data/log pages. This instance are not thread-safe - must request 1 per thread (used in Transaction)
         /// </summary>
         public DiskReader GetReader()
         {
-            return new DiskReader(_state, _cache, _dataPool, _logPool);
+            return new DiskReader(_state, _cache, _dataPool, _logPool, ChecksumsEnabled ? _dataChecksums : null);
         }
 
         /// <summary>
@@ -224,7 +206,7 @@ namespace LiteDB.Engine
                         if (read == 0) throw new EndOfStreamException("Cannot mark an incomplete database header");
                         offset += read;
                     }
-                    buffer[HeaderPage.P_INVALID_DATAFILE_STATE] = 1;
+                    this.MarkHeaderInvalid(new BufferSlice(buffer, 0, PAGE_SIZE));
                     stream.Position = 0;
                     stream.Write(buffer, 0, PAGE_SIZE);
                     stream.FlushToDisk();
@@ -243,6 +225,18 @@ namespace LiteDB.Engine
         /// </summary>
         public IEnumerable<PageBuffer> ReadFull(FileOrigin origin)
         {
+            if (this.GetFileLength(origin) == 0) yield break;
+            if (origin == FileOrigin.Log && ChecksumsEnabled)
+            {
+                var reader = (ChecksummedWalStream)_logPool.Rent();
+                try
+                {
+                    foreach (var page in WalRetirementReader.Read(reader.RawStream, _checksums, GetFileLength(origin)))
+                        yield return page;
+                }
+                finally { _logPool.Return(reader); }
+                yield break;
+            }
             // do not use MemoryCache factory - reuse same buffer array (one page per time)
             // do not use BufferPool because header page can't be shared (byte[] is used inside page return)
             var buffer = new byte[PAGE_SIZE];
@@ -263,12 +257,18 @@ namespace LiteDB.Engine
 
                     var bytesRead = stream.ReadFully(buffer, 0, PAGE_SIZE);
 
+                    if (bytesRead != PAGE_SIZE && origin == FileOrigin.Log && ChecksumsEnabled)
+                        throw new PageChecksumException(origin, position);
                     ENSURE(bytesRead == PAGE_SIZE, "ReadFull must read PAGE_SIZE bytes [{0}]", bytesRead);
+                    this.ReadRecoveredHeader(buffer, position, origin);
+                    if (origin == FileOrigin.Data && ChecksumsEnabled)
+                        _dataChecksums.Validate(new BufferSlice(buffer, 0, PAGE_SIZE), position);
 
                     yield return new PageBuffer(buffer, 0, 0)
                     {
                         Position = position,
                         Origin = origin,
+                        WalFrame = origin == FileOrigin.Log ? ((ChecksummedWalStream)stream).LastFrame : default,
                         ShareCounter = 0
                     };
                 }
@@ -295,12 +295,17 @@ namespace LiteDB.Engine
 
                     stream.Position = page.Position;
 
+                    this.CrashPoint("checkpoint-before-page-write");
                     this.PreserveFileVersion(page);
+                    this.StampDataPage(page);
                     stream.Write(page.Array, page.Offset, PAGE_SIZE);
+                    this.CrashPoint("checkpoint-after-page-write");
                     this.CheckpointStage("data-page");
                 }
 
+                this.CrashPoint("checkpoint-before-data-flush");
                 stream.FlushToDisk();
+                this.CrashPoint("checkpoint-after-data-flush");
                 this.CheckpointStage("data-flushed");
             }
         }
@@ -345,45 +350,5 @@ namespace LiteDB.Engine
 
         #endregion
 
-        public void Dispose()
-        {
-            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
-
-            var errors = new List<Exception>();
-            var delete = false;
-
-            TryAction(() => delete = !_readOnly && _logFactory.Exists() && _logPool.Writer.Value.Length == 0, errors);
-            TryAction(() => _dataPool.Dispose(), errors);
-            TryAction(() => _logPool.Dispose(), errors);
-            if (delete) TryAction(() => _logFactory.Delete(), errors);
-            TryAction(() => _cache.Dispose(), errors);
-
-            if (errors.Count > 0) throw new AggregateException(errors);
-        }
-
-        private static void TryDispose(IDisposable disposable)
-        {
-            try
-            {
-                disposable?.Dispose();
-            }
-            catch
-            {
-                // Constructor cleanup must preserve the initialization error
-                // while still attempting every remaining resource.
-            }
-        }
-
-        private static void TryAction(Action action, ICollection<Exception> errors)
-        {
-            try
-            {
-                action();
-            }
-            catch (Exception ex)
-            {
-                errors.Add(ex);
-            }
-        }
     }
 }

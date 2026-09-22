@@ -25,6 +25,9 @@ namespace LiteDB.Engine
         public Action<PageBuffer> SimulateDiskReadFail = null;
         public Action<PageBuffer> SimulateDiskWriteFail = null;
         internal Action<PageBuffer> SimulateDataWriteFail;
+        internal static Action<string> SimulateProcessCrash;
+        internal static Action<long> ObserveSortSpill;
+        internal static Action<PageBuffer> ObserveCacheEviction;
 #endif
 
         public EngineState(LiteEngine engine, EngineSettings settings)
@@ -48,7 +51,7 @@ namespace LiteDB.Engine
             LOG(ex.Message, "ERROR");
 
             if (ex is IOException ||
-                (ex is LiteException lex && lex.ErrorCode == LiteException.INVALID_DATAFILE_STATE))
+                (ex is LiteException lex && (lex.ErrorCode == LiteException.INVALID_DATAFILE_STATE || lex.ErrorCode == LiteException.CHECKSUM_MISMATCH)))
             {
                 this.Stop(ex);
 
@@ -57,6 +60,13 @@ namespace LiteDB.Engine
 
             return true;
         }
+
+#if DEBUG || TESTING
+        internal void CrashPoint(string phase)
+        {
+            SimulateProcessCrash?.Invoke(phase);
+        }
+#endif
 
         internal void Stop(Exception ex)
         {
@@ -95,7 +105,7 @@ namespace LiteDB.Engine
             const string RECOVERY = "Dispose and reopen the database before retrying. ";
 
             if (ex is IOException) return new IOException("Engine closed after an I/O failure. " + RECOVERY + ex.Message, ex);
-            if (ex is LiteException lex && lex.ErrorCode == LiteException.INVALID_DATAFILE_STATE) return ex;
+            if (ex is LiteException lex && (lex.ErrorCode == LiteException.INVALID_DATAFILE_STATE || lex.ErrorCode == LiteException.CHECKSUM_MISMATCH)) return ex;
 
             return new LiteException(LiteException.ENGINE_DISPOSED, ex, "Engine closed after a transaction completion failure. " + RECOVERY + "{0}", ex.Message);
         }

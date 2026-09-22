@@ -1,0 +1,404 @@
+name: Fuzz
+
+on:
+  pull_request:
+    paths:
+      - 'LiteDB/**'
+      - 'LiteDB.Fuzz/**'
+      - 'LiteDB.Fuzz.Tests/**'
+      - 'LiteDB.Fuzz.Legacy/**'
+      - 'LiteDB.Tests/Mapper/StableRandom.cs'
+      - 'LiteDB.Tests/Mapper/LinqCacheFuzzGenerator.cs'
+      - 'tools/V8Differential/**'
+      - 'scripts/test-v8-differential.py'
+      - 'scripts/summarize-fuzz-artifacts.py'
+      - 'scripts/test-fuzz-finding-triage.py'
+      - '.config/dotnet-tools.json'
+      - '.github/workflows/fuzz.yml'
+  push:
+    branches: [dev]
+    paths:
+      - 'LiteDB/**'
+      - 'LiteDB.Fuzz/**'
+      - 'LiteDB.Fuzz.Tests/**'
+      - 'LiteDB.Fuzz.Legacy/**'
+      - 'LiteDB.Tests/Mapper/StableRandom.cs'
+      - 'LiteDB.Tests/Mapper/LinqCacheFuzzGenerator.cs'
+      - 'tools/V8Differential/**'
+      - 'scripts/test-v8-differential.py'
+      - 'scripts/summarize-fuzz-artifacts.py'
+      - 'scripts/test-fuzz-finding-triage.py'
+      - '.config/dotnet-tools.json'
+      - '.github/workflows/fuzz.yml'
+  schedule:
+    - cron: '23 2 * * *'
+  workflow_dispatch:
+    inputs:
+      tier:
+        type: choice
+        options: [smoke, nightly, campaign]
+        default: smoke
+        required: true
+      target:
+        description: Target list for campaign; use all for every target
+        default: all
+        type: string
+      seed:
+        description: First deterministic seed
+        default: '2947'
+        type: string
+      duration:
+        description: Total campaign wall-clock budget (for example 24h or 72h)
+        default: 24h
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  smoke:
+    if: github.event_name != 'schedule' && (github.event_name != 'workflow_dispatch' || inputs.tier == 'smoke')
+    name: Smoke (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-core-utc
+            os: ubuntu-latest
+            targets: query,transaction,wal,page,shared,bson,snapshot,threaded-snapshot,concurrent,transaction-gate,cursor-handoff,conflict,power-loss,recovery,chaos,boundary,read-only
+            seed: 2947
+            timezone: UTC
+            culture: en_US.UTF-8
+            framework: net8.0
+            count: 30
+          - name: linux-cache-vienna
+            os: ubuntu-latest
+            targets: linq-cache,parser,sql-dml,value,api-boundary,oracle-selftest,transaction-gate,cursor-handoff,compact-codec
+            seed: 102947
+            timezone: Europe/Vienna
+            culture: tr_TR.UTF-8
+            framework: net10.0
+            count: 30
+          - name: windows-index-sort
+            os: windows-latest
+            targets: index,mapper,sort,pressure
+            seed: 202947
+            timezone: UTC
+            culture: en_US.UTF-8
+            framework: net8.0
+            count: 30
+          - name: windows-persistence
+            os: windows-latest
+            targets: wal,shared,power-loss,recovery,read-only,storage-failure,rebuild-transition
+            seed: 252947
+            timezone: UTC
+            culture: en_US.UTF-8
+            framework: net8.0
+            count: 10
+          - name: mac-storage-vector
+            os: macos-latest
+            targets: storage,storage-failure,rebuild,rebuild-transition,vector,integrity,compatibility,malformed-file,compact-storage,compact-power-loss
+            seed: 302947
+            timezone: America/New_York
+            culture: en_US.UTF-8
+            framework: net10.0
+            count: 30
+          - name: linux-arm64-core
+            os: ubuntu-24.04-arm
+            targets: query,bson,value,integrity
+            seed: 402947
+            timezone: UTC
+            culture: en_US.UTF-8
+            framework: net8.0
+            count: 30
+    env:
+      TZ: ${{ matrix.timezone }}
+      LANG: ${{ matrix.culture }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - run: dotnet restore LiteDB.Fuzz/LiteDB.Fuzz.csproj
+      - run: dotnet build LiteDB.Fuzz/LiteDB.Fuzz.csproj -c Release -f "${{ matrix.framework }}" --no-restore -p:TestingEnabled=true
+      - name: Run deterministic shard
+        run: >-
+          dotnet run --project LiteDB.Fuzz -c Release -f "${{ matrix.framework }}" --no-build --
+          --target "${{ matrix.targets }}" --seed "${{ matrix.seed }}" --count "${{ matrix.count }}"
+          --artifact-dir artifacts/fuzz
+      - name: Verify duration artifact retention
+        if: matrix.name == 'linux-core-utc'
+        shell: bash
+        run: |
+          dotnet run --project LiteDB.Fuzz -c Release -f net8.0 --no-build -- \
+            --target value --seed 700000 --duration 2s --epoch-duration 2s \
+            --artifact-dir artifacts/retention
+          run_dir=$(find artifacts/retention -name retention.json -printf '%h\n' | head -1)
+          test -n "$run_dir"
+          test ! -e "$run_dir/input.bin"
+          test ! -e "$run_dir/input-offsets.jsonl"
+          test -z "$(find "$run_dir" -name '*.db' -print -quit)"
+          jq -e '.InputFile == null' "$run_dir/replay.json"
+          jq -e '.failureArtifactsAlwaysRetained and .removedFiles >= 2' "$run_dir/retention.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fuzz-smoke-${{ matrix.name }}
+          path: artifacts/fuzz
+          if-no-files-found: error
+
+  checksums:
+    name: Checksums (${{ matrix.os }}, ${{ matrix.framework }})
+    if: github.event_name != 'workflow_dispatch' || inputs.tier != 'campaign'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            framework: net8.0
+          - os: windows-latest
+            framework: net10.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'schedule' && 'dev' || github.ref }}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - run: dotnet build LiteDB.Fuzz/LiteDB.Fuzz.csproj -c Release -f "${{ matrix.framework }}" -p:TestingEnabled=true
+      - name: Checksum smoke and deterministic replay
+        run: >-
+          dotnet run --project LiteDB.Fuzz -c Release -f "${{ matrix.framework }}" --no-build --
+          --target checksum-page,checksum-wal,checksum-migration,checksum-crash,compact-crash,mvcc-retirement
+          --seed 2954 --count 28 --determinism-check --artifact-dir artifacts/checksum-smoke
+      - name: Short daily checksum campaign
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        env:
+          FUZZ_FRAMEWORK: ${{ matrix.framework }}
+        run: |
+          $fuzzSeed = [int](([long]$env:GITHUB_RUN_ID % 1900000000) + 2954)
+          dotnet run --project LiteDB.Fuzz -c Release -f $env:FUZZ_FRAMEWORK --no-build -- `
+            --target checksum-page,checksum-wal,checksum-migration,checksum-crash,compact-crash,mvcc-retirement `
+            --seed $fuzzSeed --duration 3m --workers 2 --epoch-duration 30s `
+            --artifact-dir artifacts/checksum-daily
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Summarize checksum findings
+        if: always()
+        run: python scripts/summarize-fuzz-artifacts.py artifacts --output artifacts/checksum-findings.json --github-summary
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fuzz-checksums-${{ matrix.os }}-${{ matrix.framework }}
+          path: artifacts
+          retention-days: 14
+          if-no-files-found: error
+
+  nightly:
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.tier == 'nightly')
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: correctness
+            targets: query,linq-cache,transaction,page,index,bson,parser,sql-dml,sort,value,api-boundary,oracle-selftest,pressure,compact-codec
+            seedOffset: 500000
+            framework: net8.0
+          - shard: persistence
+            targets: wal,shared,storage,storage-failure,rebuild,rebuild-transition,vector,mapper,integrity,snapshot,threaded-snapshot,concurrent,transaction-gate,cursor-handoff,conflict,power-loss,recovery,chaos,boundary,read-only,compatibility,malformed-file,compact-storage,compact-power-loss
+            seedOffset: 1500000
+            framework: net10.0
+    env:
+      TZ: Asia/Kolkata
+      LANG: en_US.UTF-8
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - run: dotnet restore LiteDB.Fuzz/LiteDB.Fuzz.csproj
+      - run: dotnet tool restore
+      - run: dotnet build LiteDB.Fuzz/LiteDB.Fuzz.csproj -c Release -f "${{ matrix.framework }}" --no-restore -p:TestingEnabled=true
+      - uses: actions/cache@v4
+        with:
+          path: |
+            artifacts/fuzz/interesting-corpus.jsonl
+            artifacts/fuzz/coverage-corpus.jsonl
+            artifacts/fuzz/coverage-signatures.txt
+          key: fuzz-corpus-${{ matrix.shard }}-${{ matrix.framework }}-${{ github.run_id }}
+          restore-keys: fuzz-corpus-${{ matrix.shard }}-${{ matrix.framework }}-
+      - name: Run rotating nightly shard
+        id: fuzz
+        continue-on-error: true
+        env:
+          FUZZ_TARGETS: ${{ matrix.targets }}
+          SEED_OFFSET: ${{ matrix.seedOffset }}
+          FUZZ_FRAMEWORK: ${{ matrix.framework }}
+        run: |
+          FUZZ_SEED=$((GITHUB_RUN_ID % 2000000000 + SEED_OFFSET))
+          echo "Rotating seed: $FUZZ_SEED"
+          dotnet run --project LiteDB.Fuzz -c Release -f "$FUZZ_FRAMEWORK" --no-build -- \
+            --target "$FUZZ_TARGETS" --seed "$FUZZ_SEED" --duration 150m --workers 2 \
+            --epoch-duration 2m --coverage-guided --artifact-dir artifacts/fuzz
+      - name: Classify findings by canonical fingerprint
+        if: always()
+        run: python3 scripts/summarize-fuzz-artifacts.py artifacts/fuzz --output artifacts/fuzz/failure-groups.json --github-summary
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fuzz-nightly-${{ matrix.shard }}
+          path: artifacts/fuzz
+          if-no-files-found: error
+      - name: File or update nightly findings
+        if: always() && github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const groups = JSON.parse(fs.readFileSync('artifacts/fuzz/failure-groups.json', 'utf8'));
+            for (const group of groups.failures) {
+              if (group.action === 'record' || group.action === 'suppress') continue;
+              const regression = group.action === 'regression';
+              const title = `[fuzz${regression ? ' regression' : ''}] ${group.target}: ${group.fingerprint}`;
+              const state = regression ? 'is:open ' : '';
+              const query = `repo:${context.repo.owner}/${context.repo.repo} is:issue ${state}in:title "${title}"`;
+              const found = await github.rest.search.issuesAndPullRequests({ q: query });
+              if (found.data.total_count !== 0) continue;
+              const canonical = group.canonicalIssue
+                ? `\nCanonical finding: #${group.canonicalIssue}\n`
+                : '';
+              const marker = `<!-- fuzz-fingerprint:${group.target}:${group.fingerprint} -->`;
+              const body = `${marker}\nNightly fuzzing reproduced **${group.fingerprint}** ${group.count} time(s).\n\n` +
+                `Target: ${group.target}\nRaw failure IDs: ${group.failureIds.join(', ')}\n` +
+                `Seeds: ${group.seeds.join(', ')}\n` + canonical +
+                `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\n` +
+                `Download the workflow artifact for raw inputs, traces, dumps, and replay files.`;
+              await github.rest.issues.create({ ...context.repo, title, body });
+            }
+      - name: Fail after artifact triage
+        if: always()
+        env:
+          FUZZ_OUTCOME: ${{ steps.fuzz.outcome }}
+        run: |
+          test "$FUZZ_OUTCOME" != failure
+          jq -e '.blockingFailures == 0' artifacts/fuzz/failure-groups.json
+
+  v8-differential:
+    if: github.event_name == 'schedule' || (github.event_name != 'workflow_dispatch' || inputs.tier == 'smoke')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Run v5 differential
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            python3 scripts/test-v8-differential.py --seeds 20 --operations 400
+          else
+            python3 scripts/test-v8-differential.py --seeds 3 --operations 80
+          fi
+
+  legacy-runtime:
+    if: github.event_name != 'schedule' && (github.event_name != 'workflow_dispatch' || inputs.tier == 'smoke')
+    name: Legacy net481 (${{ matrix.platform }})
+    runs-on: windows-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [x86, x64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - run: dotnet restore LiteDB.Fuzz.Legacy/LiteDB.Fuzz.Legacy.csproj -p:PlatformTarget=${{ matrix.platform }}
+      - run: dotnet build LiteDB.Fuzz.Legacy/LiteDB.Fuzz.Legacy.csproj -c Release --no-restore -p:TestingEnabled=true -p:PlatformTarget=${{ matrix.platform }}
+      - name: Run netstandard serializer/index surface on .NET Framework NLS
+        shell: pwsh
+        run: '& "LiteDB.Fuzz.Legacy/bin/Release/net481/LiteDB.Fuzz.Legacy.exe" 2947 100'
+
+  determinism:
+    if: github.event_name != 'schedule' && (github.event_name != 'workflow_dispatch' || inputs.tier == 'smoke')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - run: dotnet restore LiteDB.Fuzz.Tests/LiteDB.Fuzz.Tests.csproj
+      - run: dotnet build LiteDB.Fuzz/LiteDB.Fuzz.csproj -c Release -f net8.0 --no-restore -p:TestingEnabled=true
+      - run: dotnet test LiteDB.Fuzz.Tests/LiteDB.Fuzz.Tests.csproj -c Release --no-restore -p:TestingEnabled=true
+      - run: python3 scripts/test-fuzz-finding-triage.py
+      - run: >-
+          dotnet run --project LiteDB.Fuzz -c Release -f net8.0 --no-build --
+          --target query,index,bson,parser,mapper,value --seed 42947 --count 40
+          --determinism-check --artifact-dir artifacts/fuzz
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fuzz-determinism
+          path: artifacts/fuzz
+          if-no-files-found: error
+
+  campaign:
+    if: github.event_name == 'workflow_dispatch' && inputs.tier == 'campaign'
+    runs-on: [self-hosted, linux, x64, litedb-fuzz]
+    timeout-minutes: 4320
+    env:
+      TZ: America/New_York
+      LANG: en_US.UTF-8
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - run: dotnet restore LiteDB.Fuzz/LiteDB.Fuzz.csproj
+      - run: dotnet tool restore
+      - run: dotnet build LiteDB.Fuzz/LiteDB.Fuzz.csproj -c Release -f net8.0 --no-restore -p:TestingEnabled=true
+      - uses: actions/cache@v4
+        with:
+          path: |
+            artifacts/fuzz/interesting-corpus.jsonl
+            artifacts/fuzz/coverage-corpus.jsonl
+            artifacts/fuzz/coverage-signatures.txt
+          key: fuzz-corpus-campaign-${{ github.run_id }}
+          restore-keys: fuzz-corpus-campaign-
+      - name: Run bounded campaign
+        env:
+          FUZZ_TARGETS: ${{ inputs.target }}
+          FUZZ_SEED: ${{ inputs.seed }}
+          FUZZ_DURATION: ${{ inputs.duration }}
+        run: >-
+          dotnet run --project LiteDB.Fuzz -c Release -f net8.0 --no-build --
+          --target "$FUZZ_TARGETS" --seed "$FUZZ_SEED"
+          --duration "$FUZZ_DURATION" --workers 4 --epoch-duration 2m
+          --coverage-guided --artifact-dir artifacts/fuzz
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fuzz-campaign-${{ github.run_id }}
+          path: artifacts/fuzz
+          if-no-files-found: error

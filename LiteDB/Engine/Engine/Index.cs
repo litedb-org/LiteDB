@@ -15,7 +15,7 @@ namespace LiteDB.Engine
         /// </summary>
         private bool EnsureIndexReadOnly(string collection, string name, string expression, VectorIndexOptions vector = null)
         {
-            var exists = this.AutoTransaction(transaction =>
+            var exists = this.AutoReadTransaction(transaction =>
             {
                 var snapshot = transaction.CreateSnapshot(LockMode.Read, collection, false);
                 var current = snapshot.CollectionPage?.GetCollectionIndex(name);
@@ -90,7 +90,7 @@ namespace LiteDB.Engine
                 {
                     using (var reader = new BufferReader(data.Read(pkNode.DataBlock)))
                     {
-                        var doc = reader.ReadDocument(expression.Fields).GetValue();
+                        var doc = data.ReadDocument(reader, expression.Fields, false, pkNode.DataBlock).GetValue();
 
                         // first/last node in this document that will be added
                         IndexNode last = null;
@@ -189,7 +189,7 @@ namespace LiteDB.Engine
 
                     using (var reader = new BufferReader(data.Read(pkNode.DataBlock)))
                     {
-                        var doc = reader.ReadDocument(expression.Fields).GetValue();
+                        var doc = data.ReadDocument(reader, expression.Fields, false, pkNode.DataBlock).GetValue();
                         vectorService.Upsert(tuple.Index, tuple.Metadata, doc, pkNode.DataBlock);
                     }
 

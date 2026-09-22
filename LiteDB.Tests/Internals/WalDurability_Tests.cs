@@ -17,6 +17,7 @@ namespace LiteDB.Tests.Internals
             public Exception Failure { get; set; }
             public int FailuresRemaining { get; set; } = int.MaxValue;
             public ManualResetEventSlim FailureObserved { get; set; }
+            public Action BeforeFailure { get; set; }
 
             public DurableFile(string path)
                 : base(path, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite)
@@ -31,6 +32,7 @@ namespace LiteDB.Tests.Internals
                 if (Failure != null && FailuresRemaining-- > 0)
                 {
                     FailureObserved?.Set();
+                    BeforeFailure?.Invoke();
                     throw Failure;
                 }
             }
@@ -61,14 +63,12 @@ namespace LiteDB.Tests.Internals
 
             using var writerReady = new ManualResetEventSlim();
             using var commitWriter = new ManualResetEventSlim();
-            using var checkpointAtWriterLock = new ManualResetEventSlim();
-            using var continueCheckpoint = new ManualResetEventSlim();
+            using var checkpointAtCommitLock = new ManualResetEventSlim();
+            using var continueFailure = new ManualResetEventSlim();
             using var flushFailed = new ManualResetEventSlim();
             engine.CheckpointStage = stage =>
             {
-                if (stage != "before-wal-reclaim-lock") return;
-                checkpointAtWriterLock.Set();
-                continueCheckpoint.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
+                if (stage == "before-commit-lock") checkpointAtCommitLock.Set();
             };
 
             var writer = Task.Run<Exception>(() =>
@@ -85,19 +85,24 @@ namespace LiteDB.Tests.Internals
                 catch (Exception ex) { return ex; }
             });
             writerReady.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
-            var checkpoint = Task.Run(() => engine.Checkpoint());
-            checkpointAtWriterLock.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
             log.Failure = new IOException("injected confirmed flush failure");
             log.FailuresRemaining = 1;
             log.FailureObserved = flushFailed;
+            log.BeforeFailure = () => continueFailure.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
             commitWriter.Set();
             flushFailed.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
-            continueCheckpoint.Set();
+            var checkpoint = Task.Run(() => engine.Checkpoint());
+            try
+            {
+                checkpointAtCommitLock.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
+                checkpoint.IsCompleted.Should().BeFalse("checkpoint must exclude in-flight commit publication");
+            }
+            finally { continueFailure.Set(); }
 
             var both = Task.WhenAll(checkpoint.ContinueWith(_ => { }), writer.ContinueWith(_ => { }));
             (await Task.WhenAny(both, Task.Delay(TimeSpan.FromSeconds(10)))).Should().BeSameAs(both);
             (await writer).Should().BeOfType<IOException>();
-            await checkpoint;
+            checkpoint.IsFaulted.Should().BeTrue("failed commit teardown stops the waiting checkpoint");
             engine.CheckpointStage = null;
             database.Dispose();
             engine.Dispose();

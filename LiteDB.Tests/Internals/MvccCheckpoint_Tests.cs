@@ -35,8 +35,8 @@ namespace LiteDB.Internals
                 var preamble = password == null ? 0 : Constants.PAGE_SIZE;
                 foreach (var position in protectedPositions)
                 {
-                    test.Log.ToArray().Skip((int)position + preamble).Take(Constants.PAGE_SIZE)
-                        .Should().Equal(originalWal.Skip((int)position + preamble).Take(Constants.PAGE_SIZE));
+                    test.Log.ToArray().Skip((int)(position / Constants.PAGE_SIZE * WalChecksum.FrameSize) + preamble).Take(Constants.PAGE_SIZE)
+                        .Should().Equal(originalWal.Skip((int)(position / Constants.PAGE_SIZE * WalChecksum.FrameSize) + preamble).Take(Constants.PAGE_SIZE));
                 }
                 for (var value = 11; value <= 20; value++) test.Update("docs", value);
                 test.Engine.Checkpoint();

@@ -144,7 +144,7 @@ namespace LiteDB.Tests.Issues
             db.Checkpoint();
 
             // Data pages are overwritten in place: the log that can redo them must be on the device first.
-            storage.SyncOrder.Should().Equal("log", "data");
+            storage.SyncOrder.Should().Equal("log", "data", "data"); // Publish the next WAL salt after data sync.
         }
 
         [Fact]

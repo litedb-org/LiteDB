@@ -16,6 +16,12 @@ namespace LiteDB
         private int? _transactionPageLimit;
 
         /// <summary>
+        /// Select how documents are written. Auto uses compact writes when
+        /// beneficial and lazily promotes existing v8/v9 databases.
+        /// </summary>
+        public CompactStorageMode CompactStorage { get; set; } = CompactStorageMode.Auto;
+
+        /// <summary>
         /// "memory profile": Balanced (default), LowMemory, or Throughput.
         /// Explicit cache and transaction limits override these defaults.
         /// </summary>
@@ -40,6 +46,12 @@ namespace LiteDB
         /// "initial size": If database is new, initialize with allocated space - support KB, MB, GB (default: 0)
         /// </summary>
         public long InitialSize { get; set; } = 0;
+
+        /// <summary>
+        /// "index migration limit size": Optional increased LIMIT_SIZE for legacy index migration.
+        /// Supports KB/MB/GB; persisted with successful migration. Null preserves the stored limit.
+        /// </summary>
+        public long? IndexMigrationLimitSize { get; set; }
 
         /// <summary>
         /// "cache size": Soft page-cache target in bytes. Supports KB, MB,
@@ -85,7 +97,7 @@ namespace LiteDB
         /// survives power loss and operating system crashes, at about one device sync per commit. Set to false for
         /// the behaviour before 6.0: commits are handed to the operating system only, which is much faster for many
         /// small transactions and still survives a process crash, but a power loss or operating system crash can lose
-        /// the most recent commits or, rarely, leave them partially applied. Not stored in the data file (default: true)
+        /// the most recent commits. Checksums prevent partial WAL transactions from being recovered. Not stored in the data file (default: true)
         /// </summary>
         public bool DurableCommits { get; set; } = true;
 
@@ -150,6 +162,12 @@ namespace LiteDB
             {
                 throw new LiteException(0, "`cache size` must be non-negative and `transaction pages` must be greater than zero");
             }
+            if (_values.TryGetValue("compact storage", out var compactStorage))
+            {
+                this.CompactStorage = ParseCompactStorage(compactStorage);
+            }
+            if (_values.ContainsKey("index migration limit size"))
+                this.IndexMigrationLimitSize = _values.GetFileSize("index migration limit size", 0);
             this.ReadOnly = _values.GetValue("readonly", this.ReadOnly);
 
             this.Collation = _values.ContainsKey("collation") ? new Collation(_values.GetValue<string>("collation")) : this.Collation;
@@ -174,8 +192,10 @@ namespace LiteDB
             return firstKey.Equals("filename", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("connection", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("password", StringComparison.OrdinalIgnoreCase) ||
+                firstKey.Equals("index migration limit size", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("initialsize", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("initial size", StringComparison.OrdinalIgnoreCase) ||
+                firstKey.Equals("compact storage", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("readonly", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("upgrade", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("auto-rebuild", StringComparison.OrdinalIgnoreCase) ||
@@ -185,6 +205,25 @@ namespace LiteDB
                 firstKey.Equals("memory profile", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("cache size", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("transaction pages", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static CompactStorageMode ParseCompactStorage(string value)
+        {
+            if (bool.TryParse(value, out var enabled))
+            {
+                return enabled ? CompactStorageMode.Compact : CompactStorageMode.Legacy;
+            }
+
+            try
+            {
+                var mode = (CompactStorageMode)Enum.Parse(typeof(CompactStorageMode), value, true);
+                if (!Enum.IsDefined(typeof(CompactStorageMode), mode)) throw new ArgumentException();
+                return mode;
+            }
+            catch (Exception)
+            {
+                throw new LiteException(0, "Invalid connection string value type for `compact storage`");
+            }
         }
 
         /// <summary>
@@ -229,10 +268,12 @@ namespace LiteDB
                 Filename = this.Filename,
                 Password = this.Password,
                 InitialSize = this.InitialSize,
+                IndexMigrationLimitSize = this.IndexMigrationLimitSize,
                 MemoryProfile = this.MemoryProfile,
                 CacheSize = this.CacheSize,
                 TransactionPageLimit = this.TransactionPageLimit,
                 ReadOnly = this.ReadOnly,
+                CompactStorage = this.CompactStorage,
                 Collation = this.Collation,
                 Upgrade = this.Upgrade,
                 AutoRebuild = this.AutoRebuild,
@@ -290,6 +331,9 @@ namespace LiteDB
             }
 
             var fileNameLength = bld.Length;
+
+            if (IndexMigrationLimitSize.HasValue)
+                bld.Append("index migration limit size=").AppendFormat(CultureInfo.InvariantCulture, "{0:D}", IndexMigrationLimitSize.Value).Append(';');
 
             if (Connection != ConnectionType.Direct)
             {
@@ -352,6 +396,13 @@ namespace LiteDB
             {
                 bld.Append("Reject Invalid Local Time=")
                     .Append(RejectInvalidLocalTime)
+                    .Append(';');
+            }
+
+            if (CompactStorage != CompactStorageMode.Auto)
+            {
+                bld.Append("Compact Storage=")
+                    .Append(CompactStorage)
                     .Append(';');
             }
 

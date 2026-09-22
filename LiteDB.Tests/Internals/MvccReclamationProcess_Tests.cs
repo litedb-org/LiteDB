@@ -27,6 +27,7 @@ namespace LiteDB.Internals
             var log = FileHelper.GetLogFile(Filename);
             var length = new FileInfo(log).Length;
             await MvccProcess.Run("checkpoint", Filename, password);
+            length = new FileInfo(log).Length;
             await MvccProcess.Run("write-cold", Filename, password, "21");
             using var newer = new MvccProcess("hold-cold", Filename, password);
             await newer.Expect("ready");
@@ -34,9 +35,11 @@ namespace LiteDB.Internals
             {
                 await MvccProcess.Run("write-cold", Filename, password, value.ToString());
             }
-            // Five multi-page commits append one legacy transaction-ID anchor in
-            // addition to the nine pages that cannot use reclaimed positions.
-            new FileInfo(log).Length.Should().Be(length + 14 * Constants.PAGE_SIZE);
+            // Only the five confirmation frames append; payload frames reuse
+            // witnessed holes. The retirement records were measured separately.
+            var preamble = password == null ? 0 : Constants.PAGE_SIZE;
+            ((new FileInfo(log).Length - preamble) / WalChecksum.FrameSize).Should().Be(
+                (length - preamble) / WalChecksum.FrameSize + 5);
             await old.Finish(true);
             await old.Expect("value:20");
             // Only the watermark advances; the other process retains its original index.

@@ -31,16 +31,14 @@ namespace LiteDB.Internals
                 test.Engine.Checkpoint();
                 var reused = this.GrowthOfRound(test, "cold", 1 + ROUND_UPDATES);
 
-                // Every multi-page transaction must append one transaction-ID
-                // anchor for legacy recovery. Compare the remaining growth to
-                // measure reclaimed data-frame reuse.
-                var anchors = ROUND_UPDATES * Constants.PAGE_SIZE;
+                // Confirmation frames append; compare payload growth separately.
+                var anchors = ROUND_UPDATES * WalChecksum.FrameSize;
                 (reused - anchors).Should().BeLessThan((appended - anchors) / 2);
                 var after = test.Log.ToArray();
                 foreach (var position in pinned)
                 {
-                    after.Skip((int)position + preamble).Take(Constants.PAGE_SIZE)
-                        .Should().Equal(before.Skip((int)position + preamble).Take(Constants.PAGE_SIZE));
+                    after.Skip((int)(position / Constants.PAGE_SIZE * WalChecksum.FrameSize) + preamble).Take(Constants.PAGE_SIZE)
+                        .Should().Equal(before.Skip((int)(position / Constants.PAGE_SIZE * WalChecksum.FrameSize) + preamble).Take(Constants.PAGE_SIZE));
                 }
                 test.Recover("docs", false).Should().OnlyContain(doc => doc["value"].AsInt32 == 1 + ROUND_UPDATES);
                 test.Recover("cold", true).Should().OnlyContain(doc => doc["value"].AsInt32 == 2 * ROUND_UPDATES);

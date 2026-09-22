@@ -26,15 +26,17 @@ namespace LiteDB.Internals
             MvccCheckpoint_Tests.RunThread(() =>
             {
                 test.Engine.Checkpoint();
+                var reclaimedLength = test.Log.Length;
                 for (var value = 21; value <= 25; value++) test.Update("cold", value);
-                // Most data frames reuse holes. Each new transaction first appends
-                // an ID anchor for legacy recovery, and confirmations append too.
-                test.Log.Length.Should().Be(before.Length + 14 * Constants.PAGE_SIZE);
+                // Payload frames reuse witnessed holes; five confirmations append.
+                // Witness pages are counted separately from update growth.
+                ((test.Log.Length - preamble) / WalChecksum.FrameSize).Should().Be(
+                    (reclaimedLength - preamble) / WalChecksum.FrameSize + 5);
                 var after = test.Log.ToArray();
                 foreach (var position in pinned)
                 {
-                    after.Skip((int)position + preamble).Take(Constants.PAGE_SIZE)
-                        .Should().Equal(before.Skip((int)position + preamble).Take(Constants.PAGE_SIZE));
+                    after.Skip((int)(position / Constants.PAGE_SIZE * WalChecksum.FrameSize) + preamble).Take(Constants.PAGE_SIZE)
+                        .Should().Equal(before.Skip((int)(position / Constants.PAGE_SIZE * WalChecksum.FrameSize) + preamble).Take(Constants.PAGE_SIZE));
                 }
                 test.Recover("cold", false).Should().OnlyContain(doc => doc["value"].AsInt32 == 25);
                 test.Recover("cold", true).Should().OnlyContain(doc => doc["value"].AsInt32 == 25);

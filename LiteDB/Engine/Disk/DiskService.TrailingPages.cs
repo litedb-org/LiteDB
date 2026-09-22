@@ -12,7 +12,7 @@ namespace LiteDB.Engine
             if (_readOnly) return;
 
             this.TrimTrailingPage(_dataPool, _dataLength + PAGE_SIZE, ref _dataTrailingLength);
-            this.TrimTrailingPage(_logPool, _logLength + PAGE_SIZE, ref _logTrailingLength);
+            if (!ChecksumsEnabled) this.TrimTrailingPage(_logPool, _logLength + PAGE_SIZE, ref _logTrailingLength);
         }
 
         private void TrimTrailingPage(StreamPool pool, long length, ref long trailingLength)

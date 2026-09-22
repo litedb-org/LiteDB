@@ -1,0 +1,181 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "target": "bson",
+      "seed": 9,
+      "count": 31,
+      "reason": "Malformed BSON byte reads at EOF must return LiteException instead of IndexOutOfRangeException.",
+      "inputHash": "8E6C63637AB8E13A40DD7B1A7430CB34BA43512022610320AC2D97F3FCC29F42",
+      "traceHash": "893B88ADDE6CA897CFF5F237CACA9278EC462527F6CEB67F890C202651E0EEFA"
+    },
+    {
+      "target": "bson",
+      "seed": 42947,
+      "count": 31,
+      "reason": "A BSON document missing only its final null terminator must not be accepted at EOF.",
+      "inputHash": "E35984BDC02CB4F27C7CA8867FE3E7D08DBD3EB39DB9D5DE76FC3C5A2DAFF978",
+      "traceHash": "8662EF9952BF6694C6EF56630F7BD1B4A330BB5AD2B5766E579304EC9B8E1402"
+    },
+    {
+      "target": "bson",
+      "seed": 900000,
+      "count": 5,
+      "reason": "Mutated BSON string/binary lengths must be rejected before oversized allocation or arithmetic overflow.",
+      "inputHash": "C3C1D5B75068BFA8E069CDA6C51E9060AB27358897699A27981257173C07FC1D",
+      "traceHash": "183DCCAF3ED735E3041B040AA9E0DC1405E562C076880724FB02CA9438F1BA0D"
+    },
+    {
+      "target": "linq-cache",
+      "seed": 2944001,
+      "count": 200,
+      "reason": "Captured StringComparison modes must not reuse another translation.",
+      "inputHash": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "traceHash": "346B916B1FB76EF98355E63780F3A47ACD5998E64C0725C01A6EB541134B3958"
+    },
+    {
+      "target": "linq-cache",
+      "seed": 2944002,
+      "count": 200,
+      "reason": "Runtime enum Equals types and variable-arity initializers must stay shape-distinct.",
+      "inputHash": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "traceHash": "7FF7FAF208CEC3013E8AF65DE6A405A4DDA859D9F34D8CCD880202E15E45911F"
+    },
+    {
+      "target": "parser",
+      "seed": 2946001,
+      "count": 100,
+      "reason": "Bound GROUP BY/HAVING aliases and fresh SQL parameters must survive template reuse.",
+      "inputHash": "176E95080BA300FAD181976C3DA421B325B3E30B9B1681C5E28C8F2D43B0ABA8",
+      "traceHash": "3A15F2F77EEC5B3DFD783134BE187009EAC61377C07EE6403DC4CDDA8B46FB41"
+    },
+    {
+      "target": "index",
+      "seed": 2905001,
+      "count": 200,
+      "reason": "Boolean optimizer rewrites and key-moving UpdateMany scans retain residual semantics.",
+      "inputHash": "3EC527C8C7EA771CE24858A19379275304454A143EB4D3A3F4A6E3314EEDFF3B",
+      "traceHash": "4CF71F5085BE740FD514CE8DC09D764CBFFEE2082C097F27649442111229F867"
+    },
+    {
+      "target": "transaction",
+      "seed": 700001,
+      "count": 26,
+      "reason": "Dropping a secondary index must reclaim a sentinel-only page before its collection is dropped.",
+      "inputHash": "63E8B7E290B94A1401D72688BA5E92D448A7C0BB0C8F1D56531F4E8D669E01CF",
+      "traceHash": "BC4462F3367C09426166445E83DCBFA5FE0A5B42EDFFDCE4A808A621346E756B"
+    },
+    {
+      "target": "storage",
+      "seed": 700001,
+      "count": 12,
+      "reason": "A delete spanning safepoints must publish its complete empty-page chain.",
+      "inputHash": "3492AE7C572BA50EB13CFAE14F417927ED37B2C6070126F87738C2C1B95554AF",
+      "traceHash": "7ADD62E2D345D94161FEF38310D1C16F00DF8DCCBA0BF2AD6EF38DC9D9BA57ED"
+    },
+    {
+      "target": "conflict",
+      "seed": 2947,
+      "count": 3,
+      "reason": "Rebuild must wait for an active writer before replacing engine services.",
+      "inputHash": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "traceHash": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "target": "rebuild-transition",
+      "seed": 9947,
+      "count": 6,
+      "reason": "A failure after password-changing rebuild installation must restore a matching original data/WAL pair.",
+      "inputHash": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "traceHash": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "target": "checksum-migration",
+      "seed": 2954,
+      "count": 28,
+      "reason": "Legacy read-only opens preserve bytes; lazy cutover and random commits/rollbacks preserve exact contents and the fixed legacy boundary.",
+      "inputHash": "5C56EEA051A5BA9C6E11EEB5315447387A3613A47D6414F6312B9AB876B9F795",
+      "traceHash": "2F196A7FA552F862D6C054B721B4CBE37521E71CAC500D2898F6236CD9A9421D"
+    },
+    {
+      "target": "checksum-page",
+      "seed": 2954,
+      "count": 28,
+      "reason": "CRC-valid invalid markers, header permissions and random payload bits must fail closed; page boundaries use an independent CRC oracle.",
+      "inputHash": "633B49487AFAD16221F610373D51405BF1E8A58FCF297A537800679AE9757F1D",
+      "traceHash": "7E42BF27B18CB018D343DDBCF78BB88D818FF01198A432ED13CAA388890BD52E"
+    },
+    {
+      "target": "checksum-wal",
+      "seed": 2954,
+      "count": 28,
+      "reason": "Damaged frames, stale generations and CRC-valid confirmation mutations must recover exactly the preceding committed prefix.",
+      "inputHash": "7C3B59A6BFFD16578B211FDDB79BE10976CDB9CBB9709BC706546A899E56CA53",
+      "traceHash": "28B07E2299CB2AFB945194FEF7D2D453D8855D5A9B7770EA917640B22C466EB1"
+    },
+    {
+      "target": "checksum-crash",
+      "seed": 4058733,
+      "count": 111,
+      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with journal durability barriers and split compact publication writes.",
+      "inputHash": "C04738E2544CCBD56F44A46AD610BC9CC08ACB5A45D31C6C10BB1F89C85DB352",
+      "traceHash": "66A4FFD8EC369F9BC6346C59B04D8C6ED56C332EBFF479113A1D8FBEE54495E2"
+    },
+    {
+      "target": "checksum-crash",
+      "seed": 3163459,
+      "count": 201,
+      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with journal durability barriers and split compact publication writes.",
+      "inputHash": "1FAD764125FB05B8C92315BF60ADC2D3B0AC7543EADEC8BAB3E3461508E48E98",
+      "traceHash": "19848C65C3F40110A335602C52F26357330E3A5BFB1928318970A8B75483E305"
+    },
+    {
+      "target": "transaction-gate",
+      "seed": 2991,
+      "count": 20,
+      "reason": "Issue #2991: nested reader leases must retain owner identity and release independently across threads.",
+      "inputHash": "2387A6A95F9F18A9812B85A15D50FE5AAE4E0C98B62D58EB7232B6E1E68D6AB5",
+      "traceHash": "9FCA76F1DB92F62A1A4B13039394DACB8CC0CE4D5131B81179513875987E2831"
+    },
+    {
+      "target": "cursor-handoff",
+      "seed": 2991,
+      "count": 20,
+      "reason": "Issue #2991: retired-thread cursors must not alias fresh threads or block checkpoint after foreign disposal.",
+      "inputHash": "0A092B10C46DEAB0D2646E0B7FD6406D58309515B8D493822E6123D0D4BD5E6A",
+      "traceHash": "038FAF0298AA258346AD02521E4D6C218E907381821F75680023B5CE33257757"
+    },
+    {
+      "target": "concurrent",
+      "seed": 1682725737,
+      "count": 67,
+      "reason": "Issue #2991: original failing seed/prefix; checkpoint after async cursor handoff (schedule dependent).",
+      "inputHash": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "traceHash": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "target": "concurrent",
+      "seed": 1681725734,
+      "count": 178,
+      "reason": "Issue #2991: original failing seed/prefix; checkpoint after async cursor handoff (schedule dependent).",
+      "inputHash": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "traceHash": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "target": "compact-crash",
+      "seed": 2937,
+      "count": 64,
+      "reason": "Stacked v11/v12 promotion, compact transaction and checkpoint power loss preserve complete payloads and index results. Replayed with journal durability barriers and split compact publication writes.",
+      "inputHash": "EEBA1555D62FDBCAA7FCAB01C2CC4595DC5DE3D4C9748D68EF5C7BFB633E0B89",
+      "traceHash": "7881DCF92B4E2F0E359C80EEB2A886EA3927778D894AC07E7361AEF8F684FF03"
+    },
+    {
+      "target": "compact-power-loss",
+      "seed": 2937,
+      "count": 64,
+      "reason": "Repeated torn compact promotion/recovery and OS-cached journal probes on the shared checksum journal.",
+      "inputHash": "7078B1D7D4A80D8CBDD9115DEA328D2BBFCF85D1A77E668F0D81CFDB5581E9E2",
+      "traceHash": "7AB1BB212B6C84D7CA6770790C2C35900747DB6CE51FDA833B89D42AF14CADC6"
+    }
+  ]
+}
