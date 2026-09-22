@@ -104,6 +104,24 @@ namespace LiteDB.Internals
         [Theory]
         [InlineData(null)]
         [InlineData("secret")]
+        public void RecoveryJournalSyncFailure_MustNotOverwriteTheDamagedPrimary(string password)
+        {
+            CrashDuringHeaderPublication(password, out var dataBytes, out var walBytes);
+            using var data = ChecksumTestFiles.Copy(dataBytes);
+            using var log = new FaultStream { Mode = "recovery-sync" };
+            log.Write(walBytes, 0, walBytes.Length);
+            log.Armed = true;
+            Action open = () => { using var engine = new LiteEngine(new EngineSettings
+                { DataStream = data, LogStream = log, Password = password }); };
+            open.Should().Throw<IOException>().WithMessage("journal fault");
+            data.ToArray().Should().Equal(dataBytes);
+            log.ToArray().Should().Equal(walBytes);
+            AssertRecovery(data.ToArray(), log.ToArray(), password);
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("secret")]
         public void RebuildReader_UsesJournalWithoutMutatingTheSources(string password)
         {
             CrashDuringHeaderPublication(password, out var dataBytes, out var walBytes);
@@ -245,7 +263,7 @@ namespace LiteDB.Internals
 
             public override void Flush()
             {
-                if (Armed && _pendingSync) Fail();
+                if (Armed && (_pendingSync || Mode == "recovery-sync")) Fail();
                 base.Flush();
             }
 

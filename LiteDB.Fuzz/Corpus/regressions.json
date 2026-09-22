@@ -117,17 +117,17 @@
       "target": "checksum-crash",
       "seed": 4058733,
       "count": 111,
-      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages.",
-      "inputHash": "55D237FF04078AB8A4A705F60CD01FAAFC13B66E04035752CBCB025921FB512D",
-      "traceHash": "3A7BC6C6B5AEA1C85DA3B45E6BD7ED1CE840C4E8DA40930F8762AC51DC600A4E"
+      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with durable recovery-journal sync before primary repair.",
+      "inputHash": "C04738E2544CCBD56F44A46AD610BC9CC08ACB5A45D31C6C10BB1F89C85DB352",
+      "traceHash": "66A4FFD8EC369F9BC6346C59B04D8C6ED56C332EBFF479113A1D8FBEE54495E2"
     },
     {
       "target": "checksum-crash",
       "seed": 3163459,
       "count": 201,
-      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages.",
-      "inputHash": "8FF5866A5AEB35225334DC27D2B4822C7FEADC4E690DF578C00A11E886432318",
-      "traceHash": "06B2A3E090F83600B86548B5E552BE1EE4735FF1EAD9B85B2188F0BD53278FBD"
+      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with durable recovery-journal sync before primary repair.",
+      "inputHash": "1FAD764125FB05B8C92315BF60ADC2D3B0AC7543EADEC8BAB3E3461508E48E98",
+      "traceHash": "19848C65C3F40110A335602C52F26357330E3A5BFB1928318970A8B75483E305"
     },
     {
       "target": "transaction-gate",

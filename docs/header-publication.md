@@ -149,3 +149,7 @@ conversion writes the header only after publishing complete recovery records.
 `ConversionIntentRecovery_Tests` exercises v8/v9, plain/encrypted files and torn
 writes during that subsequent publication. Fuzz seeds 4058733 and 3163459 pin the
 repeated-recovery workloads that exposed the premature write.
+
+WAL directory entries are synced on Unix before journal-protected data overwrites.
+Writable repair also syncs the selected journal before replacing a damaged header;
+a failed journal sync leaves the primary and recovery bytes untouched.

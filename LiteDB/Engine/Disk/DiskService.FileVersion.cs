@@ -35,7 +35,7 @@ namespace LiteDB.Engine
                     _ = new HeaderPage(header);
                     var rawLog = ((ChecksummedWalStream)writer).RawStream;
                     var originalLength = rawLog.Length;
-                    BeginHeaderJournal(header.Array);
+                    BeginHeaderJournal(header.Array, requireDurable: true);
                     header[HeaderPage.P_FILE_VERSION] = version;
                     PageChecksum.Write(header);
                     stream.Position = 0;
