@@ -7,8 +7,8 @@ namespace LiteDB
     public enum CompactStorageMode
     {
         /// <summary>
-        /// Use compact writes for newly created databases and existing v10
-        /// databases. Existing v8/v9 databases continue writing BSON.
+        /// Use compact writes when beneficial. New databases start at v10;
+        /// existing v8/v9 databases are promoted on their first compact write.
         /// </summary>
         Auto = 0,
 

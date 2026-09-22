@@ -72,7 +72,7 @@ jobs:
             count: 30
           - name: linux-cache-vienna
             os: ubuntu-latest
-            targets: linq-cache,parser,sql-dml,value,api-boundary,oracle-selftest
+            targets: linq-cache,parser,sql-dml,value,api-boundary,oracle-selftest,compact-codec
             seed: 102947
             timezone: Europe/Vienna
             culture: tr_TR.UTF-8
@@ -96,7 +96,7 @@ jobs:
             count: 10
           - name: mac-storage-vector
             os: macos-latest
-            targets: storage,storage-failure,rebuild,rebuild-transition,vector,integrity,compatibility,malformed-file
+            targets: storage,storage-failure,rebuild,rebuild-transition,vector,integrity,compatibility,malformed-file,compact-storage
             seed: 302947
             timezone: America/New_York
             culture: en_US.UTF-8
@@ -158,11 +158,11 @@ jobs:
       matrix:
         include:
           - shard: correctness
-            targets: query,linq-cache,transaction,page,index,bson,parser,sql-dml,sort,value,api-boundary,oracle-selftest,pressure
+            targets: query,linq-cache,transaction,page,index,bson,parser,sql-dml,sort,value,api-boundary,oracle-selftest,pressure,compact-codec
             seedOffset: 500000
             framework: net8.0
           - shard: persistence
-            targets: wal,shared,storage,storage-failure,rebuild,rebuild-transition,vector,mapper,integrity,snapshot,threaded-snapshot,concurrent,conflict,power-loss,recovery,chaos,boundary,read-only,compatibility,malformed-file
+            targets: wal,shared,storage,storage-failure,rebuild,rebuild-transition,vector,mapper,integrity,snapshot,threaded-snapshot,concurrent,conflict,power-loss,recovery,chaos,boundary,read-only,compatibility,malformed-file,compact-storage
             seedOffset: 1500000
             framework: net10.0
     env:

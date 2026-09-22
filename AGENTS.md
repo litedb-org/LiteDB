@@ -44,8 +44,8 @@ to verify ordinary v8 round trips and vector-file rejection by LiteDB 5.0.21,
 including encrypted files. See `docs/vector-query-compatibility.md` for semantics.
 
 ## Compact Document Storage
-`CompactStorageMode.Auto` writes compact documents for new/v10 databases while
-leaving existing v8/v9 files on BSON; `Legacy` and `Compact` override that policy.
+`CompactStorageMode.Auto` writes compact documents when beneficial and lazily
+promotes existing v8/v9 files; `Legacy` is the explicit compatibility policy.
 Route DataBlock reads
 through `DocumentStorageCodec`, never public BSON alone. Schema pages belong to
 the collection transaction; read-version catalog caches must be cleared when WAL

@@ -134,7 +134,7 @@ namespace LiteDB.Tests.Engine
         }
 
         [Fact]
-        public void Auto_does_not_promote_existing_v8_databases()
+        public void Auto_promotes_existing_v8_databases_on_first_compact_write()
         {
             using var stream = new MemoryStream();
 
@@ -150,11 +150,36 @@ namespace LiteDB.Tests.Engine
 
             using (var db = new LiteDatabase(new LiteEngine(new EngineSettings { DataStream = stream })))
             {
+                stream.ToArray()[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.FILE_VERSION);
                 db.GetCollection("docs").Insert(Enumerable.Range(2, 20).Select(Document));
                 db.Checkpoint();
             }
 
-            stream.ToArray()[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.FILE_VERSION);
+            stream.ToArray()[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.COMPACT_FILE_VERSION);
+        }
+
+        [Fact]
+        public void Auto_rebuild_promotes_an_existing_v8_database()
+        {
+            using var file = new TempFile();
+            using (var db = new LiteDatabase(new ConnectionString
+            {
+                Filename = file.Filename,
+                CompactStorage = CompactStorageMode.Legacy
+            }))
+            {
+                db.GetCollection("docs").Insert(Enumerable.Range(1, 20).Select(Document));
+                db.Checkpoint();
+            }
+            File.ReadAllBytes(file.Filename)[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.FILE_VERSION);
+
+            using (var db = new LiteDatabase(file.Filename))
+            {
+                db.Rebuild(new RebuildOptions { CompactStorage = CompactStorageMode.Auto });
+                db.GetCollection("docs").Count().Should().Be(20);
+            }
+
+            File.ReadAllBytes(file.Filename)[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.COMPACT_FILE_VERSION);
         }
 
         [Fact]

@@ -49,11 +49,6 @@ namespace LiteDB.Engine
 
             // open file reader
             var compactStorage = options.CompactStorage ?? _settings.CompactStorage;
-            if (compactStorage == CompactStorageMode.Auto)
-            {
-                compactStorage = _fileVersion >= HeaderPage.COMPACT_FILE_VERSION ?
-                    CompactStorageMode.Compact : CompactStorageMode.Legacy;
-            }
 
             using (var reader = _fileVersion == 7 ?
                 new FileReaderV7(_settings) :

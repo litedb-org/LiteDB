@@ -20,8 +20,8 @@ namespace LiteDB.Engine
         private int? _transactionPageLimit;
 
         /// <summary>
-        /// Select how documents are written. Auto uses compact writes for new
-        /// and v10 databases without promoting existing v8/v9 databases.
+        /// Select how documents are written. Auto uses compact writes when
+        /// beneficial and lazily promotes existing v8/v9 databases.
         /// </summary>
         public CompactStorageMode CompactStorage { get; set; } = CompactStorageMode.Auto;
 

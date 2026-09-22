@@ -101,6 +101,8 @@ using the same artifact root automatically replays the retained coverage corpus.
 | `pressure` | observed cache eviction under tiny auto-checkpoints and pinned readers |
 | `malformed-file` | grammar-aware header/page/WAL corruption and truncation contracts |
 | `oracle-selftest` | controlled bad states that every core invariant family must reject |
+| `compact-codec` | generated schemas/values/projections plus structural compact-payload mutations |
+| `compact-storage` | Auto/Legacy promotion, mixed CRUD, transactions, reopen, rebuild, encryption, and raw integrity |
 
 Persistent targets checkpoint and invoke an independent raw-file walker. It
 checks page accounting and ownership, empty/data/index free lists, data chains,

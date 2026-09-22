@@ -24,7 +24,7 @@ namespace LiteDB.Engine
 
         /// <summary>
         /// Choose the document write policy for the rebuilt file. Null retains
-        /// the engine policy, and Auto resolves from the source file version.
+        /// the engine policy. Auto rebuilds into the compact-capable format.
         /// Vector data still requires v9.
         /// </summary>
         public CompactStorageMode? CompactStorage { get; set; }

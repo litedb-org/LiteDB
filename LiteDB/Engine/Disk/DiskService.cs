@@ -81,10 +81,8 @@ namespace LiteDB.Engine
                 }
 
                 if (dataLength < PAGE_SIZE) throw LiteException.InvalidDatabase();
-                var header = isNew ? null : this.ValidateExistingData();
-                CompactStorage = settings.CompactStorage == CompactStorageMode.Compact ||
-                    settings.CompactStorage == CompactStorageMode.Auto &&
-                    (isNew || header.FileVersion >= HeaderPage.COMPACT_FILE_VERSION);
+                if (!isNew) this.ValidateExistingData();
+                CompactStorage = settings.CompactStorage != CompactStorageMode.Legacy;
 
                 if (settings.ReadOnly == false)
                 {

@@ -3,10 +3,11 @@
 Issue: https://github.com/litedb-org/LiteDB/issues/2920
 
 `CompactStorageMode` controls writes in `EngineSettings`, `ConnectionString`, and
-`RebuildOptions`. `Auto` is the default: new databases are created as v10 and use
-compact writes when beneficial, existing v8/v9 databases continue writing legacy
-BSON, and existing v10 databases use compact writes. `Legacy` always writes BSON.
-`Compact` opts an existing v8/v9 database into compact writes and lazy promotion.
+`RebuildOptions`. `Auto` is the default: new databases are created as v10 and all
+databases use compact writes when beneficial. Existing v8/v9 databases are lazily
+promoted on their first compact write. `Legacy` always writes BSON. `Compact`
+also enables compact writes, but unlike `Auto` a new empty database remains v8
+until it actually stores a beneficial compact document.
 Connection strings use `Compact Storage=Auto|Legacy|Compact`; the earlier Boolean
 spellings remain accepted as aliases for `Compact` and `Legacy`.
 
@@ -15,8 +16,8 @@ rewrite existing documents. Read-only and idle opens of existing databases do no
 promote the file. Public `BsonSerializer` continues to produce BSON.
 
 New `Auto` databases start at v10 so later opens can retain their write policy.
-For an existing v8/v9 database opened with `Compact`, the first beneficial compact
-write durably promotes the file to v10 before schema or document pages can reach
+For an existing v8/v9 database opened with `Auto` or `Compact`, the first
+beneficial compact write durably promotes the file to v10 before schema or document pages can reach
 the WAL. `Legacy` files remain v8 unless vectors require v9, and promotion is
 monotonic through rollback, replay, and checkpoint. A rolled-back first compact
 write can leave a v10 file containing only BSON.
@@ -27,9 +28,9 @@ versions is not supported.
 converts useful shapes and regenerates catalogs through the existing temporary-
 file/backup process. `Legacy` explicitly writes BSON to the rebuilt file; vector
 data/indexes still impose the v9 floor. A null rebuild option retains the engine
-policy. `Auto` resolves from the source version, so rebuilding v8/v9 does not
-silently cross the compatibility boundary while rebuilding v10 keeps compact
-writes. The setting on the existing engine remains unchanged after rebuild;
+policy. `Auto` rebuilds into a new v10 database and uses compact writes; select
+`Legacy` explicitly to retain or restore the old format. The setting on the
+existing engine remains unchanged after rebuild;
 reopen with `Legacy` before using a downgraded file with old software. Explicit
 rebuild options retain the existing password/collation semantics.
 
@@ -117,8 +118,9 @@ array-only-v10, and encrypted fixtures, old-engine rejection in direct/shared
 modes, and a downgrade read by LiteDB 5.0.21. Run the existing vector compatibility
 script too. Focused tests are selected with `FullyQualifiedName~Compact`.
 
-The benchmark harness is `tools/CompactStorage`. See
-[measurement results](benchmarks/2920/README.md) for each implementation stage,
-raw runs, methodology, storage savings, and remaining throughput costs. The
+The benchmark harness is `tools/CompactStorage`. See the immutable
+[measurement artifacts](https://github.com/litedb-org/LiteDB-Artifacts/tree/d0451a8d4854ffccc65becbad5135938307edbd1/pull-requests/2937-compact-document-storage)
+for each implementation stage, raw runs, methodology, storage savings, and
+remaining throughput costs. The
 measurements predate the `Auto` policy and compare explicit compact and legacy
 writes.

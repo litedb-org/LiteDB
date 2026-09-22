@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
-"""Render measured medians; retain raw JSONL so allocations and variance are auditable."""
+"""Render measured medians from an external compact-storage artifact directory."""
+import argparse
 import json
 import pathlib
 import statistics
 
-root = pathlib.Path(__file__).resolve().parent.parent / "docs" / "benchmarks" / "2920"
+parser = argparse.ArgumentParser()
+parser.add_argument("root", type=pathlib.Path, help="directory containing the benchmark JSONL files")
+parser.add_argument("--output", type=pathlib.Path, help="write Markdown here instead of stdout")
+args = parser.parse_args()
+root = args.root
 stages = ["baseline", "boundary", "compact-v1", "schema-cache", "admission", "fallback", "final", "final-legacy"]
 shapes = ["stable", "optional", "nested", "arrays", "dynamic", "types", "tiny", "large", "mixed"]
 data = {name: [json.loads(line) for line in (root / (name + ".jsonl")).read_text().splitlines()] for name in stages}
@@ -43,5 +48,9 @@ for stage in ["baseline-large", "final-large"]:
     lines.append(f"| {stage} | {statistics.median(r['bytes'] for r in rows):,} | {statistics.median(r['pages'] for r in rows):,} | {statistics.median(r['rebuild']['ms'] for r in rows):.2f} | {statistics.median(r['rebuiltBytes'] for r in rows):,} |")
 lines += ["", "## Interpretation and reproduction", "",
     "Stable, optional, nested and type-changing documents save roughly 49–57% of initial file bytes; arrays save 38%. Dynamic dictionaries, tiny documents and large scalar payloads keep BSON and allocate no schema pages. Compact stable/optional/nested inserts still cost more CPU, and converting existing BSON during mixed-file updates costs more than writing BSON again. Array scans and inserts are faster. These measurements compare explicit compact and legacy modes and predate the `Auto` write policy.", "",
-    "```sh", "dotnet build LiteDB/LiteDB.csproj -c Release -f net8.0 -p:TestingEnabled=false", "dotnet build tools/CompactStorage -c Release", "DOTNET_TieredCompilation=0 dotnet tools/CompactStorage/bin/Release/net8.0/CompactStorage.dll trial compact 5000 5", "DOTNET_TieredCompilation=0 dotnet tools/CompactStorage/bin/Release/net8.0/CompactStorage.dll large compact 100000 3 stable", "python3 scripts/summarize-compact-benchmarks.py", "```", "", "Pass `legacy` instead of `compact` for legacy writes. `-p:LiteDBAssembly=/absolute/path/LiteDB.dll` builds the same harness against another assembly; use the provenance manifest's source revisions for reproducible comparisons and separate output directories. Raw JSONL includes every measured trial, page counts, catalog bytes, insert/update WAL, all timed operation allocations, and rebuild size.", ""]
-(root / "README.md").write_text("\n".join(lines))
+    "```sh", "dotnet build LiteDB/LiteDB.csproj -c Release -f net8.0 -p:TestingEnabled=false", "dotnet build tools/CompactStorage -c Release", "DOTNET_TieredCompilation=0 dotnet tools/CompactStorage/bin/Release/net8.0/CompactStorage.dll trial compact 5000 5", "DOTNET_TieredCompilation=0 dotnet tools/CompactStorage/bin/Release/net8.0/CompactStorage.dll large compact 100000 3 stable", "python3 scripts/summarize-compact-benchmarks.py /path/to/compact-storage-artifacts --output summary.md", "```", "", "Pass `legacy` instead of `compact` for legacy writes. `-p:LiteDBAssembly=/absolute/path/LiteDB.dll` builds the same harness against another assembly; use the provenance manifest's source revisions for reproducible comparisons and separate output directories. Raw JSONL includes every measured trial, page counts, catalog bytes, insert/update WAL, all timed operation allocations, and rebuild size.", ""]
+rendered = "\n".join(lines)
+if args.output:
+    args.output.write_text(rendered)
+else:
+    print(rendered)
