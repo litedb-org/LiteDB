@@ -62,6 +62,7 @@ namespace LiteDB.Tests.Engine
             private readonly IndexMigrationCrashDevice _device;
             internal readonly string Name;
             internal byte[] Durable;
+            internal long WrittenBytes;
 
             internal DeviceStream(byte[] bytes, IndexMigrationCrashDevice device, string name)
             {
@@ -82,6 +83,7 @@ namespace LiteDB.Tests.Engine
             public override void Write(byte[] buffer, int offset, int count)
             {
                 if (count == 0) return;
+                WrittenBytes += count;
                 _device.Capture(this, "before-write");
                 _device.Capture(this, "torn-write", buffer, offset, count);
                 base.Write(buffer, offset, count);
