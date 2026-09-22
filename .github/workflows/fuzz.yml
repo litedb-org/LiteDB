@@ -223,7 +223,7 @@ jobs:
             for (const group of groups.failures) {
               if (group.action === 'record' || group.action === 'suppress') continue;
               const regression = group.action === 'regression';
-              const title = `[fuzz${regression ? ' regression' : ''}] ${group.fingerprint}`;
+              const title = `[fuzz${regression ? ' regression' : ''}] ${group.target}: ${group.fingerprint}`;
               const state = regression ? 'is:open ' : '';
               const query = `repo:${context.repo.owner}/${context.repo.repo} is:issue ${state}in:title "${title}"`;
               const found = await github.rest.search.issuesAndPullRequests({ q: query });
