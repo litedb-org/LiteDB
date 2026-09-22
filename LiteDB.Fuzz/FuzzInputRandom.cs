@@ -40,6 +40,8 @@ internal sealed class FuzzInputRandom : Random, IDisposable
     internal string ReplayPath { get; }
     internal long Position => _stream.Position;
 
+    internal void Flush() => _writer?.Flush();
+
     internal string Hash()
     {
         _writer?.Flush();

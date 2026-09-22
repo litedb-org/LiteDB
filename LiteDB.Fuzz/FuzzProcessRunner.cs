@@ -33,8 +33,9 @@ internal static class FuzzProcessRunner
                 var duration = remaining < options.EpochDuration ? remaining : options.EpochDuration;
                 if (duration < TimeSpan.FromMilliseconds(100)) break;
                 var result = await RunCoreAsync(target, options, worker, epoch, duration, null);
+                if (!result.Passed) result = FuzzFindingRegistry.Classify(result);
                 results.Add(result);
-                if (!result.Passed) break;
+                if (!ShouldContinueDiscovery(result)) break;
             }
             return results;
         }
@@ -83,6 +84,8 @@ internal static class FuzzProcessRunner
         if (options.ExpectedInputHash != null) Add("--expected-input-hash", options.ExpectedInputHash);
         if (options.ExpectedTraceHash != null) Add("--expected-trace-hash", options.ExpectedTraceHash);
         if (duration.HasValue) Add("--duration", duration.Value.ToString("c", CultureInfo.InvariantCulture));
+        Add("--hang-timeout", options.HangTimeout.ToString("c", CultureInfo.InvariantCulture));
+        Add("--minimization-timeout", options.MinimizationTimeout.ToString("c", CultureInfo.InvariantCulture));
         if (options.DurationReplay) start.ArgumentList.Add("--duration-mode");
 
         var started = DateTimeOffset.UtcNow;
@@ -119,8 +122,7 @@ internal static class FuzzProcessRunner
             await FuzzArtifacts.WriteAbnormalTerminationAsync(directory, target.Name, seed, options.Count,
                 started, process.ExitCode, hung, output, error, input);
         }
-        if (passed && duration.HasValue) FuzzArtifacts.PruneSuccessfulDurationRun(directory);
-        return new RunResult(target.Name, seed, directory, passed);
+        return new RunResult(target.Name, seed, directory, passed, duration.HasValue);
 
         void Add(string name, string value)
         {
@@ -129,11 +131,15 @@ internal static class FuzzProcessRunner
         }
     }
 
-    internal static async Task<string> RunTrialAsync(string target, int seed, int count,
-        bool durationMode, string directory, string input)
+    internal static async Task<FuzzTrialResult> RunTrialAsync(string target, int seed, int count,
+        bool durationMode, string directory, string input, TimeSpan timeout, string parentHeartbeat)
     {
         Directory.CreateDirectory(directory);
         var result = Path.Combine(directory, "failure-id.txt");
+        var timeoutArtifact = Path.Combine(directory, "trial-timeout.json");
+        File.Delete(result);
+        File.Delete(timeoutArtifact);
+        var heartbeat = Path.Combine(directory, "heartbeat.txt");
         var start = CreateStartInfo(false, directory);
         Add("--child", "trial");
         Add("--target", target);
@@ -141,25 +147,61 @@ internal static class FuzzProcessRunner
         Add("--count", count.ToString(CultureInfo.InvariantCulture));
         Add("--run-directory", directory);
         Add("--ledger", result);
+        Add("--heartbeat", heartbeat);
         if (input != null) Add("--input", input);
         if (durationMode) start.ArgumentList.Add("--duration-mode");
         using var process = Process.Start(start) ??
             throw new InvalidOperationException($"Could not start minimization trial for {target}.");
-        var output = process.StandardOutput.ReadToEndAsync();
-        var error = process.StandardError.ReadToEndAsync();
-        await process.WaitForExitAsync();
-        await output;
-        await error;
-        if (!File.Exists(result)) return null;
+        var outputTask = process.StandardOutput.ReadToEndAsync();
+        var errorTask = process.StandardError.ReadToEndAsync();
+        var exitTask = process.WaitForExitAsync();
+        if (!await WaitForTrialExitAsync(exitTask, timeout, () => Touch(parentHeartbeat)))
+        {
+            try { process.Kill(entireProcessTree: true); }
+            catch { }
+            await Task.WhenAny(exitTask, Task.Delay(TimeSpan.FromSeconds(5)));
+            await File.WriteAllTextAsync(timeoutArtifact,
+                System.Text.Json.JsonSerializer.Serialize(new { target, seed, count, timeoutSeconds = timeout.TotalSeconds },
+                    new JsonSerializerOptions { WriteIndented = true }));
+            return new FuzzTrialResult(null, true);
+        }
+        await outputTask;
+        await errorTask;
+        if (!File.Exists(result)) return new FuzzTrialResult(null, false);
         var identity = File.ReadAllText(result);
-        return identity.Length == 0 ? null : identity;
+        return new FuzzTrialResult(identity.Length == 0 ? null : identity, false);
 
         void Add(string name, string value)
         {
             start.ArgumentList.Add(name);
             start.ArgumentList.Add(value);
         }
+
+        static void Touch(string path)
+        {
+            if (path == null) return;
+            try { File.WriteAllText(path, $"{DateTimeOffset.UtcNow:O} minimizing"); }
+            catch (IOException) { }
+        }
     }
+
+    internal static async Task<bool> WaitForTrialExitAsync(Task exitTask, TimeSpan timeout, Action pulse)
+    {
+        var deadline = DateTimeOffset.UtcNow + timeout;
+        pulse();
+        while (!exitTask.IsCompleted)
+        {
+            var remaining = deadline - DateTimeOffset.UtcNow;
+            if (remaining <= TimeSpan.Zero) return false;
+            var delay = remaining < TimeSpan.FromMilliseconds(250) ? remaining : TimeSpan.FromMilliseconds(250);
+            if (await Task.WhenAny(exitTask, Task.Delay(delay)) == exitTask) return true;
+            pulse();
+        }
+        return true;
+    }
+
+    internal static bool ShouldContinueDiscovery(RunResult result) =>
+        result.Passed || result.Finding?.AllowsDiscoveryToContinue == true;
 
     private static ProcessStartInfo CreateStartInfo(bool coverage, string directory)
     {
@@ -214,3 +256,5 @@ internal static class FuzzProcessRunner
         return replay.TraceHash;
     }
 }
+
+internal sealed record FuzzTrialResult(string FailureId, bool TimedOut);

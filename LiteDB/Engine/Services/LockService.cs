@@ -69,9 +69,9 @@ namespace LiteDB.Engine
         /// <summary>
         /// Exit transaction read lock
         /// </summary>
-        public void ExitTransaction(int ownerThreadId)
+        public void ExitTransaction(Thread owner)
         {
-            _transaction.ExitReadLock(ownerThreadId);
+            _transaction.ExitReadLock(owner);
         }
 
         /// <summary>

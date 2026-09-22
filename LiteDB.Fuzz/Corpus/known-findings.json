@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "findings": [
+    {
+      "target": "vector",
+      "fingerprint": "VECTOR_DATABASEVECTORINTEGRITYVERIFIER_L43",
+      "issue": 2952,
+      "status": "known"
+    },
+    {
+      "target": "rebuild",
+      "fingerprint": "REBUILD_REBUILDFUZZER_L118",
+      "issue": 2958,
+      "status": "expected"
+    },
+    {
+      "target": "api-boundary",
+      "fingerprint": "HANG_API_BOUNDARY",
+      "issue": 2984,
+      "status": "fixed"
+    }
+  ]
+}
