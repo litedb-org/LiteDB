@@ -357,6 +357,8 @@ jobs:
 
       - name: Run shared-mode concurrency tests (${{ matrix.arch }})
         shell: pwsh
+        env:
+          LITEDB_SHARED_DIAGNOSTICS: ${{ github.workspace }}/LiteDB.Tests/TestResults/SharedWorkerDiagnostics
         timeout-minutes: 10
         run: >-
           ./scripts/run-ci-tests.ps1
@@ -366,12 +368,37 @@ jobs:
           -Filter "FullyQualifiedName~CrossProcess_Shared_Tests"
           -ResultFile "CrossProcessTestResults-${{ matrix.arch }}.trx"
 
+      - name: Repeat Windows x86 .NET 8 concurrent inserts with diagnostics
+        if: matrix.os == 'windows-latest' && matrix.arch == 'x86' && matrix.item.runtimeMajor == 8
+        shell: pwsh
+        timeout-minutes: 5
+        env:
+          LITEDB_SHARED_DIAGNOSTICS: ${{ github.workspace }}/LiteDB.Tests/TestResults/SharedWorkerDiagnostics
+        run: |
+          $runtime = Join-Path $env:RUNNER_TEMP 'litedb-runtime-8-x86'
+          for ($repeat = 1; $repeat -le 4; $repeat++) {
+            ./scripts/run-ci-tests.ps1 -RuntimeMajor 8 -Framework net8.0 -Architecture x86 `
+              -RuntimeDirectory $runtime -Filter 'FullyQualifiedName~CrossProcess_Shared_ConcurrentWrites_InsertDocuments' `
+              -ResultFile "CrossProcessRepeat-$repeat.trx"
+            if ($LASTEXITCODE -ne 0) { throw "Concurrent insert repeat $repeat failed." }
+          }
+
+      - name: Upload original shared-worker timeout files and diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shared-worker-timeouts-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.item.display }}
+          path: LiteDB.Tests/TestResults/SharedWorkerDiagnostics/
+          if-no-files-found: ignore
+
       - name: Upload cross-process test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: crossprocess-test-results-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.item.display }}
-          path: LiteDB.Tests/TestResults/CrossProcessTestResults-${{ matrix.arch }}.trx
+          path: |
+            LiteDB.Tests/TestResults/CrossProcessTestResults-${{ matrix.arch }}.trx
+            LiteDB.Tests/TestResults/CrossProcessRepeat-*.trx
 
   test-linux-arm64:
     name: Test (Linux ARM64 - ${{ matrix.item.display }})
