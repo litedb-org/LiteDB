@@ -5,7 +5,7 @@ incorrect seeks and ranges under the new comparer even though their page layout
 is readable. This requires a file-format boundary, not just a package version bump.
 
 New databases use **format v11**, including databases without vectors. Writable
-opens of v8/v9 databases automatically migrate their indexes before exposing the
+opens of v8/v9/v10 databases automatically migrate their indexes before exposing the
 connection. Read-only opens requiring migration fail with instructions to open
 writable once. `Upgrade=true` retains the separate v7 rebuild/backup path, including
 explicit v7 upgrades requested together with `ReadOnly=true`.
