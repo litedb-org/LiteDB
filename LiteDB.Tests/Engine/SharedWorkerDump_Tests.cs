@@ -120,9 +120,8 @@ public partial class SharedWorkerDump_Tests : IDisposable
         requested.FileName.Should().Be("configured-procdump.exe");
         requested.StandardOutputEncoding.Should().Be(System.Text.Encoding.Unicode);
         requested.StandardErrorEncoding.Should().Be(System.Text.Encoding.Unicode);
-        requested.Arguments.Should().StartWith("-accepteula -ma -r -at 5 ").And.NotContain("-64");
         using var current = Process.GetCurrentProcess();
-        requested.Arguments.Should().Contain(" " + current.Id + " ");
+        SharedWorkerDumpArguments.AssertCaptureCommand(requested.Arguments, current.Id);
     }
 
     [Fact]
@@ -154,20 +153,10 @@ public partial class SharedWorkerDump_Tests : IDisposable
     {
         if (Environment.GetEnvironmentVariable("LITEDB_SHARED_DUMP_SMOKE") != "1") return;
         Environment.OSVersion.Platform.Should().Be(PlatformID.Win32NT);
-        var capture = SharedWorkerProcessDump.FromEnvironment(_directory);
-        capture.Should().NotBeNull("the diagnostic workflow must configure its verified ProcDump executable");
         _retain = true;
-        var diagnostics = new SharedWorkerDiagnostics(_directory, true, capture);
-        diagnostics.Track("capture smoke").Progress("intentional timeout capture", 0);
-        var report = diagnostics.Timeout("capture smoke");
+        var report = SharedWorkerDumpSmoke.Capture(_directory, SharedWorkerProcessDump.FromEnvironment);
         report.Should().Contain("Dump exit code:").And.Contain("Dump validated full process structure: True");
         report.Should().Contain("processBits=" + IntPtr.Size * 8);
-        var dump = Directory.GetFiles(_directory, "*.dmp").Single();
-        using var current = Process.GetCurrentProcess();
-        SharedWorkerDumpFormat.Validate(dump, current.Id, IntPtr.Size * 8).Should().BeTrue();
-        File.WriteAllText(Path.Combine(_directory, "successful-smoke.txt"), report +
-            "\nSuccessful smoke dump removed after validating full dump structure, process identity and architecture; capture report retained.");
-        File.Delete(dump);
     }
 
     private static Process Child(bool sleep, int exitCode, bool redirect)
