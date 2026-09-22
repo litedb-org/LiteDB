@@ -14,7 +14,7 @@ namespace LiteDB.Engine
         internal WalChecksum.Frame LastFrame { get; private set; }
         internal Stream RawStream => _stream;
         private long ContentLength => Math.Max(0, _stream.Length - _checksum.JournalBytes);
-        internal long TrailingBytes => ContentLength % (_checksum.Enabled ? WalChecksum.FrameSize : PAGE_SIZE);
+        internal long TrailingBytes => _checksum.Enabled ? WalPadding.TrailingBytes(ContentLength) : ContentLength % PAGE_SIZE;
 
         internal ChecksummedWalStream(Stream stream, WalChecksum checksum)
         {
@@ -88,7 +88,7 @@ namespace LiteDB.Engine
         {
             if (_checksum.Enabled && value % PAGE_SIZE != 0) throw new ArgumentException("WAL length must be page aligned.");
             var length = _checksum.Enabled ? checked(value / PAGE_SIZE * WalChecksum.FrameSize) : value;
-            _stream.SetLength(length);
+            _stream.SetLength(_checksum.Enabled ? WalPadding.AlignedLength(length) : length);
             // CryptoStream can forward an empty final write on dispose. Do not
             // let a borrowed stream position re-extend a truncated memory WAL.
             if (_stream.Position > length) _stream.Position = length;
@@ -97,8 +97,14 @@ namespace LiteDB.Engine
             _checksum.LegacyConfirmationPosition = -1;
         }
 
-        public override void Flush() => _stream.Flush();
-        internal void FlushToDisk() => _stream.FlushToDisk();
+        private void Pad()
+        {
+            if (_checksum.Enabled && _checksum.JournalBytes == 0)
+                WalPadding.Pad(_stream, Length / PAGE_SIZE * WalChecksum.FrameSize);
+        }
+
+        public override void Flush() { Pad(); _stream.Flush(); }
+        internal void FlushToDisk() { Pad(); _stream.FlushToDisk(); }
         protected override void Dispose(bool disposing)
         {
             if (disposing) _stream.Dispose();

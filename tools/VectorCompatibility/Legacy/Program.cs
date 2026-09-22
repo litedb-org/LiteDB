@@ -46,6 +46,8 @@ namespace VectorCompatibility.Legacy
         private static void Refuse(string file, string password)
         {
             var original = File.ReadAllBytes(file);
+            var log = Path.ChangeExtension(file, null) + "-log" + Path.GetExtension(file);
+            var originalLog = File.Exists(log) ? File.ReadAllBytes(log) : null;
             foreach (var mode in new[] { "read", "write", "rebuild", "upgrade" })
             {
                 var rejected = false;
@@ -63,7 +65,8 @@ namespace VectorCompatibility.Legacy
                 {
                     rejected = true;
                 }
-                if (!rejected || !original.SequenceEqual(File.ReadAllBytes(file)))
+                if (!rejected || !original.SequenceEqual(File.ReadAllBytes(file)) ||
+                    (originalLog != null && (!File.Exists(log) || !originalLog.SequenceEqual(File.ReadAllBytes(log)))))
                     throw new Exception("Legacy engine must reject v10 without changing the file: " + mode);
             }
         }

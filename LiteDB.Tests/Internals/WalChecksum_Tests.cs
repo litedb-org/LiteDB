@@ -25,7 +25,8 @@ namespace LiteDB.Internals
             test.Update("docs", 2);
             test.Update("docs", 3);
             var original = test.Log.ToArray();
-            var position = end + WalChecksum.FrameSize;
+            var preamble = password == null ? 0 : PAGE_SIZE;
+            var position = (end - preamble) / WalChecksum.FrameSize * WalChecksum.FrameSize + preamble + WalChecksum.FrameSize;
             foreach (var damage in new[] { "missing", "torn", "reordered", "removed", "partial-tail" })
             {
                 var bytes = (byte[])original.Clone();
@@ -102,7 +103,7 @@ namespace LiteDB.Internals
             var end = checked((int)test.Log.Length);
             test.Update("docs", 2);
             var bytes = test.Log.ToArray();
-            var frame = bytes.Length - WalChecksum.FrameSize;
+            var frame = (bytes.Length / WalChecksum.FrameSize - 1) * WalChecksum.FrameSize;
             var metadata = new BufferSlice(bytes, frame + PAGE_SIZE, WalChecksum.MetadataSize);
             metadata.Write(metadata.ReadUInt32(32) + 1, 32);
             metadata.Write(0u, 4);
@@ -119,7 +120,7 @@ namespace LiteDB.Internals
             test.Update("docs", 1);
             var end = checked((int)test.Log.Length);
             test.Update("docs", 2);
-            var frame = checked((int)test.Log.Length) - WalChecksum.FrameSize;
+            var frame = (checked((int)test.Log.Length) / WalChecksum.FrameSize - 1) * WalChecksum.FrameSize;
             test.Update("docs", 3);
             var bytes = test.Log.ToArray();
             bytes[frame + BasePage.P_IS_CONFIRMED] = 0;

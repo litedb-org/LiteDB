@@ -69,7 +69,7 @@ namespace LiteDB.Internals
             using (var stream = factory.GetStream(true, false))
             {
                 var frame = new byte[WalChecksum.FrameSize];
-                var position = stream.Length - frame.Length;
+                var position = (stream.Length / frame.Length - 1) * frame.Length;
                 stream.Position = position;
                 stream.ReadRequired(frame, 0, frame.Length);
                 var metadata = new BufferSlice(frame, PAGE_SIZE, WalChecksum.MetadataSize);

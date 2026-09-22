@@ -47,7 +47,7 @@ namespace LiteDB.Internals
             using (var writer = destination.GetStream(true, false))
             {
                 var frame = new byte[WalChecksum.FrameSize];
-                for (long position = 0; position < input.Length; position += frame.Length)
+                for (long position = 0; position + frame.Length <= input.Length; position += frame.Length)
                 {
                     input.Position = position;
                     input.ReadRequired(frame, 0, frame.Length);

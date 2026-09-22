@@ -270,3 +270,20 @@ and production settings, measured plain checkpoint medians of **24.84 → 27.43 
 and encrypted medians of **30.24 → 32.89 ms**. The additional protection cost about
 2.6 ms for this 4.4 MiB fixture. Conversion medians were 56.04 → 55.26 ms plain and
 77.91 → 80.46 ms encrypted; that binding change did not alter the then-eager conversion protocol.
+
+## Released-engine WAL length compatibility
+
+LiteDB 5.0.21 rounds the physical WAL length down to an 8 KiB boundary before
+checking the database version, even for read-only open. Flushed checksummed WALs
+therefore retain less than 8 KiB of trailing padding. Logical pages still map to
+8,256-byte frames; padding is not a frame and is overwritten by the next append.
+Recovery also accepts older unpadded checksummed files. Padding does not add
+per-page overhead beyond the 64-byte trailer.
+
+The temporary header journal follows aligned padding and includes those bytes
+in its WAL binding. Its footer remains aligned too. Before sealing the journal,
+padding is written through encryption as plaintext zeroes so the binding is
+independent of encrypted blank-page normalization and read chunk sizes. Old
+unaligned journal footers remain readable. The format boundary still rejects
+old engines; padding prevents their preliminary length check from truncating
+acknowledged frames or a sealed recovery footer before that rejection.

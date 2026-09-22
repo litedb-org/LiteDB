@@ -202,10 +202,12 @@ namespace LiteDB.Internals
             test.Update("first", 3);
             first.Safepoint();
             var bytes = test.Log.ToArray();
-            bytes.Take(committed.Length).Should().Equal(committed,
+            var preamble = password == null ? 0 : Constants.PAGE_SIZE;
+            var committedFrames = (committed.Length - preamble) / WalChecksum.FrameSize * WalChecksum.FrameSize + preamble;
+            bytes.Take(committedFrames).Should().Equal(committed.Take(committedFrames),
                 "a later safepoint must leave the acknowledged prefix immutable");
             bytes.Length.Should().BeGreaterThan(committed.Length);
-            Array.Clear(bytes, committed.Length, Math.Min(512, bytes.Length - committed.Length));
+            Array.Clear(bytes, committedFrames, Math.Min(512, bytes.Length - committedFrames));
             using var data = ChecksumTestFiles.Copy(test.Data.ToArray());
             using var log = ChecksumTestFiles.Copy(bytes);
             using (var engine = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, Password = password }))

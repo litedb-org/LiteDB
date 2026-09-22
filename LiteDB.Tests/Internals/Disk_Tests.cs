@@ -163,7 +163,7 @@ namespace LiteDB.Internals
             disk.WriteLogDisk(new[] { replacement });
 
             replacement.Position.Should().Be(0);
-            log.Length.Should().Be(WalChecksum.FrameSize);
+            log.Length.Should().Be(2 * PAGE_SIZE);
         }
 
         [Fact]

@@ -120,7 +120,7 @@ namespace LiteDB.Engine
             };
             var version = header[HeaderPage.P_FILE_VERSION];
             if (version != 8 && version != 9 && version != HeaderPage.CHECKSUM_FILE_VERSION) return null;
-            if (position % (journal.Legacy ? PAGE_SIZE : WalChecksum.FrameSize) != 0) return null;
+            if (journal.Legacy ? position % PAGE_SIZE != 0 : WalPadding.TrailingBytes(position) != 0) return null;
             if (!journal.Legacy)
             {
                 var page = new BufferSlice(header, 0, PAGE_SIZE);
