@@ -117,17 +117,17 @@
       "target": "checksum-crash",
       "seed": 4058733,
       "count": 111,
-      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite.",
-      "inputHash": "3A10DAA3254B1A6846EB50F9ADCF432C906F0F859177B818DFC9E8580225B995",
-      "traceHash": "A46EECBDEAB16F57A2E165EF6892B19F08F621306690E01EF075C80A19220888"
+      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the durable recovery-journal sync before primary repair.",
+      "inputHash": "846447838B08A16712AC7907CA8453A5CAB636DC46D2B9BF6B97950CA5A3A850",
+      "traceHash": "54F77B2A2E870EC4D76FC13430D0E5922543234F96038EE636DB0F3E0506F6B5"
     },
     {
       "target": "checksum-crash",
       "seed": 3163459,
       "count": 201,
-      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite.",
-      "inputHash": "A850F468B4B0ED2B51437B625BB5B548E557C64D8E11119FC00094976FF69CDD",
-      "traceHash": "81A2531F628F62E1D2935481C078316B8AF3E3FB5994917C0C5998FE4B975D2B"
+      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the durable recovery-journal sync before primary repair.",
+      "inputHash": "94FE4873BF16FD4C4A37BA28B1F806CE8734D9D8A66684B7D5420A1EDE6C14DC",
+      "traceHash": "5D16086B4CF37827B2E8A346B22E23139A09DA95AE9BC923271EA240CECE3993"
     },
     {
       "target": "transaction-gate",

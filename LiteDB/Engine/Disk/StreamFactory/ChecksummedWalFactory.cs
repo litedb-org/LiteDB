@@ -23,6 +23,7 @@ namespace LiteDB.Engine
         public bool IsLocked() => _inner.IsLocked();
         public void Delete() => _inner.Delete();
         public void TrimCapacity(Stream stream) => _inner.TrimCapacity(stream);
+        internal void SyncDirectory() { if (_inner is FileStreamFactory file) file.SyncDirectory(); }
         public void Dispose() => _inner.Dispose();
     }
 }

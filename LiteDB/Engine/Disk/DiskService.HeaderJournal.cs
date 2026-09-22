@@ -8,19 +8,20 @@ namespace LiteDB.Engine
     {
         private byte[] _recoveredHeader;
 
-        private void BeginHeaderJournal(byte[] header, bool conversion = false)
+        private void BeginHeaderJournal(byte[] header, bool conversion = false, bool requireDurable = false)
         {
             if (_checksums.JournalBytes != 0)
             {
-                if (ChecksumsEnabled) FlushLogToDisk(_writer.Value);
+                if (ChecksumsEnabled && !requireDurable) FlushLogToDisk(_writer.Value);
                 else _writer.Value.FlushToDisk();
                 return;
             }
             var log = ((ChecksummedWalStream)_writer.Value).RawStream;
             HeaderJournal.Write(log, header, conversion, _checksums);
             _checksums.JournalBytes = HeaderJournal.Size;
-            if (conversion || !ChecksumsEnabled) log.FlushToDisk();
+            if (conversion || requireDurable || !ChecksumsEnabled) log.FlushToDisk();
             else FlushLogToDisk(_writer.Value);
+            ((ChecksummedWalFactory)_logFactory).SyncDirectory();
         }
 
         private void PrepareCheckpointHeader()
@@ -63,6 +64,9 @@ namespace LiteDB.Engine
                 var data = _dataPool.Writer.Value;
                 if (_recoveredHeader != null)
                 {
+                    // Make an OS-cached recovery copy durable before repairing its primary.
+                    ((ChecksummedWalStream)_writer.Value).RawStream.FlushToDisk();
+                    ((ChecksummedWalFactory)_logFactory).SyncDirectory();
                     data.Position = 0;
                     data.Write(header, 0, header.Length);
                 }
