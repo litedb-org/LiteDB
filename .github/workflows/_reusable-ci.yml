@@ -99,13 +99,22 @@ jobs:
       - name: Extract build artifacts
         run: tar -xzf tests-build-linux.tar.gz
 
-      - name: Run tests with verified runtime and architecture
+      - name: Run all test partitions with verified runtime and architecture
         shell: pwsh
-        timeout-minutes: 5
+        timeout-minutes: 40
         run: >-
           ./scripts/run-ci-tests.ps1
           -RuntimeMajor ${{ matrix.item.runtimeMajor }}
           -Framework "${{ matrix.item.framework }}"
+          -PartitionSuite
+
+      - name: Upload test partition results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.job }}-${{ strategy.job-index }}
+          path: LiteDB.Tests/TestResults/*.trx
+          if-no-files-found: warn
 
   build-macos:
     name: Build (macOS)
@@ -168,13 +177,22 @@ jobs:
       - name: Extract build artifacts
         run: tar -xzf tests-build-macos.tar.gz
 
-      - name: Run tests with verified runtime and architecture
+      - name: Run all test partitions with verified runtime and architecture
         shell: pwsh
-        timeout-minutes: 5
+        timeout-minutes: 40
         run: >-
           ./scripts/run-ci-tests.ps1
           -RuntimeMajor ${{ matrix.item.runtimeMajor }}
           -Framework "${{ matrix.item.framework }}"
+          -PartitionSuite
+
+      - name: Upload test partition results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.job }}-${{ strategy.job-index }}
+          path: LiteDB.Tests/TestResults/*.trx
+          if-no-files-found: warn
 
   build-windows:
     name: Build (Windows)
@@ -238,32 +256,28 @@ jobs:
           name: tests-build-windows
           path: .
 
-      - name: Run tests with verified runtime and architecture
+      - name: Run all test partitions with verified runtime and architecture
         shell: pwsh
-        timeout-minutes: 10
+        timeout-minutes: 40
         run: >-
           ./scripts/run-ci-tests.ps1
           -RuntimeMajor ${{ matrix.item.runtimeMajor }}
           -Framework "${{ matrix.item.framework }}"
           -Architecture "${{ matrix.arch }}"
-          -Filter "FullyQualifiedName~LiteDB.Tests.Issues."
-          -ResultFile "TestResults-issues.trx"
+          -PartitionSuite
 
-      - name: Run remaining tests with verified runtime and architecture
-        shell: pwsh
-        timeout-minutes: 10
-        run: >-
-          ./scripts/run-ci-tests.ps1
-          -RuntimeMajor ${{ matrix.item.runtimeMajor }}
-          -Framework "${{ matrix.item.framework }}"
-          -Architecture "${{ matrix.arch }}"
-          -Filter "FullyQualifiedName!~LiteDB.Tests.Issues."
-          -ResultFile "TestResults-remaining.trx"
+      - name: Upload test partition results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.job }}-${{ strategy.job-index }}
+          path: LiteDB.Tests/TestResults/*.trx
+          if-no-files-found: warn
 
   test-windows-framework:
     name: Test (Windows ${{ matrix.framework }})
     runs-on: windows-2022
-    timeout-minutes: 10
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -387,11 +401,20 @@ jobs:
       - name: Extract build artifacts
         run: tar -xzf tests-build-linux.tar.gz
 
-      - name: Run tests with verified runtime and architecture
+      - name: Run all test partitions with verified runtime and architecture
         shell: pwsh
-        timeout-minutes: 10
+        timeout-minutes: 40
         run: >-
           ./scripts/run-ci-tests.ps1
           -RuntimeMajor ${{ matrix.item.runtimeMajor }}
           -Framework "${{ matrix.item.framework }}"
           -Architecture arm64
+          -PartitionSuite
+
+      - name: Upload test partition results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.job }}-${{ strategy.job-index }}
+          path: LiteDB.Tests/TestResults/*.trx
+          if-no-files-found: warn

@@ -88,9 +88,11 @@ loads, caches, test suites and other data that can be rebuilt:
   Checksummed WAL recovery rejects an incomplete transaction and all later
   commits, preserving the preceding valid commits. `$database.recoveryDiscardedWalBytes`
   reports the discarded tail. Do not opt out for data that must survive power loss.
-- Checkpoints stay synced: the log is synced once before its pages are copied
-  into the data file, and the data file is synced afterwards, so everything
-  that has been checkpointed is durable. File creation is synced as before.
+- Checkpoints stay synced: the WAL and header journal must be durable before
+  pages are copied into the data file, and the data file is synced afterwards.
+  Rejected checkpoint syncs close the engine before data is overwritten, even
+  when commits previously fell back to OS-cache flushes. Reopen after resolving
+  the storage failure. File creation is synced as before.
 
 The setting applies per open and is not stored in the data file: the file format
 is the same for either value. Both settings work with `Direct` and
