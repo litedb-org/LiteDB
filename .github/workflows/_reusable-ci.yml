@@ -50,6 +50,9 @@ jobs:
       - name: Build memory validation runner
         run: dotnet build tools/MemoryValidation/MemoryValidation.csproj --configuration Release
 
+      - name: Verify rejection by the actual preceding format
+        run: python3 scripts/test-parent-format-compatibility.py --max-version 11 --v11-ref HEAD
+
       - name: Build memory profile measurements
         run: dotnet build tools/MemoryProfiles/MemoryProfiles.csproj --configuration Release
 
