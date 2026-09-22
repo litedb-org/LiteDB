@@ -24,7 +24,8 @@ namespace LiteDB.Engine
                 WalPadding.Pad(log, log.Length / WalChecksum.FrameSize * WalChecksum.FrameSize, initialize: true);
                 // A persisted footer must never depend on padding that existed
                 // only in cache when its own write reached the device.
-                log.FlushToDisk();
+                if (conversion || promotion || requireDurable) log.FlushToDisk();
+                else FlushLogToDisk(log);
             }
             HeaderJournal.Write(log, header, conversion, _checksums, promotion);
             _checksums.JournalBytes = HeaderJournal.Size;
