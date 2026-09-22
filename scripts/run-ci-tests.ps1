@@ -4,7 +4,8 @@ param(
     [ValidateSet('x64', 'x86', 'arm64')][string]$Architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant(),
     [string]$Filter,
     [string]$ResultFile = 'TestResults.trx',
-    [string]$RuntimeDirectory
+    [string]$RuntimeDirectory,
+    [switch]$PartitionSuite
 )
 
 $ErrorActionPreference = 'Stop'
@@ -28,6 +29,30 @@ $testHost = Join-Path $RuntimeDirectory $hostName
 if (!(Test-Path $testHost)) { throw "Test runtime host not found: $testHost" }
 & $testHost --info
 if ($LASTEXITCODE -ne 0) { throw 'Test runtime host could not start.' }
+
+# Run disjoint slices in separate test sessions, each still limited to 300 seconds.
+# The final complement includes new namespaces automatically. Every slice also runs
+# the runtime/architecture and hook guards below; no tests are sampled or skipped.
+if ($PartitionSuite) {
+    if ($Filter) { throw 'PartitionSuite cannot be combined with Filter.' }
+    $groups = [ordered]@{
+        issues = 'FullyQualifiedName~LiteDB.Tests.Issues.'
+        rebuild = 'FullyQualifiedName~LiteDB.Tests.Engine.Rebuild'
+        engine = 'FullyQualifiedName~LiteDB.Tests.Engine.&FullyQualifiedName!~LiteDB.Tests.Engine.Rebuild'
+        query = 'FullyQualifiedName~LiteDB.Tests.QueryTest.'
+        internals = 'FullyQualifiedName~LiteDB.Internals.'
+        remaining = 'FullyQualifiedName!~LiteDB.Tests.Issues.&FullyQualifiedName!~LiteDB.Tests.Engine.&FullyQualifiedName!~LiteDB.Tests.QueryTest.&FullyQualifiedName!~LiteDB.Internals.'
+    }
+    $failed = @()
+    foreach ($group in $groups.GetEnumerator()) {
+        Write-Host "Running complete-suite partition: $($group.Key)"
+        & $PSCommandPath -RuntimeMajor $RuntimeMajor -Framework $Framework -Architecture $Architecture `
+            -RuntimeDirectory $RuntimeDirectory -Filter $group.Value -ResultFile "TestResults-$($group.Key).trx"
+        if ($LASTEXITCODE -ne 0) { $failed += $group.Key }
+    }
+    if ($failed.Count) { throw "Test partitions failed: $($failed -join ', ')" }
+    exit 0
+}
 
 # The SDK running VSTest can have other runtimes installed. Pin testhost to the
 # isolated installation; roll net8.0 forward there when testing on .NET 9.
