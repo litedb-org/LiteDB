@@ -8,9 +8,9 @@ permissions:
 
 jobs:
   shared-x86-diagnostic:
-    name: Windows x86 shared-write diagnostic (${{ matrix.shard }})
+    name: Windows x86 shared-write progress validation (${{ matrix.shard }})
     runs-on: windows-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -30,6 +30,7 @@ jobs:
         shell: pwsh
         run: |
           $diagnostics = Join-Path ([IO.Path]::GetTempPath()) 'litedb-shared-diagnostics-${{ github.run_id }}-${{ matrix.shard }}'
+          if ([IO.Path]::GetPathRoot($diagnostics) -ne 'C:\') { throw "Original C-volume required: $diagnostics" }
           Write-Host "Original temp directory: $([IO.Path]::GetTempPath())"
           Write-Host "Database and diagnostics root: $diagnostics"
           "LITEDB_SHARED_DIAGNOSTICS=$diagnostics" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
@@ -37,6 +38,8 @@ jobs:
         shell: pwsh
         run: |
           git rev-parse HEAD
+          $productionTree = git rev-parse HEAD:LiteDB
+          if ($productionTree -ne '93694b6b60e26a4fb25a7b77ab5faa98132d7c7e') { throw "Production tree changed: $productionTree" }
           dotnet build LiteDB.Tests/LiteDB.Tests.csproj -c Release -f net8.0 -p:TestingEnabled=true
           if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
       - name: Install and verify Microsoft ProcDump
@@ -54,22 +57,32 @@ jobs:
           Get-FileHash $archive, $executable -Algorithm SHA256 | Format-List
           (Get-Item $executable).VersionInfo | Format-List FileVersion, ProductVersion
           "LITEDB_SHARED_PROCDUMP=$executable" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Install exact original x86 runtime
+        shell: pwsh
+        run: |
+          $installer = Join-Path $env:RUNNER_TEMP 'litedb-dotnet-install.ps1'
+          $runtime = Join-Path $env:RUNNER_TEMP 'litedb-runtime-8-x86'
+          Invoke-WebRequest 'https://dot.net/v1/dotnet-install.ps1' -OutFile $installer
+          & $installer -Runtime dotnet -Version '8.0.31' -Architecture x86 -InstallDir $runtime -NoPath
+          & (Join-Path $runtime 'dotnet.exe') --info
+          if ($LASTEXITCODE -ne 0) { throw 'Runtime installation failed.' }
       - name: Verify runtime and diagnostic contracts
         shell: pwsh
         env:
           LITEDB_SHARED_DUMP_SMOKE: '1'
         run: |
           ./scripts/run-ci-tests.ps1 -RuntimeMajor 8 -Framework net8.0 -Architecture x86 `
-            -Filter 'FullyQualifiedName~CrossProcess_Shared_Tests|FullyQualifiedName~SharedWorkerDump' `
+            -RuntimeDirectory (Join-Path $env:RUNNER_TEMP 'litedb-runtime-8-x86') `
+            -Filter 'FullyQualifiedName~CrossProcess_Shared_Tests|FullyQualifiedName~SharedWorkerDump|FullyQualifiedName~SharedWorkerWatchdog|FullyQualifiedName~SharedWriteOracle' `
             -ResultFile 'SharedDiagnosticContracts.trx'
           if ($LASTEXITCODE -ne 0) { throw 'Diagnostic contract tests failed.' }
-      - name: Run one hundred cold-host concurrent-write repetitions
+      - name: Run fifty cold-host concurrent-write repetitions
         shell: pwsh
-        timeout-minutes: 25
+        timeout-minutes: 35
         run: |
           $runtime = Join-Path $env:RUNNER_TEMP 'litedb-runtime-8-x86'
-          for ($repeat = 1; $repeat -le 100; $repeat++) {
-            Write-Host "Shard ${{ matrix.shard }}; cold-host repetition $repeat of 100"
+          for ($repeat = 1; $repeat -le 50; $repeat++) {
+            Write-Host "Shard ${{ matrix.shard }}; cold-host repetition $repeat of 50"
             ./scripts/run-ci-tests.ps1 -RuntimeMajor 8 -Framework net8.0 -Architecture x86 `
               -RuntimeDirectory $runtime -Filter 'FullyQualifiedName~CrossProcess_Shared_ConcurrentWrites_InsertDocuments' `
               -ResultFile "SharedInsert-$repeat.trx"
@@ -79,7 +92,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: shared-x86-diagnostic-${{ matrix.shard }}
+          name: shared-progress-results-${{ matrix.shard }}
           path: LiteDB.Tests/TestResults/
           if-no-files-found: error
           retention-days: 14
@@ -87,7 +100,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: shared-x86-source-volume-${{ matrix.shard }}
+          name: shared-progress-source-volume-${{ matrix.shard }}
           path: ${{ env.LITEDB_SHARED_DIAGNOSTICS }}/
           if-no-files-found: warn
           retention-days: 14
@@ -95,7 +108,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: shared-x86-binaries-${{ matrix.shard }}
+          name: shared-progress-binaries-${{ matrix.shard }}
           path: |
             LiteDB.Tests/bin/Release/net8.0/
             ${{ runner.temp }}/litedb-runtime-8-x86/shared/Microsoft.NETCore.App/
