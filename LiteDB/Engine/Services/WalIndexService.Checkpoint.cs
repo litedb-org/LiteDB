@@ -126,7 +126,7 @@ namespace LiteDB.Engine
                 // WAL must be durable before its pages can reach the data file.
                 // The data flush completes before truncation can become durable.
                 var retirement = _disk.PrepareRetirement(obsolete);
-                _disk.SyncLogBeforeCheckpoint(requireDurable: !reclaim);
+                _disk.SyncLogBeforeCheckpoint();
                 _disk.WriteDataDisk(_disk.ReadCheckpointPages(pages));
                 _backfillVersion = target;
 
