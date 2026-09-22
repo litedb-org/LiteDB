@@ -29,7 +29,8 @@ public class CrossProcess_Shared_Tests : IDisposable
         _diagnosticDirectory = Path.Combine(artifactRoot ?? Path.GetTempPath(), "litedb-shared-" + _testId);
         Directory.CreateDirectory(_diagnosticDirectory);
         _dbPath = Path.Combine(_diagnosticDirectory, "database.db");
-        _diagnostics = new SharedWorkerDiagnostics(_diagnosticDirectory, artifactRoot != null);
+        _diagnostics = new SharedWorkerDiagnostics(_diagnosticDirectory, artifactRoot != null,
+            SharedWorkerProcessDump.FromEnvironment(_diagnosticDirectory));
 
     }
 
