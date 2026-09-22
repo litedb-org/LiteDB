@@ -79,8 +79,10 @@ internal sealed class CompactStorageFuzzer : IFuzzTarget
                 }
 
                 Verify(context, db, expected);
-                context.ObserveNovelty("compact-storage", shape, expected.Count / 8,
-                    reopens, rebuilds, rollbacks, password != null);
+                // Each new signature retains a replay prefix; lifetime counters
+                // create unbounded signatures and quadratic artifact growth.
+                context.ObserveNovelty("compact-storage", shape, expected.Count / 16,
+                    reopens > 0, rebuilds > 0, rollbacks > 0, password != null);
                 context.Trace("compact-storage", new
                 {
                     documents = expected.Count,
