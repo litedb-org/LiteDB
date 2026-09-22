@@ -221,6 +221,9 @@ jobs:
       - name: Build
         run: dotnet build LiteDB.sln --configuration Release --no-restore /p:TestingEnabled=true
 
+      - name: Verify genuine v9 vectors through the storage stack
+        run: python scripts/test-v9-compatibility.py
+
       - name: Upload windows test build
         uses: actions/upload-artifact@v4
         with:
