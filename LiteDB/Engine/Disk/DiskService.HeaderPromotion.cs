@@ -62,6 +62,19 @@ namespace LiteDB.Engine
 
             if (recovered == null) return;
             _hasHeaderPromotion = true;
+            var reader = _dataPool.Rent();
+            try
+            {
+                var currentHeader = new byte[PAGE_SIZE];
+                reader.Position = 0;
+                reader.ReadRequired(currentHeader, 0, PAGE_SIZE);
+                // Error-close can set this guard directly after promotion. It is not
+                // restored by ordinary WAL replay; repairing the version must not
+                // suppress a separately requested automatic rebuild.
+                if (currentHeader[HeaderPage.P_INVALID_DATAFILE_STATE] == 1)
+                    recovered[HeaderPage.P_INVALID_DATAFILE_STATE] = 1;
+            }
+            finally { _dataPool.Return(reader); }
             if (_readOnly)
             {
                 // Replay uses the same base image without repairing a read-only file.

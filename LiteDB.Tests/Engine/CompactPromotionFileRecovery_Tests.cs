@@ -8,6 +8,27 @@ namespace LiteDB.Tests.Engine
     [Collection("PromotionPowerLoss")]
     public class CompactPromotionFileRecovery_Tests
     {
+        [Fact]
+        public void Promotion_recovery_preserves_a_later_corruption_guard()
+        {
+            using var file = new TempFile();
+            var logName = FileHelper.GetLogFile(file.Filename);
+            try
+            {
+                PromotionPowerLossScenario.Run(null, false, "promotion-after-header-flush",
+                    inspectFiles: (data, log) =>
+                    {
+                        data[HeaderPage.P_INVALID_DATAFILE_STATE] = 1;
+                        File.WriteAllBytes(file.Filename, data);
+                        File.WriteAllBytes(logName, log);
+                        using (var db = new LiteDatabase(file.Filename))
+                            PromotionPowerLossScenario.Verify(db, false, false);
+                        Assert.Equal(1, File.ReadAllBytes(file.Filename)[HeaderPage.P_INVALID_DATAFILE_STATE]);
+                    });
+            }
+            finally { File.Delete(logName); }
+        }
+
         [Theory]
         [InlineData(null)]
         [InlineData("secret")]

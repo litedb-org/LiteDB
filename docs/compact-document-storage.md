@@ -65,6 +65,7 @@ The regression evidence is organized by invariant:
 | Old journal cannot reappear in a new WAL epoch | Checkpoint/retirement cuts followed by new writes and another restart |
 | Recovery does not mutate read-only or unrelated files | Real-file recovery snapshots, byte comparisons, and unrelated-file sentinel |
 | Invalid recovery bytes cannot authorize repair | Damaged image/checksum rejection with unchanged files |
+| Recovery cannot erase a later corruption guard | File-backed preservation of the error-close marker before automatic rebuild checks |
 
 These cases live in `CompactPromotionPowerLoss_Tests` and
 `CompactPromotionFileRecovery_Tests`; the shared fault model also drives the
