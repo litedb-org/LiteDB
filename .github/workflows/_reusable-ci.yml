@@ -284,6 +284,7 @@ jobs:
         framework: [net462, net481]
     env:
       XUNIT_RUNNER_VERSION: 2.9.2
+      LITEDB_EXPECTED_RUNTIME_MAJOR: '4'
 
     steps:
       - name: Check out repository
