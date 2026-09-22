@@ -100,7 +100,7 @@ jobs:
             count: 10
           - name: mac-storage-vector
             os: macos-latest
-            targets: storage,storage-failure,rebuild,rebuild-transition,vector,integrity,compatibility,malformed-file,compact-storage
+            targets: storage,storage-failure,rebuild,rebuild-transition,vector,integrity,compatibility,malformed-file,compact-storage,compact-power-loss
             seed: 302947
             timezone: America/New_York
             culture: en_US.UTF-8
@@ -218,7 +218,7 @@ jobs:
             seedOffset: 500000
             framework: net8.0
           - shard: persistence
-            targets: wal,shared,storage,storage-failure,rebuild,rebuild-transition,vector,mapper,integrity,snapshot,threaded-snapshot,concurrent,transaction-gate,cursor-handoff,conflict,power-loss,recovery,chaos,boundary,read-only,compatibility,malformed-file,compact-storage
+            targets: wal,shared,storage,storage-failure,rebuild,rebuild-transition,vector,mapper,integrity,snapshot,threaded-snapshot,concurrent,transaction-gate,cursor-handoff,conflict,power-loss,recovery,chaos,boundary,read-only,compatibility,malformed-file,compact-storage,compact-power-loss
             seedOffset: 1500000
             framework: net10.0
     env:

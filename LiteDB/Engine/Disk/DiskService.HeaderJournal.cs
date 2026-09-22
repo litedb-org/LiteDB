@@ -8,7 +8,7 @@ namespace LiteDB.Engine
     {
         private byte[] _recoveredHeader;
 
-        private void BeginHeaderJournal(byte[] header, bool conversion = false)
+        private void BeginHeaderJournal(byte[] header, bool conversion = false, bool promotion = false, bool requireDurable = false)
         {
             if (_checksums.JournalBytes != 0)
             {
@@ -17,10 +17,11 @@ namespace LiteDB.Engine
                 return;
             }
             var log = ((ChecksummedWalStream)_writer.Value).RawStream;
-            HeaderJournal.Write(log, header, conversion, _checksums);
+            HeaderJournal.Write(log, header, conversion, _checksums, promotion);
             _checksums.JournalBytes = HeaderJournal.Size;
-            if (conversion || !ChecksumsEnabled) log.FlushToDisk();
+            if (conversion || promotion || requireDurable || !ChecksumsEnabled) log.FlushToDisk();
             else FlushLogToDisk(_writer.Value);
+            ((ChecksummedWalFactory)_logFactory).SyncDirectory();
         }
 
         private void PrepareCheckpointHeader()
@@ -63,10 +64,16 @@ namespace LiteDB.Engine
                 var data = _dataPool.Writer.Value;
                 if (_recoveredHeader != null)
                 {
+                    // The selected journal may have survived only in the OS cache.
+                    ((ChecksummedWalStream)_writer.Value).RawStream.FlushToDisk();
+                    ((ChecksummedWalFactory)_logFactory).SyncDirectory();
+                    this.CrashPoint("promotion-recovery-before-header-write");
                     data.Position = 0;
                     data.Write(header, 0, header.Length);
+                    this.CrashPoint("promotion-recovery-after-header-write");
                 }
                 data.FlushToDisk();
+                this.CrashPoint("promotion-recovery-after-header-flush");
                 if (journal.Legacy && !published) return;
                 var writer = ((ChecksummedWalStream)_writer.Value).RawStream;
                 writer.SetLength(journal.Legacy ? 0 : journal.Position);

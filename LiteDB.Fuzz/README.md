@@ -118,6 +118,7 @@ using the same artifact root automatically replays the retained coverage corpus.
 | `compact-crash` | torn v11/v12 promotion, schema/document WAL commits and checkpoints, full payload/index recovery |
 | `compact-codec` | generated schemas/values/projections plus structural compact-payload mutations |
 | `compact-storage` | Auto/Legacy promotion, mixed CRUD, transactions, reopen, rebuild, encryption, and raw integrity |
+| `compact-power-loss` | v8/v9 promotion with torn headers/journals, repeated recovery cuts, read-only recovery, and atomic compact transactions |
 
 Persistent targets checkpoint and invoke an independent raw-file walker. It
 checks page accounting and ownership, empty/data/index free lists, data chains,
