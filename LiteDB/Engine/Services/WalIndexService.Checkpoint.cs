@@ -88,8 +88,10 @@ namespace LiteDB.Engine
             var indexEntered = false;
             var commitEntered = false;
             var writerEntered = false;
+            object commitLock = null;
             try
             {
+                commitLock = _getCommitLock();
                 // Scanning lease files is filesystem work; keep it outside the index
                 // lock. The database mutex already orders it with lease registration.
                 var shared = _sharedReaders == null ? new int[0] : _sharedReaders();
@@ -98,7 +100,7 @@ namespace LiteDB.Engine
                 // snapshot version, so leave the WAL untouched and retry later.
                 if (shared == null) return 0;
                 _disk.CheckpointStage("before-commit-lock");
-                System.Threading.Monitor.Enter(_commitLock, ref commitEntered);
+                System.Threading.Monitor.Enter(commitLock, ref commitEntered);
                 _disk.CheckpointStage("before-index-lock");
                 _indexLock.EnterWriteLock();
                 indexEntered = true;
@@ -163,7 +165,7 @@ namespace LiteDB.Engine
             {
                 if (writerEntered) System.Threading.Monitor.Exit(_disk.WalWriterLock);
                 if (indexEntered) _indexLock.ExitWriteLock();
-                if (commitEntered) System.Threading.Monitor.Exit(_commitLock);
+                if (commitEntered) System.Threading.Monitor.Exit(commitLock);
                 if (mustExit) _locker.ExitExclusive();
             }
         }

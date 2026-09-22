@@ -23,7 +23,7 @@ namespace LiteDB.Engine
         private readonly ReaderWriterLockSlim _indexLock = new ReaderWriterLockSlim();
 
         private readonly HashSet<uint> _confirmTransactions = new HashSet<uint>();
-        private readonly object _commitLock;
+        private readonly Func<object> _getCommitLock;
 
         private int _currentReadVersion = 0;
 
@@ -32,12 +32,14 @@ namespace LiteDB.Engine
         /// </summary>
         private int _lastTransactionID = 0;
 
-        public WalIndexService(DiskService disk, LockService locker, Func<int[]> sharedReaders = null, object commitLock = null)
+        public WalIndexService(DiskService disk, LockService locker, Func<int[]> sharedReaders = null, Func<object> getCommitLock = null)
         {
             _disk = disk;
             _locker = locker;
             _sharedReaders = sharedReaders;
-            _commitLock = commitLock ?? new object();
+            // Recovery and legacy migration can replace the header during open.
+            // Resolve the same header monitor used by the resulting transactions.
+            _getCommitLock = getCommitLock ?? (() => this);
         }
 
         /// <summary>

@@ -149,7 +149,7 @@ namespace LiteDB.Engine
                 _locker = new LockService(_header.Pragmas);
 
                 // initialize wal-index service
-                _walIndex = new WalIndexService(_disk, _locker, _settings.SharedReaderVersions, _header);
+                _walIndex = new WalIndexService(_disk, _locker, _settings.SharedReaderVersions, () => _header);
 
                 // if exists log file, restore wal index references (can update full _header instance)
                 if (_disk.GetFileLength(FileOrigin.Log) > 0 || _disk.ChecksumsEnabled)
