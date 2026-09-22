@@ -11,7 +11,7 @@ See `compact-document-storage.md`.
 
 ## Index ordering migration (format v11)
 
-New files use v11. Writable opens automatically migrate v8/v9 indexes for corrected
+New files use v11. Writable opens automatically migrate v8/v9/v10 indexes for corrected
 nested collation, unsigned ObjectId, canonical document and exact numeric ordering.
 Read-only files needing migration must first be opened writable. Unique-key
 collisions abort before changing data or WAL. Computed/multikey keys regenerate

@@ -100,7 +100,7 @@ namespace LiteDB.Engine
         public bool AutoRebuild { get; set; } = false;
 
         /// <summary>
-        /// Rebuild format v7 files before opening, retaining a backup. Writable v8/v9 opens migrate indexes automatically.
+        /// Rebuild format v7 files before opening, retaining a backup. Writable v8/v9/v10 opens migrate indexes automatically.
         /// </summary>
         public bool Upgrade { get; set; } = false;
 

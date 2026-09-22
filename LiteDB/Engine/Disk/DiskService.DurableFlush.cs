@@ -47,7 +47,8 @@ namespace LiteDB.Engine
             lock (stream)
             {
                 // Sync both the header recovery copy and preceding WAL before
-                // overwriting data. Unsupported sync retains the reported fallback.
+                // overwriting data. Unsupported sync must stop checkpoint before
+                // any data overwrite; commit fallback cannot make redo durable.
                 this.PrepareCheckpointHeader();
             }
         }
