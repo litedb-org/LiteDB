@@ -10,22 +10,37 @@ namespace LiteDB.Tests.Engine
 {
     public class IndexMigrationPreflight_Tests
     {
-        [Fact]
-        public void Undersized_stored_limit_reports_a_recovery_budget_for_default_options()
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Undersized_stored_limit_rejects_only_migrations_that_grow_the_file(bool computedIndex)
         {
             using var file = new TempFile();
             using (var db = new LiteDatabase(file.Filename))
-                db.GetCollection("rows").Insert(Enumerable.Range(1, 32).Select(i => new BsonDocument
+            {
+                var rows = db.GetCollection("rows");
+                rows.Insert(Enumerable.Range(1, 32).Select(i => new BsonDocument
                 {
-                    ["_id"] = i, ["payload"] = new string('x', 2000)
+                    ["_id"] = i, ["name"] = "N" + i, ["payload"] = new string('x', 2000)
                 }));
+                if (computedIndex) rows.EnsureIndex("lower", "LOWER($.name)");
+            }
+            // Released engines open a file above its LIMIT_SIZE and only reject growth.
             IndexMigration_Tests.RewriteHeaders(file.Filename, null, header =>
             {
                 MarkLegacy(header);
                 Array.Copy(BitConverter.GetBytes(4L * Constants.PAGE_SIZE), 0, header, EnginePragmas.P_LIMIT_SIZE, 8);
             });
             var before = File.ReadAllBytes(file.Filename);
-            Action open = () => { using var db = new LiteDatabase(file.Filename); };
+            Action open = () => { using var db = new LiteDatabase(file.Filename); db.GetCollection("rows").Count().Should().Be(32); };
+            if (!computedIndex)
+            {
+                open.Should().NotThrow("the scalar primary key reorders in place without new pages");
+                using var db = new LiteDatabase(file.Filename);
+                db.LimitSize.Should().Be(4L * Constants.PAGE_SIZE, "migration without an explicit budget keeps the stored limit");
+                db.GetCollection("rows").FindById(17)["_id"].AsInt32.Should().Be(17);
+                return;
+            }
             open.Should().Throw<LiteException>().WithMessage("*capacity*Retry with*index migration limit size*");
             File.ReadAllBytes(file.Filename).Should().Equal(before);
         }

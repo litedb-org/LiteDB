@@ -13,15 +13,43 @@ See `compact-document-storage.md`.
 
 New files use v11. Writable opens automatically migrate v8/v9/v10 indexes for corrected
 nested collation, unsigned ObjectId, canonical document and exact numeric ordering.
-Read-only files needing migration must first be opened writable. Unique-key
+Read-only files needing migration must first be opened writable, or opened with
+`legacy index scan=true`, which leaves them unchanged and answers queries with
+full scans instead of their unmigrated indexes. Unique-key
 collisions abort before changing data or WAL. Computed/multikey keys regenerate
-from documents; scalar member-path indexes reuse their pages. Old readers reject
+from documents; scalar member-path indexes reuse their pages after keys that
+released updates left stale (for example `19.99` for a stored `19.99m`, including
+primary keys) are regenerated from their documents. Old readers reject
 v11, and interrupted migrations resume through WAL recovery. Migration can require
 substantial temporary/WAL space. See [the compatibility contract](collation-runtime-compatibility.md).
-Finite `LIMIT_SIZE` is checked before promotion; insufficient budgets leave legacy
-files unchanged. Computed-index pages are reused during regeneration. An explicit
+Finite `LIMIT_SIZE` is checked before promotion for migrations that must grow the
+file; insufficient budgets leave legacy files unchanged. Computed-index pages are reused during regeneration. An explicit
 `index migration limit size` connection option raises the budget atomically with
 a successful migration and allows retrying previously interrupted v11 migrations.
+
+## Breaking change: exact numeric comparison
+
+Mixed numeric types (`Int32`, `Int64`, `Double`, `Decimal`) now compare by their
+exact represented values, as MongoDB does. Previously a double was rounded to
+decimal first. A double and a decimal are therefore equal only when the double
+holds that exact value: `0.5 = 0.5m` and `1.0 = 1m` still match, but binary64
+`0.1` (0.1000000000000000055511151231257827…) is greater than decimal `0.1m`.
+Every query path now agrees: index seeks, full scans, `DeleteMany`/`UpdateMany`
+predicates, in-memory expressions, `GROUP BY`, and `BsonValue` equality and hash codes.
+Previously an index seek could disagree with a full scan.
+
+A query that compares a decimal field with a fractional double no longer matches.
+For example, `$.price = 19.99` (the literal `19.99` is a double) does not find a
+stored `19.99m`. Compare with a decimal instead:
+
+```csharp
+col.Find(BsonExpression.Create("$.price = @0", 19.99m)); // decimal parameter
+col.Find(Query.EQ("price", 19.99m));
+col.Find("$.price = DECIMAL(19.99)");                    // rounds the literal to decimal
+```
+
+Use one numeric type per field, or convert explicitly, when a field holds values of
+both types.
 
 ## Data-page and WAL checksums (#2935)
 
@@ -109,8 +137,9 @@ collection does not release abandoned thread-affine locks in a live engine.
 Every committed transaction is now synced to the storage device before the
 commit returns, so acknowledged commits survive power loss on storage that can
 sync. Storage that rejects the sync (some network shares and virtual file
-systems, #2242) falls back to the earlier behaviour; `$database.durableLogFlush`
-reports which one is in effect. This costs about one
+systems, #2242) falls back to the earlier behaviour for commits, checkpoints and
+format conversion; `$database.durableLogFlush` reports which one is in effect. A
+sync that fails with an I/O error still stops the engine before data is overwritten. This costs about one
 device sync per commit (about 1 ms on NVMe, far more on hard disks and network
 volumes); batched transactions and `InsertBulk` are unaffected. Set
 `durable commits=false` (`DurableCommits = false`) to restore the earlier
