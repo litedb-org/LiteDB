@@ -90,9 +90,11 @@ loads, caches, test suites and other data that can be rebuilt:
   reports the discarded tail. Do not opt out for data that must survive power loss.
 - Checkpoints stay synced: the WAL and header journal must be durable before
   pages are copied into the data file, and the data file is synced afterwards.
-  Rejected checkpoint syncs close the engine before data is overwritten, even
+  A failed checkpoint sync closes the engine before data is overwritten, even
   when commits previously fell back to OS-cache flushes. Reopen after resolving
-  the storage failure. File creation is synced as before.
+  the storage failure. Log storage that rejects sync as unsupported (#2242)
+  instead checkpoints without the log sync, as before, with no power-loss
+  guarantee. File creation is synced as before.
 
 The setting applies per open and is not stored in the data file: the file format
 is the same for either value. Both settings work with `Direct` and

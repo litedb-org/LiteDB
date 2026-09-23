@@ -63,10 +63,12 @@ namespace LiteDB.Engine
             stream.Position = 0;
             stream.ReadRequired(buffer.Array, 0, PAGE_SIZE);
             var log = ((ChecksummedWalStream)_writer.Value).RawStream;
-            // Successful syncs are required before crossing the format boundary.
+            // Successful syncs are required before crossing the format boundary,
+            // unless the log storage cannot sync at all (#2242): then the
+            // ordered writes keep conversion process-crash safe only.
             stream.FlushToDisk();
-            log.FlushToDisk();
-            HeaderJournal.BackupLegacyHeader(log, buffer.Array);
+            SyncLogBarrier(log);
+            HeaderJournal.BackupLegacyHeader(log, buffer.Array, SyncLogBarrier);
             BeginHeaderJournal(buffer.Array, conversion: true);
             buffer[HeaderPage.P_FILE_VERSION] = HeaderPage.CHECKSUM_FILE_VERSION;
             _dataChecksums.InitializeMixed(header.LastPageID);
@@ -76,7 +78,7 @@ namespace LiteDB.Engine
             stream.Write(buffer.Array, 0, PAGE_SIZE);
             stream.FlushToDisk();
             SetLength(0, FileOrigin.Log);
-            log.FlushToDisk();
+            SyncLogBarrier(log);
             _recoveredHeader = null;
             FileVersion = HeaderPage.CHECKSUM_FILE_VERSION;
             header = new HeaderPage(buffer);
@@ -106,7 +108,7 @@ namespace LiteDB.Engine
             if (!_readOnly)
             {
                 SetLength(end, FileOrigin.Log);
-                _writer.Value.FlushToDisk();
+                SyncLogBarrier(_writer.Value);
             }
             else _logLength = end - PAGE_SIZE;
             _logTrailingLength = 0;

@@ -20,6 +20,12 @@ namespace VectorCompatibility.Current
                     InterruptedConversion.Create(args[1], suffix, password);
                     continue;
                 }
+                if (mode == "interrupt-unsealed" || mode == "resumed-unsealed")
+                {
+                    if (mode == "interrupt-unsealed") InterruptedConversion.CreateUnsealed(args[1], suffix, password);
+                    else InterruptedConversion.VerifyUnsealed(args[1], suffix, password);
+                    continue;
+                }
                 var prefix = mode == "create" ? "current-" : mode == "resumed" ? "interrupted-" : mode == "resumed-wal" ? "interrupted-wal-" : "legacy-";
                 var file = Path.Combine(args[1], prefix + suffix);
                 var original = File.Exists(file) ? File.ReadAllBytes(file) : null;
