@@ -18,7 +18,7 @@ namespace LiteDB.Engine
         {
             if (this.GetFileLength(FileOrigin.Log) == 0) return;
             var stream = _writer.Value;
-            lock (stream) stream.FlushToDisk();
+            lock (stream) SyncLogBarrier(stream);
         }
 
         internal IEnumerable<PageBuffer> ReadCheckpointPages(IEnumerable<PagePosition> pages)

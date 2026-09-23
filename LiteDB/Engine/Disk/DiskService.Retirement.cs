@@ -64,7 +64,7 @@ namespace LiteDB.Engine
                 result.Root = position + PAGE_SIZE;
                 result.RootCrc = WalRetirement.Crc(bytes);
             }
-            raw.FlushToDisk();
+            SyncLogBarrier(raw);
             CheckpointStage("retirement-records-flushed");
             return result;
         }
@@ -101,7 +101,7 @@ namespace LiteDB.Engine
             {
                 raw.SetLength(WalPadding.AlignedLength(raw.Length - _checksums.JournalBytes));
                 CheckpointStage("retirement-before-journal-retire-flush");
-                raw.FlushToDisk();
+                SyncLogBarrier(raw);
                 _checksums.JournalBytes = 0;
                 CheckpointStage("retirement-journal-retired");
             }

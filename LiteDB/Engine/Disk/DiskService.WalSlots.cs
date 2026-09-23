@@ -59,7 +59,8 @@ namespace LiteDB.Engine
             // WriteLogDisk first advances the lower transaction ID and rewrites
             // its earlier frames. LiteDB 5.0.21 restores its counter from the last
             // physical frame rather than the maximum observed ID.
-            if (!confirmation && (ChecksumsEnabled || transactionAnchored) && _freeLogPositions.Count > 0)
+            // Storage that cannot sync (#2242) never reuses slots; see ReclaimLogPages.
+            if (!confirmation && (ChecksumsEnabled || transactionAnchored) && !_logFlushDegraded && _freeLogPositions.Count > 0)
             {
                 // v8 engines backfill in physical order. Preserve increasing
                 // positions per page, even though commits use reclaimed capacity.
@@ -99,8 +100,12 @@ namespace LiteDB.Engine
                 }
                 // Publish capacity only after clearing is durable. A failed/reused
                 // write must never resurrect an old transaction's confirmation.
-                stream.FlushToDisk();
+                SyncLogBarrier(stream);
                 this.CheckpointStage("wal-slots-flushed");
+                // Storage that cannot sync (#2242) keeps appending like dev: without a
+                // durable clear, reusing a slot could overwrite a retired version that
+                // unsynced data pages still depend on after a power loss.
+                if (_logFlushDegraded) return;
                 foreach (var position in positions) _freeLogPositions.Add(position);
                 this.CheckpointStage("wal-slots-published");
             }
