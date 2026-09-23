@@ -44,6 +44,7 @@ namespace LiteDB.Internals
                     case "future-slot": record.Write(root, entry); break;
                     case "zero-id": record.Write(0u, entry + 12); break;
                     case "duplicate":
+                        LoadRetirement(data, log).Slots.Should().NotBeEmpty();
                         record.ReadInt32(48).Should().BeGreaterThan(1);
                         Buffer.BlockCopy(log, offset + entry, log, offset + entry + WalRetirement.EntrySize, WalRetirement.EntrySize);
                         break;
@@ -68,6 +69,13 @@ namespace LiteDB.Internals
                     metadata.Write(WalRetirement.Crc(frame), 4);
                     Buffer.BlockCopy(frame, 0, log, offset, frame.Length);
                     header.Write(WalRetirement.Crc(frame), WalRetirement.RootPosition + 8);
+                }
+                if (kind == "duplicate")
+                {
+                    // Opening also fails later through transaction proofs; loading the
+                    // chain directly requires the duplicate-witness admission check.
+                    Action load = () => LoadRetirement(data, log);
+                    load.Should().Throw<PageChecksumException>();
                 }
                 PageChecksum.Write(header);
                 var damagedData = Physical(data, password);
@@ -144,6 +152,16 @@ namespace LiteDB.Internals
                 }
                 MvccRetirementScenario.Verify(data.ToArray(), log.ToArray(), password);
             });
+        }
+
+        private static WalRetirement LoadRetirement(byte[] data, byte[] log)
+        {
+            var salt = new byte[16];
+            Buffer.BlockCopy(data, WalChecksum.SaltPosition, salt, 0, salt.Length);
+            var checksums = new WalChecksum();
+            checksums.Reset(salt);
+            using var raw = new MemoryStream(log, false);
+            return WalRetirement.Load(new BufferSlice(data, 0, PAGE_SIZE), raw, checksums);
         }
 
         private static byte[] Plain(byte[] physical, string password)

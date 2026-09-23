@@ -112,11 +112,13 @@ namespace LiteDB.Internals
             for (var value = 1; value <= 5; value++) test.Update("docs", value);
             using var reader = test.Engine.Query("docs", new Query());
             test.Engine.Checkpoint();
-            var length = test.Log.Length;
+            // page.Position is logical; exclude the encryption preamble and frame trailers.
+            var preamble = password == null ? 0 : Constants.PAGE_SIZE;
+            var end = (test.Log.Length - preamble) / WalChecksum.FrameSize * Constants.PAGE_SIZE;
             var reused = false;
             test.Engine.SimulateDiskWriteFail = page =>
             {
-                if (page.Position >= length - Constants.PAGE_SIZE) return;
+                if (page.Position >= end) return;
                 reused = true;
                 throw new IOException("reused slot failed");
             };
