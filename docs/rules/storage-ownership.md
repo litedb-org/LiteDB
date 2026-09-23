@@ -53,6 +53,10 @@ Read [explicit transactions](../explicit-transactions.md),
 - For file-ownership changes, test aliases and sidecar identity, read-only sharing,
   rebuild/reopen, caller streams, platform fallbacks, and crash cleanup of scratch
   files. Lexical path normalization alone does not prove physical-file identity.
+  Shared connections must bind the data/WAL/temp paths, mutex and reader registry
+  to the same construction-time absolute filename across every reopen. Retain
+  degraded durability diagnostics across those reopenings without suppressing
+  future device-sync attempts. See [shared-mode safety](../shared-mode-safety.md).
 
 ## Buffers and cleanup
 

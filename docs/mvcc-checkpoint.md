@@ -208,6 +208,11 @@ streaming. Do not mix concurrent direct connections or
 older shared-mode implementations with these readers. Lease files must not be
 removed while the database is in use.
 
+Shared connections bind their absolute filename at construction, so later
+working-directory changes cannot redirect an internal reopen. See
+[shared-mode safety](shared-mode-safety.md) for durability diagnostics and
+the combined shared-process storage tests.
+
 ## Failure ordering and tests
 
 If a process dies during backfill, the required WAL versions remain authoritative. If it

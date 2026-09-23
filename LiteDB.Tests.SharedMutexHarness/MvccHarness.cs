@@ -6,10 +6,18 @@ internal static class MvccHarness
     internal static bool TryRun(string[] args)
     {
         if (args.Length == 0 || args[0] != "mvcc") return false;
+        var expectedRuntime = Environment.GetEnvironmentVariable("LITEDB_MVCC_RUNTIME");
+        var expectedArchitecture = Environment.GetEnvironmentVariable("LITEDB_MVCC_ARCHITECTURE");
+        if (expectedRuntime != null && Environment.Version.ToString() != expectedRuntime)
+            throw new InvalidOperationException("MVCC child runtime does not match its test host");
+        if (expectedArchitecture != null &&
+            System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString() != expectedArchitecture)
+            throw new InvalidOperationException("MVCC child architecture does not match its test host");
         var mode = args[1];
         var filename = args[2];
         var password = args[3] == "-" ? null : args[3];
         if (SharedSafetyHarness.TryRun(mode, filename, password, args)) return true;
+        if (SharedStorageHarness.TryRun(mode, filename, password, args)) return true;
         var settings = new EngineSettings
         {
             Filename = filename, Password = password, TransactionPageLimit = 1, CacheSize = 8192
