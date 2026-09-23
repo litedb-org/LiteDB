@@ -67,6 +67,12 @@ namespace LiteDB.Engine
         internal uint CollationStamp { get; private set; }
         internal byte IndexOrderVersion { get; private set; } = INDEX_ORDER_VERSION;
 
+        /// <summary>
+        /// False only for a read-only LegacyIndexScan open of a file still awaiting index
+        /// migration: its skip lists follow the old comparer and must not be seeked.
+        /// </summary>
+        internal bool IndexesOrdered => IndexOrderVersion == INDEX_ORDER_VERSION;
+
         internal void CompleteIndexMigration()
         {
             IndexOrderVersion = INDEX_ORDER_VERSION;

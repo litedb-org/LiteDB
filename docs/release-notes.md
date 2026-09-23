@@ -4,13 +4,17 @@
 
 New files use v11. Writable opens automatically migrate v8/v9/v10 indexes for corrected
 nested collation, unsigned ObjectId, canonical document and exact numeric ordering.
-Read-only files needing migration must first be opened writable. Unique-key
+Read-only files needing migration must first be opened writable, or opened with
+`legacy index scan=true`, which leaves them unchanged and answers queries with
+full scans instead of their unmigrated indexes. Unique-key
 collisions abort before changing data or WAL. Computed/multikey keys regenerate
-from documents; scalar member-path indexes reuse their pages. Old readers reject
+from documents; scalar member-path indexes reuse their pages after keys that
+released updates left stale (for example `19.99` for a stored `19.99m`, including
+primary keys) are regenerated from their documents. Old readers reject
 v11, and interrupted migrations resume through WAL recovery. Migration can require
 substantial temporary/WAL space. See [the compatibility contract](collation-runtime-compatibility.md).
-Finite `LIMIT_SIZE` is checked before promotion; insufficient budgets leave legacy
-files unchanged. Computed-index pages are reused during regeneration. An explicit
+Finite `LIMIT_SIZE` is checked before promotion for migrations that must grow the
+file; insufficient budgets leave legacy files unchanged. Computed-index pages are reused during regeneration. An explicit
 `index migration limit size` connection option raises the budget atomically with
 a successful migration and allows retrying previously interrupted v11 migrations.
 

@@ -48,6 +48,13 @@ namespace LiteDB
         public long? IndexMigrationLimitSize { get; set; }
 
         /// <summary>
+        /// "legacy index scan": With ReadOnly, open a file whose indexes still need the v11
+        /// ordering migration without migrating it; queries then use full scans instead of
+        /// those indexes. Ignored by writable opens, which always migrate (default: false).
+        /// </summary>
+        public bool LegacyIndexScan { get; set; } = false;
+
+        /// <summary>
         /// "cache size": Soft page-cache target in bytes. Supports KB, MB,
         /// and GB suffixes. Zero selects the profile's storage-specific default.
         /// </summary>
@@ -159,6 +166,7 @@ namespace LiteDB
             if (_values.ContainsKey("index migration limit size"))
                 this.IndexMigrationLimitSize = _values.GetFileSize("index migration limit size", 0);
             this.ReadOnly = _values.GetValue("readonly", this.ReadOnly);
+            this.LegacyIndexScan = _values.GetValue("legacy index scan", this.LegacyIndexScan);
 
             this.Collation = _values.ContainsKey("collation") ? new Collation(_values.GetValue<string>("collation")) : this.Collation;
 
@@ -186,6 +194,7 @@ namespace LiteDB
                 firstKey.Equals("initialsize", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("initial size", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("readonly", StringComparison.OrdinalIgnoreCase) ||
+                firstKey.Equals("legacy index scan", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("upgrade", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("auto-rebuild", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("reject invalid local time", StringComparison.OrdinalIgnoreCase) ||
@@ -243,6 +252,7 @@ namespace LiteDB
                 CacheSize = this.CacheSize,
                 TransactionPageLimit = this.TransactionPageLimit,
                 ReadOnly = this.ReadOnly,
+                LegacyIndexScan = this.LegacyIndexScan,
                 Collation = this.Collation,
                 Upgrade = this.Upgrade,
                 AutoRebuild = this.AutoRebuild,
@@ -338,6 +348,11 @@ namespace LiteDB
                 bld.Append("ReadOnly=")
                     .Append(ReadOnly)
                     .Append(';');
+            }
+
+            if (LegacyIndexScan)
+            {
+                bld.Append("legacy index scan=true;");
             }
 
             if (Collation != null)

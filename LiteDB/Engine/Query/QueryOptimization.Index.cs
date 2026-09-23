@@ -17,6 +17,10 @@ namespace LiteDB.Engine
         /// </summary>
         private IndexCost ChooseIndex(HashSet<string> fields)
         {
+            // A LegacyIndexScan keeps the old comparer's skip lists: scan the primary
+            // key's level-zero chain and filter/sort every term in memory instead.
+            if (!_indexesOrdered) return null;
+
             var indexes = _snapshot.CollectionPage.GetCollectionIndexes()
                 .Where(x => x.IndexType == 0 &&
                     !_query.Includes.Any(include => IncludeChangesIndex(include, x.BsonExpr)))
