@@ -15,6 +15,7 @@ namespace LiteDB.Engine
         private const int ERRNO_ENOTSUP_LINUX = 95;
 
         private readonly bool _durableCommits;
+        private readonly SharedDurabilityState _sharedDurability;
         private volatile bool _logFlushDegraded;
 
         // Set by this engine's first successful log device sync. That sync also makes
@@ -27,7 +28,8 @@ namespace LiteDB.Engine
         /// False when commits reach the OS cache only: the caller opted out
         /// (<see cref="EngineSettings.DurableCommits"/>) or the log storage rejected a durable flush.
         /// </summary>
-        internal bool IsLogFlushDurable => _durableCommits && !_logFlushDegraded;
+        internal bool IsLogFlushDurable => _durableCommits && !_logFlushDegraded &&
+            !(_sharedDurability?.Degraded ?? false);
 
         /// <summary>
         /// Flush a confirmed WAL batch: to the device, or to the OS cache only when the caller opted out.
@@ -128,6 +130,7 @@ namespace LiteDB.Engine
 
         private void MarkLogFlushDegraded(Exception ex)
         {
+            if (_sharedDurability != null) _sharedDurability.Degraded = true;
             if (_logFlushDegraded) return;
             _logFlushDegraded = true;
             LOG($"log storage rejected durable flush ({ex.GetType().Name} 0x{ex.HResult:X8}); commits now flush to the OS cache only", "DISK");

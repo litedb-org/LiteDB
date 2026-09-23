@@ -46,6 +46,7 @@ namespace LiteDB.Engine
             _state = state;
             _readOnly = settings.ReadOnly;
             _durableCommits = settings.DurableCommits;
+            _sharedDurability = settings.SharedDurability;
 
             try
             {

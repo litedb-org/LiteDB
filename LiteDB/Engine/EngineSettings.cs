@@ -26,6 +26,7 @@ namespace LiteDB.Engine
         internal CheckpointBackoff CheckpointBackoff { get; set; }
         internal bool SharedReadSnapshot { get; set; }
         internal Func<string, string, string[]> SharedReaderFiles { get; set; }
+        internal SharedDurabilityState SharedDurability { get; set; }
         internal EngineSettings Clone() => (EngineSettings)this.MemberwiseClone();
 
         /// <summary>
