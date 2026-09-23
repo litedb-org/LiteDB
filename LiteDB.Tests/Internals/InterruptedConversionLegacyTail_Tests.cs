@@ -31,6 +31,14 @@ namespace LiteDB.Internals
         [InlineData("secret", DescriptorPosition, 1, 2u)]
         [InlineData(null, DescriptorPosition, 4, 2u)]
         [InlineData("secret", DescriptorPosition, 4, 40u)]
+        // Header-only commits whose IDs share the records' low 16 bits (1).
+        [InlineData(null, RedoPosition, 1, 65537u)]
+        [InlineData("secret", RedoPosition, 1, 65537u)]
+        [InlineData(null, PreparedPosition, 1, 131073u)]
+        [InlineData("secret", PreparedPosition, 1, 65537u)]
+        [InlineData(null, DescriptorPosition, 1, 65537u)]
+        [InlineData("secret", DescriptorPosition, 1, 131073u)]
+        [InlineData(null, DescriptorPosition, 4, 131073u)]
         public void LegacyCommitsAfterAnUnsealedConversionBackup_SurviveConversion(string password, long stopAt, int legacyCommits, uint firstTransaction)
         {
             using var data = new MemoryStream();
@@ -107,6 +115,107 @@ namespace LiteDB.Internals
                 data.ToArray().Should().Equal(dataBefore);
                 log.ToArray().Should().Equal(logBefore);
             }
+        }
+
+        [Theory]
+        [InlineData(null, RedoPosition)]
+        [InlineData("secret", RedoPosition)]
+        [InlineData(null, PreparedPosition)]
+        [InlineData("secret", PreparedPosition)]
+        public void ConfirmedTransactionOneOutsideTheConfirmationSlot_IsRefusedWithoutChangingFiles(string password, long stopAt)
+        {
+            // Released engines continue after the records' transaction 1, so a
+            // confirmed header page reusing it cannot be attributed to either writer.
+            using var data = new MemoryStream();
+            using var log = new WalWriteFailure();
+            Interrupt(data, log, password, stopAt);
+            var header = ReadLegacyHeader(data, password);
+            using (var factory = new StreamFactory(log, password))
+            using (var stream = factory.GetStream(true, false))
+            {
+                AppendLegacyCommit(stream, header, 1, 100);
+                stream.FlushToDisk();
+            }
+            ExpectRefusal(data, log, password);
+        }
+
+        [Theory]
+        [InlineData(null, RedoPosition, 16)]
+        [InlineData(null, RedoPosition, 20)]
+        [InlineData(null, PreparedPosition, 32)]
+        [InlineData(null, DescriptorPosition, 20)]
+        [InlineData(null, DescriptorPosition, 100)]
+        [InlineData("secret", RedoPosition, 16)]
+        [InlineData("secret", PreparedPosition, 20)]
+        [InlineData("secret", DescriptorPosition, 32)]
+        [InlineData("secret", DescriptorPosition, 100)]
+        public void TornConversionRecord_IsDiscardedAndConversionCompletes(string password, long stopAt, int cut)
+        {
+            using var data = new MemoryStream();
+            using var log = new WalWriteFailure();
+            Interrupt(data, log, password, stopAt);
+            // The descriptor slot holds the conversion's confirmed page.
+            AppendTornRecord(log, password, ReadLegacyHeader(data, password), stopAt == DescriptorPosition, cut);
+
+            var dataBefore = data.ToArray();
+            var logBefore = log.ToArray();
+            using (var engine = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, Password = password, ReadOnly = true }))
+            using (var db = new LiteDatabase(engine, disposeOnClose: false))
+                db.GetCollection("docs").Count().Should().Be(WalTestDatabase.DocumentCount);
+            data.ToArray().Should().Equal(dataBefore);
+            log.ToArray().Should().Equal(logBefore);
+
+            using (var engine = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, Password = password }))
+            using (var db = new LiteDatabase(engine, disposeOnClose: false))
+            {
+                db.GetCollection("docs").Count().Should().Be(WalTestDatabase.DocumentCount);
+                db.Checkpoint();
+            }
+            ReadHeader(data, password)[HeaderPage.P_FILE_VERSION].Should().BeGreaterOrEqualTo(HeaderPage.CHECKSUM_FILE_VERSION);
+        }
+
+        private static void ExpectRefusal(MemoryStream data, WalWriteFailure log, string password)
+        {
+            var dataBefore = data.ToArray();
+            var logBefore = log.ToArray();
+            foreach (var readOnly in new[] { true, false })
+            {
+                Action open = () =>
+                {
+                    using var engine = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, Password = password, ReadOnly = readOnly });
+                };
+                open.Should().Throw<PageChecksumException>("an unattributable tail must not be discarded or replayed");
+                data.ToArray().Should().Equal(dataBefore);
+                log.ToArray().Should().Equal(logBefore);
+            }
+        }
+
+        /// <summary>
+        /// Models a torn write of a conversion record (transaction 1) that kept only
+        /// its first <paramref name="cut"/> bytes. Encrypted tears leave raw zeros,
+        /// which decrypt to garbage from the torn AES block onward.
+        /// </summary>
+        private static void AppendTornRecord(WalWriteFailure log, string password, BufferSlice header, bool confirmed, int cut)
+        {
+            header.Write(1u, BasePage.P_TRANSACTION_ID);
+            header.Write(confirmed, BasePage.P_IS_CONFIRMED);
+            var start = log.Length;
+            if (password == null)
+            {
+                Array.Clear(header.Array, cut, PAGE_SIZE - cut);
+                log.Position = start;
+                log.Write(header.Array, 0, PAGE_SIZE);
+                return;
+            }
+            using (var factory = new StreamFactory(log, password))
+            using (var stream = factory.GetStream(true, false))
+            {
+                stream.Position = stream.Length;
+                stream.Write(header.Array, 0, PAGE_SIZE);
+                stream.FlushToDisk();
+            }
+            log.Position = start + cut;
+            log.Write(new byte[PAGE_SIZE - cut], 0, PAGE_SIZE - cut);
         }
 
         private static void Interrupt(MemoryStream data, WalWriteFailure log, string password, long stopAt)

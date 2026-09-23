@@ -150,7 +150,7 @@ namespace LiteDB.Engine
                 var journal = ReadPrepared(stream, position);
                 if (journal == null) continue;
                 // A released engine's commit in the confirmation slot is legacy redo, not a tear.
-                return IsLegacyAppend(stream, position + PAGE_SIZE, journal.Header) ? null : journal;
+                return IsLegacyAppend(stream, position + PAGE_SIZE, journal.Header, true) ? null : journal;
             }
             return null;
         }

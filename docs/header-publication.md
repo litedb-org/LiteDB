@@ -95,7 +95,16 @@ redo and prepared records. A page there that no torn conversion write can
 produce (its first AES block differs from the record's, and it is a well-formed
 legacy page with a later transaction and a reachable page ID) marks a legacy
 tail: read-only and writable opens recover the whole WAL by legacy rules, and a
-writable open converts again after its legacy checkpoint. One torn write is the
+writable open converts again after its legacy checkpoint. That block holds only
+the low 16 bits of the transaction ID, so a header-only commit whose ID is
+congruent to 1 modulo 2^16 shares it. Such a page is still recognized by its
+second block: it is confirmed and repeats the record's remaining header fields,
+which neither a plain tear (record or zero bytes) nor an encrypted tear (a
+garbage block) produces. Released engines number their commits after the records'
+transaction 1. A confirmed transaction 1 therefore occurs only as the
+conversion's own confirmation page. In the slot after a prepared record it is
+treated as that torn confirmation. Anywhere else it fails with
+`PageChecksumException` without changing either file. One torn write is the
 most an interrupted conversion leaves, so any longer tail that is not recognized
 fails with `PageChecksumException` without changing either file; checkpointing
 it with the released engine first lets the current engine convert. A released
