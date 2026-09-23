@@ -52,9 +52,9 @@ namespace LiteDB.Tests.Engine
                         // Two single-document transactions admit the shape through the shared history.
                         foreach (var id in new[] { next, next + 1 })
                         {
-                            var doc = Doc(c, shape, id);
-                            db.GetCollection("col" + c).Insert(doc);
+                            // Publish the expectation first: a reader may see the row as soon as Insert commits.
                             expected[(c, id)] = Doc(c, shape, id);
+                            db.GetCollection("col" + c).Insert(Doc(c, shape, id));
                         }
                         if (next % 10 == 5) db.Checkpoint();
                         if (next % 14 == 3)
