@@ -25,10 +25,14 @@ namespace LiteDB
         public SharedEngine(EngineSettings settings)
         {
             _settings = settings.Clone();
-            _readers = new SharedReaderRegistry(settings.Filename, settings.SharedReaderFiles);
+            // Reopens must use the same path as the mutex and snapshot registry,
+            // even if the process changes its working directory between calls.
+            if (_settings.Filename != ":memory:" && _settings.Filename != ":temp:")
+                _settings.Filename = Path.GetFullPath(_settings.Filename);
+            _readers = new SharedReaderRegistry(_settings.Filename, _settings.SharedReaderFiles);
             _settings.SharedReaderVersions = _readers.LiveVersions;
 
-            var name = SharedMutexNameFactory.Create(settings.Filename, settings.SharedMutexNameStrategy);
+            var name = SharedMutexNameFactory.Create(_settings.Filename, _settings.SharedMutexNameStrategy);
 
             try
             {
