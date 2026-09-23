@@ -101,7 +101,9 @@ namespace LiteDB.Internals
                     });
                     var rows = db.GetCollection("rows");
                     rows.FindAll().Should().BeEquivalentTo(Documents(expected));
-                    rows.Find(Query.EQ("value", expected)).Should().BeEquivalentTo(Documents(expected));
+                    var indexed = rows.Query().Where(Query.EQ("value", expected));
+                    indexed.GetPlan()["index"]["name"].AsString.Should().Be("value");
+                    indexed.ToArray().Should().BeEquivalentTo(Documents(expected));
                     rows.Find(Query.EQ("value", expected == 1 ? 2 : 1)).Should().BeEmpty();
                     db.GetCollection("cold").FindAll().Should().BeEquivalentTo(Documents(42));
                     db.Checkpoint();

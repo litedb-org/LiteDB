@@ -98,7 +98,10 @@ internal static class SharedStorageHarness
     private static void AssertCollection(ILiteCollection<BsonDocument> rows, int revision)
     {
         AssertDocuments(rows.FindAll(), revision);
-        AssertDocuments(rows.Find(Query.EQ("value", revision)), revision);
+        var indexed = rows.Query().Where(Query.EQ("value", revision));
+        if (indexed.GetPlan()["index"]["name"].AsString != "value")
+            throw new Exception("Recovery oracle did not use the secondary index");
+        AssertDocuments(indexed.ToArray(), revision);
         if (rows.Find(Query.EQ("value", revision + 1)).Any()) throw new Exception("Stale index entries");
     }
 }
