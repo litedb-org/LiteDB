@@ -59,6 +59,12 @@ namespace LiteDB.Engine
         public int TryAutoCheckpoint() => this.TryCheckpoint(rationed: true);
 
         /// <summary>
+        /// Checkpoint on engine close. A close that can reclaim always runs; shared
+        /// engines ration partial work under live leases like commits do.
+        /// </summary>
+        public int TryCloseCheckpoint() => this.TryCheckpoint(rationed: _rationClose);
+
+        /// <summary>
         /// Backfill only committed versions visible to every snapshot. Frames that
         /// no live or future snapshot can resolve are cleared and become reusable.
         /// </summary>
@@ -81,8 +87,7 @@ namespace LiteDB.Engine
             var wait = !rationed || _backoff.TryClaimWaitingAttempt();
             var timeout = wait ? READER_WAIT_MILLISECONDS : NO_WAIT_MILLISECONDS;
             var exclusive = _locker.TryEnterExclusive(out var mustExit, waitForReaders: wait, milliseconds: timeout);
-            if (exclusive) _backoff.Reset();
-            // Partial work under readers costs an index scan and two WAL flushes.
+            // Partial work under readers costs a WAL scan and several syncs.
             // A commit only pays for it on the same back-off as the waiting attempt.
             if (!exclusive && !wait) return 0;
             var indexEntered = false;
@@ -105,10 +110,16 @@ namespace LiteDB.Engine
                 _indexLock.EnterWriteLock();
                 indexEntered = true;
                 System.Threading.Monitor.Enter(_disk.WalWriterLock, ref writerEntered);
-                this.ValidateCheckpoint();
                 var live = this.LiveVersions(shared);
                 var target = live.Length == 0 ? _currentReadVersion : live[0];
                 var reclaim = exclusive && live.Length == 0;
+                // Exclusion alone does not mean readers are gone: snapshots and
+                // shared leases survive it. Only a reclaiming checkpoint ends the
+                // back-off; otherwise an unclaimed commit skips partial work, which
+                // starts with a full WAL validation.
+                if (reclaim) _backoff.Reset();
+                else if (!wait) return 0;
+                this.ValidateCheckpoint();
 
                 var pages = new List<PagePosition>();
                 foreach (var entry in _index)

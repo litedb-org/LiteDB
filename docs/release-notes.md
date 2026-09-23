@@ -30,9 +30,11 @@ coordination protocol. Where lease files cannot be created (for example, a
 read-only directory), large results stream under the database mutex as before.
 Do not mix concurrent direct connections or older shared-mode engines with these
 readers. Writes from the thread iterating a streamed result of the same connection
-keep one engine open until that result is disposed, blocking other writers
-meanwhile, as before v13. When the last streamed result closes, the connection
-checkpoints away the remaining WAL.
+keep one engine open while that thread keeps writing, blocking other writers
+meanwhile, as before v13. Unlike before, an idle iteration, a result disposed on
+another thread (for example after an `await`), or an exited thread no longer
+keeps other threads and processes waiting. When the last streamed result closes,
+the connection checkpoints away the remaining WAL.
 Rebuild requires shared readers to be closed. See
 [snapshot checkpointing](mvcc-checkpoint.md) and
 [the retirement format](mvcc-retirement-format.md).

@@ -18,6 +18,7 @@ namespace LiteDB
         private volatile bool _transactionRunning = false;
         private int _transactionThreadId;
         private int _databaseUsers;
+        private SharedMutexPin _transactionUse;
 #if DEBUG || TESTING
         internal Func<LiteEngine> SimulateOpenEngine { get; set; }
 
@@ -29,6 +30,9 @@ namespace LiteDB
             _settings = settings.Clone();
             _readers = new SharedReaderRegistry(settings.Filename, settings.SharedReaderFiles);
             _settings.SharedReaderVersions = _readers.LiveVersions;
+            // Each operation opens and closes an engine. Share one back-off so a
+            // long-lived reader cannot make every close pay for partial checkpoint.
+            _settings.CheckpointBackoff = new CheckpointBackoff();
 
             var name = SharedMutexNameFactory.Create(settings.Filename, settings.SharedMutexNameStrategy);
 
@@ -48,11 +52,19 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Open database in safe mode
+        /// Open database in safe mode. Returns the pin the operation runs under, or
+        /// null when the operation owns a recursion of the named mutex instead.
         /// </summary>
-        /// <returns>true if successfully opened; false if already open</returns>
-        private bool OpenDatabase()
+        private SharedMutexPin OpenDatabase()
         {
+            var pin = _pin;
+            if (pin != null)
+            {
+                if (pin.TryEnter()) return pin;
+                // Another thread needs the mutex: end the pin at its next idle moment.
+                if (!ReferenceEquals(pin.Owner, Thread.CurrentThread)) pin.RequestRelease(force: false);
+            }
+
             var recoveredAbandonedOwner = false;
             try
             {
@@ -60,42 +72,42 @@ namespace LiteDB
                 _mutex.WaitOne();
             }
             catch (AbandonedMutexException) { recoveredAbandonedOwner = true; }
+            this.EnterRecursion();
 
             try
             {
-                DropAbandonedPin();
                 RejectAbandonedTransaction();
             }
-            catch { _mutex.ReleaseMutex(); throw; }
+            catch { this.ReleaseRecursion(); throw; }
 
             // Don't create a new engine while a transaction is running.
             if (!_transactionRunning && _engine == null)
             {
                 try
                 {
-                    _engine = OpenEngine(recoveredAbandonedOwner);
-#if DEBUG || TESTING
-                    this.EngineOpens++;
-#endif
-                    _recoveryReport = _engine.RecoveryReport ?? _recoveryReport;
-                    _engine.RecoveryReport = _recoveryReport;
-                    _databaseUsers++;
-                    return true;
+                    this.OpenEngine(recoveredAbandonedOwner);
                 }
                 catch
                 {
-                    _mutex.ReleaseMutex();
+                    this.ReleaseRecursion();
                     throw;
                 }
             }
-            else
-            {
-                _databaseUsers++;
-                return false;
-            }
+            _databaseUsers++;
+            return null;
         }
 
-        private LiteEngine OpenEngine(bool recoveredAbandonedOwner)
+        private void OpenEngine(bool recoveredAbandonedOwner)
+        {
+            _engine = this.CreateEngine(recoveredAbandonedOwner);
+#if DEBUG || TESTING
+            this.EngineOpens++;
+#endif
+            _recoveryReport = _engine.RecoveryReport ?? _recoveryReport;
+            _engine.RecoveryReport = _recoveryReport;
+        }
+
+        private LiteEngine CreateEngine(bool recoveredAbandonedOwner)
         {
             const int retries = 100;
             for (var attempt = 0; ; attempt++)
@@ -132,10 +144,18 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Dequeue stack and dispose database on empty stack
+        /// Dequeue stack and dispose database on empty stack. A pinned use ends an
+        /// operation, or with <paramref name="hold"/> a reader or transaction.
         /// </summary>
-        private void CloseDatabase()
+        private void CloseDatabase(SharedMutexPin use = null, bool hold = false)
         {
+            if (use != null)
+            {
+                // The pin keeps the engine; its holder closes it.
+                use.Exit(hold);
+                return;
+            }
+
             try
             {
                 if (--_databaseUsers == 0 && !_transactionRunning && _engine != null)
@@ -149,7 +169,7 @@ namespace LiteDB
             {
                 if (!_transactionRunning) _transactionThreadId = 0;
                 // Every OpenDatabase call acquires a recursion, even when it borrows.
-                _mutex.ReleaseMutex();
+                this.ReleaseRecursion();
             }
         }
 
@@ -157,7 +177,7 @@ namespace LiteDB
 
         public bool BeginTrans()
         {
-            OpenDatabase();
+            var use = OpenDatabase();
 
             try
             {
@@ -166,15 +186,18 @@ namespace LiteDB
                 {
                     _transactionThreadId = Environment.CurrentManagedThreadId;
                     _transactionRunning = true;
+                    // A pinned transaction keeps the pin until it completes.
+                    _transactionUse = use;
+                    use?.ToHold();
                 }
                 // A false join belongs to the surrounding explicit or automatic
                 // transaction; its caller owes no completion or mutex recursion.
-                else CloseDatabase();
+                else CloseDatabase(use);
                 return started;
             }
             catch
             {
-                CloseDatabase();
+                CloseDatabase(use);
                 throw;
             }
         }
@@ -185,18 +208,24 @@ namespace LiteDB
 
         private bool CompleteTransaction(bool commit)
         {
-            // Hold one extra mutex recursion throughout completion. A foreign
-            // thread must not reach cleanup, even while BeginTrans is publishing.
-            try
+            // Hold one extra mutex recursion (or pinned operation) throughout
+            // completion. A foreign thread must not reach cleanup, even while
+            // BeginTrans is publishing.
+            var pin = _pin;
+            var pinned = pin != null && pin.TryEnter();
+            if (!pinned)
             {
-                if (!_mutex.WaitOne(0))
+                try
                 {
-                    // Rolling back nothing is safe and must not replace the error a catch block is handling.
-                    if (!_transactionRunning || !commit) return false;
-                    throw ForeignTransactionCompletion();
+                    if (!_mutex.WaitOne(0))
+                    {
+                        // Rolling back nothing is safe and must not replace the error a catch block is handling.
+                        if (!_transactionRunning || !commit) return false;
+                        throw ForeignTransactionCompletion();
+                    }
                 }
+                catch (AbandonedMutexException) { }
             }
-            catch (AbandonedMutexException) { }
 
             try
             {
@@ -205,11 +234,17 @@ namespace LiteDB
                 try { return commit ? _engine.Commit() : _engine.Rollback(); }
                 finally
                 {
+                    var use = _transactionUse;
+                    _transactionUse = null;
                     _transactionRunning = false;
-                    CloseDatabase();
+                    CloseDatabase(use, hold: true);
                 }
             }
-            finally { _mutex.ReleaseMutex(); }
+            finally
+            {
+                if (pinned) pin.Exit(hold: false);
+                else _mutex.ReleaseMutex();
+            }
         }
 
         private void RejectAbandonedTransaction()
@@ -333,28 +368,37 @@ namespace LiteDB
 
         protected virtual void Dispose(bool disposing)
         {
-            if (disposing)
+            if (!disposing) return;
+
+            // Any thread can end a pin; its holder closes the engine and releases.
+            var pin = _pin;
+            if (pin != null)
             {
-                _pinnedThreadId = 0;
-                if (_engine != null)
-                {
-                    _engine.Dispose();
-                    _engine = null;
-                    _mutex.ReleaseMutex();
-                }
+                pin.RequestRelease(force: true);
+                if (!pin.CanWaitFrom(Thread.CurrentThread)) return;
+                pin.WaitReleased();
+            }
+
+            if (_engine != null)
+            {
+                _engine.Dispose();
+                _engine = null;
+                // An open reader or transaction of this thread owns a recursion.
+                // Another thread's recursion is released by that thread.
+                if (this.HoldsRecursion()) this.ReleaseRecursion();
             }
         }
 
         private T QueryDatabase<T>(Func<T> Query)
         {
-            OpenDatabase();
+            var use = OpenDatabase();
             try
             {
                 return Query();
             }
             finally
             {
-                CloseDatabase();
+                CloseDatabase(use);
             }
         }
     }

@@ -149,7 +149,8 @@ namespace LiteDB.Engine
                 _locker = new LockService(_header.Pragmas);
 
                 // initialize wal-index service
-                _walIndex = new WalIndexService(_disk, _locker, _settings.SharedReaderVersions, () => _header);
+                _walIndex = new WalIndexService(_disk, _locker, _settings.SharedReaderVersions, () => _header,
+                    _settings.CheckpointBackoff);
 
                 // if exists log file, restore wal index references (can update full _header instance)
                 if (_disk.GetFileLength(FileOrigin.Log) > 0 || _disk.ChecksumsEnabled)
@@ -206,7 +207,7 @@ namespace LiteDB.Engine
             if (!_settings.ReadOnly && _header?.Pragmas.Checkpoint > 0)
             {
                 // Backfill safe pages; reclaim only when all readers have drained.
-                tc.Catch(() => _walIndex?.TryCheckpoint());
+                tc.Catch(() => _walIndex?.TryCloseCheckpoint());
             }
 
             // close all disk streams (and delete log if empty)

@@ -22,8 +22,14 @@ checking an empty WAL does not prevent a later write. Independently copying two
 live files is not a consistency protocol.
 
 An auto-checkpoint from a commit takes the full path whenever no transaction is
-open. Under readers it does partial work on a back-off (50 ms doubling to 1 s),
-because that work scans the index and requires multiple durable publication barriers.
+open and no snapshot or shared lease is live. Otherwise it does partial work on a
+back-off (50 ms doubling to 1 s), because that work validates and scans the whole
+WAL and requires multiple durable publication barriers. Only a reclaiming
+checkpoint resets the back-off: holding transaction exclusion is not enough, since
+snapshots and other connections' leases survive it. Shared mode opens and closes an
+engine per operation, so one back-off outlives those engines and also rations their
+close checkpoints; a close that can reclaim always runs. Explicit `Checkpoint()` is
+never rationed.
 
 ## Backfill and reclamation
 
@@ -151,13 +157,28 @@ engine closes before releasing its lease, so neither streams nor cached WAL
 offsets outlive their protection. A newly opened query replays newer commits.
 
 A write from the thread that is iterating one of the same `SharedEngine`'s leased
-readers (for example `foreach (var d in col.FindAll()) col.Update(d)`) keeps that
-instance's engine and a mutex recursion until the thread's leased readers are
-disposed, as pre-v13 readers held them for their whole lifetime. Reopening per
-write would replay a WAL that the open reader keeps growing, which makes such a
-loop quadratic. Other threads and processes wait for the mutex during that period.
-A reader disposed on another thread releases the pin at its owner's next write or
-at `Dispose`. Writes from other threads or instances never pin.
+readers (for example `foreach (var d in col.FindAll()) col.Update(d)`) pins that
+instance's engine: a dedicated holder thread acquires the mutex and keeps it, and
+the engine open, between that thread's calls. Reopening per write would replay a
+WAL that the open reader keeps growing, which makes such a loop quadratic. Other
+threads and processes wait for the mutex while the pin holds it.
+
+A `Mutex` can only be released by the thread that acquired it, so the pin never
+keeps a recursion on the iterating thread; any thread can end it. The holder
+closes the engine and releases the mutex at the first moment without a running
+operation, open write-query reader or pinned transaction of the owner, once:
+
+- the owner's last leased reader is disposed, on any thread;
+- another thread of the same instance needs the mutex;
+- the owner has made no call for the idle limit (100 ms, or one engine close and
+  reopen if that takes longer), which bounds the wait of other processes;
+- the pin has held for its total limit (1 s, or ten engine closes and reopens),
+  which gives waiting processes a turn during a long loop; the owner's next
+  write pins again.
+
+`Dispose` on any thread and the exit of the owner thread end it regardless of
+open readers and transactions; an exited owner's transaction is reported to the
+next caller as before. Writes from other threads or instances never pin.
 
 When the last leased reader is disposed and the WAL is not empty, a writable
 `SharedEngine` that can take the mutex without waiting opens and closes an engine,

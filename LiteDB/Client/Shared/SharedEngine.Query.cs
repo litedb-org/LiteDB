@@ -19,11 +19,11 @@ namespace LiteDB
         /// </summary>
         public IBsonDataReader Query(string collection, Query query)
         {
-            this.OpenDatabase();
+            var use = this.OpenDatabase();
             // Write queries and explicit transactions retain their writer ownership.
             if (_transactionRunning || query?.ForUpdate == true || query?.Into != null)
             {
-                return this.QueryUnderMutex(collection, query);
+                return this.QueryUnderMutex(collection, query, use);
             }
 
             LiteEngine snapshot = null;
@@ -48,7 +48,7 @@ namespace LiteDB
                     // No lease can protect a snapshot (for example, a read-only
                     // directory). Stream under the mutex, as before v13.
                     closeDatabase = false;
-                    return this.QueryUnderMutex(collection, query);
+                    return this.QueryUnderMutex(collection, query, use);
                 }
                 var settings = _settings.Clone();
                 settings.ReadOnly = true;
@@ -79,24 +79,26 @@ namespace LiteDB
                 finally
                 {
                     try { lease?.Dispose(); }
-                    finally { if (closeDatabase) this.CloseDatabase(); }
+                    finally { if (closeDatabase) this.CloseDatabase(use); }
                 }
             }
         }
 
         /// <summary>
-        /// Stream from this process' engine while retaining the mutex until the
-        /// reader is disposed. The caller has opened the database.
+        /// Stream from this process' engine while retaining the mutex (or the
+        /// caller's pin) until the reader is disposed. The caller has opened the database.
         /// </summary>
-        private IBsonDataReader QueryUnderMutex(string collection, Query query)
+        private IBsonDataReader QueryUnderMutex(string collection, Query query, SharedMutexPin use)
         {
             try
             {
-                return new SharedDataReader(_engine.Query(collection, query), this.CloseDatabase);
+                var reader = _engine.Query(collection, query);
+                use?.ToHold();
+                return new SharedDataReader(reader, () => this.CloseDatabase(use, hold: true));
             }
             catch
             {
-                this.CloseDatabase();
+                this.CloseDatabase(use);
                 throw;
             }
         }

@@ -17,7 +17,10 @@ namespace LiteDB.Engine
 
         private readonly DiskService _disk;
         private readonly LockService _locker;
-        private readonly CheckpointBackoff _backoff = new CheckpointBackoff();
+        private readonly CheckpointBackoff _backoff;
+        // Shared engines close after each operation; their close checkpoints follow
+        // the back-off that outlives the engine instead of running unconditionally.
+        private readonly bool _rationClose;
 
         private readonly Dictionary<uint, List<KeyValuePair<int, long>>> _index = new Dictionary<uint, List<KeyValuePair<int, long>>>();
         private readonly ReaderWriterLockSlim _indexLock = new ReaderWriterLockSlim();
@@ -32,11 +35,14 @@ namespace LiteDB.Engine
         /// </summary>
         private int _lastTransactionID = 0;
 
-        public WalIndexService(DiskService disk, LockService locker, Func<int[]> sharedReaders = null, Func<object> getCommitLock = null)
+        public WalIndexService(DiskService disk, LockService locker, Func<int[]> sharedReaders = null, Func<object> getCommitLock = null,
+            CheckpointBackoff backoff = null)
         {
             _disk = disk;
             _locker = locker;
             _sharedReaders = sharedReaders;
+            _backoff = backoff ?? new CheckpointBackoff();
+            _rationClose = backoff != null;
             // Recovery and legacy migration can replace the header during open.
             // Resolve the same header monitor used by the resulting transactions.
             _getCommitLock = getCommitLock ?? (() => this);
