@@ -52,6 +52,9 @@ namespace LiteDB.Engine
                 var journal = HeaderJournal.Read(reader.RawStream);
                 if (journal == null) return;
                 var published = journal.IsPublished(header);
+                // Unsealed conversion records followed by legacy commits: recover
+                // the whole WAL by legacy rules; conversion restarts after checkpoint.
+                if (journal.LegacyTail) return;
                 journal.ValidateCheckpointWal(reader.RawStream, published ? header : journal.Header);
                 // An intent-only journal proves the primary still matches the
                 // legacy header. Keep those exact bytes: rewriting the intent
