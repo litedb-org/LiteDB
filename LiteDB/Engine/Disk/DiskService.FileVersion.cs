@@ -42,7 +42,7 @@ namespace LiteDB.Engine
                     stream.Write(header.Array, 0, PAGE_SIZE);
                     stream.FlushToDisk();
                     rawLog.SetLength(originalLength);
-                    rawLog.FlushToDisk();
+                    SyncLogBarrier(rawLog);
                     _checksums.JournalBytes = 0;
                     FileVersion = version;
                 }
