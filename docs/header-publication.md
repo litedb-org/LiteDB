@@ -87,6 +87,21 @@ ID. The intent is accepted only while the primary legacy header still matches
 its original contents, ignoring reserved journal metadata and the unused
 transaction field.
 
+A released engine still reads that unchanged legacy primary and may append and
+acknowledge commits after the unsealed records before crashing without a
+checkpoint. All conversion records are unconfirmed transaction 1, so such a WAL
+is ordinary legacy redo. Recovery locates the first slot after the intact intent,
+redo and prepared records. A page there that no torn conversion write can
+produce (its first AES block differs from the record's, and it is a well-formed
+legacy page with a later transaction and a reachable page ID) marks a legacy
+tail: read-only and writable opens recover the whole WAL by legacy rules, and a
+writable open converts again after its legacy checkpoint. One torn write is the
+most an interrupted conversion leaves, so any longer tail that is not recognized
+fails with `PageChecksumException` without changing either file; checkpointing
+it with the released engine first lets the current engine convert. A released
+engine cannot append after v10 publication, so a legacy tail with a published
+primary is also rejected.
+
 A valid preparation proves the complete redo prefix even if the final
 confirmation tears. Current readers validate that prefix and expose a logical
 confirmation on its last header page, hiding the physical footer. Writable open
@@ -97,7 +112,8 @@ conversion redo is ignored and can be removed after syncing that header.
 These records retain legacy page layouts until v10 publication. The compatibility
 test checks that LiteDB 5.0.21 can read, write, and checkpoint an interrupted
 conversion before publication, and that the current engine then preserves those
-writes on conversion, with or without an intervening legacy checkpoint. If older
+writes on conversion, with or without an intervening legacy checkpoint. The same
+holds when conversion stopped at the redo or footer slot before sealing. If older
 engines append commits after the completed footer, current recovery locates that
 footer from the intent and replays the subsequent legacy transactions too.
 Older engines still use their own legacy recovery rules;

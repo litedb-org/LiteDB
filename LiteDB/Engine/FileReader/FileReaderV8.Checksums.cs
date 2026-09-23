@@ -16,9 +16,10 @@ namespace LiteDB.Engine
             _dataStream.Position = 0;
             _dataStream.ReadRequired(bytes, 0, bytes.Length);
             var journal = _logStream == null ? null : HeaderJournal.Read(_logStream);
-            if (journal != null)
+            var published = journal?.IsPublished(bytes) ?? false;
+            // A legacy tail after unsealed conversion records is ordinary legacy WAL.
+            if (journal != null && !journal.LegacyTail)
             {
-                var published = journal.IsPublished(bytes);
                 journal.ValidateCheckpointWal(_logStream, published ? bytes : journal.Header);
                 if (!published) bytes = _recoveredHeader = journal.Header;
                 _checksums.JournalBytes = journal.Legacy && published ? _logStream.Length : journal.FooterBytes;
