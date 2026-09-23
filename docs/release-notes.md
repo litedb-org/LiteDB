@@ -23,9 +23,13 @@ can grow witness metadata and recovery work until a full checkpoint. Larger
 shared-mode query results stream from a private snapshot protected by a lease
 file in `<database filename>-readers/`. All shared participants must run on one
 host with working file-sharing locks, use the same mutex naming strategy and this
-coordination protocol, and be allowed to create lease files next to the database.
+coordination protocol. Where lease files cannot be created (for example, a
+read-only directory), large results stream under the database mutex as before.
 Do not mix concurrent direct connections or older shared-mode engines with these
-readers.
+readers. Writes from the thread iterating a streamed result of the same connection
+keep one engine open until that result is disposed, blocking other writers
+meanwhile, as before v13. When the last streamed result closes, the connection
+checkpoints away the remaining WAL.
 Rebuild requires shared readers to be closed. See
 [snapshot checkpointing](mvcc-checkpoint.md) and
 [the retirement format](mvcc-retirement-format.md).

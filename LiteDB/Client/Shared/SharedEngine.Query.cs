@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Runtime.ExceptionServices;
 using LiteDB.Client.Shared;
 using LiteDB.Engine;
@@ -22,19 +23,12 @@ namespace LiteDB
             // Write queries and explicit transactions retain their writer ownership.
             if (_transactionRunning || query?.ForUpdate == true || query?.Into != null)
             {
-                try
-                {
-                    return new SharedDataReader(_engine.Query(collection, query), this.CloseDatabase);
-                }
-                catch
-                {
-                    this.CloseDatabase();
-                    throw;
-                }
+                return this.QueryUnderMutex(collection, query);
             }
 
             LiteEngine snapshot = null;
             IDisposable lease = null;
+            var closeDatabase = true;
             try
             {
                 // A user callback can be stateful. Speculative buffering followed
@@ -48,7 +42,14 @@ namespace LiteDB
 
                 // Replay and registration are ordered with commits/checkpoints by
                 // the mutex. This engine's index never changes for the query lifetime.
-                lease = _readers.Register(_engine.ReadVersion);
+                lease = this.TryRegisterLease();
+                if (lease == null)
+                {
+                    // No lease can protect a snapshot (for example, a read-only
+                    // directory). Stream under the mutex, as before v13.
+                    closeDatabase = false;
+                    return this.QueryUnderMutex(collection, query);
+                }
                 var settings = _settings.Clone();
                 settings.ReadOnly = true;
                 settings.Upgrade = false;
@@ -58,10 +59,15 @@ namespace LiteDB
                 var reader = snapshot.Query(collection, query);
                 var ownedSnapshot = snapshot;
                 var ownedLease = lease;
+                var owner = this.AddLocalReader();
                 var result = new SharedDataReader(reader, () =>
                 {
                     try { ownedSnapshot.Dispose(); }
-                    finally { ownedLease.Dispose(); }
+                    finally
+                    {
+                        try { ownedLease.Dispose(); }
+                        finally { this.RemoveLocalReader(owner); }
+                    }
                 });
                 snapshot = null;
                 lease = null;
@@ -73,9 +79,36 @@ namespace LiteDB
                 finally
                 {
                     try { lease?.Dispose(); }
-                    finally { this.CloseDatabase(); }
+                    finally { if (closeDatabase) this.CloseDatabase(); }
                 }
             }
+        }
+
+        /// <summary>
+        /// Stream from this process' engine while retaining the mutex until the
+        /// reader is disposed. The caller has opened the database.
+        /// </summary>
+        private IBsonDataReader QueryUnderMutex(string collection, Query query)
+        {
+            try
+            {
+                return new SharedDataReader(_engine.Query(collection, query), this.CloseDatabase);
+            }
+            catch
+            {
+                this.CloseDatabase();
+                throw;
+            }
+        }
+
+        private IDisposable TryRegisterLease()
+        {
+            try
+            {
+                return _readers.Register(_engine.ReadVersion);
+            }
+            catch (IOException) { return null; }
+            catch (UnauthorizedAccessException) { return null; }
         }
 
         /// <summary>

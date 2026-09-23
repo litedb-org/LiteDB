@@ -20,6 +20,8 @@ namespace LiteDB
         private int _databaseUsers;
 #if DEBUG || TESTING
         internal Func<LiteEngine> SimulateOpenEngine { get; set; }
+
+        internal int EngineOpens { get; private set; }
 #endif
 
         public SharedEngine(EngineSettings settings)
@@ -59,7 +61,11 @@ namespace LiteDB
             }
             catch (AbandonedMutexException) { recoveredAbandonedOwner = true; }
 
-            try { RejectAbandonedTransaction(); }
+            try
+            {
+                DropAbandonedPin();
+                RejectAbandonedTransaction();
+            }
             catch { _mutex.ReleaseMutex(); throw; }
 
             // Don't create a new engine while a transaction is running.
@@ -68,6 +74,9 @@ namespace LiteDB
                 try
                 {
                     _engine = OpenEngine(recoveredAbandonedOwner);
+#if DEBUG || TESTING
+                    this.EngineOpens++;
+#endif
                     _recoveryReport = _engine.RecoveryReport ?? _recoveryReport;
                     _engine.RecoveryReport = _recoveryReport;
                     _databaseUsers++;
@@ -232,7 +241,7 @@ namespace LiteDB
 
         public bool Pragma(string name, BsonValue value)
         {
-            return QueryDatabase(() => _engine.Pragma(name, value));
+            return WriteDatabase(() => _engine.Pragma(name, value));
         }
 
         #endregion
@@ -241,12 +250,12 @@ namespace LiteDB
 
         public int Checkpoint()
         {
-            return QueryDatabase(() => _engine.Checkpoint());
+            return WriteDatabase(() => _engine.Checkpoint());
         }
 
         public long Rebuild(RebuildOptions options)
         {
-            return QueryDatabase(() =>
+            return WriteDatabase(() =>
             {
                 if (_readers.OldestVersion().HasValue)
                     throw new LiteException(0, "Close shared readers before rebuilding the database.");
@@ -256,57 +265,57 @@ namespace LiteDB
 
         public int Insert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId)
         {
-            return QueryDatabase(() => _engine.Insert(collection, docs, autoId));
+            return WriteDatabase(() => _engine.Insert(collection, docs, autoId));
         }
 
         public int Update(string collection, IEnumerable<BsonDocument> docs)
         {
-            return QueryDatabase(() => _engine.Update(collection, docs));
+            return WriteDatabase(() => _engine.Update(collection, docs));
         }
 
         public int UpdateMany(string collection, BsonExpression extend, BsonExpression predicate)
         {
-            return QueryDatabase(() => _engine.UpdateMany(collection, extend, predicate));
+            return WriteDatabase(() => _engine.UpdateMany(collection, extend, predicate));
         }
 
         public int Upsert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId)
         {
-            return QueryDatabase(() => _engine.Upsert(collection, docs, autoId));
+            return WriteDatabase(() => _engine.Upsert(collection, docs, autoId));
         }
 
         public int Delete(string collection, IEnumerable<BsonValue> ids)
         {
-            return QueryDatabase(() => _engine.Delete(collection, ids));
+            return WriteDatabase(() => _engine.Delete(collection, ids));
         }
 
         public int DeleteMany(string collection, BsonExpression predicate)
         {
-            return QueryDatabase(() => _engine.DeleteMany(collection, predicate));
+            return WriteDatabase(() => _engine.DeleteMany(collection, predicate));
         }
 
         public bool DropCollection(string name)
         {
-            return QueryDatabase(() => _engine.DropCollection(name));
+            return WriteDatabase(() => _engine.DropCollection(name));
         }
 
         public bool RenameCollection(string name, string newName)
         {
-            return QueryDatabase(() => _engine.RenameCollection(name, newName));
+            return WriteDatabase(() => _engine.RenameCollection(name, newName));
         }
 
         public bool DropIndex(string collection, string name)
         {
-            return QueryDatabase(() => _engine.DropIndex(collection, name));
+            return WriteDatabase(() => _engine.DropIndex(collection, name));
         }
 
         public bool EnsureIndex(string collection, string name, BsonExpression expression, bool unique)
         {
-            return QueryDatabase(() => _engine.EnsureIndex(collection, name, expression, unique));
+            return WriteDatabase(() => _engine.EnsureIndex(collection, name, expression, unique));
         }
 
         public bool EnsureVectorIndex(string collection, string name, BsonExpression expression, VectorIndexOptions options)
         {
-            return QueryDatabase(() => _engine.EnsureVectorIndex(collection, name, expression, options));
+            return WriteDatabase(() => _engine.EnsureVectorIndex(collection, name, expression, options));
         }
 
         #endregion
@@ -326,6 +335,7 @@ namespace LiteDB
         {
             if (disposing)
             {
+                _pinnedThreadId = 0;
                 if (_engine != null)
                 {
                     _engine.Dispose();
