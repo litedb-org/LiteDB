@@ -7,7 +7,9 @@ is readable. This requires a file-format boundary, not just a package version bu
 New databases use **format v11**, including databases without vectors. Writable
 opens of v8/v9/v10 databases automatically migrate their indexes before exposing the
 connection. Read-only opens requiring migration fail with instructions to open
-writable once. `Upgrade=true` retains the separate v7 rebuild/backup path, including
+writable once, unless the connection sets `legacy index scan=true`: the file then
+opens unchanged and queries use full scans instead of its unmigrated indexes (see
+[connection-string parsing](connection-string-parsing.md#reading-files-that-await-index-migration-read-only)). `Upgrade=true` retains the separate v7 rebuild/backup path, including
 explicit v7 upgrades requested together with `ReadOnly=true`.
 
 ## Automatic migration

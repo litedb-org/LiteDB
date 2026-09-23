@@ -4,7 +4,9 @@
 
 New files use v11. Writable opens automatically migrate v8/v9/v10 indexes for corrected
 nested collation, unsigned ObjectId, canonical document and exact numeric ordering.
-Read-only files needing migration must first be opened writable. Unique-key
+Read-only files needing migration must first be opened writable, or opened with
+`legacy index scan=true`, which leaves them unchanged and answers queries with
+full scans instead of their unmigrated indexes. Unique-key
 collisions abort before changing data or WAL. Computed/multikey keys regenerate
 from documents; scalar member-path indexes reuse their pages after keys that
 released updates left stale (for example `19.99` for a stored `19.99m`, including

@@ -13,6 +13,7 @@ The string constructors of `ConnectionString` and `LiteDatabase` use these rules
   `filename=data/my.db;readonly=true` instead.
 - A single `key=value` is parsed as an option if its trimmed key matches a
   built-in name, ignoring case: `filename`, `connection`, `password`,
+  `index migration limit size`, `legacy index scan`,
   `initial size`, `readonly`, `upgrade`, `auto-rebuild`,
   `reject invalid local time`, `durable commits`, `collation`, `memory profile`,
   `cache size`, or `transaction pages`.
@@ -100,6 +101,24 @@ is the same for either value. Both settings work with `Direct` and
 streams cannot be synced and ignore it. `$database.durableLogFlush` reports
 `false` while commits are not synced, either because of this setting or because
 the storage rejected the sync request (some network shares).
+
+## Reading files that await index migration read-only
+
+Writable opens migrate v8/v9/v10 indexes to the v11 ordering (see
+[the compatibility contract](collation-runtime-compatibility.md)). A read-only
+open cannot, so by default it fails and asks for one writable open. When that is
+impossible, for example for a database shipped on read-only media, add
+`legacy index scan=true` (`ConnectionString.LegacyIndexScan`,
+`EngineSettings.LegacyIndexScan`) to the read-only connection:
+
+- The file opens without changing any byte of the data file or WAL.
+- Queries ignore the unmigrated indexes: every lookup, including `FindById`,
+  `Exists`, `Count`, `Min`/`Max`, ordering, grouping and `Include`, scans the
+  collection and applies the current comparer to the documents. Results match
+  a migrated file; cost becomes linear in the collection size.
+- Vector indexes do not depend on key order and remain usable.
+- Writable opens ignore the option and migrate as usual; files that need no
+  migration are unaffected.
 
 ## Integration with pending parser and serializer changes
 

@@ -17,8 +17,15 @@ namespace LiteDB.Engine
             }
 
             if (_settings.ReadOnly)
+            {
+                // The stale ordering stays visible through EnginePragmas.IndexesOrdered;
+                // queries then use full scans instead of seeking these indexes.
+                if (_settings.LegacyIndexScan) return;
                 throw new LiteException(0, "Database index ordering/collation requires migration. " +
-                    "Open the database writable once to automatically rebuild its indexes.");
+                    "Open the database writable once to automatically rebuild its indexes, or add " +
+                    "`legacy index scan=true` (LegacyIndexScan) to this read-only connection to query " +
+                    "it with full scans instead of its indexes.");
+            }
 
             // Traverse links, never seek using the new comparer in an old skip list.
             // Inspect all structures and unique keys before any persistent mutation.
