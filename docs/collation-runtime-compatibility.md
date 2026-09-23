@@ -28,6 +28,19 @@ omit values collapsed by the old equality rules. Simple member-path vector index
 are retained; computed vector indexes are regenerated with their dimensions and
 metric because comparison changes can also affect their input expressions.
 
+Released engines' `Update` kept an index node, including the primary key, whenever
+the old equality found its key equal to the updated value. That equality rounded
+doubles to decimal and read a missing document field as null, so a document can
+hold `19.99m`, `{b: null}` or `7.0000000000000009` under a node keyed `19.99`,
+`{a: null}` or `7`. Reordering such a stored key would leave the document
+unreachable by seek, `FindById` and `Delete`. Before reordering, migration therefore
+reads every document with a numeric, document or array key in its primary or
+member-path index and compares those keys with the document under the current
+comparer. Mismatching documents get all their primary and member-path nodes
+regenerated from the document; other key types were already exact under the old
+equality and need no document read. Unique checks and the page budget use the
+document keys, so collisions exposed by regeneration reject before promotion.
+
 All index changes and the completed ordering revision (header byte 165, currently
 1) commit in one transaction. Documents, user version, collation, encryption and
 other pragmas are retained. Revision zero means migration is still required,
@@ -49,7 +62,10 @@ Before promotion, migration calculates a conservative page budget for regenerate
 indexes, crediting reusable index pages and the valid database free-page list.
 Insufficient `LIMIT_SIZE` rejects the open without writing migration changes, so
 the original engine can still open a legacy file. Scalar member-path indexes can
-migrate at the existing limit because they reorder in place.
+migrate at the existing limit because they reorder in place. Only growth is checked:
+a migration that needs no new pages succeeds even when the file already exceeds its
+`LIMIT_SIZE` (allocation checks the length before adding a page, so a file that
+reached its limit is one page above it), and the stored limit is kept.
 
 The error reports an upper-bound budget in bytes. Retry with, for example,
 `filename=data.db;index migration limit size=256MB`, or set

@@ -71,6 +71,7 @@ namespace LiteDB.Engine
                             }
                         }
                     }
+                    this.FindStaleMemberPathDocuments(snapshot, indexer, capacity);
                 }
                 capacity.Validate(validation.CreateSnapshot(LockMode.Read, "$migration_capacity", false), _header);
             }
@@ -99,6 +100,8 @@ namespace LiteDB.Engine
                 {
                     var snapshot = transaction.CreateSnapshot(LockMode.Write, collection.Key, false);
                     var indexer = new IndexService(snapshot, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
+                    this.RepairStaleMemberPathDocuments(snapshot, indexer,
+                        this.FindStaleMemberPathDocuments(snapshot, indexer, null));
                     foreach (var index in snapshot.CollectionPage.GetCollectionIndexes())
                     {
                         if (index.IndexType == 0 && IndexExpressionIdentity.IsMemberPath(index.BsonExpr))
