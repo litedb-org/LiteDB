@@ -22,6 +22,8 @@ namespace LiteDB.Engine
         internal Action<string> CheckpointStage { get; set; }
 #endif
         internal Func<int[]> SharedReaderVersions { get; set; }
+        // Shared mode: outlives each short-lived engine; rations close checkpoints too.
+        internal CheckpointBackoff CheckpointBackoff { get; set; }
         internal bool SharedReadSnapshot { get; set; }
         internal Func<string, string, string[]> SharedReaderFiles { get; set; }
         internal EngineSettings Clone() => (EngineSettings)this.MemberwiseClone();

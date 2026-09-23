@@ -30,6 +30,9 @@ namespace LiteDB
             _settings = settings.Clone();
             _readers = new SharedReaderRegistry(settings.Filename, settings.SharedReaderFiles);
             _settings.SharedReaderVersions = _readers.LiveVersions;
+            // Each operation opens and closes an engine. Share one back-off so a
+            // long-lived reader cannot make every close pay for partial checkpoint.
+            _settings.CheckpointBackoff = new CheckpointBackoff();
 
             var name = SharedMutexNameFactory.Create(settings.Filename, settings.SharedMutexNameStrategy);
 

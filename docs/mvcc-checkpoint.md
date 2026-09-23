@@ -22,8 +22,14 @@ checking an empty WAL does not prevent a later write. Independently copying two
 live files is not a consistency protocol.
 
 An auto-checkpoint from a commit takes the full path whenever no transaction is
-open. Under readers it does partial work on a back-off (50 ms doubling to 1 s),
-because that work scans the index and requires multiple durable publication barriers.
+open and no snapshot or shared lease is live. Otherwise it does partial work on a
+back-off (50 ms doubling to 1 s), because that work validates and scans the whole
+WAL and requires multiple durable publication barriers. Only a reclaiming
+checkpoint resets the back-off: holding transaction exclusion is not enough, since
+snapshots and other connections' leases survive it. Shared mode opens and closes an
+engine per operation, so one back-off outlives those engines and also rations their
+close checkpoints; a close that can reclaim always runs. Explicit `Checkpoint()` is
+never rationed.
 
 ## Backfill and reclamation
 
