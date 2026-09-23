@@ -84,9 +84,17 @@ namespace LiteDB.Internals
             log.RejectedSyncs.Should().Be(1);
 
             IsDurable(db).Should().BeFalse("reopening for diagnostics must retain the weaker guarantee");
-            var before = log.DurableSyncs;
-            rows.Insert(new BsonDocument { ["_id"] = 2 });
-            log.DurableSyncs.Should().BeGreaterThan(before, "a new operation must still retry device sync");
+            var before = -1;
+            var after = -1;
+            EngineState.SimulateProcessCrash = stage =>
+            {
+                if (stage == "wal-before-durable-flush") before = log.DurableSyncs;
+                if (stage == "wal-after-durable-flush") after = log.DurableSyncs;
+            };
+            try { rows.Insert(new BsonDocument { ["_id"] = 2 }); }
+            finally { EngineState.SimulateProcessCrash = null; }
+            before.Should().BeGreaterThanOrEqualTo(0);
+            after.Should().Be(before + 1, "the new commit must retry device sync, independently of preamble syncs");
             rows.FindById(1)["value"].AsString.Should().Be("after");
             IsDurable(db).Should().BeFalse("the shared connection previously acknowledged a degraded commit");
             db.Checkpoint();
