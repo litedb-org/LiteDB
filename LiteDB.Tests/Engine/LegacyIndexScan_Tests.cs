@@ -27,6 +27,8 @@ namespace LiteDB.Tests.Engine
             _ => Query.GT("person", new BsonDocument { ["first"] = "a", ["age"] = 0 }),
             _ => Query.EQ("score", 1.5),
             _ => Query.EQ("score", 2.25),
+            _ => Query.EQ("score", 0.1),
+            _ => Query.EQ("score", 0.1m),
             _ => Query.GT("score", 1),
             _ => Query.LT("score", 2.25m),
             _ => BsonExpression.Create("$.tags[*] ANY = 'a'"),
