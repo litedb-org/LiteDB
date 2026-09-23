@@ -227,8 +227,11 @@ placed under `/dev/shm` to avoid sustained physical disk writes.
 
 The fault model assumes successful durable flushes persist addressed bytes and
 power-safe overwrite preserves previously synced bytes outside the write range.
-Retirement requires working durable sync; its barriers do not use the ordinary
-commit fallback. These tests do not promise recovery from arbitrary independent
+Retirement barriers always attempt a real sync, and a failed sync stops the
+engine with redo intact. Log storage that answers "cannot sync" (#2242) degrades
+them to ordered OS-cache flushes, which survive a process crash but not power
+loss, as before #2818; on such storage reclaimed slots are never reused, so the
+WAL appends until a full checkpoint truncates it. These tests do not promise recovery from arbitrary independent
 damage to both data and required recovery evidence. CRCs detect accidental damage,
 not deliberate tampering.
 
