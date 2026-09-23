@@ -159,7 +159,7 @@ namespace LiteDB.Internals
 
             var dataBefore = data.ToArray();
             var logBefore = log.ToArray();
-            using (var engine = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, Password = password, ReadOnly = true }))
+            using (var engine = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, Password = password, ReadOnly = true, LegacyIndexScan = true }))
             using (var db = new LiteDatabase(engine, disposeOnClose: false))
                 db.GetCollection("docs").Count().Should().Be(WalTestDatabase.DocumentCount);
             data.ToArray().Should().Equal(dataBefore);
@@ -182,7 +182,7 @@ namespace LiteDB.Internals
             {
                 Action open = () =>
                 {
-                    using var engine = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, Password = password, ReadOnly = readOnly });
+                    using var engine = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, Password = password, ReadOnly = readOnly, LegacyIndexScan = true });
                 };
                 open.Should().Throw<PageChecksumException>("an unattributable tail must not be discarded or replayed");
                 data.ToArray().Should().Equal(dataBefore);
