@@ -30,7 +30,12 @@ namespace LiteDB.Tests.Engine
             new BsonDocument { ["_id"] = id, ["value"] = value, ["payload"] = new string('p', 200) };
 
         private SharedEngine Open(string password = null, bool readOnly = false) =>
-            new SharedEngine(new EngineSettings { Filename = this.Filename, Password = password, ReadOnly = readOnly });
+            new SharedEngine(new EngineSettings { Filename = this.Filename, Password = password, ReadOnly = readOnly })
+            {
+                // Counted opens must not depend on how fast the machine runs the loop.
+                PinIdleLimit = TimeSpan.FromMinutes(10),
+                PinHoldLimit = TimeSpan.FromMinutes(10)
+            };
 
         [Theory]
         [InlineData(null)]
@@ -89,7 +94,7 @@ namespace LiteDB.Tests.Engine
         }
 
         [Fact]
-        public void Reader_disposed_on_another_thread_releases_the_pin_at_the_next_write()
+        public void Reader_disposed_on_another_thread_releases_the_pin()
         {
             using var engine = this.Open();
             engine.Insert("docs", Enumerable.Range(1, Count).Select(id => Doc(id, 0)), BsonAutoId.Int32);
@@ -98,6 +103,7 @@ namespace LiteDB.Tests.Engine
             engine.Update("docs", new[] { Doc(1, 1) });
 
             MvccCheckpoint_Tests.RunThread(reader.Dispose);
+            this.AssertMutexIsFree(null);
             engine.Update("docs", new[] { Doc(2, 1) });
 
             this.AssertMutexIsFree(null);
