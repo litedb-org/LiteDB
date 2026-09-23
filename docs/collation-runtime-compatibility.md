@@ -94,7 +94,8 @@ do not edit the version byte to bypass that boundary.
 - Mixed numbers compare their exact represented binary/decimal values. Binary64
   `0.1` is greater than decimal `0.1`; exactly represented values such as `0.5`
   remain equal across types. NaN sorts below numbers, and numeric hashes preserve
-  exact cross-type equality.
+  exact cross-type equality. Full scans, index seeks and in-memory expressions
+  share this comparison (`BsonNumberComparison`), so they select the same documents.
 
 ## Validation
 
