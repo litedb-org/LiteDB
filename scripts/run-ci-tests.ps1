@@ -40,7 +40,8 @@ if ($PartitionSuite) {
         rebuild = 'FullyQualifiedName~LiteDB.Tests.Engine.Rebuild'
         engine = 'FullyQualifiedName~LiteDB.Tests.Engine.&FullyQualifiedName!~LiteDB.Tests.Engine.Rebuild'
         query = 'FullyQualifiedName~LiteDB.Tests.QueryTest.'
-        internals = 'FullyQualifiedName~LiteDB.Internals.'
+        shared = 'FullyQualifiedName~LiteDB.Internals.Shared'
+        internals = 'FullyQualifiedName~LiteDB.Internals.&FullyQualifiedName!~LiteDB.Internals.Shared'
         remaining = 'FullyQualifiedName!~LiteDB.Tests.Issues.&FullyQualifiedName!~LiteDB.Tests.Engine.&FullyQualifiedName!~LiteDB.Tests.QueryTest.&FullyQualifiedName!~LiteDB.Internals.'
     }
     $failed = @()
