@@ -58,6 +58,8 @@ namespace LiteDB.Engine
                 new DataChecksumPolicy().Load(page);
                 _ = new HeaderPage(new PageBuffer(header, 0, 0));
             }
+            // Released engines cannot append after v10 publication.
+            if (LegacyTail && published) throw new PageChecksumException(FileOrigin.Log, PAGE_SIZE);
             if (IntentOnly && !published)
                 for (var i = 0; i < PAGE_SIZE; i++)
                 {
@@ -95,8 +97,11 @@ namespace LiteDB.Engine
             {
                 var complete = ReadComplete(stream, footer);
                 if (complete?.ConfirmsLegacyBackup == true) return complete;
-                if (stream.Length > footer + Size) throw new PageChecksumException(FileOrigin.Log, footer);
             }
+            // An older engine may also append commits after unsealed records.
+            var tail = headerOnly ? ReadLegacyTail(stream, bytes) : null;
+            if (tail != null) return tail;
+            if (stream.Length > footer + Size) throw new PageChecksumException(FileOrigin.Log, footer);
             // Redo has not been sealed. Ignore all of it, including torn AES
             // blocks whose random plaintext could otherwise look confirmed.
             return new HeaderJournal { Header = bytes, IntentOnly = true, FooterBytes = stream.Length };
@@ -146,29 +151,39 @@ namespace LiteDB.Engine
             var last = stream.Length / PAGE_SIZE * PAGE_SIZE - PAGE_SIZE;
             for (var position = last; position >= 0 && position >= last - PAGE_SIZE; position -= PAGE_SIZE)
             {
-                var bytes = new byte[PAGE_SIZE];
-                stream.Position = position;
-                stream.ReadRequired(bytes, 0, bytes.Length);
-                var page = new BufferSlice(bytes, 0, PAGE_SIZE);
-                if (page.ReadInt64(P_MAGIC) != PreparedMagic || page.ReadInt64(P_POSITION) != position || position < PAGE_SIZE) continue;
-                var expected = page.ReadUInt32(P_CRC);
-                page.Write(0u, P_CRC);
-                var actual = ~Crc32C.Update(uint.MaxValue, bytes, 0, bytes.Length);
-                page.Write(expected, P_CRC);
-                if (expected != actual || (bytes[HeaderPage.P_FILE_VERSION] != 8 && bytes[HeaderPage.P_FILE_VERSION] != 9)) continue;
-                if (page.ReadUInt32(P_BODY_CRC) != ComputeBody(stream, position, out _))
-                    throw new PageChecksumException(FileOrigin.Log, 0);
-                _ = new HeaderPage(new PageBuffer(bytes, 0, 0));
-                return new HeaderJournal
-                {
-                    Header = bytes, Position = position, ConfirmsLegacyBackup = true,
-                    FooterBytes = stream.Length - position
-                };
+                var journal = ReadPrepared(stream, position);
+                if (journal == null) continue;
+                // A released engine's commit in the confirmation slot is legacy redo, not a tear.
+                return IsLegacyAppend(stream, position + PAGE_SIZE, journal.Header) ? null : journal;
             }
             return null;
         }
 
-        internal static void Write(Stream stream, byte[] header, bool conversion, WalChecksum checksums, bool promotion = false)
+        private static HeaderJournal ReadPrepared(Stream stream, long position)
+        {
+            if (position < PAGE_SIZE || stream.Length < position + PAGE_SIZE) return null;
+            var bytes = new byte[PAGE_SIZE];
+            stream.Position = position;
+            stream.ReadRequired(bytes, 0, bytes.Length);
+            var page = new BufferSlice(bytes, 0, PAGE_SIZE);
+            if (page.ReadInt64(P_MAGIC) != PreparedMagic || page.ReadInt64(P_POSITION) != position) return null;
+            var expected = page.ReadUInt32(P_CRC);
+            page.Write(0u, P_CRC);
+            var actual = ~Crc32C.Update(uint.MaxValue, bytes, 0, bytes.Length);
+            page.Write(expected, P_CRC);
+            if (expected != actual || (bytes[HeaderPage.P_FILE_VERSION] != 8 && bytes[HeaderPage.P_FILE_VERSION] != 9)) return null;
+            if (page.ReadUInt32(P_BODY_CRC) != ComputeBody(stream, position, out _))
+                throw new PageChecksumException(FileOrigin.Log, 0);
+            _ = new HeaderPage(new PageBuffer(bytes, 0, 0));
+            return new HeaderJournal
+            {
+                Header = bytes, Position = position, ConfirmsLegacyBackup = true,
+                FooterBytes = stream.Length - position
+            };
+        }
+
+        internal static void Write(Stream stream, byte[] header, bool conversion, WalChecksum checksums,
+            bool promotion = false, Action<Stream> sync = null)
         {
             var bytes = new byte[Size];
             Buffer.BlockCopy(header, 0, bytes, 0, PAGE_SIZE);
@@ -207,7 +222,7 @@ namespace LiteDB.Engine
                 // A legacy reader trusts confirmation bits. All redo and the
                 // first footer page must reach storage BEFORE publishing one.
                 stream.Write(bytes, 0, PAGE_SIZE);
-                stream.FlushToDisk();
+                Sync(stream, sync);
                 stream.Write(bytes, PAGE_SIZE, PAGE_SIZE);
             }
             else if (promotion)
@@ -241,7 +256,7 @@ namespace LiteDB.Engine
         }
 
         /// <summary>Keep bounded legacy header redo while publishing mixed v10 coverage.</summary>
-        internal static void BackupLegacyHeader(Stream log, byte[] header)
+        internal static void BackupLegacyHeader(Stream log, byte[] header, Action<Stream> sync = null)
         {
             if (log.Length != 0) throw new IOException("Conversion requires a checkpointed WAL.");
             log.Position = 0;
@@ -258,16 +273,23 @@ namespace LiteDB.Engine
             // its unconfirmed base header is durable, extending it cannot
             // accidentally publish a transaction, even with encrypted blocks.
             log.Write(page.Array, 0, 32);
-            log.FlushToDisk();
+            Sync(log, sync);
             log.Write(page.Array, 32, PAGE_SIZE - 32);
-            log.FlushToDisk();
+            Sync(log, sync);
             Buffer.BlockCopy(header, 0, page.Array, 0, PAGE_SIZE);
             page.Write(1u, BasePage.P_TRANSACTION_ID);
             page.Write(false, BasePage.P_IS_CONFIRMED);
             log.Write(page.Array, 0, PAGE_SIZE);
             // A surviving prepared record must imply that every redo page was
             // already durable, even if the subsequent preparation sync fails.
-            log.FlushToDisk();
+            Sync(log, sync);
+        }
+
+        // The engine passes its log barrier, which degrades on storage that cannot sync (#2242).
+        private static void Sync(Stream stream, Action<Stream> sync)
+        {
+            if (sync != null) sync(stream);
+            else stream.FlushToDisk();
         }
     }
 }

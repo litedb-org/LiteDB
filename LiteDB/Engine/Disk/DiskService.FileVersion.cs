@@ -50,7 +50,7 @@ namespace LiteDB.Engine
                     if (compact) this.CrashPoint("promotion-after-header-flush");
                     rawLog.SetLength(originalLength);
                     if (compact) this.CrashPoint("promotion-before-journal-retire-flush");
-                    rawLog.FlushToDisk();
+                    SyncLogBarrier(rawLog);
                     if (compact) this.CrashPoint("promotion-after-journal-retire-flush");
                     _checksums.JournalBytes = 0;
                     FileVersion = version;

@@ -87,6 +87,21 @@ ID. The intent is accepted only while the primary legacy header still matches
 its original contents, ignoring reserved journal metadata and the unused
 transaction field.
 
+A released engine still reads that unchanged legacy primary and may append and
+acknowledge commits after the unsealed records before crashing without a
+checkpoint. All conversion records are unconfirmed transaction 1, so such a WAL
+is ordinary legacy redo. Recovery locates the first slot after the intact intent,
+redo and prepared records. A page there that no torn conversion write can
+produce (its first AES block differs from the record's, and it is a well-formed
+legacy page with a later transaction and a reachable page ID) marks a legacy
+tail: read-only and writable opens recover the whole WAL by legacy rules, and a
+writable open converts again after its legacy checkpoint. One torn write is the
+most an interrupted conversion leaves, so any longer tail that is not recognized
+fails with `PageChecksumException` without changing either file; checkpointing
+it with the released engine first lets the current engine convert. A released
+engine cannot append after v10 publication, so a legacy tail with a published
+primary is also rejected.
+
 A valid preparation proves the complete redo prefix even if the final
 confirmation tears. Current readers validate that prefix and expose a logical
 confirmation on its last header page, hiding the physical footer. Writable open
@@ -97,7 +112,8 @@ conversion redo is ignored and can be removed after syncing that header.
 These records retain legacy page layouts until v10 publication. The compatibility
 test checks that LiteDB 5.0.21 can read, write, and checkpoint an interrupted
 conversion before publication, and that the current engine then preserves those
-writes on conversion, with or without an intervening legacy checkpoint. If older
+writes on conversion, with or without an intervening legacy checkpoint. The same
+holds when conversion stopped at the redo or footer slot before sealing. If older
 engines append commits after the completed footer, current recovery locates that
 footer from the intent and replays the subsequent legacy transactions too.
 Older engines still use their own legacy recovery rules;
@@ -123,14 +139,22 @@ the earlier draft `LDBEGIN1` intent and its page-count-derived footer position. 
 header bytes, outside pragmas and the collection map. All checksums cover
 plaintext; the stream encrypts complete AES blocks afterward.
 
-Automatic conversion and checkpoint require successful durable WAL flushes and
-fail before editing data if the recovery information cannot be made durable.
-The v10 commit fallback for storage that rejects sync remains reported by
-`$database.durableLogFlush=false`; recent commits in that mode can be lost after
-power loss. Checkpoint still attempts a durable sync, even after commit fallback,
-and closes the engine on failure while preserving data and recovery frames.
-Semantic-error marker writes require the same durable journal before changing
-the header; an unsupported sync leaves that header intact during shutdown.
+Automatic conversion and checkpoint sync the WAL before editing data. A sync that
+fails (an I/O error, disk full) closes the engine before data is overwritten,
+preserving data and recovery frames. Semantic-error marker writes require the
+same durable journal before changing the header; a failed sync leaves that header
+intact during shutdown.
+
+Log storage that rejects sync as unsupported (some network shares and virtual
+file systems, #2242) is different: it can never make recovery information durable.
+Conversion, checkpoint and marker writes then proceed in the same write order
+without the device sync, as before #2818, reported by
+`$database.durableLogFlush=false`. The ordered writes reach the operating system,
+so a killed process still recovers; power loss can lose recent commits or leave a
+checkpoint partially applied, the same risk as before #2818. Every barrier still
+attempts a real sync first, so storage that syncs again regains the full
+guarantee. Data-file syncs are never downgraded.
+
 Successful syncs must actually persist the bytes. Independent damage to both the
 primary data and its durable recovery copies can still require restore or salvage.
 

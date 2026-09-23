@@ -11,11 +11,12 @@ namespace LiteDB.Engine
         private void BeginHeaderJournal(byte[] header, bool conversion = false, bool promotion = false)
         {
             // Every caller overwrites existing data or its sole header. Commit
-            // fallback may lose recent transactions, but must never let an
-            // in-place overwrite proceed without durable recovery information.
+            // fallback may lose recent transactions, but a failed sync must never
+            // let an in-place overwrite proceed without durable recovery information.
+            // Storage that cannot sync at all proceeds in write order (#2242).
             if (_checksums.JournalBytes != 0)
             {
-                _writer.Value.FlushToDisk();
+                SyncLogBarrier(_writer.Value);
                 return;
             }
             var log = ((ChecksummedWalStream)_writer.Value).RawStream;
@@ -26,12 +27,12 @@ namespace LiteDB.Engine
                 WalPadding.Pad(log, log.Length / WalChecksum.FrameSize * WalChecksum.FrameSize, initialize: true);
                 // A persisted footer must never depend on padding that existed
                 // only in cache when its own write reached the device.
-                log.FlushToDisk();
+                SyncLogBarrier(log);
             }
-            HeaderJournal.Write(log, header, conversion, _checksums, promotion);
+            HeaderJournal.Write(log, header, conversion, _checksums, promotion, SyncLogBarrier);
             _checksums.JournalBytes = HeaderJournal.Size;
-            log.FlushToDisk();
-            ((ChecksummedWalFactory)_logFactory).SyncDirectory();
+            SyncLogBarrier(log);
+            SyncLogDirectory();
         }
 
         private void PrepareCheckpointHeader()
@@ -53,6 +54,9 @@ namespace LiteDB.Engine
                 var journal = HeaderJournal.Read(reader.RawStream);
                 if (journal == null) return;
                 var published = journal.IsPublished(header);
+                // Unsealed conversion records followed by legacy commits: recover
+                // the whole WAL by legacy rules; conversion restarts after checkpoint.
+                if (journal.LegacyTail) return;
                 journal.ValidateCheckpointWal(reader.RawStream, published ? header : journal.Header);
                 // An intent-only journal proves the primary still matches the
                 // legacy header. Keep those exact bytes: rewriting the intent
@@ -85,9 +89,9 @@ namespace LiteDB.Engine
                 var data = _dataPool.Writer.Value;
                 if (_recoveredHeader != null)
                 {
-                    // The selected journal may have survived only in the OS cache.
-                    ((ChecksummedWalStream)_writer.Value).RawStream.FlushToDisk();
-                    ((ChecksummedWalFactory)_logFactory).SyncDirectory();
+                    // Make an OS-cached recovery copy durable before repairing its primary.
+                    SyncLogBarrier(((ChecksummedWalStream)_writer.Value).RawStream);
+                    SyncLogDirectory();
                     this.CrashPoint("promotion-recovery-before-header-write");
                     data.Position = 0;
                     data.Write(header, 0, header.Length);
@@ -98,7 +102,7 @@ namespace LiteDB.Engine
                 if (journal.Legacy && !published) return;
                 var writer = ((ChecksummedWalStream)_writer.Value).RawStream;
                 writer.SetLength(journal.Legacy ? 0 : WalPadding.AlignedLength(journal.Position));
-                writer.FlushToDisk();
+                SyncLogBarrier(writer);
                 _checksums.JournalBytes = 0;
                 _recoveredHeader = null;
             }

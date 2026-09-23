@@ -102,6 +102,13 @@ namespace LiteDB.Engine
         public bool ReadOnly { get; set; } = false;
 
         /// <summary>
+        /// With <see cref="ReadOnly"/>, open a file whose indexes still need the v11 ordering
+        /// migration without changing it. Queries ignore those indexes and use full scans,
+        /// so results stay correct but lookups become linear. Writable opens always migrate.
+        /// </summary>
+        public bool LegacyIndexScan { get; set; } = false;
+
+        /// <summary>
         /// After a Close with exception do a database rebuild on next open
         /// </summary>
         public bool AutoRebuild { get; set; } = false;

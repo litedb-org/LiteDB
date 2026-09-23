@@ -54,7 +54,12 @@ namespace LiteDB.Engine
                     snapshot.Safepoint();
                 }
             }
-            var required = checked((_currentPages + Math.Max(0, _additionalPages - freePages)) * PAGE_SIZE);
+            // Only growth is bounded. Allocation checks the length before adding a page,
+            // so a file that reached LIMIT_SIZE is already one page above it; an in-place
+            // reorder that needs no page must still succeed there.
+            var growth = Math.Max(0, _additionalPages - freePages);
+            if (growth == 0) return;
+            var required = checked((_currentPages + growth) * PAGE_SIZE);
             if (required > _limit)
                 throw new LiteException(0, "Index migration capacity exceeds LIMIT_SIZE. " +
                     "No migration changes were written. Retry with `index migration limit size=" + required +
