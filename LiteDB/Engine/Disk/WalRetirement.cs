@@ -71,6 +71,9 @@ namespace LiteDB.Engine
             var expected = result.RootCrc;
             var maximumSequence = result.Sequence;
             var bytes = new byte[WalChecksum.FrameSize];
+            // A slot reused under long-lived readers accumulates witnesses across
+            // records; keep duplicate detection constant-time per witness.
+            var slotTransactions = new Dictionary<long, HashSet<uint>>();
             while (next != 0)
             {
                 var position = next - PAGE_SIZE;
@@ -98,10 +101,12 @@ namespace LiteDB.Engine
                         (witness.Confirmed ? witness.Frame.Sequence < 1 || witness.Frame.Sequence > result.Sequence : witness.Frame.Sequence != 0))
                         throw new PageChecksumException(FileOrigin.Log, position);
                     if (!result.Slots.TryGetValue(witness.Position, out var entries))
+                    {
                         result.Slots.Add(witness.Position, entries = new List<Witness>());
-                    foreach (var entry in entries)
-                        if (entry.TransactionID == witness.TransactionID)
-                            throw new PageChecksumException(FileOrigin.Log, position);
+                        slotTransactions.Add(witness.Position, new HashSet<uint>());
+                    }
+                    if (!slotTransactions[witness.Position].Add(witness.TransactionID))
+                        throw new PageChecksumException(FileOrigin.Log, position);
                     entries.Add(witness);
                 }
                 next = page.ReadInt64(36);
