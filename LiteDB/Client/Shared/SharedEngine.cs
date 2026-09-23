@@ -29,6 +29,7 @@ namespace LiteDB
             // even if the process changes its working directory between calls.
             if (_settings.Filename != ":memory:" && _settings.Filename != ":temp:")
                 _settings.Filename = Path.GetFullPath(_settings.Filename);
+            _settings.SharedDurability = new SharedDurabilityState();
             _readers = new SharedReaderRegistry(_settings.Filename, _settings.SharedReaderFiles);
             _settings.SharedReaderVersions = _readers.LiveVersions;
 

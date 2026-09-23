@@ -24,6 +24,7 @@ namespace LiteDB.Engine
         internal Func<int[]> SharedReaderVersions { get; set; }
         internal bool SharedReadSnapshot { get; set; }
         internal Func<string, string, string[]> SharedReaderFiles { get; set; }
+        internal SharedDurabilityState SharedDurability { get; set; }
         internal EngineSettings Clone() => (EngineSettings)this.MemberwiseClone();
 
         /// <summary>
