@@ -15,7 +15,7 @@ namespace LiteDB.Internals
         [InlineData("secret", false)]
         [InlineData(null, true)]
         [InlineData("secret", true)]
-        public void RecoveryMarkerRequiresDurableJournalEvenAfterCommitFallback(string password, bool rejectJournalSync)
+        public void RecoveryMarkerRequiresDurableJournalWhenSyncFails(string password, bool rejectJournalSync)
         {
             using var data = new CheckpointDevice();
             using var log = new CheckpointDevice();
@@ -37,9 +37,10 @@ namespace LiteDB.Internals
                 log.RejectedSyncs.Should().Be(1);
 
                 log.SuccessfulSyncsBeforeFailure = rejectJournalSync ? 1 : 0;
+                log.SyncFailure = new IOException("durable sync failed");
                 data.PersistFirstChangedWrite = true;
                 var errors = engine.Close(LiteException.InvalidDatafileState("injected invalid page"));
-                errors.Should().Contain(error => error is UnauthorizedAccessException && error.Message == "durable sync unsupported");
+                errors.Should().Contain(error => error is IOException && error.Message == "durable sync failed");
                 data.ObservedWrites.Should().Be(0, "marking a header also requires durable recovery information");
                 data.ToArray().Should().Equal(originalData);
                 engine.GetMonitor().Transactions.Should().BeEmpty();
@@ -84,7 +85,7 @@ namespace LiteDB.Internals
         [InlineData("secret", false, true)]
         [InlineData(null, true, true)]
         [InlineData("secret", true, true)]
-        public void UnsupportedCheckpointSync_PreservesAtomicDataAndStopsWrites(
+        public void FailedCheckpointSync_PreservesAtomicDataAndStopsWrites(
             string password, bool durableCommits, bool rejectJournalSync)
         {
             using var data = new CheckpointDevice();
@@ -118,18 +119,20 @@ namespace LiteDB.Internals
                 var frameBytes = (originalWal.Length - preamble) / WalChecksum.FrameSize * WalChecksum.FrameSize;
 
                 // Exercise both barriers: the padded WAL and the sealed journal.
+                // Unlike an unsupported sync, a failed one leaves redo durability unknown.
                 log.SuccessfulSyncsBeforeFailure = rejectJournalSync ? 1 : 0;
+                log.SyncFailure = new IOException("durable sync failed");
                 data.PersistFirstChangedWrite = true;
                 Action checkpoint = () => db.Checkpoint();
-                checkpoint.Should().Throw<UnauthorizedAccessException>().WithMessage("durable sync unsupported");
+                checkpoint.Should().Throw<IOException>().WithMessage("durable sync failed");
                 data.ObservedWrites.Should().Be(0, "checkpoint needs durable redo before any data overwrite");
                 data.ToArray().Should().Equal(originalData);
                 log.ToArray().Take(preamble + (int)frameBytes).Should().Equal(originalWal.Take(preamble + (int)frameBytes));
                 log.RejectedSyncs.Should().Be(durableCommits ? 2 : 1, "checkpoint must retry real sync even after commit fallback");
                 Action write = () => rows.Insert(new BsonDocument { ["_id"] = 100 });
-                write.Should().Throw<LiteException>().WithMessage("*Dispose and reopen*");
+                write.Should().Throw<Exception>().WithMessage("*Dispose and reopen*");
                 Action rollback = () => db.Rollback();
-                rollback.Should().Throw<LiteException>().WithMessage("*Dispose and reopen*");
+                rollback.Should().Throw<Exception>().WithMessage("*Dispose and reopen*");
             }
 
             // Process death retains OS-cache bytes; they contain the whole commit.
@@ -137,6 +140,48 @@ namespace LiteDB.Internals
             // Power loss loses unsynced bytes. A successful first barrier retains
             // the update; otherwise only the fully checkpointed old state survives.
             AssertRecovery(data.Durable, log.Durable, password, rejectJournalSync ? 1 : 0);
+        }
+
+        [Theory]
+        [InlineData(null, false)]
+        [InlineData("secret", false)]
+        [InlineData(null, true)]
+        [InlineData("secret", true)]
+        public void UnsupportedCheckpointSync_ProceedsInWriteOrderAndKeepsWriting(string password, bool durableCommits)
+        {
+            // #2242: storage that cannot sync at all keeps working as before #2818.
+            // Ordered OS-cache writes keep it consistent after a process crash;
+            // power-loss safety is not claimed, so only the process image is checked.
+            using var data = new CheckpointDevice();
+            using var log = new CheckpointDevice();
+            var settings = new EngineSettings
+            {
+                DataStream = data, LogStream = log, Password = password, DurableCommits = durableCommits
+            };
+            using (var engine = new LiteEngine(settings))
+            using (var db = new LiteDatabase(engine, disposeOnClose: false))
+            {
+                db.CheckpointSize = 0;
+                var rows = db.GetCollection("rows");
+                rows.Insert(Documents(0));
+                rows.EnsureIndex("value");
+                db.GetCollection("cold").Insert(new BsonDocument { ["_id"] = 1, ["payload"] = "unchanged" });
+                db.Checkpoint();
+                log.SuccessfulSyncsBeforeFailure = 0;
+
+                db.BeginTrans();
+                rows.Update(Documents(1));
+                db.Commit().Should().BeTrue();
+                engine.Checkpoint().Should().BeGreaterThan(0);
+                log.RejectedSyncs.Should().BeGreaterThan(0, "checkpoint retries a real sync first");
+                db.GetCollection("$database").FindAll().Single()["durableLogFlush"].AsBoolean.Should().BeFalse();
+
+                rows.Update(Documents(2));
+                db.Checkpoint();
+                rows.Update(Documents(3));
+                AssertRecovery(data.ToArray(), log.ToArray(), password, 3);
+            }
+            AssertRecovery(data.ToArray(), log.ToArray(), password, 3);
         }
 
         private static void AssertRecovery(byte[] dataBytes, byte[] logBytes, string password, int value)
@@ -176,6 +221,7 @@ namespace LiteDB.Internals
         {
             internal byte[] Durable = Array.Empty<byte>();
             internal int SuccessfulSyncsBeforeFailure = -1;
+            internal Exception SyncFailure = new UnauthorizedAccessException("durable sync unsupported");
             internal int RejectedSyncs;
             internal int ObservedWrites;
             internal bool PersistFirstChangedWrite;
@@ -187,7 +233,7 @@ namespace LiteDB.Internals
                 if (SuccessfulSyncsBeforeFailure == 0)
                 {
                     RejectedSyncs++;
-                    throw new UnauthorizedAccessException("durable sync unsupported");
+                    throw SyncFailure;
                 }
                 if (SuccessfulSyncsBeforeFailure > 0) SuccessfulSyncsBeforeFailure--;
                 Durable = ToArray();

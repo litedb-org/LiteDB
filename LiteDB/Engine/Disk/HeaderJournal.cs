@@ -164,7 +164,8 @@ namespace LiteDB.Engine
             return null;
         }
 
-        internal static void Write(Stream stream, byte[] header, bool conversion, WalChecksum checksums)
+        internal static void Write(Stream stream, byte[] header, bool conversion, WalChecksum checksums,
+            Action<Stream> sync = null)
         {
             var bytes = new byte[Size];
             Buffer.BlockCopy(header, 0, bytes, 0, PAGE_SIZE);
@@ -203,7 +204,7 @@ namespace LiteDB.Engine
                 // A legacy reader trusts confirmation bits. All redo and the
                 // first footer page must reach storage BEFORE publishing one.
                 stream.Write(bytes, 0, PAGE_SIZE);
-                stream.FlushToDisk();
+                Sync(stream, sync);
                 stream.Write(bytes, PAGE_SIZE, PAGE_SIZE);
             }
             else stream.Write(bytes, 0, bytes.Length);
@@ -227,7 +228,7 @@ namespace LiteDB.Engine
         }
 
         /// <summary>Keep bounded legacy header redo while publishing mixed v10 coverage.</summary>
-        internal static void BackupLegacyHeader(Stream log, byte[] header)
+        internal static void BackupLegacyHeader(Stream log, byte[] header, Action<Stream> sync = null)
         {
             if (log.Length != 0) throw new IOException("Conversion requires a checkpointed WAL.");
             log.Position = 0;
@@ -244,16 +245,23 @@ namespace LiteDB.Engine
             // its unconfirmed base header is durable, extending it cannot
             // accidentally publish a transaction, even with encrypted blocks.
             log.Write(page.Array, 0, 32);
-            log.FlushToDisk();
+            Sync(log, sync);
             log.Write(page.Array, 32, PAGE_SIZE - 32);
-            log.FlushToDisk();
+            Sync(log, sync);
             Buffer.BlockCopy(header, 0, page.Array, 0, PAGE_SIZE);
             page.Write(1u, BasePage.P_TRANSACTION_ID);
             page.Write(false, BasePage.P_IS_CONFIRMED);
             log.Write(page.Array, 0, PAGE_SIZE);
             // A surviving prepared record must imply that every redo page was
             // already durable, even if the subsequent preparation sync fails.
-            log.FlushToDisk();
+            Sync(log, sync);
+        }
+
+        // The engine passes its log barrier, which degrades on storage that cannot sync (#2242).
+        private static void Sync(Stream stream, Action<Stream> sync)
+        {
+            if (sync != null) sync(stream);
+            else stream.FlushToDisk();
         }
     }
 }
