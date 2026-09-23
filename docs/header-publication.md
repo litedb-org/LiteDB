@@ -123,14 +123,22 @@ the earlier draft `LDBEGIN1` intent and its page-count-derived footer position. 
 header bytes, outside pragmas and the collection map. All checksums cover
 plaintext; the stream encrypts complete AES blocks afterward.
 
-Automatic conversion and checkpoint require successful durable WAL flushes and
-fail before editing data if the recovery information cannot be made durable.
-The v10 commit fallback for storage that rejects sync remains reported by
-`$database.durableLogFlush=false`; recent commits in that mode can be lost after
-power loss. Checkpoint still attempts a durable sync, even after commit fallback,
-and closes the engine on failure while preserving data and recovery frames.
-Semantic-error marker writes require the same durable journal before changing
-the header; an unsupported sync leaves that header intact during shutdown.
+Automatic conversion and checkpoint sync the WAL before editing data. A sync that
+fails (an I/O error, disk full) closes the engine before data is overwritten,
+preserving data and recovery frames. Semantic-error marker writes require the
+same durable journal before changing the header; a failed sync leaves that header
+intact during shutdown.
+
+Log storage that rejects sync as unsupported (some network shares and virtual
+file systems, #2242) is different: it can never make recovery information durable.
+Conversion, checkpoint and marker writes then proceed in the same write order
+without the device sync, as before #2818, reported by
+`$database.durableLogFlush=false`. The ordered writes reach the operating system,
+so a killed process still recovers; power loss can lose recent commits or leave a
+checkpoint partially applied, the same risk as before #2818. Every barrier still
+attempts a real sync first, so storage that syncs again regains the full
+guarantee. Data-file syncs are never downgraded.
+
 Successful syncs must actually persist the bytes. Independent damage to both the
 primary data and its durable recovery copies can still require restore or salvage.
 

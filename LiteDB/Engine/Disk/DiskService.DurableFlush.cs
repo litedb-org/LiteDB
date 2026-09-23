@@ -47,8 +47,8 @@ namespace LiteDB.Engine
             lock (stream)
             {
                 // Sync both the header recovery copy and preceding WAL before
-                // overwriting data. Unsupported sync must stop checkpoint before
-                // any data overwrite; commit fallback cannot make redo durable.
+                // overwriting data. A failed sync stops checkpoint before any data
+                // overwrite; storage that cannot sync at all proceeds degraded (#2242).
                 this.PrepareCheckpointHeader();
             }
         }
@@ -67,17 +67,43 @@ namespace LiteDB.Engine
                 return;
             }
 
+            this.SyncLogBarrier(stream);
+        }
+
+        /// <summary>
+        /// Sync the log at a recovery barrier: checkpoint and header-marker journals, WAL tail
+        /// repair and checksum conversion. A real sync is always attempted, even after commits
+        /// degraded, so storage that recovers regains its power-loss guarantee. Storage that
+        /// answers "cannot sync" (#2242) degrades like commits do: the ordered writes still
+        /// reach the OS cache, which keeps the file consistent after a process crash, but
+        /// power-loss safety is not claimed (the behaviour before #2818). Any other failure
+        /// propagates, so the caller stops before overwriting data.
+        /// </summary>
+        private void SyncLogBarrier(Stream log)
+        {
             try
             {
-                stream.FlushToDisk();
+                log.FlushToDisk();
             }
             catch (Exception ex) when (IsDurableFlushUnsupported(ex))
             {
                 // The pages were written successfully; only the sync request was refused.
-                stream.Flush();
-                _logFlushDegraded = true;
-                LOG($"log storage rejected durable flush ({ex.GetType().Name} 0x{ex.HResult:X8}); commits now flush to the OS cache only", "DISK");
+                log.Flush();
+                if (!_logFlushDegraded)
+                {
+                    _logFlushDegraded = true;
+                    LOG($"log storage rejected durable flush ({ex.GetType().Name} 0x{ex.HResult:X8}); commits now flush to the OS cache only", "DISK");
+                }
             }
+        }
+
+        /// <summary>
+        /// Sync the WAL directory entry unless the log storage already refused to sync:
+        /// then no power-loss guarantee is claimed and the directory sync adds nothing.
+        /// </summary>
+        private void SyncLogDirectory()
+        {
+            if (!_logFlushDegraded) ((ChecksummedWalFactory)_logFactory).SyncDirectory();
         }
 
         /// <summary>
