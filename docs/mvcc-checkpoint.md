@@ -150,6 +150,23 @@ checkpointer inspects shared leases while owning that same mutex. The reader's
 engine closes before releasing its lease, so neither streams nor cached WAL
 offsets outlive their protection. A newly opened query replays newer commits.
 
+A write from the thread that is iterating one of the same `SharedEngine`'s leased
+readers (for example `foreach (var d in col.FindAll()) col.Update(d)`) keeps that
+instance's engine and a mutex recursion until the thread's leased readers are
+disposed, as pre-v13 readers held them for their whole lifetime. Reopening per
+write would replay a WAL that the open reader keeps growing, which makes such a
+loop quadratic. Other threads and processes wait for the mutex during that period.
+A reader disposed on another thread releases the pin at its owner's next write or
+at `Dispose`. Writes from other threads or instances never pin.
+
+When the last leased reader is disposed and the WAL is not empty, a writable
+`SharedEngine` that can take the mutex without waiting opens and closes an engine,
+so its close checkpoint removes the WAL as the pre-v13 reader's close did. The
+data file alone is then again a complete database once every connection closes.
+If a lease cannot be registered (for example, no permission to create the
+`-readers` directory next to a read-only database, or an uninspectable registry),
+the query streams from the writer engine under the mutex instead, as before v13.
+
 An exclusively opened lease file is the liveness primitive. The process keeps its
 handle open; another participant can only open it exclusively after the OS has
 released that handle. Stale files are then deleted under the database mutex, and
@@ -164,8 +181,9 @@ the same mutex. After a machine restart there are no surviving reader handles.
 Explicit shared transactions, `FOR UPDATE`, and `SELECT INTO` retain writer
 serialization. Rebuild requires shared readers to be closed. Shared mode requires
 all participants to use the same mutex naming strategy and this coordination
-protocol, on one host with working file-sharing locks and permission to create
-lease files alongside the database. Do not mix concurrent direct connections or
+protocol, on one host with working file-sharing locks. Without permission to
+create lease files alongside the database, large results hold the mutex while
+streaming. Do not mix concurrent direct connections or
 older shared-mode implementations with these readers. Lease files must not be
 removed while the database is in use.
 
