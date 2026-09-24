@@ -139,6 +139,23 @@ namespace LiteDB.Tests.QueryTest
             groups.Should().Equal(1, 1, 2, 2, 5);
         }
 
+        [Fact]
+        public void Literal_seek_is_not_answered_by_a_cached_nearby_constant()
+        {
+            // Compiled constants are cached by Source; 1.0000000000000002 must not reuse 1.0.
+            BsonExpression.Create("1.0").ExecuteScalar().AsDouble.Should().Be(1.0);
+
+            using var db = new LiteDatabase(":memory:");
+            var rows = db.GetCollection("rows");
+            rows.EnsureIndex("n", "$.n");
+            rows.Insert(new BsonDocument { ["_id"] = 1, ["n"] = 1.0000000000000002 });
+            rows.Insert(new BsonDocument { ["_id"] = 2, ["n"] = 1.0 });
+
+            rows.FindOne(Query.EQ("n", 1.0000000000000002))["_id"].AsInt32.Should().Be(1);
+            rows.FindOne("$.n = 1.0000000000000002")["_id"].AsInt32.Should().Be(1);
+            rows.Count(Query.EQ("n", 1.0)).Should().Be(1);
+        }
+
         private static HashSet<int> Expected(Func<BsonValue, bool> predicate) =>
             new HashSet<int>(Enumerable.Range(0, Numbers.Length).Where(i => predicate(Numbers[i])));
 
