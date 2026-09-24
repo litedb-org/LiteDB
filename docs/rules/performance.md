@@ -14,6 +14,8 @@ Use this for optimization claims, benchmarks, cache budgets, and memory retentio
   WAL/disk growth, and throughput can move in different directions.
 - Separate cold compilation/startup from warm reuse. Use comparable environments
   and fresh processes where static caches or retained memory affect the result.
+  With tiered compilation, inspect consecutive timing windows and allow enough
+  warmup time; a fixed operation count can still measure instrumented tier-0 code.
   Do not combine measurements from different hosts/runtimes into one speedup.
 - Memory tests should prove ownership release while the intended owner remains
   alive. Allocation totals, working set, cache capacity, and live pinned bytes are

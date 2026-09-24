@@ -16,19 +16,26 @@ internal static class Program
     // One process per build/mode/scenario. Always creates its own child directory.
     private static void Main(string[] args)
     {
-        if (args.Length != 4 || !int.TryParse(args[3], out var count) || count <= 0 ||
+        if (typeof(LiteEngine).GetMethod("GetMonitor",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic) != null)
+            throw new InvalidOperationException("Benchmarks require a Release LiteDB assembly with TestingEnabled=false.");
+
+        if ((args.Length != 4 && args.Length != 5) || !int.TryParse(args[3], out var count) || count <= 0 ||
             (args[1] != "shared" && args[1] != "direct") ||
             !new[] { "point", "scan", "mixed", "phases" }.Contains(args[2]))
-            throw new ArgumentException("Usage: SharedReadBenchmarks <scratch-parent> <shared|direct> <point|scan|mixed|phases> <count>");
+            throw new ArgumentException("Usage: SharedReadBenchmarks <scratch-parent> <shared|direct> <point|scan|mixed|phases> <count> [warmup-seconds]");
+
+        var warmupSeconds = args.Length == 5 ? int.Parse(args[4], CultureInfo.InvariantCulture) : 0;
+        if (warmupSeconds < 0) throw new ArgumentOutOfRangeException(nameof(warmupSeconds));
 
         CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
         var directory = Path.Combine(Path.GetFullPath(args[0]), "shared-read-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
-        try { Run(Path.Combine(directory, "bench.db"), args[1], args[2], count); }
+        try { Run(Path.Combine(directory, "bench.db"), args[1], args[2], count, warmupSeconds); }
         finally { Directory.Delete(directory, true); }
     }
 
-    private static void Run(string filename, string mode, string scenario, int count)
+    private static void Run(string filename, string mode, string scenario, int count, int warmupSeconds)
     {
         using (var seed = new LiteDatabase(filename))
             seed.GetCollection("rows").InsertBulk(Enumerable.Range(1, Rows).Select(id => Row(id, 0)));
@@ -38,7 +45,7 @@ internal static class Program
         using var db = new LiteDatabase(engine);
         var rows = db.GetCollection("rows");
         var expected = new int[Rows + 1];
-        var warmup = scenario == "scan" || scenario == "phases" ? 20 : 1000;
+        var minimumWarmup = scenario == "scan" || scenario == "phases" ? 20 : 1000;
         var phases = new long[3];
 
         void Operation(int i)
@@ -82,7 +89,10 @@ internal static class Program
         var cold = Stopwatch.GetTimestamp();
         Operation(0);
         var coldMs = Milliseconds(Stopwatch.GetTimestamp() - cold);
-        for (var i = 0; i < warmup; i++) Operation(i);
+        var warming = Stopwatch.StartNew();
+        var warmup = 0;
+        while (warmup < minimumWarmup || warming.Elapsed.TotalSeconds < warmupSeconds) Operation(warmup++);
+        warming.Stop();
         Array.Clear(phases, 0, phases.Length);
         var samples = new double[count];
         var allocated = GC.GetTotalAllocatedBytes(true);
@@ -95,20 +105,41 @@ internal static class Program
         }
         var cpuMs = (Process.GetCurrentProcess().TotalProcessorTime - startCpu).TotalMilliseconds;
         var bytes = GC.GetTotalAllocatedBytes(true) - allocated;
+        // Preserve time order for checking that tiering or host load did not make
+        // the measured interval drift, before sorting for percentiles.
+        var windows = Enumerable.Range(0, Math.Min(10, count)).Select(window =>
+        {
+            var start = window * count / Math.Min(10, count);
+            var end = (window + 1) * count / Math.Min(10, count);
+            return samples.Skip(start).Take(end - start).Average();
+        }).ToArray();
         Array.Sort(samples);
         // Validate final write state too, outside the timing/allocation interval.
         if (scenario == "mixed")
             for (var id = 1; id <= Rows; id++) Validate(rows.FindById(id), id, expected);
 
+        var log = Path.Combine(Path.GetDirectoryName(filename),
+            Path.GetFileNameWithoutExtension(filename) + "-log" + Path.GetExtension(filename));
+        long LogBytes() => File.Exists(log) ? new FileInfo(log).Length : 0;
+        var walBytesBeforeClose = LogBytes();
+        var closing = Stopwatch.GetTimestamp();
+        db.Dispose();
+        engine.Dispose();
+        var closeMs = Milliseconds(Stopwatch.GetTimestamp() - closing);
+        var walBytesAfterClose = LogBytes();
+        if (walBytesAfterClose != 0) throw new InvalidOperationException("Final close left WAL content behind.");
+
         var binary = typeof(LiteDatabase).Assembly.Location;
         Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
         {
-            mode, scenario, count, warmup, coldMs, meanMs = samples.Average(),
+            mode, scenario, count, warmup, warmupSeconds, warmupMs = warming.Elapsed.TotalMilliseconds,
+            coldMs, meanMs = samples.Average(), windows,
             p50Ms = samples[count / 2], p99Ms = samples[Math.Min(count - 1, (int)(count * 0.99))],
             bytesPerOperation = bytes / (double)count, cpuMsPerOperation = cpuMs / count,
             queryMs = Milliseconds(phases[0]) / count,
             iterateMs = Milliseconds(phases[1]) / count,
             disposeMs = Milliseconds(phases[2]) / count,
+            closeMs, dataBytes = new FileInfo(filename).Length, walBytesBeforeClose, walBytesAfterClose,
             runtime = RuntimeInformation.FrameworkDescription, os = RuntimeInformation.OSDescription,
             binary, sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(binary)))
         }));
