@@ -32,7 +32,7 @@ internal static class DatabaseIntegrityVerifier
             context.Check(pages.TryGetValue(pair.Key, out var page) && page is CollectionPage,
                 $"Collection {pair.Value} points to invalid page {pair.Key}.");
 
-        foreach (var page in pages.Values.Where(page => page.PageType is PageType.Data or PageType.Index or PageType.VectorIndex))
+        foreach (var page in pages.Values.Where(page => page.PageType is PageType.Data or PageType.Index or PageType.VectorIndex or PageType.Schema))
             context.Check(collections.ContainsKey(page.ColID), $"Page {page.PageID} belongs to missing collection {page.ColID}.");
 
         ValidateEmptyList(context, header, pages);
@@ -59,6 +59,7 @@ internal static class DatabaseIntegrityVerifier
             PageType.Index => BasePage.ReadPage<IndexPage>(buffer),
             PageType.Data => BasePage.ReadPage<DataPage>(buffer),
             PageType.VectorIndex => BasePage.ReadPage<VectorIndexPage>(buffer),
+            PageType.Schema => BasePage.ReadPage<SchemaPage>(buffer),
             _ => basic
         };
     }
@@ -166,7 +167,22 @@ internal static class DatabaseIntegrityVerifier
         context.Check(ownedBlocks.SetEquals(dataBlocks.Keys), $"Collection {collection.PageID} has orphaned data blocks.");
         context.Check(starts.SetEquals(dataBlocks.Values.Where(block => !block.Extend).Select(block => block.Position)),
             $"Collection {collection.PageID} has a dangling data-chain root.");
-        DatabaseSemanticIntegrityVerifier.Verify(context, collection, traversedIndexes, dataBlocks, collation);
+
+        var schemaPages = new HashSet<uint>();
+        SchemaPage ReadSchema(uint pageID)
+        {
+            context.Check(pages.TryGetValue(pageID, out var page) && page is SchemaPage,
+                $"Collection {collection.PageID} points to invalid schema page {pageID}.");
+            schemaPages.Add(pageID);
+            return (SchemaPage)page;
+        }
+        var schemas = SchemaCatalog.Load(collection, ReadSchema);
+        var ownedSchemaPages = pages.Values.OfType<SchemaPage>()
+            .Where(page => page.ColID == collection.PageID).Select(page => page.PageID).ToHashSet();
+        context.Check(schemaPages.SetEquals(ownedSchemaPages),
+            $"Collection {collection.PageID} has orphaned or unlinked schema pages.");
+
+        DatabaseSemanticIntegrityVerifier.Verify(context, collection, traversedIndexes, dataBlocks, collation, schemas);
     }
 
     private static void AddUnique<T>(FuzzContext context, HashSet<T> target, IEnumerable<T> values, string owner)

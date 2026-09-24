@@ -16,6 +16,12 @@ namespace LiteDB
         private int? _transactionPageLimit;
 
         /// <summary>
+        /// Select how documents are written. Auto uses compact writes when
+        /// beneficial and lazily promotes existing v11 databases to v12.
+        /// </summary>
+        public CompactStorageMode CompactStorage { get; set; } = CompactStorageMode.Auto;
+
+        /// <summary>
         /// "memory profile": Balanced (default), LowMemory, or Throughput.
         /// Explicit cache and transaction limits override these defaults.
         /// </summary>
@@ -163,6 +169,10 @@ namespace LiteDB
             {
                 throw new LiteException(0, "`cache size` must be non-negative and `transaction pages` must be greater than zero");
             }
+            if (_values.TryGetValue("compact storage", out var compactStorage))
+            {
+                this.CompactStorage = ParseCompactStorage(compactStorage);
+            }
             if (_values.ContainsKey("index migration limit size"))
                 this.IndexMigrationLimitSize = _values.GetFileSize("index migration limit size", 0);
             this.ReadOnly = _values.GetValue("readonly", this.ReadOnly);
@@ -193,6 +203,7 @@ namespace LiteDB
                 firstKey.Equals("index migration limit size", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("initialsize", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("initial size", StringComparison.OrdinalIgnoreCase) ||
+                firstKey.Equals("compact storage", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("readonly", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("legacy index scan", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("upgrade", StringComparison.OrdinalIgnoreCase) ||
@@ -203,6 +214,25 @@ namespace LiteDB
                 firstKey.Equals("memory profile", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("cache size", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("transaction pages", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static CompactStorageMode ParseCompactStorage(string value)
+        {
+            if (bool.TryParse(value, out var enabled))
+            {
+                return enabled ? CompactStorageMode.Compact : CompactStorageMode.Legacy;
+            }
+
+            try
+            {
+                var mode = (CompactStorageMode)Enum.Parse(typeof(CompactStorageMode), value, true);
+                if (!Enum.IsDefined(typeof(CompactStorageMode), mode)) throw new ArgumentException();
+                return mode;
+            }
+            catch (Exception)
+            {
+                throw new LiteException(0, "Invalid connection string value type for `compact storage`");
+            }
         }
 
         /// <summary>
@@ -252,6 +282,7 @@ namespace LiteDB
                 CacheSize = this.CacheSize,
                 TransactionPageLimit = this.TransactionPageLimit,
                 ReadOnly = this.ReadOnly,
+                CompactStorage = this.CompactStorage,
                 LegacyIndexScan = this.LegacyIndexScan,
                 Collation = this.Collation,
                 Upgrade = this.Upgrade,
@@ -380,6 +411,13 @@ namespace LiteDB
             {
                 bld.Append("Reject Invalid Local Time=")
                     .Append(RejectInvalidLocalTime)
+                    .Append(';');
+            }
+
+            if (CompactStorage != CompactStorageMode.Auto)
+            {
+                bld.Append("Compact Storage=")
+                    .Append(CompactStorage)
                     .Append(';');
             }
 

@@ -90,7 +90,7 @@ namespace LiteDB.Engine
                 {
                     using (var reader = new BufferReader(data.Read(pkNode.DataBlock)))
                     {
-                        var doc = reader.ReadDocument(expression.Fields).GetValue();
+                        var doc = data.ReadDocument(reader, expression.Fields, false, pkNode.DataBlock).GetValue();
 
                         // first/last node in this document that will be added
                         IndexNode last = null;
@@ -189,7 +189,7 @@ namespace LiteDB.Engine
 
                     using (var reader = new BufferReader(data.Read(pkNode.DataBlock)))
                     {
-                        var doc = reader.ReadDocument(expression.Fields).GetValue();
+                        var doc = data.ReadDocument(reader, expression.Fields, false, pkNode.DataBlock).GetValue();
                         vectorService.Upsert(tuple.Index, tuple.Metadata, doc, pkNode.DataBlock);
                     }
 

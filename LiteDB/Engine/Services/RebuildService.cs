@@ -59,7 +59,8 @@ namespace LiteDB.Engine
             var buffer = this.ReadFirstBytes();
 
             // test for valid reader to use
-            _fileVersion = FileReaderV8.IsVersion(buffer) ? 8 : throw LiteException.InvalidDatabase();
+            _fileVersion = FileReaderV8.IsVersion(buffer) ?
+                buffer[HeaderPage.P_FILE_VERSION] : throw LiteException.InvalidDatabase();
         }
 
         public long Rebuild(RebuildOptions options, Collation currentCollation = null)
@@ -87,6 +88,8 @@ namespace LiteDB.Engine
         private void BuildReplacement(string tempFilename, RebuildOptions options, Collation currentCollation)
         {
             // open file reader
+            var compactStorage = options.CompactStorage ?? _settings.CompactStorage;
+
             using (var reader = _fileVersion == 7 ?
                 new FileReaderV7(_settings) :
                 (IFileReader)new FileReaderV8(_settings, options.Errors))
@@ -98,6 +101,7 @@ namespace LiteDB.Engine
                 using (var engine = new LiteEngine(new EngineSettings
                 {
                     Filename = tempFilename,
+                    CompactStorage = compactStorage,
                     Collation = options.Collation ?? currentCollation,
                     Password = options.ResolvePassword(_settings.Password),
                 }))

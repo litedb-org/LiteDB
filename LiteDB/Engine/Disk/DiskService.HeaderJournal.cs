@@ -8,7 +8,7 @@ namespace LiteDB.Engine
     {
         private byte[] _recoveredHeader;
 
-        private void BeginHeaderJournal(byte[] header, bool conversion = false)
+        private void BeginHeaderJournal(byte[] header, bool conversion = false, bool promotion = false)
         {
             // Every caller overwrites existing data or its sole header. Commit
             // fallback may lose recent transactions, but a failed sync must never
@@ -28,7 +28,7 @@ namespace LiteDB.Engine
                 // only in cache when its own write reached the device.
                 SyncLogBarrier(log);
             }
-            HeaderJournal.Write(log, header, conversion, _checksums, SyncLogBarrier);
+            HeaderJournal.Write(log, header, conversion, _checksums, promotion, SyncLogBarrier);
             _checksums.JournalBytes = HeaderJournal.Size;
             SyncLogBarrier(log);
             SyncLogDirectory();
@@ -80,10 +80,13 @@ namespace LiteDB.Engine
                     // Make an OS-cached recovery copy durable before repairing its primary.
                     SyncLogBarrier(((ChecksummedWalStream)_writer.Value).RawStream);
                     SyncLogDirectory();
+                    this.CrashPoint("promotion-recovery-before-header-write");
                     data.Position = 0;
                     data.Write(header, 0, header.Length);
+                    this.CrashPoint("promotion-recovery-after-header-write");
                 }
                 data.FlushToDisk();
+                this.CrashPoint("promotion-recovery-after-header-flush");
                 if (journal.Legacy && !published) return;
                 var writer = ((ChecksummedWalStream)_writer.Value).RawStream;
                 writer.SetLength(journal.Legacy ? 0 : WalPadding.AlignedLength(journal.Position));

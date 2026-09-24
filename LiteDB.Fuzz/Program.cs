@@ -15,7 +15,8 @@ internal static class Program
         new CompatibilityFuzzer(), new RecoveryFuzzer(), new ChaosFuzzer(), new ApiBoundaryFuzzer(),
         new StorageFailureFuzzer(), new OracleSelfTestFuzzer(), new PressureFuzzer(), new MalformedFileFuzzer(),
         new RebuildTransitionFuzzer(), new ConflictFuzzer(), new TransactionGateFuzzer(), new CursorHandoffFuzzer(),
-        new ChecksumPageFuzzer(), new ChecksumWalFuzzer(), new ChecksumMigrationFuzzer(), new ChecksumCrashFuzzer()
+        new ChecksumPageFuzzer(), new ChecksumWalFuzzer(), new ChecksumMigrationFuzzer(), new ChecksumCrashFuzzer(),
+        new CompactCodecFuzzer(), new CompactStorageFuzzer(), new CompactCrashFuzzer(), new CompactPowerLossFuzzer()
     };
 
     internal static async Task<int> Main(string[] args)

@@ -23,7 +23,7 @@ Version numbers proposed by concurrent PRs can collide. Do not copy an unmerged
 feature's format number or migration policy into general repository guidance.
 
 ## Vector File Compatibility
-New files use format v11 (v10 introduced checksums). Writable opens migrate v8/v9/v10 indexes;
+BSON-only new files use v11; Auto compact files use v12 (v10 introduced checksums). Writable opens migrate v8/v9/v10 indexes;
 read-only opens requiring migration must request a writable open first. Validate
 unique keys before mutation, durably promote the data header before migration WAL
 writes, and commit every rebuilt index with ordering revision byte 165. Rollback,
@@ -44,7 +44,7 @@ partial encrypted I/O recovery. Cross-runtime CI must exchange legacy fixtures
 between Windows/NLS and Linux/ICU; same-host tests do not cover that transition.
 See `docs/collation-runtime-compatibility.md` and `docs/vector-query-compatibility.md`.
 
-Format v10 introduced data-page and WAL checksums; v11 retains their layout. Writable v8/v9 opens
+Format v10 introduced data-page and WAL checksums; v11/v12 retain their layout. Writable v8/v9 opens
 recover/checkpoint and sync the legacy WAL, then durably publish v10 with Mixed
 data-page coverage. Cutover backs up only the header (32 KiB temporary WAL);
 ordinary writes/checkpoints lazily checksum old pages. Byte 31 is 00 for legacy,
@@ -90,6 +90,18 @@ it, verify that binding unless a validated newer header salt proves checkpoint
 publication completed. Never discard damaged redo needed by partial data writes.
 Keep the last nonempty recovery report across SharedEngine reopenings; distinguish
 invalid/partial WAL tails from intact unconfirmed tails in `$database` diagnostics.
+
+## Compact Document Storage
+`CompactStorageMode.Auto` writes compact documents when beneficial and lazily
+promotes v11 files to v12. Earlier writable formats first migrate checksums and indexes.
+`Legacy` writes BSON but retains v11 checksums and index ordering; it is not an
+old-engine downgrade. Header promotion uses the synced checksum recovery journal.
+Route DataBlock reads
+through `DocumentStorageCodec`, never public BSON alone. Schema pages belong to
+the collection transaction; read-version catalog caches must be cleared when WAL
+versions reset. Run `python3 scripts/test-compact-compatibility.py` alongside the
+vector compatibility script. See `docs/compact-document-storage.md` for layout,
+bounds, BSON rebuild options, and benchmark results.
 
 ## Migration and failure questions
 

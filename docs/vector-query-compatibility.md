@@ -73,7 +73,7 @@ have no specified relative order unless the query supplies a tie-breaker.
 
 ## Legacy v8/v9 migration and vector format 11
 
-New databases now use **format v11**, which protects both vector pages and the
+BSON-only databases use **format v11** and Auto compact databases **v12**. Both protect vector pages and the
 persisted comparison changes described in [index compatibility](collation-runtime-compatibility.md).
 Writable opens of v8/v9 files migrate indexes automatically; read-only opens that
 need migration request a writable open first. Simple member-path vector indexes

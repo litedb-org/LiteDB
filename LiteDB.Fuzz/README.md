@@ -115,6 +115,10 @@ using the same artifact root automatically replays the retained coverage corpus.
 | `pressure` | observed cache eviction under tiny auto-checkpoints and pinned readers |
 | `malformed-file` | grammar-aware header/page/WAL corruption and truncation contracts |
 | `oracle-selftest` | controlled bad states that every core invariant family must reject |
+| `compact-crash` | torn v11/v12 promotion, schema/document WAL commits and checkpoints, full payload/index recovery |
+| `compact-codec` | generated schemas/values/projections plus structural compact-payload mutations |
+| `compact-storage` | Auto/Legacy promotion, mixed CRUD, transactions, reopen, rebuild, encryption, and raw integrity |
+| `compact-power-loss` | v8/v9 promotion with torn headers/journals, repeated recovery cuts, read-only recovery, and atomic compact transactions |
 
 Persistent targets checkpoint and invoke an independent raw-file walker. It
 checks page accounting and ownership, empty/data/index free lists, data chains,
@@ -201,7 +205,7 @@ commits the unchanged raw files plus summaries, and pushes `main`.
 
 The `Checksums` CI jobs run pinned corpus cases and 28-case deterministic smoke
 replays on Linux/.NET 8 and Windows/.NET 10 for PRs and `dev` pushes. Every day at
-02:23 UTC they additionally run the four checksum targets for a **three-minute
+02:23 UTC they additionally run the four checksum targets plus compact-crash for a **three-minute
 wall-clock budget per platform**, with two seed shards and 30-second fresh-process
 epochs. Seeds rotate with the workflow run ID. A failed target fails its job after
 uploading the raw probe images, random input, traces and replay descriptor. This

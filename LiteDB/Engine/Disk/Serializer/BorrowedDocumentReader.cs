@@ -27,19 +27,24 @@ namespace LiteDB.Engine
             _requiresFallback = false;
             var active = _paths.Length == 64 ? UInt64.MaxValue : (1UL << _paths.Length) - 1;
             var found = 0UL;
+            var discriminator = _reader.ReadInt32();
 
-            this.ReadDocument(_reader, active, 0, values, ref found);
+            // Compact payloads have a negative magic discriminator. This reader
+            // is BSON-only, so let the owning codec path materialize them.
+            if (discriminator < 5) return false;
+
+            this.ReadDocument(_reader, active, 0, values, ref found, discriminator);
             return !_requiresFallback;
         }
 
         public void Dispose() => _reader.Dispose();
 
         private void ReadDocument(BufferReader reader, ulong active, int depth,
-            BorrowedValueBuffer values, ref ulong found)
+            BorrowedValueBuffer values, ref ulong found, int? storedLength = null)
         {
             ENSURE(depth < BufferReader.MAX_BSON_NESTING_DEPTH,
                 "BSON nesting depth exceeds the supported limit");
-            var length = reader.ReadInt32();
+            var length = storedLength ?? reader.ReadInt32();
             ENSURE(length >= 5 && length <= MAX_DOCUMENT_SIZE,
                 "BSON document length must include its terminator and stay within the document limit");
 

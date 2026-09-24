@@ -388,14 +388,14 @@ namespace LiteDB.Engine
         /// <summary>
         /// Read a BsonDocument from reader
         /// </summary>
-        public Result<BsonDocument> ReadDocument(HashSet<string> fields = null, int containerDepth = 1)
+        public Result<BsonDocument> ReadDocument(HashSet<string> fields = null, int containerDepth = 1, int? storedLength = null)
         {
             var doc = new BsonDocument();
 
             try
             {
                 ENSURE(containerDepth <= MAX_BSON_NESTING_DEPTH, "BSON nesting depth exceeds the supported limit");
-                var length = this.ReadInt32();
+                var length = storedLength ?? this.ReadInt32();
                 if (length == 0 && AllowZeroLengthDocument && containerDepth == 1) return doc;
                 ENSURE(length >= 5 && length <= MAX_DOCUMENT_SIZE,
                     "document length must include its header and terminator and stay within the document limit");

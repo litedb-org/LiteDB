@@ -15,6 +15,7 @@ namespace LiteDB.Engine
         private readonly MemoryCache _cache;
         private readonly EngineState _state;
         private readonly bool _readOnly;
+        internal bool CompactStorage { get; }
 
         private IStreamFactory _dataFactory;
         private readonly IStreamFactory _logFactory;
@@ -36,6 +37,11 @@ namespace LiteDB.Engine
             EngineState state,
             int[] memorySegmentSizes)
         {
+            if (!Enum.IsDefined(typeof(CompactStorageMode), settings.CompactStorage))
+            {
+                throw new ArgumentOutOfRangeException(nameof(settings.CompactStorage));
+            }
+
             _cache = new MemoryCache(memorySegmentSizes, settings.GetCacheSize());
             _state = state;
             _readOnly = settings.ReadOnly;
@@ -69,12 +75,14 @@ namespace LiteDB.Engine
                     }
                     LOG($"creating new database: '{Path.GetFileName(_dataFactory.Name)}'", "DISK");
 
-                    this.Initialize(_dataPool.Writer.Value, settings.Collation, settings.InitialSize);
+                    this.Initialize(_dataPool.Writer.Value, settings.Collation, settings.InitialSize,
+                        settings.CompactStorage == CompactStorageMode.Auto);
                     dataLength = _dataFactory.GetLength();
                 }
 
                 if (dataLength < PAGE_SIZE) throw LiteException.InvalidDatabase();
                 if (!isNew) this.ValidateExistingData();
+                CompactStorage = settings.CompactStorage != CompactStorageMode.Legacy;
 
                 if (settings.ReadOnly == false)
                 {
@@ -110,36 +118,6 @@ namespace LiteDB.Engine
         /// Get memory cache instance
         /// </summary>
         public MemoryCache Cache => _cache;
-
-        /// <summary>
-        /// Create a new empty database (use synced mode)
-        /// </summary>
-        private void Initialize(Stream stream, Collation collation, long initialSize)
-        {
-            var buffer = new PageBuffer(new byte[PAGE_SIZE], 0, 0);
-            var header = new HeaderPage(buffer, 0);
-
-            // update collation
-            header.Pragmas.Set(Pragmas.COLLATION, (collation ?? Collation.Default).ToString(), false);
-
-            // update buffer
-            header.UpdateBuffer();
-            header.EnsureVersion(HeaderPage.CURRENT_FILE_VERSION);
-            _checksums.Reset(Guid.NewGuid().ToByteArray());
-            FileVersion = HeaderPage.CURRENT_FILE_VERSION;
-            this.StampDataPage(buffer);
-
-            stream.Write(buffer.Array, buffer.Offset, PAGE_SIZE);
-
-            if (initialSize > 0)
-            {
-                if (stream is AesStream) throw LiteException.InitialSizeCryptoNotSupported();
-                if (initialSize % PAGE_SIZE != 0) throw LiteException.InvalidInitialSize();
-                stream.SetLength(initialSize);
-            }
-
-            stream.FlushToDisk();
-        }
 
         /// <summary>
         /// Get a new instance for read data/log pages. This instance are not thread-safe - must request 1 per thread (used in Transaction)

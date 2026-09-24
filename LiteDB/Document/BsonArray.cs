@@ -159,7 +159,14 @@ namespace LiteDB
             
             for (var i = 0; i < array.Count; i++)
             {
-                length += this.GetBytesCountElement(i.ToString(), array[i]);
+                var index = i;
+                var digits = 1;
+                while (index >= 10)
+                {
+                    index /= 10;
+                    digits++;
+                }
+                length += this.GetBytesCountElement(string.Empty, array[i]) + digits;
             }
 
             return _length = length;

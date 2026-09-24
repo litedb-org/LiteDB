@@ -117,7 +117,7 @@
       "target": "checksum-crash",
       "seed": 4058733,
       "count": 111,
-      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with durable recovery-journal sync before primary repair. Replayed with durable aligned WAL/header-journal padding; prior hashes retained in previousHashes. Replayed with truthful legacy ordering metadata and recoverable encrypted WAL initialization. Replayed with stale legacy-key detection during index migration.",
+      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with journal durability barriers and split compact publication writes. Replayed with durable aligned WAL/header-journal padding; prior hashes retained in previousHashes. Replayed with truthful legacy ordering metadata and recoverable encrypted WAL initialization. Replayed with stale legacy-key detection during index migration.",
       "inputHash": "1E46078AF4907DCF9B26DD11CB7FEBBF9FF35C4D769434B690C0BDC9D7266D76",
       "traceHash": "982397095328DA47D65D28F31C889194DC73A58551FD0A41F671492B443AAA4F",
       "previousHashes": [
@@ -142,7 +142,7 @@
       "target": "checksum-crash",
       "seed": 3163459,
       "count": 201,
-      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with durable recovery-journal sync before primary repair. Replayed with durable aligned WAL/header-journal padding; prior hashes retained in previousHashes. Replayed with truthful legacy ordering metadata and recoverable encrypted WAL initialization. Replayed with stale legacy-key detection during index migration.",
+      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with journal durability barriers and split compact publication writes. Replayed with durable aligned WAL/header-journal padding; prior hashes retained in previousHashes. Replayed with truthful legacy ordering metadata and recoverable encrypted WAL initialization. Replayed with stale legacy-key detection during index migration.",
       "inputHash": "4E9F4E4256B153C5F013008F065429D7424F944BE655893B9F0EF280F9B4DB4C",
       "traceHash": "2143943C1C5855F76E075641C0B08CA9B199C2D57DEE595FA6678460CD1878D3",
       "previousHashes": [
@@ -194,6 +194,37 @@
       "reason": "Issue #2991: original failing seed/prefix; checkpoint after async cursor handoff (schedule dependent).",
       "inputHash": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
       "traceHash": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+    },
+    {
+      "target": "compact-crash",
+      "seed": 2937,
+      "count": 64,
+      "reason": "Stacked v11/v12 promotion, compact transaction and checkpoint power loss preserve complete payloads and index results. Replayed with journal durability barriers and split compact publication writes. Replayed with durable aligned WAL/header-journal padding; prior hashes retained in previousHashes.",
+      "inputHash": "7CD881855B7E49B8DA07A0D2B5AC50DC471A54F4AB1421D31E58AAD61735A603",
+      "traceHash": "0985FA8F69A3AA71DAEB74D9F187D1633DD96DFC2F81A30CA68E3D31D229BF0C",
+      "previousHashes": [
+        {
+          "inputHash": "EEBA1555D62FDBCAA7FCAB01C2CC4595DC5DE3D4C9748D68EF5C7BFB633E0B89",
+          "traceHash": "7881DCF92B4E2F0E359C80EEB2A886EA3927778D894AC07E7361AEF8F684FF03",
+          "reason": "Before durable WAL/header-journal padding changed the sampled I/O event sequence in this stack layer."
+        }
+      ]
+    },
+    {
+      "target": "compact-codec",
+      "seed": 2999,
+      "count": 64,
+      "reason": "UInt16 vector dimension boundary matches public BSON admission for direct, nested-document and array values; oversized vectors must never produce compact payloads.",
+      "inputHash": "222B67FA01E5D9BF86248EAEC4DA5A0C3F27B506C4E050BA913184A08DC80E6A",
+      "traceHash": "689EE33F26471CD31DDBFB4ADA2C496B1850645392F0B83CE6AA388F8E9281C3"
+    },
+    {
+      "target": "compact-power-loss",
+      "seed": 2937,
+      "count": 64,
+      "reason": "Repeated torn compact promotion/recovery and OS-cached journal probes on the shared checksum journal.",
+      "inputHash": "7078B1D7D4A80D8CBDD9115DEA328D2BBFCF85D1A77E668F0D81CFDB5581E9E2",
+      "traceHash": "7AB1BB212B6C84D7CA6770790C2C35900747DB6CE51FDA833B89D42AF14CADC6"
     }
   ]
 }

@@ -20,6 +20,12 @@ namespace LiteDB.Engine
         private int? _transactionPageLimit;
 
         /// <summary>
+        /// Select how documents are written. Auto uses compact writes when
+        /// beneficial and lazily promotes existing v11 databases to v12.
+        /// </summary>
+        public CompactStorageMode CompactStorage { get; set; } = CompactStorageMode.Auto;
+
+        /// <summary>
         /// Memory and transaction defaults for this database. Explicit limits
         /// take precedence regardless of property assignment order.
         /// </summary>

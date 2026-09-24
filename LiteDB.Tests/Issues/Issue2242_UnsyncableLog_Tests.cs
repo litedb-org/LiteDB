@@ -62,6 +62,41 @@ namespace LiteDB.Tests.Issues
             AssertDocuments(data, log, count: WalTestDatabase.DocumentCount + 1, value: 1);
         }
 
+        [Fact]
+        public void Compact_promotion_on_a_log_that_never_syncs_publishes_v12_and_keeps_writing()
+        {
+            using var data = new MemoryStream();
+            using var log = new UnsyncableLog();
+
+            using (var engine = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, CompactStorage = CompactStorageMode.Legacy }))
+            using (var db = new LiteDatabase(engine, disposeOnClose: false))
+            {
+                db.GetCollection("rows").Insert(Documents(0, 16));
+                db.Checkpoint();
+            }
+            data.ToArray()[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.INDEX_FILE_VERSION);
+
+            using (var engine = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, CompactStorage = CompactStorageMode.Compact }))
+            using (var db = new LiteDatabase(engine, disposeOnClose: false))
+            {
+                db.CheckpointSize = 0;
+                var rows = db.GetCollection("rows");
+                // Repeated field names make the compact representation beneficial.
+                rows.Insert(Enumerable.Range(16, 16).Select(id =>
+                {
+                    var document = LiteDB.Tests.Engine.CompactStorage_Tests.Document(id);
+                    document["value"] = 1;
+                    return document;
+                }));
+                db.Checkpoint();
+                rows.Update(Documents(0, 16, value: 1));
+                DurableLogFlush(db).Should().BeFalse();
+            }
+
+            data.ToArray()[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.COMPACT_FILE_VERSION, "the first compact write promotes v11");
+            AssertDocuments(data, log, count: 32, value: 1);
+        }
+
         // Reopen a copy of what a killed process leaves behind: every byte handed to the OS.
         private static void AssertDocuments(MemoryStream data, MemoryStream log, int count, int value)
         {

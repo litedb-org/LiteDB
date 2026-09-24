@@ -5,7 +5,7 @@ namespace LiteDB.Engine
 {
     internal partial class DiskService
     {
-        private void ValidateExistingData()
+        private HeaderPage ValidateExistingData()
         {
             var stream = _dataPool.Rent();
             try
@@ -26,7 +26,7 @@ namespace LiteDB.Engine
 
                 // Validate identity and the complete header before permitting any repair.
                 this.LoadChecksums(new BufferSlice(bytes, 0, PAGE_SIZE));
-                _ = new HeaderPage(new PageBuffer(bytes, 0, 0));
+                return new HeaderPage(new PageBuffer(bytes, 0, 0));
             }
             finally
             {

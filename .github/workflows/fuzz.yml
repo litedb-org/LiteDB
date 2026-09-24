@@ -76,7 +76,7 @@ jobs:
             count: 30
           - name: linux-cache-vienna
             os: ubuntu-latest
-            targets: linq-cache,parser,sql-dml,value,api-boundary,oracle-selftest,transaction-gate,cursor-handoff
+            targets: linq-cache,parser,sql-dml,value,api-boundary,oracle-selftest,transaction-gate,cursor-handoff,compact-codec
             seed: 102947
             timezone: Europe/Vienna
             culture: tr_TR.UTF-8
@@ -100,7 +100,7 @@ jobs:
             count: 10
           - name: mac-storage-vector
             os: macos-latest
-            targets: storage,storage-failure,rebuild,rebuild-transition,vector,integrity,compatibility,malformed-file
+            targets: storage,storage-failure,rebuild,rebuild-transition,vector,integrity,compatibility,malformed-file,compact-storage,compact-power-loss
             seed: 302947
             timezone: America/New_York
             culture: en_US.UTF-8
@@ -180,7 +180,7 @@ jobs:
       - name: Checksum smoke and deterministic replay
         run: >-
           dotnet run --project LiteDB.Fuzz -c Release -f "${{ matrix.framework }}" --no-build --
-          --target checksum-page,checksum-wal,checksum-migration,checksum-crash
+          --target checksum-page,checksum-wal,checksum-migration,checksum-crash,compact-crash
           --seed 2954 --count 28 --determinism-check --artifact-dir artifacts/checksum-smoke
       - name: Short daily checksum campaign
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
@@ -190,7 +190,7 @@ jobs:
         run: |
           $fuzzSeed = [int](([long]$env:GITHUB_RUN_ID % 1900000000) + 2954)
           dotnet run --project LiteDB.Fuzz -c Release -f $env:FUZZ_FRAMEWORK --no-build -- `
-            --target checksum-page,checksum-wal,checksum-migration,checksum-crash `
+            --target checksum-page,checksum-wal,checksum-migration,checksum-crash,compact-crash `
             --seed $fuzzSeed --duration 3m --workers 2 --epoch-duration 30s `
             --artifact-dir artifacts/checksum-daily
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -214,11 +214,11 @@ jobs:
       matrix:
         include:
           - shard: correctness
-            targets: query,linq-cache,transaction,page,index,bson,parser,sql-dml,sort,value,api-boundary,oracle-selftest,pressure
+            targets: query,linq-cache,transaction,page,index,bson,parser,sql-dml,sort,value,api-boundary,oracle-selftest,pressure,compact-codec
             seedOffset: 500000
             framework: net8.0
           - shard: persistence
-            targets: wal,shared,storage,storage-failure,rebuild,rebuild-transition,vector,mapper,integrity,snapshot,threaded-snapshot,concurrent,transaction-gate,cursor-handoff,conflict,power-loss,recovery,chaos,boundary,read-only,compatibility,malformed-file
+            targets: wal,shared,storage,storage-failure,rebuild,rebuild-transition,vector,mapper,integrity,snapshot,threaded-snapshot,concurrent,transaction-gate,cursor-handoff,conflict,power-loss,recovery,chaos,boundary,read-only,compatibility,malformed-file,compact-storage,compact-power-loss
             seedOffset: 1500000
             framework: net10.0
     env:

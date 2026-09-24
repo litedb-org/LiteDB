@@ -108,7 +108,7 @@ namespace LiteDB.Tests.Engine
         internal static LiteDatabase Open(string file, string password, bool readOnly = false) =>
             new LiteDatabase(new LiteEngine(new EngineSettings
             {
-                Filename = file, Password = password, ReadOnly = readOnly, TransactionPageLimit = 8
+                Filename = file, CompactStorage = CompactStorageMode.Legacy, Password = password, ReadOnly = readOnly, TransactionPageLimit = 8
             }));
 
         internal static byte[] ReadHeader(string file, string password)

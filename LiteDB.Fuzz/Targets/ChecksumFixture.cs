@@ -33,7 +33,7 @@ internal sealed class ChecksumFixture : IDisposable
     internal static LiteDatabase Open(Stream data, Stream log, string password, bool readOnly = false) =>
         new(new LiteEngine(new EngineSettings
         {
-            DataStream = data, LogStream = log, Password = password, ReadOnly = readOnly,
+            CompactStorage = CompactStorageMode.Legacy, DataStream = data, LogStream = log, Password = password, ReadOnly = readOnly,
             DurableCommits = true, TransactionPageLimit = 1
         }));
 

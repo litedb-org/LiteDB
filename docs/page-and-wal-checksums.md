@@ -1,8 +1,8 @@
 # Data-page and WAL checksums (#2935)
 
 Format **10** introduced complete data-page checksum coverage. New databases
-now use **11**, adding the index-ordering contract without changing checksum
-encoding. The checksum-only conversion described below is followed by index
+use **11** for BSON-only creation or **12** for Auto compact creation,
+retaining the index-ordering contract and checksum encoding. The checksum-only conversion described below is followed by index
 migration: that additional work can rewrite indexes and use significant WAL/temp
 space. Legacy read-only opens that require index migration fail without changing
 the files. See [index migration](collation-runtime-compatibility.md).

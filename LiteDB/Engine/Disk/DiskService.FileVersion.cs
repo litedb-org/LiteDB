@@ -35,14 +35,22 @@ namespace LiteDB.Engine
                     _ = new HeaderPage(header);
                     var rawLog = ((ChecksummedWalStream)writer).RawStream;
                     var originalLength = rawLog.Length;
-                    BeginHeaderJournal(header.Array);
+                    var compact = version == HeaderPage.COMPACT_FILE_VERSION;
+                    if (compact) this.CrashPoint("promotion-before-journal-write");
+                    BeginHeaderJournal(header.Array, promotion: compact);
+                    if (compact) this.CrashPoint("promotion-after-journal-flush");
                     header[HeaderPage.P_FILE_VERSION] = version;
                     PageChecksum.Write(header);
                     stream.Position = 0;
+                    if (compact) this.CrashPoint("promotion-before-header-write");
                     stream.Write(header.Array, 0, PAGE_SIZE);
+                    if (compact) this.CrashPoint("promotion-after-header-write");
                     stream.FlushToDisk();
+                    if (compact) this.CrashPoint("promotion-after-header-flush");
                     rawLog.SetLength(originalLength);
+                    if (compact) this.CrashPoint("promotion-before-journal-retire-flush");
                     SyncLogBarrier(rawLog);
+                    if (compact) this.CrashPoint("promotion-after-journal-retire-flush");
                     _checksums.JournalBytes = 0;
                     FileVersion = version;
                 }

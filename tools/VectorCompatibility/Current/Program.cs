@@ -10,6 +10,11 @@ namespace VectorCompatibility.Current
     {
         private static void Main(string[] args)
         {
+            if (args[0].StartsWith("compact-", StringComparison.Ordinal))
+            {
+                CompactCompatibility.Run(args);
+                return;
+            }
             foreach (var encrypted in new[] { false, true })
             {
                 var suffix = encrypted ? "encrypted.db" : "plain.db";

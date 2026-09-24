@@ -124,7 +124,7 @@ namespace LiteDB.Engine
                 FooterBytes = position + Size == stream.Length ? Size : 0
             };
             var version = header[HeaderPage.P_FILE_VERSION];
-            if (version != 8 && version != 9 && version != HeaderPage.CHECKSUM_FILE_VERSION && version != HeaderPage.INDEX_FILE_VERSION) return null;
+            if (version != 8 && version != 9 && version != HeaderPage.CHECKSUM_FILE_VERSION && version != HeaderPage.INDEX_FILE_VERSION && version != HeaderPage.COMPACT_FILE_VERSION) return null;
             if (journal.Legacy ? position % PAGE_SIZE != 0 : WalPadding.TrailingBytes(position) != 0) return null;
             if (!journal.Legacy)
             {
@@ -179,7 +179,7 @@ namespace LiteDB.Engine
         }
 
         internal static void Write(Stream stream, byte[] header, bool conversion, WalChecksum checksums,
-            Action<Stream> sync = null)
+            bool promotion = false, Action<Stream> sync = null)
         {
             var bytes = new byte[Size];
             Buffer.BlockCopy(header, 0, bytes, 0, PAGE_SIZE);
@@ -220,6 +220,16 @@ namespace LiteDB.Engine
                 stream.Write(bytes, 0, PAGE_SIZE);
                 Sync(stream, sync);
                 stream.Write(bytes, PAGE_SIZE, PAGE_SIZE);
+            }
+            else if (promotion)
+            {
+                for (var part = 0; part < 2; part++)
+                {
+                    stream.Write(bytes, part * PAGE_SIZE, PAGE_SIZE);
+#if DEBUG || TESTING
+                    EngineState.SimulateProcessCrash?.Invoke("promotion-after-journal-page-write");
+#endif
+                }
             }
             else stream.Write(bytes, 0, bytes.Length);
         }

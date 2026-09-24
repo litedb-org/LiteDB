@@ -6,7 +6,7 @@ internal static class DatabaseSemanticIntegrityVerifier
 {
     internal static void Verify(FuzzContext context, CollectionPage collection,
         IReadOnlyDictionary<CollectionIndex, IReadOnlyList<IndexNode>> indexes,
-        IReadOnlyDictionary<PageAddress, DataBlock> blocks, Collation collation)
+        IReadOnlyDictionary<PageAddress, DataBlock> blocks, Collation collation, SchemaCatalog schemas)
     {
         var primaries = indexes.Where(pair => pair.Key.Name == "_id").ToArray();
         context.Check(primaries.Length == 1, $"Collection {collection.PageID} does not have exactly one primary index.");
@@ -16,7 +16,7 @@ internal static class DatabaseSemanticIntegrityVerifier
         {
             context.Check(blocks.TryGetValue(node.DataBlock, out var block) && !block.Extend,
                 $"Primary node {node.Position} points to an invalid document root {node.DataBlock}.");
-            context.Check(documents.TryAdd(node.DataBlock, ReadDocument(blocks, node.DataBlock)),
+            context.Check(documents.TryAdd(node.DataBlock, ReadDocument(blocks, node.DataBlock, schemas)),
                 $"Multiple primary nodes point to document root {node.DataBlock}.");
             var document = documents[node.DataBlock];
             context.Check(document.TryGetValue("_id", out var id) && id.CompareTo(node.Key, collation) == 0,
@@ -54,7 +54,8 @@ internal static class DatabaseSemanticIntegrityVerifier
     private static IEnumerable<IndexNode> LiveNodes(IEnumerable<IndexNode> nodes) =>
         nodes.Where(node => !node.DataBlock.IsEmpty);
 
-    private static BsonDocument ReadDocument(IReadOnlyDictionary<PageAddress, DataBlock> blocks, PageAddress root)
+    private static BsonDocument ReadDocument(IReadOnlyDictionary<PageAddress, DataBlock> blocks,
+        PageAddress root, SchemaCatalog schemas)
     {
         IEnumerable<BufferSlice> Read()
         {
@@ -62,7 +63,7 @@ internal static class DatabaseSemanticIntegrityVerifier
                 yield return blocks[address].Buffer;
         }
         using var reader = new BufferReader(Read(), false);
-        return reader.ReadDocument().GetValue();
+        return DocumentStorageCodec.Read(reader, catalog: () => schemas, address: root).GetValue();
     }
 
     private static long Metric(FuzzContext context, string name) =>
