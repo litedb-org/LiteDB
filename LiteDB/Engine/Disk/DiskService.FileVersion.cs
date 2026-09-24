@@ -23,6 +23,19 @@ namespace LiteDB.Engine
             if (FileVersion >= version) return;
             if (!ChecksumsEnabled) throw new InvalidOperationException("Enable checksums before promoting index storage.");
             var writer = _writer.Value;
+            _signals?.StructuralBegin();
+            try
+            {
+                this.WriteFileVersion(writer, version);
+            }
+            finally
+            {
+                _signals?.StructuralEnd(-1);
+            }
+        }
+
+        private void WriteFileVersion(Stream writer, byte version)
+        {
             lock (writer)
             {
                 var stream = _dataPool.Writer.Value;

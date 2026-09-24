@@ -7,6 +7,13 @@ namespace LiteDB.Engine
     /// <summary>Verifies frames and complete transactions before exposing confirmation.</summary>
     internal sealed class WalRecovery
     {
+        /// <summary>Start fresh, or resume after an earlier scan that ended at this sequence and confirmed end.</summary>
+        internal WalRecovery(long sequence = 0, long confirmedEnd = 0)
+        {
+            Sequence = sequence;
+            ConfirmedEnd = confirmedEnd;
+        }
+
         internal long ConfirmedEnd { get; private set; }
         internal long Sequence { get; private set; }
         internal bool InvalidTail { get; private set; }

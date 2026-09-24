@@ -64,6 +64,18 @@ namespace LiteDB.Engine
         internal long SnapshotOpens => _client?.SnapshotOpens ?? 0;
         internal bool HasCachedSnapshot => _client?.HasCachedSnapshot ?? false;
 
+#if DEBUG || TESTING
+        internal CoordinatorClient ClientForTests
+        {
+            get { lock (_roleLock) return _client; }
+        }
+
+        internal CoordinatorHost HostForTests
+        {
+            get { lock (_roleLock) return _host; }
+        }
+#endif
+
         /// <summary>Test hook: stop coordinating as a killed process would (no checkpoint, no cleanup).</summary>
         internal void CrashCoordinator()
         {
