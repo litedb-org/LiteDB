@@ -198,7 +198,9 @@ On Linux and macOS this requires LiteDB's own device sync: released .NET runtime
 lose every `fsync` error in `FileStream.Flush(true)` (dotnet/runtime#124725), which
 had hidden EIO and unsupported-sync answers alike. File handles are now synced with
 `fsync` (`F_FULLFSYNC` on macOS, falling back to `fsync`), so such storage reports
-`durableLogFlush=false` and an EIO stops the checkpoint. This costs about one
+`durableLogFlush=false` and an EIO stops the checkpoint. Encrypted databases on
+such storage now fail when their WAL is created, as they already did on Windows:
+the encrypted preamble requires a successful sync and has no fallback. This costs about one
 device sync per commit (about 1 ms on NVMe, far more on hard disks and network
 volumes); batched transactions and `InsertBulk` are unaffected. Set
 `durable commits=false` (`DurableCommits = false`) to restore the earlier
