@@ -103,8 +103,9 @@ namespace LiteDB.Engine
                 // initialize disk service (will create database if needed)
                 _disk = new DiskService(_settings, _state, MEMORY_SEGMENT_SIZES);
 
-                // read page with no cache ref (has a own PageBuffer) - do not Release() support
-                var buffer = _disk.ReadFull(FileOrigin.Data).First();
+                // read page with no cache ref (has a own PageBuffer) - do not Release() support.
+                // An existing file's header was just read and validated by the disk service.
+                var buffer = _disk.TakeOpeningHeader() ?? _disk.ReadFull(FileOrigin.Data).First();
 
                 // if first byte are 1 this datafile are encrypted but has do defined password to open
                 if (buffer[0] == 1) throw new LiteException(LiteException.INVALID_PASSWORD, "This data file is encrypted and needs a password to open");
@@ -128,7 +129,7 @@ namespace LiteDB.Engine
                     _disk = new DiskService(_settings, _state, MEMORY_SEGMENT_SIZES);
 
                     // read buffer header page again
-                    buffer = _disk.ReadFull(FileOrigin.Data).First();
+                    buffer = _disk.TakeOpeningHeader() ?? _disk.ReadFull(FileOrigin.Data).First();
 
                     // if first byte are 1 this datafile are encrypted but has do defined password to open
                     if (buffer[0] == 1) throw new LiteException(LiteException.INVALID_PASSWORD, "This data file is encrypted and needs a password to open");
