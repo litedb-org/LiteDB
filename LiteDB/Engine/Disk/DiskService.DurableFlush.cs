@@ -106,7 +106,8 @@ namespace LiteDB.Engine
         /// Before this engine first reuses a slot found blank at open, prove that the log can
         /// sync. The sync also makes clears an earlier engine wrote without one durable. It
         /// targets the raw log, so it adds no padding between a transaction's frames. Storage
-        /// that answers "cannot sync" (#2242) degrades, and the caller appends instead.
+        /// that answers "cannot sync" (#2242) degrades, and the caller appends instead; that
+        /// engine's commits then skip their own rejected sync, so the probe costs nothing extra.
         /// Caller holds the log writer lock.
         /// </summary>
         private bool ProveLogSync()

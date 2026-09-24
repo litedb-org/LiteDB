@@ -45,8 +45,13 @@ database is in use; it is part of coordination, not a disposable cache.
 An ordinary commit whose device sync is explicitly unsupported follows the
 stack's existing compatibility fallback to an OS-cache flush. Other sync errors
 fail the commit; the outcome may be unknown and recovery must choose a complete
-transaction. Protected checkpoint/header/retirement barriers still require
-successful device sync and never use this fallback.
+transaction. Protected checkpoint/header/retirement barriers always attempt a
+real device sync. Only storage that answers "cannot sync" (#2242) falls back to
+ordered OS-cache flushing there, which survives a process crash but not power
+loss; any other sync error stops the barrier before data is overwritten. On such
+storage reclaimed WAL slots are never reused. Every shared operation opens a fresh
+engine, so before its first reuse of a slot found blank at open, that engine syncs
+the raw log once; a "cannot sync" answer makes it append instead.
 
 `$database.durableLogFlush` is false when the connection opts out of device sync
 or has acknowledged a commit after that fallback. Shared connections retain this
@@ -60,6 +65,7 @@ value describes that connection, not every writer that has accessed the file.
 | Invariant | Discriminating coverage |
 | --- | --- |
 | A relative connection stays bound to its original database and registry after a working-directory change, before or after its first operation. | [SharedSafetyProcess_Tests](../LiteDB.Tests/Internals/SharedSafetyProcess_Tests.cs): separate child process, plain/encrypted files, a retained snapshot, and an unrelated same-named database whose records must remain unchanged. |
+| Storage that cannot sync never has reclaimed WAL slots reused by later shared engines; a live reader keeps its snapshot and a crash image recovers. | [SharedUnsyncableLog_Tests](../LiteDB.Tests/Internals/SharedUnsyncableLog_Tests.cs): a leased reader across a snapshot checkpoint and later writes on fresh engines; fails with 315 overwritten slots when the reuse probe is removed. |
 | Confirmation respects the durability setting, and fallback cannot be hidden by the next shared operation. | [SharedDurability_Tests](../LiteDB.Tests/Internals/SharedDurability_Tests.cs): observed device syncs, automatic/explicit commits, encrypted wrappers, injected unsupported sync, retry and connection-local diagnostics. |
 | Lost/torn new writes cannot damage the previously acknowledged prefix or expose a partial transaction. | [SharedCommitFailure_Tests](../LiteDB.Tests/Internals/SharedCommitFailure_Tests.cs): durable/volatile file images, lost writes, later sectors persisting ahead of a torn frame, failure after successful sync, and a successful-sync control. Covers BSON/compact, plain/encrypted, automatic/explicit commits; repeated shared recovery checks full documents, indexes and an untouched collection. A foreign thread verifies writer-mutex release. |
 | Process death preserves acknowledged transactions, discards unconfirmed safepoints and preserves another process's snapshot. | [SharedStorageProcess_Tests](../LiteDB.Tests/Internals/SharedStorageProcess_Tests.cs): actual killed writers, proven nonempty/unconfirmed WAL, full payload/index checks and checkpoint after readers drain. |
@@ -68,7 +74,7 @@ value describes that connection, not every writer that has accessed the file.
 Run the focused suite with `TestingEnabled=true` and `tests.runsettings`:
 
 ```sh
-dotnet test LiteDB.Tests -c Release -f net8.0 -p:TestingEnabled=true --settings tests.runsettings --filter 'FullyQualifiedName~SharedSafetyProcess|FullyQualifiedName~SharedStorageProcess|FullyQualifiedName~SharedDurability|FullyQualifiedName~SharedCommitFailure'
+dotnet test LiteDB.Tests -c Release -f net8.0 -p:TestingEnabled=true --settings tests.runsettings --filter 'FullyQualifiedName~SharedSafetyProcess|FullyQualifiedName~SharedUnsyncableLog|FullyQualifiedName~SharedStorageProcess|FullyQualifiedName~SharedDurability|FullyQualifiedName~SharedCommitFailure'
 ```
 
 Repeat on `net10.0`; the stream-fault and durability tests also compile/run on the
