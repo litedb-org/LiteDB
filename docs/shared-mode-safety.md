@@ -76,7 +76,11 @@ files with read, write and delete sharing, so they coexist with each other and a
 checkpoint can delete the WAL. While any shared connection is open, and not only
 during an operation, direct connections and other openers that deny write sharing
 (`FileShare.Read`) are refused; `File.Copy` shares write access and still works.
-Other platforms open the files for every operation as before.
+Other platforms open the files for every operation as before, and so do Windows
+volumes that do not report POSIX delete semantics (`FILE_SUPPORTS_POSIX_UNLINK_RENAME`;
+for example FAT, exFAT and many network or third-party file systems). There a
+deleted WAL keeps its name pending until every handle closes, so a peer's idle
+cached handle would make the next WAL creation fail with access denied.
 
 After an abandoned explicit transaction, the connection discards that engine
 without its close checkpoint: another process may have committed or checkpointed

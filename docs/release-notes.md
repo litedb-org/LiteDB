@@ -49,7 +49,9 @@ halves the cost again: about 4.8 to 3.3 ms per small update and 1.5 to 0.8 ms pe
 only during one of its operations, a direct connection or any other opener that
 denies write sharing (`FileShare.Read`, e.g. `File.OpenRead`/`File.ReadAllBytes`)
 is refused with a sharing violation. `File.Copy` shares write access and still
-works. Close shared connections before opening the file in direct mode.
+works. Close shared connections before opening the file in direct mode. Volumes
+without POSIX delete semantics (FAT, exFAT, many network shares) keep opening the
+files per operation, with the previous sharing behavior.
 Rebuild requires shared readers to be closed. See
 [snapshot checkpointing](mvcc-checkpoint.md) and
 [the retirement format](mvcc-retirement-format.md).

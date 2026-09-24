@@ -33,6 +33,37 @@ namespace LiteDB.Engine
 
         internal static bool IsSupported => RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
 
+#if DEBUG || TESTING
+        /// <summary>Test hook: the volume's POSIX-delete capability for a database path, or null for the real answer.</summary>
+        internal static Func<string, bool?> SimulatePosixDelete;
+#endif
+
+        /// <summary>
+        /// True when handles for <paramref name="filename"/> may be cached. The final checkpoint
+        /// deletes the WAL while other connections keep idle handles open. With POSIX delete
+        /// semantics the name disappears at once and the next open creates a fresh file; with
+        /// legacy delete-pending semantics (FAT, exFAT, many SMB and third-party providers) the
+        /// name stays pending until every handle closes, so the next OpenOrCreate fails with
+        /// access denied until an idle peer happens to run its next operation. Such volumes
+        /// keep opening files per operation.
+        /// </summary>
+        internal static bool IsSupportedFor(string filename)
+        {
+            if (!IsSupported) return false;
+#if DEBUG || TESTING
+            var simulated = SimulatePosixDelete?.Invoke(filename);
+            if (simulated.HasValue) return simulated.Value;
+#endif
+            try
+            {
+                return Native.SupportsPosixDelete(Path.GetFullPath(filename));
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is ArgumentException)
+            {
+                return false;
+            }
+        }
+
         /// <summary>
         /// Also keep writable handles. That refuses every other opener that does not share
         /// write access (file copies, backups, direct mode) for the connection's lifetime,
@@ -288,6 +319,26 @@ namespace LiteDB.Engine
             [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
             private static extern int GetFinalPathNameByHandleW(SafeFileHandle handle, StringBuilder path,
                 int length, int flags);
+
+            private const uint FILE_SUPPORTS_POSIX_UNLINK_RENAME = 0x00000400;
+
+            [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+            [return: MarshalAs(UnmanagedType.Bool)]
+            private static extern bool GetVolumePathNameW(string fileName, StringBuilder volumePath, int length);
+
+            [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+            [return: MarshalAs(UnmanagedType.Bool)]
+            private static extern bool GetVolumeInformationW(string rootPath, StringBuilder volumeName, int volumeNameLength,
+                out uint serialNumber, out uint maximumComponentLength, out uint fileSystemFlags,
+                StringBuilder fileSystemName, int fileSystemNameLength);
+
+            internal static bool SupportsPosixDelete(string fullPath)
+            {
+                var root = new StringBuilder(MAX_PATH_BUFFER);
+                if (!GetVolumePathNameW(fullPath, root, root.Capacity)) return false;
+                if (!GetVolumeInformationW(root.ToString(), null, 0, out _, out _, out var flags, null, 0)) return false;
+                return (flags & FILE_SUPPORTS_POSIX_UNLINK_RENAME) != 0;
+            }
 
             internal static bool IsLinked(SafeFileHandle handle)
             {

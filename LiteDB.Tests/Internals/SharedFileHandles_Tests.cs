@@ -30,6 +30,53 @@ namespace LiteDB.Internals
             new SharedEngine(new EngineSettings { Filename = this.Filename, Password = password });
 
         [Fact]
+        public void Ntfs_volumes_report_posix_delete_and_keep_the_cache()
+        {
+            if (!IsWindows) return;
+            var drive = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(this.Filename)));
+            if (drive.DriveFormat != "NTFS") return;
+            SharedFileHandles.IsSupportedFor(this.Filename).Should().BeTrue(
+                "NTFS reports FILE_SUPPORTS_POSIX_UNLINK_RENAME, so a deleted WAL frees its name at once");
+            using var engine = this.OpenShared();
+            engine.FileHandles.Should().NotBeNull();
+        }
+
+#if DEBUG || TESTING
+        [Fact]
+        public void Volumes_without_posix_delete_open_files_per_operation()
+        {
+            // Only this test's files: connections of tests running in parallel keep the real answer.
+            var directory = _directory;
+            SharedFileHandles.SimulatePosixDelete = path =>
+                path.StartsWith(directory, StringComparison.OrdinalIgnoreCase) ? false : (bool?)null;
+            try
+            {
+                using var first = this.OpenShared();
+                using var second = this.OpenShared();
+                first.FileHandles.Should().BeNull("a pending-delete WAL name would block the peers' next open");
+                using (var db = new LiteDatabase(first, disposeOnClose: false))
+                {
+                    db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["payload"] = new string('x', 2000) });
+                }
+                using (var db = new LiteDatabase(second, disposeOnClose: false))
+                {
+                    db.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 2 });
+                    db.Checkpoint();
+                    db.GetCollection("rows").Count().Should().Be(2);
+                }
+                using (var db = new LiteDatabase(first, disposeOnClose: false))
+                {
+                    db.GetCollection("rows").Count().Should().Be(2);
+                }
+            }
+            finally
+            {
+                SharedFileHandles.SimulatePosixDelete = null;
+            }
+        }
+#endif
+
+        [Fact]
         public void Operations_reuse_the_open_handles()
         {
             if (!IsWindows) return;

@@ -56,8 +56,9 @@ namespace LiteDB
             _settings.CloseCheckpointPages = CLOSE_CHECKPOINT_PAGES;
             // Opening the files is most of an operation's fixed cost. Keep the handles,
             // never the engine state: every operation still reads the files afresh.
-            if (SharedFileHandles.IsSupported && _settings.Filename != ":memory:" && _settings.Filename != ":temp:" &&
-                _settings.DataStream == null && _settings.LogStream == null)
+            if (_settings.Filename != ":memory:" && _settings.Filename != ":temp:" &&
+                _settings.DataStream == null && _settings.LogStream == null &&
+                SharedFileHandles.IsSupportedFor(_settings.Filename))
                 _settings.SharedFileHandles = _handles = new SharedFileHandles();
 
             var name = SharedMutexNameFactory.Create(_settings.Filename, _settings.SharedMutexNameStrategy);
