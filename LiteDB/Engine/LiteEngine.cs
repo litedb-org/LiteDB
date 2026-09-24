@@ -115,6 +115,7 @@ namespace LiteDB.Engine
                 _disk.FileVersion = _header.FileVersion;
 
                 // if database is set to invalid state, need rebuild
+                this.InvalidDatafileState = buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0;
                 if (buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0 && _settings.AutoRebuild &&
                     (_settings.AutoRebuildAllowed?.Invoke() ?? true))
                 {
@@ -199,6 +200,9 @@ namespace LiteDB.Engine
         /// A shared operation's close checkpoints only a WAL past its threshold; the
         /// connection's <paramref name="final"/> close always does (#3004).
         /// </summary>
+        /// <summary>The opened header marks the data file invalid (a rebuild is due).</summary>
+        internal bool InvalidDatafileState { get; private set; }
+
         internal List<Exception> Close(bool checkpoint = true, bool final = false)
         {
             if (_state.Disposed) return new List<Exception>();

@@ -27,6 +27,8 @@ namespace LiteDB
         private int _transactionThreadId;
         private int _databaseUsers;
         private SharedMutexPin _transactionUse;
+        // Read-only snapshots streaming under the mutex (no lease could be registered).
+        private readonly HashSet<LiteEngine> _mutexSnapshots = new HashSet<LiteEngine>();
         private int _disposed;
 #if DEBUG || TESTING
         internal Func<LiteEngine> SimulateOpenEngine { get; set; }
@@ -35,6 +37,8 @@ namespace LiteDB
         internal Action BeforeCountingUser { get; set; }
 
         internal int EngineOpens { get; private set; }
+
+        internal int SnapshotOpens { get; private set; }
 
         internal SharedMutexOwner MutexOwner => _owner;
         internal SharedFileHandles FileHandles => _handles;
@@ -141,7 +145,7 @@ namespace LiteDB
             _engine.RecoveryReport = _recoveryReport;
         }
 
-        private LiteEngine CreateEngine(bool recoveredAbandonedOwner)
+        private LiteEngine CreateEngine(bool recoveredAbandonedOwner, EngineSettings settings = null)
         {
             const int retries = 100;
             for (var attempt = 0; ; attempt++)
@@ -151,7 +155,7 @@ namespace LiteDB
 #if DEBUG || TESTING
                     if (SimulateOpenEngine != null) return SimulateOpenEngine();
 #endif
-                    return new LiteEngine(_settings);
+                    return new LiteEngine(settings ?? _settings);
                 }
                 catch (IOException ex) when (recoveredAbandonedOwner && IsWindowsLockViolation(ex) && attempt < retries)
                 {
@@ -222,6 +226,7 @@ namespace LiteDB
                 var engine = _engine;
                 _engine = null;
                 engine?.Close(checkpoint: false);
+                this.CloseMutexSnapshotsLocked();
             }
             _handles?.CloseIdle();
         }
@@ -446,6 +451,7 @@ namespace LiteDB
                     _engine = null;
                     closed = true;
                 }
+                this.CloseMutexSnapshotsLocked();
                 _databaseUsers = 0;
             }
             // Open readers and transactions of any thread end with the connection.
@@ -457,6 +463,16 @@ namespace LiteDB
             // A disposed connection holds no mutex, even for the moment its holder
             // needs to release it; another connection's final close may try it next.
             _owner.WaitForRelease();
+        }
+
+        /// <summary>
+        /// Readers streaming under the mutex end with their ownership, like the
+        /// operation engine: a later read would no longer be ordered with writers.
+        /// </summary>
+        private void CloseMutexSnapshotsLocked()
+        {
+            foreach (var snapshot in _mutexSnapshots) snapshot.Close(checkpoint: false);
+            _mutexSnapshots.Clear();
         }
 
         private T QueryDatabase<T>(Func<T> Query)
