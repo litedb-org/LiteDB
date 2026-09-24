@@ -31,6 +31,8 @@ namespace LiteDB
         internal Func<LiteEngine> SimulateOpenEngine { get; set; }
 
         internal int EngineOpens { get; private set; }
+
+        internal SharedMutexOwner MutexOwner => _owner;
 #endif
 
         public SharedEngine(EngineSettings settings)
@@ -424,6 +426,9 @@ namespace LiteDB
             // Operations left a WAL below the close threshold: checkpoint it now, so
             // the data file alone is the database again once every connection closed.
             if (!closed) this.CheckpointOnDispose();
+            // A disposed connection holds no mutex, even for the moment its holder
+            // needs to release it; another connection's final close may try it next.
+            _owner.WaitForRelease();
         }
 
         private T QueryDatabase<T>(Func<T> Query)

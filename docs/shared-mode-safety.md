@@ -50,7 +50,10 @@ connection drops its engine without writing and releases the mutex, as the OS
 abandons a mutex whose thread exits; other threads and processes neither wait
 nor meet the dropped engine's file handles. An exited transaction owner is
 reported to the connection's next call. Explicit transactions must still be
-completed on the thread that began them.
+completed on the thread that began them. An operation's release is posted to the
+holder. A connection's own checkpoint attempts wait for that release before trying
+the mutex, and `Dispose` returns only after it: a disposed connection holds no
+mutex, so the next connection's final close finds it free.
 
 Each operation opens and closes an engine. Its close checkpoints only once the
 WAL holds 50 pages (or the CHECKPOINT pragma if smaller), so between operations

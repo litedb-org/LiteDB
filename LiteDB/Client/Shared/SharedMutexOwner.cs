@@ -35,6 +35,10 @@ namespace LiteDB.Client.Shared
         // between operations of unknown length, so it only spins briefly.
         private readonly ManualResetEventSlim _posted = new ManualResetEventSlim(false);
         private readonly ManualResetEventSlim _done = new ManualResetEventSlim(false, SpinCount);
+        // Reset while a posted release of this connection is in flight. Until the
+        // holder completes it, the gate stays closed and the OS mutex held, although
+        // nobody owns the connection any more.
+        private readonly ManualResetEventSlim _released = new ManualResetEventSlim(true, SpinCount);
         private Thread _holder;
         private Command _command;
         private bool _acquired;
@@ -52,6 +56,11 @@ namespace LiteDB.Client.Shared
         }
 
         public Mutex Mutex => _mutex;
+
+#if DEBUG || TESTING
+        /// <summary>Runs on the holder before it performs a release posted by <see cref="Exit"/>.</summary>
+        internal Action BeforePostedRelease { get; set; }
+#endif
 
         /// <summary>Changes whenever ownership ends, so a stale release is ignored.</summary>
         public int Generation { get { lock (_sync) return _generation; } }
@@ -81,6 +90,8 @@ namespace LiteDB.Client.Shared
         {
             abandoned = false;
             if (this.TryRecurse()) return true;
+            // This connection's own release in flight is not another owner.
+            this.WaitForRelease();
             if (!_gate.Wait(0))
             {
                 if (!this.ReleaseIfOwnerExited() || !_gate.Wait(0)) return false;
@@ -100,6 +111,7 @@ namespace LiteDB.Client.Shared
                 if (--_recursion > 0) return;
                 _owner = null;
                 _generation++;
+                _released.Reset();
             }
             // The caller need not wait: the holder releases the OS mutex and only then
             // opens the gate, so the next owner in this process still waits for it.
@@ -123,6 +135,13 @@ namespace LiteDB.Client.Shared
             catch (Exception) { /* Disposal must not fail; process exit releases the mutex. */ }
             finally { _gate.Release(); }
         }
+
+        /// <summary>
+        /// Wait until a release posted by <see cref="Exit"/> completed, so that this
+        /// connection holds neither the gate nor the OS mutex on its own account.
+        /// The holder completes it without waiting for anything else.
+        /// </summary>
+        public void WaitForRelease() => _released.Wait();
 
         private bool TryRecurse()
         {
@@ -258,8 +277,13 @@ namespace LiteDB.Client.Shared
                     {
                         case Command.Acquire: acquired = this.WaitMutex(block: true, out abandoned); break;
                         case Command.TryAcquire: acquired = this.WaitMutex(block: false, out abandoned); break;
-                        case Command.Release:
-                        case Command.ReleaseAndOpenGate: this.ReleaseMutex(); break;
+                        case Command.Release: this.ReleaseMutex(); break;
+                        case Command.ReleaseAndOpenGate:
+#if DEBUG || TESTING
+                            this.BeforePostedRelease?.Invoke();
+#endif
+                            this.ReleaseMutex();
+                            break;
                         case Command.ReleaseExitedOwner: this.ReleaseExitedOwner(); break;
                     }
                 }
@@ -275,7 +299,11 @@ namespace LiteDB.Client.Shared
                     if (command == Command.ReleaseAndOpenGate) posted = true;
                     else _error = error;
                 }
-                if (posted) _gate.Release();
+                if (posted)
+                {
+                    _gate.Release();
+                    _released.Set();
+                }
                 else _done.Set();
             }
         }
