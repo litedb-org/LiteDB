@@ -176,8 +176,7 @@ namespace LiteDB
             try
             {
                 if (_engine != null || _transactionRunning || _readers.OldestVersion().HasValue) return;
-                // Closing the engine runs its checkpoint, as every shared operation does.
-                this.QueryDatabase(() => 0);
+                this.CloseFinally();
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
             {
@@ -189,6 +188,42 @@ namespace LiteDB
             {
                 _owner.Exit();
             }
+        }
+
+        /// <summary>
+        /// The connection's final close: checkpoint what its operations left below the
+        /// close threshold. Best effort like <see cref="CheckpointAfterLastReader"/>: a
+        /// current owner of the mutex is a live connection whose own final close checkpoints.
+        /// </summary>
+        private void CheckpointOnDispose()
+        {
+            if (_settings.ReadOnly || !LogHasContent(_settings.Filename)) return;
+            if (!_owner.TryEnter(out var abandoned)) return;
+            try
+            {
+                if (abandoned || _engine != null || _transactionRunning) return;
+                this.CloseFinally();
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is LiteException)
+            {
+                // Dispose must not fail because of this cleanup, including a database the
+                // open refuses (an incomplete rebuild, damage): the WAL remains authoritative
+                // and the next open reports the same condition. A close checkpoint's own
+                // errors were never raised by Dispose either.
+            }
+            finally
+            {
+                _owner.Exit();
+            }
+        }
+
+        /// <summary>Open an engine only to close it with its checkpoint. The caller owns the mutex.</summary>
+        private void CloseFinally()
+        {
+            this.OpenEngine(false);
+            var engine = _engine;
+            _engine = null;
+            engine.Close(final: true);
         }
 
         private static bool LogHasContent(string filename)

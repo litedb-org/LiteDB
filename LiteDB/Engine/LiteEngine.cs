@@ -194,8 +194,10 @@ namespace LiteDB.Engine
         /// - Clean variables
         /// Without <paramref name="checkpoint"/> nothing is written: a shared connection
         /// discards an engine whose view may predate another process' commits (#3005).
+        /// A shared operation's close checkpoints only a WAL past its threshold; the
+        /// connection's <paramref name="final"/> close always does (#3004).
         /// </summary>
-        internal List<Exception> Close(bool checkpoint = true)
+        internal List<Exception> Close(bool checkpoint = true, bool final = false)
         {
             if (_state.Disposed) return new List<Exception>();
 
@@ -206,7 +208,7 @@ namespace LiteDB.Engine
             // stop running all transactions
             tc.Catch(() => _monitor?.Dispose());
 
-            if (checkpoint && !_settings.ReadOnly && _header?.Pragmas.Checkpoint > 0)
+            if (checkpoint && !_settings.ReadOnly && _header?.Pragmas.Checkpoint > 0 && (final || this.CloseCheckpointDue()))
             {
                 // Backfill safe pages; reclaim only when all readers have drained.
                 tc.Catch(() => _walIndex?.TryCloseCheckpoint());
@@ -222,6 +224,19 @@ namespace LiteDB.Engine
             tc.Catch(() => _locker?.Dispose());
 
             return tc.Exceptions;
+        }
+
+        /// <summary>
+        /// Every close checkpoints unless a shared connection set a threshold: its short-lived
+        /// engines leave a smaller WAL to the next operation, whose replay costs less than the
+        /// checkpoint's syncs. The WAL stays authoritative, so crash recovery is unchanged.
+        /// </summary>
+        private bool CloseCheckpointDue()
+        {
+            var threshold = _settings.CloseCheckpointPages;
+            if (threshold <= 0) return true;
+            var pages = Math.Min(threshold, _header.Pragmas.Checkpoint);
+            return _disk.GetFileLength(FileOrigin.Log) >= (long)pages * PAGE_SIZE;
         }
 
         /// <summary>

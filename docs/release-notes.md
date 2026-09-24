@@ -37,7 +37,11 @@ keeps other threads and processes waiting. This also holds for results that
 stream under the mutex because no lease could be registered, and for disposing
 the connection on another thread; before, both threw `ApplicationException` and
 kept the mutex until the acquiring thread exited. When the last streamed result closes,
-the connection checkpoints away the remaining WAL.
+the connection checkpoints away the remaining WAL. A shared operation's engine
+checkpoints on close only once the WAL holds 50 pages (or CHECKPOINT, if smaller);
+disposing the connection checkpoints the rest. This roughly halves the cost of a
+small shared write (about 9 ms to 4 ms per update on a local NVMe drive); the WAL
+file therefore usually exists while shared connections are open.
 Rebuild requires shared readers to be closed. See
 [snapshot checkpointing](mvcc-checkpoint.md) and
 [the retirement format](mvcc-retirement-format.md).

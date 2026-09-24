@@ -10,6 +10,10 @@ namespace LiteDB
 {
     public partial class SharedEngine : ILiteEngine
     {
+        // An operation's engine closes without checkpoint until the WAL reaches this many
+        // pages: replaying up to 400 KiB at the next open costs less than the checkpoint's syncs.
+        internal const int CLOSE_CHECKPOINT_PAGES = 50;
+
         private readonly EngineSettings _settings;
         private readonly Mutex _mutex;
         private readonly SharedMutexOwner _owner;
@@ -22,6 +26,7 @@ namespace LiteDB
         private int _transactionThreadId;
         private int _databaseUsers;
         private SharedMutexPin _transactionUse;
+        private int _disposed;
 #if DEBUG || TESTING
         internal Func<LiteEngine> SimulateOpenEngine { get; set; }
 
@@ -41,6 +46,7 @@ namespace LiteDB
             // Each operation opens and closes an engine. Share one back-off so a
             // long-lived reader cannot make every close pay for partial checkpoint.
             _settings.CheckpointBackoff = new CheckpointBackoff();
+            _settings.CloseCheckpointPages = CLOSE_CHECKPOINT_PAGES;
 
             var name = SharedMutexNameFactory.Create(_settings.Filename, _settings.SharedMutexNameStrategy);
 
@@ -170,7 +176,7 @@ namespace LiteDB
                     {
                         var engine = _engine;
                         _engine = null;
-                        engine.Dispose();
+                        engine.Close();
                     }
                 }
             }
@@ -391,7 +397,7 @@ namespace LiteDB
 
         protected virtual void Dispose(bool disposing)
         {
-            if (!disposing) return;
+            if (!disposing || Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
             // Any thread can end a pin; its holder closes the engine and releases.
             var pin = _pin;
@@ -402,17 +408,22 @@ namespace LiteDB
                 pin.WaitReleased();
             }
 
+            var closed = false;
             lock (_useLock)
             {
                 if (_engine != null)
                 {
-                    _engine.Dispose();
+                    _engine.Close(final: true);
                     _engine = null;
+                    closed = true;
                 }
                 _databaseUsers = 0;
             }
             // Open readers and transactions of any thread end with the connection.
             _owner.ReleaseAll();
+            // Operations left a WAL below the close threshold: checkpoint it now, so
+            // the data file alone is the database again once every connection closed.
+            if (!closed) this.CheckpointOnDispose();
         }
 
         private T QueryDatabase<T>(Func<T> Query)

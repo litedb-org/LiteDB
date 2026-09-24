@@ -28,8 +28,14 @@ WAL and requires multiple durable publication barriers. Only a reclaiming
 checkpoint resets the back-off: holding transaction exclusion is not enough, since
 snapshots and other connections' leases survive it. Shared mode opens and closes an
 engine per operation, so one back-off outlives those engines and also rations their
-close checkpoints; a close that can reclaim always runs. Explicit `Checkpoint()` is
-never rationed.
+close checkpoints; a close that can reclaim always runs. An operation's close
+checkpoints only once the WAL holds 50 pages (400 KiB), or the CHECKPOINT pragma if
+that is smaller: replaying a WAL that small at the next open costs less than the
+checkpoint's durable barriers. The connection's final close (`Dispose`) checkpoints
+regardless, when it can take the mutex without waiting; a current owner is a live
+connection whose own final close checkpoints. The WAL remains authoritative between
+operations, so crash recovery is unchanged. Explicit `Checkpoint()` is never
+rationed or deferred.
 
 ## Backfill and reclamation
 
@@ -184,8 +190,8 @@ open readers and transactions; an exited owner's transaction is reported to the
 next caller as before. Writes from other threads or instances never pin.
 
 When the last leased reader is disposed and the WAL is not empty, a writable
-`SharedEngine` that can take the mutex without waiting opens and closes an engine,
-so its close checkpoint removes the WAL as the pre-v13 reader's close did. The
+`SharedEngine` that can take the mutex without waiting opens an engine and closes it
+with the final checkpoint, which removes the WAL as the pre-v13 reader's close did. The
 data file alone is then again a complete database once every connection closes.
 If a lease cannot be registered (for example, no permission to create the
 `-readers` directory next to a read-only database, or an uninspectable registry),

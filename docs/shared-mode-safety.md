@@ -52,6 +52,15 @@ nor meet the dropped engine's file handles. An exited transaction owner is
 reported to the connection's next call. Explicit transactions must still be
 completed on the thread that began them.
 
+Each operation opens and closes an engine. Its close checkpoints only once the
+WAL holds 50 pages (or the CHECKPOINT pragma if smaller), so between operations
+committed work can remain in the WAL, which stays authoritative: a killed process
+leaves a WAL that the next open recovers. Disposing the connection checkpoints the
+remainder when the mutex is free; otherwise the current owner, a live connection,
+checkpoints at its own close. Once every connection has closed, the data file
+alone is the database again, unless a reader of another connection still pins the
+WAL or CHECKPOINT is 0.
+
 After an abandoned explicit transaction, the connection discards that engine
 without its close checkpoint: another process may have committed or checkpointed
 meanwhile, so the engine's WAL index and cache can be stale. The next open
@@ -85,6 +94,7 @@ value describes that connection, not every writer that has accessed the file.
 | A result or connection disposed on another thread, or an owner thread that exits, never keeps other threads or processes waiting, and an exited transaction owner is still reported. | [SharedMutexOwnership_Tests](../LiteDB.Tests/Engine/SharedMutexOwnership_Tests.cs): unleased readers disposed on other threads and after an await, `Dispose` on another thread, exited reader and transaction owners, and a real second process that waits only while the reader is open. All six fail with the thread-affine mutex. |
 | An abandoned explicit transaction's engine is discarded without a checkpoint, and another connection's commits made meanwhile survive. | [Issue3005_AbandonedOrphan_Tests](../LiteDB.Tests/Issues/Issue3005_AbandonedOrphan_Tests.cs): checkpoint stages observed during the discard (none allowed), plain/encrypted, with and without a reader lease held by the other connection; the concurrent-commit variant runs on Unix hosts, where a peer can write while the orphan's handles stay open. |
 | Storage that cannot sync never has reclaimed WAL slots reused by later shared engines; a live reader keeps its snapshot and a crash image recovers. | [SharedUnsyncableLog_Tests](../LiteDB.Tests/Internals/SharedUnsyncableLog_Tests.cs): a leased reader across a snapshot checkpoint and later writes on fresh engines; fails with 315 overwritten slots when the reuse probe is removed. |
+| An operation's close checkpoints only a WAL past its threshold; the connection's final close, and the last streamed result's disposal, checkpoint the rest; read-only connections change neither file; the WAL between operations recovers every committed operation. | [SharedLazyCheckpoint_Tests](../LiteDB.Tests/Engine/SharedLazyCheckpoint_Tests.cs): counts reclaiming checkpoints below and past the threshold, a smaller or disabled CHECKPOINT pragma, explicit checkpoint, two connections closing in either order, byte-preserving read-only access and plain/encrypted crash images. Both the old close-every-operation behavior and a missing final checkpoint fail it. |
 | Confirmation respects the durability setting, and fallback cannot be hidden by the next shared operation. | [SharedDurability_Tests](../LiteDB.Tests/Internals/SharedDurability_Tests.cs): observed device syncs, automatic/explicit commits, encrypted wrappers, injected unsupported sync, retry and connection-local diagnostics. |
 | Lost/torn new writes cannot damage the previously acknowledged prefix or expose a partial transaction. | [SharedCommitFailure_Tests](../LiteDB.Tests/Internals/SharedCommitFailure_Tests.cs): durable/volatile file images, lost writes, later sectors persisting ahead of a torn frame, failure after successful sync, and a successful-sync control. Covers BSON/compact, plain/encrypted, automatic/explicit commits; repeated shared recovery checks full documents, indexes and an untouched collection. A foreign thread verifies writer-mutex release. |
 | Process death preserves acknowledged transactions, discards unconfirmed safepoints and preserves another process's snapshot. | [SharedStorageProcess_Tests](../LiteDB.Tests/Internals/SharedStorageProcess_Tests.cs): actual killed writers, proven nonempty/unconfirmed WAL, full payload/index checks and checkpoint after readers drain. |
@@ -93,7 +103,7 @@ value describes that connection, not every writer that has accessed the file.
 Run the focused suite with `TestingEnabled=true` and `tests.runsettings`:
 
 ```sh
-dotnet test LiteDB.Tests -c Release -f net8.0 -p:TestingEnabled=true --settings tests.runsettings --filter 'FullyQualifiedName~SharedSafetyProcess|FullyQualifiedName~SharedMutexOwnership|FullyQualifiedName~Issue3005|FullyQualifiedName~SharedUnsyncableLog|FullyQualifiedName~SharedStorageProcess|FullyQualifiedName~SharedDurability|FullyQualifiedName~SharedCommitFailure'
+dotnet test LiteDB.Tests -c Release -f net8.0 -p:TestingEnabled=true --settings tests.runsettings --filter 'FullyQualifiedName~SharedLazyCheckpoint|FullyQualifiedName~SharedSafetyProcess|FullyQualifiedName~SharedMutexOwnership|FullyQualifiedName~Issue3005|FullyQualifiedName~SharedUnsyncableLog|FullyQualifiedName~SharedStorageProcess|FullyQualifiedName~SharedDurability|FullyQualifiedName~SharedCommitFailure'
 ```
 
 Repeat on `net10.0`; the stream-fault and durability tests also compile/run on the
