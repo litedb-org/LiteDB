@@ -1,5 +1,28 @@
 # Release notes: bounded memory management
 
+## Data-page and WAL checksums (#2935)
+
+New files use format v10. Writable v8/v9 opens automatically recover the legacy
+WAL and durably publish v10 before accepting writes. Existing pages gain
+checksums lazily when written; cutover only rewrites the header.
+Read-only legacy opens preserve their files. Older engines refuse v10, so keep a
+backup before writable open if backward compatibility is required.
+
+Recovery validates salted WAL frame checksums, transaction page counts/digests,
+and commit order. Missing, torn, or stale frames discard the incomplete transaction
+and its dependent tail; `$database.recoveryDiscardedWalBytes` reports excluded bytes
+and `$database.recoveryInvalidWalTail` distinguishes invalid/partial frames from
+intact unconfirmed tails. Shared mode retains the report across internal reopenings.
+Checkpointed data pages also have checksums and fail explicitly when damaged.
+Checkpoint uses a temporary header journal to recover torn header writes.
+Automatic conversion keeps verified legacy redo until v10 publication is durable,
+using 32 KiB of temporary WAL, independent of database size (plus the encryption
+preamble). `$database.checksumCoverage` distinguishes Mixed from Complete
+protection. Explicit rebuild completes coverage; cold legacy pages remain
+unchecksummed until written or rebuilt.
+Plain and encrypted files use the same validation. See the
+[format, conversion, and recovery details](page-and-wal-checksums.md).
+
 ## `BsonValue` CLR collection compatibility
 
 `new BsonValue(object)` now supports CLR arrays, lists, and dictionaries as
@@ -63,8 +86,9 @@ collection does not release abandoned thread-affine locks in a live engine.
 Every committed transaction is now synced to the storage device before the
 commit returns, so acknowledged commits survive power loss on storage that can
 sync. Storage that rejects the sync (some network shares and virtual file
-systems, #2242) falls back to the earlier behaviour; `$database.durableLogFlush`
-reports which one is in effect. This costs about one
+systems, #2242) falls back to the earlier behaviour for commits, checkpoints and
+format conversion; `$database.durableLogFlush` reports which one is in effect. A
+sync that fails with an I/O error still stops the engine before data is overwritten. This costs about one
 device sync per commit (about 1 ms on NVMe, far more on hard disks and network
 volumes); batched transactions and `InsertBulk` are unaffected. Set
 `durable commits=false` (`DurableCommits = false`) to restore the earlier

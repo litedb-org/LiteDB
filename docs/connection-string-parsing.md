@@ -85,16 +85,19 @@ loads, caches, test suites and other data that can be rebuilt:
   a crash or kill of the process: reopening the database recovers every
   committed transaction from the log.
 - A power loss or operating system crash can lose the most recent commits.
-  Because unsynced log pages may reach the device in any order and log pages
-  carry no checksum, such a crash can also, rarely, leave the last transactions
-  partially applied rather than cleanly missing. Do not opt out for data that
-  must survive power loss.
-- Checkpoints stay synced: the log is synced once before its pages are copied
-  into the data file, and the data file is synced afterwards, so everything
-  that has been checkpointed is durable. File creation is synced as before.
+  Checksummed WAL recovery rejects an incomplete transaction and all later
+  commits, preserving the preceding valid commits. `$database.recoveryDiscardedWalBytes`
+  reports the discarded tail. Do not opt out for data that must survive power loss.
+- Checkpoints stay synced: the WAL and header journal must be durable before
+  pages are copied into the data file, and the data file is synced afterwards.
+  A failed checkpoint sync closes the engine before data is overwritten, even
+  when commits previously fell back to OS-cache flushes. Reopen after resolving
+  the storage failure. Log storage that rejects sync as unsupported (#2242)
+  instead checkpoints without the log sync, as before, with no power-loss
+  guarantee. File creation is synced as before.
 
 The setting applies per open and is not stored in the data file: the file format
-is unchanged and the same file can be opened with either value, by `Direct` and
+is the same for either value. Both settings work with `Direct` and
 `Shared` connections, encrypted or not. `:memory:`, `:temp:` and non-file
 streams cannot be synced and ignore it. `$database.durableLogFlush` reports
 `false` while commits are not synced, either because of this setting or because

@@ -71,38 +71,21 @@ require O(N log N) work and temporary disk space. Simple bounded top-k queries
 retain the existing ANN performance characteristics. Equal-distance neighbors
 have no specified relative order unless the query supplies a tie-breaker.
 
-## Ordinary v8 compatibility and vector format 9
+## File formats and checksums
 
-New ordinary databases use header version **8**. Existing v8 files open for reads
-and writes without a rebuild, including read-only connections and connections
-with `Upgrade=true`. Ordinary writes keep these files usable by released engines.
-`Upgrade=true` retains the existing v7 rebuild path, with backups. An explicit v7
-upgrade runs before applying `ReadOnly=true`; the converted database then opens
-read-only. Combining these flags authorizes the one-time upgrade.
+New databases use format **10**, which supports vectors and checksums for data
+pages and WAL frames. A writable open automatically converts v8/v9 files after
+recovering and checkpointing their legacy WAL. This publishes a checksummed header
+without scanning or rewriting the old data pages; they are checksummed lazily on
+subsequent writes. A 32 KiB temporary WAL header backup protects cutover;
+no permanent backup file is created. Read-only
+v8/v9 opens preserve their original format. LiteDB 5.0.21 refuses v10 before it
+can interpret the new WAL. See [the checksum format and recovery rules](page-and-wal-checksums.md).
 
-The first persisted BSON vector (including nested values or index keys), vector
-index metadata (including an empty index), or vector-index mutation promotes the
-file to **9**. Before vector pages can enter the WAL, an active write transaction
-and the header lock exclude checkpoint and competing header commits. The engine
-reads the persisted data header, changes its version, writes the full page for
-plain/encrypted stream compatibility, and flushes it before publishing vector
-changes. Durable flush requests pass through the encryption and caller-stream
-wrappers to `FileStream.Flush(true)`. No uncommitted header fields are copied into the data file. Promotion
-requires no full-file rebuild or backup copy.
-
-Promotion is conservative: even a rolled-back vector transaction can leave the
-file on v9. Rollback, WAL replay, and checkpoint cannot lower a promoted version.
-A failed promotion write or flush prevents the vector transaction from committing.
-Shared connections observe promotion when they reopen under the shared mutex.
-Both versions open in this engine; unknown versions report a dedicated
-`UNSUPPORTED_FILE_VERSION` error with the supported versions.
-
-LiteDB 5.0.21 rejects v9 at open, before queries, writes, or rebuild. This cannot
-retroactively protect vector files already created by development builds under
-version 8; keep those files away from older engines. Their next vector write
-promotes them. Do not change a database's version byte to bypass the boundary.
-As with other page writes, a storage failure during the header write can require
-recovery; the promotion does not promise atomic sector writes from the device.
+`Upgrade=true` retains the existing v7 rebuild path with a backup, before applying
+`ReadOnly=true`. Unknown formats report `UNSUPPORTED_FILE_VERSION` with the
+supported versions. Vector writes, rollback, WAL replay, and checkpoint never
+lower the format version. Do not edit the version byte to bypass this boundary.
 
 ## Validation
 
@@ -120,19 +103,21 @@ keys to temporary storage. Its initial execution tests had four failures and one
 passing regression before the query follow-up fix.
 
 `Issue2881_VectorFormat_Tests`, `Issue2881_VectorPromotion_Tests`, and
-`Issue2881_VectorPromotionFailure_Tests` cover version gating, unchanged ordinary
-files, promotion before commit, rollback, older WAL headers, encryption, shared
+`Issue2881_VectorPromotionFailure_Tests` cover version gating, checksummed ordinary
+files, conversion before commit, rollback, WAL headers, encryption, shared
 connections, concurrent writes, failed writes/flushes, and vector rebuild. The
 promotion tests initially had 11 failures and one passing regression. Existing
 recovery fixtures run with their original version headers.
 
 Run `python3 scripts/test-vector-compatibility.py` for the cross-version check.
 It uses separate processes for the current library and NuGet LiteDB **5.0.21**.
-Both engines read and write ordinary files created by either engine. After a
-vector value or empty vector index promotes those files, the old engine refuses
-read/write/rebuild/upgrade without changing the data file. The current engine
-reopens the promoted files and verifies their contents. This runs for plain and
-encrypted files, along with vector rebuild checks, in Linux CI.
+The current engine reads legacy files without modification in read-only mode,
+then automatically converts them on writable open. The old engine refuses
+read/write/rebuild/upgrade of new and converted files without changing their
+bytes. The current engine reopens the converted files and verifies their contents. This runs for plain and
+encrypted files, along with vector rebuild checks, in Linux CI. It also checks
+that a conversion interrupted before v10 publication can be resumed by the old
+engine, then converted by the current engine without losing the intervening write.
 
 `Issue2881_VectorPredicate_Tests` distinguishes scalar cosine predicates from API
 thresholds, index selection, targets, and candidate limits. Together with

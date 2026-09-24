@@ -44,7 +44,7 @@ namespace LiteDB.Engine
             try
             {
                 _dataFactory = settings.CreateDataFactory();
-                _logFactory = settings.CreateLogFactory();
+                _logFactory = new ChecksummedWalFactory(settings.CreateLogFactory(), _checksums);
 
                 _dataPool = new StreamPool(_dataFactory, false);
                 _logPool = new StreamPool(_logFactory, true);
@@ -87,8 +87,8 @@ namespace LiteDB.Engine
                 if (_logFactory.Exists())
                 {
                     var logLength = _logFactory.GetLength();
-                    _logTrailingLength = logLength % PAGE_SIZE;
-                    _logLength = logLength - _logTrailingLength - PAGE_SIZE;
+                    _logTrailingLength = ((ChecksummedWalFactory)_logFactory).TrailingBytes;
+                    _logLength = logLength - logLength % PAGE_SIZE - PAGE_SIZE;
                 }
                 else
                 {
@@ -124,6 +124,10 @@ namespace LiteDB.Engine
 
             // update buffer
             header.UpdateBuffer();
+            header.EnsureVersion(HeaderPage.CHECKSUM_FILE_VERSION);
+            _checksums.Reset(Guid.NewGuid().ToByteArray());
+            FileVersion = HeaderPage.CHECKSUM_FILE_VERSION;
+            this.StampDataPage(buffer);
 
             stream.Write(buffer.Array, buffer.Offset, PAGE_SIZE);
 
@@ -142,7 +146,7 @@ namespace LiteDB.Engine
         /// </summary>
         public DiskReader GetReader()
         {
-            return new DiskReader(_state, _cache, _dataPool, _logPool);
+            return new DiskReader(_state, _cache, _dataPool, _logPool, ChecksumsEnabled ? _dataChecksums : null);
         }
 
         /// <summary>
@@ -217,7 +221,7 @@ namespace LiteDB.Engine
                         // Only this transaction can see its unconfirmed slots. Keep
                         // the confirmation page last so recovery sees every page.
                         if (!page.ReadBool(BasePage.P_IS_CONFIRMED) && transactionPages != null &&
-                            transactionPages.TryGetValue(pageID, out var previous))
+                            transactionPages.TryGetValue(pageID, out var previous) && _checksums.CanReuse(previous.Position))
                         {
                             page.Position = previous.Position;
                             _cache.Invalidate(page.Position, FileOrigin.Log);
@@ -332,7 +336,7 @@ namespace LiteDB.Engine
                         if (read == 0) throw new EndOfStreamException("Cannot mark an incomplete database header");
                         offset += read;
                     }
-                    buffer[HeaderPage.P_INVALID_DATAFILE_STATE] = 1;
+                    this.MarkHeaderInvalid(new BufferSlice(buffer, 0, PAGE_SIZE));
                     stream.Position = 0;
                     stream.Write(buffer, 0, PAGE_SIZE);
                     stream.FlushToDisk();
@@ -351,6 +355,7 @@ namespace LiteDB.Engine
         /// </summary>
         public IEnumerable<PageBuffer> ReadFull(FileOrigin origin)
         {
+            if (this.GetFileLength(origin) == 0) yield break;
             // do not use MemoryCache factory - reuse same buffer array (one page per time)
             // do not use BufferPool because header page can't be shared (byte[] is used inside page return)
             var buffer = new byte[PAGE_SIZE];
@@ -371,12 +376,18 @@ namespace LiteDB.Engine
 
                     var bytesRead = stream.ReadFully(buffer, 0, PAGE_SIZE);
 
+                    if (bytesRead != PAGE_SIZE && origin == FileOrigin.Log && ChecksumsEnabled)
+                        throw new PageChecksumException(origin, position);
                     ENSURE(bytesRead == PAGE_SIZE, "ReadFull must read PAGE_SIZE bytes [{0}]", bytesRead);
+                    this.ReadRecoveredHeader(buffer, position, origin);
+                    if (origin == FileOrigin.Data && ChecksumsEnabled)
+                        _dataChecksums.Validate(new BufferSlice(buffer, 0, PAGE_SIZE), position);
 
                     yield return new PageBuffer(buffer, 0, 0)
                     {
                         Position = position,
                         Origin = origin,
+                        WalFrame = origin == FileOrigin.Log ? ((ChecksummedWalStream)stream).LastFrame : default,
                         ShareCounter = 0
                     };
                 }
@@ -404,6 +415,7 @@ namespace LiteDB.Engine
 
                 this.CrashPoint("checkpoint-before-page-write");
                 this.PreserveFileVersion(page);
+                this.StampDataPage(page);
                 stream.Write(page.Array, page.Offset, PAGE_SIZE);
                 this.CrashPoint("checkpoint-after-page-write");
             }
@@ -447,45 +459,5 @@ namespace LiteDB.Engine
 
         #endregion
 
-        public void Dispose()
-        {
-            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
-
-            var errors = new List<Exception>();
-            var delete = false;
-
-            TryAction(() => delete = _logFactory.Exists() && _logPool.Writer.Value.Length == 0, errors);
-            TryAction(() => _dataPool.Dispose(), errors);
-            TryAction(() => _logPool.Dispose(), errors);
-            if (delete) TryAction(() => _logFactory.Delete(), errors);
-            TryAction(() => _cache.Dispose(), errors);
-
-            if (errors.Count > 0) throw new AggregateException(errors);
-        }
-
-        private static void TryDispose(IDisposable disposable)
-        {
-            try
-            {
-                disposable?.Dispose();
-            }
-            catch
-            {
-                // Constructor cleanup must preserve the initialization error
-                // while still attempting every remaining resource.
-            }
-        }
-
-        private static void TryAction(Action action, ICollection<Exception> errors)
-        {
-            try
-            {
-                action();
-            }
-            catch (Exception ex)
-            {
-                errors.Add(ex);
-            }
-        }
     }
 }

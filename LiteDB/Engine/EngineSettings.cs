@@ -87,7 +87,7 @@ namespace LiteDB.Engine
         public bool AutoRebuild { get; set; } = false;
 
         /// <summary>
-        /// Rebuild format v7 files before opening, retaining a backup. Ordinary v8 files remain compatible without migration.
+        /// Rebuild format v7 files before opening, retaining a backup. Writable v8/v9 opens automatically enable checksums.
         /// </summary>
         public bool Upgrade { get; set; } = false;
 
@@ -109,8 +109,8 @@ namespace LiteDB.Engine
         /// system crash. This costs about one device sync per commit; transactions that batch many writes and
         /// InsertBulk pay it once. When false (the behaviour before 6.0), committed data is handed to the operating
         /// system only: it survives a crash of the process, but a power loss or operating system crash can lose the
-        /// most recent commits, and because unsynced log pages may reach the device in any order it can, rarely,
-        /// leave the last transactions partially applied. Checkpoints and file creation are synced either way.
+        /// most recent commits. Checksummed WAL recovery discards incomplete transactions and their dependent tail.
+        /// Checkpoints and file creation are synced either way.
         /// Not stored in the data file: the same file can be opened with either value. Has no effect on
         /// <c>:memory:</c>, <c>:temp:</c> and non-file streams, which cannot be synced. (default: true)
         /// </summary>
@@ -173,24 +173,24 @@ namespace LiteDB.Engine
         {
             if (this.LogStream != null)
             {
-                return new StreamFactory(this.LogStream, this.Password, false);
+                return new StreamFactory(this.LogStream, this.Password, false, isLog: true);
             }
             else if (this.Filename == ":memory:")
             {
-                return new StreamFactory(new MemoryStream(), this.Password, true);
+                return new StreamFactory(new MemoryStream(), this.Password, true, isLog: true);
             }
             else if (this.Filename == ":temp:")
             {
-                return new StreamFactory(new TempStream(), this.Password, true);
+                return new StreamFactory(new TempStream(), this.Password, true, isLog: true);
             }
             else if (!string.IsNullOrEmpty(this.Filename))
             {
                 var logName = FileHelper.GetLogFile(this.Filename);
 
-                return new FileStreamFactory(logName, this.Password, this.ReadOnly, false);
+                return new FileStreamFactory(logName, this.Password, this.ReadOnly, false, isLog: true);
             }
 
-            return new StreamFactory(new MemoryStream(), this.Password, true);
+            return new StreamFactory(new MemoryStream(), this.Password, true, isLog: true);
         }
 
         /// <summary>
