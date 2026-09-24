@@ -24,9 +24,10 @@ namespace LiteDB.Engine
             var marker = GetMarkerFilename(settings.Filename);
             try
             {
-                // File.Exists hides access and IO errors. Only an absent marker is
-                // evidence that it is safe to open (or create) the canonical database.
-                File.GetAttributes(marker);
+                // FileInfo returns -1 for absence without throwing on every open,
+                // but still throws on access/IO errors. File.Exists would hide those
+                // errors and could admit an incompletely installed database.
+                if (new FileInfo(marker).Attributes == (FileAttributes)(-1)) return;
             }
             catch (FileNotFoundException) { return; }
             catch (DirectoryNotFoundException) { return; }
