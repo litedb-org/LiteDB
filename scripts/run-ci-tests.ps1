@@ -110,7 +110,23 @@ $arguments = @(
 if ($Filter) { $arguments += "/TestCaseFilter:($Filter)|FullyQualifiedName~TestHost_Tests" }
 $arguments += '--', "RunConfiguration.DotNetHostPath=$testHost"
 & dotnet @arguments
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+$exitCode = $LASTEXITCODE
+if ($exitCode -ne 0 -and !(Test-Path $resultPath)) {
+    # VSTest occasionally exits on macOS runners without any output or result file
+    # (seen in the query partition). Record what is known and retry once with a
+    # diagnostic log; the guards below still decide whether the retry counts.
+    Write-Host "VSTest exited with $exitCode and wrote no result file ($resultPath); retrying once with diagnostics."
+    $diag = Join-Path $results "vstest-diag-$([IO.Path]::GetFileNameWithoutExtension($ResultFile)).log"
+    $retry = @($arguments[0..($arguments.IndexOf('--') - 1)]) + "/Diag:$diag" + @($arguments[$arguments.IndexOf('--')..($arguments.Count - 1)])
+    & dotnet @retry
+    $exitCode = $LASTEXITCODE
+    foreach ($log in @(Get-ChildItem -Path $results -Filter 'vstest-diag-*' -ErrorAction SilentlyContinue)) {
+        Write-Host "--- last lines of $($log.Name)"
+        Get-Content $log.FullName -Tail 40 | ForEach-Object { Write-Host $_ }
+    }
+    if ($exitCode -ne 0 -and !(Test-Path $resultPath)) { Write-Host "Retry also wrote no result file." }
+}
+if ($exitCode -ne 0) { exit $exitCode }
 
 # A green run must actually execute these guards, including filtered CI jobs.
 [xml]$report = Get-Content $resultPath
