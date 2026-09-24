@@ -31,6 +31,9 @@ namespace LiteDB
 #if DEBUG || TESTING
         internal Func<LiteEngine> SimulateOpenEngine { get; set; }
 
+        /// <summary>Test hook: runs in OpenDatabase between the engine check and counting the user.</summary>
+        internal Action BeforeCountingUser { get; set; }
+
         internal int EngineOpens { get; private set; }
 
         internal SharedMutexOwner MutexOwner => _owner;
@@ -98,20 +101,29 @@ namespace LiteDB
             }
             catch { _owner.Exit(); throw; }
 
-            // Don't create a new engine while a transaction is running.
-            if (!_transactionRunning && _engine == null)
+            // Check, open and count under one lock. A reader disposed on another thread
+            // closes the engine in CloseDatabase once the count reaches zero; between a
+            // separate check and increment it could close the engine this call relies on.
+            lock (_useLock)
             {
-                try
+                // Don't create a new engine while a transaction is running.
+                if (!_transactionRunning && _engine == null)
                 {
-                    this.OpenEngine(recoveredAbandonedOwner);
+                    try
+                    {
+                        this.OpenEngine(recoveredAbandonedOwner);
+                    }
+                    catch
+                    {
+                        _owner.Exit();
+                        throw;
+                    }
                 }
-                catch
-                {
-                    _owner.Exit();
-                    throw;
-                }
+#if DEBUG || TESTING
+                this.BeforeCountingUser?.Invoke();
+#endif
+                _databaseUsers++;
             }
-            lock (_useLock) _databaseUsers++;
             return null;
         }
 

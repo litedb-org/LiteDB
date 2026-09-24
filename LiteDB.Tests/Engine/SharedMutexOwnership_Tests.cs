@@ -144,6 +144,54 @@ namespace LiteDB.Tests.Engine
         }
 #endif
 
+#if DEBUG || TESTING
+        /// <summary>
+        /// The owner starts another operation while its unleased reader is open: OpenDatabase
+        /// sees the open engine and does not reopen it. A reader disposed on another thread
+        /// at that moment must not close the engine before the operation is counted.
+        /// </summary>
+        [Fact]
+        public void Reader_disposed_on_another_thread_cannot_close_the_engine_under_a_starting_operation()
+        {
+            using var engine = this.OpenUnleased();
+            var reader = engine.Query("docs", new Query());
+            reader.Read().Should().BeTrue();
+
+            var starter = Thread.CurrentThread;
+            using var inWindow = new ManualResetEventSlim();
+            using var disposed = new ManualResetEventSlim();
+            Exception disposeError = null;
+            var disposer = new Thread(() =>
+            {
+                inWindow.Wait();
+                try { reader.Dispose(); }
+                catch (Exception ex) { disposeError = ex; }
+                disposed.Set();
+            }) { IsBackground = true };
+            disposer.Start();
+
+            engine.BeforeCountingUser = () =>
+            {
+                if (!ReferenceEquals(Thread.CurrentThread, starter) || inWindow.IsSet) return;
+                inWindow.Set();
+                // Without the fix the disposal completes here; with it, it waits for the count.
+                disposed.Wait(TimeSpan.FromMilliseconds(500));
+            };
+            try
+            {
+                engine.Insert("other", new[] { new BsonDocument { ["_id"] = 1 } }, BsonAutoId.Int32).Should().Be(1);
+            }
+            finally
+            {
+                engine.BeforeCountingUser = null;
+                disposer.Join(Prompt).Should().BeTrue();
+            }
+            disposeError.Should().BeNull();
+            engine.Query("other", new Query()).ToEnumerable().Count().Should().Be(1);
+            this.WriteFromAnotherInstance();
+        }
+#endif
+
         /// <summary>Opens a reader that streams under the mutex, on a thread that then idles.</summary>
         private static IBsonDataReader ReadOnIdleThread(SharedEngine engine, ManualResetEventSlim finish, out Thread owner)
         {
