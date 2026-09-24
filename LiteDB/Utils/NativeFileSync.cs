@@ -50,20 +50,18 @@ namespace LiteDB
                 return;
             }
 
-            // Push managed buffers to the OS, then sync the descriptor ourselves.
-            stream.Flush(false);
-            int errno;
-            try
+            if (!NativeLibc.TryGet(out var fsync, out var fcntl))
             {
-                errno = Sync(stream.SafeFileHandle);
-            }
-            catch (Exception ex) when (ex is DllNotFoundException || ex is EntryPointNotFoundException)
-            {
-                // No resolvable libc: keep the runtime's sync, which cannot report failures.
+                // No resolvable C library: keep the runtime's sync, which cannot report
+                // failures. Observable through UsesRuntimeSync.
                 _nativeUnavailable = true;
                 stream.Flush(true);
                 return;
             }
+
+            // Push managed buffers to the OS, then sync the descriptor ourselves.
+            stream.Flush(false);
+            var errno = Sync(stream.SafeFileHandle, fsync, fcntl);
             if (errno != 0) throw new FileSyncException(stream.Name, errno, _bsd);
         }
 
@@ -77,7 +75,13 @@ namespace LiteDB
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, bool> _overrides =
             new System.Collections.Concurrent.ConcurrentDictionary<Type, bool>();
 
-        private static int Sync(Microsoft.Win32.SafeHandles.SafeFileHandle handle)
+        /// <summary>
+        /// True when Unix device syncs go through the runtime's Flush(true), which reports
+        /// no errors, because no C library could be bound. Always false on Windows.
+        /// </summary>
+        internal static bool UsesRuntimeSync => !_windows && (_nativeUnavailable || NativeLibc.LibraryName == null);
+
+        private static int Sync(Microsoft.Win32.SafeHandles.SafeFileHandle handle, NativeLibc.FsyncCall fsync, NativeLibc.FcntlCall fcntl)
         {
             var added = false;
             try
@@ -89,10 +93,10 @@ namespace LiteDB
                     // Fall back to fsync only where F_FULLFSYNC is unsupported (some file
                     // systems and handles). A genuine device error must not be hidden by an
                     // fsync that may only reach the drive's write cache.
-                    var full = Retry(() => Native.FcntlNoArgument(fd, F_FULLFSYNC));
+                    var full = Retry(() => fcntl(fd, F_FULLFSYNC));
                     if (full != ENOTSUP_BSD && full != EOPNOTSUPP_BSD && full != EINVAL && full != ENOTTY) return full;
                 }
-                return Retry(() => Native.Fsync(fd));
+                return Retry(() => fsync(fd));
             }
             finally
             {
@@ -110,15 +114,6 @@ namespace LiteDB
             }
         }
 
-        private static class Native
-        {
-            [DllImport("libc", EntryPoint = "fsync", SetLastError = true)]
-            internal static extern int Fsync(int descriptor);
-
-            // fcntl is variadic; F_FULLFSYNC takes no argument, so only the fixed parameters are passed.
-            [DllImport("libc", EntryPoint = "fcntl", SetLastError = true)]
-            internal static extern int FcntlNoArgument(int descriptor, int command);
-        }
     }
 
     /// <summary>A failed device sync of a file, carrying the raw errno as HResult.</summary>

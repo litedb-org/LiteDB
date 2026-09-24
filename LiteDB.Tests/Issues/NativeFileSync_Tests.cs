@@ -141,6 +141,22 @@ namespace LiteDB.Tests.Issues
         }
 
         [Fact]
+        public void Unix_binds_a_c_library_so_syncs_report_their_errors()
+        {
+            if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
+            {
+                NativeFileSync.UsesRuntimeSync.Should().BeFalse("Windows syncs through FlushFileBuffers, which throws");
+                return;
+            }
+
+            NativeLibc.LibraryName.Should().NotBeNull("without a bound C library every fsync error would be lost");
+            NativeLibc.TryGet(out var fsync, out _).Should().BeTrue();
+            fsync(-1).Should().Be(-1, "an invalid descriptor must reach the real fsync");
+            System.Runtime.InteropServices.Marshal.GetLastWin32Error().Should().Be(9, "EBADF");
+            NativeFileSync.UsesRuntimeSync.Should().BeFalse();
+        }
+
+        [Fact]
         public void FileStream_subclass_that_overrides_flush_keeps_control_of_the_sync()
         {
             using var file = new TempFile();
