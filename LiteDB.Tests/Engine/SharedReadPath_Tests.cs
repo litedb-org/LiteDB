@@ -162,6 +162,22 @@ namespace LiteDB.Tests.Engine
         }
 
         [Fact]
+        public void A_lease_is_live_for_another_registry_while_held_and_leaves_no_file_behind()
+        {
+            var registry = new LiteDB.Client.Shared.SharedReaderRegistry(this.Filename);
+            var other = new LiteDB.Client.Shared.SharedReaderRegistry(this.Filename);
+            using (var lease = registry.Register(7))
+            {
+                // Another registry proves liveness by an exclusive open, which the held lease refuses.
+                other.LiveVersions().Should().Equal(7);
+                Directory.GetFiles(this.ReadersDirectory, "*.lease").Should().HaveCount(1);
+            }
+            Directory.GetFiles(this.ReadersDirectory, "*.lease").Should().BeEmpty(
+                "a closed lease deletes itself instead of waiting to be proven dead");
+            other.LiveVersions().Should().BeEmpty();
+        }
+
+        [Fact]
         public void A_first_read_creates_a_missing_database()
         {
             using var engine = this.Open();

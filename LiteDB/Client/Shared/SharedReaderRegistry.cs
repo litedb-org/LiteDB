@@ -23,14 +23,46 @@ namespace LiteDB.Client.Shared
             _getFiles = getFiles ?? Directory.GetFiles;
         }
 
+        /// <summary>
+        /// Lease <paramref name="version"/> until the returned handle is disposed. The caller
+        /// owns the mutex. A registry that cannot be inspected refuses the lease, and the
+        /// caller streams under the mutex instead; otherwise nothing is scanned or removed
+        /// here: checkpoints remove dead leases (crashed owners) themselves, and fail closed
+        /// on a registry they cannot read. An exclusive open handle is the lease, as before:
+        /// a prober's exclusive open fails while it is held (sharing violation, or LOCK_EX on
+        /// Unix). DeleteOnClose removes the file only when its owner closes it (on Unix at
+        /// Dispose, never while open), so a closed lease no longer has to be proven dead,
+        /// deleted and its directory recreated by the next registration.
+        /// </summary>
         internal IDisposable Register(int version)
         {
-            if (this.LiveVersions() == null)
-                throw new IOException("The shared-reader registry could not be inspected.");
-            Directory.CreateDirectory(_directory);
+            try { _getFiles(_directory, "*.lease"); }
+            catch (DirectoryNotFoundException) { }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
+                throw new IOException("The shared-reader registry could not be inspected.", ex);
+            }
+            return this.RegisterUnscanned(version);
+        }
+
+        /// <summary>
+        /// Create the lease file without inspecting the registry. <see cref="Register"/> checks
+        /// that the registry is readable first; checkpoints' scans still fail closed if the
+        /// directory cannot be read.
+        /// </summary>
+        internal IDisposable RegisterUnscanned(int version)
+        {
             var name = version.ToString(CultureInfo.InvariantCulture) + "-" + Guid.NewGuid().ToString("N") + ".lease";
-            return new FileStream(Path.Combine(_directory, name), System.IO.FileMode.CreateNew,
-                FileAccess.ReadWrite, FileShare.None);
+            var path = Path.Combine(_directory, name);
+            try { return Create(path); }
+            catch (DirectoryNotFoundException)
+            {
+                Directory.CreateDirectory(_directory);
+                return Create(path);
+            }
+
+            static FileStream Create(string path) => new FileStream(path, System.IO.FileMode.CreateNew,
+                FileAccess.ReadWrite, FileShare.None, 1, FileOptions.DeleteOnClose);
         }
 
         internal int? OldestVersion()
