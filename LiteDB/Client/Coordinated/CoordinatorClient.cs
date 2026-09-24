@@ -21,6 +21,8 @@ namespace LiteDB.Client.Coordinated
         private readonly string _pipeName;
         private readonly EngineSettings _settings;
         private readonly SharedReaderRegistry _registry;
+        // Null when the coordinator publishes no status page: snapshots are granted over IPC.
+        private readonly CoordinatorStatusPage _page;
         private readonly ThreadLocal<Session> _sessions = new ThreadLocal<Session>(trackAllValues: true);
         private readonly object _leaseLock = new object();
         private Stream _lease;
@@ -35,6 +37,7 @@ namespace LiteDB.Client.Coordinated
             _pipeName = pipeName;
             _settings = settings;
             _registry = new SharedReaderRegistry(settings.Filename, settings.SharedReaderFiles);
+            _page = CoordinatorStatusPage.TryOpen(settings.Filename);
         }
 
         /// <summary>Connect and handshake; throws <see cref="TimeoutException"/> or <see cref="IOException"/> when no coordinator answers.</summary>
@@ -165,6 +168,8 @@ namespace LiteDB.Client.Coordinated
             {
                 this.CloseSnapshots();
                 this.DropLeaseStream();
+                // Under the lease lock: no snapshot acquisition can read it afterwards.
+                _page?.Dispose();
             }
             foreach (var session in _sessions.Values) session?.Dispose();
             _sessions.Dispose();

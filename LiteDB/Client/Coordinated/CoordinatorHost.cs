@@ -23,9 +23,12 @@ namespace LiteDB.Client.Coordinated
         private static readonly TimeSpan GrantOpenTimeout = TimeSpan.FromSeconds(10);
 
         private readonly LiteEngine _engine;
+        private readonly CoordinatorStatusPage _page;
+        private readonly CoordinatorSignals _signals;
         private readonly CoordinatorGate _gate = new CoordinatorGate();
         private readonly CoordinatorMutex _mutex;
         private readonly string _pipeName;
+        private readonly string _filename;
         private readonly CancellationTokenSource _stop = new CancellationTokenSource();
         private readonly List<(Thread Thread, Stream Stream)> _sessions = new List<(Thread, Stream)>();
         private readonly Thread _accept;
@@ -35,12 +38,27 @@ namespace LiteDB.Client.Coordinated
         {
             _mutex = mutex;
             _pipeName = PipeName(settings.Filename);
+            _filename = settings.Filename;
             var registry = new SharedReaderRegistry(settings.Filename, settings.SharedReaderFiles);
             var engineSettings = settings.Clone();
             // Client snapshots are leased by OS-held files, so they survive this
             // process: a successor coordinator still sees every live snapshot.
             engineSettings.SharedReaderVersions = registry.LiveVersions;
-            _engine = new LiteEngine(engineSettings);
+            // Without a status page clients fall back to snapshot grants over IPC.
+            try { _page = CoordinatorStatusPage.Create(settings.Filename); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+            // Publish "starting" before the engine opens: opening can change the files.
+            _signals = _page == null ? null : new CoordinatorSignals(_page);
+            engineSettings.CoordinationSignals = _signals;
+            try { _engine = new LiteEngine(engineSettings); }
+            catch
+            {
+                _signals?.Dispose();
+                _page?.Dispose();
+                throw;
+            }
+            _signals?.Started(_engine.ReadVersion);
             RemoveStaleUnixEndpoint(_pipeName);
             _accept = new Thread(this.AcceptLoop) { IsBackground = true, Name = "LiteDB coordinator accept" };
             _accept.Start();
@@ -146,6 +164,13 @@ namespace LiteDB.Client.Coordinated
             }
         }
 
+        private static void TryDelete(string path)
+        {
+            try { File.Delete(path); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+
         private static void RemoveStaleUnixEndpoint(string pipeName)
         {
             // A killed coordinator leaves its Unix domain socket file behind. This
@@ -177,6 +202,12 @@ namespace LiteDB.Client.Coordinated
             }
             finally
             {
+                // A crash leaves the page as a killed process would. A graceful stop
+                // publishes "no coordinator" first, so clients still mapping the file
+                // (Windows keeps it until they unmap) never trust it again.
+                if (!crash) _signals?.Dispose();
+                _page?.Dispose();
+                if (!crash && _page != null) TryDelete(CoordinatorStatusPage.PathFor(_filename));
                 _mutex.Dispose();
                 _stop.Dispose();
             }

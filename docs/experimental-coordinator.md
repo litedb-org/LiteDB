@@ -11,7 +11,8 @@ mode tests the alternative from #3004:
 
 - One process owns the database and keeps the only writable engine open.
 - Other processes send writes to it over IPC.
-- Readers register a snapshot with it over IPC, but then read the files directly.
+- Readers open snapshots of the files directly. The coordinator publishes what they need on a
+  shared-memory status page, so most reads involve no IPC at all.
 
 ```csharp
 #pragma warning disable LITEDB_EXPERIMENTAL_COORDINATOR
@@ -50,42 +51,83 @@ thread, so its commits are durable before the reply returns, as in direct mode.
 
 ## Reads
 
-A read outside an explicit transaction uses a direct snapshot:
+A read outside an explicit transaction uses a direct snapshot: a read-only engine on the data
+and WAL files, cached by the client. In the common cases it takes no IPC at all. The
+coordinator publishes its state on a **status page**, a 4 KiB memory-mapped file in the per-user
+temp directory named after the database path (`litedb-coord-<sha1(path)>.page`, owner-only on
+Unix). Every coordinator of a database writes the same page. A graceful stop marks it "no
+coordinator" and deletes it; a killed coordinator leaves it, and its successor overwrites it.
 
-1. The client asks for a snapshot on its lease connection. It includes the version of its cached
-   snapshot, if it has one.
-2. If nothing was committed since that version, the coordinator answers `same`, and the client
-   reuses its cached read-only engine.
-3. Otherwise the coordinator waits until no engine call is running, closes its **gate** (no
-   commit, safepoint or checkpoint can start), and returns its committed read version.
-4. The client creates an OS-held lease file for that version: the same `-readers` registry that
-   shared mode uses, which also feeds the coordinator's `SharedReaderVersions`. It then opens a
-   read-only snapshot engine on the data and WAL files.
-5. The client checks that the engine opened at exactly the granted version, and tells the
-   coordinator, which reopens the gate.
-6. The query runs against the local snapshot engine, with no further IPC. The cached snapshot is
-   released after 0.5 s without use.
+The page holds, under a seqlock (the sequence is odd while it changes, and readers retry until
+they see the same even value before and after):
 
-A client falls back to reading **over IPC** in these cases:
-- the gate cannot be closed within 250 ms (a long write is running);
-- the lease cannot be registered;
-- the read is inside an explicit transaction, so it must see the transaction's uncommitted writes;
-- the query writes (`FOR UPDATE`, `INTO`).
+| Field | Meaning |
+| --- | --- |
+| instance | random id of the running coordinator; 0 after a graceful stop |
+| version | read version of the newest committed transaction, published before the commit returns |
+| structural | incremented before and after every checkpoint (before its lease scan), format promotion, header invalidation and the coordinator's own open, so it is **odd while one runs** |
+| reuse epoch | incremented before a reclaimed WAL slot is overwritten |
+| resets | incremented when the read version decreases (the WAL was truncated) |
 
-IPC results are materialized on the coordinator.
+A client decides as follows, in order:
+
+1. **Fast path.** If its cached snapshot has the page's instance, version and resets, nothing was
+   committed since, so the cached engine answers. No IPC, no file access.
+2. **Incremental refresh.** If only commits were appended since the snapshot's last WAL scan
+   (same instance, same even structural counter, same resets and reuse epoch; newer version), and
+   no reader uses the cached engine, the client registers a lease for the new version and advances
+   the engine by reading only the WAL frames from its rescan point on. The rescan point is the end
+   of the last confirmed transaction, or the first frame of a transaction that was still open at
+   the last scan. The page is re-read afterwards (see the proof). A rejected refresh retires the
+   snapshot.
+3. **Handshake.** Otherwise it opens a new snapshot without the coordinator: read the page (the
+   structural counter must be even), register an OS-held lease file for the published version,
+   open the read-only engine, re-read the page, and accept only if instance, structural counter
+   and resets are unchanged and the engine opened at exactly that version. It retries twice.
+4. **Grant over IPC.** As before this change: the coordinator closes its gate (no engine call runs),
+   returns its read version, and reopens the gate once the client has opened its engine. It is
+   used when there is no page, or the handshake keeps losing to checkpoints.
+
+A client still reads **over IPC** when a grant cannot close the gate within 250 ms, the lease
+cannot be registered, the read is inside an explicit transaction, or the query writes (`FOR
+UPDATE`, `INTO`). IPC results are materialized on the coordinator.
+
+Leases registered by the fast paths skip the registry scan and are deleted when their handle
+closes, so closed leases do not pile up. The coordinator's scan still fails closed if the
+registry cannot be read.
 
 ### Why the snapshot is safe
 
-| Property | Mechanism |
-| --- | --- |
-| The snapshot engine opens on a consistent committed state | The gate excludes every engine call during the open, and the client verifies `ReadVersion == granted`. |
-| Checkpoint never moves or reclaims frames a snapshot needs | The OS-held lease file feeds `SharedReaderVersions`, the same v13 protocol as shared-mode readers. |
-| A coordinator crash does not orphan snapshots | Lease files are owned by the reading process, and the next coordinator's checkpoints see them. |
-| Reusing a cached snapshot is equivalent to a fresh one | The version is unchanged, and the snapshot's own lease prevents the WAL truncation that could reuse a version number. |
+A snapshot at version V is safe if no frame V needs is reclaimed while it is read. A checkpoint
+keeps the newest version, every version it saw leased, and the floors of both; everything
+else may be cleared and reused. The client orders its steps as *register lease(V) → fence →
+re-read page*; the coordinator orders its checkpoint as *structural odd → fence → scan leases →
+… → structural even*. Both pairs are separated by full fences, and the lease file is created
+by a syscall that completes before the client's re-read.
 
-The negative control that removes the lease file makes
-`A_direct_snapshot_keeps_its_version_while_the_coordinator_writes_and_checkpoints` fail: the
-checkpoint truncates the WAL under the reader.
+| Interleaving | Outcome |
+| --- | --- |
+| The checkpoint marks structural odd before the client's re-read | The re-read sees a changed counter (or odd): rejected, lease dropped. |
+| The checkpoint marks structural odd after the client's re-read | Its lease scan follows its mark, which follows the client's registration: it sees lease(V) and keeps V. |
+| A checkpoint completed before the client first read the page | V was the newest version when read, so that checkpoint kept everything V needs: V's state is the one it kept plus later commits, whose frames it could not touch. |
+| A checkpoint ran during the engine open | The counter changed between the two reads: rejected, so an open never overlaps a backfill, clearing, truncation or header write. |
+| A commit completed during the open | The engine lands above V: rejected by the version check, because only V is leased. |
+| A commit was in progress during the open | Its frames are unconfirmed, or torn if a reused slot was being written. Read-only recovery ignores them, or stops before them (then the version check rejects). |
+| Format promotion or header invalidation during the open | Bracketed like a checkpoint: rejected. |
+| The coordinator opens (recovers, migrates) | It publishes a new instance with an odd counter **before** opening its engine: no client accepts a snapshot across it. |
+| The coordinator is killed | The page keeps its last state, which stays accurate because nobody writes until a successor, whose first write (new instance, odd) invalidates every cached snapshot and handshake. A kill during a checkpoint leaves the counter odd, so clients use IPC and re-elect. Lease files outlive the coordinator, and the successor's checkpoints honor them. |
+| The coordinator stops gracefully | Instance 0: clients stop trusting the page and re-elect over IPC. |
+| Refresh: a checkpoint runs while the tail is read | Same argument as the handshake, with the new version's lease registered before the read and the page re-read after it. |
+| Refresh: a reclaimed slot was reused since the last scan | Refused by the reuse epoch: the new transaction's frames could lie before the rescan point. As a second barrier, a confirmation whose frame count or digest does not match the frames seen fails recovery, so the refresh is rejected. |
+| Cached snapshot reuse | Same instance, version and resets: nothing committed. The snapshot's own lease rules out the WAL truncation that could reuse a version number. |
+
+Tests force each step of the handshake and of refresh against a checkpoint, and cross-check every
+advanced snapshot against a fresh open. Two negative controls exist:
+- Removing the re-read lets a paused checkpoint reclaim the accepted snapshot's frames, and reading it fails.
+- Removing the reuse check turns a reuse scenario into a refresh that recovery rejects.
+
+The earlier negative control remains: removing the lease file makes
+`A_direct_snapshot_keeps_its_version_while_the_coordinator_writes_and_checkpoints` fail.
 
 ## Failure semantics
 
@@ -104,15 +146,52 @@ checkpoint truncates the WAL under the reader.
 - Mixed participants are unsupported (see above), and so are cross-user and cross-machine access.
 - `Rebuild` is not supported. Vector index creation must run in the coordinator process. Vector
   queries inside a client transaction are not supported.
-- A snapshot grant briefly stalls writers, for the duration of the read-only engine open (about a
-  millisecond on NVMe). A cached snapshot or a long reader holds back WAL reclamation like any
-  leased reader.
+- Only the IPC grant fallback stalls writers (for one read-only engine open). A cached snapshot
+  or a long reader holds back WAL reclamation like any leased reader.
+- The status page trusts that a coordinator which cannot create or open it also leaves no stale
+  page behind that clients still map. A graceful stop marks the page "no coordinator", and a
+  crashed coordinator's page is overwritten by the next one. A successor that cannot write the
+  page at all (for example after its permissions changed) while clients still map a crashed
+  predecessor's page is not detected. Clients then read that predecessor's last snapshot until
+  their next IPC call fails.
+- A refreshed snapshot keeps the pragmas object it opened with (lock timeouts, for example); the
+  header's collections, pages and file version are refreshed in place.
+- The status page is a 4 KiB file in the temp directory. It is deleted on a graceful stop. On
+  Windows the deletion completes once no client maps it; until then a new coordinator cannot
+  create the page and serves snapshot grants over IPC.
 - Lease files require write access to the database directory.
 - Documents stream one per round trip, so bulk inserts pay per-document IPC latency.
 - Tested on Windows (.NET 8 and .NET 10) only. The Unix socket cleanup after a killed coordinator
   has not been exercised.
 
 ## Measurements
+
+### Reads without IPC (status page, handshake, incremental refresh)
+
+Same machine and harness. "Before" is the IPC-registered snapshot of `7f9544af2`, "after" this
+change; three interleaved runs each, ms per operation. Shared and direct mode are single runs of
+the same build, for reference.
+
+| Scenario | Before | After | Shared | Direct |
+| --- | --- | --- | --- | --- |
+| Point read `FindById` (4000) | 0.271–0.301 | 0.040–0.048 | 0.747 | 0.037 |
+| 1 update per 9 point reads (2000) | 0.902–0.935 | 0.315–0.364 | 1.462 | 0.156 |
+| Full scan of 2,000 rows (200) | 4.97–5.17 | 4.19–4.40 | 9.29 | 4.27 |
+| Update loop (1000) | 1.89–1.96 | 1.97–2.08 | 2.90 | 1.34 |
+| Update while another connection holds a reader (500) | 1.88–2.09 | 1.77–2.01 | 5.81 | not possible |
+
+- **Point reads:** a point read before this change cost one pipe round trip (about 0.12 ms, the
+  "same" check) plus the local read. Now the page check replaces the round trip, and a point read
+  runs at direct-mode speed.
+- **Opening a new snapshot** without the cache cost about 3.4 ms: 0.8 ms lease registration with a
+  registry scan, 2.5 ms engine open, and the round trips. A refresh costs about 0.6 ms: 0.34 ms to
+  create the new lease file, 0.18 ms to scan the appended frames, and 0.11 ms to close the old lease.
+- **Mixed workload:** in the 1:9 mix, 199 of 200 post-commit reads refreshed and one opened; the
+  remaining time is the updates themselves.
+- **Writes** are unchanged within noise. The page write per commit and per reused slot is a few
+  stores under a lock.
+
+### Initial prototype
 
 Windows 11, NVMe, .NET 10, Release. The coordinator is a separate process; the measured process
 is a client. The database has 2,000 rows of about 260 bytes. Shared mode is branch `shared/salvage`
@@ -139,8 +218,8 @@ Takeaways:
 
 ## What production use would still need
 
-- **A proof table** in the style of `storage-stack-safety.md` for the gate and for snapshot reuse,
-  plus fuzz targets with coordinator crash points (grant, open, ack, streaming insert).
+- **Fuzz targets** with coordinator crash points (grant, handshake steps, refresh, ack, streaming
+  insert). The proof above is a written argument backed by forced interleavings, not a model check.
 - **Tests of the Unix transport** (Linux and macOS), including stale socket cleanup and abandoned
   named-mutex behavior.
 - **Batched streaming** for documents that already carry an `_id`, and streaming IPC results.
