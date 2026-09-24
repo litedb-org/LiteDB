@@ -75,30 +75,20 @@ internal static class Program
             Console.WriteLine($"TOTAL BUDGET {options.Duration.Value:c}: {requestedRuns} runs, " +
                 $"{parallel} slots, {allocatedDuration.Value:c} per target/worker shard");
         }
+        // Read every corpus before any worker starts: passed epochs rewrite the interesting and
+        // coverage files as they finish, which these reads would otherwise race.
+        var corpusCases = replaying ? new List<FuzzCorpusCase>() : FuzzCorpus.Load()
+            .Concat(FuzzCorpus.LoadInteresting(options.ArtifactDirectory))
+            .Concat(FuzzCorpus.LoadCoverage(options.ArtifactDirectory))
+            .Where(item => selected.Any(target => target.Name == item.Target))
+            .ToList();
         var runs = selected.SelectMany(target => Enumerable.Range(0, options.Workers)
             .Select(worker => FuzzProcessRunner.RunEpochsAsync(target, options, worker, allocatedDuration))).ToList();
-        if (!replaying)
+        foreach (var corpusCase in corpusCases)
         {
-            foreach (var corpusCase in FuzzCorpus.Load().Where(item => selected.Any(target => target.Name == item.Target)))
-            {
-                var target = selected.Single(item => item.Name == corpusCase.Target);
-                runs.Add(FuzzProcessRunner.RunEpochsAsync(target,
-                    FuzzOptions.FromCorpus(corpusCase, options.ArtifactDirectory), 0));
-            }
-            foreach (var corpusCase in FuzzCorpus.LoadInteresting(options.ArtifactDirectory)
-                .Where(item => selected.Any(target => target.Name == item.Target)))
-            {
-                var target = selected.Single(item => item.Name == corpusCase.Target);
-                runs.Add(FuzzProcessRunner.RunEpochsAsync(target,
-                    FuzzOptions.FromCorpus(corpusCase, options.ArtifactDirectory), 0));
-            }
-            foreach (var corpusCase in FuzzCorpus.LoadCoverage(options.ArtifactDirectory)
-                .Where(item => selected.Any(target => target.Name == item.Target)))
-            {
-                var target = selected.Single(item => item.Name == corpusCase.Target);
-                runs.Add(FuzzProcessRunner.RunEpochsAsync(target,
-                    FuzzOptions.FromCorpus(corpusCase, options.ArtifactDirectory), 0));
-            }
+            var target = selected.Single(item => item.Name == corpusCase.Target);
+            runs.Add(FuzzProcessRunner.RunEpochsAsync(target,
+                FuzzOptions.FromCorpus(corpusCase, options.ArtifactDirectory), 0));
         }
         var results = (await Task.WhenAll(runs)).SelectMany(result => result).ToArray();
         // Passed duration epochs were already merged and pruned as they finished.
