@@ -1,10 +1,21 @@
 using System.IO;
+using System.Linq;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
 {
     internal partial class DiskService
     {
+        private HeaderPage _initialHeader;
+
+        /// <summary>Transfer the header already validated during this disk open.</summary>
+        internal HeaderPage ReadHeader()
+        {
+            var header = _initialHeader;
+            _initialHeader = null;
+            return header ?? new HeaderPage(this.ReadFull(FileOrigin.Data).First());
+        }
+
         private HeaderPage ValidateExistingData()
         {
             var stream = _dataPool.Rent();
@@ -26,7 +37,11 @@ namespace LiteDB.Engine
 
                 // Validate identity and the complete header before permitting any repair.
                 this.LoadChecksums(new BufferSlice(bytes, 0, PAGE_SIZE));
-                return new HeaderPage(new PageBuffer(bytes, 0, 0));
+                return new HeaderPage(new PageBuffer(bytes, 0, 0)
+                {
+                    Position = 0,
+                    Origin = FileOrigin.Data
+                });
             }
             finally
             {
