@@ -10,11 +10,15 @@ namespace LiteDB
     /// (fixed only in dotnet/runtime#124725), and the managed layer additionally ignores
     /// EROFS/EINVAL/ENOTSUP. FileStream.Flush(true) therefore reports success after EIO.
     /// Unix handles are synced here directly: F_FULLFSYNC on macOS (falling back to fsync
-    /// like the fixed runtime), fsync elsewhere. Windows keeps FlushFileBuffers, which throws.
+    /// only where F_FULLFSYNC is unsupported), fsync elsewhere. Windows keeps FlushFileBuffers, which throws.
     /// </summary>
     internal static class NativeFileSync
     {
         private const int EINTR = 4;
+        private const int EINVAL = 22;
+        private const int ENOTTY = 25;
+        private const int ENOTSUP_BSD = 45;
+        private const int EOPNOTSUPP_BSD = 102;
         private const int F_FULLFSYNC = 51;
 
         private static readonly bool _windows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
@@ -80,10 +84,14 @@ namespace LiteDB
             {
                 handle.DangerousAddRef(ref added);
                 var fd = handle.DangerousGetHandle().ToInt32();
-                if (_macOS && Retry(() => Native.FcntlNoArgument(fd, F_FULLFSYNC)) == 0) return 0;
-
-                // Not every file system or handle supports F_FULLFSYNC; a genuine I/O
-                // error fails fsync as well.
+                if (_macOS)
+                {
+                    // Fall back to fsync only where F_FULLFSYNC is unsupported (some file
+                    // systems and handles). A genuine device error must not be hidden by an
+                    // fsync that may only reach the drive's write cache.
+                    var full = Retry(() => Native.FcntlNoArgument(fd, F_FULLFSYNC));
+                    if (full != ENOTSUP_BSD && full != EOPNOTSUPP_BSD && full != EINVAL && full != ENOTTY) return full;
+                }
                 return Retry(() => Native.Fsync(fd));
             }
             finally

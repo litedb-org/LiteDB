@@ -54,27 +54,31 @@ namespace LiteDB.Engine
             var key = new Key(path, access, options);
             Entry entry = null;
             int generation;
-            lock (_lock)
+            while (true)
             {
-                // A closing engine may still open streams after the connection disposed.
-                if (_disposed) return new FileStream(path, mode, access, Share, bufferSize, options);
-                generation = _generation;
-                if (_idle.TryGetValue(key, out var idle))
+                Entry candidate = null;
+                lock (_lock)
                 {
-                    while (idle.Count > 0)
-                    {
-                        var candidate = idle.Pop();
-                        if (candidate.StillNamesItsPath())
-                        {
-                            entry = candidate;
-                            break;
-                        }
-                        candidate.Close();
-#if DEBUG || TESTING
-                        Invalidated++;
-#endif
-                    }
+                    // A closing engine may still open streams after the connection disposed.
+                    if (_disposed) return new FileStream(path, mode, access, Share, bufferSize, options);
+                    generation = _generation;
+                    if (_idle.TryGetValue(key, out var idle) && idle.Count > 0) candidate = idle.Pop();
                 }
+                if (candidate == null) break;
+
+                // The identity check and CloseHandle are kernel calls that a slow volume can
+                // stall, so they run outside the lock that every stream of this connection uses.
+                var valid = candidate.StillNamesItsPath();
+                lock (_lock) valid &= generation == _generation;
+                if (valid)
+                {
+                    entry = candidate;
+                    break;
+                }
+                candidate.Close();
+#if DEBUG || TESTING
+                lock (_lock) Invalidated++;
+#endif
             }
 
             if (entry == null)
