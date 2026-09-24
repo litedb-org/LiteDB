@@ -16,6 +16,7 @@ internal sealed class FuzzContext : IDisposable
 
     private readonly string _heartbeatPath;
     private DateTimeOffset _lastHeartbeat;
+    private readonly List<string> _stepFiles = new();
 
     internal FuzzContext(string target, int seed, int count, TimeSpan? duration, string directory,
         bool durationBoundReplay = false, string inputPath = null, string heartbeatPath = null)
@@ -62,6 +63,8 @@ internal sealed class FuzzContext : IDisposable
     {
         if (_steps >= Count && _deadline == DateTimeOffset.MaxValue) return false;
         if (DateTimeOffset.UtcNow >= _deadline) return false;
+        // The previous step passed, so its scratch databases are no longer evidence.
+        DeleteStepFiles();
         _steps++;
         _inputOffsets.WriteLine(System.Text.Json.JsonSerializer.Serialize(
             new { step = _steps, byteOffset = Input.Position }));
@@ -109,6 +112,49 @@ internal sealed class FuzzContext : IDisposable
     {
         if (!Files.Contains(path, StringComparer.Ordinal)) Files.Add(path);
         return path;
+    }
+
+    /// <summary>
+    /// A database used by the current step only. It is retained if this step fails, and deleted
+    /// (with its -log/-tmp/-backup companions) when the next step starts. Deterministic replay
+    /// recreates it, so long campaigns keep one step's files instead of every step's.
+    /// </summary>
+    internal string StepFile(string name)
+    {
+        var path = RegisterFile(Path.Combine(DirectoryPath, name));
+        _stepFiles.Add(path);
+        return path;
+    }
+
+    private void DeleteStepFiles()
+    {
+        for (var i = _stepFiles.Count - 1; i >= 0; i--)
+        {
+            var path = _stepFiles[i];
+            var stem = Path.GetFileNameWithoutExtension(path);
+            var companions = Directory.Exists(DirectoryPath)
+                ? Directory.EnumerateFiles(DirectoryPath, stem + "-*").Where(IsCompanion)
+                : Enumerable.Empty<string>();
+            var deleted = true;
+            foreach (var file in companions.Append(path).ToArray())
+            {
+                try { if (File.Exists(file)) File.Delete(file); }
+                catch (IOException) { deleted = false; }
+                catch (UnauthorizedAccessException) { deleted = false; }
+            }
+            // A handle that is still open is retried at the next step.
+            if (!deleted) continue;
+            _stepFiles.RemoveAt(i);
+            Files.Remove(path);
+
+            bool IsCompanion(string file)
+            {
+                var suffix = Path.GetFileName(file).Substring(stem.Length + 1);
+                return suffix.StartsWith("log", StringComparison.Ordinal) ||
+                    suffix.StartsWith("tmp", StringComparison.Ordinal) ||
+                    suffix.StartsWith("backup", StringComparison.Ordinal);
+            }
+        }
     }
 
     public void Dispose()

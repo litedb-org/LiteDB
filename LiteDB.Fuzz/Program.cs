@@ -101,9 +101,11 @@ internal static class Program
             }
         }
         var results = (await Task.WhenAll(runs)).SelectMany(result => result).ToArray();
-        FuzzArtifacts.MergeInterestingCorpus(results, options.ArtifactDirectory);
-        if (options.CoverageGuided) FuzzArtifacts.MergeCoverageCorpus(results, options.ArtifactDirectory);
-        foreach (var result in results.Where(item => item.Passed && item.PruneSuccessfulArtifacts))
+        // Passed duration epochs were already merged and pruned as they finished.
+        var pending = results.Where(result => !result.Compacted).ToArray();
+        FuzzArtifacts.MergeInterestingCorpus(pending, options.ArtifactDirectory);
+        if (options.CoverageGuided) FuzzArtifacts.MergeCoverageCorpus(pending, options.ArtifactDirectory);
+        foreach (var result in pending.Where(item => item.Passed && item.PruneSuccessfulArtifacts))
             FuzzArtifacts.PruneSuccessfulDurationRun(result.Directory);
         var failed = results.Count(result => result.BlocksBuild);
         var recorded = results.Count(result => !result.Passed && !result.BlocksBuild);
@@ -213,6 +215,7 @@ internal static class Program
         Console.WriteLine("  --minimization-timeout <Nm> per-prefix minimization bound (default: 30s)");
         Console.WriteLine("  --workers <int>             parallel deterministic seed shards");
         Console.WriteLine("  --artifact-dir <path>       raw traces and summaries");
+        Console.WriteLine("  --max-artifact-mb <int>     artifact-root budget; 0 disables (default: 512)");
         Console.WriteLine("  --replay <replay.json>      replay one saved target/seed/count");
         Console.WriteLine("  --coverage-guided           retain seeds that add new LiteDB IL-range coverage");
         Console.WriteLine("  --determinism-check         rerun and compare input/trace hashes");
@@ -228,7 +231,7 @@ internal static class Program
 }
 
 internal sealed record RunResult(string Target, int Seed, string Directory, bool Passed,
-    bool PruneSuccessfulArtifacts = false, FuzzFindingResolution Finding = null)
+    bool PruneSuccessfulArtifacts = false, FuzzFindingResolution Finding = null, bool Compacted = false)
 {
     internal bool BlocksBuild => !Passed &&
         (!PruneSuccessfulArtifacts || Finding?.AllowsDiscoveryToContinue != true);

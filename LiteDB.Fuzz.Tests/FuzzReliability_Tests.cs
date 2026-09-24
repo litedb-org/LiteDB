@@ -205,6 +205,71 @@ public sealed class FuzzReliability_Tests
         Assert.False(new RunResult("vector", 1, directory.Path, false, true, known).BlocksBuild);
     }
 
+    [Fact]
+    public async Task Step_files_keep_only_the_current_step_and_failures_copy_its_state()
+    {
+        using var directory = new TemporaryDirectory();
+        var run = Path.Combine(directory.Path, "run");
+        using (var context = new FuzzContext("step-files", 5, 3, null, run))
+        {
+            while (context.Next())
+            {
+                var file = context.StepFile($"scratch-{context.Steps}.db");
+                File.WriteAllBytes(file, new byte[1024]);
+                File.WriteAllBytes(Path.Combine(run, $"scratch-{context.Steps}-log.db"), new byte[512]);
+            }
+            await FuzzArtifacts.WriteResultAsync(context, DateTimeOffset.UtcNow,
+                new FuzzFailureException("STEP_FILES_PROBE", "forced failure at the last step"));
+        }
+
+        Assert.False(File.Exists(Path.Combine(run, "scratch-1.db")));
+        Assert.False(File.Exists(Path.Combine(run, "scratch-1-log.db")));
+        Assert.False(File.Exists(Path.Combine(run, "scratch-2.db")));
+        Assert.True(File.Exists(Path.Combine(run, "scratch-3.db")), "the failing step keeps its database");
+        Assert.True(File.Exists(Path.Combine(run, "scratch-3-log.db")));
+        Assert.True(File.Exists(Path.Combine(run, "state-scratch-3.db")), "a failure copies its registered state");
+        Assert.True(File.Exists(Path.Combine(run, "input.bin")));
+    }
+
+    [Fact]
+    public async Task Passed_runs_do_not_copy_registered_state()
+    {
+        using var directory = new TemporaryDirectory();
+        var run = Path.Combine(directory.Path, "run");
+        using (var context = new FuzzContext("state-copy", 6, 1, null, run))
+        {
+            Assert.True(context.Next());
+            File.WriteAllBytes(context.RegisterFile(Path.Combine(run, "model.db")), new byte[2048]);
+            await FuzzArtifacts.WriteResultAsync(context, DateTimeOffset.UtcNow, null);
+        }
+
+        Assert.True(File.Exists(Path.Combine(run, "model.db")));
+        Assert.False(File.Exists(Path.Combine(run, "state-model.db")));
+    }
+
+    [Fact]
+    public async Task Interesting_corpus_retains_only_the_inputs_the_next_campaign_replays()
+    {
+        using var root = new TemporaryDirectory();
+        var runs = new List<RunResult>();
+        for (var seed = 1; seed <= 12; seed++) runs.Add(await CreateInterestingRun(root.Path, seed));
+        var inputs = Path.Combine(root.Path, "interesting-inputs");
+        Directory.CreateDirectory(inputs);
+        var orphan = Path.Combine(inputs, "orphan.bin");
+        File.WriteAllBytes(orphan, new byte[16]);
+
+        foreach (var run in runs) FuzzArtifacts.MergeInterestingCorpus(new[] { run }, root.Path);
+
+        var replayed = FuzzCorpus.LoadInteresting(root.Path);
+        var lines = File.ReadAllLines(Path.Combine(root.Path, "interesting-corpus.jsonl"));
+        Assert.Equal(8, replayed.Count);
+        Assert.Equal(8, lines.Length);
+        Assert.False(File.Exists(orphan));
+        Assert.Equal(replayed.Select(item => Path.GetFullPath(Path.Combine(root.Path, item.InputFile)))
+                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase),
+            Directory.GetFiles(inputs).Select(Path.GetFullPath).OrderBy(path => path, StringComparer.OrdinalIgnoreCase));
+    }
+
     private static PowerLossScenario Generate(int seed, string path)
     {
         using var random = new FuzzInputRandom(seed, path, null);

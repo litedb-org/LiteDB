@@ -55,7 +55,8 @@ internal static class FuzzArtifacts
                 System.Text.Json.JsonSerializer.Serialize(new FuzzReplay(context.Target, context.Seed,
                     context.MinimizedCount.Value, context.DurationBound, context.RequestedDuration?.TotalSeconds,
                     error == null ? null : FailureIdentity.Get(error), "input.bin", context.Input.Hash(), context.TraceHash()), JsonOptions));
-        CopyRegisteredFiles(context);
+        // A failure keeps a copy of every registered database; a pass needs none (seed replay recreates them).
+        if (error != null) CopyRegisteredFiles(context);
 
         var summary = new StringBuilder()
             .AppendLine($"# LiteDB fuzz result: {context.Target}").AppendLine()
@@ -94,8 +95,10 @@ internal static class FuzzArtifacts
 
         var removedFiles = 0;
         long removedBytes = 0;
+        // coverage.xml has been folded into coverage-signatures.txt/coverage-novelty.json by now, and
+        // the trace's hash is recorded in run.json/replay.json; the seed replay regenerates both.
         foreach (var path in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories)
-            .Where(path => Path.GetFileName(path) is "input.bin" or "input-offsets.jsonl" ||
+            .Where(path => Path.GetFileName(path) is "input.bin" or "input-offsets.jsonl" or "coverage.xml" or "trace.jsonl" ||
                 path.EndsWith(".db", StringComparison.OrdinalIgnoreCase)))
         {
             removedBytes += new FileInfo(path).Length;
@@ -111,17 +114,18 @@ internal static class FuzzArtifacts
                 policy = "successful-duration-run",
                 removedFiles,
                 removedBytes,
-                retained = new[] { "run metadata and hashes", "seed replay", "trace", "novelty data", "coverage" },
+                retained = new[] { "run metadata and hashes", "seed replay", "trace hash", "novelty data", "coverage novelty" },
                 failureArtifactsAlwaysRetained = true
             }, JsonOptions));
     }
 
     internal static async Task WriteAbnormalTerminationAsync(string directory, string target, int seed,
-        int count, DateTimeOffset started, int exitCode, bool hung, string output, string error, string input)
+        int count, DateTimeOffset started, int exitCode, bool hung, string output, string error, string input,
+        string failureIdOverride = null)
     {
         Directory.CreateDirectory(directory);
-        var failureId = hung ? $"HANG_{Safe(target).ToUpperInvariant()}" :
-            $"CHILD_EXIT_{Safe(target).ToUpperInvariant()}_{exitCode}";
+        var failureId = failureIdOverride ?? (hung ? $"HANG_{Safe(target).ToUpperInvariant()}" :
+            $"CHILD_EXIT_{Safe(target).ToUpperInvariant()}_{exitCode}");
         var replayInput = "input.bin";
         var localInput = Path.Combine(directory, replayInput);
         if (input != null && File.Exists(input) && !File.Exists(localInput)) File.Copy(input, localInput, true);
@@ -144,6 +148,25 @@ internal static class FuzzArtifacts
         await File.WriteAllTextAsync(Path.Combine(directory, "summary.md"),
             $"# LiteDB fuzz result: {target}\n\n- Status: **{(hung ? "HANG" : "CRASH")}**\n" +
             $"- Seed: `{seed}`\n- Exit code: `{exitCode}`\n- Failure ID: `{failureId}`\n");
+    }
+
+    internal static async Task WriteArtifactBudgetFailureAsync(string directory, string target, int seed, int count,
+        DateTimeOffset started, long size, long budget, string output, string error, string input)
+    {
+        long removedBytes = 0;
+        foreach (var path in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories)
+            .Where(path => path.EndsWith(".db", StringComparison.OrdinalIgnoreCase) ||
+                Path.GetFileName(path) is "coverage.xml" or "hang.dmp"))
+        {
+            try { removedBytes += new FileInfo(path).Length; File.Delete(path); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+        var note = $"ARTIFACT BUDGET: run directory reached {size} bytes (budget {budget}); " +
+            $"removed {removedBytes} bytes of databases/coverage. The seed replay reproduces the run.";
+        await WriteAbnormalTerminationAsync(directory, target, seed, count, started, -1, false,
+            output + Environment.NewLine + note + Environment.NewLine, error, input,
+            $"ARTIFACT_BUDGET_{Safe(target).ToUpperInvariant()}");
     }
 
     internal static void MergeInterestingCorpus(IEnumerable<RunResult> results, string root)
@@ -188,7 +211,12 @@ internal static class FuzzArtifacts
             }
         }
         Directory.CreateDirectory(root);
-        foreach (var candidate in entries.Values)
+        // Keep exactly what the next campaign replays (FuzzCorpus.LoadInteresting): the strongest
+        // case per target/seed, and at most MaximumRetainedCasesPerTarget per target. Copying an
+        // input prefix for every signature made the corpus grow with every epoch.
+        var kept = FuzzCorpus.SelectReplayed(entries.OrderBy(pair => pair.Key, StringComparer.Ordinal)
+            .Select(pair => pair.Value), candidate => candidate.Case);
+        foreach (var candidate in kept)
         {
             if (candidate.SourceInput == null || candidate.Case.InputFile == null || !candidate.InputLength.HasValue) continue;
             var destination = Path.Combine(root, candidate.Case.InputFile);
@@ -196,8 +224,8 @@ internal static class FuzzArtifacts
             CopyPrefix(candidate.SourceInput, destination, candidate.InputLength.Value);
             candidate.Case = candidate.Case with { InputHash = Hash(destination) };
         }
-        File.WriteAllLines(retained, entries.OrderBy(pair => pair.Key, StringComparer.Ordinal)
-            .Select(pair => System.Text.Json.JsonSerializer.Serialize(pair.Value.Case)));
+        File.WriteAllLines(retained, kept.Select(candidate => System.Text.Json.JsonSerializer.Serialize(candidate.Case)));
+        DeleteUnreferencedInputs(root, kept.Select(candidate => candidate.Case.InputFile));
 
         void Add(InterestingCandidate candidate)
         {
@@ -211,6 +239,30 @@ internal static class FuzzArtifacts
                 entries[key] = candidate;
             }
         }
+    }
+
+    private static void DeleteUnreferencedInputs(string root, IEnumerable<string> referenced)
+    {
+        var directory = Path.Combine(root, "interesting-inputs");
+        if (!Directory.Exists(directory)) return;
+        var keep = new HashSet<string>(referenced.Where(path => path != null)
+            .Select(path => Path.GetFullPath(Path.Combine(root, path))), StringComparer.OrdinalIgnoreCase);
+        foreach (var file in Directory.EnumerateFiles(directory))
+            if (!keep.Contains(Path.GetFullPath(file))) File.Delete(file);
+    }
+
+    /// <summary>Total bytes under <paramref name="directory"/>; files that vanish while counting are skipped.</summary>
+    internal static long DirectorySize(string directory)
+    {
+        if (!Directory.Exists(directory)) return 0;
+        long total = 0;
+        foreach (var file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
+        {
+            try { total += new FileInfo(file).Length; }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+        return total;
     }
 
     private static long InputLengthForStep(string directory, int count)

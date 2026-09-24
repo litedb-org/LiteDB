@@ -28,7 +28,7 @@ internal sealed class CompatibilityFuzzer : IFuzzTarget
         var source = Path.Combine(AppContext.BaseDirectory, "Corpus", "Legacy", resource);
         context.Check(File.Exists(source), $"Missing legacy corpus resource {resource}.");
         InterruptedUpgrade(context, source, password);
-        var file = context.RegisterFile(Path.Combine(context.DirectoryPath, $"legacy-{context.Steps}-{resource}"));
+        var file = context.StepFile($"legacy-{context.Steps}-{resource}");
         File.Copy(source, file, true);
         var original = Hash(file);
 
@@ -80,8 +80,8 @@ internal sealed class CompatibilityFuzzer : IFuzzTarget
         var phases = new[] { "before-log-backup", "after-log-backup", "before-source-backup",
             "after-source-backup", "before-temp-install", "after-temp-install" };
         var phase = phases[(context.Steps - 1) % phases.Length];
-        var file = context.RegisterFile(Path.Combine(context.DirectoryPath,
-            $"interrupted-{context.Steps}-{Path.GetFileName(source)}"));
+        var file = context.StepFile(
+            $"interrupted-{context.Steps}-{Path.GetFileName(source)}");
         File.Copy(source, file, true);
         var fired = false;
         RebuildService.SimulateInstallFailure = current =>
