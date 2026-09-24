@@ -1,47 +1,37 @@
 # Storage PR integration order
 
-The dependency order is `dev` → #2998 checksums → #2924 index ordering →
-#2999 compact storage → #3000 snapshot-aware checkpoint/reclamation.
-#2978 rebuild recovery is already in dev and is included throughout.
+Native GitHub stack #3001 targets `dev`:
 
-| PR | Format | Base while stacked |
+| PR | Format | Base |
 | --- | --- | --- |
-| #2998 | v10 | dev |
-| #2924 | v11 | codex/stack-checksums (#2998) |
-| #2999 | v12 | codex/pr2908-index-compatibility (#2924) |
-| #3000 | lazy v13 retirement | codex/stack-compact (#2999) |
+| #2998 checksums (replaces #2954) | v10 | dev |
+| #2924 index ordering | v11 | codex/stack-checksums |
+| #2999 compact storage (replaces #2937) | v12 | codex/pr2908-index-compatibility |
+| #3000 MVCC (replaces #2936) | lazy v13 retirement | codex/stack-compact |
 
-Merge each completed PR separately, in that order. After a parent squash merge,
-merge dev into its child, retarget that child to dev, check the resulting diff,
-and rerun its checks. Keep upstream mirror branches until their children no longer
-need them. Different PRs must not assign the same version to incompatible layouts.
+The original branches and reviews are preserved; frozen heads also live under
+`codex/backup/storage-stack-20260922/pr-<original-number>`. #2978 rebuild recovery
+is included throughout. #2923 remains outside this stack for separate review.
 
-Checksum conversion is header-only after legacy WAL recovery. Index migration
-additionally validates and rewrites affected indexes atomically. Compact storage
-changes new writes only; an explicit rebuild can rewrite existing documents.
-BSON-only creation/rebuild retains v11 checksums and index ordering, so `Legacy`
-is an encoding policy rather than a downgrade to released v8/v9 engines.
+Merge only reviewed, validated layers, in dependency order. Stack registration
+is not merge-readiness evidence. After a parent lands, integrate the new trunk,
+check the child's resulting diff and revalidate it. Keep dependent branches until
+their children no longer need them; do not assign one version to incompatible layouts.
 
-## MVCC transaction-proof boundary
+Use the [storage stack safety acceptance map](storage-stack-safety.md) to connect
+each layer's persistent invariants to regression suites, fuzz targets and actual
+predecessor compatibility probes, with the fault-model and operational limits.
 
-The original #2936 protocol clears obsolete committed frames and reuses their
-physical slots. The v10 checksum protocol verifies every transaction's frame
-count/digest and an uninterrupted confirmation sequence. Clearing even an
-unreachable frame invalidates that proof; clearing an entire obsolete transaction
-leaves a confirmation-sequence gap. Existing checksum regression tests
-`StaleReusedSlotsWithinGeneration_FailTransactionDigest`,
-`ConfirmationCount_IsValidatedEvenWhenItsFrameChecksumIsValid`, and
-`LostConfirmation_CannotAllowLaterCommitsThroughASequenceGap` exercise these gates.
+Checksum migration changes only the header after legacy WAL recovery; old pages
+receive checksums lazily. Index migration separately validates and rewrites affected
+indexes atomically. Compact storage changes new writes. MVCC adds durable retirement
+witnesses and promotes only when reclamation first needs them; it does not rebuild
+existing documents. See [snapshot checkpointing](mvcc-checkpoint.md) and
+[the retirement format](mvcc-retirement-format.md) for ordering and failure cases.
 
-A mechanical merge, accepting zero pages, or disabling digest validation is unsafe.
-#3000 implements durable v13 witnesses to distinguish
-intentionally retired frames from missing/corrupt frames. Snapshot versions remain
-stable across reuse/recovery, with a version boundary before retirement records
-are written. Its implementation and final-head validation require separate review.
-Partial checkpoint must preserve the header journal's WAL binding until its data
-writes are durable. Recovery and rebuild must use the same verifier.
-
-Required evidence includes old/new readers, plain/encrypted files, interrupted
-reclamation publication, torn/reused slots, repeated recovery, live readers paused
-after resolving an offset, and exact document/secondary-index models. Earlier tests
-and storage-savings measurements for the legacy protocol do not certify the integrated v13 protocol. #2923 ownership/identity remains outside this stack for separate review.
+The original MVCC implementation could not simply clear checksummed frames:
+transaction counts/digests and contiguous confirmation sequence would be lost.
+The v13 witnesses preserve those proofs. Keep the existing missing-frame,
+count/digest and sequence-gap regression tests alongside the retirement cases.
+Approval requires crash, corruption, repeated recovery, live-reader and separate-
+process evidence against full document and secondary-index models on the final head.

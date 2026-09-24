@@ -14,6 +14,7 @@ namespace LiteDB.Engine
         internal const int MarkerPosition = 125;
         internal const uint HeaderMarker = 0x31435243; // CRC1, independent of the version byte.
         internal byte[] Salt { get; private set; }
+        internal WalRetirement Retirement { get; set; } = new WalRetirement();
         internal bool Enabled => Salt != null;
         internal long JournalBytes { get; set; }
         internal long LegacyConfirmationPosition { get; set; } = -1;
@@ -30,6 +31,7 @@ namespace LiteDB.Engine
 
         internal struct Frame
         {
+            internal bool RetirementRecord, Retired;
             internal ulong Contribution;
             internal uint Count;
             internal ulong Digest;
@@ -39,6 +41,7 @@ namespace LiteDB.Engine
         internal void Reset(byte[] salt)
         {
             Salt = salt;
+            Retirement = new WalRetirement();
             LegacyConfirmationPosition = -1;
             Sequence = 0;
             LastConfirmedPosition = -PAGE_SIZE;
@@ -109,8 +112,16 @@ namespace LiteDB.Engine
             var actual = ~Crc32C.Update(pageCrc, metadata.Array, metadata.Offset, MetadataSize);
             metadata.Write(expected, 4);
             if (expected != actual) throw new PageChecksumException(FileOrigin.Log, position);
+            if (metadata.ReadUInt32(52) != 0 && metadata.ReadUInt32(52) != WalRetirement.Magic)
+                throw new PageChecksumException(FileOrigin.Log, position);
+            if (metadata.ReadUInt32(52) == WalRetirement.Magic &&
+                (metadata.ReadUInt32(32) != 0 || metadata.ReadInt64(36) != 0 || metadata.ReadInt64(44) != 0 ||
+                 page.ReadUInt32(BasePage.P_PAGE_ID) != 0 || page.ReadUInt32(BasePage.P_TRANSACTION_ID) != 0 ||
+                 page[BasePage.P_PAGE_TYPE] != 0 || page[BasePage.P_IS_CONFIRMED] != 0))
+                throw new PageChecksumException(FileOrigin.Log, position);
             return new Frame
             {
+                RetirementRecord = metadata.ReadUInt32(52) == WalRetirement.Magic,
                 Contribution = Contribution(pageCrc, metadata, position),
                 Count = metadata.ReadUInt32(32), Digest = unchecked((ulong)metadata.ReadInt64(36)), Sequence = metadata.ReadInt64(44)
             };

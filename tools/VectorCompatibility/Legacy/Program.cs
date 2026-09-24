@@ -18,7 +18,11 @@ namespace VectorCompatibility.Legacy
             {
                 var suffix = encrypted ? "encrypted.db" : "plain.db";
                 var password = encrypted ? "compatibility-test" : null;
-                if (args[0] == "resume")
+                if (args[0] == "reclaim")
+                {
+                    Refuse(Path.Combine(args[1], "reclaimed-" + suffix), password);
+                }
+                else if (args[0] == "resume")
                 {
                     using var legacy = new LiteDatabase(new ConnectionString
                     {
@@ -95,7 +99,7 @@ namespace VectorCompatibility.Legacy
                 }
                 if (!rejected || !original.SequenceEqual(File.ReadAllBytes(file)) ||
                     (originalLog != null && (!File.Exists(log) || !originalLog.SequenceEqual(File.ReadAllBytes(log)))))
-                    throw new Exception("Legacy engine must reject v10 without changing the file: " + mode);
+                    throw new Exception("Legacy engine must reject the newer format without changing data or WAL: " + mode);
             }
         }
     }

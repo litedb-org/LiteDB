@@ -11,6 +11,15 @@ namespace LiteDB.Engine
         internal long Sequence { get; private set; }
         internal bool InvalidTail { get; private set; }
 
+        internal void RequireRetirement(WalRetirement retirement)
+        {
+            // A published retirement root can accompany partially checkpointed
+            // data. Losing an older commit is never an ignorable recovery tail.
+            if (Sequence < retirement.Sequence)
+                throw new PageChecksumException(FileOrigin.Log, ConfirmedEnd);
+            ConfirmedEnd = Math.Max(ConfirmedEnd, retirement.End);
+        }
+
         internal IEnumerable<PageBuffer> Read(IEnumerable<PageBuffer> pages)
         {
             var transactions = new Dictionary<uint, WalChecksum.Summary>();

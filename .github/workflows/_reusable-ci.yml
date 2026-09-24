@@ -46,12 +46,16 @@ jobs:
         run: python3 scripts/test-index-compatibility.py
       - name: Verify vector file compatibility with LiteDB 5.0.21
         run: python3 scripts/test-vector-compatibility.py
+      - name: Verify genuine v9 vectors through the storage stack
+        run: python3 scripts/test-v9-compatibility.py
+      - name: Verify MVCC file rejection by the v12 parent
+        run: python3 scripts/test-mvcc-compatibility.py --parent-ref a2ea9a65a469f6449bb8838592f5266b078758b3
 
       - name: Build memory validation runner
         run: dotnet build tools/MemoryValidation/MemoryValidation.csproj --configuration Release
 
       - name: Verify rejection by the actual preceding format
-        run: python3 scripts/test-parent-format-compatibility.py --max-version 12 --v12-ref HEAD
+        run: python3 scripts/test-parent-format-compatibility.py --max-version 12 --v12-ref a2ea9a65a469f6449bb8838592f5266b078758b3
 
       - name: Build memory profile measurements
         run: dotnet build tools/MemoryProfiles/MemoryProfiles.csproj --configuration Release
@@ -62,7 +66,7 @@ jobs:
         run: dotnet build LiteDB.sln --configuration Release --no-restore /p:TestingEnabled=true
 
       - name: Package build outputs
-        run: tar -czf tests-build-linux.tar.gz LiteDB/bin/Release LiteDB/obj/Release LiteDB.Tests/bin/Release LiteDB.Tests/obj/Release
+        run: tar -czf tests-build-linux.tar.gz LiteDB/bin/Release LiteDB/obj/Release LiteDB.Tests/bin/Release LiteDB.Tests/obj/Release LiteDB.Tests.SharedMutexHarness/bin/Release LiteDB.Tests.SharedMutexHarness/obj/Release
 
       - name: Upload linux test build
         uses: actions/upload-artifact@v4
@@ -140,7 +144,7 @@ jobs:
         run: dotnet build LiteDB.sln --configuration Release --no-restore /p:TestingEnabled=true
 
       - name: Package build outputs
-        run: tar -czf tests-build-macos.tar.gz LiteDB/bin/Release LiteDB/obj/Release LiteDB.Tests/bin/Release LiteDB.Tests/obj/Release
+        run: tar -czf tests-build-macos.tar.gz LiteDB/bin/Release LiteDB/obj/Release LiteDB.Tests/bin/Release LiteDB.Tests/obj/Release LiteDB.Tests.SharedMutexHarness/bin/Release LiteDB.Tests.SharedMutexHarness/obj/Release
 
       - name: Upload macOS test build
         uses: actions/upload-artifact@v4
@@ -217,6 +221,9 @@ jobs:
       - name: Build
         run: dotnet build LiteDB.sln --configuration Release --no-restore /p:TestingEnabled=true
 
+      - name: Verify genuine v9 vectors through the storage stack
+        run: python scripts/test-v9-compatibility.py
+
       - name: Upload windows test build
         uses: actions/upload-artifact@v4
         with:
@@ -226,6 +233,8 @@ jobs:
             LiteDB/obj/Release
             LiteDB.Tests/bin/Release
             LiteDB.Tests/obj/Release
+            LiteDB.Tests.SharedMutexHarness/bin/Release
+            LiteDB.Tests.SharedMutexHarness/obj/Release
 
   test-windows:
     name: Test (Windows ${{ matrix.os }} - ${{ matrix.arch }} - ${{ matrix.item.display }})

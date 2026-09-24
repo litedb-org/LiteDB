@@ -35,11 +35,12 @@ namespace LiteDB.Engine
                     _ = new HeaderPage(header);
                     var rawLog = ((ChecksummedWalStream)writer).RawStream;
                     var originalLength = rawLog.Length;
-                    var compact = version == HeaderPage.COMPACT_FILE_VERSION;
+                    var compact = version >= HeaderPage.COMPACT_FILE_VERSION;
                     if (compact) this.CrashPoint("promotion-before-journal-write");
                     BeginHeaderJournal(header.Array, promotion: compact);
                     if (compact) this.CrashPoint("promotion-after-journal-flush");
                     header[HeaderPage.P_FILE_VERSION] = version;
+                    if (version == HeaderPage.MVCC_FILE_VERSION) new WalRetirement().WriteHeader(header);
                     PageChecksum.Write(header);
                     stream.Position = 0;
                     if (compact) this.CrashPoint("promotion-before-header-write");

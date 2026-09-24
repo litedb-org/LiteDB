@@ -10,6 +10,11 @@ namespace VectorCompatibility.Current
     {
         private static void Main(string[] args)
         {
+            if (args[0] == "reclaim-create" || args[0] == "reclaim-verify")
+            {
+                WalReuseCompatibility.Run(args[1], args[0] == "reclaim-create");
+                return;
+            }
             if (args[0].StartsWith("compact-", StringComparison.Ordinal))
             {
                 CompactCompatibility.Run(args);

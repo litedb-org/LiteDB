@@ -14,6 +14,12 @@ namespace LiteDB.Engine
     internal class TransactionPages
     {
         /// <summary>
+        /// Transaction ID stored in WAL frames. It can be advanced before a later
+        /// batch so physical recovery order never moves backwards.
+        /// </summary>
+        public uint TransactionID { get; set; }
+
+        /// <summary>
         /// Get how many pages are involved in this transaction across all snapshots - Will be clear when get MAX_TRANSACTION_SIZE
         /// </summary>
         internal long? IndexMigrationLimitSize { get; set; }

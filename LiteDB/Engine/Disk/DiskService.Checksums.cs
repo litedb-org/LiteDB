@@ -23,6 +23,13 @@ namespace LiteDB.Engine
             var salt = new byte[16];
             Buffer.BlockCopy(header.Array, header.Offset + WalChecksum.SaltPosition, salt, 0, salt.Length);
             _checksums.Reset(salt);
+            if (FileVersion >= HeaderPage.MVCC_FILE_VERSION && header.ReadInt64(WalRetirement.RootPosition) != 0)
+            {
+                var reader = (ChecksummedWalStream)_logPool.Rent();
+                try { _checksums.Retirement = WalRetirement.Load(header, reader.RawStream, _checksums); }
+                finally { _logPool.Return(reader); }
+            }
+            else _checksums.Retirement = WalRetirement.Load(header, null, _checksums);
         }
 
         private void StampDataPage(BufferSlice page)
@@ -33,6 +40,7 @@ namespace LiteDB.Engine
                 Buffer.BlockCopy(_checksums.Salt, 0, page.Array, page.Offset + WalChecksum.SaltPosition, 16);
                 page.Write(WalChecksum.HeaderMarker, WalChecksum.MarkerPosition);
                 _dataChecksums.Write(page);
+                _checksums.Retirement.WriteHeader(page);
             }
             PageChecksum.Write(page);
         }
@@ -116,6 +124,7 @@ namespace LiteDB.Engine
 
         internal void FinishWalRecovery(WalRecovery recovery)
         {
+            recovery.RequireRetirement(_checksums.Retirement);
             if (recovery.InvalidTail || recovery.ConfirmedEnd < GetFileLength(FileOrigin.Log) || _logTrailingLength != 0)
                 DiscardWalTail(recovery.ConfirmedEnd, recovery.InvalidTail || _logTrailingLength != 0);
             _checksums.Recovered(recovery.Sequence, recovery.ConfirmedEnd);

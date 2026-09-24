@@ -109,7 +109,7 @@ namespace LiteDB
                     try
                     {
                         var read = _source.MoveNext(); // can throw any error here
-                        _current = _state.ReadTransform(_collection, _source.Current);
+                        if (read) _current = _state.ReadTransform(_collection, _source.Current);
                         return read;
                     }
                     catch (Exception ex)

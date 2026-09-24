@@ -72,4 +72,16 @@
     <ProjectReference Include="..\LiteDB\LiteDB.csproj" AdditionalProperties="TestingEnabled=true" />
   </ItemGroup>
 
+  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0' or '$(TargetFramework)' == 'net10.0'">
+    <ProjectReference Include="..\LiteDB.Tests.SharedMutexHarness\SharedMutexHarness.csproj"
+                      ReferenceOutputAssembly="false" AdditionalProperties="TestingEnabled=true" />
+  </ItemGroup>
+  <Target Name="CopyMvccProbe" AfterTargets="Build" Condition="'$(TargetFramework)' == 'net8.0' or '$(TargetFramework)' == 'net10.0'">
+    <ItemGroup>
+      <MvccProbeFiles Include="$(MSBuildProjectDirectory)/../LiteDB.Tests.SharedMutexHarness/bin/$(Configuration)/net8.0/*" />
+    </ItemGroup>
+    <Error Condition="'@(MvccProbeFiles)' == ''"
+           Text="MVCC probe output not found. Build LiteDB.Tests.SharedMutexHarness before LiteDB.Tests." />
+    <Copy SourceFiles="@(MvccProbeFiles)" DestinationFolder="$(OutDir)mvcc-probe" SkipUnchangedFiles="true" />
+  </Target>
 </Project>

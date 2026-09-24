@@ -50,6 +50,10 @@ namespace LiteDB.Engine
                 _dataStream.Value :
                 _logStream.Value;
 
+#if DEBUG || TESTING
+            _state.BeforePageRead?.Invoke(position, origin);
+#endif
+
             var page = writable ?
                 _cache.GetWritablePage(position, origin, (pos, buf) => this.ReadStream(stream, pos, buf)) :
                 _cache.GetReadablePage(position, origin, (pos, buf) => this.ReadStream(stream, pos, buf));

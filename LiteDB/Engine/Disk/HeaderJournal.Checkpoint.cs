@@ -16,28 +16,15 @@ namespace LiteDB.Engine
             checksums.Reset(salt);
             var crc = uint.MaxValue;
 
-            // Bind the exact bytes validated in this pass. A separate raw CRC
-            // pass could seal damage that appeared after checkpoint preflight.
-            IEnumerable<PageBuffer> Frames()
-            {
-                var bytes = new byte[WalChecksum.FrameSize];
-                stream.Position = 0;
-                for (long position = 0; position + bytes.Length <= length; position += bytes.Length)
-                {
-                    stream.ReadRequired(bytes, 0, bytes.Length);
-                    crc = Crc32C.Update(crc, bytes, 0, bytes.Length);
-                    var page = new PageBuffer(bytes, 0, 0)
-                    {
-                        Position = position / WalChecksum.FrameSize * PAGE_SIZE,
-                        Origin = FileOrigin.Log
-                    };
-                    page.WalFrame = checksums.Validate(page, new BufferSlice(bytes, PAGE_SIZE, WalChecksum.MetadataSize), page.Position);
-                    yield return page;
-                }
-            }
+            checksums.Retirement = WalRetirement.Load(new BufferSlice(header, 0, PAGE_SIZE), stream, checksums);
+            // Hash the same physical bytes from which the logical witnesses and
+            // surviving payloads are verified, including abandoned reused slots.
+            var frames = WalRetirementReader.Read(stream, checksums, length / WalChecksum.FrameSize * PAGE_SIZE,
+                bytes => crc = Crc32C.Update(crc, bytes, 0, bytes.Length));
 
             var recovery = new WalRecovery();
-            foreach (var page in recovery.Read(Frames())) { }
+            foreach (var page in recovery.Read(frames)) { }
+            recovery.RequireRetirement(checksums.Retirement);
             if (recovery.InvalidTail || recovery.Sequence != expected.Sequence ||
                 recovery.ConfirmedEnd != expected.LastConfirmedPosition + PAGE_SIZE)
                 throw new PageChecksumException(FileOrigin.Log, recovery.ConfirmedEnd);

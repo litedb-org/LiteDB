@@ -44,7 +44,8 @@ partial encrypted I/O recovery. Cross-runtime CI must exchange legacy fixtures
 between Windows/NLS and Linux/ICU; same-host tests do not cover that transition.
 See `docs/collation-runtime-compatibility.md` and `docs/vector-query-compatibility.md`.
 
-Format v10 introduced data-page and WAL checksums; v11/v12 retain their layout. Writable v8/v9 opens
+Format v10 introduced data-page and WAL checksums; v11/v12 retain their layout.
+MVCC reclamation lazily publishes v13 before writing retirement witnesses. Writable v8/v9 opens
 recover/checkpoint and sync the legacy WAL, then durably publish v10 with Mixed
 data-page coverage. Cutover backs up only the header (32 KiB temporary WAL);
 ordinary writes/checkpoints lazily checksum old pages. Byte 31 is 00 for legacy,
@@ -126,3 +127,16 @@ instead of writing hundreds of gigabytes to the developer's disk.
 
 See [storage ownership](storage-ownership.md) for data/WAL replacement and
 [validation](validation.md) for independent crash and compatibility oracles.
+
+## MVCC retirement
+
+Never clear a checksummed committed frame without a durable retirement witness.
+The header binds the witness-chain root and minimum confirmed sequence. Retain
+original frame contributions and confirmation proofs; recovery and rebuild must
+share the verifier. Witness publication requires durable sync without fallback.
+Remove/sync the WAL-bound header journal before clearing or reusing payloads.
+Keep per-transaction page positions increasing across safepoints even when a
+checkpoint introduces earlier holes. Only full checkpoint can clear the root and
+rotate salt after all data is durable. A rooted v13 data file requires its WAL.
+Run the `mvcc-retirement` target, corruption tests and separate-process MVCC suite.
+See [retirement format](../mvcc-retirement-format.md).

@@ -35,6 +35,7 @@ namespace LiteDB.Engine
             var salt = new byte[16];
             Buffer.BlockCopy(bytes, WalChecksum.SaltPosition, salt, 0, salt.Length);
             _checksums.Reset(salt);
+            _checksums.Retirement = WalRetirement.Load(header, _logStream, _checksums);
         }
 
         private void ReadRecoveredHeader(PageBuffer page, uint id, FileOrigin origin)
@@ -46,16 +47,8 @@ namespace LiteDB.Engine
         private IEnumerable<PageBuffer> ReadWalFrames()
         {
             var stream = (ChecksummedWalStream)_logStream;
-            var bytes = new byte[PAGE_SIZE];
-            for (long position = 0; position < stream.Length; position += PAGE_SIZE)
-            {
-                stream.Position = position;
-                stream.ReadRequired(bytes, 0, bytes.Length);
-                yield return new PageBuffer(bytes, 0, 0)
-                {
-                    Position = position, Origin = FileOrigin.Log, WalFrame = stream.LastFrame
-                };
-            }
+            foreach (var page in WalRetirementReader.Read(stream.RawStream, _checksums, stream.Length))
+                yield return page;
         }
 
         private void LoadChecksummedIndexMap()
@@ -66,11 +59,12 @@ namespace LiteDB.Engine
             {
                 var id = page.ReadUInt32(BasePage.P_TRANSACTION_ID);
                 if (!transactions.TryGetValue(id, out var pages)) transactions[id] = pages = new List<PagePosition>();
-                pages.Add(new PagePosition(page.ReadUInt32(BasePage.P_PAGE_ID), page.Position));
+                if (!page.WalFrame.Retired) pages.Add(new PagePosition(page.ReadUInt32(BasePage.P_PAGE_ID), page.Position));
                 if (!page.ReadBool(BasePage.P_IS_CONFIRMED)) continue;
                 foreach (var entry in pages) _logIndexMap[entry.PageID] = entry.Position;
                 transactions.Remove(id);
             }
+            recovery.RequireRetirement(_checksums.Retirement);
             if (recovery.InvalidTail || ((ChecksummedWalStream)_logStream).TrailingBytes != 0)
                 HandleError("Checksum recovery discarded an incomplete WAL tail.",
                     new PageInfo { Origin = FileOrigin.Log, Position = recovery.ConfirmedEnd });

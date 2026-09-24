@@ -18,6 +18,15 @@ namespace LiteDB.Engine
     public class EngineSettings
     {
         private int? _transactionPageLimit;
+#if DEBUG || TESTING
+        internal Action<string> CheckpointStage { get; set; }
+#endif
+        internal Func<int[]> SharedReaderVersions { get; set; }
+        // Shared mode: outlives each short-lived engine; rations close checkpoints too.
+        internal CheckpointBackoff CheckpointBackoff { get; set; }
+        internal bool SharedReadSnapshot { get; set; }
+        internal Func<string, string, string[]> SharedReaderFiles { get; set; }
+        internal EngineSettings Clone() => (EngineSettings)this.MemberwiseClone();
 
         /// <summary>
         /// Select how documents are written. Auto uses compact writes when
@@ -218,6 +227,10 @@ namespace LiteDB.Engine
         /// </summary>
         internal IStreamFactory CreateTempFactory()
         {
+            if (this.SharedReadSnapshot)
+            {
+                return new StreamFactory(new TempStream(), this.Password, true);
+            }
             if (this.TempStream != null)
             {
                 return new StreamFactory(this.TempStream, this.Password, false);

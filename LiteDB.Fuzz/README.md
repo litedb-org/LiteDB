@@ -84,6 +84,8 @@ using the same artifact root automatically replays the retained coverage corpus.
 | `checksum-wal` | 14 frame/confirmation mutations, stale salt, lost confirmation, and exact committed-prefix recovery |
 | `checksum-migration` | v8/v9 plain/encrypted dirty-WAL cutover, byte preservation, random CRUD/rollback and fixed boundary |
 | `checksum-crash` | volatile/durable devices, torn writes across cutover/checkpoint, interrupted repair and exact document/index models |
+| `mvcc-retirement` | witness publication, retired-slot reuse, repeated repair and pinned-snapshot payload/index oracles |
+| `mvcc-checkpoint` | full checkpoint from a published v13 root, salt rotation, lost/torn writes, failed syncs and twice-interrupted repair |
 | `page` | slot payload model plus page/footer/accounting/overlap invariants |
 | `index` | scalar, multikey, unique, ordering, and key-moving update checks |
 | `shared` | real child processes, acknowledged ledgers, and owner-process death |
@@ -205,7 +207,7 @@ commits the unchanged raw files plus summaries, and pushes `main`.
 
 The `Checksums` CI jobs run pinned corpus cases and 28-case deterministic smoke
 replays on Linux/.NET 8 and Windows/.NET 10 for PRs and `dev` pushes. Every day at
-02:23 UTC they additionally run the four checksum targets plus compact-crash for a **three-minute
+02:23 UTC they additionally run the four checksum targets plus compact-crash, mvcc-retirement and mvcc-checkpoint for a **three-minute
 wall-clock budget per platform**, with two seed shards and 30-second fresh-process
 epochs. Seeds rotate with the workflow run ID. A failed target fails its job after
 uploading the raw probe images, random input, traces and replay descriptor. This
@@ -251,3 +253,18 @@ dotnet run --project LiteDB.Fuzz -c Release -f net10.0 -- \
   --target transaction-gate,cursor-handoff,concurrent --seed 2991 \
   --duration 5m --workers 2 --artifact-dir artifacts_temp/fuzz-2991
 ```
+
+The `mvcc-retirement` target varies plaintext/encryption, BSON/compact payloads,
+retirement history depth and repeated slot reuse. It tears promotion/root/witness
+writes and unconfirmed reuse, loses volatile bytes, and crashes header repair
+again. Oracles compare complete documents, secondary indexes, untouched data and
+pinned snapshots. Metadata mutation and separate-process lease tests remain in
+`MvccRetirementCorruption_Tests` and the MVCC process suites.
+
+The separate `mvcc-checkpoint` target starts with a published retirement chain and
+reused slots, then interrupts a full checkpoint during backfill, root removal,
+salt rotation or WAL truncation. It varies physical tear prefixes and failed syncs,
+including two torn recovery attempts. Full payload/index and untouched-data
+oracles also check read-only byte preservation and successful root/WAL removal on
+retry. The latest data/WAL images are saved before recovery checks. Keeping this
+target separate preserves the existing retirement corpus input and trace hashes.

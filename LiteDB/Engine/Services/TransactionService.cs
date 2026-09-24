@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -27,15 +27,15 @@ namespace LiteDB.Engine
 
         // transaction info
         private readonly Thread _ownerThread = Thread.CurrentThread;
-        private readonly uint _transactionID;
         private readonly DateTime _startTime;
+        private long _headerPosition = long.MaxValue;
         private LockMode _mode = LockMode.Read;
         private TransactionState _state = TransactionState.Active;
 
         // expose (as read only)
         public int ThreadID => _ownerThread.ManagedThreadId;
         internal Thread OwnerThread => _ownerThread;
-        public uint TransactionID => _transactionID;
+        public uint TransactionID => _transPages.TransactionID;
         public TransactionState State => _state;
         public LockMode Mode => _mode;
         public TransactionPages Pages => _transPages;
@@ -70,7 +70,7 @@ namespace LiteDB.Engine
             this.MaxTransactionSize = maxTransactionSize;
 
             // create new transactionID
-            _transactionID = walIndex.NextTransactionID();
+            _transPages.TransactionID = walIndex.NextTransactionID();
             _startTime = DateTime.UtcNow;
             _reader = _disk.GetReader();
         }
@@ -82,7 +82,7 @@ namespace LiteDB.Engine
         {
             ENSURE(_state == TransactionState.Active, "transaction must be active to create new snapshot");
 
-            Snapshot create() => new Snapshot(mode, collection, _header, _transactionID, _transPages, _locker, _walIndex, _reader, _disk, addIfNotExists, this.Safepoint);
+            Snapshot create() => new Snapshot(mode, collection, _header, _transPages, _locker, _walIndex, _reader, _disk, addIfNotExists, this.Safepoint);
 
             if (_snapshots.TryGetValue(collection, out var snapshot))
             {
@@ -172,7 +172,7 @@ namespace LiteDB.Engine
                 foreach (var page in pages.IsLast())
                 {
                     // update page transactionID
-                    page.Item.TransactionID = _transactionID;
+                    page.Item.TransactionID = this.TransactionID;
 
                     // if last page, mask as confirm (only if a real commit and no header changes)
                     if (page.IsLast)
@@ -216,7 +216,7 @@ namespace LiteDB.Engine
                     var tail = BasePage.ReadPage<BasePage>(buffer);
                     ENSURE(tail.PageType == PageType.Empty, "deleted tail must be an empty page");
                     tail.NextPageID = _header.FreeEmptyPageList;
-                    tail.TransactionID = _transactionID;
+                    tail.TransactionID = this.TransactionID;
                     tail.IsConfirmed = false;
                     _header.FreeEmptyPageList = _transPages.FirstDeletedPageID;
                     tail.UpdateBuffer();
@@ -238,7 +238,7 @@ namespace LiteDB.Engine
                 if (commit && _transPages.HeaderChanged)
                 {
                     // update this confirm page with current transactionID
-                    _header.TransactionID = _transactionID;
+                    _header.TransactionID = this.TransactionID;
 
                     // this header page will be marked as confirmed page in log file
                     _header.IsConfirmed = true;
@@ -262,11 +262,14 @@ namespace LiteDB.Engine
             // Disk always appends the confirmation page, preserving recovery order.
             var count = _disk.WriteLogDisk(source(), (pageID, position) =>
             {
-                if (pageID != 0)
-                {
-                    _transPages.DirtyPages[pageID] = new PagePosition(pageID, position);
-                }
-            }, _transPages.DirtyPages);
+                if (pageID == 0) _headerPosition = position;
+                else _transPages.DirtyPages[pageID] = new PagePosition(pageID, position);
+            }, _transPages, _walIndex.NextTransactionID);
+
+            if (_transPages.HeaderChanged)
+            {
+                _header.TransactionID = this.TransactionID;
+            }
 
             // now, discard all clean pages (because those pages are writable and must be readable)
             // from write snapshots
@@ -323,7 +326,7 @@ namespace LiteDB.Engine
 #if DEBUG || TESTING
                 _disk.TestCrashPoint("wal-before-index-confirmation");
 #endif
-                _walIndex.ConfirmTransaction(_transactionID, _transPages.DirtyPages.Values);
+                _walIndex.ConfirmTransaction(_transPages.TransactionID, _transPages.DirtyPages.Values, _headerPosition);
 #if DEBUG || TESTING
                 _disk.TestCrashPoint("wal-after-index-confirmation");
 #endif
@@ -370,7 +373,7 @@ namespace LiteDB.Engine
             }
 
             _state = TransactionState.Aborted;
-            _disk.ForgetWalTransaction(_transactionID);
+            _disk.ForgetWalTransaction(_transPages.TransactionID);
         }
 
         /// <summary>
@@ -380,7 +383,7 @@ namespace LiteDB.Engine
         private void ReturnNewPages()
         {
             // create new transaction ID
-            var transactionID = _walIndex.NextTransactionID();
+            var transactionPages = new TransactionPages { TransactionID = _walIndex.NextTransactionID() };
 
             // now lock header to update LastTransactionID/FreePageList
             lock (_header)
@@ -401,7 +404,7 @@ namespace LiteDB.Engine
                         var page = new BasePage(buffer, pageID, PageType.Empty)
                         {
                             NextPageID = next,
-                            TransactionID = transactionID
+                            TransactionID = transactionPages.TransactionID
                         };
 
                         yield return page.UpdateBuffer();
@@ -409,7 +412,7 @@ namespace LiteDB.Engine
                     }
 
                     // update header page with my new transaction ID
-                    _header.TransactionID = transactionID;
+                    _header.TransactionID = transactionPages.TransactionID;
                     _header.FreeEmptyPageList = _transPages.NewPages[0];
                     _header.IsConfirmed = true;
 
@@ -430,11 +433,9 @@ namespace LiteDB.Engine
                     // write all pages (including new header)
                     _disk.WriteLogDisk(source(), (pageID, position) =>
                     {
-                        if (pageID != 0)
-                        {
-                            pagePositions[pageID] = new PagePosition(pageID, position);
-                        }
-                    });
+                        pagePositions[pageID] = new PagePosition(pageID, position);
+                    }, transactionPages, _walIndex.NextTransactionID);
+                    _header.TransactionID = transactionPages.TransactionID;
                 }
                 catch
                 {
@@ -444,7 +445,7 @@ namespace LiteDB.Engine
                 }
 
                 // now confirm this transaction to wal
-                _walIndex.ConfirmTransaction(transactionID, pagePositions.Values);
+                _walIndex.ConfirmTransaction(transactionPages.TransactionID, pagePositions.Values);
             }
         }
 

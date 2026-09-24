@@ -20,7 +20,8 @@ namespace LiteDB.Engine
                 return;
             }
             var log = ((ChecksummedWalStream)_writer.Value).RawStream;
-            // Released engines trim unaligned WAL tails before checking the file version.
+            // Keep the footer aligned too: released engines trim unaligned WAL
+            // tails before checking the primary header's newer format version.
             if (ChecksumsEnabled)
             {
                 WalPadding.Pad(log, log.Length / WalChecksum.FrameSize * WalChecksum.FrameSize, initialize: true);
@@ -70,6 +71,17 @@ namespace LiteDB.Engine
                 _checksums.JournalBytes = journal.Legacy && published ? reader.RawStream.Length : journal.FooterBytes;
                 if (journal.ConfirmsLegacyBackup && !published && journal.FooterBytes != 0)
                     _checksums.LegacyConfirmationPosition = journal.Position - PAGE_SIZE;
+                // Validate a published witness root before retiring the only
+                // header recovery copy. CRC-valid malformed root metadata must
+                // fail without changing either source, including this footer.
+                if (header[HeaderPage.P_FILE_VERSION] >= HeaderPage.MVCC_FILE_VERSION)
+                {
+                    var verifier = new WalChecksum();
+                    var salt = new byte[16];
+                    Buffer.BlockCopy(header, WalChecksum.SaltPosition, salt, 0, salt.Length);
+                    verifier.Reset(salt);
+                    WalRetirement.Load(new BufferSlice(header, 0, PAGE_SIZE), reader.RawStream, verifier);
+                }
                 if (_readOnly) return;
 
                 // Repair and sync the header before removing its recovery copy.

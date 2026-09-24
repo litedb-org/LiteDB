@@ -17,6 +17,12 @@ namespace LiteDB.Engine
         private readonly bool _durableCommits;
         private volatile bool _logFlushDegraded;
 
+        // Set by this engine's first successful log device sync. That sync also makes
+        // blank slots found at open durable, even if an earlier engine cleared them on
+        // storage that could not sync, so reclaimed slots are reused only after it
+        // (see ProveLogSync).
+        private volatile bool _logSyncProven;
+
         /// <summary>
         /// False when commits reach the OS cache only: the caller opted out
         /// (<see cref="EngineSettings.DurableCommits"/>) or the log storage rejected a durable flush.
@@ -84,17 +90,47 @@ namespace LiteDB.Engine
             try
             {
                 log.FlushToDisk();
+                _logSyncProven = true;
             }
             catch (Exception ex) when (IsDurableFlushUnsupported(ex))
             {
                 // The pages were written successfully; only the sync request was refused.
                 log.Flush();
-                if (!_logFlushDegraded)
-                {
-                    _logFlushDegraded = true;
-                    LOG($"log storage rejected durable flush ({ex.GetType().Name} 0x{ex.HResult:X8}); commits now flush to the OS cache only", "DISK");
-                }
+                this.MarkLogFlushDegraded(ex);
             }
+        }
+
+        /// <summary>
+        /// Before this engine first reuses a slot found blank at open, prove that the log can
+        /// sync. The sync also makes clears an earlier engine wrote without one durable. It
+        /// targets the raw log, so it adds no padding between a transaction's frames. Storage
+        /// that answers "cannot sync" (#2242) degrades, and the caller appends instead.
+        /// Caller holds the log writer lock.
+        /// </summary>
+        private bool ProveLogSync()
+        {
+            if (_logSyncProven) return true;
+            if (_logFlushDegraded) return false;
+            var stream = _writer.Value;
+            var raw = stream is ChecksummedWalStream wal ? wal.RawStream : stream;
+            try
+            {
+                raw.FlushToDisk();
+                _logSyncProven = true;
+            }
+            catch (Exception ex) when (IsDurableFlushUnsupported(ex))
+            {
+                raw.Flush();
+                this.MarkLogFlushDegraded(ex);
+            }
+            return _logSyncProven;
+        }
+
+        private void MarkLogFlushDegraded(Exception ex)
+        {
+            if (_logFlushDegraded) return;
+            _logFlushDegraded = true;
+            LOG($"log storage rejected durable flush ({ex.GetType().Name} 0x{ex.HResult:X8}); commits now flush to the OS cache only", "DISK");
         }
 
         /// <summary>

@@ -24,7 +24,7 @@ namespace LiteDB.Tests.Engine
                     docs.EnsureIndex("embedding_idx", "$.Embedding", new VectorIndexOptions(2));
                 }
                 db.Checkpoint();
-                stream.ToArray()[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.CURRENT_FILE_VERSION);
+                stream.ToArray()[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.COMPACT_FILE_VERSION);
             }
         }
 
@@ -62,7 +62,7 @@ namespace LiteDB.Tests.Engine
                     db.Rebuild();
                     docs.Query().TopKNear("Embedding", new[] { 1f, 0f }, 1).ToArray().Should().ContainSingle();
                 }
-                File.ReadAllBytes(file.Filename)[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.CURRENT_FILE_VERSION);
+                File.ReadAllBytes(file.Filename)[HeaderPage.P_FILE_VERSION].Should().Be(HeaderPage.COMPACT_FILE_VERSION);
                 using var reopened = new LiteDatabase(file.Filename);
                 reopened.GetCollection("docs").FindById(1)["Embedding"].IsVector.Should().BeTrue();
                 var query = reopened.GetCollection("docs").Query().TopKNear("Embedding", new[] { 1f, 0f }, 1);

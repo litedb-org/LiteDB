@@ -149,7 +149,8 @@ namespace LiteDB.Engine
                 _locker = new LockService(_header.Pragmas);
 
                 // initialize wal-index service
-                _walIndex = new WalIndexService(_disk, _locker);
+                _walIndex = new WalIndexService(_disk, _locker, _settings.SharedReaderVersions, () => _header,
+                    _settings.CheckpointBackoff);
 
                 // if exists log file, restore wal index references (can update full _header instance)
                 if (_disk.GetFileLength(FileOrigin.Log) > 0 || _disk.ChecksumsEnabled)
@@ -203,10 +204,10 @@ namespace LiteDB.Engine
             // stop running all transactions
             tc.Catch(() => _monitor?.Dispose());
 
-            if (_header?.Pragmas.Checkpoint > 0)
+            if (!_settings.ReadOnly && _header?.Pragmas.Checkpoint > 0)
             {
-                // do a soft checkpoint (only if exclusive lock is possible)
-                tc.Catch(() => _walIndex?.TryCheckpoint());
+                // Backfill safe pages; reclaim only when all readers have drained.
+                tc.Catch(() => _walIndex?.TryCloseCheckpoint());
             }
 
             // close all disk streams (and delete log if empty)
@@ -262,6 +263,9 @@ namespace LiteDB.Engine
 
 #if DEBUG || TESTING
         // exposes for unit tests
+        internal Action<long, FileOrigin> BeforePageRead { set => _state.BeforePageRead = value; }
+        internal WalIndexService GetWalIndex() => _walIndex;
+        internal Action<string> CheckpointStage { set => _state.CheckpointStage = value; }
         internal TransactionMonitor GetMonitor() => _monitor;
         internal Action<PageBuffer> SimulateDiskReadFail { set => _state.SimulateDiskReadFail = value; }
         internal Action<PageBuffer> SimulateDiskWriteFail { set => _state.SimulateDiskWriteFail = value; }
@@ -273,7 +277,18 @@ namespace LiteDB.Engine
         /// <summary>
         /// Run checkpoint command to copy log file into data file
         /// </summary>
-        public int Checkpoint() => _walIndex.Checkpoint();
+        public int Checkpoint()
+        {
+            _state.Validate();
+            try { return _settings.ReadOnly ? 0 : _walIndex.Checkpoint(); }
+            catch (Exception ex)
+            {
+                _state.Handle(ex);
+                throw;
+            }
+        }
+
+        internal int ReadVersion => _walIndex.CurrentReadVersion;
 
         public void Dispose()
         {

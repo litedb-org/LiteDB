@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
@@ -28,7 +28,8 @@ namespace LiteDB.Engine
         public const byte CHECKSUM_FILE_VERSION = 10;
         public const byte INDEX_FILE_VERSION = 11;
         public const byte COMPACT_FILE_VERSION = 12;
-        public const byte CURRENT_FILE_VERSION = COMPACT_FILE_VERSION;
+        public const byte MVCC_FILE_VERSION = 13;
+        public const byte CURRENT_FILE_VERSION = MVCC_FILE_VERSION;
         private volatile byte _fileVersion;
         public byte FileVersion => _fileVersion;
 
@@ -137,7 +138,7 @@ namespace LiteDB.Engine
                 throw LiteException.InvalidDatabase();
             }
 
-            if (ver != FILE_VERSION && ver != VECTOR_FILE_VERSION && ver != COMPACT_FILE_VERSION && ver != INDEX_FILE_VERSION && ver != CHECKSUM_FILE_VERSION) throw LiteException.UnsupportedFileVersion(ver);
+            if (ver != FILE_VERSION && ver != VECTOR_FILE_VERSION && ver != MVCC_FILE_VERSION && ver != COMPACT_FILE_VERSION && ver != INDEX_FILE_VERSION && ver != CHECKSUM_FILE_VERSION) throw LiteException.UnsupportedFileVersion(ver);
             _fileVersion = Math.Max(_fileVersion, ver); // Loading must not mutate a readable page.
 
             // CreateTime is readonly

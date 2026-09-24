@@ -22,9 +22,12 @@ namespace LiteDB.Tests.Engine
 
         internal byte[] DurableBytes => (byte[])_durable.Clone();
 
+        internal Action BeforeFlush;
+
         public void FlushToDisk()
         {
             EnsurePower();
+            BeforeFlush?.Invoke();
             _durable = ToArray();
         }
 

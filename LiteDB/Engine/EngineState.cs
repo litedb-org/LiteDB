@@ -20,6 +20,8 @@ namespace LiteDB.Engine
         private readonly EngineSettings _settings;
 
 #if DEBUG || TESTING
+        public Action<long, FileOrigin> BeforePageRead;
+        public Action<string> CheckpointStage;
         public Action<PageBuffer> SimulateDiskReadFail = null;
         public Action<PageBuffer> SimulateDiskWriteFail = null;
         internal Action<PageBuffer> SimulateDataWriteFail;
@@ -32,6 +34,9 @@ namespace LiteDB.Engine
         {
             _engine = engine;
             _settings = settings;
+#if DEBUG || TESTING
+            CheckpointStage = settings?.CheckpointStage;
+#endif
         }
 
         public void Validate()
@@ -65,13 +70,30 @@ namespace LiteDB.Engine
 
         internal void Stop(Exception ex)
         {
+            this.CompleteStop(ex, this.BeginStop(ex));
+        }
+
+        /// <summary>
+        /// Make the engine immediately unusable without running cleanup that can
+        /// acquire unrelated locks. The caller later owns <see cref="CompleteStop"/>.
+        /// </summary>
+        internal bool BeginStop(Exception ex)
+        {
             // A completion that failed because the engine was already closed is not a new fatal cause.
-            if (this.Disposed) return;
+            if (this.Disposed) return false;
 
             // A later completion/cleanup race must not replace the causal failure.
-            if (Interlocked.CompareExchange(ref _exception, ClosedEngineFailure(ex), null) != null) return;
-            _engine?.Close(ex, this);
-            this.Disposed = true;
+            return Interlocked.CompareExchange(ref _exception, ClosedEngineFailure(ex), null) == null;
+        }
+
+        /// <summary>
+        /// Finish teardown for the caller that first published a fatal failure.
+        /// </summary>
+        internal void CompleteStop(Exception ex, bool ownsFailure)
+        {
+            if (!ownsFailure) return;
+            try { _engine?.Close(ex, this); }
+            finally { this.Disposed = true; }
         }
 
         /// <summary>

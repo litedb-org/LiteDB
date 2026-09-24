@@ -1,5 +1,44 @@
 # Release notes
 
+## Snapshot-aware checkpoints (format v13)
+
+Checkpoint no longer waits for readers. It copies pages no live snapshot still
+needs and reuses WAL payload slots that no local or shared-mode reader can reach.
+New files keep the v11/v12 creation policy. Existing v11/v12 files promote to v13
+at the first checkpoint that retires WAL frames, publishing one header through the
+existing WAL-bound header journal; documents are not rewritten. Earlier formats first perform
+the migrations below. Released engines and the v12 engine reject v13.
+
+**`Checkpoint()` may leave a nonempty WAL** while readers are open. The data file
+alone is a complete backup only when the WAL is empty afterwards. Exclude writers
+and checkpoints throughout backup preparation and capture; then either close
+readers, checkpoint and verify an empty WAL before copying the data file, or
+capture data and WAL together as one filesystem snapshot. Never copy the two live
+files independently, and keep a data/WAL pair together.
+
+Retired frames keep durable witnesses (56 bytes each, up to 145 per WAL frame) so
+recovery and rebuild still verify complete transactions after slot reuse.
+Reclamation reuses WAL capacity but does not shrink the file; long-lived readers
+can grow witness metadata and recovery work until a full checkpoint. On log
+storage that rejects device sync (#2242), snapshot checkpoints and retirement
+still run, but reclaimed slots are never reused: the WAL appends as before v13
+until a full checkpoint truncates it. Larger
+shared-mode query results stream from a private snapshot protected by a lease
+file in `<database filename>-readers/`. All shared participants must run on one
+host with working file-sharing locks, use the same mutex naming strategy and this
+coordination protocol. Where lease files cannot be created (for example, a
+read-only directory), large results stream under the database mutex as before.
+Do not mix concurrent direct connections or older shared-mode engines with these
+readers. Writes from the thread iterating a streamed result of the same connection
+keep one engine open while that thread keeps writing, blocking other writers
+meanwhile, as before v13. Unlike before, an idle iteration, a result disposed on
+another thread (for example after an `await`), or an exited thread no longer
+keeps other threads and processes waiting. When the last streamed result closes,
+the connection checkpoints away the remaining WAL.
+Rebuild requires shared readers to be closed. See
+[snapshot checkpointing](mvcc-checkpoint.md) and
+[the retirement format](mvcc-retirement-format.md).
+
 ## Compact storage (v12)
 
 Auto creates v12 files; existing v11 files promote on their first beneficial compact
