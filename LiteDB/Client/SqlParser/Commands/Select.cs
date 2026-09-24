@@ -44,14 +44,7 @@ namespace LiteDB
 
             if (from.Type == TokenType.EOF || from.Type == TokenType.SemiColon)
             {
-                // select with no FROM - just run expression (avoid DUAL table, Mr. Oracle)
-                //TODO: i think will be better add all sql into engine
-                var result = query.Select.Execute(_collation.Value);
-
-                var defaultName = "expr";
-                var data = result.Select(x => x.IsDocument ? x.AsDocument : new BsonDocument { [defaultName] = x }).FirstOrDefault();
-
-                return new BsonDataReader(data, null);
+                return this.ExecuteSelect(query, null);
             }
             else if (from.Is("INTO"))
             {
@@ -126,18 +119,33 @@ namespace LiteDB
                 _tokenizer.ReadToken();
                 _tokenizer.ReadToken().Expect("BY");
 
-                var orderBy = BsonExpression.Create(_tokenizer, BsonExpressionParserMode.Full, _parameters);
-
-                var orderByOrder = Query.Ascending;
-                var orderByToken = _tokenizer.LookAhead();
-
-                if (orderByToken.Is("ASC") || orderByToken.Is("DESC"))
+                while (true)
                 {
-                    orderByOrder = _tokenizer.ReadToken().Is("ASC") ? Query.Ascending : Query.Descending;
-                }
+                    var firstOrderToken = _tokenizer.LookAhead();
+                    var orderBy = BsonExpression.Create(_tokenizer, BsonExpressionParserMode.Full, _parameters);
 
-                query.OrderBy = orderBy;
-                query.Order = orderByOrder;
+                    var orderByOrder = Query.Ascending;
+                    var orderByToken = _tokenizer.LookAhead();
+
+                    if (orderByToken.Is("ASC") || orderByToken.Is("DESC"))
+                    {
+                        orderByOrder = _tokenizer.ReadToken().Is("ASC") ? Query.Ascending : Query.Descending;
+                    }
+
+                    if (query.GroupBy == null && !query.Select.UseSource && firstOrderToken.Type == TokenType.Word)
+                        orderBy = ResolveSelectAlias(query.Select, orderBy, firstOrderToken.Value);
+                    query.OrderBy.Add(new QueryOrder(orderBy, orderByOrder));
+
+                    var next = _tokenizer.LookAhead();
+
+                    if (next.Type == TokenType.Comma)
+                    {
+                        _tokenizer.ReadToken();
+                        continue;
+                    }
+
+                    break;
+                }
             }
 
             ahead = _tokenizer.LookAhead().Expect(TokenType.Word, TokenType.EOF, TokenType.SemiColon);
@@ -176,7 +184,14 @@ namespace LiteDB
             // read eof/;
             _tokenizer.ReadToken().Expect(TokenType.EOF, TokenType.SemiColon);
 
-            return _engine.Query(collection, query);
+            return this.ExecuteSelect(query, collection);
+        }
+
+        private IBsonDataReader ExecuteSelect(Query query, string collection)
+        {
+            ParsedSelect = true;
+            if (_captureSelect) SelectTemplate = new SqlQueryTemplate(collection, query);
+            return SqlQueryTemplate.Execute(_engine, collection, query);
         }
 
         /// <summary>

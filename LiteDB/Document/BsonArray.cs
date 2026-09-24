@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -30,6 +30,20 @@ namespace LiteDB
         }
 
         public BsonArray(IEnumerable<BsonValue> items)
+            : this()
+        {
+            if (items == null) throw new ArgumentNullException(nameof(items));
+
+            this.AddRange(items);
+        }
+
+        internal BsonArray(List<BsonValue> items, bool useRawValue)
+            : base(BsonType.Array, items)
+        {
+            if (items == null) throw new ArgumentNullException(nameof(items));
+        }
+        
+        public BsonArray(BsonArray items)
             : this()
         {
             if (items == null) throw new ArgumentNullException(nameof(items));
@@ -73,9 +87,8 @@ namespace LiteDB
 
             foreach (var bsonValue in collection)
             {
-                list.Add(bsonValue ?? Null);    
+                list.Add(bsonValue ?? Null);
             }
-            
         }
         
         public void AddRange(IEnumerable<BsonValue> items)
@@ -112,10 +125,13 @@ namespace LiteDB
             }
         }
 
-        public override int CompareTo(BsonValue other)
+        public override int CompareTo(BsonValue other) => CompareTo(other, Collation.Binary);
+
+        /// <summary>Compare nested values using the supplied collation.</summary>
+        public override int CompareTo(BsonValue other, Collation collation)
         {
             // if types are different, returns sort type order
-            if (other.Type != BsonType.Array) return this.Type.CompareTo(other.Type);
+            if (other.Type != BsonType.Array) return base.CompareTo(other, collation);
 
             var otherArray = other.AsArray;
 
@@ -125,7 +141,7 @@ namespace LiteDB
 
             // compare each element
             for (; 0 == result && i < stop; i++)
-                result = this[i].CompareTo(otherArray[i]);
+                result = this[i].CompareTo(otherArray[i], collation);
 
             if (result != 0) return result;
             if (i == this.Count) return i == otherArray.Count ? 0 : -1;
@@ -143,7 +159,14 @@ namespace LiteDB
             
             for (var i = 0; i < array.Count; i++)
             {
-                length += this.GetBytesCountElement(i.ToString(), array[i]);
+                var index = i;
+                var digits = 1;
+                while (index >= 10)
+                {
+                    index /= 10;
+                    digits++;
+                }
+                length += this.GetBytesCountElement(string.Empty, array[i]) + digits;
             }
 
             return _length = length;

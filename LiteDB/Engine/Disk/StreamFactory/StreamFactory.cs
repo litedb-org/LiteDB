@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -15,11 +16,16 @@ namespace LiteDB.Engine
     {
         private readonly Stream _stream;
         private readonly string _password;
+        private readonly bool _ownsStream;
+        private readonly bool _isLog;
+        private int _disposed;
 
-        public StreamFactory(Stream stream, string password)
+        public StreamFactory(Stream stream, string password, bool ownsStream = false, bool isLog = false)
         {
-            _stream = stream;
+            _stream = stream ?? throw new ArgumentNullException(nameof(stream));
             _password = password;
+            _ownsStream = ownsStream;
+            _isLog = isLog;
         }
 
         /// <summary>
@@ -32,36 +38,59 @@ namespace LiteDB.Engine
         /// </summary>
         public Stream GetStream(bool canWrite, bool sequencial)
         {
+            if (Volatile.Read(ref _disposed) != 0) throw new ObjectDisposedException(nameof(StreamFactory));
+
+            // The factory owns the shared base stream; wrappers only own themselves.
             if (_password == null)
             {
-                return new ConcurrentStream(_stream, canWrite);
+                return new ConcurrentStream(_stream, canWrite, true);
             }
             else
             {
-                return new AesStream(_password, new ConcurrentStream(_stream, canWrite));
+                var stream = new ConcurrentStream(_stream, canWrite, true);
+                return _isLog ? EncryptedLogPreamble.Open(_password, stream) :
+                    new AesStream(_password, stream, allowRecovery: false);
             }
         }
 
         /// <summary>
-        /// Get file length using _stream.Length
+        /// Get the logical stream length without modifying the stream.
         /// </summary>
         public long GetLength()
         {
-            var length = _stream.Length;
-
-            // if file length are not PAGE_SIZE module, maybe last save are not completed saved on disk
-            // crop file removing last uncompleted page saved
-            if (length % PAGE_SIZE != 0)
+            lock (_stream)
             {
-                length = length - (length % PAGE_SIZE);
+                var length = _stream.Length;
 
-                _stream.SetLength(length);
-                _stream.FlushToDisk();
+                if (_password == null || length == 0)
+                {
+                    return length;
+                }
+
+                // A partial encrypted preamble is treated as an interrupted creation.
+                // Preserve the caller's position while checking its marker byte.
+                if (length < PAGE_SIZE && _stream.CanRead && _stream.CanSeek)
+                {
+                    var position = _stream.Position;
+                    try
+                    {
+                        if (_isLog)
+                        {
+                            using (var reader = EncryptedLogPreamble.Open(_password, new ConcurrentStream(_stream, false, true)))
+                                return reader.Length;
+                        }
+                        _stream.Position = 0;
+                        return _stream.ReadByte() == 1 ? 0 : length;
+                    }
+                    finally
+                    {
+                        _stream.Position = position;
+                    }
+                }
+
+                // Encrypted streams reserve the first physical page for their salt.
+                return length >= PAGE_SIZE ? length - PAGE_SIZE : length;
             }
-
-            return length > 0 ?
-                length - (_password == null ? 0 : PAGE_SIZE) :
-                0;
         }
 
         /// <summary>
@@ -82,8 +111,35 @@ namespace LiteDB.Engine
         public bool IsLocked() => false;
 
         /// <summary>
-        /// Do no dispose on finish
+        /// Wrappers are always disposed. Caller-owned base streams are protected
+        /// by ConcurrentStream's leave-open mode.
         /// </summary>
-        public bool CloseOnDispose => false;
+        public bool CloseOnDispose => true;
+
+        public void TrimCapacity(Stream stream)
+        {
+            if (!_ownsStream) return;
+
+            // Capacity changes must use the same monitor as ConcurrentStream
+            // readers, including when TempStream still stores data in memory.
+            lock (_stream)
+            {
+                if (_stream is MemoryStream memory)
+                {
+                    memory.Capacity = checked((int)memory.Length);
+                }
+                else if (_stream is TempStream temp)
+                {
+                    temp.TrimCapacity();
+                }
+            }
+        }
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+
+            if (_ownsStream) _stream.Dispose();
+        }
     }
 }

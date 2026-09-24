@@ -1,4 +1,5 @@
 ﻿using FluentAssertions;
+using LiteDB.Tests.Utils;
 using Xunit;
 
 namespace LiteDB.Tests.Engine
@@ -10,14 +11,14 @@ namespace LiteDB.Tests.Engine
         {
             using (var file = new TempFile())
             {
-                using (var db = new LiteDatabase(file.Filename))
+                using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, file.Filename))
                 {
                     db.UserVersion.Should().Be(0);
                     db.UserVersion = 5;
                     db.Checkpoint();
                 }
 
-                using (var db = new LiteDatabase(file.Filename))
+                using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, file.Filename))
                 {
                     db.UserVersion.Should().Be(5);
                 }

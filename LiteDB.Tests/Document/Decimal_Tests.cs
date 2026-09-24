@@ -10,8 +10,8 @@ namespace LiteDB.Tests.Document
         {
             var d0 = 0m;
             var d1 = 1m;
-            var dmin = new BsonValue(decimal.MinValue);
-            var dmax = new BsonValue(decimal.MaxValue);
+            var dmin = new LiteDB.BsonValue(decimal.MinValue);
+            var dmax = new LiteDB.BsonValue(decimal.MaxValue);
 
             JsonSerializer.Serialize(d0).Should().Be("{\"$numberDecimal\":\"0\"}");
             JsonSerializer.Serialize(d1).Should().Be("{\"$numberDecimal\":\"1\"}");

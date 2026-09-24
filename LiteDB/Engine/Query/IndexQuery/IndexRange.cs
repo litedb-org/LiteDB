@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using static LiteDB.Constants;
@@ -16,6 +16,11 @@ namespace LiteDB.Engine
         private readonly bool _startEquals;
         private readonly bool _endEquals;
 
+        internal BsonValue Start => _start;
+        internal BsonValue End => _end;
+        internal bool StartEquals => _startEquals;
+        internal bool EndEquals => _endEquals;
+
         public IndexRange(string name, BsonValue start, BsonValue end, bool startEquals, bool endEquals, int order)
             : base(name, order)
         {
@@ -26,6 +31,28 @@ namespace LiteDB.Engine
             _endEquals = endEquals;
         }
 
+        internal bool HasCloserStart(IndexRange other, int order, Collation collation)
+        {
+            var start = order == Query.Ascending ? _start : _end;
+            var previous = order == Query.Ascending ? other._start : other._end;
+            var comparison = start.CompareTo(previous, collation);
+            if (comparison != 0) return order == Query.Ascending ? comparison > 0 : comparison < 0;
+            var inclusive = order == Query.Ascending ? _startEquals : _endEquals;
+            var previousInclusive = order == Query.Ascending ? other._startEquals : other._endEquals;
+            return !inclusive && previousInclusive;
+        }
+
+        /// <summary>
+        /// Both ranges constrain the same scalar key, so the tighter start and the tighter end enforce them all
+        /// </summary>
+        internal IndexRange Intersect(IndexRange other, Collation collation)
+        {
+            var lower = this.HasCloserStart(other, Query.Ascending, collation) ? this : other;
+            var upper = this.HasCloserStart(other, Query.Descending, collation) ? this : other;
+
+            return new IndexRange(this.Name, lower._start, upper._end, lower._startEquals, upper._endEquals, this.Order);
+        }
+
         public override uint GetCost(CollectionIndex index)
         {
             return 20;
@@ -33,6 +60,12 @@ namespace LiteDB.Engine
 
         public override IEnumerable<IndexNode> Execute(IndexService indexer, CollectionIndex index)
         {
+            // Validate before emitting duplicate start keys. BETWEEN can reach
+            // this scan directly without passing through interval normalization.
+            var boundsComparison = _start.CompareTo(_end, indexer.Collation);
+            if (boundsComparison > 0 || (boundsComparison == 0 && (!_startEquals || !_endEquals)))
+                yield break;
+
             // if order are desc, swap start/end values
             var start = this.Order == Query.Ascending ? _start : _end;
             var end = this.Order == Query.Ascending ? _end : _start;
@@ -40,11 +73,16 @@ namespace LiteDB.Engine
             var startEquals = this.Order == Query.Ascending ? _startEquals : _endEquals;
             var endEquals = this.Order == Query.Ascending ? _endEquals : _startEquals;
 
+            // the start loop below yields keys equal to start without looking at end
+            var bounds = _start.CompareTo(_end, indexer.Collation);
+
+            if (bounds > 0 || (bounds == 0 && !(_startEquals && _endEquals))) yield break;
+
             // find first indexNode (or get from head/tail if Min/Max value)
             var first = 
                 start.Type == BsonType.MinValue ? indexer.GetNode(index.Head) :
                 start.Type == BsonType.MaxValue ? indexer.GetNode(index.Tail) :
-                indexer.Find(index, start, true, this.Order);
+                indexer.Find(index, start, true, this.Order, skipEqual: !startEquals);
 
             var node = first;
 
@@ -52,7 +90,7 @@ namespace LiteDB.Engine
             if (startEquals && node != null)
             {
                 // going backward in same value list to get first value
-                while (!node.GetNextPrev(0, -this.Order).IsEmpty && ((node = indexer.GetNode(node.GetNextPrev(0, -this.Order))).Key.CompareTo(start) == 0))
+                while (!node.GetNextPrev(0, -this.Order).IsEmpty && ((node = indexer.GetNode(node.GetNextPrev(0, -this.Order))).Key.CompareTo(start, indexer.Collation) == 0))
                 {
                     if (node.Key.IsMinValue || node.Key.IsMaxValue) break;
 
@@ -118,9 +156,14 @@ namespace LiteDB.Engine
             {
                 return string.Format("INDEX SCAN({0} >= {1})", this.Name, _start);
             }
-            else
+            else if (_startEquals && _endEquals)
             {
                 return string.Format("INDEX RANGE SCAN({0} BETWEEN {1} AND {2})", this.Name, _start, _end);
+            }
+            else
+            {
+                return string.Format("INDEX RANGE SCAN({0} {1} {2} AND {0} {3} {4})",
+                    this.Name, _startEquals ? ">=" : ">", _start, _endEquals ? "<=" : "<", _end);
             }
         }
     }

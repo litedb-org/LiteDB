@@ -72,6 +72,7 @@ namespace LiteDB.Engine
         {
             foreach(var index in base.GetUsedIndexs())
             {
+                this.EnsurePageOwnership();
                 var slotPosition = BasePage.CalcPositionAddr(index);
                 var position = _buffer.ReadUInt16(slotPosition);
 

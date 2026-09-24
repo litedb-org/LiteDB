@@ -11,7 +11,7 @@ namespace LiteDB.Engine
     {
         private IEnumerable<BsonDocument> SysOpenCursors()
         {
-            foreach (var transaction in _monitor.Transactions)
+            foreach (var transaction in _monitor.GetTransactionsSnapshot())
             {
                 foreach(var cursor in transaction.OpenCursors)
                 {

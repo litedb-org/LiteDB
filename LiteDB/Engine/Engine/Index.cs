@@ -2,12 +2,44 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using LiteDB.Vector;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
 {
     public partial class LiteEngine
     {
+        /// <summary>
+        /// Read-only databases cannot create an index, but "ensure" of an index that already
+        /// exists is a no-op and must keep working (common startup pattern).
+        /// </summary>
+        private bool EnsureIndexReadOnly(string collection, string name, string expression, VectorIndexOptions vector = null)
+        {
+            var exists = this.AutoReadTransaction(transaction =>
+            {
+                var snapshot = transaction.CreateSnapshot(LockMode.Read, collection, false);
+                var current = snapshot.CollectionPage?.GetCollectionIndex(name);
+
+                if (current == null) return false;
+
+                // same conflicts the writable path reports
+                if (current.Expression != expression || (vector != null && current.IndexType != 1)) throw LiteException.IndexAlreadyExist(name);
+
+                var metadata = vector == null ? null : snapshot.CollectionPage.GetVectorIndexMetadata(name);
+
+                if (metadata != null && (metadata.Dimensions != vector.Dimensions || metadata.Metric != vector.Metric))
+                {
+                    throw new LiteException(0, $"Vector index '{name}' already exists with different options.");
+                }
+
+                return true;
+            });
+
+            if (exists == false) throw new NotSupportedException("Cannot create an index in a read-only database.");
+
+            return false;
+        }
+
         /// <summary>
         /// Create a new index (or do nothing if already exists) to a collection/field
         /// </summary>
@@ -24,6 +56,9 @@ namespace LiteDB.Engine
             if (expression.IsScalar == false && unique) throw new LiteException(0, "Multikey index expression do not support unique option");
 
             if (expression.Source == "$._id") return false; // always exists
+
+            _state.Validate();
+            if (_settings.ReadOnly) return this.EnsureIndexReadOnly(collection, name, expression.Source);
 
             return this.AutoTransaction(transaction =>
             {
@@ -55,7 +90,7 @@ namespace LiteDB.Engine
                 {
                     using (var reader = new BufferReader(data.Read(pkNode.DataBlock)))
                     {
-                        var doc = reader.ReadDocument(expression.Fields).GetValue();
+                        var doc = data.ReadDocument(reader, expression.Fields, false, pkNode.DataBlock).GetValue();
 
                         // first/last node in this document that will be added
                         IndexNode last = null;
@@ -95,6 +130,77 @@ namespace LiteDB.Engine
         }
 
         /// <summary>
+        /// Create a new vector index (or do nothing if already exists) for a collection/field.
+        /// </summary>
+        public bool EnsureVectorIndex(string collection, string name, BsonExpression expression, VectorIndexOptions options)
+        {
+            if (collection.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(collection));
+            if (name.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(name));
+            if (expression == null) throw new ArgumentNullException(nameof(expression));
+            if (options == null) throw new ArgumentNullException(nameof(options));
+            if (expression.Fields.Count == 0) throw new ArgumentException("Vector index expressions must reference a document field.", nameof(expression));
+
+            if (name.Length > INDEX_NAME_MAX_LENGTH) throw LiteException.InvalidIndexName(name, collection, "MaxLength = " + INDEX_NAME_MAX_LENGTH);
+            if (!name.IsWord()) throw LiteException.InvalidIndexName(name, collection, "Use only [a-Z$_]");
+            if (name.StartsWith("$")) throw LiteException.InvalidIndexName(name, collection, "Index name can't start with `$`");
+
+            _state.Validate();
+            if (_settings.ReadOnly) return this.EnsureIndexReadOnly(collection, name, expression.Source, options);
+
+            return this.AutoTransaction(transaction =>
+            {
+                var snapshot = transaction.CreateSnapshot(LockMode.Write, collection, true);
+                var collectionPage = snapshot.CollectionPage;
+                var indexer = new IndexService(snapshot, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
+                var data = new DataService(snapshot, _disk.MAX_ITEMS_COUNT);
+                var vectorService = new VectorIndexService(snapshot, _header.Pragmas.Collation);
+
+                var existing = collectionPage.GetCollectionIndex(name);
+                var existingMetadata = collectionPage.GetVectorIndexMetadata(name);
+
+                if (existing != null && existing.IndexType != 1)
+                {
+                    throw LiteException.IndexAlreadyExist(name);
+                }
+
+                if (existing != null && existingMetadata != null)
+                {
+                    if (existing.Expression != expression.Source)
+                    {
+                        throw LiteException.IndexAlreadyExist(name);
+                    }
+
+                    if (existingMetadata.Dimensions != options.Dimensions || existingMetadata.Metric != options.Metric)
+                    {
+                        throw new LiteException(0, $"Vector index '{name}' already exists with different options.");
+                    }
+
+                    return false;
+                }
+
+                LOG($"create vector index `{collection}.{name}`", "COMMAND");
+
+                snapshot.RequireVectorVersion();
+                var tuple = collectionPage.InsertVectorIndex(name, expression.Source, options.Dimensions, options.Metric);
+
+                foreach (var pkNode in new IndexAll("_id", LiteDB.Query.Ascending).Run(collectionPage, indexer))
+                {
+                    _state.Validate();
+
+                    using (var reader = new BufferReader(data.Read(pkNode.DataBlock)))
+                    {
+                        var doc = data.ReadDocument(reader, expression.Fields, false, pkNode.DataBlock).GetValue();
+                        vectorService.Upsert(tuple.Index, tuple.Metadata, doc, pkNode.DataBlock);
+                    }
+
+                    transaction.Safepoint();
+                }
+
+                return true;
+            });
+        }
+
+        /// <summary>
         /// Drop an index from a collection
         /// </summary>
         public bool DropIndex(string collection, string name)
@@ -119,12 +225,25 @@ namespace LiteDB.Engine
                 // no index, no drop
                 if (index == null) return false;
 
+                if (index.IndexType == 1)
+                {
+                    var metadata = col.GetVectorIndexMetadata(name);
+                    if (metadata != null)
+                    {
+                        var vectorService = new VectorIndexService(snapshot, _header.Pragmas.Collation);
+                        vectorService.Drop(metadata);
+                    }
+
+                    snapshot.CollectionPage.DeleteCollectionIndex(name);
+                    return true;
+                }
+
                 // delete all data pages + indexes pages
                 indexer.DropIndex(index);
 
                 // remove index entry in collection page
                 snapshot.CollectionPage.DeleteCollectionIndex(name);
-            
+
                 return true;
             });
         }

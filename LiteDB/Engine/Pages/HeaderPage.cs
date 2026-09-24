@@ -24,6 +24,21 @@ namespace LiteDB.Engine
         /// Datafile specification version
         /// </summary>
         public const byte FILE_VERSION = 8;
+        public const byte VECTOR_FILE_VERSION = 9;
+        public const byte CHECKSUM_FILE_VERSION = 10;
+        public const byte INDEX_FILE_VERSION = 11;
+        public const byte COMPACT_FILE_VERSION = 12;
+        public const byte MVCC_FILE_VERSION = 13;
+        public const byte CURRENT_FILE_VERSION = MVCC_FILE_VERSION;
+        private volatile byte _fileVersion;
+        public byte FileVersion => _fileVersion;
+
+        internal void EnsureVersion(byte version)
+        {
+            version = Math.Max(_fileVersion, version);
+            _buffer.Write(version, P_FILE_VERSION);
+            _fileVersion = version;
+        }
 
         #region Buffer Field Positions
 
@@ -67,6 +82,12 @@ namespace LiteDB.Engine
         private BsonDocument _collections;
 
         /// <summary>
+        /// Guards the collection map, and lets a snapshot pair it with a WAL read version. Writers hold lock(header)
+        /// across log I/O; readers take only this lock, which a commit holds solely while it republishes the map.
+        /// </summary>
+        public object PublicationLock { get; } = new object();
+
+        /// <summary>
         /// Check if collections was changed
         /// </summary>
         private bool _isCollectionsChanged = false;
@@ -85,9 +106,9 @@ namespace LiteDB.Engine
             // initialize pragmas
             this.Pragmas = new EnginePragmas(this);
 
-            // writing direct into buffer in Ctor() because there is no change later (write once)
+            // New comparer ordering requires a downgrade barrier even without vectors.
             _buffer.Write(HEADER_INFO, P_HEADER_INFO);
-            _buffer.Write(FILE_VERSION, P_FILE_VERSION);
+            this.EnsureVersion(INDEX_FILE_VERSION);
             _buffer.Write(this.CreationTime, P_CREATION_TIME);
 
             // initialize collections
@@ -100,26 +121,28 @@ namespace LiteDB.Engine
         public HeaderPage(PageBuffer buffer)
             : base(buffer)
         {
-            this.CreationTime = _buffer.ReadDateTime(P_CREATION_TIME);
-
-            this.LoadPage();
+            this.CreationTime = this.LoadPage();
         }
 
         /// <summary>
         /// Load page content based on page buffer
         /// </summary>
-        private void LoadPage()
+        private DateTime LoadPage()
         {
             // check database file format
             var info = _buffer.ReadString(P_HEADER_INFO, HEADER_INFO.Length);
             var ver = _buffer[P_FILE_VERSION];
 
-            if (string.CompareOrdinal(info, HEADER_INFO) != 0 || ver != FILE_VERSION)
+            if (string.CompareOrdinal(info, HEADER_INFO) != 0)
             {
                 throw LiteException.InvalidDatabase();
             }
 
+            if (ver != FILE_VERSION && ver != VECTOR_FILE_VERSION && ver != MVCC_FILE_VERSION && ver != COMPACT_FILE_VERSION && ver != INDEX_FILE_VERSION && ver != CHECKSUM_FILE_VERSION) throw LiteException.UnsupportedFileVersion(ver);
+            _fileVersion = Math.Max(_fileVersion, ver); // Loading must not mutate a readable page.
+
             // CreateTime is readonly
+            var creationTime = _buffer.ReadDateTime(P_CREATION_TIME);
             this.FreeEmptyPageList = _buffer.ReadUInt32(P_FREE_EMPTY_PAGE_ID);
             this.LastPageID = _buffer.ReadUInt32(P_LAST_PAGE_ID);
 
@@ -129,16 +152,20 @@ namespace LiteDB.Engine
             // create new buffer area to store BsonDocument collections
             var area = _buffer.Slice(P_COLLECTIONS, COLLECTIONS_SIZE);
 
-            using (var r = new BufferReader(new[] { area }, false))
+            using (var r = new BufferReader(new[] { area }, false) { AllowZeroLengthDocument = true })
             {
-                _collections = r.ReadDocument().GetValue();
+                var collections = r.ReadDocument().GetValue();
+                lock (this.PublicationLock) _collections = collections;
             }
 
             _isCollectionsChanged = false;
+
+            return creationTime;
         }
 
         public override PageBuffer UpdateBuffer()
         {
+            _buffer.Write(_fileVersion, P_FILE_VERSION);
             _buffer.Write(this.FreeEmptyPageList, P_FREE_EMPTY_PAGE_ID);
             _buffer.Write(this.LastPageID, P_LAST_PAGE_ID);
 
@@ -183,6 +210,7 @@ namespace LiteDB.Engine
             System.Buffer.BlockCopy(savepoint.Array, savepoint.Offset, _buffer.Array, _buffer.Offset, PAGE_SIZE);
 
             this.LoadPage();
+            this.EnsureVersion(_fileVersion); // Restore owns this buffer; preserve a durable promotion.
         }
 
         /// <summary>
@@ -190,22 +218,21 @@ namespace LiteDB.Engine
         /// </summary>
         public uint GetCollectionPageID(string collection)
         {
-            if (_collections.TryGetValue(collection, out var pageID))
+            lock (this.PublicationLock)
             {
-                return (uint)pageID.AsInt32;
+                return _collections.TryGetValue(collection, out var pageID) ? (uint)pageID.AsInt32 : uint.MaxValue;
             }
-
-            return uint.MaxValue;
         }
 
         /// <summary>
-        /// Get all collections with pageID
+        /// Get a snapshot of all collections with pageID, without holding the header lock during enumeration.
         /// </summary>
         public IEnumerable<KeyValuePair<string, uint>> GetCollections()
         {
-            foreach(var el in _collections.GetElements())
+            lock (this.PublicationLock)
             {
-                yield return new KeyValuePair<string, uint>(el.Key, (uint)el.Value.AsInt32);
+                return _collections.GetElements()
+                    .Select(el => new KeyValuePair<string, uint>(el.Key, (uint)el.Value.AsInt32)).ToArray();
             }
         }
 
@@ -214,7 +241,7 @@ namespace LiteDB.Engine
         /// </summary>
         public void InsertCollection(string name, uint pageID)
         {
-            _collections[name] = (int)pageID;
+            lock (this.PublicationLock) _collections[name] = (int)pageID;
 
             _isCollectionsChanged = true;
         }
@@ -224,7 +251,7 @@ namespace LiteDB.Engine
         /// </summary>
         public void DeleteCollection(string name)
         {
-            _collections.Remove(name);
+            lock (this.PublicationLock) _collections.Remove(name);
 
             _isCollectionsChanged = true;
         }
@@ -234,11 +261,14 @@ namespace LiteDB.Engine
         /// </summary>
         public void RenameCollection(string oldName, string newName)
         {
-            var pageID = _collections[oldName];
+            lock (this.PublicationLock)
+            {
+                var pageID = _collections[oldName];
 
-            _collections.Remove(oldName);
+                _collections.Remove(oldName);
 
-            _collections.Add(newName, pageID);
+                _collections.Add(newName, pageID);
+            }
 
             _isCollectionsChanged = true;
         }
@@ -248,12 +278,14 @@ namespace LiteDB.Engine
         /// </summary>
         public int GetAvailableCollectionSpace()
         {
-            return COLLECTIONS_SIZE -
-                _collections.GetBytesCount(true) -
-                1 - // for int32 type (0x10)
-                1 - // for new CString ('\0')
-                4 - // for PageID (int32)
-                8; // reserved
+            lock (this.PublicationLock)
+            {
+                return COLLECTIONS_SIZE - _collections.GetBytesCount(true) -
+                    1 - // for int32 type (0x10)
+                    1 - // for new CString ('\0')
+                    4 - // for PageID (int32)
+                    8; // reserved
+            }
         }
     }
 }

@@ -53,6 +53,14 @@ namespace LiteDB.Engine
 
         public override void Write(byte[] buffer, int offset, int count) => _stream.Write(buffer, offset, count);
 
+        internal void TrimCapacity()
+        {
+            if (_stream is MemoryStream memory)
+            {
+                memory.Capacity = checked((int)memory.Length);
+            }
+        }
+
         public override long Seek(long offset, SeekOrigin origin)
         {
             var position =

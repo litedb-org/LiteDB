@@ -1,0 +1,34 @@
+#!/usr/bin/env python3
+"""Check the file-format boundary with separate current and released-engine processes."""
+import pathlib
+import subprocess
+import tempfile
+
+root = pathlib.Path(__file__).resolve().parent.parent
+projects = root / "tools" / "VectorCompatibility"
+
+
+def run(engine, *arguments):
+    subprocess.run([
+        "dotnet", "run", "--project", str(projects / engine / (engine + ".csproj")),
+        "--configuration", "Release", "-p:TestingEnabled=true", "--", *arguments,
+    ], cwd=root, check=True)
+
+
+with tempfile.TemporaryDirectory(prefix="litedb-vector-compatibility-") as directory:
+    run("Current", "reclaim-create", directory)
+    run("Legacy", "reclaim", directory)
+    run("Current", "reclaim-verify", directory)
+    run("Current", "create", directory)
+    run("Legacy", "create", directory)
+    run("Current", "readonly", directory)
+    run("Current", "interrupt", directory)
+    run("Legacy", "resume", directory)
+    run("Current", "resumed", directory)
+    run("Current", "resumed-wal", directory)
+    run("Current", "interrupt-unsealed", directory)
+    run("Legacy", "resume-unsealed", directory)
+    run("Current", "resumed-unsealed", directory)
+    run("Current", "convert", directory)
+    run("Legacy", "converted", directory)
+    run("Current", "verify", directory)

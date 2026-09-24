@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,25 +11,25 @@ namespace LiteDB
 {
     internal class ConvertResolver : ITypeResolver
     {
-        public string ResolveMethod(MethodInfo method)
+        public LinqExpressionBinding ResolveMethod(MethodInfo method)
         {
             switch (method.Name)
             {
-                case "ToInt32": return "INT32(@0)";
-                case "ToInt64": return "INT64(@0)";
-                case "ToDouble": return "DOUBLE(@0)";
-                case "ToDecimal": return "DECIMAL(@0)";
+                case "ToInt32": return c => c.Call("INT32", c.Argument(0));
+                case "ToInt64": return c => c.Call("INT64", c.Argument(0));
+                case "ToDouble": return c => c.Call("DOUBLE", c.Argument(0));
+                case "ToDecimal": return c => c.Call("DECIMAL", c.Argument(0));
 
-                case "ToDateTime": return "DATE(@0)";
-                case "FromBase64String": return "BINARY(@0)";
-                case "ToBoolean": return "BOOL(@0)";
-                case "ToString": return "STRING(@0)";
+                case "ToDateTime": return c => c.Call("DATE", c.Argument(0));
+                case "FromBase64String": return c => c.Call("BINARY", c.Argument(0));
+                case "ToBoolean": return c => c.Call("BOOL", c.Argument(0));
+                case "ToString": return c => c.Call("STRING", c.Argument(0));
             }
 
             return null;
         }
 
-        public string ResolveMember(MemberInfo member) => null;
-        public string ResolveCtor(ConstructorInfo ctor) => null;
+        public LinqExpressionBinding ResolveMember(MemberInfo member) => null;
+        public LinqExpressionBinding ResolveCtor(ConstructorInfo ctor) => null;
     }
 }

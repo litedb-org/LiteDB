@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -83,6 +83,22 @@ namespace LiteDB.Tests.Mapper
 
             [BsonRef("users")]
             public List<User> Users { get; set; }
+
+            [BsonRef("products")]
+            public Product[] Products { get; set; }
+        }
+
+        public class OrderCustomer : Customer
+        {
+            // Just used to test derived types serialization in BsonRefId tests
+        }
+
+        public class OrderMissingDbRefCollectionName
+        {
+            [BsonId]
+            public int Id { get; set; }
+
+            public Product Product { get; set; }
         }
 
         public class Account
@@ -169,7 +185,7 @@ namespace LiteDB.Tests.Mapper
             TestExpr<User>(x => x.Phones.AsEnumerable(), "$.Phones[*]");
 
             // where
-            TestExpr<User>(x => x.Phones.Where(p => p.Prefix == 1), "FILTER($.Phones=>(@.Prefix=@p0))", 1);
+            TestExpr<User>(x => x.Phones.Where(p => p.Prefix == 1), ExpressionParity.WithSelectorDependency("FILTER($.Phones=>(@.Prefix=@p0))"), 1);
             TestExpr<User>(x => x.Phones.Where(p => p.Prefix == x.Id), "FILTER($.Phones=>(@.Prefix=$._id))");
 
             // aggregate
@@ -191,7 +207,7 @@ namespace LiteDB.Tests.Mapper
             TestExpr<User>(x => x.Phones.Select(p => p.Number).Average(), "AVG(MAP($.Phones => @.Number))");
 
             // array/list
-            TestExpr<User>(x => x.Phones.Where(w => w.Number == 5).ToArray(), "ARRAY(FILTER($.Phones=>(@.Number=@p0)))", 5);
+            TestExpr<User>(x => x.Phones.Where(w => w.Number == 5).ToArray(), ExpressionParity.WithSelectorDependency("ARRAY(FILTER($.Phones=>(@.Number=@p0)))"), 5);
             TestExpr<User>(x => x.Phones.ToList(), "ARRAY($.Phones)");
 
             // access using native array index (special "get_Item" eval index value)
@@ -222,7 +238,7 @@ namespace LiteDB.Tests.Mapper
             TestExpr<User>(x => !x.Phones2.Contains(new Phone { Number = 1 }), "(Phones2 ANY = { Number: @p0 }) = false", 1);
 
             // fixed position with filter expression
-            TestExpr<User>(x => x.Phones.First(p => p.Number == 1), "FIRST(FILTER($.Phones=>(@.Number=@p0)))", 1);
+            TestExpr<User>(x => x.Phones.First(p => p.Number == 1), ExpressionParity.WithSelectorDependency("FIRST(FILTER($.Phones=>(@.Number=@p0)))"), 1);
 
             // using any/all
             TestExpr<User>(x => x.Phones.Select(p => p.Number).Any(p => p == 1), "MAP(Phones => @.Number) ANY = @p0", 1);
@@ -314,7 +330,7 @@ namespace LiteDB.Tests.Mapper
             TestExpr<User>(x => x.Name.StartsWith("Mauricio"), "Name LIKE (@p0 + '%')", "Mauricio");
             TestExpr<User>(x => x.Name.Contains("Bezerra"), "Name LIKE ('%' + @p0 + '%')", "Bezerra");
             TestExpr<User>(x => x.Name.EndsWith("David"), "Name LIKE ('%' + @p0)", "David");
-            TestExpr<User>(x => x.Name.StartsWith(x.Address.Street), "Name LIKE (Address.Street + '%')");
+            TestExpr<User>(x => x.Name.StartsWith(x.Address.Street), "((IS_STRING(Address.Street) = true) AND (Name LIKE (Address.Street + '%') = true))");
 
             // Equals
             TestExpr<User>(x => x.Name.Equals("John"), "Name = @p0", "John");
@@ -445,12 +461,12 @@ namespace LiteDB.Tests.Mapper
                 Count = x.Phones.Where(p => p.Type == PhoneType.Landline).Count(),
                 List = x.Phones.Where(p => p.Number > x.Salary).Select(p => p.Number).ToArray()
             },
-                @"
+                ExpressionParity.WithSelectorDependency(@"
             {
                 CityName: $.Address.City.CityName,
                 Count: COUNT(FILTER($.Phones=>(@.Type=@p0))),
                 List: ARRAY(MAP(FILTER($.Phones=>(@.Number>$.Salary))=>@.Number))
-            }",
+            }"),
                 (int)PhoneType.Landline);
         }
 
@@ -514,14 +530,87 @@ namespace LiteDB.Tests.Mapper
             Expression<Func<User, bool>> exprLeft = x => x.Id >= 1;
             Expression<Func<User, bool>> exprRight = x => x.Id <= 10;
 
-            var invokedExprRight = Expression.Invoke(exprRight, exprRight.Parameters.Cast<Expression>());
+            var invokedExprRight = Expression.Invoke(exprRight, exprLeft.Parameters.Cast<Expression>());
 
             Expression<Func<User, bool>> exprMerged = Expression.Lambda<Func<User, bool>>
                   (Expression.AndAlso(exprLeft.Body, invokedExprRight), exprLeft.Parameters);
 
             Test<User, bool>(expr, "(($._id>=@p0) AND ($._id<=@p1))", 1, 10);
-            Test<User, bool>(exprMerged, "(($._id>=@p0) AND (((@._id<=@p1))=true))", 1, 10);
-            //the right expr of exprMerged uses @ (instead of $) because the rootParameter is different for exprLeft and exprRight
+            Test<User, bool>(exprMerged, "(($._id>=@p0) AND ($._id<=@p1))", 1, 10);
+            Assert.Equal(expr.Compile()(new User { Id = 5 }), exprMerged.Compile()(new User { Id = 5 }));
+        }
+
+        [Fact]
+        public void Linq_MemberInit_DbRef()
+        {
+            var p1Id = ObjectId.NewObjectId();
+            var p2Id = ObjectId.NewObjectId();
+
+            TestExpr<Order>(
+                x => new Order
+                {
+                    OrderNumber = 1,
+                    Customer = new BsonRefId<OrderCustomer>(10),
+                    Users = new List<User>
+                    {
+                        new BsonRefId<User>(101),
+                        new BsonRefId<User>(x.Users[0].Id + 100),
+                    },
+                    Products = new Product[]
+                    {
+                        new BsonRefId<Product>(p1Id),
+                        new BsonRefId<Product>(p2Id),
+                    },
+                },
+                @"{
+                    _id: @p0,
+                    Customer: { $id: @p1, $ref: @p2, $type: @p3 },
+                    Users:[
+                        { $id: @p4, $ref: @p5 },
+                        { $id: ($.Users[0].$id + @p6), $ref: @p7 }
+                    ],
+                    Products: [
+                        { $id: @p8, $ref: @p9 },
+                        { $id: @p10, $ref: @p11 }
+                    ]
+                }",
+                [
+                    1,
+                    10,
+                    "customers",
+                    DefaultTypeNameBinder.Instance.GetName(typeof(OrderCustomer)),
+                    101,
+                    "users",
+                    100,
+                    "users",
+                    p1Id,
+                    "products",
+                    p2Id,
+                    "products",
+                ]);
+        }
+
+        [Fact]
+        public void Linq_MemberInit_DbRef_Throws_When_CollectionName_Is_Missing()
+        {
+            var mapper = new BsonMapper();
+
+            mapper.ResolveMember = (type, _, member) =>
+            {
+                if (type == typeof(OrderMissingDbRefCollectionName) && member.MemberName == nameof(OrderMissingDbRefCollectionName.Product))
+                {
+                    member.IsDbRef = true;
+                }
+            };
+
+            mapper.Invoking(x => x.GetExpression<OrderMissingDbRefCollectionName, object>(o => new OrderMissingDbRefCollectionName
+                {
+                    Id = 1,
+                    Product = new BsonRefId<Product>(ObjectId.NewObjectId())
+                }))
+                .Should()
+                .Throw<NotSupportedException>()
+                .WithMessage("*DbRef collection name*");
         }
 
         #region Test helper
@@ -532,9 +621,9 @@ namespace LiteDB.Tests.Mapper
         [DebuggerHidden]
         private BsonExpression Test<T, K>(Expression<Func<T, K>> expr, BsonExpression expect, params BsonValue[] args)
         {
+            using var verification = new DirectTranslationScope();
             var expression = _mapper.GetExpression(expr);
-
-            expression.Source.Should().Be(expect.Source);
+            ExpressionParity.AssertMetadata(expression, expect);
 
             expression.Parameters.Keys.Count.Should().Be(args.Length, "Number of parameter are different than expected");
 

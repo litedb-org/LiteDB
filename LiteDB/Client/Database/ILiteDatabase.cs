@@ -8,7 +8,7 @@ namespace LiteDB
     public interface ILiteDatabase : IDisposable
     {
         /// <summary>
-        /// Get current instance of BsonMapper used in this database instance (can be BsonMapper.Global)
+        /// Get the BsonMapper used by this database instance and all objects it creates.
         /// </summary>
         BsonMapper Mapper { get; }
 
@@ -43,17 +43,17 @@ namespace LiteDB
 
         /// <summary>
         /// Initialize a new transaction. Transaction are created "per-thread". There is only one single transaction per thread.
-        /// Return true if transaction was created or false if current thread already in a transaction.
+        /// Return true when created; false joins the current thread transaction. Keep the block synchronous, with no await.
         /// </summary>
         bool BeginTrans();
 
         /// <summary>
-        /// Commit current transaction
+        /// Commit the current thread transaction; throws if only other threads have explicit transactions.
         /// </summary>
         bool Commit();
 
         /// <summary>
-        /// Rollback current transaction
+        /// Roll back the current thread transaction. Returns false when this thread has none, even while other threads have explicit transactions.
         /// </summary>
         bool Rollback();
 
@@ -104,6 +104,7 @@ namespace LiteDB
 
         /// <summary>
         /// Rebuild all database to remove unused pages - reduce data file
+        /// Every omitted option (password, collation) keeps its current value; decrypting requires RebuildOptions.RemovePassword.
         /// </summary>
         long Rebuild(RebuildOptions options = null);
 

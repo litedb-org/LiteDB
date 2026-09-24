@@ -12,20 +12,24 @@ namespace LiteDB
     /// <summary>
     /// An IQueryable-like class to write fluent query in documents in collection.
     /// </summary>
-    public class LiteQueryable<T> : ILiteQueryable<T>
+    public partial class LiteQueryable<T> : ILiteQueryable<T>
     {
-        protected readonly ILiteEngine _engine;
-        protected readonly BsonMapper _mapper;
+        private readonly LiteDatabaseContext _context;
         protected readonly string _collection;
         protected readonly Query _query;
+
+        protected ILiteEngine _engine => _context.Engine;
+
+        protected BsonMapper _mapper => _context.Mapper;
+
+        internal LiteDatabaseContext Context => _context;
 
         // indicate that T type are simple and result are inside first document fields (query always return a BsonDocument)
         private readonly bool _isSimpleType = Reflection.IsSimpleType(typeof(T));
 
-        internal LiteQueryable(ILiteEngine engine, BsonMapper mapper, string collection, Query query)
+        internal LiteQueryable(LiteDatabaseContext context, string collection, Query query)
         {
-            _engine = engine;
-            _mapper = mapper;
+            _context = context;
             _collection = collection;
             _query = query;
         }
@@ -103,14 +107,13 @@ namespace LiteDB
         #region OrderBy
 
         /// <summary>
-        /// Sort the documents of resultset in ascending (or descending) order according to a key (support only one OrderBy)
+        /// Sort the documents of resultset in ascending (or descending) order according to a key.
         /// </summary>
         public ILiteQueryable<T> OrderBy(BsonExpression keySelector, int order = Query.Ascending)
         {
-            if (_query.OrderBy != null) throw new ArgumentException("ORDER BY already defined in this query builder");
+            if (_query.OrderBy.Count > 0) throw new ArgumentException("Multiple OrderBy calls are not supported. Use ThenBy for additional sort keys.");
 
-            _query.OrderBy = keySelector;
-            _query.Order = order;
+            _query.OrderBy.Add(new QueryOrder(keySelector, order));
             return this;
         }
 
@@ -123,18 +126,70 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Sort the documents of resultset in descending order according to a key (support only one OrderBy)
+        /// Sort the documents of resultset in descending order according to a key.
         /// </summary>
         public ILiteQueryable<T> OrderByDescending(BsonExpression keySelector) => this.OrderBy(keySelector, Query.Descending);
 
         /// <summary>
-        /// Sort the documents of resultset in descending order according to a key (support only one OrderBy)
+        /// Sort the documents of resultset in descending order according to a key.
         /// </summary>
         public ILiteQueryable<T> OrderByDescending<K>(Expression<Func<T, K>> keySelector) => this.OrderBy(keySelector, Query.Descending);
+
+        /// <summary>
+        /// Appends an ascending sort expression that is applied when previous keys are equal.
+        /// </summary>
+        public ILiteQueryable<T> ThenBy(BsonExpression keySelector)
+        {
+            if (_query.OrderBy.Count == 0) return this.OrderBy(keySelector, Query.Ascending);
+
+            _query.OrderBy.Add(new QueryOrder(keySelector, Query.Ascending));
+            return this;
+        }
+
+        /// <summary>
+        /// Appends an ascending sort expression that is applied when previous keys are equal.
+        /// </summary>
+        public ILiteQueryable<T> ThenBy<K>(Expression<Func<T, K>> keySelector)
+        {
+            return this.ThenBy(_mapper.GetExpression(keySelector));
+        }
+
+        /// <summary>
+        /// Appends a descending sort expression that is applied when previous keys are equal.
+        /// </summary>
+        public ILiteQueryable<T> ThenByDescending(BsonExpression keySelector)
+        {
+            if (_query.OrderBy.Count == 0) return this.OrderBy(keySelector, Query.Descending);
+
+            _query.OrderBy.Add(new QueryOrder(keySelector, Query.Descending));
+            return this;
+        }
+
+        /// <summary>
+        /// Appends a descending sort expression that is applied when previous keys are equal.
+        /// </summary>
+        public ILiteQueryable<T> ThenByDescending<K>(Expression<Func<T, K>> keySelector)
+        {
+            return this.ThenByDescending(_mapper.GetExpression(keySelector));
+        }
 
         #endregion
 
         #region GroupBy
+
+        /// <summary>
+        /// Groups the documents of resultset according to a specified key selector expression (support only one GroupBy)
+        /// </summary>
+        public ILiteQueryable<IGrouping<K, T>> GroupBy<K>(Expression<Func<T, K>> keySelector)
+        {
+            var expression = _mapper.GetExpression(keySelector);
+
+            this.GroupBy(expression);
+
+            _mapper.RegisterGroupingType<K, T>();
+
+            return new LiteQueryable<IGrouping<K, T>>(_context, _collection, _query);
+        }
 
         /// <summary>
         /// Groups the documents of resultset according to a specified key selector expression (support only one GroupBy)
@@ -169,23 +224,21 @@ namespace LiteDB
         /// <summary>
         /// Transform input document into a new output document. Can be used with each document, group by or all source
         /// </summary>
-        public ILiteQueryableResult<BsonDocument> Select(BsonExpression selector)
+        public ILiteQueryable<BsonDocument> Select(BsonExpression selector)
         {
             _query.Select = selector;
 
-            return new LiteQueryable<BsonDocument>(_engine, _mapper, _collection, _query);
+            return new LiteQueryable<BsonDocument>(_context, _collection, _query);
         }
 
         /// <summary>
         /// Project each document of resultset into a new document/value based on selector expression
         /// </summary>
-        public ILiteQueryableResult<K> Select<K>(Expression<Func<T, K>> selector)
+        public ILiteQueryable<K> Select<K>(Expression<Func<T, K>> selector)
         {
-            if (_query.GroupBy != null) throw new ArgumentException("Use Select(BsonExpression selector) when using GroupBy query");
-
             _query.Select = _mapper.GetExpression(selector);
 
-            return new LiteQueryable<K>(_engine, _mapper, _collection, _query);
+            return new LiteQueryable<K>(_context, _collection, _query);
         }
 
         #endregion
@@ -243,6 +296,18 @@ namespace LiteDB
         /// </summary>
         public IEnumerable<BsonDocument> ToDocuments()
         {
+            // The projection marker is for typed materialization only. A document handed to the
+            // caller must map like any other document (BsonMapper.ToObject is public).
+            foreach (var doc in this.ReadDocuments())
+            {
+                doc.IsProjectionValue = false;
+
+                yield return doc;
+            }
+        }
+
+        private IEnumerable<BsonDocument> ReadDocuments()
+        {
             using (var reader = this.ExecuteReader())
             {
                 while (reader.Read())
@@ -263,10 +328,16 @@ namespace LiteDB
                     .Select(x => x[x.Keys.First()])
                     .Select(x => (T)_mapper.Deserialize(typeof(T), x));
             }
-            else
+            else if (typeof(T) == typeof(BsonDocument))
             {
+                // Raw reads still need deserialization callbacks; ToObject returns documents unchanged.
                 return this.ToDocuments()
                     .Select(x => (T)_mapper.Deserialize(typeof(T), x));
+            }
+            else
+            {
+                return this.ReadDocuments()
+                    .Select(x => _mapper.ToObject<T>(x));
             }
         }
 
@@ -347,10 +418,12 @@ namespace LiteDB
 
             try
             {
-                this.Select($"{{ count: COUNT(*._id) }}");
-                var ret = this.ToDocuments().Single()["count"].AsInt32;
+                _query.Select = QueryAggregateExpressions.Count.Bind(new BsonDocument());
+                var count = this.ToDocuments().Single()["count"].AsInt64;
 
-                return ret;
+                if (count > int.MaxValue) throw new OverflowException($"The query matches {count} documents, which does not fit an Int32. Use LongCount().");
+
+                return (int)count;
             }
             finally
             {
@@ -367,7 +440,7 @@ namespace LiteDB
 
             try
             {
-                this.Select($"{{ count: COUNT(*._id) }}");
+                _query.Select = QueryAggregateExpressions.Count.Bind(new BsonDocument());
                 var ret = this.ToDocuments().Single()["count"].AsInt64;
 
                 return ret;
@@ -387,7 +460,7 @@ namespace LiteDB
 
             try
             {
-                this.Select($"{{ exists: ANY(*._id) }}");
+                _query.Select = QueryAggregateExpressions.Exists.Bind(new BsonDocument());
                 var ret = this.ToDocuments().Single()["exists"].AsBoolean;
 
                 return ret;

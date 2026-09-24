@@ -43,7 +43,7 @@ namespace LiteDB
         private readonly ITypeNameBinder _typeNameBinder;
 
         /// <summary>
-        /// Global instance used when no BsonMapper are passed in LiteDatabase ctor
+        /// Global mapper whose configuration is cloned when no mapper is supplied to LiteDatabase.
         /// </summary>
         public static BsonMapper Global = new BsonMapper();
 
@@ -119,7 +119,7 @@ namespace LiteDB
 
             #region Register CustomTypes
 
-            RegisterType<Uri>(uri => uri.IsAbsoluteUri ? uri.AbsoluteUri : uri.ToString(), bson => new Uri(bson.AsString));
+            RegisterType<Uri>(uri => uri.IsAbsoluteUri ? uri.AbsoluteUri : uri.ToString(), bson => new Uri(bson.AsString, UriKind.RelativeOrAbsolute));
             RegisterType<DateTimeOffset>(value => new BsonValue(value.UtcDateTime), bson => bson.AsDateTime.ToUniversalTime());
             RegisterType<TimeSpan>(value => new BsonValue(value.Ticks), bson => new TimeSpan(bson.AsInt64));
             RegisterType<Regex>(
@@ -162,16 +162,17 @@ namespace LiteDB
             return new EntityBuilder<T>(this, _typeNameBinder);
         }
 
-        #region Get LinqVisitor processor
+        #region LINQ expression translation
+
+        private readonly LinqExpressionCache _linqExpressionCache = new LinqExpressionCache();
+        internal int LinqExpressionCacheCount => _linqExpressionCache.Count;
 
         /// <summary>
         /// Resolve LINQ expression into BsonExpression
         /// </summary>
         public BsonExpression GetExpression<T, K>(Expression<Func<T, K>> predicate)
         {
-            var visitor = new LinqExpressionVisitor(this, predicate);
-
-            var expr = visitor.Resolve(typeof(K) == typeof(bool));
+            var expr = _linqExpressionCache.Resolve(this, predicate, typeof(K) == typeof(bool));
 
             LOG($"`{predicate.ToString()}` -> `{expr.Source}`", "LINQ");
 
@@ -183,9 +184,7 @@ namespace LiteDB
         /// </summary>
         public BsonExpression GetIndexExpression<T, K>(Expression<Func<T, K>> predicate)
         {
-            var visitor = new LinqExpressionVisitor(this, predicate);
-
-            var expr = visitor.Resolve(false);
+            var expr = _linqExpressionCache.Resolve(this, predicate, false);
 
             LOG($"`{predicate.ToString()}` -> `{expr.Source}`", "LINQ");
 
@@ -227,22 +226,22 @@ namespace LiteDB
         /// </summary>
         internal static void RegisterDbRef(BsonMapper mapper, MemberMapper member, ITypeNameBinder typeNameBinder, string collection)
         {
-            member.IsDbRef = true;
+            member.DbRefCollectionName = collection;
 
             if (member.IsEnumerable)
             {
-                RegisterDbRefList(mapper, member, typeNameBinder, collection);
+                RegisterDbRefList(mapper, member, typeNameBinder);
             }
             else
             {
-                RegisterDbRefItem(mapper, member, typeNameBinder, collection);
+                RegisterDbRefItem(mapper, member, typeNameBinder);
             }
         }
 
         /// <summary>
         /// Register a property as a DbRef - implement a custom Serialize/Deserialize actions to convert entity to $id, $ref only
         /// </summary>
-        private static void RegisterDbRefItem(BsonMapper mapper, MemberMapper member, ITypeNameBinder typeNameBinder, string collection)
+        private static void RegisterDbRefItem(BsonMapper mapper, MemberMapper member, ITypeNameBinder typeNameBinder)
         {
             // get entity
             var entity = mapper.GetEntityMapper(member.DataType);
@@ -263,12 +262,12 @@ namespace LiteDB
                 var bsonDocument = new BsonDocument
                 {
                     ["$id"] = m.Serialize(id.GetType(), id, 0),
-                    ["$ref"] = collection
+                    ["$ref"] = member.DbRefCollectionName
                 };
 
                 if (member.DataType != obj.GetType())
                 {
-                    bsonDocument["$type"] = typeNameBinder.GetName(obj.GetType());
+                    bsonDocument["$type"] = mapper.SerializeTypeName(obj.GetType());
                 }
 
                 return bsonDocument;
@@ -311,7 +310,7 @@ namespace LiteDB
         /// <summary>
         /// Register a property as a DbRefList - implement a custom Serialize/Deserialize actions to convert entity to $id, $ref only
         /// </summary>
-        private static void RegisterDbRefList(BsonMapper mapper, MemberMapper member, ITypeNameBinder typeNameBinder, string collection)
+        private static void RegisterDbRefList(BsonMapper mapper, MemberMapper member, ITypeNameBinder typeNameBinder)
         {
             // get entity from list item type
             var entity = mapper.GetEntityMapper(member.UnderlyingType);
@@ -328,18 +327,19 @@ namespace LiteDB
                 foreach (var item in (IEnumerable)list)
                 {
                     if (item == null) continue;
+                    if (idField == null) throw new LiteException(0, "There is no _id field mapped in your type: " + member.UnderlyingType.FullName);
 
                     var id = idField.Getter(item);
 
                     var bsonDocument = new BsonDocument
                     {
                         ["$id"] = m.Serialize(id.GetType(), id, 0),
-                        ["$ref"] = collection
+                        ["$ref"] = member.DbRefCollectionName
                     };
 
                     if (member.UnderlyingType != item.GetType())
                     {
-                        bsonDocument["$type"] = typeNameBinder.GetName(item.GetType());
+                        bsonDocument["$type"] = mapper.SerializeTypeName(item.GetType());
                     }
 
                     result.Add(bsonDocument);

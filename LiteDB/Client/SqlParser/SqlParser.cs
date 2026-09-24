@@ -16,12 +16,16 @@ namespace LiteDB
         private readonly Tokenizer _tokenizer;
         private readonly BsonDocument _parameters;
         private readonly Lazy<Collation> _collation;
+        private readonly bool _captureSelect;
+        internal SqlQueryTemplate SelectTemplate { get; private set; }
+        internal bool ParsedSelect { get; private set; }
 
-        public SqlParser(ILiteEngine engine, Tokenizer tokenizer, BsonDocument parameters)
+        public SqlParser(ILiteEngine engine, Tokenizer tokenizer, BsonDocument parameters, bool captureSelect = false)
         {
             _engine = engine;
             _tokenizer = tokenizer;
             _parameters = parameters ?? new BsonDocument();
+            _captureSelect = captureSelect;
             _collation = new Lazy<Collation>(() => new Collation(_engine.Pragma(Pragmas.COLLATION)));
         }
 
@@ -29,9 +33,9 @@ namespace LiteDB
         {
             var ahead = _tokenizer.LookAhead().Expect(TokenType.Word);
 
-            LOG($"executing `{ahead.Value.ToUpper()}`", "SQL");
+            LOG($"executing `{ahead.Value.ToUpperInvariant()}`", "SQL");
 
-            switch (ahead.Value.ToUpper())
+            switch (ahead.Value.ToUpperInvariant())
             {
                 case "SELECT": 
                 case "EXPLAIN":

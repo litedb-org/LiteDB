@@ -1,8 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
+using LiteDB.Vector;
 
 namespace LiteDB.Engine
 {
+    /// <summary>Database engine operations used by the collection APIs.</summary>
+    /// <remarks>
+    /// Write inputs are streaming sequences and must be consumed at most once,
+    /// within the write transaction after acquiring the collection lock. Enumeration
+    /// can perform mapping callbacks, generated-ID handoff, and nested operations.
+    /// Engine decorators must forward these sequences without pre-enumerating them.
+    /// </remarks>
     public interface ILiteEngine : IDisposable
     {
         int Checkpoint();
@@ -25,6 +33,7 @@ namespace LiteDB.Engine
         bool RenameCollection(string name, string newName);
 
         bool EnsureIndex(string collection, string name, BsonExpression expression, bool unique);
+        bool EnsureVectorIndex(string collection, string name, BsonExpression expression, VectorIndexOptions options);
         bool DropIndex(string collection, string name);
 
         BsonValue Pragma(string name);

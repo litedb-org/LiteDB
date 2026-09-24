@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>VectorCompatibility.Current</AssemblyName>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../LiteDB/LiteDB.csproj" AdditionalProperties="TestingEnabled=true" />
+  </ItemGroup>
+</Project>

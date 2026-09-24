@@ -11,21 +11,35 @@ namespace LiteDB.Engine
     /// FileStream disk implementation of disk factory
     /// [ThreadSafe]
     /// </summary>
-    internal class FileStreamFactory : IStreamFactory
+    internal partial class FileStreamFactory : IStreamFactory
     {
         private readonly string _filename;
         private readonly string _password;
         private readonly bool _readonly;
         private readonly bool _hidden;
         private readonly bool _useAesStream;
+        private readonly bool _isLog;
+        private readonly Action<string> _setHiddenAttribute;
+#if DEBUG || TESTING
+        internal Action BeforeReadLength;
+#endif
 
-        public FileStreamFactory(string filename, string password, bool readOnly, bool hidden, bool useAesStream = true)
+        public FileStreamFactory(
+            string filename,
+            string password,
+            bool readOnly,
+            bool hidden,
+            bool useAesStream = true,
+            Action<string> setHiddenAttribute = null,
+            bool isLog = false)
         {
             _filename = filename;
             _password = password;
             _readonly = readOnly;
             _hidden = hidden;
             _useAesStream = useAesStream;
+            _isLog = isLog;
+            _setHiddenAttribute = setHiddenAttribute ?? (value => File.SetAttributes(value, FileAttributes.Hidden));
         }
 
         /// <summary>
@@ -47,55 +61,91 @@ namespace LiteDB.Engine
 
             var isNewFile = write && this.Exists() == false;
 
-            var stream = new FileStream(_filename,
-                fileMode,
-                fileAccess,
-                fileShare,
-                PAGE_SIZE,
-                fileOptions);
+            FileStream stream;
+            try
+            {
+                stream = new FileStream(_filename,
+                    fileMode,
+                    fileAccess,
+                    fileShare,
+                    PAGE_SIZE,
+                    fileOptions);
+            }
+            catch (IOException ex) when (_readonly && !canWrite &&
+                (ex is FileNotFoundException || ex is DirectoryNotFoundException))
+            {
+                throw new LiteException(LiteException.FILE_NOT_FOUND, ex,
+                    "File '{0}' does not exist and cannot be created in read-only mode.", _filename);
+            }
 
             if (isNewFile && _hidden)
             {
-                File.SetAttributes(_filename, FileAttributes.Hidden);
+                try
+                {
+                    _setHiddenAttribute(_filename);
+                }
+                catch
+                {
+                    stream.Dispose();
+                    throw;
+                }
             }
 
-            return _password == null || !_useAesStream ? (Stream)stream : new AesStream(_password, stream);
+            if (_password == null || !_useAesStream) return stream;
+            return _isLog ? EncryptedLogPreamble.Open(_password, stream) :
+                new AesStream(_password, stream, allowRecovery: false);
         }
 
         /// <summary>
-        /// Get file length using FileInfo. Crop file length if not length % PAGE_SIZE
+        /// Get the logical file length without modifying the file.
         /// </summary>
         public long GetLength()
         {
             // if not file do not exists, returns 0
             if (!this.Exists()) return 0;
 
-            // get physical file length from OS
-            var length = new FileInfo(_filename).Length;
-
-            // if file length are not PAGE_SIZE module, maybe last save are not completed saved on disk
-            // crop file removing last uncompleted page saved
-            if (length % PAGE_SIZE != 0)
+            long length;
+            try
             {
-                length = length - (length % PAGE_SIZE);
+#if DEBUG || TESTING
+                BeforeReadLength?.Invoke();
+#endif
+                length = new FileInfo(_filename).Length;
+            }
+            catch (IOException ex) when (_readonly &&
+                (ex is FileNotFoundException || ex is DirectoryNotFoundException))
+            {
+                throw new LiteException(LiteException.FILE_NOT_FOUND, ex,
+                    "File '{0}' does not exist and cannot be created in read-only mode.", _filename);
+            }
 
-                using (var fs = new FileStream(
+            if (_password == null || length == 0)
+            {
+                return length;
+            }
+
+            // A partial encrypted preamble is treated as an interrupted creation.
+            // Any other short, non-empty input must still reach validation.
+            if (length < PAGE_SIZE)
+            {
+                using (var stream = new FileStream(
                     _filename,
                     System.IO.FileMode.Open,
-                    FileAccess.Write,
-                    FileShare.None,
-                    PAGE_SIZE,
+                    FileAccess.Read,
+                    FileShare.ReadWrite,
+                    1,
                     FileOptions.SequentialScan))
                 {
-                    fs.SetLength(length);
-                    fs.FlushToDisk();
+                    if (_isLog)
+                    {
+                        using (var reader = EncryptedLogPreamble.Open(_password, stream)) return reader.Length;
+                    }
+                    return stream.ReadByte() == 1 ? 0 : length;
                 }
             }
 
-            // if encrypted must remove salt first page (only if page contains data)
-            return length > 0 ?
-                length - (_password == null ? 0 : PAGE_SIZE) :
-                0;
+            // Encrypted files reserve the first physical page for their salt.
+            return length - PAGE_SIZE;
         }
 
         /// <summary>
@@ -123,5 +173,13 @@ namespace LiteDB.Engine
         /// Close all stream on end
         /// </summary>
         public bool CloseOnDispose => true;
+
+        public void TrimCapacity(Stream stream)
+        {
+        }
+
+        public void Dispose()
+        {
+        }
     }
 }

@@ -17,13 +17,16 @@ namespace LiteDB
         #region Properties
 
         private readonly ILiteEngine _engine;
-        private readonly BsonMapper _mapper;
+        private readonly LiteDatabaseContext _context;
         private readonly bool _disposeOnClose;
+        private readonly int? _checkpointOverride;
 
         /// <summary>
-        /// Get current instance of BsonMapper used in this database instance (can be BsonMapper.Global)
+        /// Get the BsonMapper used by this database instance and all objects it creates.
         /// </summary>
-        public BsonMapper Mapper => _mapper;
+        public BsonMapper Mapper => _context.Mapper;
+
+        internal LiteDatabaseContext Context => _context;
 
         #endregion
 
@@ -44,8 +47,9 @@ namespace LiteDB
         {
             if (connectionString == null) throw new ArgumentNullException(nameof(connectionString));
 
+            var resolvedMapper = ResolveMapper(mapper);
             _engine = connectionString.CreateEngine();
-            _mapper = mapper ?? BsonMapper.Global;
+            _context = new LiteDatabaseContext(_engine, resolvedMapper);
             _disposeOnClose = true;
         }
 
@@ -63,9 +67,31 @@ namespace LiteDB
                 LogStream = logStream
             };
 
+            var resolvedMapper = ResolveMapper(mapper);
             _engine = new LiteEngine(settings);
-            _mapper = mapper ?? BsonMapper.Global;
+            _context = new LiteDatabaseContext(_engine, resolvedMapper);
             _disposeOnClose = true;
+
+            if (logStream == null && stream is not MemoryStream)
+            {
+                if (!stream.CanWrite)
+                {
+                    // Read-only streams cannot participate in eager checkpointing because the process
+                    // writes pages back to the underlying data stream immediately.
+                }
+                else
+                {
+                    // Without a dedicated log stream the WAL lives purely in memory; force
+                    // checkpointing to ensure commits reach the underlying data stream.
+                    var originalCheckpointSize = _engine.Pragma(Pragmas.CHECKPOINT);
+
+                    if (originalCheckpointSize != 1)
+                    {
+                        _engine.Pragma(Pragmas.CHECKPOINT, 1);
+                        _checkpointOverride = originalCheckpointSize;
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -74,8 +100,18 @@ namespace LiteDB
         public LiteDatabase(ILiteEngine engine, BsonMapper mapper = null, bool disposeOnClose = true)
         {
             _engine = engine ?? throw new ArgumentNullException(nameof(engine));
-            _mapper = mapper ?? BsonMapper.Global;
+            _context = new LiteDatabaseContext(_engine, ResolveMapper(mapper));
             _disposeOnClose = disposeOnClose;
+        }
+
+        private static BsonMapper ResolveMapper(BsonMapper mapper)
+        {
+            if (mapper != null) return mapper;
+
+            var global = BsonMapper.Global ??
+                throw new InvalidOperationException("BsonMapper.Global cannot be null when no mapper is supplied.");
+
+            return global.Clone();
         }
 
         #endregion
@@ -89,7 +125,7 @@ namespace LiteDB
         /// <param name="autoId">Define autoId data type (when object contains no id field)</param>
         public ILiteCollection<T> GetCollection<T>(string name, BsonAutoId autoId = BsonAutoId.ObjectId)
         {
-            return new LiteCollection<T>(name, autoId, _engine, _mapper);
+            return new LiteCollection<T>(name, autoId, _context);
         }
 
         /// <summary>
@@ -117,7 +153,7 @@ namespace LiteDB
         {
             if (name.IsNullOrWhiteSpace()) throw new ArgumentNullException(nameof(name));
 
-            return new LiteCollection<BsonDocument>(name, autoId, _engine, _mapper);
+            return new LiteCollection<BsonDocument>(name, autoId, _context);
         }
 
         #endregion
@@ -126,17 +162,17 @@ namespace LiteDB
 
         /// <summary>
         /// Initialize a new transaction. Transaction are created "per-thread". There is only one single transaction per thread.
-        /// Return true if transaction was created or false if current thread already in a transaction.
+        /// Return true when created; false joins the current thread transaction. Keep the block synchronous, with no await.
         /// </summary>
         public bool BeginTrans() => _engine.BeginTrans();
 
         /// <summary>
-        /// Commit current transaction
+        /// Commit the current thread transaction; throws if only other threads have explicit transactions.
         /// </summary>
         public bool Commit() => _engine.Commit();
 
         /// <summary>
-        /// Rollback current transaction
+        /// Roll back the current thread transaction. Returns false when this thread has none, even while other threads have explicit transactions.
         /// </summary>
         public bool Rollback() => _engine.Rollback();
 
@@ -238,11 +274,7 @@ namespace LiteDB
         {
             if (command == null) throw new ArgumentNullException(nameof(command));
 
-            var tokenizer = new Tokenizer(command);
-            var sql = new SqlParser(_engine, tokenizer, parameters);
-            var reader = sql.Execute();
-
-            return reader;
+            return this.ExecuteSql(command, parameters);
         }
 
         /// <summary>
@@ -276,10 +308,11 @@ namespace LiteDB
 
         /// <summary>
         /// Rebuild all database to remove unused pages - reduce data file
+        /// Every omitted option (password, collation) keeps its current value; decrypting requires RebuildOptions.RemovePassword.
         /// </summary>
         public long Rebuild(RebuildOptions options = null)
         {
-            return _engine.Rebuild(options ?? new RebuildOptions());
+            return _engine.Rebuild(options);
         }
 
         #endregion
@@ -373,6 +406,11 @@ namespace LiteDB
         {
             if (disposing && _disposeOnClose)
             {
+                if (_checkpointOverride.HasValue)
+                {
+                    _engine.Pragma(Pragmas.CHECKPOINT, _checkpointOverride.Value);
+                }
+
                 _engine.Dispose();
             }
         }

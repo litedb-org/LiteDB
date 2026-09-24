@@ -49,6 +49,14 @@ namespace LiteDB
             var fieldInfo = memberInfo as FieldInfo;
             var propertyInfo = memberInfo as PropertyInfo;
 
+            // Reflection through a derived type omits an inherited property's private setter.
+            if (propertyInfo != null && !propertyInfo.CanWrite && propertyInfo.ReflectedType != propertyInfo.DeclaringType)
+            {
+                propertyInfo = propertyInfo.DeclaringType.GetProperty(propertyInfo.Name,
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly) ?? propertyInfo;
+                memberInfo = propertyInfo;
+            }
+
             // if is property and has no write
             if (memberInfo is PropertyInfo && propertyInfo.CanWrite == false) return null;
 

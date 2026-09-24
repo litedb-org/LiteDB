@@ -1,7 +1,6 @@
-﻿using System;
+using System;
 using System.Buffers;
 using System.Collections.Generic;
-using System.Text;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -9,9 +8,9 @@ namespace LiteDB.Engine
     /// <summary>
     /// Write data types/BSON data into byte[]. It's forward only and support multi buffer slice as source
     /// </summary>
-    internal class BufferWriter : IDisposable
+    internal partial class BufferWriter : IDisposable
     {
-        private readonly IEnumerator<BufferSlice> _source;
+        private IEnumerator<BufferSlice> _source;
 
         private BufferSlice _current;
         private int _currentPosition = 0; // position in _current
@@ -19,7 +18,7 @@ namespace LiteDB.Engine
 
         private bool _isEOF = false;
 
-        private static readonly ArrayPool<byte> _bufferPool = ArrayPool<byte>.Shared;
+        private readonly ArrayPool<byte> _bufferPool = ArrayPool<byte>.Shared;
 
         /// <summary>
         /// Current global cursor position
@@ -43,12 +42,21 @@ namespace LiteDB.Engine
             _current = buffer;
         }
 
-        public BufferWriter(IEnumerable<BufferSlice> source)
+        public BufferWriter(IEnumerable<BufferSlice> source, ArrayPool<byte> bufferPool = null)
         {
+            _bufferPool = bufferPool ?? ArrayPool<byte>.Shared;
             _source = source.GetEnumerator();
 
-            _source.MoveNext();
-            _current = _source.Current;
+            try
+            {
+                _source.MoveNext();
+                _current = _source.Current;
+            }
+            catch
+            {
+                _source.Dispose();
+                throw;
+            }
         }
 
         #region Basic Write
@@ -145,81 +153,20 @@ namespace LiteDB.Engine
         }
 
         #endregion
-
+        
         #region String
-
+        
         /// <summary>
         /// Write String with \0 at end
         /// </summary>
-        public void WriteCString(string value)
-        {
-            if (value.IndexOf('\0') > -1) throw LiteException.InvalidNullCharInString();
-
-            var bytesCount = StringEncoding.UTF8.GetByteCount(value);
-            var available = _current.Count - _currentPosition; // avaiable in current segment
-
-            // can write direct in current segment (use < because need +1 \0)
-            if (bytesCount < available)
-            {
-                StringEncoding.UTF8.GetBytes(value, 0, value.Length, _current.Array, _current.Offset + _currentPosition);
-
-                _current[_currentPosition + bytesCount] = 0x00;
-
-                this.MoveForward(bytesCount + 1); // +1 to '\0'
-            }
-            else
-            {
-                var buffer = _bufferPool.Rent(bytesCount);
-
-                StringEncoding.UTF8.GetBytes(value, 0, value.Length, buffer, 0);
-
-                this.Write(buffer, 0, bytesCount);
-
-                _current[_currentPosition] = 0x00;
-
-                this.MoveForward(1);
-
-                _bufferPool.Return(buffer, true);
-            }
-        }
-
+        public partial void WriteCString(string value);
+        
         /// <summary>
-        /// Write string into output buffer. 
+        /// Write string into output buffer.
         /// Support direct string (with no length information) or BSON specs: with (legnth + 1) [4 bytes] before and '\0' at end = 5 extra bytes
         /// </summary>
-        public void WriteString(string value, bool specs)
-        {
-            var count = StringEncoding.UTF8.GetByteCount(value);
-
-            if (specs)
-            {
-                this.Write(count + 1); // write Length + 1 (for \0)
-            }
-
-            if (count <= _current.Count - _currentPosition)
-            {
-                StringEncoding.UTF8.GetBytes(value, 0, value.Length, _current.Array, _current.Offset + _currentPosition);
-
-                this.MoveForward(count);
-            }
-            else
-            {
-                // rent a buffer to be re-usable
-                var buffer = _bufferPool.Rent(count);
-
-                StringEncoding.UTF8.GetBytes(value, 0, value.Length, buffer, 0);
-
-                this.Write(buffer, 0, count);
-
-                _bufferPool.Return(buffer, true);
-            }
-
-            if (specs)
-            {
-                this.Write((byte)0x00);
-            }
-        }
-
+        public partial void WriteString(string value, bool specs);
+        
         #endregion
 
         #region Numbers
@@ -235,18 +182,24 @@ namespace LiteDB.Engine
             else
             {
                 var buffer = _bufferPool.Rent(size);
+                try
+                {
+                    toBytes(value, buffer, 0);
 
-                toBytes(value, buffer, 0);
-
-                this.Write(buffer, 0, size);
-
-                _bufferPool.Return(buffer, true);
+                    this.Write(buffer, 0, size);
+                }
+                finally
+                {
+                    _bufferPool.Return(buffer, true);
+                }
             }
         }
 
         public void Write(Int32 value) => this.WriteNumber(value, BufferExtensions.ToBytes, 4);
         public void Write(Int64 value) => this.WriteNumber(value, BufferExtensions.ToBytes, 8);
+        public void Write(UInt16 value) => this.WriteNumber(value, BufferExtensions.ToBytes, 2);
         public void Write(UInt32 value) => this.WriteNumber(value, BufferExtensions.ToBytes, 4);
+        public void Write(Single value) => this.WriteNumber(value, BufferExtensions.ToBytes, 4);
         public void Write(Double value) => this.WriteNumber(value, BufferExtensions.ToBytes, 8);
 
         public void Write(Decimal value)
@@ -277,10 +230,23 @@ namespace LiteDB.Engine
         /// </summary>
         public void Write(Guid value)
         {
-            // there is no avaiable value.TryWriteBytes (TODO: implement conditional compile)?
-            var bytes = value.ToByteArray();
+            if (_currentPosition + 16 <= _current.Count)
+            {
+                _current.EnsureWritable();
+                var span = new Span<byte>(_current.Array, _current.Offset + _currentPosition, 16);
 
-            this.Write(bytes, 0, 16);
+                BufferSliceExtensions.Write(span, value);
+
+                this.MoveForward(16);
+            }
+            else
+            {
+                Span<byte> buffer = stackalloc byte[16];
+
+                BufferSliceExtensions.Write(buffer, value);
+
+                this.Write(buffer);
+            }
         }
 
         /// <summary>
@@ -290,19 +256,20 @@ namespace LiteDB.Engine
         {
             if (_currentPosition + 12 <= _current.Count)
             {
-                value.ToByteArray(_current.Array, _current.Offset + _currentPosition);
+                _current.EnsureWritable();
+                var span = new Span<byte>(_current.Array, _current.Offset + _currentPosition, 12);
+
+                BufferSliceExtensions.Write(span, value);
 
                 this.MoveForward(12);
             }
             else
             {
-                var buffer = _bufferPool.Rent(12);
+                Span<byte> buffer = stackalloc byte[12];
 
-                value.ToByteArray(buffer, 0);
+                BufferSliceExtensions.Write(buffer, value);
 
-                this.Write(buffer, 0, 12);
-
-                _bufferPool.Return(buffer, true);
+                this.Write(buffer);
             }
         }
 
@@ -333,6 +300,18 @@ namespace LiteDB.Engine
             this.Write(address.Index);
         }
 
+        public void Write(float[] vector)
+        {
+            ENSURE(vector.Length <= ushort.MaxValue, "Vector length must fit into UInt16");
+
+            this.Write((ushort)vector.Length);
+
+            for (var i = 0; i < vector.Length; i++)
+            {
+                this.Write(vector[i]);
+            }
+        }
+
         #endregion
 
         #region BsonDocument as SPECS
@@ -348,7 +327,7 @@ namespace LiteDB.Engine
 
             for (var i = 0; i < value.Count; i++)
             {
-                this.WriteElement(i.ToString(), value[i]);
+                this.WriteElement(null, value[i], i);
             }
 
             this.Write((byte)0x00);
@@ -375,38 +354,38 @@ namespace LiteDB.Engine
             return bytesCount;
         }
 
-        private void WriteElement(string key, BsonValue value)
+        private void WriteElement(string key, BsonValue value, int arrayIndex = -1)
         {
             // cast RawValue to avoid one if on As<Type>
             switch (value.Type)
             {
                 case BsonType.Double:
                     this.Write((byte)0x01);
-                    this.WriteCString(key);
+                    this.WriteElementKey(key, arrayIndex);
                     this.Write(value.AsDouble);
                     break;
 
                 case BsonType.String:
                     this.Write((byte)0x02);
-                    this.WriteCString(key);
+                    this.WriteElementKey(key, arrayIndex);
                     this.WriteString(value.AsString, true); // true = BSON Specs (add LENGTH at begin + \0 at end)
                     break;
 
                 case BsonType.Document:
                     this.Write((byte)0x03);
-                    this.WriteCString(key);
+                    this.WriteElementKey(key, arrayIndex);
                     this.WriteDocument(value.AsDocument, false);
                     break;
 
                 case BsonType.Array:
                     this.Write((byte)0x04);
-                    this.WriteCString(key);
+                    this.WriteElementKey(key, arrayIndex);
                     this.WriteArray(value.AsArray, false);
                     break;
 
                 case BsonType.Binary:
                     this.Write((byte)0x05);
-                    this.WriteCString(key);
+                    this.WriteElementKey(key, arrayIndex);
                     var bytes = value.AsBinary;
                     this.Write(bytes.Length);
                     this.Write((byte)0x00); // subtype 00 - Generic binary subtype
@@ -415,7 +394,7 @@ namespace LiteDB.Engine
 
                 case BsonType.Guid:
                     this.Write((byte)0x05);
-                    this.WriteCString(key);
+                    this.WriteElementKey(key, arrayIndex);
                     var guid = value.AsGuid;
                     this.Write(16);
                     this.Write((byte)0x04); // UUID
@@ -424,19 +403,19 @@ namespace LiteDB.Engine
 
                 case BsonType.ObjectId:
                     this.Write((byte)0x07);
-                    this.WriteCString(key);
+                    this.WriteElementKey(key, arrayIndex);
                     this.Write(value.AsObjectId);
                     break;
 
                 case BsonType.Boolean:
                     this.Write((byte)0x08);
-                    this.WriteCString(key);
+                    this.WriteElementKey(key, arrayIndex);
                     this.Write((byte)(value.AsBoolean ? 0x01 : 0x00));
                     break;
 
                 case BsonType.DateTime:
                     this.Write((byte)0x09);
-                    this.WriteCString(key);
+                    this.WriteElementKey(key, arrayIndex);
                     var date = value.AsDateTime;
                     // do not convert to UTC min/max date values - #19
                     var utc = (date == DateTime.MinValue || date == DateTime.MaxValue) ? date : date.ToUniversalTime();
@@ -446,35 +425,40 @@ namespace LiteDB.Engine
 
                 case BsonType.Null:
                     this.Write((byte)0x0A);
-                    this.WriteCString(key);
+                    this.WriteElementKey(key, arrayIndex);
                     break;
 
                 case BsonType.Int32:
                     this.Write((byte)0x10);
-                    this.WriteCString(key);
+                    this.WriteElementKey(key, arrayIndex);
                     this.Write(value.AsInt32);
                     break;
 
                 case BsonType.Int64:
                     this.Write((byte)0x12);
-                    this.WriteCString(key);
+                    this.WriteElementKey(key, arrayIndex);
                     this.Write(value.AsInt64);
                     break;
 
                 case BsonType.Decimal:
                     this.Write((byte)0x13);
-                    this.WriteCString(key);
+                    this.WriteElementKey(key, arrayIndex);
                     this.Write(value.AsDecimal);
                     break;
 
                 case BsonType.MinValue:
                     this.Write((byte)0xFF);
-                    this.WriteCString(key);
+                    this.WriteElementKey(key, arrayIndex);
                     break;
 
                 case BsonType.MaxValue:
                     this.Write((byte)0x7F);
-                    this.WriteCString(key);
+                    this.WriteElementKey(key, arrayIndex);
+                    break;
+                case BsonType.Vector:
+                    this.Write((byte)0x64); // ✅ 0x64 = 100
+                    this.WriteElementKey(key, arrayIndex);
+                    this.Write(value.AsVector); // ✅ This should exist
                     break;
             }
         }
@@ -483,7 +467,10 @@ namespace LiteDB.Engine
 
         public void Dispose()
         {
-            _source?.Dispose();
+            var source = _source;
+            _source = null;
+            _current = null;
+            source?.Dispose();
         }
     }
 }

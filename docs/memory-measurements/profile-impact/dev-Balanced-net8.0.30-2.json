@@ -1,0 +1,56 @@
+{
+  "Label": "dev",
+  "Profile": "Balanced",
+  "Runtime": ".NET 8.0.30",
+  "OS": "Microsoft Windows 10.0.26200",
+  "Processors": 32,
+  "AssemblySha256": "1B6D2E2012BC2F1337339D64BE078D37226F37DB12A046D308B17A7DC1C7736A",
+  "Measurements": {
+    "insertMs": 1195.3953,
+    "firstScanMs": 269.9219,
+    "warmScanMs": 188.8898,
+    "hot1": {
+      "Samples": 10000,
+      "TotalMs": 256.7454,
+      "P50Us": 22.8,
+      "P99Us": 82.7,
+      "OperationsPerSecond": 38949.09120085501,
+      "Contentions": 0,
+      "AllocatedBytesPerOperation": 36863.1264
+    },
+    "hot4": {
+      "Samples": 40000,
+      "TotalMs": 387.569,
+      "P50Us": 31.8,
+      "P99Us": 178.9,
+      "OperationsPerSecond": 103207.42887073012,
+      "Contentions": 34,
+      "AllocatedBytesPerOperation": 36938.7806
+    },
+    "hot16": {
+      "Samples": 160000,
+      "TotalMs": 1109.8834,
+      "P50Us": 62.5,
+      "P99Us": 1107,
+      "OperationsPerSecond": 144159.28736297885,
+      "Contentions": 19662,
+      "AllocatedBytesPerOperation": 36947.3251
+    },
+    "scattered16": {
+      "Samples": 160000,
+      "TotalMs": 658.9181,
+      "P50Us": 28.4,
+      "P99Us": 812.9,
+      "OperationsPerSecond": 242822.28701867504,
+      "Contentions": 14492,
+      "AllocatedBytesPerOperation": 41297.09015
+    },
+    "indexMs": 512.3004,
+    "walBytes": 9945088,
+    "cache": "{\u0022extendSegments\u0022:20,\u0022extendPages\u0022:16662,\u0022freePages\u0022:1769,\u0022readablePages\u0022:14893,\u0022writablePages\u0022:0,\u0022pagesInUse\u0022:0}",
+    "transactionPages": null,
+    "databaseBytes": 126967808,
+    "retainedManagedBytes": 140457464,
+    "workingSetBytes": 219508736
+  }
+}

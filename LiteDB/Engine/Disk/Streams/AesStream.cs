@@ -1,8 +1,11 @@
 ﻿using System;
 using System.Buffers;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Threading;
+using LiteDB.Utils;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -10,7 +13,7 @@ namespace LiteDB.Engine
     /// <summary>
     /// Encrypted AES Stream
     /// </summary>
-    public class AesStream : Stream
+    public partial class AesStream : Stream
     {
         private readonly Aes _aes;
         private readonly ICryptoTransform _encryptor;
@@ -20,6 +23,7 @@ namespace LiteDB.Engine
         private readonly Stream _stream;
         private readonly CryptoStream _reader;
         private readonly CryptoStream _writer;
+        private int _disposed;
 
         private readonly byte[] _decryptedZeroes = new byte[16];
 
@@ -45,23 +49,23 @@ namespace LiteDB.Engine
 
         public long StreamPosition => _stream.Position;
 
-        public AesStream(string password, Stream stream)
+        public AesStream(string password, Stream stream, bool allowRecovery = true)
         {
-            _stream = stream;
+            _stream = stream ?? throw new ArgumentNullException(nameof(stream));
             _name = _stream is FileStream fileStream ? Path.GetFileName(fileStream.Name) : null;
-
-            var isNew = _stream.Length < PAGE_SIZE;
-
-            // start stream from zero position
-            _stream.Position = 0;
-
             const int checkBufferSize = 32;
-
-            var checkBuffer = _bufferPool.Rent(checkBufferSize);
-            var msBuffer = _bufferPool.Rent(16);
+            byte[] checkBuffer = null;
+            byte[] msBuffer = null;
 
             try
             {
+                // engine opens never overwrite existing bytes: a short stream is only accepted as an
+                // interrupted creation, which is decided below once its salt is known
+                if (!allowRecovery) AesPreamble.EnsureMarker(_stream);
+                var isNew = allowRecovery ? _stream.Length < PAGE_SIZE : _stream.Length == 0;
+                _stream.Position = 0;
+                checkBuffer = _bufferPool.Rent(checkBufferSize);
+                msBuffer = _bufferPool.Rent(16);
                 // new file? create new salt
                 if (isNew)
                 {
@@ -83,7 +87,7 @@ namespace LiteDB.Engine
                         throw LiteException.FileNotEncrypted();
                     }
 
-                    _stream.Read(this.Salt, 0, ENCRYPTION_SALT_SIZE);
+                    _stream.ReadRequired(this.Salt, 0, ENCRYPTION_SALT_SIZE);
                 }
 
                 _aes = Aes.Create();
@@ -102,21 +106,26 @@ namespace LiteDB.Engine
                 _decryptor = _aes.CreateDecryptor();
 
                 _reader = _stream.CanRead ?
-                    new CryptoStream(_stream, _decryptor, CryptoStreamMode.Read) :
+                    new CryptoStream(new NonClosingStream(_stream), _decryptor, CryptoStreamMode.Read) :
                     null;
 
                 _writer = _stream.CanWrite ?
-                    new CryptoStream(_stream, _encryptor, CryptoStreamMode.Write) :
+                    new CryptoStream(new NonClosingStream(_stream), _encryptor, CryptoStreamMode.Write) :
                     null;
 
                 // set stream to password checking
                 _stream.Position = 32;
 
 
-                if (!isNew)
+                if (!isNew && !allowRecovery)
+                {
+                    isNew = AesPreamble.IsInterruptedCreation(_stream);
+                    _stream.Position = 32;
+                }
+                else if (!isNew)
                 {
                     // check whether bytes 32 to 64 is empty. This indicates LiteDb was unable to write encrypted 1s during last attempt.
-                    _stream.Read(checkBuffer, 0, checkBufferSize);
+                    _stream.ReadRequired(checkBuffer, 0, checkBufferSize);
                     isNew = checkBuffer.All(x => x == 0);
 
                     // reset checkBuffer and stream position
@@ -137,32 +146,38 @@ namespace LiteDB.Engine
                 }
                 else
                 {
-                    _reader.Read(checkBuffer, 0, checkBufferSize);
+                    _reader.ReadRequired(checkBuffer, 0, checkBufferSize);
 
                     if (!checkBuffer.All(x => x == 1))
                     {
                         throw LiteException.InvalidPassword();
                     }
+
+                    AesPreamble.CompletePage(_stream);
                 }
 
                 _stream.Position = PAGE_SIZE;
                 _stream.FlushToDisk();
-                using (var ms = new MemoryStream(msBuffer))
+                // Rented buffers are not zero-initialized. Derive the blank-page
+                // sentinel from exactly one zero ciphertext block.
+                Array.Clear(msBuffer, 0, 16);
+                using (var ms = new MemoryStream(msBuffer, 0, 16))
                 using (var tempStream = new CryptoStream(ms, _decryptor, CryptoStreamMode.Read))
                 {
-                    tempStream.Read(_decryptedZeroes, 0, _decryptedZeroes.Length);
+                    tempStream.ReadRequired(_decryptedZeroes, 0, _decryptedZeroes.Length);
                 }
             }
             catch
             {
-                _stream.Dispose();
-
+                // Preserve the initialization error while releasing every resource
+                // already created, including cipher handles after a bad password.
+                this.DisposeResources();
                 throw;
             }
             finally
             {
-                _bufferPool.Return(msBuffer, true);
-                _bufferPool.Return(checkBuffer, true);
+                if (msBuffer != null) _bufferPool.Return(msBuffer, true);
+                if (checkBuffer != null) _bufferPool.Return(checkBuffer, true);
             }
         }
 
@@ -171,16 +186,16 @@ namespace LiteDB.Engine
         /// </summary>
         public override int Read(byte[] array, int offset, int count)
         {
-            ENSURE(this.Position % PAGE_SIZE == 0, "AesRead: position must be in PAGE_SIZE module. Position={0}, File={1}", this.Position, _name);
+            ENSURE(this.Position % 16 == 0, "AesRead: position must be AES block aligned. Position={0}, File={1}", this.Position, _name);
 
-            var r = _reader.Read(array, offset, count);
+            var r = _reader.ReadFully(array, offset, count);
 
             // checks if the first 16 bytes of the page in the original stream are zero
             // this should never happen, but if it does, return a blank page
             // the blank page will be skipped by WalIndexService.CheckpointInternal() and WalIndexService.RestoreIndex()
-            if (this.IsBlank(array, offset))
+            if (r >= 16 && this.IsBlank(array, offset))
             {
-                array.Fill(0, offset, count);
+                array.Fill(0, offset, r);
             }
 
             return r;
@@ -191,8 +206,9 @@ namespace LiteDB.Engine
         /// </summary>
         public override void Write(byte[] array, int offset, int count)
         {
-            ENSURE(count == PAGE_SIZE || count == 1, "buffer size must be PAGE_SIZE");
-            ENSURE(this.Position == HeaderPage.P_INVALID_DATAFILE_STATE || this.Position % PAGE_SIZE == 0, "AesWrite: position must be in PAGE_SIZE module. Position={0}, File={1}", this.Position, _name);
+            // WAL frames include a block-aligned checksum trailer after the page.
+            ENSURE(count % 16 == 0 || count == 1, "buffer size must be AES block aligned");
+            ENSURE(this.Position == HeaderPage.P_INVALID_DATAFILE_STATE || this.Position % 16 == 0, "AesWrite: position must be AES block aligned. Position={0}, File={1}", this.Position, _name);
 
             _writer.Write(array, offset, count);
         }
@@ -200,13 +216,22 @@ namespace LiteDB.Engine
         protected override void Dispose(bool disposing)
         {
             base.Dispose(disposing);
+            if (!disposing || Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
-            _stream?.Dispose();
+            var errors = this.DisposeResources();
+            if (errors.Count > 0) throw new AggregateException(errors);
+        }
 
-            _encryptor.Dispose();
-            _decryptor.Dispose();
-
-            _aes.Dispose();
+        private List<Exception> DisposeResources()
+        {
+            var cleanup = new TryCatch();
+            cleanup.Catch(() => _writer?.Dispose());
+            cleanup.Catch(() => _reader?.Dispose());
+            cleanup.Catch(() => _encryptor?.Dispose());
+            cleanup.Catch(() => _decryptor?.Dispose());
+            cleanup.Catch(() => _aes?.Dispose());
+            cleanup.Catch(() => _stream.Dispose());
+            return cleanup.Exceptions;
         }
 
         /// <summary>
@@ -224,6 +249,9 @@ namespace LiteDB.Engine
             return salt;
         }
 
+        // Encrypted page writes are complete blocks; preserve durable flush requests at the file boundary.
+        internal void FlushToDisk() => _stream.FlushToDisk();
+
         public override void Flush()
         {
             _stream.Flush();
@@ -231,7 +259,18 @@ namespace LiteDB.Engine
 
         public override long Seek(long offset, SeekOrigin origin)
         {
-            return _stream.Seek(offset + PAGE_SIZE, origin);
+            long position;
+            switch (origin)
+            {
+                case SeekOrigin.Begin: position = offset; break;
+                case SeekOrigin.Current: position = checked(this.Position + offset); break;
+                case SeekOrigin.End: position = checked(this.Length + offset); break;
+                default: throw new ArgumentException("Invalid seek origin.", nameof(origin));
+            }
+
+            if (position < 0) throw new IOException("Cannot seek before the beginning of the encrypted data.");
+
+            return _stream.Seek(checked(position + PAGE_SIZE), SeekOrigin.Begin) - PAGE_SIZE;
         }
 
         public override void SetLength(long value)

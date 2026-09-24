@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using FluentAssertions;
+using LiteDB.Tests.Utils;
 using Xunit;
 
 namespace LiteDB.Tests.Engine
@@ -10,7 +11,7 @@ namespace LiteDB.Tests.Engine
         [Fact]
         public void Index_With_No_Name()
         {
-            using (var db = new LiteDatabase("filename=:memory:"))
+            using (var db = DatabaseFactory.Create(connectionString: "filename=:memory:"))
             {
                 var users = db.GetCollection("users");
                 var indexes = db.GetCollection("$indexes");
@@ -31,7 +32,7 @@ namespace LiteDB.Tests.Engine
         [Fact]
         public void Index_Order()
         {
-            using (var db = new LiteDatabase("filename=:memory:"))
+            using (var db = DatabaseFactory.Create(connectionString: "filename=:memory:"))
             {
                 var col = db.GetCollection("col");
                 var indexes = db.GetCollection("$indexes");
@@ -65,10 +66,12 @@ namespace LiteDB.Tests.Engine
             }
         }
 
-        [Fact]
-        public void Index_With_Like()
+        [Theory]
+        [InlineData("en-US/IgnoreCase", 4, 4)]
+        [InlineData("tr-TR/IgnoreCase", 3, 0)]
+        public void Index_With_Like(string collation, int wildcardMatches, int exactMatches)
         {
-            using (var db = new LiteDatabase("filename=:memory:"))
+            using (var db = DatabaseFactory.Create(connectionString: "filename=:memory:;collation=" + collation))
             {
                 var col = db.GetCollection("names", BsonAutoId.Int32);
 
@@ -87,7 +90,7 @@ namespace LiteDB.Tests.Engine
 
                 var all = db.Execute("SELECT name FROM names").ToArray();
 
-                // LIKE are case insensitive
+                // IgnoreCase follows the selected culture; Turkish I and i are not equivalent.
 
                 var r0 = db.Execute("SELECT name FROM names WHERE name LIKE 'Mau%'").ToArray();
                 var r1 = db.Execute("SELECT name FROM names WHERE name LIKE 'MAU%'").ToArray();
@@ -101,8 +104,8 @@ namespace LiteDB.Tests.Engine
                 var r3 = db.Execute("SELECT name FROM names WHERE name LIKE 'ma%ci%'").ToArray();
                 var r4 = db.Execute("SELECT name FROM names WHERE name LIKE 'maUriCIO").ToArray();
 
-                r3.Length.Should().Be(4);
-                r4.Length.Should().Be(4);
+                r3.Length.Should().Be(wildcardMatches);
+                r4.Length.Should().Be(exactMatches);
 
                 var r5 = db.Execute("SELECT name FROM names WHERE name LIKE 'marc_o").ToArray();
 
@@ -118,7 +121,7 @@ namespace LiteDB.Tests.Engine
         [Fact]
         public void EnsureIndex_Invalid_Arguments()
         {
-            using var db = new LiteDatabase("filename=:memory:");
+            using var db = DatabaseFactory.Create(connectionString: "filename=:memory:");
             var test = db.GetCollection("test");
 
             // null name
@@ -143,7 +146,7 @@ namespace LiteDB.Tests.Engine
         [Fact]
         public void MultiKey_Index_Test()
         {
-            using var db = new LiteDatabase("filename=:memory:");
+            using var db = DatabaseFactory.Create(connectionString: "filename=:memory:");
             var col = db.GetCollection("customers", BsonAutoId.Int32);
             col.EnsureIndex("$.Phones[*].Type");
 

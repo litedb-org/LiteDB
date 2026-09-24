@@ -24,6 +24,9 @@ namespace LiteDB.Engine
         }
 
         public Collation Collation => _collation;
+        internal uint MaxItemsCount => _maxItemsCount;
+        internal ulong MaxTraversalItemsCount => (ulong)_maxItemsCount + _snapshot.AdditionalTraversalItemsCount;
+        public void Safepoint() => _snapshot.Safepoint();
 
         /// <summary>
         /// Create a new index and returns head page address (skip list)
@@ -68,6 +71,8 @@ namespace LiteDB.Engine
                 throw LiteException.InvalidIndexKey($"BsonValue MaxValue/MinValue are not supported as index key");
             }
 
+            _snapshot.CheckVectorVersion(key);
+
             // random level (flip coin mode) - return number between 1-32
             var levels = this.Flip();
 
@@ -98,7 +103,8 @@ namespace LiteDB.Engine
 
             // now, let's link my index node on right place
             var leftNode = this.GetNode(index.Head);
-            var counter = 0u;
+            var counter = 0ul;
+            var maxItemsCount = (ulong)_maxItemsCount + _snapshot.AdditionalTraversalItemsCount;
 
             // scan from top left
             for (int currentLevel = MAX_LEVEL_LENGTH - 1; currentLevel >= 0; currentLevel--)
@@ -108,7 +114,7 @@ namespace LiteDB.Engine
                 // while: scan from left to right
                 while (right.IsEmpty == false && right != index.Tail)
                 {
-                    ENSURE(counter++ < _maxItemsCount, "Detected loop in AddNode({0})", node.Position);
+                    ENSURE(counter++ < maxItemsCount, "Detected loop in AddNode({0})", node.Position);
 
                     var rightNode = this.GetNode(right);
 
@@ -202,11 +208,12 @@ namespace LiteDB.Engine
         public IEnumerable<IndexNode> GetNodeList(PageAddress nodeAddress)
         {
             var node = this.GetNode(nodeAddress);
-            var counter = 0u;
+            var counter = 0ul;
+            var maxItemsCount = (ulong)_maxItemsCount + _snapshot.AdditionalTraversalItemsCount;
 
             while (node != null)
             {
-                ENSURE(counter++ < _maxItemsCount, "Detected loop in GetNodeList({0})", nodeAddress);
+                ENSURE(counter++ < maxItemsCount, "Detected loop in GetNodeList({0})", nodeAddress);
 
                 yield return node;
 
@@ -221,11 +228,12 @@ namespace LiteDB.Engine
         {
             var node = this.GetNode(pkAddress);
             var indexes = _snapshot.CollectionPage.GetCollectionIndexesSlots();
-            var counter = 0u;
+            var counter = 0ul;
+            var maxItemsCount = (ulong)_maxItemsCount + _snapshot.AdditionalTraversalItemsCount;
 
             while (node != null)
             {
-                ENSURE(counter++ < _maxItemsCount, "Detected loop in DeleteAll({0})", pkAddress);
+                ENSURE(counter++ < maxItemsCount, "Detected loop in DeleteAll({0})", pkAddress);
 
                 this.DeleteSingleNode(node, indexes[node.Slot]);
 
@@ -242,11 +250,12 @@ namespace LiteDB.Engine
             var last = this.GetNode(pkAddress);
             var node = this.GetNode(last.NextNode); // starts in first node after PK
             var indexes = _snapshot.CollectionPage.GetCollectionIndexesSlots();
-            var counter = 0u;
+            var counter = 0ul;
+            var maxItemsCount = (ulong)_maxItemsCount + _snapshot.AdditionalTraversalItemsCount;
 
             while (node != null)
             {
-                ENSURE(counter++ < _maxItemsCount, "Detected loop in DeleteList({0})", pkAddress);
+                ENSURE(counter++ < maxItemsCount, "Detected loop in DeleteList({0})", pkAddress);
 
                 if (toDelete.Contains(node.Position))
                 {
@@ -315,6 +324,7 @@ namespace LiteDB.Engine
                     {
                         // delete node from page (mark as dirty)
                         node.Page.DeleteIndexNode(node.Position.Index);
+                        _snapshot.AddOrRemoveFreeIndexList(node.Page, ref index.FreeIndexPageList);
 
                         last.SetNextNode(node.NextNode);
                     }
@@ -325,11 +335,23 @@ namespace LiteDB.Engine
 
                     next = node.NextNode;
                 }
+
+                _snapshot.Safepoint();
             }
 
             // removing head/tail index nodes
-            this.GetNode(index.Head).Page.DeleteIndexNode(index.Head.Index);
-            this.GetNode(index.Tail).Page.DeleteIndexNode(index.Tail.Index);
+            var headPage = this.GetNode(index.Head).Page;
+            var tailPage = this.GetNode(index.Tail).Page;
+            headPage.DeleteIndexNode(index.Head.Index);
+            tailPage.DeleteIndexNode(index.Tail.Index);
+
+            // Sentinels can be the last nodes on their pages. Reclaim those pages
+            // before the collection forgets this index and its free-page list.
+            this._snapshot.AddOrRemoveFreeIndexList(headPage, ref index.FreeIndexPageList);
+            if (tailPage.PageID != headPage.PageID)
+            {
+                this._snapshot.AddOrRemoveFreeIndexList(tailPage, ref index.FreeIndexPageList);
+            }
         }
 
         #region Find
@@ -340,17 +362,22 @@ namespace LiteDB.Engine
         public IEnumerable<IndexNode> FindAll(CollectionIndex index, int order)
         {
             var cur = order == Query.Ascending ? this.GetNode(index.Head) : this.GetNode(index.Tail);
-            var counter = 0u;
+            var next = cur.GetNextPrev(0, order);
+            var counter = 0ul;
+            var maxItemsCount = (ulong)_maxItemsCount + _snapshot.AdditionalTraversalItemsCount;
 
-            while (!cur.GetNextPrev(0, order).IsEmpty)
+            while (!next.IsEmpty)
             {
-                ENSURE(counter++ < _maxItemsCount, "Detected loop in FindAll({0})", index.Name);
+                ENSURE(counter++ < maxItemsCount, "Detected loop in FindAll({0})", index.Name);
 
-                cur = this.GetNode(cur.GetNextPrev(0, order));
+                cur = this.GetNode(next);
 
                 // stop if node is head/tail
                 if (cur.Key.IsMinValue || cur.Key.IsMaxValue) yield break;
 
+                // Callers may safepoint before resuming this iterator, so never
+                // read the yielded page-backed node after the suspension point.
+                next = cur.GetNextPrev(0, order);
                 yield return cur;
             }
         }
@@ -360,10 +387,11 @@ namespace LiteDB.Engine
         /// If index are unique, return unique value - if index are not unique, return first found (can start, middle or end)
         /// If not found but sibling = true and key are not found, returns next value index node (if order = Asc) or prev node (if order = Desc)
         /// </summary>
-        public IndexNode Find(CollectionIndex index, BsonValue value, bool sibling, int order)
+        public IndexNode Find(CollectionIndex index, BsonValue value, bool sibling, int order, bool skipEqual = false)
         {
             var leftNode = order == Query.Ascending ? this.GetNode(index.Head) : this.GetNode(index.Tail);
-            var counter = 0u;
+            var counter = 0ul;
+            var maxItemsCount = (ulong)_maxItemsCount + _snapshot.AdditionalTraversalItemsCount;
 
             for (int level = MAX_LEVEL_LENGTH - 1; level >= 0; level--)
             {
@@ -371,7 +399,7 @@ namespace LiteDB.Engine
 
                 while (right.IsEmpty == false)
                 {
-                    ENSURE(counter++ < _maxItemsCount, "Detected loop in Find({0}, {1})", index.Name, value);
+                    ENSURE(counter++ < maxItemsCount, "Detected loop in Find({0}, {1})", index.Name, value);
 
                     var rightNode = this.GetNode(right);
 
@@ -385,8 +413,8 @@ namespace LiteDB.Engine
                         return (rightNode.Key.IsMinValue || rightNode.Key.IsMaxValue) ? null : rightNode;
                     }
 
-                    // if equals, return index node
-                    if (diff == 0)
+                    // Exclusive seeks traverse equal keys at every skip-list level.
+                    if (diff == 0 && !skipEqual)
                     {
                         return rightNode;
                     }

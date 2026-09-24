@@ -39,11 +39,7 @@ namespace LiteDB
             {
                 var chunk = new BsonDocument
                 {
-                    ["_id"] = new BsonDocument
-                    {
-                        ["f"] = _fileId,
-                        ["n"] = _file.Chunks++ // zero-based index
-                    }
+                    ["_id"] = this.ChunkId(this.ChunkIndex(_file.Chunks++)) // zero-based index
                 };
 
                 // get chunk byte array part
@@ -65,7 +61,11 @@ namespace LiteDB
             // if stream was closed/flush, update file too
             if (flush)
             {
-                _file.UploadDate = DateTime.Now;
+                this.PublishStagedChunks();
+
+                var uploadDate = DateTime.Now;
+                if (uploadDate <= _file.UploadDate) uploadDate = _file.UploadDate.AddMilliseconds(1);
+                _file.UploadDate = uploadDate;
                 _file.Length = _streamPosition;
 
                 _files.Upsert(_file);

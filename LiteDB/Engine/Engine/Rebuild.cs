@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using LiteDB.Vector;
 
 using static LiteDB.Constants;
 
@@ -17,15 +18,49 @@ namespace LiteDB.Engine
         /// </summary>
         public long Rebuild(RebuildOptions options)
         {
+            if (_settings.ReadOnly) throw new IOException("Cannot rebuild a read-only database.");
+
+            // Every omitted option keeps its current value; conflicting options fail before the engine closes.
+            options = options ?? new RebuildOptions();
+            var password = options.ResolvePassword(_settings.Password);
+
             if (string.IsNullOrEmpty(_settings.Filename)) return 0; // works only with os file
+
+            var collation = options.Collation ?? new Collation(this.Pragma(Pragmas.COLLATION));
+
+            // Rebuild replaces the database files and all engine services. Wait for
+            // existing transactions to finish and prevent a new one from being
+            // admitted between that wait and Close(). Close disposes the old lock,
+            // so this exclusive lease intentionally is not released here.
+            if (_locker.IsInTransaction) throw LiteException.AlreadyExistsTransaction();
+            _locker.EnterExclusive();
 
             this.Close();
 
             // run build service
             var rebuilder = new RebuildService(_settings);
 
-            // return how many bytes of diference from original/rebuild version
-            var diff = rebuilder.Rebuild(options);
+            long diff;
+            try
+            {
+                // return how many bytes of diference from original/rebuild version
+                diff = rebuilder.Rebuild(options, collation);
+            }
+            catch (Exception ex)
+            {
+                // SharedEngine retains this settings instance after disposing the
+                // failed inner engine. Match it to a replacement left at the live path.
+                if (ex.Data[RebuildService.LiveStateDataKey] as string == RebuildService.LiveStateReplacement)
+                {
+                    _settings.Password = password;
+                    _settings.Collation = collation;
+                }
+                throw;
+            }
+
+            // SharedEngine retains this same settings instance for subsequent opens.
+            _settings.Password = password;
+            _settings.Collation = collation;
 
             // re-open engine
             this.Open();
@@ -40,10 +75,7 @@ namespace LiteDB.Engine
         /// </summary>
         public long Rebuild()
         {
-            var collation = new Collation(this.Pragma(Pragmas.COLLATION));
-            var password = _settings.Password;
-
-            return this.Rebuild(new RebuildOptions { Password = password, Collation = collation });
+            return this.Rebuild(null);
         }
 
         /// <summary>
@@ -62,6 +94,7 @@ namespace LiteDB.Engine
                     var snapshot = transaction.CreateSnapshot(LockMode.Write, collection, true);
                     var indexer = new IndexService(snapshot, _header.Pragmas.Collation, _disk.MAX_ITEMS_COUNT);
                     var data = new DataService(snapshot, _disk.MAX_ITEMS_COUNT);
+                    var vectorService = new VectorIndexService(snapshot, _header.Pragmas.Collation);
 
                     // get all documents from current collection
                     var docs = reader.GetDocuments(collection);
@@ -71,16 +104,28 @@ namespace LiteDB.Engine
                     {
                         transaction.Safepoint();
 
-                        this.InsertDocument(snapshot, doc, BsonAutoId.ObjectId, indexer, data);
+                        this.InsertDocument(snapshot, doc, BsonAutoId.ObjectId, indexer, data, vectorService);
                     }
 
                     // first create all user indexes (exclude _id index)
                     foreach (var index in reader.GetIndexes(collection))
                     {
-                        this.EnsureIndex(collection,
-                            index.Name,
-                            BsonExpression.Create(index.Expression),
-                            index.Unique);
+                        if (index.IndexType == 1 && index.VectorMetadata != null)
+                        {
+                            this.EnsureVectorIndex(
+                                collection,
+                                index.Name,
+                                BsonExpression.Create(index.Expression),
+                                new VectorIndexOptions(index.VectorMetadata.Dimensions, index.VectorMetadata.Metric));
+                        }
+                        else
+                        {
+                            this.EnsureIndex(
+                                collection,
+                                index.Name,
+                                BsonExpression.Create(index.Expression),
+                                index.Unique);
+                        }
                     }
                 }
 

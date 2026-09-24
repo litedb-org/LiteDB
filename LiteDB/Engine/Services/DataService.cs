@@ -25,14 +25,17 @@ namespace LiteDB.Engine
             _maxItemsCount = maxItemsCount;
         }
 
+        internal Result<BsonDocument> ReadDocument(BufferReader reader, HashSet<string> fields, bool utcDate, PageAddress address) =>
+            DocumentStorageCodec.Read(reader, fields, () => _snapshot.Schemas, utcDate, _snapshot.CollectionName, address);
+
         /// <summary>
         /// Insert BsonDocument into new data pages
         /// </summary>
         public PageAddress Insert(BsonDocument doc)
         {
-            var bytesLeft = doc.GetBytesCount(true);
-
-            if (bytesLeft > MAX_DOCUMENT_SIZE) throw new LiteException(0, "Document size exceed {0} limit", MAX_DOCUMENT_SIZE);
+            var plan = DocumentStorageCodec.PrepareWrite(doc, _snapshot);
+            var bytesLeft = plan.EncodedLength;
+            _snapshot.CheckVectorVersion(doc);
 
             var firstBlock = PageAddress.Empty;
 
@@ -69,7 +72,7 @@ namespace LiteDB.Engine
             using (var w = new BufferWriter(source()))
             {
                 // already bytes count calculate at method start
-                w.WriteDocument(doc, false);
+                DocumentStorageCodec.Write(plan, w);
                 w.Consume();
             }
 
@@ -81,9 +84,9 @@ namespace LiteDB.Engine
         /// </summary>
         public void Update(CollectionPage col, PageAddress blockAddress, BsonDocument doc)
         {
-            var bytesLeft = doc.GetBytesCount(true);
-
-            if (bytesLeft > MAX_DOCUMENT_SIZE) throw new LiteException(0, "Document size exceed {0} limit", MAX_DOCUMENT_SIZE);
+            var plan = DocumentStorageCodec.PrepareWrite(doc, _snapshot);
+            var bytesLeft = plan.EncodedLength;
+            _snapshot.CheckVectorVersion(doc);
 
             DataBlock lastBlock = null;
             var updateAddress = blockAddress;
@@ -151,7 +154,7 @@ namespace LiteDB.Engine
             using (var w = new BufferWriter(source()))
             {
                 // already bytes count calculate at method start
-                w.WriteDocument(doc, false);
+                DocumentStorageCodec.Write(plan, w);
                 w.Consume();
             }
         }
@@ -161,11 +164,12 @@ namespace LiteDB.Engine
         /// </summary>
         public IEnumerable<BufferSlice> Read(PageAddress address)
         {
-            var counter = 0u;
+            var counter = 0ul;
+            var maxItemsCount = (ulong)_maxItemsCount + _snapshot.AdditionalTraversalItemsCount;
 
             while (address != PageAddress.Empty)
             {
-                ENSURE(counter++ < _maxItemsCount, "Detected loop in data Read({0})", address);
+                ENSURE(counter++ < maxItemsCount, "Detected loop in data Read({0})", address);
 
                 var dataPage = _snapshot.GetPage<DataPage>(address.PageID);
 
@@ -175,6 +179,29 @@ namespace LiteDB.Engine
 
                 address = block.NextBlock;
             }
+        }
+
+        /// <summary>
+        /// Advance a caller-owned data-block cursor without creating an iterator.
+        /// </summary>
+        internal bool TryRead(ref PageAddress address, ref ulong counter, out BufferSlice buffer)
+        {
+            if (address == PageAddress.Empty)
+            {
+                buffer = null;
+                return false;
+            }
+
+            var maxItemsCount = (ulong)_maxItemsCount + _snapshot.AdditionalTraversalItemsCount;
+
+            ENSURE(counter++ < maxItemsCount, "Detected loop in data Read({0})", address);
+
+            var dataPage = _snapshot.GetPage<DataPage>(address.PageID);
+            var block = dataPage.GetBlock(address.Index);
+
+            buffer = block.Buffer;
+            address = block.NextBlock;
+            return true;
         }
 
         /// <summary>

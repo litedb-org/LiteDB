@@ -1,0 +1,56 @@
+{
+  "Label": "before",
+  "Profile": "Balanced",
+  "Runtime": ".NET 8.0.30",
+  "OS": "Microsoft Windows 10.0.26200",
+  "Processors": 32,
+  "AssemblySha256": "C5EF5592EA83755DB0E50849DC82A6468EAD817F69E82604567DC3BAD65695ED",
+  "Measurements": {
+    "insertMs": 1298.9064,
+    "firstScanMs": 216.1407,
+    "warmScanMs": 184.6365,
+    "hot1": {
+      "Samples": 10000,
+      "TotalMs": 212.9955,
+      "P50Us": 19.6,
+      "P99Us": 42.3,
+      "OperationsPerSecond": 46949.348695160224,
+      "Contentions": 0,
+      "AllocatedBytesPerOperation": 35241.2608
+    },
+    "hot4": {
+      "Samples": 40000,
+      "TotalMs": 277.0906,
+      "P50Us": 21.5,
+      "P99Us": 147.4,
+      "OperationsPerSecond": 144357.11640885688,
+      "Contentions": 41,
+      "AllocatedBytesPerOperation": 35240.9662
+    },
+    "hot16": {
+      "Samples": 160000,
+      "TotalMs": 1299.5316,
+      "P50Us": 67.1,
+      "P99Us": 1020.1,
+      "OperationsPerSecond": 123121.2846228595,
+      "Contentions": 43636,
+      "AllocatedBytesPerOperation": 35244.0442
+    },
+    "scattered16": {
+      "Samples": 160000,
+      "TotalMs": 1409.0098,
+      "P50Us": 54.5,
+      "P99Us": 1160,
+      "OperationsPerSecond": 113554.92346469131,
+      "Contentions": 31990,
+      "AllocatedBytesPerOperation": 39218.77355
+    },
+    "indexMs": 396.0081,
+    "walBytes": 10682368,
+    "cache": "{\u0022limitBytes\u0022:{\u0022$numberLong\u0022:\u002267108864\u0022},\u0022limitPagesRounded\u0022:8200,\u0022allocatedBytes\u0022:{\u0022$numberLong\u0022:\u002267174400\u0022},\u0022segments\u0022:65,\u0022totalPages\u0022:8200,\u0022readablePages\u0022:8200,\u0022idleReadablePages\u0022:8200,\u0022loadingPages\u0022:0,\u0022pinnedPages\u0022:0,\u0022retainedBySegments\u0022:0,\u0022evictedPages\u0022:{\u0022$numberLong\u0022:\u0022150063\u0022},\u0022releasedSegments\u0022:{\u0022$numberLong\u0022:\u00220\u0022},\u0022overflowSegments\u0022:{\u0022$numberLong\u0022:\u00220\u0022},\u0022framesExamined\u0022:{\u0022$numberLong\u0022:\u0022359825\u0022},\u0022budgetExceeded\u0022:{\u0022$numberLong\u0022:\u002225\u0022},\u0022lostFrames\u0022:{\u0022$numberLong\u0022:\u00220\u0022},\u0022hits\u0022:{\u0022$numberLong\u0022:\u00226584164\u0022},\u0022misses\u0022:{\u0022$numberLong\u0022:\u0022158765\u0022},\u0022compiledExpressions\u0022:5,\u0022extendSegments\u0022:65,\u0022extendPages\u0022:8200,\u0022freePages\u0022:0,\u0022writablePages\u0022:0,\u0022pagesInUse\u0022:0}",
+    "transactionPages": 1000,
+    "databaseBytes": 126967808,
+    "retainedManagedBytes": 69354256,
+    "workingSetBytes": 134643712
+  }
+}

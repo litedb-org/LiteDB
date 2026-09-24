@@ -1,4 +1,4 @@
-﻿using LiteDB.Utils;
+using LiteDB.Utils;
 
 using System;
 using System.Collections.Concurrent;
@@ -93,6 +93,10 @@ namespace LiteDB.Engine
                 // initialize engine state 
                 _state = new EngineState(this, _settings);
 
+                // A failed rebuild may have left stale data or no canonical file.
+                // Check before upgrade, recovery, or DiskService can create a new file.
+                RebuildRecovery.EnsureAvailable(_settings);
+
                 // before initilize, try if must be upgrade
                 if (_settings.Upgrade) this.TryUpgrade();
 
@@ -103,10 +107,11 @@ namespace LiteDB.Engine
                 var buffer = _disk.ReadFull(FileOrigin.Data).First();
 
                 // if first byte are 1 this datafile are encrypted but has do defined password to open
-                if (buffer[0] == 1) throw new LiteException(0, "This data file is encrypted and needs a password to open");
+                if (buffer[0] == 1) throw new LiteException(LiteException.INVALID_PASSWORD, "This data file is encrypted and needs a password to open");
 
                 // read header database page
                 _header = new HeaderPage(buffer);
+                _disk.FileVersion = _header.FileVersion;
 
                 // if database is set to invalid state, need rebuild
                 if (buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0 && _settings.AutoRebuild)
@@ -124,8 +129,15 @@ namespace LiteDB.Engine
                     // read buffer header page again
                     buffer = _disk.ReadFull(FileOrigin.Data).First();
 
+                    // if first byte are 1 this datafile are encrypted but has do defined password to open
+                    if (buffer[0] == 1) throw new LiteException(LiteException.INVALID_PASSWORD, "This data file is encrypted and needs a password to open");
+
+                    // read header database page
                     _header = new HeaderPage(buffer);
+                    _disk.FileVersion = _header.FileVersion;
                 }
+
+                this.ValidateCollationStamp();
 
                 // test for same collation
                 if (_settings.Collation != null && _settings.Collation.ToString() != _header.Pragmas.Collation.ToString())
@@ -137,19 +149,25 @@ namespace LiteDB.Engine
                 _locker = new LockService(_header.Pragmas);
 
                 // initialize wal-index service
-                _walIndex = new WalIndexService(_disk, _locker);
+                _walIndex = new WalIndexService(_disk, _locker, _settings.SharedReaderVersions, () => _header,
+                    _settings.CheckpointBackoff);
 
                 // if exists log file, restore wal index references (can update full _header instance)
-                if (_disk.GetFileLength(FileOrigin.Log) > 0)
+                if (_disk.GetFileLength(FileOrigin.Log) > 0 || _disk.ChecksumsEnabled)
                 {
-                    _walIndex.RestoreIndex(ref _header);
+                    _walIndex.RestoreIndex(ref _header, this.ValidateCollationStamp);
                 }
+
+                this.ValidateCollationStamp();
 
                 // initialize sort temp disk
                 _sortDisk = new SortDisk(_settings.CreateTempFactory(), CONTAINER_SORT_SIZE, _header.Pragmas);
 
                 // initialize transaction monitor as last service
-                _monitor = new TransactionMonitor(_header, _locker, _disk, _walIndex);
+                _monitor = new TransactionMonitor(_header, _locker, _disk, _walIndex, _settings.TransactionPageLimit);
+
+                this.MigrateIndexOrdering();
+                _disk.TrimTrailingPages();
 
                 // register system collections
                 this.InitializeSystemCollections();
@@ -186,10 +204,10 @@ namespace LiteDB.Engine
             // stop running all transactions
             tc.Catch(() => _monitor?.Dispose());
 
-            if (_header?.Pragmas.Checkpoint > 0)
+            if (!_settings.ReadOnly && _header?.Pragmas.Checkpoint > 0)
             {
-                // do a soft checkpoint (only if exclusive lock is possible)
-                tc.Catch(() => _walIndex?.TryCheckpoint());
+                // Backfill safe pages; reclaim only when all readers have drained.
+                tc.Catch(() => _walIndex?.TryCloseCheckpoint());
             }
 
             // close all disk streams (and delete log if empty)
@@ -212,8 +230,9 @@ namespace LiteDB.Engine
         /// - Dispose locker
         /// - Checks Exception type for INVALID_DATAFILE_STATE to auto rebuild on open
         /// </summary>
-        internal List<Exception> Close(Exception ex)
+        internal List<Exception> Close(Exception ex, EngineState origin = null)
         {
+            if (origin != null && !ReferenceEquals(origin, _state)) return new List<Exception>();
             if (_state.Disposed) return new List<Exception>();
 
             _state.Disposed = true;
@@ -221,6 +240,12 @@ namespace LiteDB.Engine
             var tc = new TryCatch(ex);
 
             tc.Catch(() => _monitor?.Dispose());
+
+            if (tc.InvalidDatafileState)
+            {
+                // Keep the data writer alive until the recovery marker is durable.
+                tc.Catch(() => _disk?.MarkAsInvalidState());
+            }
 
             // close disks streams
             tc.Catch(() => _disk?.Dispose());
@@ -231,29 +256,39 @@ namespace LiteDB.Engine
             // close engine lock service
             tc.Catch(() => _locker?.Dispose());
 
-            if (tc.InvalidDatafileState)
-            {
-                // mark byte = 1 in HeaderPage.P_INVALID_DATAFILE_STATE - will open in auto-rebuild
-                // this method will throw no errors
-                tc.Catch(() => _disk.MarkAsInvalidState());
-            }
-
             return tc.Exceptions;
         }
 
         #endregion
 
-#if DEBUG
+#if DEBUG || TESTING
         // exposes for unit tests
+        internal Action<long, FileOrigin> BeforePageRead { set => _state.BeforePageRead = value; }
+        internal WalIndexService GetWalIndex() => _walIndex;
+        internal Action<string> CheckpointStage { set => _state.CheckpointStage = value; }
         internal TransactionMonitor GetMonitor() => _monitor;
         internal Action<PageBuffer> SimulateDiskReadFail { set => _state.SimulateDiskReadFail = value; }
         internal Action<PageBuffer> SimulateDiskWriteFail { set => _state.SimulateDiskWriteFail = value; }
+        internal Action SimulateBeforeTransactionAdmission { set => _locker.BeforeTransactionAdmission = value; }
+        internal Action SimulateBeforeExclusiveAdmission { set => _locker.BeforeExclusiveAdmission = value; }
+        internal Action SimulateAfterExclusiveAdmission { set => _locker.AfterExclusiveAdmission = value; }
 #endif
 
         /// <summary>
         /// Run checkpoint command to copy log file into data file
         /// </summary>
-        public int Checkpoint() => _walIndex.Checkpoint();
+        public int Checkpoint()
+        {
+            _state.Validate();
+            try { return _settings.ReadOnly ? 0 : _walIndex.Checkpoint(); }
+            catch (Exception ex)
+            {
+                _state.Handle(ex);
+                throw;
+            }
+        }
+
+        internal int ReadVersion => _walIndex.CurrentReadVersion;
 
         public void Dispose()
         {

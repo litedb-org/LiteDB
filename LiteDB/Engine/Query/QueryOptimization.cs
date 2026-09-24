@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using static LiteDB.Constants;
@@ -8,21 +8,25 @@ namespace LiteDB.Engine
     /// <summary>
     /// Class that optimize query transforming user "Query" into "QueryPlan"
     /// </summary>
-    internal class QueryOptimization
+    internal partial class QueryOptimization
     {
         private readonly Snapshot _snapshot;
         private readonly Query _query;
         private readonly Collation _collation;
+        private readonly bool _indexesOrdered;
         private readonly QueryPlan _queryPlan;
         private readonly List<BsonExpression> _terms = new List<BsonExpression>();
+        private bool _vectorOrderConsumed;
+        private bool _vectorPrimaryOrderMatched;
 
-        public QueryOptimization(Snapshot snapshot, Query query, IEnumerable<BsonDocument> source, Collation collation)
+        public QueryOptimization(Snapshot snapshot, Query query, IEnumerable<BsonDocument> source, Collation collation, bool indexesOrdered = true)
         {
             if (query.Select == null) throw new ArgumentNullException(nameof(query.Select));
 
             _snapshot = snapshot;
             _query = query;
             _collation = collation;
+            _indexesOrdered = indexesOrdered;
 
             _queryPlan = new QueryPlan(snapshot.CollectionName)
             {
@@ -31,7 +35,8 @@ namespace LiteDB.Engine
                 Select = new Select(_query.Select, _query.Select.UseSource),
                 ForUpdate = query.ForUpdate,
                 Limit = query.Limit,
-                Offset = query.Offset
+                Offset = query.Offset,
+                VectorScore = query.VectorScore
             };
         }
 
@@ -66,6 +71,11 @@ namespace LiteDB.Engine
             // define IncludeBefore + IncludeAfter
             this.DefineIncludes();
 
+            // make the ownership boundary explicit in the physical plan
+            this.DefineBorrowedExecution();
+
+            this.DefineRowAggregate();
+
             return _queryPlan;
         }
 
@@ -91,11 +101,16 @@ namespace LiteDB.Engine
                 }
                 else if (predicate.Type == BsonExpressionType.And)
                 {
+                    if (TryEvaluateBoolean(predicate.Right, out var right) && !right)
+                    {
+                        _terms.Add(predicate); // Preserve evaluation of the left before false.
+                        return;
+                    }
                     var left = predicate.Left;
-                    var right = predicate.Right;
+                    var rhs = predicate.Right;
 
                     add(left);
-                    add(right);
+                    add(rhs);
                 }
                 else
                 {
@@ -104,9 +119,16 @@ namespace LiteDB.Engine
             }
 
             // check all where predicate for AND operators
-            foreach(var predicate in _query.Where)
+            foreach(var original in _query.Where)
             {
-                add(predicate);
+                if (original.UseSource) { add(original); continue; }
+                var predicate = this.SimplifyPredicate(original, out var constant);
+                if (!constant.HasValue) add(predicate);
+                else if (!constant.Value)
+                {
+                    if (_terms.Count == 0) _constantFalse = true;
+                    else _terms.Add(predicate);
+                }
             }
         }
 
@@ -127,7 +149,7 @@ namespace LiteDB.Engine
                     term.Type == BsonExpressionType.Equal &&
                     term.Right?.Type == BsonExpressionType.Path)
                 {
-                    _terms[i] = BsonExpression.Create(term.Right.Source + " IN ARRAY(" + term.Left.Source + ")", term.Parameters);
+                    _terms[i] = this.NormalizeContainsTerm(term);
                 }
             }
         }
@@ -150,7 +172,10 @@ namespace LiteDB.Engine
             fields.AddRange(_query.Includes.SelectMany(x => x.Fields));
             fields.AddRange(_query.GroupBy?.Fields);
             fields.AddRange(_query.Having?.Fields);
-            fields.AddRange(_query.OrderBy?.Fields);
+            if (_query.OrderBy.Count > 0)
+            {
+                fields.AddRange(_query.OrderBy.SelectMany(x => x.Expression.Fields));
+            }
 
             // if contains $, all fields must be deserialized
             if (fields.Contains("$"))
@@ -169,32 +194,43 @@ namespace LiteDB.Engine
         {
             // selected expression to be used as index (from _terms)
             BsonExpression selected = null;
+            IReadOnlyCollection<BsonExpression> consumed = null;
 
             // if index are not defined yet, get index
             if (_queryPlan.Index == null)
             {
-                // try select best index (if return null, there is no good choice)
-                var indexCost = this.ChooseIndex(_queryPlan.Fields);
-
-                // if found an index, use-it
-                if (indexCost != null)
+                if (this.TrySelectVectorIndex(out var vectorIndex, out selected))
                 {
-                    _queryPlan.Index = indexCost.Index;
-                    _queryPlan.IndexCost = indexCost.Cost;
-                    _queryPlan.IndexExpression = indexCost.IndexExpression;
+                    _queryPlan.Index = vectorIndex;
+                    _queryPlan.IndexCost = vectorIndex.GetCost(null);
+                    _queryPlan.IndexExpression = vectorIndex.Expression;
                 }
                 else
                 {
-                    // if has no index to use, use full scan over _id
-                    var pk = _snapshot.CollectionPage.PK;
+                    // try select best index (if return null, there is no good choice)
+                    var indexCost = this.ChooseIndex(_queryPlan.Fields);
 
-                    _queryPlan.Index = new IndexAll("_id", Query.Ascending);
-                    _queryPlan.IndexCost = _queryPlan.Index.GetCost(pk);
-                    _queryPlan.IndexExpression = "$._id";
+                    // if found an index, use-it
+                    if (indexCost != null)
+                    {
+                        _queryPlan.Index = indexCost.Index;
+                        _queryPlan.IndexCost = indexCost.Cost;
+                        _queryPlan.IndexExpression = indexCost.IndexExpression;
+                    }
+                    else
+                    {
+                        // if has no index to use, use full scan over _id
+                        var pk = _snapshot.CollectionPage.PK;
+
+                        _queryPlan.Index = new IndexAll("_id", Query.Ascending);
+                        _queryPlan.IndexCost = _queryPlan.Index.GetCost(pk);
+                        _queryPlan.IndexExpression = "$._id";
+                    }
+
+                    // get selected expression used as index
+                    selected = indexCost?.Expression;
+                    consumed = indexCost?.ConsumedExpressions;
                 }
-
-                // get selected expression used as index
-                selected = indexCost?.Expression;
             }
             else
             {
@@ -204,93 +240,16 @@ namespace LiteDB.Engine
             }
 
             // if is only 1 field to deserialize and this field are same as index, use IndexKeyOnly = rue
-            if (_queryPlan.Fields.Count == 1 && _queryPlan.IndexExpression == "$." + _queryPlan.Fields.First())
+            // Legacy-ordered keys may also be stale, so a LegacyIndexScan reads documents.
+            if (_indexesOrdered && !(_queryPlan.Index is VectorIndexQuery) && _queryPlan.Fields.Count == 1 && IsFieldIndex(_queryPlan.IndexExpression, _queryPlan.Fields.First()))
             {
                 // best choice - no need lookup for document (use only index)
                 _queryPlan.IsIndexKeyOnly = true;
             }
 
             // fill filter using all expressions (remove selected term used in Index)
-            _queryPlan.Filters.AddRange(_terms.Where(x => x != selected));
-        }
-
-        /// <summary>
-        /// Try select index based on lowest cost or GroupBy/OrderBy reuse - use this priority order:
-        /// - Get lowest index cost used in WHERE expressions (will filter data)
-        /// - If there is no candidate, try get:
-        ///     - Same of GroupBy
-        ///     - Same of OrderBy
-        ///     - Prefered single-field (when no lookup neeed)
-        /// </summary>
-        private IndexCost ChooseIndex(HashSet<string> fields)
-        {
-            var indexes = _snapshot.CollectionPage.GetCollectionIndexes().ToArray();
-
-            // if query contains a single field used, give preferred if this index exists
-            var preferred = fields.Count == 1 ? "$." + fields.First() : null;
-
-            // otherwise, check for lowest index cost
-            IndexCost lowest = null;
-
-            // test all possible predicates in terms
-            foreach (var expr in _terms.Where(x => x.IsPredicate))
-            {
-                ENSURE(expr.Left != null && expr.Right != null, "predicate expression must has left/right expressions");
-
-                Tuple<CollectionIndex, BsonExpression> index = null;
-
-                // check if expression is ANY
-                if (expr.Left.IsScalar == false && expr.Right.IsScalar == true)
-                {
-                    // ANY expression support only LEFT (Enum) -> RIGHT (Scalar)
-                    if (expr.IsANY)
-                    {
-                        index = indexes
-                            .Where(x => x.Expression == expr.Left.Source && expr.Right.IsValue)
-                            .Select(x => Tuple.Create(x, expr.Right))
-                            .FirstOrDefault();
-                    }
-                    // ALL are not supported in index
-                }
-                else
-                {
-                    index = indexes
-                        .Where(x => x.Expression == expr.Left.Source && expr.Right.IsValue)
-                        .Select(x => Tuple.Create(x, expr.Right))
-                        .Union(indexes
-                            .Where(x => x.Expression == expr.Right.Source && expr.Left.IsValue)
-                            .Select(x => Tuple.Create(x, expr.Left))
-                        ).FirstOrDefault();
-                }
-
-                // get index that match with expression left/right side 
-
-                if (index == null) continue;
-
-                // calculate index score and store highest score
-                var current = new IndexCost(index.Item1, expr, index.Item2, _collation);
-
-                if (lowest == null || current.Cost < lowest.Cost)
-                {
-                    lowest = current;
-                }
-            }
-
-            // if no index found, try use same index in orderby/groupby/preferred
-            if (lowest == null && (_query.OrderBy != null || _query.GroupBy != null || preferred != null))
-            {
-                var index =
-                    indexes.FirstOrDefault(x => x.Expression == _query.GroupBy?.Source) ??
-                    indexes.FirstOrDefault(x => x.Expression == _query.OrderBy?.Source) ??
-                    indexes.FirstOrDefault(x => x.Expression == preferred);
-
-                if (index != null)
-                {
-                    lowest = new IndexCost(index);
-                }
-            }
-
-            return lowest;
+            _queryPlan.Filters.AddRange(_terms.Where(x => x != selected && (consumed == null || !consumed.Contains(x))));
+            if (_constantFalse) this.UseEmptyInput();
         }
 
         #endregion
@@ -302,23 +261,42 @@ namespace LiteDB.Engine
         /// </summary>
         private void DefineOrderBy()
         {
-            // if has no order by, returns null
-            if (_query.OrderBy == null) return;
-
-            var orderBy = new OrderBy(_query.OrderBy, _query.Order);
-
-            // if index expression are same as orderBy, use index to sort - just update index order
-            if (orderBy.Expression.Source == _queryPlan.IndexExpression)
+            if (_query.OrderBy.Count == 0)
             {
-                // re-use index order and no not run OrderBy
-                // update index order to be same as required in OrderBy
-                _queryPlan.Index.Order = orderBy.Order;
-
-                // in this case "query.OrderBy" will be null
-                orderBy = null;
+                // Unbounded WhereNear preserves metric ranking through the normal sorter.
+                if (_query.GroupBy == null && _queryPlan.Index is VectorIndexQuery vector && vector.RequiresSort)
+                {
+                    _queryPlan.OrderBy = new OrderBy(new[] { vector.CreateOrderByItem(Query.Ascending) });
+                }
+                return;
             }
 
-            // otherwise, query.OrderBy will be setted according user defined
+            var segments = _query.OrderBy.Select(x => new OrderByItem(x.Expression, x.Order)).ToArray();
+            if (_vectorOrderConsumed) return;
+
+            if (_vectorPrimaryOrderMatched)
+            {
+                // Retain the metric score as the primary key so ThenBy only breaks score ties.
+                // Re-evaluating VECTOR_SIM here would replace Euclidean/dot-product scores with cosine.
+                var index = (VectorIndexQuery)_queryPlan.Index;
+                segments[0] = index.CreateOrderByItem(segments[0].Order);
+            }
+
+            var orderBy = new OrderBy(segments);
+
+            // if index expression are same as primary OrderBy segment, use index order configuration
+            if (_indexesOrdered && !orderBy.PrimaryExpression.RequiresExactSort && !(_queryPlan.Index is VectorIndexQuery) &&
+                MatchesStoredIndex(_queryPlan.IndexExpression, orderBy.PrimaryExpression))
+            {
+                _queryPlan.Index.Order = orderBy.PrimaryOrder;
+
+                if (orderBy.Segments.Count == 1)
+                {
+                    orderBy = null;
+                }
+            }
+
+            // otherwise, query.OrderBy will be set according user defined
             _queryPlan.OrderBy = orderBy;
         }
 
@@ -329,25 +307,28 @@ namespace LiteDB.Engine
         {
             if (_query.GroupBy == null) return;
 
-            if (_query.OrderBy != null) throw new NotSupportedException("GROUP BY expression do not support ORDER BY");
             if (_query.Includes.Count > 0) throw new NotSupportedException("GROUP BY expression do not support INCLUDE");
 
-            var groupBy = new GroupBy(_query.GroupBy, _queryPlan.Select.Expression, _query.Having);
-            var orderBy = (OrderBy)null;
+            var expression = _query.GroupBy;
+            var select = _queryPlan.Select.Expression;
+            // SQL SELECT collects enumerable expressions into one array per group.
+            // Match that behavior for fluent SELECT * without changing the caller's query.
+            if (!select.IsScalar) select = BsonExpression.Create("ARRAY(" + select.Source + ")", select.Parameters);
+            var having = _query.Having;
+            var groupOrderBy = (OrderBy)null;
 
-            // if groupBy use same expression in index, set group by order to MaxValue to not run
-            if (groupBy.Expression.Source == _queryPlan.IndexExpression)
+            // if groupBy use same expression in index, no additional ordering is required before grouping
+            if (_indexesOrdered && !(_queryPlan.Index is VectorIndexQuery) && IndexExpressionIdentity.Matches(_queryPlan.IndexExpression, expression))
             {
-                // great - group by expression are same used in index - no changes here
+                // index already provides grouped ordering
             }
             else
             {
                 // create orderBy expression
-                orderBy = new OrderBy(groupBy.Expression, Query.Ascending);
+                groupOrderBy = new OrderBy(new[] { new OrderByItem(expression, Query.Ascending) });
             }
 
-            _queryPlan.GroupBy = groupBy;
-            _queryPlan.OrderBy = orderBy;
+            _queryPlan.GroupBy = new GroupBy(expression, select, having, groupOrderBy);
         }
 
         #endregion
@@ -364,7 +345,7 @@ namespace LiteDB.Engine
 
                 // test if field are using in any filter or orderBy
                 var used = _queryPlan.Filters.Any(x => x.Fields.Contains(field)) ||
-                    (_queryPlan.OrderBy?.Expression.Fields.Contains(field) ?? false);
+                    (_queryPlan.OrderBy?.ContainsField(field) ?? false);
 
                 if (used)
                 {

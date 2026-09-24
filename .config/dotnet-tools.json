@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "isRoot": true,
+  "tools": {
+    "gitversion.tool": {
+      "version": "6.4.0",
+      "commands": [
+        "dotnet-gitversion"
+      ],
+      "rollForward": false
+    },
+    "dotnet-coverage": {
+      "version": "18.11.2",
+      "commands": [
+        "dotnet-coverage"
+      ],
+      "rollForward": false
+    },
+    "dotnet-dump": {
+      "version": "10.0.745401",
+      "commands": [
+        "dotnet-dump"
+      ],
+      "rollForward": false
+    }
+  }
+}

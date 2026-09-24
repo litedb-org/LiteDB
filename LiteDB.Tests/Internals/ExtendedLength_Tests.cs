@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using LiteDB.Tests.Utils;
 using Xunit;
 
 namespace LiteDB.Internals
@@ -22,7 +23,7 @@ namespace LiteDB.Internals
         [Fact]
         public void IndexExtendedLength_Tests()
         {
-            using var db = new LiteDatabase(":memory:");
+            using var db = DatabaseFactory.Create();
             var col = db.GetCollection("customers", BsonAutoId.Int32);
             col.EnsureIndex("$.Name");
             col.Insert(new BsonDocument { ["Name"] = new string('A', 1010) });

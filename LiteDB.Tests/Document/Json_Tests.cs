@@ -94,5 +94,18 @@ namespace LiteDB.Tests.Document
             Assert.False(double.IsNegativeInfinity(bson["doubleNegativeInfinity"].AsDouble));
             Assert.False(double.IsPositiveInfinity(bson["doublePositiveInfinity"].AsDouble));
         }
+
+        [Fact]
+        public void Json_Writes_BsonVector_As_Array()
+        {
+            var document = new BsonDocument
+            {
+                ["Embedding"] = new BsonVector(new float[] { 1.0f, 2.5f, -3.75f })
+            };
+
+            var json = JsonSerializer.Serialize(document);
+
+            json.Should().Contain("\"Embedding\":[1.0,2.5,-3.75]");
+        }
     }
 }

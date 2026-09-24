@@ -224,3 +224,4 @@ FakesAssemblies/
 # Uncomment if necessary however generally it will be regenerated when needed
 #!**/packages/repositories.config
 /LiteDB.BadJsonTest
+repro-summary.json

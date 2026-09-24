@@ -1,4 +1,4 @@
-﻿using LiteDB.Engine;
+using LiteDB.Engine;
 using System;
 using System.Reflection;
 using System.Text;
@@ -39,6 +39,12 @@ namespace LiteDB
         public const int INDEX_ALREADY_EXIST = 135;
         public const int INVALID_UPDATE_FIELD = 136;
         public const int ENGINE_DISPOSED = 137;
+        /// <summary>The file header declares an unsupported engine format.</summary>
+        public const int UNSUPPORTED_FILE_VERSION = 138;
+        /// <summary>A rebuild installation requires recovery before the database can be opened.</summary>
+        public const int REBUILD_INCOMPLETE = 139;
+        /// <summary>A persisted page or WAL frame failed checksum validation.</summary>
+        public const int CHECKSUM_MISMATCH = 140;
 
         public const int INVALID_FORMAT = 200;
         public const int DOCUMENT_MAX_DEPTH = 201;
@@ -62,6 +68,8 @@ namespace LiteDB
         public const int MAPPING_ERROR = 221;
         
 
+        /// <summary>A compact document or its schema metadata is corrupt.</summary>
+        public const int CORRUPT_DOCUMENT = 998;
         public const int INVALID_DATAFILE_STATE = 999;
 
         #endregion
@@ -71,6 +79,11 @@ namespace LiteDB
         public int ErrorCode { get; private set; }
         public long Position { get; private set; }
 
+        // Mapper member failures: an outer entity extends the path instead of wrapping the exception again.
+        internal string MappingAction { get; set; }
+        internal string[] MappingPath { get; set; }
+        internal string MappingSource { get; set; }
+
         public LiteException(int code, string message)
             : base(message)
         {
@@ -78,15 +91,20 @@ namespace LiteDB
         }
 
         internal LiteException(int code, string message, params object[] args)
-            : base(string.Format(message, args))
+            : base(FormatMessage(message, args))
         {
             this.ErrorCode = code;
         }
 
-        internal LiteException (int code, Exception inner, string message, params object[] args)
-        : base (string.Format (message, args), inner)
+        internal LiteException(int code, Exception inner, string message, params object[] args)
+            : base(FormatMessage(message, args), inner)
         {
             this.ErrorCode = code;
+        }
+
+        private static string FormatMessage(string message, object[] args)
+        {
+            return args == null || args.Length == 0 ? message : string.Format(message, args);
         }
 
         /// <summary>
@@ -111,6 +129,12 @@ namespace LiteDB
         internal static LiteException InvalidDatabase()
         {
             return new LiteException(INVALID_DATABASE, "File is not a valid LiteDB database format or contains a invalid password.");
+        }
+
+        internal static LiteException UnsupportedFileVersion(byte version)
+        {
+            return new LiteException(UNSUPPORTED_FILE_VERSION,
+                "Database format version {0} is unsupported. This engine reads versions 8, 9, 10, 11, 12 and 13; use a compatible LiteDB engine.", version);
         }
 
         internal static LiteException FileSizeExceeded(long limit)
@@ -173,14 +197,52 @@ namespace LiteDB
             return new LiteException(INDEX_ALREADY_EXIST, "Index name '{0}' already exist with a differnt expression. Try drop index first.", name);
         }
 
+        internal static LiteException IndexAlreadyExistNotUnique(string name)
+        {
+            return new LiteException(INDEX_ALREADY_EXIST, "Index name '{0}' already exist and is not unique. Try drop index first.", name);
+        }
+
         internal static LiteException InvalidUpdateField(string field)
         {
             return new LiteException(INVALID_UPDATE_FIELD, "'{0}' can't be modified in UPDATE command.", field);
         }
 
-        internal static LiteException IndexDuplicateKey(string field, BsonValue key)
+        internal static LiteException IndexDuplicateKey(string field, BsonValue key, TimeZoneInfo zone = null)
         {
-            return new LiteException(INDEX_DUPLICATE_KEY, "Cannot insert duplicate key in unique index '{0}'. The duplicate value is '{1}'.", field, key);
+            var message = "Cannot insert duplicate key in unique index '{0}'. The duplicate value is '{1}'.";
+
+            // #2357: the duplicate is real, but baffling when the two inputs looked different
+            if (key.IsDateTime && CollapsesAcrossDaylightSaving(key.AsDateTime, zone ?? TimeZoneInfo.Local)) message += DaylightSavingKeyHint;
+
+            return new LiteException(INDEX_DUPLICATE_KEY, message, field, key);
+        }
+
+        private const string DaylightSavingKeyHint =
+            " DateTime values are stored as UTC, so two local times can become the same key around a daylight saving change:" +
+            " a time skipped in spring maps onto the following hour, and the repeated hour in autumn is a single value." +
+            " Use DateTimeKind.Utc values for keys and set UtcDate = true to read them back unshifted," +
+            " or enable RejectInvalidLocalTime to reject skipped local times before they are stored.";
+
+        /// <summary>
+        /// True when another local time maps to the same UTC instant as this one: the key is a skipped or repeated local
+        /// time, or it is the valid time a skipped one lands on (the key an ascending insert reports as the duplicate).
+        /// </summary>
+        private static bool CollapsesAcrossDaylightSaving(DateTime key, TimeZoneInfo zone)
+        {
+            if (key.Kind == DateTimeKind.Utc || key == DateTime.MinValue || key == DateTime.MaxValue) return false;
+
+            var local = DateTime.SpecifyKind(key, DateTimeKind.Unspecified);
+
+            if (zone.IsInvalidTime(local) || zone.IsAmbiguousTime(local)) return true;
+
+            foreach (var rule in zone.GetAdjustmentRules())
+            {
+                if (local.Date < rule.DateStart || local.Date > rule.DateEnd || rule.DaylightDelta == TimeSpan.Zero) continue;
+                if (local - DateTime.MinValue < rule.DaylightDelta) continue;
+                if (zone.IsInvalidTime(local - rule.DaylightDelta)) return true;
+            }
+
+            return false;
         }
 
         internal static LiteException InvalidIndexKey(string text)
@@ -240,7 +302,7 @@ namespace LiteDB
 
         internal static LiteException DocumentMaxDepth(int depth, Type type)
         {
-            return new LiteException(DOCUMENT_MAX_DEPTH, "Document has more than {0} nested documents in '{1}'. Check for circular references (use DbRef).", depth, type == null ? "-" : type.Name);
+            return new LiteException(DOCUMENT_MAX_DEPTH, "Document has more than {0} nested documents in '{1}'. Check for circular references (use DbRef).", depth, type == null ? "-" : type.FullName);
         }
 
         internal static LiteException InvalidCtor(Type type, Exception inner)

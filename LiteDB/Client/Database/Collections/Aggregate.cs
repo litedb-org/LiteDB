@@ -46,7 +46,7 @@ namespace LiteDB
         /// <summary>
         /// Get document count in collection using predicate filter expression
         /// </summary>
-        public int Count(Query query) => new LiteQueryable<T>(_engine, _mapper, _collection, query).Count();
+        public int Count(Query query) => new LiteQueryable<T>(_context, _collection, query).Count();
 
         #endregion
 
@@ -88,7 +88,7 @@ namespace LiteDB
         /// <summary>
         /// Get document count in collection using predicate filter expression
         /// </summary>
-        public long LongCount(Query query) => new LiteQueryable<T>(_engine, _mapper, _collection, query).Count();
+        public long LongCount(Query query) => new LiteQueryable<T>(_context, _collection, query).LongCount();
 
         #endregion
 
@@ -122,7 +122,7 @@ namespace LiteDB
         /// <summary>
         /// Get true if collection contains at least 1 document that satisfies the predicate expression
         /// </summary>
-        public bool Exists(Query query) => new LiteQueryable<T>(_engine, _mapper, _collection, query).Exists();
+        public bool Exists(Query query) => new LiteQueryable<T>(_context, _collection, query).Exists();
 
         #endregion
 
@@ -135,14 +135,9 @@ namespace LiteDB
         {
             if (string.IsNullOrEmpty(keySelector)) throw new ArgumentNullException(nameof(keySelector));
 
-            var doc = this.Query()
-                .OrderBy(keySelector)
-                .Select(keySelector)
-                .ToDocuments()
-                .First();
-
-            // return first field of first document
-            return doc[doc.Keys.First()];
+            return this.TryGetAggregateValue(keySelector, false, out var value)
+                ? value
+                : BsonValue.Null;
         }
 
         /// <summary>
@@ -159,9 +154,15 @@ namespace LiteDB
 
             var expr = _mapper.GetExpression(keySelector);
 
-            var value = this.Min(expr);
+            var hasValue = this.TryGetAggregateValue(expr, false, out var value);
 
-            return (K)_mapper.Deserialize(typeof(K), value);
+            var result = _mapper.Deserialize(typeof(K), value);
+
+            if (hasValue == false && result == null) return default(K);
+
+            // A stored BSON null is different from an empty result. Let the
+            // cast fail for an incompatible non-nullable K instead of inventing 0.
+            return (K)result;
         }
 
         /// <summary>
@@ -171,14 +172,9 @@ namespace LiteDB
         {
             if (string.IsNullOrEmpty(keySelector)) throw new ArgumentNullException(nameof(keySelector));
 
-            var doc = this.Query()
-                .OrderByDescending(keySelector)
-                .Select(keySelector)
-                .ToDocuments()
-                .First();
-
-            // return first field of first document
-            return doc[doc.Keys.First()];
+            return this.TryGetAggregateValue(keySelector, true, out var value)
+                ? value
+                : BsonValue.Null;
         }
 
         /// <summary>
@@ -195,9 +191,33 @@ namespace LiteDB
 
             var expr = _mapper.GetExpression(keySelector);
 
-            var value = this.Max(expr);
+            var hasValue = this.TryGetAggregateValue(expr, true, out var value);
 
-            return (K)_mapper.Deserialize(typeof(K), value);
+            var result = _mapper.Deserialize(typeof(K), value);
+
+            if (hasValue == false && result == null) return default(K);
+
+            return (K)result;
+        }
+
+        private bool TryGetAggregateValue(BsonExpression keySelector, bool descending, out BsonValue value)
+        {
+            var query = descending
+                ? this.Query().OrderByDescending(keySelector)
+                : this.Query().OrderBy(keySelector);
+            var doc = query
+                .Select(keySelector)
+                .ToDocuments()
+                .FirstOrDefault();
+
+            if (doc == null)
+            {
+                value = BsonValue.Null;
+                return false;
+            }
+
+            value = doc[doc.Keys.First()];
+            return true;
         }
 
         #endregion

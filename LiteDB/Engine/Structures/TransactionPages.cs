@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using static LiteDB.Constants;
 
 namespace LiteDB.Engine
@@ -13,9 +14,23 @@ namespace LiteDB.Engine
     internal class TransactionPages
     {
         /// <summary>
+        /// Transaction ID stored in WAL frames. It can be advanced before a later
+        /// batch so physical recovery order never moves backwards.
+        /// </summary>
+        public uint TransactionID { get; set; }
+
+        /// <summary>
         /// Get how many pages are involved in this transaction across all snapshots - Will be clear when get MAX_TRANSACTION_SIZE
         /// </summary>
-        public int TransactionSize { get; set; } = 0;
+        internal long? IndexMigrationLimitSize { get; set; }
+
+        private int _transactionSize;
+
+        public int TransactionSize
+        {
+            get => Volatile.Read(ref _transactionSize);
+            set => Volatile.Write(ref _transactionSize, value);
+        }
 
         /// <summary>
         /// Contains all dirty pages already persist in LOG file (used in all snapshots). Store in [uint, PagePosition] to reuse same method in save pages into log and get saved page positions on log
@@ -54,6 +69,11 @@ namespace LiteDB.Engine
         {
             this.Commit?.Invoke(header);
         }
+
+        /// <summary>
+        /// Detect if committing will run header callbacks (collection add/drop/rename, pragmas)
+        /// </summary>
+        public bool HasCommitCallbacks => this.Commit != null;
 
         /// <summary>
         /// Detect if this transaction will need persist header page (has added/deleted pages or added/deleted collections)

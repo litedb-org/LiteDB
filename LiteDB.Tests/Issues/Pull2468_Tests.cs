@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+using LiteDB.Tests.Utils;
 using Xunit;
 
 using static LiteDB.Tests.Issues.Issue1838_Tests;
@@ -18,7 +19,7 @@ public class Pull2468_Tests
     [Fact]
     public void Supports_LowerInvariant()
     {
-        using var db = new LiteDatabase(":memory:");
+        using var db = DatabaseFactory.Create();
         var collection = db.GetCollection<TestType>(nameof(TestType));
 
         collection.Insert(new TestType()
@@ -45,7 +46,7 @@ public class Pull2468_Tests
     [Fact]
     public void Supports_UpperInvariant()
     {
-        using var db = new LiteDatabase(":memory:");
+        using var db = DatabaseFactory.Create();
         var collection = db.GetCollection<TestType>(nameof(TestType));
 
         collection.Insert(new TestType()

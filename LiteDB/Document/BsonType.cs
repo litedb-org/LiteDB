@@ -1,4 +1,4 @@
-﻿namespace LiteDB
+namespace LiteDB
 {
     /// <summary>
     /// All supported BsonTypes in sort order
@@ -26,6 +26,7 @@
         Boolean = 12,
         DateTime = 13,
 
-        MaxValue = 14
+        MaxValue = 14,
+        Vector = 100,
     }
 }

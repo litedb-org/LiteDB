@@ -20,26 +20,25 @@ namespace LiteDB.Engine
         {
             var filename = _settings.Filename;
 
-            // if file not exists, just exit
+            // Only v7 requires a rebuild. Ordinary v8 files remain compatible.
+            // An explicit upgrade runs before the requested read-only connection is opened.
             if (!File.Exists(filename)) return;
 
             const int bufferSize = 1024;
             var buffer = _bufferPool.Rent(bufferSize);
-
-            using (var stream = new FileStream(
-                _settings.Filename,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.Read, bufferSize))
+            try
             {
+                using (var stream = _settings.CreateDataFactory(false).GetStream(false, true))
+                {
+                    if (stream.Read(buffer, 0, bufferSize) < bufferSize) return;
+                }
 
-
-                stream.Position = 0;
-                stream.Read(buffer, 0, bufferSize);
-
-                if (FileReaderV7.IsVersion(buffer) == false) return;
+                if (!FileReaderV7.IsVersion(buffer)) return;
             }
-            _bufferPool.Return(buffer, true);
+            finally
+            {
+                _bufferPool.Return(buffer, true);
+            }
             // run rebuild process
             this.Recovery(_settings.Collation);
         }

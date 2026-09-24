@@ -70,10 +70,15 @@ namespace LiteDB
             return result < 0 ? -1 : result > 0 ? +1 : 0;
         }
 
-        public int Compare(BsonValue left, BsonValue rigth)
+        public int Compare(BsonValue left, BsonValue right)
         {
-            return left.CompareTo(rigth, this);
+            return left.CompareTo(right, this);
         }
+
+        // Match the previous comparison of two one-character strings, including
+        // isolated UTF-16 code units, without allocating those strings.
+        internal bool EqualsCharacter(string left, int leftIndex, string right, int rightIndex) =>
+            _compareInfo.Compare(left, leftIndex, 1, right, rightIndex, 1, this.SortOptions) == 0;
 
         public bool Equals(BsonValue x, BsonValue y)
         {

@@ -61,7 +61,14 @@ namespace LiteDB
             }
             catch (Exception ex)
             {
-                _state.Handle(ex);
+                try
+                {
+                    this.Dispose();
+                }
+                finally
+                {
+                    _state.Handle(ex);
+                }
                 throw;
             }
         }
@@ -102,13 +109,13 @@ namespace LiteDB
                     try
                     {
                         var read = _source.MoveNext(); // can throw any error here
-                        _current = _state.ReadTransform(_collection, _source.Current);
+                        if (read) _current = _state.ReadTransform(_collection, _source.Current);
                         return read;
                     }
                     catch (Exception ex)
                     {
                         _state.Handle(ex);
-                        throw ex;
+                        throw;
                     }
                 }
                 else

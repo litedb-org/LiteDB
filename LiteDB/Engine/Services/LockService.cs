@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -17,8 +17,14 @@ namespace LiteDB.Engine
     {
         private readonly EnginePragmas _pragmas;
 
-        private readonly ReaderWriterLockSlim _transaction = new ReaderWriterLockSlim(LockRecursionPolicy.NoRecursion);
-        private readonly ConcurrentDictionary<string, object> _collections = new ConcurrentDictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+        private readonly TransactionGate _transaction = new TransactionGate();
+        private readonly ConcurrentDictionary<string, CollectionLock> _collections = new ConcurrentDictionary<string, CollectionLock>(StringComparer.OrdinalIgnoreCase);
+
+#if DEBUG || TESTING
+        internal Action BeforeTransactionAdmission { get; set; }
+        internal Action BeforeExclusiveAdmission { get; set; }
+        internal Action AfterExclusiveAdmission { get; set; }
+#endif
 
         internal LockService(EnginePragmas pragmas)
         {
@@ -40,29 +46,32 @@ namespace LiteDB.Engine
         /// </summary>
         public void EnterTransaction()
         {
+#if DEBUG || TESTING
+            BeforeTransactionAdmission?.Invoke();
+#endif
             // if current thread already in exclusive mode, just exit
             if (_transaction.IsWriteLockHeld) return;
 
-            if (_transaction.TryEnterReadLock(_pragmas.Timeout) == false) throw LiteException.LockTimeout("transaction", _pragmas.Timeout);
+            try
+            {
+                if (_transaction.TryEnterReadLock(_pragmas.Timeout) == false)
+                    throw LiteException.LockTimeout("transaction", _pragmas.Timeout);
+            }
+            catch (ObjectDisposedException)
+            {
+                // Rebuild can dispose the old admission gate while a new operation
+                // is queued behind its exclusive lease. Expose the engine contract,
+                // not the implementation detail of the retired gate.
+                throw LiteException.EngineDisposed();
+            }
         }
 
         /// <summary>
         /// Exit transaction read lock
         /// </summary>
-        public void ExitTransaction()
+        public void ExitTransaction(Thread owner)
         {
-            // if current thread are in reserved mode, do not exit transaction (will be exit from ExitExclusive)
-            if (_transaction.IsWriteLockHeld) return;
-            
-            //This can be called when a lock has either been released by the slim or somewhere else therefore there is no lock to release from ExitReadLock()
-            if (_transaction.IsReadLockHeld)
-            {
-                try
-                {
-                    _transaction.ExitReadLock();
-                }
-                catch { }
-            }
+            _transaction.ExitReadLock(owner);
         }
 
         /// <summary>
@@ -72,10 +81,10 @@ namespace LiteDB.Engine
         {
             ENSURE(_transaction.IsReadLockHeld || _transaction.IsWriteLockHeld, "Use EnterTransaction() before EnterLock(name)");
 
-            // get collection object lock from dictionary (or create new if doesnt exists)
-            var collection = _collections.GetOrAdd(collectionName, (s) => new object());
+            // get collection lock from dictionary (or create new if it does not exist)
+            var collection = _collections.GetOrAdd(collectionName, (s) => new CollectionLock());
 
-            if (Monitor.TryEnter(collection, _pragmas.Timeout) == false) throw LiteException.LockTimeout("write", collectionName, _pragmas.Timeout);
+            if (collection.TryEnter(_pragmas.Timeout) == false) throw LiteException.LockTimeout("write", collectionName, _pragmas.Timeout);
         }
 
         /// <summary>
@@ -85,7 +94,7 @@ namespace LiteDB.Engine
         {
             if (_collections.TryGetValue(collectionName, out var collection) == false) throw LiteException.CollectionLockerNotFound(collectionName);
 
-            Monitor.Exit(collection);
+            collection.Exit();
         }
 
         /// <summary>
@@ -94,20 +103,26 @@ namespace LiteDB.Engine
         /// </summary>
         public bool EnterExclusive()
         {
+#if DEBUG || TESTING
+            BeforeExclusiveAdmission?.Invoke();
+#endif
             // if current thread already in exclusive mode
             if (_transaction.IsWriteLockHeld) return false;
 
             // wait finish all transactions before enter in reserved mode
             if (_transaction.TryEnterWriteLock(_pragmas.Timeout) == false) throw LiteException.LockTimeout("exclusive", _pragmas.Timeout);
 
+#if DEBUG || TESTING
+            AfterExclusiveAdmission?.Invoke();
+#endif
             return true;
         }
 
         /// <summary>
-        /// Try enter in exclusive mode - if not possible, just exit with false (do not wait and no exceptions)
+        /// Try exclusive mode, optionally queueing briefly behind readers. Timeout returns false.
         /// If mustExit returns true, must call ExitExclusive after use
         /// </summary>
-        public bool TryEnterExclusive(out bool mustExit)
+        public bool TryEnterExclusive(out bool mustExit, bool waitForReaders = false, int milliseconds = 10)
         {
             // if already in exclusive mode return true but "enter" indicator must be false (do not exit)
             if (_transaction.IsWriteLockHeld)
@@ -117,14 +132,14 @@ namespace LiteDB.Engine
             }
 
             // if there is any open transaction, exit with false
-            if (_transaction.IsReadLockHeld || _transaction.CurrentReadCount > 0)
+            if (_transaction.IsReadLockHeld || (!waitForReaders && _transaction.CurrentReadCount > 0))
             {
                 mustExit = false;
                 return false;
             }
 
             // try enter in exclusive mode - but if not possible, just exit with false
-            if (_transaction.TryEnterWriteLock(10) == false)
+            if (_transaction.TryEnterWriteLock(milliseconds) == false)
             {
                 mustExit = false;
                 return false;

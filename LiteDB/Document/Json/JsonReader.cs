@@ -14,6 +14,7 @@ namespace LiteDB
         private readonly static IFormatProvider _numberFormat = CultureInfo.InvariantCulture.NumberFormat;
 
         private readonly Tokenizer _tokenizer = null;
+        private readonly bool _requireEof;
 
         public long Position { get { return _tokenizer.Position; } }
 
@@ -21,12 +22,14 @@ namespace LiteDB
         {
             if (reader == null) throw new ArgumentNullException(nameof(reader));
 
-            _tokenizer = new Tokenizer(reader);
+            _tokenizer = new Tokenizer(reader) { StrictStrings = true };
+            _requireEof = true;
         }
 
         internal JsonReader(Tokenizer tokenizer)
         {
             _tokenizer = tokenizer ?? throw new ArgumentNullException(nameof(tokenizer));
+            _requireEof = false;
         }
 
         public BsonValue Deserialize()
@@ -36,6 +39,8 @@ namespace LiteDB
             if (token.Type == TokenType.EOF) return BsonValue.Null;
 
             var value = this.ReadValue(token);
+
+            if (_requireEof) _tokenizer.ReadToken().Expect(TokenType.EOF);
 
             return value;
         }
@@ -86,11 +91,13 @@ namespace LiteDB
                     else
                         break;
                 case TokenType.Int:
-                    if (Int32.TryParse(value, NumberStyles.Any, _numberFormat, out int result))
-                        return new BsonValue(result);
-                    else
-                        return new BsonValue(Int64.Parse(value, NumberStyles.Any, _numberFormat));
-                case TokenType.Double: return new BsonValue(Convert.ToDouble(value, _numberFormat));
+                    return ParseInteger(value);
+                case TokenType.Double:
+                    var parsed = Convert.ToDouble(value, _numberFormat);
+                    // Older runtimes normalize parsed negative zero to positive zero.
+                    return new BsonValue(parsed == 0 && value[0] == '-'
+                        ? BitConverter.Int64BitsToDouble(long.MinValue)
+                        : parsed);
                 case TokenType.Word:
                     switch (value.ToLower())
                     {
@@ -102,6 +109,25 @@ namespace LiteDB
             }
 
             throw LiteException.UnexpectedToken(token);
+        }
+
+        /// <summary>
+        /// Read an integer lexeme into the narrowest numeric type that holds it. Beyond Int64 the value stays a
+        /// number (exact as Decimal, approximate as Double) so arithmetic and ordering never turn into string operations.
+        /// </summary>
+        internal static BsonValue ParseInteger(string value)
+        {
+            if (Int32.TryParse(value, NumberStyles.Any, _numberFormat, out var i32)) return new BsonValue(i32);
+            if (Int64.TryParse(value, NumberStyles.Any, _numberFormat, out var i64)) return new BsonValue(i64);
+            if (Decimal.TryParse(value, NumberStyles.Any, _numberFormat, out var dec)) return new BsonValue(dec);
+
+            // Runtimes disagree on whether an unrepresentable Double parses to infinity or throws.
+            if (!Double.TryParse(value, NumberStyles.Any, _numberFormat, out var dbl) || Double.IsInfinity(dbl))
+            {
+                throw new OverflowException($"Integer literal `{value}` is too large for a Double.");
+            }
+
+            return new BsonValue(dbl);
         }
 
         private BsonValue ReadObject()

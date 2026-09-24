@@ -26,13 +26,16 @@ namespace LiteDB.Engine
 
         private readonly Lazy<Stream> _dataStream;
         private readonly Lazy<Stream> _logStream;
+        private int _disposed;
+        private readonly DataChecksumPolicy _checksums;
 
-        public DiskReader(EngineState state, MemoryCache cache, StreamPool dataPool, StreamPool logPool)
+        public DiskReader(EngineState state, MemoryCache cache, StreamPool dataPool, StreamPool logPool, DataChecksumPolicy checksums = null)
         {
             _state = state;
             _cache = cache;
             _dataPool = dataPool;
             _logPool = logPool;
+            _checksums = checksums;
 
             _dataStream = new Lazy<Stream>(() => _dataPool.Rent());
             _logStream = new Lazy<Stream>(() => _logPool.Rent());
@@ -40,18 +43,32 @@ namespace LiteDB.Engine
 
         public PageBuffer ReadPage(long position, bool writable, FileOrigin origin)
         {
+            if (Volatile.Read(ref _disposed) != 0) throw new ObjectDisposedException(nameof(DiskReader));
             ENSURE(position % PAGE_SIZE == 0, "invalid page position");
 
             var stream = origin == FileOrigin.Data ?
                 _dataStream.Value :
                 _logStream.Value;
 
+#if DEBUG || TESTING
+            _state.BeforePageRead?.Invoke(position, origin);
+#endif
+
             var page = writable ?
                 _cache.GetWritablePage(position, origin, (pos, buf) => this.ReadStream(stream, pos, buf)) :
                 _cache.GetReadablePage(position, origin, (pos, buf) => this.ReadStream(stream, pos, buf));
 
-#if DEBUG
-            _state.SimulateDiskReadFail?.Invoke(page);
+#if DEBUG || TESTING
+            try
+            {
+                _state.SimulateDiskReadFail?.Invoke(page);
+            }
+            catch
+            {
+                if (writable) _cache.DiscardPage(page);
+                else page.Release();
+                throw;
+            }
 #endif
 
             return page;
@@ -67,7 +84,8 @@ namespace LiteDB.Engine
 
             stream.Position = position;
 
-            stream.Read(buffer.Array, buffer.Offset, buffer.Count);
+            stream.ReadRequired(buffer.Array, buffer.Offset, buffer.Count);
+            if (_checksums != null && !(stream is ChecksummedWalStream)) _checksums.Validate(buffer, position);
 
             DEBUG(buffer.All(0) == false, "check if are not reading out of file length");
         }
@@ -85,14 +103,14 @@ namespace LiteDB.Engine
         /// </summary>
         public void Dispose()
         {
-            if (_dataStream.IsValueCreated)
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            try
             {
-                _dataPool.Return(_dataStream.Value);
+                if (_dataStream.IsValueCreated) _dataPool.Return(_dataStream.Value);
             }
-
-            if (_logStream.IsValueCreated)
+            finally
             {
-                _logPool.Return(_logStream.Value);
+                if (_logStream.IsValueCreated) _logPool.Return(_logStream.Value);
             }
         }
     }

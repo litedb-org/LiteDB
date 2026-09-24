@@ -1,0 +1,125 @@
+name: Tag version
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or SHA to tag
+        default: master
+        required: true
+      bump:
+        description: Version component to increment
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
+
+jobs:
+  create-tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref }}
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore .NET tools
+        run: dotnet tool restore
+
+      - name: Determine current version
+        id: gitversion
+        shell: bash
+        run: |
+          set -euo pipefail
+          JSON=$(dotnet tool run dotnet-gitversion /output json)
+          echo "$JSON"
+
+          MAJOR_MINOR_PATCH=$(echo "$JSON" | jq -r '.MajorMinorPatch')
+          PR_LABEL=$(echo "$JSON" | jq -r '.PreReleaseLabel')
+          PR_NUMBER=$(echo "$JSON" | jq -r '.PreReleaseNumber')
+
+          if [[ "$PR_LABEL" != "" && "$PR_LABEL" != "null" ]]; then
+            printf -v PR_PADDED '%04d' "$PR_NUMBER"
+            SEMVER="${MAJOR_MINOR_PATCH}-${PR_LABEL}.${PR_PADDED}"
+          else
+            SEMVER="$MAJOR_MINOR_PATCH"
+          fi
+
+          echo "fullSemVer=$SEMVER" >> "$GITHUB_OUTPUT"
+          echo "major=$(echo "$JSON" | jq -r '.Major')" >> "$GITHUB_OUTPUT"
+          echo "minor=$(echo "$JSON" | jq -r '.Minor')" >> "$GITHUB_OUTPUT"
+          echo "patch=$(echo "$JSON" | jq -r '.Patch')" >> "$GITHUB_OUTPUT"
+
+      - name: Calculate next version
+        id: next
+        shell: bash
+        env:
+          BUMP: ${{ inputs.bump }}
+          MAJOR: ${{ steps.gitversion.outputs.major }}
+          MINOR: ${{ steps.gitversion.outputs.minor }}
+          PATCH: ${{ steps.gitversion.outputs.patch }}
+        run: |
+          set -euo pipefail
+          major=$MAJOR
+          minor=$MINOR
+          patch=$PATCH
+
+          case "$BUMP" in
+            major)
+              major=$((major + 1))
+              minor=0
+              patch=0
+              ;;
+            minor)
+              minor=$((minor + 1))
+              patch=0
+              ;;
+            patch)
+              patch=$((patch + 1))
+              ;;
+          esac
+
+          target="${major}.${minor}.${patch}"
+          echo "target=$target" >> "$GITHUB_OUTPUT"
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create annotated tag
+        env:
+          TARGET: ${{ steps.next.outputs.target }}
+        run: |
+          set -euo pipefail
+          if git rev-parse -q --verify "refs/tags/v${TARGET}" >/dev/null; then
+            echo "Tag v${TARGET} already exists" >&2
+            exit 1
+          fi
+
+          git tag -a "v${TARGET}" -m "Release tag v${TARGET}"
+
+      - name: Push tag
+        env:
+          TARGET: ${{ steps.next.outputs.target }}
+        run: |
+          set -euo pipefail
+          git push origin "v${TARGET}"
+
+      - name: Summary
+        if: always()
+        env:
+          TARGET: ${{ steps.next.outputs.target }}
+          FULL: ${{ steps.gitversion.outputs.fullSemVer }}
+        run: echo "Created tag v${TARGET} (previous build was ${FULL})"
