@@ -60,7 +60,10 @@ namespace LiteDB.Engine
             // its earlier frames. LiteDB 5.0.21 restores its counter from the last
             // physical frame rather than the maximum observed ID.
             // Storage that cannot sync (#2242) never reuses slots; see ReclaimLogPages.
-            if (!confirmation && (ChecksumsEnabled || transactionAnchored) && !_logFlushDegraded && _freeLogPositions.Count > 0)
+            // A fresh engine (every shared-mode operation) has not yet learned that, so it
+            // proves one log sync before reusing slots found at open.
+            if (!confirmation && (ChecksumsEnabled || transactionAnchored) && !_logFlushDegraded &&
+                _freeLogPositions.Count > 0 && this.ProveLogSync())
             {
                 // v8 engines backfill in physical order. Preserve increasing
                 // positions per page, even though commits use reclaimed capacity.

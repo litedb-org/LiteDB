@@ -252,7 +252,10 @@ Retirement barriers always attempt a real sync, and a failed sync stops the
 engine with redo intact. Log storage that answers "cannot sync" (#2242) degrades
 them to ordered OS-cache flushes, which survive a process crash but not power
 loss, as before #2818; on such storage reclaimed slots are never reused, so the
-WAL appends until a full checkpoint truncates it. These tests do not promise recovery from arbitrary independent
+WAL appends until a full checkpoint truncates it. Before an engine, including each
+short-lived shared-mode engine, first reuses a slot found blank at open, it syncs the
+raw log once. That sync proves the storage can sync and makes earlier non-durable
+clears durable; storage that answers "cannot sync" degrades and appends instead. These tests do not promise recovery from arbitrary independent
 damage to both data and required recovery evidence. CRCs detect accidental damage,
 not deliberate tampering.
 

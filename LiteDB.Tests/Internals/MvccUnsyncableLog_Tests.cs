@@ -66,6 +66,61 @@ namespace LiteDB.Internals
             AssertValues(data, log, "docs", 20);
         }
 
+        /// <summary>
+        /// Every shared-mode operation opens a fresh engine. Its recovery registers the
+        /// slots an earlier engine cleared without a durable sync, before any sync of its
+        /// own has failed. It must not reuse them until one of its log syncs succeeds.
+        /// </summary>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Fresh_engine_reuses_blank_slots_only_after_its_log_has_synced(bool syncable)
+        {
+            using var data = new MemoryStream();
+            using var log = new UnsyncableLog();
+            byte[] crashedData, crashedLog;
+            using (var engine = Open(data, log))
+            using (var db = new LiteDatabase(engine, disposeOnClose: false))
+            {
+                db.Pragma(Pragmas.CHECKPOINT, 0);
+                Write(db, "cold", 0);
+                Write(db, "docs", 0);
+                for (var value = 1; value <= 20; value++) Write(db, "docs", value);
+                using var reader = engine.Query("docs", new Query());
+                MvccCheckpoint_Tests.RunThread(() => engine.Checkpoint());
+
+                // A killed process: the cleared slots stay in the WAL.
+                crashedData = data.ToArray();
+                crashedLog = log.ToArray();
+            }
+
+            using var dataCopy = Copy(new MemoryStream(crashedData), new MemoryStream());
+            using var logCopy = Copy(new MemoryStream(crashedLog), new UnsyncableLog { Syncable = syncable });
+            using (var engine = Open(dataCopy, logCopy))
+            using (var db = new LiteDatabase(engine, disposeOnClose: false))
+            {
+                db.Pragma(Pragmas.CHECKPOINT, 0);
+                for (var value = 21; value <= 25; value++) Write(db, "cold", value);
+
+                var written = logCopy.ToArray();
+                var reused = BlankFrames(crashedLog).Count(offset => !IsBlank(written, offset));
+                if (syncable)
+                    reused.Should().BeGreaterThan(0, "after its first successful sync the engine reuses the blank slots");
+                else
+                    reused.Should().Be(0, "slots cleared without a durable sync must not be reused before a sync succeeds");
+                db.GetCollection("cold").FindAll().Should().OnlyContain(doc => doc["value"].AsInt32 == 25);
+            }
+
+            AssertValues(dataCopy, logCopy, "cold", 25);
+            AssertValues(dataCopy, logCopy, "docs", 20);
+        }
+
+        private static int[] BlankFrames(byte[] log) => Enumerable.Range(0, log.Length / WalChecksum.FrameSize)
+            .Select(frame => frame * WalChecksum.FrameSize).Where(offset => IsBlank(log, offset)).ToArray();
+
+        private static bool IsBlank(byte[] log, int offset) =>
+            log.Skip(offset).Take(WalChecksum.FrameSize).All(value => value == 0);
+
         private static LiteEngine Open(Stream data, Stream log) => new LiteEngine(new EngineSettings
         {
             CompactStorage = CompactStorageMode.Legacy, DataStream = data, LogStream = log, TransactionPageLimit = 1
@@ -105,9 +160,11 @@ namespace LiteDB.Internals
         private sealed class UnsyncableLog : MemoryStream, IDurableStream
         {
             internal int Rejections;
+            internal bool Syncable;
 
             public void FlushToDisk()
             {
+                if (Syncable) return;
                 Rejections++;
                 throw new UnauthorizedAccessException("Access to the path is denied.");
             }
