@@ -160,21 +160,36 @@ namespace LiteDB.Tests.Engine
             engine.Update("docs", new[] { Doc(1, 1) });
 
             using var inserted = new ManualResetEventSlim();
+            Exception failure = null;
             var other = new Thread(() =>
             {
-                engine.Insert("other", new[] { new BsonDocument { ["_id"] = 1 } }, BsonAutoId.Int32);
-                inserted.Set();
+                // A failure here must fail the test, not crash the test host after cleanup.
+                try
+                {
+                    engine.Insert("other", new[] { new BsonDocument { ["_id"] = 1 } }, BsonAutoId.Int32);
+                    inserted.Set();
+                }
+                catch (Exception ex) { failure = ex; }
             }) { IsBackground = true };
             other.Start();
 
-            // The owner never pauses between writes; the holder must still let the other thread in.
-            var deadline = DateTime.UtcNow + Prompt;
-            var value = 2;
-            while (!inserted.IsSet && DateTime.UtcNow < deadline)
-                engine.Update("docs", new[] { Doc(1, value++) });
+            try
+            {
+                // The owner never pauses between writes; the holder must still let the other thread in.
+                var deadline = DateTime.UtcNow + Prompt;
+                var value = 2;
+                while (!inserted.IsSet && DateTime.UtcNow < deadline)
+                    engine.Update("docs", new[] { Doc(1, value++) });
 
-            inserted.IsSet.Should().BeTrue("a pin must not starve other threads of its instance");
-            other.Join(Prompt).Should().BeTrue();
+                inserted.IsSet.Should().BeTrue("a pin must not starve other threads of its instance");
+            }
+            finally
+            {
+                // Once the owner stops writing, the other thread gets in; wait for it before
+                // the engine and its files are disposed.
+                other.Join(Prompt).Should().BeTrue();
+            }
+            failure.Should().BeNull();
         }
 
         [Fact]
