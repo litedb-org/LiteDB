@@ -192,8 +192,10 @@ namespace LiteDB.Engine
         /// - Wait for writer queue
         /// - Close disks
         /// - Clean variables
+        /// Without <paramref name="checkpoint"/> nothing is written: a shared connection
+        /// discards an engine whose view may predate another process' commits (#3005).
         /// </summary>
-        internal List<Exception> Close()
+        internal List<Exception> Close(bool checkpoint = true)
         {
             if (_state.Disposed) return new List<Exception>();
 
@@ -204,7 +206,7 @@ namespace LiteDB.Engine
             // stop running all transactions
             tc.Catch(() => _monitor?.Dispose());
 
-            if (!_settings.ReadOnly && _header?.Pragmas.Checkpoint > 0)
+            if (checkpoint && !_settings.ReadOnly && _header?.Pragmas.Checkpoint > 0)
             {
                 // Backfill safe pages; reclaim only when all readers have drained.
                 tc.Catch(() => _walIndex?.TryCloseCheckpoint());

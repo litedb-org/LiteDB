@@ -263,7 +263,10 @@ namespace LiteDB
             _databaseUsers = 0;
             var orphan = _engine;
             _engine = null;
-            orphan?.Dispose();
+            // The mutex was free since the owner exited, so another process may have
+            // committed or checkpointed. This engine's WAL index and cache can be stale:
+            // release it without the close checkpoint; the next open recovers the WAL.
+            orphan?.Close(checkpoint: false);
             throw new LiteException(0, "The explicit transaction owner thread exited. Its uncommitted work was discarded; begin a new transaction on one thread.");
         }
 
