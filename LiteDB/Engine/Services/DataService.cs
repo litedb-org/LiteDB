@@ -25,8 +25,10 @@ namespace LiteDB.Engine
             _maxItemsCount = maxItemsCount;
         }
 
+        private Func<SchemaCatalog> _readSchemas;
+
         internal Result<BsonDocument> ReadDocument(BufferReader reader, HashSet<string> fields, bool utcDate, PageAddress address) =>
-            DocumentStorageCodec.Read(reader, fields, () => _snapshot.Schemas, utcDate, _snapshot.CollectionName, address);
+            DocumentStorageCodec.Read(reader, fields, _readSchemas ??= () => _snapshot.Schemas, utcDate, _snapshot.CollectionName, address);
 
         /// <summary>
         /// Insert BsonDocument into new data pages
