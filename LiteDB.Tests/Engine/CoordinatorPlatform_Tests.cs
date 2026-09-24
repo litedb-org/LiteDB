@@ -99,6 +99,45 @@ namespace LiteDB.Tests.Engine
             }
             finally { CoordinatorStatusPage.ForceSplitLoads = false; }
         }
+        /// <summary>
+        /// On Unix the status page lives in a private 0700 directory, because the temp directory
+        /// may be the shared /tmp: a pre-created symlink or a directory others can write into
+        /// must be rejected, so no forged page can serve stale snapshots.
+        /// </summary>
+        [Fact]
+        public void Unix_status_page_directory_must_be_a_private_real_directory()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                CoordinatorStatusPage.EnsurePrivateDirectory(Path.GetTempPath(), create: true).Should().BeTrue();
+                return;
+            }
+            var root = Path.Combine(Path.GetTempPath(), "litedb-coordpage-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(root);
+            try
+            {
+                var fresh = Path.Combine(root, "fresh");
+                CoordinatorStatusPage.EnsurePrivateDirectory(fresh, create: false).Should().BeFalse("clients never create it");
+                CoordinatorStatusPage.EnsurePrivateDirectory(fresh, create: true).Should().BeTrue();
+                File.GetUnixFileMode(fresh).Should().Be(UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+
+                var open = Path.Combine(root, "open");
+                Directory.CreateDirectory(open);
+                File.SetUnixFileMode(open, (UnixFileMode)0x1FF);
+                ((Action)(() => CoordinatorStatusPage.EnsurePrivateDirectory(open, create: true)))
+                    .Should().Throw<UnauthorizedAccessException>("others can write into a 0777 directory");
+
+                var link = Path.Combine(root, "link");
+                Directory.CreateSymbolicLink(link, fresh);
+                ((Action)(() => CoordinatorStatusPage.EnsurePrivateDirectory(link, create: false)))
+                    .Should().Throw<UnauthorizedAccessException>("a symlink may point anywhere");
+            }
+            finally
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+
 #if DEBUG || TESTING
         /// <summary>
         /// Stop can find the accept thread creating its next pipe instance, which may then fail

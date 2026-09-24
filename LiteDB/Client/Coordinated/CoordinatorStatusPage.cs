@@ -12,8 +12,13 @@ namespace LiteDB.Client.Coordinated
     /// decide about their snapshots without a round trip. One writer (the coordinator)
     /// updates it under a seqlock: the sequence is odd while fields change, and a reader
     /// accepts a copy only if it saw the same even sequence before and after.
-    /// The file lives in the per-user temp directory under a name derived from the
-    /// database path, so every coordinator of a database writes the same page.
+    /// The file is named after the database path, so every coordinator of a database
+    /// writes the same page. On Windows it lives in the per-user temp directory. On Unix
+    /// the temp directory may be the shared /tmp, so the page lives in a private
+    /// subdirectory that must be a real directory with mode 0700: another account cannot
+    /// place a forged page or a symlink there, and a directory another account pre-created
+    /// with 0700 cannot be entered, so the page is unavailable and snapshots fall back to
+    /// grants over IPC.
     /// </summary>
     internal sealed unsafe class CoordinatorStatusPage : IDisposable
     {
@@ -52,21 +57,58 @@ namespace LiteDB.Client.Coordinated
             }
         }
 
+        private const UnixFileMode PrivateDirectoryMode = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute;
+
+        private static bool Windows => RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+
+        /// <summary>The page path; on Unix inside the caller's private directory (see the class remarks).</summary>
         internal static string PathFor(string filename) =>
-            Path.Combine(Path.GetTempPath(), CoordinatorProtocol.PageName(filename));
+            Path.Combine(PrivateDirectoryPath(), CoordinatorProtocol.PageName(filename));
+
+        private static string PrivateDirectoryPath() => Windows
+            ? Path.GetTempPath()
+            : Path.Combine(Path.GetTempPath(), "litedb-coord-" + Environment.UserName);
+
+        /// <summary>
+        /// Unix: create (when asked) and validate a private directory. It must be a real
+        /// directory, not a symlink, with exactly mode 0700; anything else is rejected with
+        /// UnauthorizedAccessException, which callers treat as "no status page".
+        /// </summary>
+        internal static bool EnsurePrivateDirectory(string directory, bool create)
+        {
+            if (Windows) return true;
+            if (create && !Directory.Exists(directory) && !File.Exists(directory))
+                Directory.CreateDirectory(directory, PrivateDirectoryMode);
+            var info = new DirectoryInfo(directory);
+            if (info.LinkTarget != null)
+                throw new UnauthorizedAccessException($"Coordinator directory '{directory}' is a symbolic link.");
+            if (!info.Exists) return false;
+            var mode = File.GetUnixFileMode(directory);
+            if (mode != PrivateDirectoryMode)
+                throw new UnauthorizedAccessException($"Coordinator directory '{directory}' has mode {mode}, not owner-only.");
+            return true;
+        }
+
+        private static void RejectLink(string path)
+        {
+            if (!Windows && new FileInfo(path).LinkTarget != null)
+                throw new UnauthorizedAccessException($"Coordinator status page '{path}' is a symbolic link.");
+        }
 
         /// <summary>The coordinator's writable page, created with owner-only permissions.</summary>
         internal static CoordinatorStatusPage Create(string filename)
         {
+            EnsurePrivateDirectory(PrivateDirectoryPath(), create: true);
+            var path = PathFor(filename);
+            RejectLink(path);
             var options = new FileStreamOptions
             {
                 Mode = FileMode.OpenOrCreate,
                 Access = FileAccess.ReadWrite,
                 Share = FileShare.ReadWrite | FileShare.Delete
             };
-            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
-            var file = new FileStream(PathFor(filename), options);
+            if (!Windows) options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+            var file = new FileStream(path, options);
             try
             {
                 if (file.Length < Size) file.SetLength(Size);
@@ -87,7 +129,10 @@ namespace LiteDB.Client.Coordinated
             FileStream file = null;
             try
             {
-                file = new FileStream(PathFor(filename), FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                if (!EnsurePrivateDirectory(PrivateDirectoryPath(), create: false)) return null;
+                var path = PathFor(filename);
+                RejectLink(path);
+                file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
                 if (file.Length < Size)
                 {
                     file.Dispose();

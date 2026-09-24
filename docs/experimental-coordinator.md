@@ -159,10 +159,11 @@ The earlier negative control remains: removing the lease file makes
 - The status page is a 4 KiB file in the temp directory. It is deleted on a graceful stop. On
   Windows the deletion completes once no client maps it; until then a new coordinator cannot
   create the page and serves snapshot grants over IPC.
-- On Unix the status page is created owner-only. On Windows it inherits the temp directory's
-  ACL (normally the user profile's) instead of an explicit one. Another account that could write
-  there could still only cause snapshot rejections and IPC fallbacks: every accepted snapshot is
-  re-validated against the engine's read version and the checksummed WAL.
+- On Unix the temp directory may be the shared `/tmp`, so the page lives in
+  `$TMPDIR/litedb-coord-<user>/`. That directory must be a real directory, not a symlink, with
+  mode 0700, or the page is not used. Nobody else can then place a forged page or a symlink
+  there; a directory another account pre-created cannot be entered, which only makes snapshots
+  fall back to grants over IPC. On Windows the page inherits the per-user temp directory's ACL.
 - Lease files require write access to the database directory.
 - Documents stream one per round trip, so bulk inserts pay per-document IPC latency.
 - Tested on Windows (.NET 8 and .NET 10) only. The Unix socket cleanup after a killed coordinator
