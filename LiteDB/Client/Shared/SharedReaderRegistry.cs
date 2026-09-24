@@ -33,6 +33,26 @@ namespace LiteDB.Client.Shared
                 FileAccess.ReadWrite, FileShare.None);
         }
 
+        /// <summary>
+        /// Experimental coordinator: register without first scanning the registry. The
+        /// coordinator's scan still fails closed if the directory cannot be read. The
+        /// file disappears when its handle closes, so closed leases never pile up.
+        /// </summary>
+        internal IDisposable RegisterUnscanned(int version)
+        {
+            var name = version.ToString(CultureInfo.InvariantCulture) + "-" + Guid.NewGuid().ToString("N") + ".lease";
+            var path = Path.Combine(_directory, name);
+            try { return Create(path); }
+            catch (DirectoryNotFoundException)
+            {
+                Directory.CreateDirectory(_directory);
+                return Create(path);
+            }
+
+            static FileStream Create(string path) => new FileStream(path, System.IO.FileMode.CreateNew,
+                FileAccess.ReadWrite, FileShare.None, 1, FileOptions.DeleteOnClose);
+        }
+
         internal int? OldestVersion()
         {
             var versions = this.LiveVersions();

@@ -211,7 +211,7 @@ namespace LiteDB.Tests.Engine
         }
 
         [Fact]
-        public void A_busy_coordinator_answers_reads_over_ipc_instead()
+        public void A_busy_coordinator_does_not_block_direct_reads()
         {
             using var file = new TempFile();
             using var host = new CoordinatedEngine(file.Filename);
@@ -232,9 +232,13 @@ namespace LiteDB.Tests.Engine
             var writer = System.Threading.Tasks.Task.Run(() => hostDb.GetCollection("other").Insert(Slow()));
             started.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
 
-            var ipc = client.IpcReads;
+            // The status page shows no structural change, so the snapshot opens without
+            // the coordinator; the uncommitted write stays invisible.
+            var (ipc, direct) = (client.IpcReads, client.DirectReads);
             clientDb.GetCollection("docs").FindById(1)["v"].AsString.Should().Be("committed");
-            client.IpcReads.Should().Be(ipc + 1, "the snapshot grant gave up, so the read went over IPC");
+            client.DirectReads.Should().Be(direct + 1);
+            client.IpcReads.Should().Be(ipc);
+            clientDb.GetCollection("other").Count().Should().Be(0);
             release.Set();
             writer.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
             clientDb.GetCollection("other").Count().Should().Be(1);

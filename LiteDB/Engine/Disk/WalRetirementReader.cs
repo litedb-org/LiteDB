@@ -14,10 +14,10 @@ namespace LiteDB.Engine
         /// count and digest. Root records themselves are never reusable.
         /// </summary>
         internal static IEnumerable<PageBuffer> Read(Stream raw, WalChecksum checksum, long length,
-            Action<byte[]> observe = null)
+            Action<byte[]> observe = null, long from = 0)
         {
             var bytes = new byte[WalChecksum.FrameSize];
-            for (long position = 0; position < length; position += PAGE_SIZE)
+            for (long position = from; position < length; position += PAGE_SIZE)
             {
                 checksum.Retirement.Slots.TryGetValue(position, out var witnesses);
                 if (witnesses != null)
