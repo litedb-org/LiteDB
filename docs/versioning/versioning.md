@@ -24,14 +24,14 @@ The first prerelease that precedes the 6.0.0 release (commit `a0298891ddcaf7ba48
 GitVersion is registered as a local dotnet tool. Restore the tool once (`dotnet tool restore`) and use one of the helpers:
 
 ```powershell
-# PowerShell (Windows, macOS, Linux)
+## PowerShell (Windows, macOS, Linux)
 ./scripts/gitver/gitversion.ps1            # show version for HEAD
 ./scripts/gitver/gitversion.ps1 dev~3      # inspect an arbitrary commit
 ./scripts/gitver/gitversion.ps1 -Json      # emit raw JSON
 ```
 
 ```bash
-# Bash (macOS, Linux, Git Bash on Windows)
+## Bash (macOS, Linux, Git Bash on Windows)
 ./scripts/gitver/gitversion.sh             # show version for HEAD
 ./scripts/gitver/gitversion.sh dev~3       # inspect an arbitrary commit
 ./scripts/gitver/gitversion.sh --json      # emit raw JSON
@@ -55,3 +55,6 @@ Both scripts resolve the git ref to a SHA, execute GitVersion with the repositor
 
 For historical reference, the `v6.0.0-prerelease.0001` tag remains anchored to commit `a0298891ddcaf7ba48c679f1052a6f442f6c094f`, ensuring version ordering continues correctly from the original timeline.
 
+---
+
+*Made with ♥ by the LiteDB team – [@mbdavid](https://twitter.com/mbdavid) – MIT License.*
