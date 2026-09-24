@@ -225,13 +225,15 @@ internal static class Program
     private static string ResultLabel(RunResult result)
     {
         if (result.Passed) return "PASS";
+        if (result.BudgetStopped) return "BUDGET";
         return result.Finding == null ? "FAIL" : result.Finding.Status.ToString().ToUpperInvariant();
     }
 
 }
 
 internal sealed record RunResult(string Target, int Seed, string Directory, bool Passed,
-    bool PruneSuccessfulArtifacts = false, FuzzFindingResolution Finding = null, bool Compacted = false)
+    bool PruneSuccessfulArtifacts = false, FuzzFindingResolution Finding = null, bool Compacted = false,
+    bool BudgetStopped = false)
 {
     internal bool BlocksBuild => !Passed &&
         (!PruneSuccessfulArtifacts || Finding?.AllowsDiscoveryToContinue != true);

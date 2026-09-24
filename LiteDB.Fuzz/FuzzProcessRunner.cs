@@ -34,7 +34,13 @@ internal static class FuzzProcessRunner
                 var remaining = deadline - DateTimeOffset.UtcNow;
                 var duration = remaining < options.EpochDuration ? remaining : options.EpochDuration;
                 if (duration < TimeSpan.FromMilliseconds(100)) break;
-                if (BudgetReached(options, target, worker)) break;
+                if (BudgetReached(options, target, worker))
+                {
+                    // A shard that never ran must not count as a passed campaign.
+                    if (epoch == 0) results.Add(new RunResult(target.Name, options.Seed, options.ArtifactDirectory,
+                        Passed: false, BudgetStopped: true));
+                    break;
+                }
                 var result = await RunCoreAsync(target, options, worker, epoch, duration, null);
                 if (!result.Passed) result = FuzzFindingRegistry.Classify(result);
                 else result = CompactPassedEpoch(result, options);

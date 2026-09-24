@@ -270,6 +270,35 @@ public sealed class FuzzReliability_Tests
             Directory.GetFiles(inputs).Select(Path.GetFullPath).OrderBy(path => path, StringComparer.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public async Task A_shard_the_budget_stops_before_its_first_epoch_blocks_the_build()
+    {
+        using var root = new TemporaryDirectory();
+        File.WriteAllBytes(Path.Combine(root.Path, "earlier-artifacts.bin"), new byte[2 * 1024 * 1024]);
+        var options = FuzzOptions.Parse(new[] { "--artifact-dir", root.Path, "--max-artifact-mb", "1", "--duration", "10s" });
+        var target = new NeverRunTarget();
+
+        var results = await FuzzProcessRunner.RunEpochsAsync(target, options, 0, TimeSpan.FromSeconds(10));
+
+        var result = Assert.Single(results);
+        Assert.True(result.BudgetStopped);
+        Assert.False(result.Passed);
+        Assert.True(result.BlocksBuild, "a campaign that never ran must not exit as a pass");
+        Assert.Equal(0, target.Runs);
+    }
+
+    private sealed class NeverRunTarget : IFuzzTarget
+    {
+        internal int Runs;
+        public string Name => "budget-probe";
+        public string Description => "Counts runs; the artifact budget must prevent every one.";
+        public Task RunAsync(FuzzContext context)
+        {
+            Interlocked.Increment(ref Runs);
+            return Task.CompletedTask;
+        }
+    }
+
     private static PowerLossScenario Generate(int seed, string path)
     {
         using var random = new FuzzInputRandom(seed, path, null);
