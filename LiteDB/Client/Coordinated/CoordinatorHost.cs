@@ -33,6 +33,10 @@ namespace LiteDB.Client.Coordinated
         private readonly List<(Thread Thread, Stream Stream)> _sessions = new List<(Thread, Stream)>();
         private readonly Thread _accept;
         private int _disposed;
+        private volatile Exception _acceptFailure;
+
+        /// <summary>Why the accept loop stopped, when it could not create its pipe.</summary>
+        internal Exception AcceptFailure => _acceptFailure;
 
         internal CoordinatorHost(EngineSettings settings, CoordinatorMutex mutex)
         {
@@ -83,6 +87,13 @@ namespace LiteDB.Client.Coordinated
                 {
                     Thread.Sleep(20);
                     continue;
+                }
+                catch (Exception ex) when (!(ex is IOException))
+                {
+                    // An exception on this background thread would terminate the process.
+                    // Clients cannot connect; they time out and fail with a coordinator error.
+                    _acceptFailure = ex;
+                    return;
                 }
                 try { server.WaitForConnectionAsync(_stop.Token).GetAwaiter().GetResult(); }
                 catch (Exception)
@@ -176,7 +187,7 @@ namespace LiteDB.Client.Coordinated
             // A killed coordinator leaves its Unix domain socket file behind. This
             // process owns the coordinator mutex, so no live server can own it.
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
-            try { File.Delete(Path.Combine(Path.GetTempPath(), "CoreFxPipe_" + pipeName)); }
+            try { File.Delete(UnixEndpoint(pipeName)); }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
         }
