@@ -53,7 +53,7 @@ namespace LiteDB.Client.Coordinated
         }
 
         internal static string PathFor(string filename) =>
-            Path.Combine(Path.GetTempPath(), CoordinatorProtocol.PipeName(filename) + ".page");
+            Path.Combine(Path.GetTempPath(), CoordinatorProtocol.PageName(filename));
 
         /// <summary>The coordinator's writable page, created with owner-only permissions.</summary>
         internal static CoordinatorStatusPage Create(string filename)
@@ -139,7 +139,34 @@ namespace LiteDB.Client.Coordinated
             this.Store(SequenceOffset, sequence + 2);
         }
 
-        private long Load(int offset) => Volatile.Read(ref *(long*)(_base + offset));
+        /// <summary>Test hook: use the 32-bit read path on 64-bit processes too.</summary>
+        internal static bool ForceSplitLoads;
+
+        private long Load(int offset)
+        {
+            var location = _base + offset;
+            if (Environment.Is64BitProcess && !ForceSplitLoads) return Volatile.Read(ref *(long*)location);
+            return LoadSplit((int*)location);
+        }
+
+        /// <summary>
+        /// A 64-bit read without writing. On 32-bit runtimes Volatile.Read(ref long) is
+        /// Interlocked.CompareExchange(ref x, 0, 0), a write access that faults on a client's
+        /// read-only view and terminates the process. The high word is re-read until stable,
+        /// so the result is a value the single writer actually stored (its 64-bit writes are
+        /// atomic); the seqlock in <see cref="TryRead"/> still detects torn multi-field copies.
+        /// </summary>
+        internal static long LoadSplit(IntPtr address) => LoadSplit((int*)address);
+
+        private static long LoadSplit(int* location)
+        {
+            while (true)
+            {
+                var high = Volatile.Read(ref location[1]);
+                var low = Volatile.Read(ref location[0]);
+                if (Volatile.Read(ref location[1]) == high) return ((long)high << 32) | (uint)low;
+            }
+        }
 
         private void Store(int offset, long value) => Volatile.Write(ref *(long*)(_base + offset), value);
 
