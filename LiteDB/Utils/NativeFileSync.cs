@@ -39,7 +39,8 @@ namespace LiteDB
                 return;
             }
 #endif
-            if (_windows || _nativeUnavailable)
+            // A caller's FileStream subclass that overrides Flush(bool) defines its own sync.
+            if (_windows || _nativeUnavailable || OverridesFlush(stream.GetType()))
             {
                 stream.Flush(true);
                 return;
@@ -61,6 +62,16 @@ namespace LiteDB
             }
             if (errno != 0) throw new FileSyncException(stream.Name, errno, _bsd);
         }
+
+        private static bool OverridesFlush(Type type)
+        {
+            if (type == typeof(FileStream)) return false;
+            return _overrides.GetOrAdd(type, t =>
+                t.GetMethod(nameof(FileStream.Flush), new[] { typeof(bool) })?.DeclaringType != typeof(FileStream));
+        }
+
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, bool> _overrides =
+            new System.Collections.Concurrent.ConcurrentDictionary<Type, bool>();
 
         private static int Sync(Microsoft.Win32.SafeHandles.SafeFileHandle handle)
         {

@@ -126,6 +126,29 @@ namespace LiteDB.Tests.Issues
             reopened.GetCollection("rows").Count().Should().BeGreaterOrEqualTo(10);
         }
 
+        [Fact]
+        public void FileStream_subclass_that_overrides_flush_keeps_control_of_the_sync()
+        {
+            using var file = new TempFile();
+            using var stream = new CountingFileStream(file.Filename);
+            stream.WriteByte(1);
+            stream.FlushToDisk();
+            stream.DurableFlushes.Should().Be(1, "a caller's own Flush(bool) defines what a device sync means");
+        }
+
+        private sealed class CountingFileStream : FileStream
+        {
+            internal int DurableFlushes;
+
+            internal CountingFileStream(string path) : base(path, FileMode.OpenOrCreate, FileAccess.ReadWrite) { }
+
+            public override void Flush(bool flushToDisk)
+            {
+                if (flushToDisk) DurableFlushes++;
+                base.Flush(flushToDisk);
+            }
+        }
+
         private static IDisposable Inject(Func<string, int> errno)
         {
             NativeFileSync.SimulateErrno = errno;
