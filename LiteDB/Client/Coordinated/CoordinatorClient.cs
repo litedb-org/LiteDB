@@ -119,8 +119,26 @@ namespace LiteDB.Client.Coordinated
         internal IBsonDataReader QueryOverIpc(string collection, Query query)
         {
             Interlocked.Increment(ref IpcReads);
-            var result = this.Call(new BsonDocument { ["op"] = "query", ["c"] = collection, ["q"] = QueryToBson(query) }).AsDocument;
-            return new BufferedDataReader(Values(result["rows"]), result["c"].IsNull ? collection : result["c"].AsString);
+            var session = this.GetSession(null);
+            var rows = new List<BsonValue>();
+            BsonDocument result;
+            try
+            {
+                Write(session.Stream, new BsonDocument { ["op"] = "query", ["c"] = collection, ["q"] = QueryToBson(query) });
+                // Large results arrive as several frames; see CoordinatorProtocol.Chunk.
+                while (true)
+                {
+                    result = Result(Read(session.Stream)).AsDocument;
+                    rows.AddRange(result["rows"].AsArray);
+                    if (!result["more"].AsBoolean) break;
+                }
+            }
+            catch (Exception ex) when (IsPipeFailure(ex))
+            {
+                session.Dispose();
+                throw new CoordinatorLostException(ex);
+            }
+            return new BufferedDataReader(rows, result["c"].IsNull ? collection : result["c"].AsString);
         }
 
         private Session GetSession(TimeSpan? connectTimeout)

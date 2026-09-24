@@ -90,7 +90,8 @@ A client decides as follows, in order:
 
 A client still reads **over IPC** when a grant cannot close the gate within 250 ms, the lease
 cannot be registered, the read is inside an explicit transaction, or the query writes (`FOR
-UPDATE`, `INTO`). IPC results are materialized on the coordinator.
+UPDATE`, `INTO`). IPC results are materialized on the coordinator and sent in chunks of at most 8 MiB of rows,
+so no reply frame exceeds the 64 MiB message limit.
 
 Leases registered by the fast paths skip the registry scan and are deleted when their handle
 closes, so closed leases do not pile up. The coordinator's scan still fails closed if the

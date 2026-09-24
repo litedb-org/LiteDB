@@ -2,6 +2,7 @@
 #pragma warning disable LITEDB_EXPERIMENTAL_COORDINATOR
 using System;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
@@ -18,8 +19,12 @@ namespace LiteDB.Tests.Engine
     /// Unix domain socket paths (sun_path) and 64-bit reads of a read-only mapped view
     /// on 32-bit runtimes.
     /// </summary>
+    [Collection(Collection)]
     public class CoordinatorPlatform_Tests
     {
+        /// <summary>In-process coordinator classes run one at a time: some tests lower process-wide protocol limits.</summary>
+        internal const string Collection = "coordinator in-process";
+
         private const string MacTemp = "/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/";
 
         [Fact]
@@ -99,6 +104,45 @@ namespace LiteDB.Tests.Engine
             }
             finally { CoordinatorStatusPage.ForceSplitLoads = false; }
         }
+        /// <summary>
+        /// Query replies over IPC are sent in bounded chunks, so a result larger than the
+        /// per-message limit still arrives complete and in order.
+        /// </summary>
+        [Fact]
+        public void Large_ipc_query_results_arrive_in_bounded_chunks()
+        {
+            var limit = CoordinatorProtocol.MaxRowChunkBytes;
+            var messageLimit = CoordinatorProtocol.MaxMessageBytes;
+            CoordinatorProtocol.MaxRowChunkBytes = 4096;
+            // The whole result is about 100 KB: one frame would exceed this limit.
+            CoordinatorProtocol.MaxMessageBytes = 16 * 1024;
+            try
+            {
+                using var file = new TempFile();
+                using var host = new CoordinatedEngine(file.Filename);
+                using var client = new CoordinatedEngine(file.Filename);
+                using var hostDb = new LiteDatabase(host, disposeOnClose: false);
+                using var clientDb = new LiteDatabase(client, disposeOnClose: false);
+                hostDb.GetCollection("docs").Insert(Enumerable.Range(1, 300)
+                    .Select(i => new BsonDocument { ["_id"] = i, ["payload"] = new string('p', 300) }));
+
+                var chunks = CoordinatorProtocol.Chunk(new BsonArray(hostDb.GetCollection("docs").FindAll()));
+                chunks.Count.Should().BeGreaterThan(10);
+                chunks.Should().OnlyContain(chunk => chunk.Sum(row => row.GetBytesCount(true)) <= 4096);
+
+                // Inside a transaction the client reads over IPC.
+                clientDb.BeginTrans().Should().BeTrue();
+                var ids = clientDb.GetCollection("docs").FindAll().Select(doc => doc["_id"].AsInt32).ToList();
+                clientDb.Rollback();
+                ids.Should().Equal(Enumerable.Range(1, 300));
+            }
+            finally
+            {
+                CoordinatorProtocol.MaxRowChunkBytes = limit;
+                CoordinatorProtocol.MaxMessageBytes = messageLimit;
+            }
+        }
+
         /// <summary>
         /// On Unix the status page lives in a private 0700 directory, because the temp directory
         /// may be the shared /tmp: a pre-created symlink or a directory others can write into

@@ -18,7 +18,8 @@ namespace LiteDB.Client.Coordinated
     /// </summary>
     internal static class CoordinatorProtocol
     {
-        private const int MAX_MESSAGE_BYTES = 64 * 1024 * 1024;
+        /// <summary>Largest message a peer accepts. Settable only by tests.</summary>
+        internal static int MaxMessageBytes { get; set; } = 64 * 1024 * 1024;
 
         /// <summary>
         /// Longest Unix domain socket path, excluding the terminating NUL: sun_path is
@@ -79,7 +80,7 @@ namespace LiteDB.Client.Coordinated
             var header = new byte[4];
             ReadExactly(stream, header, token);
             var length = BinaryPrimitives.ReadInt32LittleEndian(header);
-            if (length <= 0 || length > MAX_MESSAGE_BYTES)
+            if (length <= 0 || length > MaxMessageBytes)
                 throw new IOException($"Invalid coordinator message length {length}.");
             var body = new byte[length];
             ReadExactly(stream, body, token);
@@ -185,6 +186,35 @@ namespace LiteDB.Client.Coordinated
         }
 
         internal static List<BsonValue> Values(BsonValue array) => array.AsArray.ToList();
+
+        /// <summary>
+        /// Upper bound for the rows of one query reply frame. A result is sent as several
+        /// frames, so a large one never exceeds the per-message limit the peer enforces.
+        /// Settable only by tests.
+        /// </summary>
+        internal static int MaxRowChunkBytes { get; set; } = 8 * 1024 * 1024;
+
+        /// <summary>Split rows into consecutive chunks of at most <see cref="MaxRowChunkBytes"/> (one oversized row per chunk).</summary>
+        internal static List<BsonArray> Chunk(BsonArray rows)
+        {
+            var chunks = new List<BsonArray>();
+            var current = new BsonArray();
+            var bytes = 0;
+            foreach (var row in rows)
+            {
+                var size = row.GetBytesCount(true);
+                if (current.Count > 0 && bytes + size > MaxRowChunkBytes)
+                {
+                    chunks.Add(current);
+                    current = new BsonArray();
+                    bytes = 0;
+                }
+                current.Add(row);
+                bytes += size;
+            }
+            chunks.Add(current);
+            return chunks;
+        }
     }
 }
 #endif

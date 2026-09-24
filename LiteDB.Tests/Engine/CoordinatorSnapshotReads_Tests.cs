@@ -16,6 +16,7 @@ namespace LiteDB.Tests.Engine
     /// path, the lock-free handshake that opens new snapshots, and incremental refresh.
     /// Every engine instance in one process is a separate participant, as in Coordinator_Tests.
     /// </summary>
+    [Collection(CoordinatorPlatform_Tests.Collection)]
     public class CoordinatorSnapshotReads_Tests
     {
         private static readonly TimeSpan Wait = TimeSpan.FromSeconds(20);

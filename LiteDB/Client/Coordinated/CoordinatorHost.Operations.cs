@@ -33,12 +33,24 @@ namespace LiteDB.Client.Coordinated
                 case "pragma": return this.Run(e => e.Pragma(r["n"].AsString));
                 case "setPragma": return this.Run(e => e.Pragma(r["n"].AsString, r["v"]));
                 case "query":
-                    return this.Run(e =>
+                {
+                    var (rows, collection) = this.Run(e =>
                     {
                         var reader = e.Query(r["c"].AsString, QueryFromBson(r["q"].AsDocument));
-                        var collection = reader.Collection;
-                        return new BsonDocument { ["rows"] = Rows(reader), ["c"] = collection ?? (BsonValue)BsonValue.Null };
+                        var name = reader.Collection;
+                        return (Rows(reader), name);
                     });
+                    // Send all but the last chunk here, outside the gate; the caller writes the last.
+                    var chunks = Chunk(rows);
+                    for (var i = 0; i < chunks.Count - 1; i++)
+                        Write(stream, Ok(new BsonDocument { ["rows"] = chunks[i], ["more"] = true }));
+                    return new BsonDocument
+                    {
+                        ["rows"] = chunks[chunks.Count - 1],
+                        ["more"] = false,
+                        ["c"] = collection ?? (BsonValue)BsonValue.Null
+                    };
+                }
                 default: throw new NotSupportedException($"Unknown coordinator operation '{op}'.");
             }
         }

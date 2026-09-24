@@ -15,6 +15,7 @@ namespace LiteDB.Tests.Engine
     /// separate participant, so the first becomes the coordinator and later ones are
     /// clients talking to it over the named pipe exactly as other processes would.
     /// </summary>
+    [Collection(CoordinatorPlatform_Tests.Collection)]
     public class Coordinator_Tests
     {
         public class Item
