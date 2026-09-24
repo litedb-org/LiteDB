@@ -1,5 +1,6 @@
 using System;
 using System.Buffers.Binary;
+using System.Runtime.CompilerServices;
 #if NET8_0_OR_GREATER
 using System.Runtime.Intrinsics.X86;
 using System.Runtime.Intrinsics.Arm;
@@ -12,6 +13,11 @@ namespace LiteDB.Engine
     {
         private static readonly uint[] Table = CreateTable();
 
+#if NET8_0_OR_GREATER
+        // Page-sized loops are hot even during a short-lived engine open. Tier-0
+        // span/helper calls otherwise make checksums expensive until the JIT tiers up.
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         internal static uint Update(uint crc, byte[] bytes, int offset, int count)
         {
             var end = offset + count;
@@ -40,6 +46,9 @@ namespace LiteDB.Engine
             return UpdatePortable(crc, bytes, offset, count);
         }
 
+#if NET8_0_OR_GREATER
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+#endif
         internal static uint UpdatePortable(uint crc, byte[] bytes, int offset, int count)
         {
             var end = offset + count;
