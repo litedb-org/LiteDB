@@ -117,10 +117,15 @@
       "target": "checksum-crash",
       "seed": 4058733,
       "count": 111,
-      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with journal durability barriers and split compact publication writes. Replayed with durable aligned WAL/header-journal padding; prior hashes retained in previousHashes. Replayed with truthful legacy ordering metadata and recoverable encrypted WAL initialization.",
-      "inputHash": "8C3C928E1D02EF7E59AED15EC50B66E05F986B08AE8F25C970E8B374C1612F8A",
-      "traceHash": "0D1BAA06D6E18AF37A30633FDF354880B6C170487341A097ECAF38EAE862953B",
+      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with journal durability barriers and split compact publication writes. Replayed with durable aligned WAL/header-journal padding; prior hashes retained in previousHashes. Replayed with truthful legacy ordering metadata and recoverable encrypted WAL initialization. Replayed with stale legacy-key detection during index migration.",
+      "inputHash": "1E46078AF4907DCF9B26DD11CB7FEBBF9FF35C4D769434B690C0BDC9D7266D76",
+      "traceHash": "982397095328DA47D65D28F31C889194DC73A58551FD0A41F671492B443AAA4F",
       "previousHashes": [
+        {
+          "inputHash": "8C3C928E1D02EF7E59AED15EC50B66E05F986B08AE8F25C970E8B374C1612F8A",
+          "traceHash": "0D1BAA06D6E18AF37A30633FDF354880B6C170487341A097ECAF38EAE862953B",
+          "reason": "Before stale legacy-key detection added per-document safepoints to index migration, changing WAL write batching during conversion."
+        },
         {
           "inputHash": "C04738E2544CCBD56F44A46AD610BC9CC08ACB5A45D31C6C10BB1F89C85DB352",
           "traceHash": "66A4FFD8EC369F9BC6346C59B04D8C6ED56C332EBFF479113A1D8FBEE54495E2",
@@ -137,10 +142,15 @@
       "target": "checksum-crash",
       "seed": 3163459,
       "count": 201,
-      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with journal durability barriers and split compact publication writes. Replayed with durable aligned WAL/header-journal padding; prior hashes retained in previousHashes. Replayed with truthful legacy ordering metadata and recoverable encrypted WAL initialization.",
-      "inputHash": "1EAEF1B8A7FED720BC1853139371CBD4DB81917390C208D07219C781FC611A20",
-      "traceHash": "FD746593733AD89861C6027A62772BE63C4B4ED837D5F04C32B4884B8909E09B",
+      "reason": "Second crash during recovery of an unsealed conversion intent must not tear an unprotected header rewrite. Replayed with the additional v11 index-migration I/O stages. Replayed with journal durability barriers and split compact publication writes. Replayed with durable aligned WAL/header-journal padding; prior hashes retained in previousHashes. Replayed with truthful legacy ordering metadata and recoverable encrypted WAL initialization. Replayed with stale legacy-key detection during index migration.",
+      "inputHash": "4E9F4E4256B153C5F013008F065429D7424F944BE655893B9F0EF280F9B4DB4C",
+      "traceHash": "2143943C1C5855F76E075641C0B08CA9B199C2D57DEE595FA6678460CD1878D3",
       "previousHashes": [
+        {
+          "inputHash": "1EAEF1B8A7FED720BC1853139371CBD4DB81917390C208D07219C781FC611A20",
+          "traceHash": "FD746593733AD89861C6027A62772BE63C4B4ED837D5F04C32B4884B8909E09B",
+          "reason": "Before stale legacy-key detection added per-document safepoints to index migration, changing WAL write batching during conversion."
+        },
         {
           "inputHash": "1FAD764125FB05B8C92315BF60ADC2D3B0AC7543EADEC8BAB3E3461508E48E98",
           "traceHash": "19848C65C3F40110A335602C52F26357330E3A5BFB1928318970A8B75483E305",
