@@ -59,6 +59,7 @@ namespace LiteDB.Internals
             using (var engine = new LiteEngine(settings))
             using (var db = new LiteDatabase(engine, disposeOnClose: false))
             {
+                db.Checkpoint(); // Finish the separately committed index migration before testing rollback.
                 var before = data.ToArray();
                 db.BeginTrans();
                 db.GetCollection("keep").UpdateMany("{ value: 42 }", "true");

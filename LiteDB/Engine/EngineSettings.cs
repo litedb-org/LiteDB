@@ -56,6 +56,13 @@ namespace LiteDB.Engine
         public long InitialSize { get; set; } = 0;
 
         /// <summary>
+        /// Optional increased LIMIT_SIZE, in bytes, used only when migrating legacy indexes.
+        /// Must be at least the stored limit. Persisted with successful migration; null preserves it.
+        /// Allows retrying an incomplete migration whose stored limit is too small.
+        /// </summary>
+        public long? IndexMigrationLimitSize { get; set; }
+
+        /// <summary>
         /// Soft page-cache target in bytes. Zero selects the storage-specific
         /// default of the selected <see cref="MemoryProfile"/>.
         /// </summary>
@@ -82,12 +89,19 @@ namespace LiteDB.Engine
         public bool ReadOnly { get; set; } = false;
 
         /// <summary>
+        /// With <see cref="ReadOnly"/>, open a file whose indexes still need the v11 ordering
+        /// migration without changing it. Queries ignore those indexes and use full scans,
+        /// so results stay correct but lookups become linear. Writable opens always migrate.
+        /// </summary>
+        public bool LegacyIndexScan { get; set; } = false;
+
+        /// <summary>
         /// After a Close with exception do a database rebuild on next open
         /// </summary>
         public bool AutoRebuild { get; set; } = false;
 
         /// <summary>
-        /// Rebuild format v7 files before opening, retaining a backup. Writable v8/v9 opens automatically enable checksums.
+        /// Rebuild format v7 files before opening, retaining a backup. Writable v8/v9/v10 opens migrate indexes automatically.
         /// </summary>
         public bool Upgrade { get; set; } = false;
 

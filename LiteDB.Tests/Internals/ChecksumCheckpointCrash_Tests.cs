@@ -102,7 +102,7 @@ namespace LiteDB.Internals
             data.Capture = true;
             using (var converted = new LiteEngine(new EngineSettings { DataStream = data, LogStream = log, Password = password })) { }
             data.Capture = false;
-            data.Writes.Should().ContainSingle();
+            data.Writes.Should().NotBeEmpty();
             foreach (var write in data.Writes)
             {
                 AssertRecovered(write.Before, write.Wal, password, new[] { "docs" }, WalTestDatabase.DocumentCount, 0);
@@ -184,7 +184,16 @@ namespace LiteDB.Internals
             using var data = ChecksumTestFiles.Copy(bytes);
             using var log = ChecksumTestFiles.Copy(wal);
             var settings = new EngineSettings { DataStream = data, LogStream = log, Password = password, ReadOnly = readOnly };
-            using (var engine = new LiteEngine(settings))
+            LiteEngine recovered;
+            try { recovered = new LiteEngine(settings); }
+            catch (LiteException error) when (readOnly && error.Message.Contains("index ordering/collation requires migration"))
+            {
+                data.ToArray().Should().Equal(bytes);
+                log.ToArray().Should().Equal(wal);
+                AssertRecovered(bytes, wal, password, names, count, value);
+                return;
+            }
+            using (var engine = recovered)
             using (var db = new LiteDatabase(engine, disposeOnClose: false))
             {
                 foreach (var name in names)

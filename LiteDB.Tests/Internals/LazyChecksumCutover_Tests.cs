@@ -43,9 +43,10 @@ namespace LiteDB.Internals
             // No physical data beyond the header exists in this sparse model:
             // touching any of it throws, rather than simulating a cheap scan.
             data.BytesRead.Should().BeLessThan(20L * PAGE_SIZE);
-            data.BytesWritten.Should().Be(PAGE_SIZE);
+            data.BytesWritten.Should().Be(2L * PAGE_SIZE, "checksum and index-order publication each replace only the header");
             log.MaximumLength.Should().Be(4L * PAGE_SIZE + (password == null ? 0 : PAGE_SIZE));
-            log.Length.Should().Be(password == null ? 0 : PAGE_SIZE);
+            log.Length.Should().Be(WalPadding.AlignedLength(WalChecksum.FrameSize) + (password == null ? 0 : PAGE_SIZE),
+                "the committed ordering-revision header remains in WAL when checkpoint is disabled");
         }
 
         private sealed class HeaderOnlyData : MemoryStream

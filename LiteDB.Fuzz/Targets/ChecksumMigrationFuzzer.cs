@@ -26,8 +26,12 @@ internal sealed class ChecksumMigrationFuzzer : IFuzzTarget
             var before = fixture.Data.ToArray();
             var beforeLog = fixture.Log.ToArray();
             ChecksumFixture.Save(context, before, beforeLog);
-            using (var reader = ChecksumFixture.Open(fixture.Data, fixture.Log, fixture.Password, true))
-                ChecksumFixture.Verify(context, reader, fixture.Rows, fixture.Cold);
+            try
+            {
+                using var reader = ChecksumFixture.Open(fixture.Data, fixture.Log, fixture.Password, true);
+                throw new FuzzFailureException("INDEX_MIGRATION_GATE", "Legacy read-only open must request ordering migration.");
+            }
+            catch (LiteException error) when (error.Message.Contains("index ordering/collation requires migration")) { }
             context.Check(before.SequenceEqual(fixture.Data.ToArray()) && beforeLog.SequenceEqual(fixture.Log.ToArray()),
                 "Read-only legacy recovery changed physical bytes.");
             using (var db = ChecksumFixture.Open(fixture.Data, fixture.Log, fixture.Password))

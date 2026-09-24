@@ -124,9 +124,9 @@ namespace LiteDB.Engine
 
             // update buffer
             header.UpdateBuffer();
-            header.EnsureVersion(HeaderPage.CHECKSUM_FILE_VERSION);
+            header.EnsureVersion(HeaderPage.CURRENT_FILE_VERSION);
             _checksums.Reset(Guid.NewGuid().ToByteArray());
-            FileVersion = HeaderPage.CHECKSUM_FILE_VERSION;
+            FileVersion = HeaderPage.CURRENT_FILE_VERSION;
             this.StampDataPage(buffer);
 
             stream.Write(buffer.Array, buffer.Offset, PAGE_SIZE);

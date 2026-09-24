@@ -60,6 +60,8 @@ namespace LiteDB.Internals
                 {
                     var beforeData = recoveredData.ToArray();
                     var beforeLog = recoveredLog.ToArray();
+                    try
+                    {
                     using (var engine = new LiteEngine(new EngineSettings
                     { DataStream = recoveredData, LogStream = recoveredLog, Password = password, ReadOnly = readOnly }))
                     using (var db = new LiteDatabase(engine, disposeOnClose: false))
@@ -68,6 +70,8 @@ namespace LiteDB.Internals
                             .And.OnlyContain(row => row["value"].AsInt32 == 0 && row["payload"].AsString == new string('x', 1500));
                         if (!readOnly) db.Checkpoint();
                     }
+                    }
+                    catch (LiteException error) when (readOnly && error.Message.Contains("index ordering/collation requires migration")) { }
                     if (readOnly)
                     {
                         recoveredData.ToArray().Should().Equal(beforeData);

@@ -1,6 +1,11 @@
 # Data-page and WAL checksums (#2935)
 
-New databases use format **10** with complete data-page checksum coverage.
+Format **10** introduced complete data-page checksum coverage. New databases
+now use **11**, adding the index-ordering contract without changing checksum
+encoding. The checksum-only conversion described below is followed by index
+migration: that additional work can rewrite indexes and use significant WAL/temp
+space. Legacy read-only opens that require index migration fail without changing
+the files. See [index migration](collation-runtime-compatibility.md).
 Writable opens of formats 8 and 9 automatically recover/checkpoint their legacy
 WAL, sync both files, and durably publish v10 with **mixed** data-page coverage.
 Cutover overwrites only the header and uses **32 KiB** of temporary WAL (plus the

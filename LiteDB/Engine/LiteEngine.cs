@@ -112,7 +112,6 @@ namespace LiteDB.Engine
                 // read header database page
                 _header = new HeaderPage(buffer);
                 _disk.FileVersion = _header.FileVersion;
-                _disk.TrimTrailingPages();
 
                 // if database is set to invalid state, need rebuild
                 if (buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0 && _settings.AutoRebuild)
@@ -138,6 +137,8 @@ namespace LiteDB.Engine
                     _disk.FileVersion = _header.FileVersion;
                 }
 
+                this.ValidateCollationStamp();
+
                 // test for same collation
                 if (_settings.Collation != null && _settings.Collation.ToString() != _header.Pragmas.Collation.ToString())
                 {
@@ -153,21 +154,19 @@ namespace LiteDB.Engine
                 // if exists log file, restore wal index references (can update full _header instance)
                 if (_disk.GetFileLength(FileOrigin.Log) > 0 || _disk.ChecksumsEnabled)
                 {
-                    _walIndex.RestoreIndex(ref _header);
+                    _walIndex.RestoreIndex(ref _header, this.ValidateCollationStamp);
                 }
 
-                if (!_settings.ReadOnly && !_disk.ChecksumsEnabled)
-                {
-                    _walIndex.Checkpoint();
-                    _walIndex.Clear();
-                    _disk.EnableChecksums(ref _header);
-                }
+                this.ValidateCollationStamp();
 
                 // initialize sort temp disk
                 _sortDisk = new SortDisk(_settings.CreateTempFactory(), CONTAINER_SORT_SIZE, _header.Pragmas);
 
                 // initialize transaction monitor as last service
                 _monitor = new TransactionMonitor(_header, _locker, _disk, _walIndex, _settings.TransactionPageLimit);
+
+                this.MigrateIndexOrdering();
+                _disk.TrimTrailingPages();
 
                 // register system collections
                 this.InitializeSystemCollections();

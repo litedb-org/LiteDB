@@ -126,7 +126,7 @@ namespace LiteDB.Internals
             source.Database.Checkpoint();
             var header = source.Data.ToArray();
             using var log = CreateJournal(header);
-            header[HeaderPage.P_FILE_VERSION] = HeaderPage.CHECKSUM_FILE_VERSION + 1;
+            header[HeaderPage.P_FILE_VERSION] = HeaderPage.CURRENT_FILE_VERSION + 1;
             if (extendedHeader) header[BasePage.P_PAGE_FORMAT] = PageChecksum.Extended;
             var page = new BufferSlice(header, 0, PAGE_SIZE);
             page.Write(PageChecksum.Compute(page), BasePage.P_TRANSACTION_ID);

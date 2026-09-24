@@ -10,14 +10,14 @@ namespace LiteDB.Tests
         public TempFile()
         {
             var path = Path.GetTempPath();
-            var name = "litedb-" + Guid.NewGuid().ToString("d").Substring(0, 5) + ".db";
+            var name = "litedb-" + Guid.NewGuid().ToString("n") + ".db";
 
             this.Filename = Path.Combine(path, name);
         }
 
         public TempFile(string original)
         {
-            var rnd = Guid.NewGuid().ToString("d").Substring(0, 5);
+            var rnd = Guid.NewGuid().ToString("n");
             var path = Path.GetTempPath();
             var name = $"litedb-{rnd}.db";
             var filename = Path.Combine(path, name);

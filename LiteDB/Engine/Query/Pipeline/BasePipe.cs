@@ -109,12 +109,12 @@ namespace LiteDB.Engine
                 // fill only if index and ref node exists
                 if (index != null)
                 {
-                    var node = indexer.Find(index, refId, false, Query.Ascending);
+                    var refDoc = _pragmas.IndexesOrdered
+                        ? LoadNode(lookup, indexer.Find(index, refId, false, Query.Ascending))
+                        : this.ScanPrimaryKey(indexer, index, lookup, refId);
 
-                    if (node != null)
+                    if (refDoc != null)
                     {
-                        // load document based on dataBlock position
-                        var refDoc = lookup.Load(node);
 
                         //do not remove $id
                         value.Remove("$ref");
@@ -138,6 +138,23 @@ namespace LiteDB.Engine
 
                 _transaction.Safepoint();
             }
+        }
+
+        private static BsonDocument LoadNode(IDocumentLookup lookup, IndexNode node) => node == null ? null : lookup.Load(node);
+
+        /// <summary>
+        /// LegacyIndexScan: the primary key still has the old comparer's order (and possibly
+        /// stale keys), so compare the referenced id with each document instead of seeking.
+        /// </summary>
+        private BsonDocument ScanPrimaryKey(IndexService indexer, CollectionIndex index, IDocumentLookup lookup, BsonValue refId)
+        {
+            foreach (var node in indexer.FindAll(index, Query.Ascending))
+            {
+                var document = lookup.Load(node);
+                if (document["_id"].CompareTo(refId, _pragmas.Collation) == 0) return document;
+                _transaction.Safepoint();
+            }
+            return null;
         }
 
         /// <summary>

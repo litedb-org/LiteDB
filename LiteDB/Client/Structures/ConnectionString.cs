@@ -42,6 +42,19 @@ namespace LiteDB
         public long InitialSize { get; set; } = 0;
 
         /// <summary>
+        /// "index migration limit size": Optional increased LIMIT_SIZE for legacy index migration.
+        /// Supports KB/MB/GB; persisted with successful migration. Null preserves the stored limit.
+        /// </summary>
+        public long? IndexMigrationLimitSize { get; set; }
+
+        /// <summary>
+        /// "legacy index scan": With ReadOnly, open a file whose indexes still need the v11
+        /// ordering migration without migrating it; queries then use full scans instead of
+        /// those indexes. Ignored by writable opens, which always migrate (default: false).
+        /// </summary>
+        public bool LegacyIndexScan { get; set; } = false;
+
+        /// <summary>
         /// "cache size": Soft page-cache target in bytes. Supports KB, MB,
         /// and GB suffixes. Zero selects the profile's storage-specific default.
         /// </summary>
@@ -150,7 +163,10 @@ namespace LiteDB
             {
                 throw new LiteException(0, "`cache size` must be non-negative and `transaction pages` must be greater than zero");
             }
+            if (_values.ContainsKey("index migration limit size"))
+                this.IndexMigrationLimitSize = _values.GetFileSize("index migration limit size", 0);
             this.ReadOnly = _values.GetValue("readonly", this.ReadOnly);
+            this.LegacyIndexScan = _values.GetValue("legacy index scan", this.LegacyIndexScan);
 
             this.Collation = _values.ContainsKey("collation") ? new Collation(_values.GetValue<string>("collation")) : this.Collation;
 
@@ -174,9 +190,11 @@ namespace LiteDB
             return firstKey.Equals("filename", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("connection", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("password", StringComparison.OrdinalIgnoreCase) ||
+                firstKey.Equals("index migration limit size", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("initialsize", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("initial size", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("readonly", StringComparison.OrdinalIgnoreCase) ||
+                firstKey.Equals("legacy index scan", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("upgrade", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("auto-rebuild", StringComparison.OrdinalIgnoreCase) ||
                 firstKey.Equals("reject invalid local time", StringComparison.OrdinalIgnoreCase) ||
@@ -229,10 +247,12 @@ namespace LiteDB
                 Filename = this.Filename,
                 Password = this.Password,
                 InitialSize = this.InitialSize,
+                IndexMigrationLimitSize = this.IndexMigrationLimitSize,
                 MemoryProfile = this.MemoryProfile,
                 CacheSize = this.CacheSize,
                 TransactionPageLimit = this.TransactionPageLimit,
                 ReadOnly = this.ReadOnly,
+                LegacyIndexScan = this.LegacyIndexScan,
                 Collation = this.Collation,
                 Upgrade = this.Upgrade,
                 AutoRebuild = this.AutoRebuild,
@@ -291,6 +311,9 @@ namespace LiteDB
 
             var fileNameLength = bld.Length;
 
+            if (IndexMigrationLimitSize.HasValue)
+                bld.Append("index migration limit size=").AppendFormat(CultureInfo.InvariantCulture, "{0:D}", IndexMigrationLimitSize.Value).Append(';');
+
             if (Connection != ConnectionType.Direct)
             {
                 bld.Append("Connection=")
@@ -325,6 +348,11 @@ namespace LiteDB
                 bld.Append("ReadOnly=")
                     .Append(ReadOnly)
                     .Append(';');
+            }
+
+            if (LegacyIndexScan)
+            {
+                bld.Append("legacy index scan=true;");
             }
 
             if (Collation != null)

@@ -88,11 +88,15 @@ internal sealed class ChecksumCrashFuzzer : IFuzzTarget
         using var log = ChecksumFixture.Copy(logBytes);
         foreach (var readOnly in new[] { true, false, true })
         {
+            try
+            {
             using (var db = ChecksumFixture.Open(data, log, fixture.Password, readOnly))
             {
                 ChecksumFixture.Verify(context, db, fixture.Rows, fixture.Cold);
                 if (!readOnly) db.Checkpoint();
             }
+            }
+            catch (LiteException error) when (readOnly && error.Message.Contains("index ordering/collation requires migration")) { }
             if (readOnly) context.Check(data.ToArray().SequenceEqual(dataBytes) && log.ToArray().SequenceEqual(logBytes),
                 "Read-only crash recovery rewrote data or WAL bytes.");
             else

@@ -59,7 +59,7 @@ namespace VectorCompatibility.Current
                 var originalLog = File.Exists(log) ? File.ReadAllBytes(log) : null;
                 foreach (var readOnly in new[] { true, false })
                 {
-                    using (var db = new LiteDatabase(new ConnectionString { Filename = file, Password = password, ReadOnly = readOnly }))
+                    using (var db = new LiteDatabase(new ConnectionString { Filename = file, Password = password, ReadOnly = readOnly, LegacyIndexScan = true }))
                     {
                         var docs = db.GetCollection("docs");
                         if (docs.Count() != 2 || docs.FindById(1)["value"].AsString != "legacy" || docs.FindById(2)["value"].AsString != "resumed")

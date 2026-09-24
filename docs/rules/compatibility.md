@@ -23,7 +23,28 @@ Version numbers proposed by concurrent PRs can collide. Do not copy an unmerged
 feature's format number or migration policy into general repository guidance.
 
 ## Vector File Compatibility
-New files use format v10 with data-page and WAL checksums. Writable v8/v9 opens
+New files use format v11 (v10 introduced checksums). Writable opens migrate v8/v9/v10 indexes;
+read-only opens requiring migration must request a writable open first. Validate
+unique keys before mutation, durably promote the data header before migration WAL
+writes, and commit every rebuilt index with ordering revision byte 165. Rollback,
+WAL replay, and checkpoint must never downgrade the version. Re-evaluate secondary
+computed/multikey keys from documents, since old equality can have omitted keys.
+Reorder proven scalar member-path indexes in place to preserve page capacity.
+Reuse empty computed-index pages within their own index during regeneration;
+do not expose transaction-deleted pages to other snapshots. Preflight finite
+LIMIT_SIZE before promotion. Explicit IndexMigrationLimitSize increases are
+transaction-local until migration commits, including retries of pending v11 files. Preserve
+simple member-path vector indexes and rebuild computed vector expressions.
+`Upgrade=true` continues to rebuild v7 files before applying read-only access.
+Durable flushes must reach the underlying file through encryption and caller-stream
+wrappers. Run `python3 scripts/test-index-compatibility.py` and
+`python3 scripts/test-vector-compatibility.py`, including encrypted files.
+Run `python3 scripts/test-index-migration-recovery.py` for real process-death and
+partial encrypted I/O recovery. Cross-runtime CI must exchange legacy fixtures
+between Windows/NLS and Linux/ICU; same-host tests do not cover that transition.
+See `docs/collation-runtime-compatibility.md` and `docs/vector-query-compatibility.md`.
+
+Format v10 introduced data-page and WAL checksums; v11 retains their layout. Writable v8/v9 opens
 recover/checkpoint and sync the legacy WAL, then durably publish v10 with Mixed
 data-page coverage. Cutover backs up only the header (32 KiB temporary WAL);
 ordinary writes/checkpoints lazily checksum old pages. Byte 31 is 00 for legacy,
@@ -32,7 +53,7 @@ Unknown markers fail closed. Only Mixed non-header pages at or below the
 checksum-validated LegacyLastPageID may be legacy. Header bytes 160..164 store
 coverage and the boundary; new/rebuilt files use Complete. Keep coverage Mixed
 conservatively until explicit rebuild; there is no background migration.
-Read-only legacy opens preserve their bytes. `Upgrade=true`
+Read-only legacy opens requiring ordering migration reject without changing bytes. `Upgrade=true`
 continues to rebuild v7 files before applying read-only access. Data checksums use
 bytes 14..17 (the unused persisted transaction ID); WAL frames append 64 plaintext
 metadata bytes and keep logical 8192-byte page addresses. Rotate the WAL salt only

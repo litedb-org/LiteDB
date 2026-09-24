@@ -22,9 +22,20 @@ internal static class Program
         else if (action == "mutate") Mutate(file, snapshot, seed, operations, password);
         else if (action == "verify") Verify(file, snapshot, password);
         else if (action == "reject") Reject(file, password);
+        else if (action == "needs-migration") NeedsMigration(file, password);
         else throw new ArgumentException("Unknown action " + action);
         Console.WriteLine($"{typeof(LiteDatabase).Assembly.GetName().Version}: {action} passed for {Path.GetFileName(file)}");
         return 0;
+    }
+
+    private static void NeedsMigration(string file, string password)
+    {
+        try
+        {
+            using var db = Open(file, password, readOnly: true);
+            throw new InvalidDataException("Legacy read-only open must request index migration.");
+        }
+        catch (LiteException error) when (error.Message.Contains("index ordering/collation requires migration")) { }
     }
 
     private static void Create(string file, string snapshot, int seed, string password)

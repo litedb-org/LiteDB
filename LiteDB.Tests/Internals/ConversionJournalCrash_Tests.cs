@@ -50,12 +50,16 @@ namespace LiteDB.Internals
             using var data = ChecksumTestFiles.Copy(originalData);
             using var log = ChecksumTestFiles.Copy(originalLog);
             var settings = new EngineSettings { DataStream = data, LogStream = log, Password = password, ReadOnly = true };
+            try
+            {
             using (var engine = new LiteEngine(settings))
             using (var db = new LiteDatabase(engine, disposeOnClose: false))
             {
                 db.GetCollection("docs").FindAll().Should().HaveCount(WalTestDatabase.DocumentCount)
                     .And.OnlyContain(x => x["value"].AsInt32 == 0);
             }
+            }
+            catch (LiteException error) when (error.Message.Contains("index ordering/collation requires migration")) { }
             data.ToArray().Should().Equal(originalData);
             log.ToArray().Should().Equal(originalLog);
             settings.ReadOnly = false;

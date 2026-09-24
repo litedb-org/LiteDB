@@ -198,7 +198,7 @@ namespace LiteDB.Engine
         /// Load all confirmed transactions from log file (used only when open datafile)
         /// Don't need lock because it's called on ctor of LiteEngine
         /// </summary>
-        public void RestoreIndex(ref HeaderPage header)
+        public void RestoreIndex(ref HeaderPage header, Action<HeaderPage> validateHeader = null)
         {
             // get all page positions
             var positions = new Dictionary<long, List<PagePosition>>();
@@ -268,6 +268,7 @@ namespace LiteDB.Engine
             }
             if (_disk.ChecksumsEnabled)
             {
+                validateHeader?.Invoke(header);
                 _disk.FinishWalRecovery(recovery);
             }
         }

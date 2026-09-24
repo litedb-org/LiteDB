@@ -71,21 +71,21 @@ require O(N log N) work and temporary disk space. Simple bounded top-k queries
 retain the existing ANN performance characteristics. Equal-distance neighbors
 have no specified relative order unless the query supplies a tie-breaker.
 
-## File formats and checksums
+## Legacy v8/v9 migration and vector format 11
 
-New databases use format **10**, which supports vectors and checksums for data
-pages and WAL frames. A writable open automatically converts v8/v9 files after
-recovering and checkpointing their legacy WAL. This publishes a checksummed header
-without scanning or rewriting the old data pages; they are checksummed lazily on
-subsequent writes. A 32 KiB temporary WAL header backup protects cutover;
-no permanent backup file is created. Read-only
-v8/v9 opens preserve their original format. LiteDB 5.0.21 refuses v10 before it
-can interpret the new WAL. See [the checksum format and recovery rules](page-and-wal-checksums.md).
+New databases now use **format v11**, which protects both vector pages and the
+persisted comparison changes described in [index compatibility](collation-runtime-compatibility.md).
+Writable opens of v8/v9 files migrate indexes automatically; read-only opens that
+need migration request a writable open first. Simple member-path vector indexes
+retain their graph and metadata. Computed vector indexes are regenerated because
+comparison changes can affect their expressions. Existing v7 `Upgrade=true`
+rebuild and read-only upgrade semantics remain available.
 
-`Upgrade=true` retains the existing v7 rebuild path with a backup, before applying
-`ReadOnly=true`. Unknown formats report `UNSUPPORTED_FILE_VERSION` with the
-supported versions. Vector writes, rollback, WAL replay, and checkpoint never
-lower the format version. Do not edit the version byte to bypass this boundary.
+The v11 boundary is durably written before migrated pages enter WAL and cannot
+be lowered by rollback, replay, or checkpoint. Encryption and caller-stream
+wrappers forward durable flushes. Released v8/v9 readers reject v11, including
+ordinary databases. Unknown versions report `UNSUPPORTED_FILE_VERSION`. Do not
+change the version byte to bypass this protection.
 
 ## Validation
 
@@ -103,21 +103,19 @@ keys to temporary storage. Its initial execution tests had four failures and one
 passing regression before the query follow-up fix.
 
 `Issue2881_VectorFormat_Tests`, `Issue2881_VectorPromotion_Tests`, and
-`Issue2881_VectorPromotionFailure_Tests` cover version gating, checksummed ordinary
-files, conversion before commit, rollback, WAL headers, encryption, shared
-connections, concurrent writes, failed writes/flushes, and vector rebuild. The
-promotion tests initially had 11 failures and one passing regression. Existing
+`Issue2881_VectorPromotionFailure_Tests` cover version gating, unchanged ordinary
+files, the current format through commit/rollback, older WAL headers, encryption, shared
+connections, concurrent writes, failed writes/flushes, and vector rebuild. These tests now include the v11 index-migration boundary. Existing
 recovery fixtures run with their original version headers.
 
 Run `python3 scripts/test-vector-compatibility.py` for the cross-version check.
 It uses separate processes for the current library and NuGet LiteDB **5.0.21**.
-The current engine reads legacy files without modification in read-only mode,
-then automatically converts them on writable open. The old engine refuses
-read/write/rebuild/upgrade of new and converted files without changing their
-bytes. The current engine reopens the converted files and verifies their contents. This runs for plain and
-encrypted files, along with vector rebuild checks, in Linux CI. It also checks
-that a conversion interrupted before v10 publication can be resumed by the old
-engine, then converted by the current engine without losing the intervening write.
+The current engine migrates ordinary legacy files and retains their contents.
+The old engine then refuses read/write/rebuild/upgrade without changing the data
+file. Current files with vectors or empty vector indexes remain readable by the
+current engine. This runs for plain and encrypted files, along with vector rebuild
+checks, in Linux CI. Run `scripts/test-index-compatibility.py` for the persisted
+ordering and unique-collision migration matrix.
 
 `Issue2881_VectorPredicate_Tests` distinguishes scalar cosine predicates from API
 thresholds, index selection, targets, and candidate limits. Together with

@@ -16,9 +16,9 @@ namespace LiteDB.Engine
         private void LoadChecksums(BufferSlice header)
         {
             FileVersion = header[HeaderPage.P_FILE_VERSION];
-            if (FileVersion != HeaderPage.CHECKSUM_FILE_VERSION && header.ReadUInt32(WalChecksum.MarkerPosition) != WalChecksum.HeaderMarker) return;
+            if ((FileVersion < HeaderPage.CHECKSUM_FILE_VERSION || FileVersion > HeaderPage.CURRENT_FILE_VERSION) && header.ReadUInt32(WalChecksum.MarkerPosition) != WalChecksum.HeaderMarker) return;
             PageChecksum.Validate(header, 0);
-            if (FileVersion != HeaderPage.CHECKSUM_FILE_VERSION) throw LiteException.UnsupportedFileVersion(FileVersion);
+            if (FileVersion < HeaderPage.CHECKSUM_FILE_VERSION || FileVersion > HeaderPage.CURRENT_FILE_VERSION) throw LiteException.UnsupportedFileVersion(FileVersion);
             _dataChecksums.Load(header);
             var salt = new byte[16];
             Buffer.BlockCopy(header.Array, header.Offset + WalChecksum.SaltPosition, salt, 0, salt.Length);

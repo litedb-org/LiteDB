@@ -87,6 +87,15 @@ namespace LiteDB.Internals
             ChecksumTestFiles.MakeLegacy(data, log, password, version);
             var originalData = data.ToArray();
             var originalLog = log.ToArray();
+            if (readOnly)
+            {
+                Action open = () => { using var engine = new LiteEngine(new EngineSettings
+                    { DataStream = data, LogStream = log, Password = password, ReadOnly = true }); };
+                open.Should().Throw<LiteException>().WithMessage("*index ordering*requires migration*");
+                data.ToArray().Should().Equal(originalData);
+                log.ToArray().Should().Equal(originalLog);
+                return;
+            }
             using (var engine = new LiteEngine(new EngineSettings
             {
                 DataStream = data, LogStream = log, Password = password, ReadOnly = readOnly

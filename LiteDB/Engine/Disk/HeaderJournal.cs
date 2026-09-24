@@ -45,9 +45,9 @@ namespace LiteDB.Engine
             var page = new BufferSlice(header, 0, PAGE_SIZE);
             var valid = page.ReadUInt32(BasePage.P_TRANSACTION_ID) == PageChecksum.Compute(page) &&
                 page.ReadUInt32(BasePage.P_PAGE_ID) == 0;
-            if (valid && header[HeaderPage.P_FILE_VERSION] > HeaderPage.CHECKSUM_FILE_VERSION)
+            if (valid && header[HeaderPage.P_FILE_VERSION] > HeaderPage.CURRENT_FILE_VERSION)
                 throw LiteException.UnsupportedFileVersion(header[HeaderPage.P_FILE_VERSION]);
-            var published = valid && header[HeaderPage.P_FILE_VERSION] == HeaderPage.CHECKSUM_FILE_VERSION;
+            var published = valid && header[HeaderPage.P_FILE_VERSION] >= HeaderPage.CHECKSUM_FILE_VERSION;
             if (published)
             {
                 PageChecksum.Validate(page, 0);
@@ -124,7 +124,7 @@ namespace LiteDB.Engine
                 FooterBytes = position + Size == stream.Length ? Size : 0
             };
             var version = header[HeaderPage.P_FILE_VERSION];
-            if (version != 8 && version != 9 && version != HeaderPage.CHECKSUM_FILE_VERSION) return null;
+            if (version != 8 && version != 9 && version != HeaderPage.CHECKSUM_FILE_VERSION && version != HeaderPage.INDEX_FILE_VERSION) return null;
             if (journal.Legacy ? position % PAGE_SIZE != 0 : WalPadding.TrailingBytes(position) != 0) return null;
             if (!journal.Legacy)
             {

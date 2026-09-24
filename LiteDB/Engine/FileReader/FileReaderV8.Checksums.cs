@@ -26,7 +26,7 @@ namespace LiteDB.Engine
                 if (journal.ConfirmsLegacyBackup && !published && journal.FooterBytes != 0)
                     _checksums.LegacyConfirmationPosition = journal.Position - PAGE_SIZE;
             }
-            if (bytes[HeaderPage.P_FILE_VERSION] != HeaderPage.CHECKSUM_FILE_VERSION &&
+            if (bytes[HeaderPage.P_FILE_VERSION] < HeaderPage.CHECKSUM_FILE_VERSION &&
                 new BufferSlice(bytes, 0, PAGE_SIZE).ReadUInt32(WalChecksum.MarkerPosition) != WalChecksum.HeaderMarker) return;
             // Mixed-page permissions must only come from a verified header.
             var header = new BufferSlice(bytes, 0, PAGE_SIZE);

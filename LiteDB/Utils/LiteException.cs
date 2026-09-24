@@ -132,7 +132,7 @@ namespace LiteDB
         internal static LiteException UnsupportedFileVersion(byte version)
         {
             return new LiteException(UNSUPPORTED_FILE_VERSION,
-                "Database format version {0} is unsupported. This engine reads versions 8, 9 and 10; use a compatible LiteDB engine.", version);
+                "Database format version {0} is unsupported. This engine reads versions 8, 9, 10 and 11; use a compatible LiteDB engine.", version);
         }
 
         internal static LiteException FileSizeExceeded(long limit)

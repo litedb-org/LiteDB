@@ -224,12 +224,18 @@ namespace LiteDB.Tests.Issues
 
                 Action insertUsingTheValidFreePages = () =>
                 {
-                    using var db = new LiteDatabase(databasePath);
+                    // The conservative migration admission bound is independent of
+                    // the actual allocation footprint checked below.
+                    using var db = new LiteDatabase(new ConnectionString
+                    {
+                        Filename = databasePath, IndexMigrationLimitSize = 1024 * 1024
+                    });
                     db.GetCollection("fits_in_the_free_pages").Insert(new BsonDocument { ["_id"] = 1 });
                 };
 
                 insertUsingTheValidFreePages.Should().NotThrow(
                     "pages 16, 11, 12 and 9 are reusable, so the fixed 18-page database has enough room");
+                new FileInfo(databasePath).Length.Should().BeLessOrEqualTo(18L * PageSize);
             }
             finally
             {

@@ -54,7 +54,7 @@ with tempfile.TemporaryDirectory(prefix="litedb-v8-differential-") as temporary:
             invoke("Legacy", "create", legacy, baseline)
             shutil.copyfile(legacy, converted)
             before = converted.read_bytes()
-            invoke("Current", "verify", converted, baseline)
+            invoke("Current", "needs-migration", converted, baseline)
             if converted.read_bytes() != before:
                 raise AssertionError("Read-only legacy verification changed its file")
             mutation_seed = seed ^ 0x51ED270B
@@ -65,7 +65,7 @@ with tempfile.TemporaryDirectory(prefix="litedb-v8-differential-") as temporary:
             invoke("Current", "verify", converted, expected)
             invoke("Legacy", "reject", converted, expected)
             before = legacy.read_bytes()
-            invoke("Current", "verify", legacy, expected)
+            invoke("Current", "needs-migration", legacy, expected)
             if legacy.read_bytes() != before:
                 raise AssertionError("Read-only legacy verification changed its file")
             invoke("Current", "create", fresh, actual)

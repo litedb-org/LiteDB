@@ -29,6 +29,19 @@ namespace VectorCompatibility.Current
                 var prefix = mode == "create" ? "current-" : mode == "resumed" ? "interrupted-" : mode == "resumed-wal" ? "interrupted-wal-" : "legacy-";
                 var file = Path.Combine(args[1], prefix + suffix);
                 var original = File.Exists(file) ? File.ReadAllBytes(file) : null;
+                if (mode == "readonly")
+                {
+                    try
+                    {
+                        using var rejected = new LiteDatabase(new ConnectionString
+                            { Filename = file, Password = password, ReadOnly = true });
+                        throw new Exception("Legacy read-only open must request index migration.");
+                    }
+                    catch (LiteException error) when (error.Message.Contains("index ordering/collation requires migration")) { }
+                    if (!System.Linq.Enumerable.SequenceEqual(original, File.ReadAllBytes(file)))
+                        throw new Exception("Rejected read-only migration changed data.");
+                    continue;
+                }
                 using (var db = new LiteDatabase(new ConnectionString
                 {
                     Filename = file, Password = password, Upgrade = true, ReadOnly = mode == "readonly"
