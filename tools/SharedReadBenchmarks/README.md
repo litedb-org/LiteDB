@@ -8,8 +8,8 @@ It supports the pre-storage-stack `0fd277aae` baseline as well as PR #3003.
 dotnet build /absolute/checkout/LiteDB/LiteDB.csproj -c Release -f net10.0 -p:TestingEnabled=false
 dotnet build tools/SharedReadBenchmarks -c Release -f net10.0 \
   -p:LiteDBAssembly=/absolute/checkout/LiteDB/bin/Release/net10.0/LiteDB.dll \
-  -o artifacts_temp/shared-read-baseline
-dotnet artifacts_temp/shared-read-baseline/SharedReadBenchmarks.dll /tmp shared point 10000
+  -o <scratch>/shared-read-baseline
+dotnet <scratch>/shared-read-baseline/SharedReadBenchmarks.dll /tmp shared point 10000
 ```
 
 Repeat the build into a different output directory for each candidate. Alternate
@@ -42,12 +42,12 @@ For a separate diagnostic run, use an installed `dotnet-trace`:
 
 ```sh
 dotnet-trace collect --profile dotnet-sampled-thread-time --format Speedscope \
-  -o artifacts_temp/shared-point.nettrace -- \
-  dotnet artifacts_temp/shared-read-baseline/SharedReadBenchmarks.dll /tmp shared point 20000
+  -o <scratch>/shared-point.nettrace -- \
+  dotnet <scratch>/shared-read-baseline/SharedReadBenchmarks.dll /tmp shared point 20000
 ```
 
 Sampled thread time includes waiting. Inclusive stack percentages overlap and do
 not establish the percentage of CPU spent inside an inlined helper. Keep traces
 separate from the uninstrumented latency comparison.
 
-See [the PR #3003 investigation](../../docs/shared-read-performance.md).
+See [shared read performance](../../docs/shared-read-performance.md).

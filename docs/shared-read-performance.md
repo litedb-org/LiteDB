@@ -1,180 +1,86 @@
-# PR #3003: shared read performance investigation
+# Shared read performance
 
-This investigates the remaining read gaps in
-[PR #3003](https://github.com/litedb-org/LiteDB/pull/3003), at `f0228d301`,
-against pre-storage-stack `0fd277aae`. The original Windows results and harness
-are linked from the PR. These new measurements are Linux results, not a
-reproduction of the Windows percentages.
+After the storage stack (#2998, #2924, #2999, #3000), shared-mode reads were slower than before it (`0fd277aae`). Direct-mode reads barely changed: a point read went from 0.036 to 0.038 ms. The extra cost therefore lies in what shared mode repeats for every operation, not in the query engine or in checksum validation. This document summarizes the investigation, the changes in #3003 and what remains.
+
+Two investigations reached the same diagnosis independently: one on Windows, and one on Linux in the draft #3009, whose fingerprint cache is part of #3003 now. The workloads use a 2,000-document fixture:
+- point read: `FindById`;
+- full scan: all 2,000 rows;
+- mixed: one update per nine point reads;
+- update loop.
 
 ## Findings
 
-1. **Repeated collation fingerprints are a confirmed avoidable cost.** Every
-   calculation writes 361 culture comparisons and hashes the result. A clean
-   checksummed engine open checks the stamp before WAL restoration, inside
-   restoration, and afterward. Shared mode repeats that work for every operation;
-   large reads open a second engine as well. This computation arrived with the
-   persisted index compatibility changes, so attributing all regression to page
-   checksums misses a significant cost.
-2. **Shared mode still rebuilds state on every operation.** Engine construction,
-   file opens, header parsing, page-cache allocation, and query setup remain in
-   the profile. The PR's persistent handle cache is Windows-only. This Linux
-   investigation cannot establish how much more Windows handle caching could save.
-3. **Streaming queries do duplicate work.** `TryBufferResult` consumes a prefix
-   of up to 100 values/64 KiB, then discards it and starts the query on a second,
-   leased snapshot engine. The prefix is extra work even for a simple scan;
-   a sort or aggregate can do substantially more input work before producing that
-   prefix. The second engine begins with a fresh page cache. These are architectural
-   costs; the fingerprint fix does not remove them.
-4. **Lazy checkpointing exchanges write cost for subsequent replay work.** The
-   shared connection can leave fewer than 50 WAL pages after an operation.
-   Following reads restore that WAL again. In the mixed-workload trace, WAL index
-   restoration appears in 15.1% of sampled main-thread time and native durable
-   flushes in 49.5%. These inclusive percentages overlap with their callers and
-   include waits. Faster fingerprinting cannot remove storage latency.
-5. **Holder-thread handoff and missing-marker probes are smaller remaining
-   costs.** The point trace attributes about 3.3% to mutex admission and 4.7% to
-   the rebuild recovery marker check. Neither safety mechanism was bypassed.
-   Inlined CRC work is not reliably isolated by these samples; a small named CRC
-   stack percentage is not evidence that checksums are free.
-6. **The coordinator cursor-update gap is dominated by waiting at the client.**
-   A separate-process, 2,000-update run succeeds. An attached 10-second trace
-   places 99.6% of sampled client main-thread time in protocol reads. The streaming
-   write protocol requests the first document, requests the next/end marker, then
-   sends the result, even for a single-document update. The shared engine instead
-   pins its engine during same-connection cursor writes. Fewer protocol exchanges
-   are a plausible next optimization, but this client trace includes server work
-   and durable commit latency inside the wait; it does not prove that transport
-   alone explains the gap. The coordinator is unchanged by this patch.
+1. **Engine startup repeated work whose result could not have changed.** A cold point read spent about 68% of its time opening an engine:
+   - The page-0 header was read and validated twice: by `DiskService.ValidateExistingData` and again by `LiteEngine.Open`.
+   - `ValidateCollationStamp` ran three times per open: before, during and after WAL restore. Each run computed the collation fingerprint, which writes 361 culture comparisons and hashes them with SHA-256. On Linux this fingerprint was 26% of the sampled time of a point-read trace. It arrived with the persisted index compatibility changes, so attributing the regression to page checksums alone misses it.
+   - With auto-rebuild enabled, every operation also scanned the reader-lease directory (`OldestVersion`).
+2. **A streaming query ran twice.** `TryBufferResult` executed the query on the writable engine and buffered up to 100 values or 64 KiB. On overflow it discarded that work, registered a lease, opened a second (snapshot) engine with a cold page cache and executed the query again from the start.
+3. **Lease registration was a filesystem round trip.** Leases were not deleted on close. The next registration therefore enumerated the `-readers` directory, opened the previous lease exclusively to prove it dead, deleted it and the directory, recreated the directory and created the new lease. An absent directory was detected through a caught `DirectoryNotFoundException`.
+4. **Smaller costs.** The handle identity check of the Windows handle cache takes about 14% of an open. The mutex holder thread from #3006 adds about 20–30 µs per operation, and the rebuild-marker probe a few percent. Each of these safety mechanisms was kept.
+5. **Lazy checkpoints move some work to reads.** After a write, up to 50 WAL pages stay in the WAL, and each following operation's fresh engine restores them. On Linux, WAL index restoration appeared in 15.1% of the mixed-workload trace. In the steady-state measurements below, the mixed workload already matches pre-stack dev without further changes. A checkpoint on the first read after writes would cost four syncs plus the page copies per update, so it was not added.
+6. **Cold runs mostly measure JIT warm-up.** The post-stack code is larger. In short, cold runs it compiled 2.3× more methods in the second half of the run, including `Crc32C`. With the tiered call-counting delay set to 0, a pre-stack scan takes 3.1 ms and the new code 3.5 ms. CRC validation is about 1.3–1.8 ms per cold scan, but 15 µs per scan in steady state (0.7 µs per page, 11.5 GB/s). The first benchmark published on #3003 used such cold runs and overstated the steady-state gap.
 
-The baseline point trace contains 6.06 seconds of sampled main-thread time;
-`CollationFingerprint.Compute` appears in 26.2%. The candidate trace contains
-4.99 seconds, with cached computation at 0.6% and uncached computation at 0.2%.
-These whole-process traces include fixture creation and startup and are diagnostic
-evidence, not the uninstrumented benchmark speedup. The scan trace puts only 3.7%
-in fingerprinting; its larger iteration costs remain.
+## Changes in #3003
 
-## Change and safety boundary
+- **The live-reader check for auto-rebuild** runs only when an invalid-state header is about to be rebuilt, still under the mutex. A live reader still blocks the rebuild.
+- **Bounded collation fingerprint cache** (from #3009):
+  - At most 64 immutable, process-local runtime results, keyed by comparer name, LCID, comparison options and sort version, so equal LCIDs alone do not identify a comparer.
+  - A collision recomputes. A runtime that cannot describe its sort tables returns 0 and is asked again on the next request.
+  - The cache holds the runtime's answer, never a database's verdict: every loaded data and WAL header is still compared against it, and the persisted fingerprint bytes are unchanged.
+- **Header reuse:** the header that `ValidateExistingData` read, recovered and validated is handed to `LiteEngine.Open` once. It is the same engine, still opening, so nothing can write in between. New files still use `ReadFull`.
+- **One execution per read:** a pure read (no transaction, `FOR UPDATE` or `SELECT INTO`) opens the read-only snapshot engine directly under the mutex.
+  - A result within 100 values / 64 KiB finishes there.
+  - A larger one registers its lease for that engine's read version while the mutex is still held, then continues the same reader through `PrefixedDataReader`.
+  - The writable engine is not detached, because its close may delete an empty WAL and the shared `-tmp` file, which outside the mutex could delete a WAL another process just wrote.
+  - Files that need a writable open first still go through the writable engine within the same mutex hold: missing files, a pending upgrade, index migration, promotion and auto-rebuild.
+- **Self-deleting leases:** a lease is an exclusive handle created with `DeleteOnClose`, and registration only checks that the registry is readable.
+  - A held lease cannot be taken by another process's exclusive probe (a sharing violation on Windows, `LOCK_EX` on Unix), and .NET deletes it on Unix only at `Dispose`.
+  - Checkpoints still remove crashed readers' leases and fail closed on a registry they cannot read.
 
-`CollationFingerprint` now keeps at most 64 immutable runtime results in a
-process-local table. Keys include comparer name, LCID, comparison options, and
-sort version/ID. Independent `Collation` instances can reuse the result; comparing
-`CompareInfo` object identity alone did not achieve that across engine opens.
-Collisions recompute. Publication uses volatile reference reads/writes and retains
-no database, page, stream or connection object.
-
-The uncached algorithm, persisted fingerprint bytes, header comparisons, and
-legacy zero-stamp validation remain unchanged. A runtime without sort-version
-support still returns zero and retries the runtime on the next request. Each
-process computes its own probes, so a cache cannot carry an answer from ICU to
-NLS or another runtime. Every newly loaded data/WAL header is still compared
-against the runtime result. The change adds no persistence transition or format.
-
-This does not enable incremental shared-engine reopen. The fence considered in
-[#3004](https://github.com/litedb-org/LiteDB/issues/3004) misses foreign writes into
-reusable WAL slots without a header change. Removing that replay safely needs a
-separate coherence protocol. The experimental coordinator has such an epoch/lease
-protocol but also changes deployment and ownership; it remains opt-in.
-
-## Measurement protocol
-
-Ubuntu 24.04.3, AMD Ryzen 9 3900X, x64, ext4 on the host's LVM volume; .NET
-10.0.11 and 8.0.30 measured separately. All library builds use Release and
-`TestingEnabled=false` in separate worktrees. Other database/fuzz workloads were
-active on the host. Treat latency ranges as host-dependent rather than isolated
-hardware limits. No tests or builds from this investigation run during the final
-timing comparison.
-
-The [runner](../tools/SharedReadBenchmarks/README.md) creates 2,000 documents with
-a 200-character payload under invariant current culture, checks their full contents, separates a first operation
-from warm measurements, and records the loaded DLL's SHA-256. Three interleaved
-rounds reverse build order in the middle round. Each process has fresh static
-state and a freshly seeded database. Point reads use 6,000 measured operations,
-scans 150, and mixed workloads 2,000. Warmup is 1,000 operations or 20 scans.
-
-Raw local evidence is retained under `artifacts_temp/pr3003/`: `comparison.jsonl`,
-the `.nettrace` and `.speedscope.json` files, `profile-summary.txt`, production
-assemblies, and test logs/results. Raw artifacts are not included in the source
-diff. The original PR harness was also run before adding the stronger content
-checks; those exploratory timings are separate from the final comparison.
-`coordinator-attached.nettrace` is the valid coordinator trace. The earlier
-launch-traced attempt exited 134 and produced unusable stacks; it is excluded
-from the analysis. Both an uninstrumented run and the subsequent attach-traced
-run completed successfully. Coordinator diagnostic runs overlapped test work
-and are not used for latency comparisons.
+No persistence format, checksum, checkpoint fence or ownership rule changed.
 
 ## Results
 
-Median of three run means, milliseconds per operation. Ranges are the minimum
-and maximum run means, not per-operation extremes.
+**Windows, steady state** (AMD Ryzen 9 9955HX, NVMe, .NET 10; 5 s warm-up, then 3 interleaved rounds; median ms per operation):
 
-| Runtime / shared workload | PR head | Candidate | Change |
-| --- | --- | --- | --- |
-| .NET 10 point | 0.4402 (0.4233–0.4450) | 0.3309 (0.3206–0.3383) | −24.8% |
-| .NET 10 scan | 11.1429 (10.5981–11.1618) | 10.1198 (9.9882–10.2407) | −9.2% |
-| .NET 10 mixed | 1.3015 (1.2717–1.3020) | 1.2527 (1.1744–1.2547) | −3.8% |
-| .NET 8 point | 0.4529 (0.4525–0.4796) | 0.3542 (0.3476–0.3556) | −21.8% |
-| .NET 8 scan | 10.5443 (10.4339–11.3632) | 10.1768 (9.9774–11.0096) | −3.5% |
-| .NET 8 mixed | 1.3689 (1.3687–1.3732) | 1.2052 (1.1794–1.2123) | −12.0% |
+| Workload | pre-stack `0fd277aae` | before the read changes | lease check and startup changes | **all read changes** |
+|---|---|---|---|---|
+| Point read | 0.340 | 0.322 | 0.299 | **0.215** |
+| Full scan, 2,000 rows | 1.866 | 3.368 | 3.366 | **2.406** |
+| 1 update : 9 reads | 0.716 | 0.875 | 0.783 | **0.710** |
+| Update loop | 3.913 | 2.249 | 2.170 | **2.104** |
 
-The point-read improvement is supported by both disjoint timing ranges and the
-removed profile hotspot. Scan results need more caution: the .NET 8 ranges
-overlap and its median p99 increases from 13.10 to 15.29 ms. The .NET 10 direct
-scan control also moves from 5.73 to 5.26 ms with overlapping ranges, despite
-unchanged allocation and no per-scan fingerprint work. Thus the entire observed
-9.2% shared-scan improvement cannot confidently be attributed to this patch.
-Direct point reads and mixed work remain essentially unchanged (0.0616→0.0627
-and 0.5785→0.5763 ms); their allocation counts are identical.
+Without warm-up (cold), from before the read changes to after them:
 
-Shared point allocation falls from about 289.5 KB to 280.5 KB per operation;
-scan allocation from 5.345 MB to 5.327 MB. These are total allocated bytes,
-not resident or retained memory. The new table retains at most 64 small entries
-in exchange for removing those repeated temporary allocations.
+| Workload | before | after | pre-stack |
+|---|---|---|---|
+| Point read | 0.692 | 0.480 | 0.47 |
+| Scan | 9.3 | 8.0 | 5.6 |
+| Mixed | 1.44 | 1.17 | 0.80 |
 
-The .NET 10 phase diagnostic measures obtaining a scan reader at 1.206→0.941 ms,
-iteration at 9.017→8.571 ms, and disposal at 0.031→0.030 ms. The unchanged
-iteration implementation and the direct control indicate environmental noise in
-part of the iteration difference. Reader setup is still much higher than the
-pre-stack value of 0.123 ms.
+**Linux, fingerprint cache alone** (#3009: Ubuntu 24.04, AMD Ryzen 9 3900X, ext4; 1,000-operation or 20-scan warm-up, median of three run means, ms per operation; other workloads were active on the host):
 
-The pre-stack shared point/scan/mixed values on this host are 0.2127 / 8.3444 /
-1.3133 ms. The candidate remains about 56% slower for point reads and 21% slower
-for scans, while mixed work is slightly faster. Those are Linux comparisons;
-the PR's reported Windows +35% / +60% / +65% gaps are not interchangeable with
-them. The remaining gap is not closed.
+| Workload | .NET 10 before | .NET 10 with cache | .NET 8 before | .NET 8 with cache |
+|---|---|---|---|---|
+| Point read | 0.440 | 0.331 | 0.453 | 0.354 |
+| Scan | 11.14 | 10.12 | 10.54 | 10.18 |
+| Mixed | 1.30 | 1.25 | 1.37 | 1.21 |
 
-Production library identities:
+The point-read gain is supported by disjoint timing ranges and by the removed profile hotspot. The scan ranges overlap, so that change can't be attributed to the cache with confidence. The pre-stack values on that host were 0.213 / 8.34 / 1.31 ms. Windows and Linux numbers must not be combined into one speedup.
 
-| Build | SHA-256 |
-| --- | --- |
-| PR head, net10.0 | `832b3d4b9ea4dd90430d882651a30350f799382386ad6156eb35614f7d5a451d` |
-| Candidate, net10.0 | `bb15a99e96e389f3f66319a16667633c92adb50af1d57cc78c492fe3432db98a` |
-| PR head, net8.0 | `ad51259daac2c1115f83cdd9b09588ebcc251862669445a4f2ffe7054d94ebae` |
-| Candidate, net8.0 | `c2625f080828846f543c65f99386677d5c17f75532fbee33867ddc039cf7884f` |
+## What remains
 
-## Validation and limits
+- **Full scans are about 29% slower than pre-stack in steady state.**
+  - About 0.4 ms of the remaining 0.54 ms per scan is creating the lease file. v13's cross-process snapshots need an OS-held lease; pre-stack held the mutex for the whole read instead.
+  - The rest is lock contention in the page cache (`Monitor.Enter` in `GetReadablePage`).
+- **Cold starts** are dominated by JIT compilation of the larger code. Closing that gap needs ReadyToRun or startup tiering, not storage changes.
+- **Incremental engine reopen is not possible without a new coherence protocol.** A persistent engine-state cache validated only by WAL length or the current header fields is unsound: another process can reuse free WAL slots before the cached end without any header change (#3004). The experimental coordinator avoids reopening entirely with its own epoch and lease protocol; see [experimental-coordinator.md](experimental-coordinator.md).
 
-The library revision tested is `f0228d301` plus the fingerprint cache in this
-change, Release with `TestingEnabled=true`. The production measurement worktrees
-use the identical cache source with hooks disabled.
+## Tests and measurement tools
 
-| Invariant / risk | Evidence |
-| --- | --- |
-| Cache collisions or concurrency must not alter persisted fingerprints | 108 culture/options combinations, more than the 64 slots, repeatedly checked concurrently against the original uncached algorithm; fixed pre-cache Ordinal value; invalid-option rejection |
-| A warm connection must still reject an incompatible header | File-backed writable/read-only shared opens, a checksum-valid altered stamp after a successful read, two rejected retries, unchanged data and absent WAL, then successful reads after restoring the original bytes, including an unrelated collection |
-| Cache reuse must preserve indexed results and encrypted/read-only access | Plain/encrypted file reopen cases, explicit index-plan assertions, results compared with native culture comparisons, and byte-identical files after read-only use |
-| Recovery and unversioned stamps must still be validated | Existing `Issue2812CollationStamp_Tests`, including a changed recovered WAL header, incompatible unstamped indexes, and valid zero-stamp read-only files |
-| Actual old-writer compatibility | `scripts/test-index-compatibility.py` passed creation, migration, old-reader rejection and verification with real 5.0.21 binaries, 16 plain/encrypted, binary/culture, data/WAL, success/collision fixtures plus finite-limit fixtures |
-| Broader query, ownership and storage safety | All nine CI partitions passed on both .NET 8.0.30 and 10.0.11: **4,471 passed, zero failed, seven existing skips per runtime**, excluding repeated runtime/hook guards |
-
-Partition verification placed all 2,105 discovered methods in exactly one group.
-The initial unpartitioned .NET 10 session reached the configured 300-second limit
-with 3,093 passes and no failures; it was not counted as a completed suite.
-Partitioned runs retain that same timeout and verify the actual runtime,
-architecture, and presence of test hooks. The final index-plan assertion was
-additionally checked with the focused fingerprint/stamp tests on both runtimes.
-
-The .NET Framework 4.6.2 and 4.8.1 test targets compile; their runtimes were not
-executed. Windows/NLS and macOS performance were not measured. The existing
-fault-injection and process-recovery tests passed on Linux, but this optimization
-does not claim new hardware power-loss guarantees. No persistence protocol,
-format, checksum, checkpoint fence or ownership rule was relaxed.
+- **Read path:** [SharedReadPath_Tests](../LiteDB.Tests/Engine/SharedReadPath_Tests.cs) covers the 100 vs 101 value boundary, the 64 KiB boundary, prefix semantics, a legacy file read first, first-read creation, auto-rebuild under a live reader and the lease lifecycle. Negative controls: the old path fails the single-execution tests, and removing `DeleteOnClose` fails the lease test.
+- **Fingerprint cache:** [CollationFingerprintCache_Tests](../LiteDB.Tests/Internals/CollationFingerprintCache_Tests.cs):
+  - 108 culture/option combinations (more than the 64 slots), checked concurrently against the uncached algorithm;
+  - a warm connection must still reject a checksum-valid altered stamp;
+  - encrypted and read-only reopens with index-plan assertions.
+- **Measurement:** [tools/SharedReadBenchmarks](../tools/SharedReadBenchmarks/README.md) references an already built production `LiteDB.dll`, so baseline and candidate assemblies stay isolated. The raw Windows benchmark data for #3003 is in [LiteDB-Artifacts](https://github.com/litedb-org/LiteDB-Artifacts/tree/main/pull-requests/3003-shared-mode).

@@ -33,8 +33,18 @@ symbolic links, hard links or other physical-file aliases; different aliases
 must not be used to open the same database concurrently. Direct connections and
 older shared implementations must not run concurrently with shared snapshots.
 
-Ordinary small queries finish under the mutex. Larger queries retain a snapshot
-and an OS-owned lease, releasing the writer mutex before returning. A paused
+A pure read (no transaction, `FOR UPDATE` or `SELECT INTO`) runs on a read-only
+snapshot engine opened under the mutex; it never writes, never deletes the WAL
+and uses private sort space. A result of at most 100 values and 64 KiB finishes
+under the mutex. A larger one registers its lease for that engine's read version
+while the mutex is still held and then continues the same reader, so the query
+runs once. A file that needs a writable open first (creation, upgrade, index
+migration, promotion, auto-rebuild) is read through the writable engine as
+before. Leases are exclusive handles created with delete-on-close: a held lease
+cannot be taken by a prober's exclusive open, and a closed one removes itself.
+Registration does not scan the registry; checkpoints remove the leases of
+crashed readers and fail closed on a registry they cannot read (performance
+background: [shared read performance](shared-read-performance.md)). A paused
 reader remains live; a terminated process loses its handles. Explicit
 transactions, `FOR UPDATE` and `SELECT INTO` retain writer serialization. Rebuild
 requires shared readers to close. Preserve the `-readers` directory while the
@@ -113,6 +123,7 @@ value describes that connection, not every writer that has accessed the file.
 | --- | --- |
 | A relative connection stays bound to its original database and registry after a working-directory change, before or after its first operation. | [SharedSafetyProcess_Tests](../LiteDB.Tests/Internals/SharedSafetyProcess_Tests.cs): separate child process, plain/encrypted files, a retained snapshot, and an unrelated same-named database whose records must remain unchanged. |
 | A result or connection disposed on another thread, or an owner thread that exits, never keeps other threads or processes waiting, and an exited transaction owner is still reported. | [SharedMutexOwnership_Tests](../LiteDB.Tests/Engine/SharedMutexOwnership_Tests.cs): unleased readers disposed on other threads and after an await, `Dispose` on another thread, exited reader and transaction owners, and a real second process that waits only while the reader is open. All six fail with the thread-affine mutex. |
+| A pure read executes once on one snapshot: a result at the 100-value / 64 KiB budget completes under the mutex, one past it streams from the same snapshot under a lease registered before the mutex is released. Files that need a writable open (missing, legacy, invalid state with auto-rebuild) are still read through it. A held lease is live for other registries and a closed one leaves no file. Auto-rebuild never replaces files under a live reader. | [SharedReadPath_Tests](../LiteDB.Tests/Engine/SharedReadPath_Tests.cs) |
 | An abandoned explicit transaction's engine is discarded without a checkpoint, and another connection's commits made meanwhile survive. | [Issue3005_AbandonedOrphan_Tests](../LiteDB.Tests/Issues/Issue3005_AbandonedOrphan_Tests.cs): checkpoint stages observed during the discard (none allowed), plain/encrypted, with and without a reader lease held by the other connection; the concurrent-commit variant runs on Unix hosts, where a peer can write while the orphan's handles stay open. |
 | Cached handles are reused only while they name the file at their path: commits, checkpoints that delete the WAL and rebuilds by other connections or processes stay visible, no commit reaches a deleted WAL, and a killed process holding handles blocks no peer. | [SharedFileHandles_Tests](../LiteDB.Tests/Internals/SharedFileHandles_Tests.cs): cached reads compared with a fresh connection, plain and encrypted, real child processes; without the identity check four of seven fail: three lose an acknowledged commit to a deleted WAL, one reads the replaced data file. Direct mode and write-denying readers are refused while a shared connection is open; `File.Copy` works. |
 | Storage that cannot sync never has reclaimed WAL slots reused by later shared engines; a live reader keeps its snapshot and a crash image recovers. | [SharedUnsyncableLog_Tests](../LiteDB.Tests/Internals/SharedUnsyncableLog_Tests.cs): a leased reader across a snapshot checkpoint and later writes on fresh engines; fails with 315 overwritten slots when the reuse probe is removed. |
