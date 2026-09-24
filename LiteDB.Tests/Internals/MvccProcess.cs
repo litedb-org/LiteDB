@@ -47,6 +47,10 @@ namespace LiteDB.Internals
             line.Should().Be(expected);
         }
 
+        /// <summary>Next output line, or null once the process closed its output.</summary>
+        internal Task<string> ReadLine(TimeSpan timeout) =>
+            _process.StandardOutput.ReadLineAsync().WaitAsync(timeout);
+
         internal async Task Finish(bool release = false)
         {
             if (release) _process.StandardInput.WriteLine("continue");
