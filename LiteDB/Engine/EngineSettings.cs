@@ -22,6 +22,9 @@ namespace LiteDB.Engine
         internal Action<string> CheckpointStage { get; set; }
 #endif
         internal Func<int[]> SharedReaderVersions { get; set; }
+        // Consulted only when AutoRebuild is about to rebuild an invalid-state file, while
+        // the caller holds the database exclusively; null allows the rebuild.
+        internal Func<bool> AutoRebuildAllowed { get; set; }
         // Shared mode: outlives each short-lived engine; rations close checkpoints too.
         internal CheckpointBackoff CheckpointBackoff { get; set; }
         internal bool SharedReadSnapshot { get; set; }

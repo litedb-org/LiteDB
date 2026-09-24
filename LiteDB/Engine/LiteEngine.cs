@@ -114,7 +114,8 @@ namespace LiteDB.Engine
                 _disk.FileVersion = _header.FileVersion;
 
                 // if database is set to invalid state, need rebuild
-                if (buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0 && _settings.AutoRebuild)
+                if (buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0 && _settings.AutoRebuild &&
+                    (_settings.AutoRebuildAllowed?.Invoke() ?? true))
                 {
                     // dispose disk access to rebuild process
                     _disk.Dispose();

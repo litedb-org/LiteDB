@@ -50,6 +50,9 @@ namespace LiteDB
             _settings.SharedDurability = new SharedDurabilityState();
             _readers = new SharedReaderRegistry(_settings.Filename, _settings.SharedReaderFiles);
             _settings.SharedReaderVersions = _readers.LiveVersions;
+            // A rebuild would replace the files under live snapshot readers. Scan the
+            // registry only when an open is about to rebuild, not on every operation.
+            _settings.AutoRebuildAllowed = () => !_readers.OldestVersion().HasValue;
             // Each operation opens and closes an engine. Share one back-off so a
             // long-lived reader cannot make every close pay for partial checkpoint.
             _settings.CheckpointBackoff = new CheckpointBackoff();
@@ -148,13 +151,7 @@ namespace LiteDB
 #if DEBUG || TESTING
                     if (SimulateOpenEngine != null) return SimulateOpenEngine();
 #endif
-                    var settings = _settings;
-                    if (settings.AutoRebuild && _readers.OldestVersion().HasValue)
-                    {
-                        settings = settings.Clone();
-                        settings.AutoRebuild = false;
-                    }
-                    return new LiteEngine(settings);
+                    return new LiteEngine(_settings);
                 }
                 catch (IOException ex) when (recoveredAbandonedOwner && IsWindowsLockViolation(ex) && attempt < retries)
                 {
