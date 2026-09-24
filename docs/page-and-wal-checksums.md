@@ -151,7 +151,9 @@ present transaction is not recovered. Storage must still honor successful syncs
 for the usual durable-commit and checkpoint guarantees. Log storage that rejects
 sync as unsupported (#2242) converts and checkpoints in write order without the
 log sync: a killed process still recovers, power loss is not covered. A failed
-sync still stops before data is overwritten.
+sync still stops before data is overwritten. On Unix the file sync is issued natively
+(`fsync`, or `F_FULLFSYNC` on macOS), because `FileStream.Flush(true)` in released .NET
+runtimes reports success for every failed `fsync`.
 
 ## Validation
 

@@ -65,7 +65,7 @@ namespace LiteDB.Engine
 #if DEBUG || TESTING
                 RebuildService.SimulateInstallFailure?.Invoke("before-recovery-marker-flush");
 #endif
-                stream.Flush(true);
+                stream.FlushToDisk();
             }
         }
 

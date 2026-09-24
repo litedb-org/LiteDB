@@ -193,7 +193,12 @@ commit returns, so acknowledged commits survive power loss on storage that can
 sync. Storage that rejects the sync (some network shares and virtual file
 systems, #2242) falls back to the earlier behaviour for commits, checkpoints and
 format conversion; `$database.durableLogFlush` reports which one is in effect. A
-sync that fails with an I/O error still stops the engine before data is overwritten. This costs about one
+sync that fails with an I/O error still stops the engine before data is overwritten.
+On Linux and macOS this requires LiteDB's own device sync: released .NET runtimes
+lose every `fsync` error in `FileStream.Flush(true)` (dotnet/runtime#124725), which
+had hidden EIO and unsupported-sync answers alike. File handles are now synced with
+`fsync` (`F_FULLFSYNC` on macOS, falling back to `fsync`), so such storage reports
+`durableLogFlush=false` and an EIO stops the checkpoint. This costs about one
 device sync per commit (about 1 ms on NVMe, far more on hard disks and network
 volumes); batched transactions and `InsertBulk` are unaffected. Set
 `durable commits=false` (`DurableCommits = false`) to restore the earlier

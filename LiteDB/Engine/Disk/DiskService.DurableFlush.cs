@@ -149,11 +149,14 @@ namespace LiteDB.Engine
         /// <summary>
         /// True only for answers that mean "this handle cannot be synced", never for a failed sync.
         /// FlushFileBuffers: ERROR_ACCESS_DENIED (on a handle that was just written), ERROR_INVALID_FUNCTION,
-        /// ERROR_NOT_SUPPORTED. fsync: EINVAL, ENOTSUP, EROFS surface as the raw errno on Unix runtimes
-        /// that do not already ignore them.
+        /// ERROR_NOT_SUPPORTED. fsync/F_FULLFSYNC: EINVAL, ENOTSUP/EOPNOTSUPP, EROFS, reported by
+        /// <see cref="NativeFileSync"/> for file handles (released .NET runtimes lose Unix sync errors)
+        /// and as a raw-errno HResult by other Unix streams.
         /// </summary>
         private static bool IsDurableFlushUnsupported(Exception ex)
         {
+            // Unix file handles are synced natively and report the raw errno.
+            if (ex is FileSyncException sync) return sync.IsUnsupported;
             if (ex is UnauthorizedAccessException) return true;
             if (!(ex is IOException)) return false;
 
