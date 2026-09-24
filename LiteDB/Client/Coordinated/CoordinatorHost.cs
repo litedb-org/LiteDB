@@ -38,6 +38,11 @@ namespace LiteDB.Client.Coordinated
         /// <summary>Why the accept loop stopped, when it could not create its pipe.</summary>
         internal Exception AcceptFailure => _acceptFailure;
 
+#if DEBUG || TESTING
+        /// <summary>Test hook: runs before the accept loop creates a pipe instance (database filename, stop token).</summary>
+        internal static Action<string, CancellationToken> BeforeCreatePipe;
+#endif
+
         internal CoordinatorHost(EngineSettings settings, CoordinatorMutex mutex)
         {
             _mutex = mutex;
@@ -79,16 +84,22 @@ namespace LiteDB.Client.Coordinated
                 NamedPipeServerStream server;
                 try
                 {
+#if DEBUG || TESTING
+                    BeforeCreatePipe?.Invoke(_filename, _stop.Token);
+#endif
                     server = new NamedPipeServerStream(_pipeName, PipeDirection.InOut,
                         NamedPipeServerStream.MaxAllowedServerInstances, PipeTransmissionMode.Byte,
                         PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
                 }
-                catch (IOException) when (!_stop.IsCancellationRequested)
+                catch (IOException)
                 {
+                    // Busy pipe instances (Windows) or a failed bind (Unix) are transient, but
+                    // during Stop they must end the loop: nothing may escape this thread.
+                    if (_stop.IsCancellationRequested) return;
                     Thread.Sleep(20);
                     continue;
                 }
-                catch (Exception ex) when (!(ex is IOException))
+                catch (Exception ex)
                 {
                     // An exception on this background thread would terminate the process.
                     // Clients cannot connect; they time out and fail with a coordinator error.

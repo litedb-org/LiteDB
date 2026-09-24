@@ -4,6 +4,8 @@ using System;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using FluentAssertions;
 using LiteDB.Client.Coordinated;
 using LiteDB.Engine;
@@ -97,6 +99,56 @@ namespace LiteDB.Tests.Engine
             }
             finally { CoordinatorStatusPage.ForceSplitLoads = false; }
         }
+#if DEBUG || TESTING
+        /// <summary>
+        /// Stop can find the accept thread creating its next pipe instance, which may then fail
+        /// with an IOException (busy instances, failed bind). That exception must end the loop,
+        /// not escape the background thread and terminate the process.
+        /// </summary>
+        [Fact]
+        public void A_pipe_failure_during_stop_ends_the_accept_loop()
+        {
+            using var file = new TempFile();
+            using var entered = new ManualResetEventSlim();
+            using var release = new ManualResetEventSlim();
+            var armed = 0;
+            CoordinatorHost.BeforeCreatePipe = (filename, token) =>
+            {
+                if (filename != file.Filename || Volatile.Read(ref armed) == 0) return;
+                Volatile.Write(ref armed, 0);
+                entered.Set();
+                release.Wait(TimeSpan.FromSeconds(10));
+                if (token.IsCancellationRequested) throw new IOException("All pipe instances are busy.");
+            };
+            try
+            {
+                var host = new CoordinatedEngine(file.Filename);
+                host.IsCoordinator.Should().BeTrue();
+                // A first session proves the accept loop is past its initial pipe instance, so the
+                // armed hook stops the instance it creates after the next session connects.
+                using (var warm = new CoordinatedEngine(file.Filename))
+                    warm.Insert("rows", new[] { new BsonDocument { ["_id"] = 1 } }, BsonAutoId.Int32).Should().Be(1);
+                Volatile.Write(ref armed, 1);
+                using (var client = new CoordinatedEngine(file.Filename))
+                {
+                    // Serving this session makes the accept loop create its next pipe instance.
+                    client.Insert("rows", new[] { new BsonDocument { ["_id"] = 2 } }, BsonAutoId.Int32).Should().Be(1);
+                }
+                entered.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
+
+                var stop = Task.Run(host.Dispose);
+                Thread.Sleep(200);
+                release.Set();
+                stop.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue("Stop joins the accept thread");
+                host.HostForTests?.AcceptFailure.Should().BeNull("an IOException during stop is a stop, not a failure");
+            }
+            finally
+            {
+                CoordinatorHost.BeforeCreatePipe = null;
+                release.Set();
+            }
+        }
+#endif
     }
 }
 #endif
