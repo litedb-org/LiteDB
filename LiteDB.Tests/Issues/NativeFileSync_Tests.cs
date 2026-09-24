@@ -38,10 +38,24 @@ namespace LiteDB.Tests.Issues
             ex.HResult.Should().Be(errno);
         }
 
+        // errno values differ between Linux and macOS/BSD (ENOTSUP is 95 vs 45); inject
+        // the ones native sync reports for "cannot sync" on the running platform.
+        public static TheoryData<int> UnsupportedErrnos()
+        {
+            var bsd = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX) ||
+                System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Create("FREEBSD"));
+            var data = new TheoryData<int> { 22, 30 }; // EINVAL, EROFS
+            if (bsd)
+            {
+                data.Add(45);  // ENOTSUP
+                data.Add(102); // EOPNOTSUPP
+            }
+            else data.Add(95); // ENOTSUP
+            return data;
+        }
+
         [Theory]
-        [InlineData(22)]
-        [InlineData(95)]
-        [InlineData(30)]
+        [MemberData(nameof(UnsupportedErrnos))]
         public void Log_that_answers_cannot_sync_degrades_and_keeps_data(int errno)
         {
             using var file = new TempFile();
