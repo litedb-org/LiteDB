@@ -94,7 +94,9 @@ namespace LiteDB
             {
                 var reader = _engine.Query(collection, query);
                 use?.ToHold();
-                return new SharedDataReader(reader, () => this.CloseDatabase(use, hold: true));
+                // Any thread may dispose the reader and so end its mutex ownership.
+                var generation = use == null ? _owner.Generation : -1;
+                return new SharedDataReader(reader, () => this.CloseDatabase(use, hold: true, generation));
             }
             catch
             {

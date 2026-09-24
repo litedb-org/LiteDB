@@ -12,6 +12,9 @@ namespace LiteDB
     {
         private readonly EngineSettings _settings;
         private readonly Mutex _mutex;
+        private readonly SharedMutexOwner _owner;
+        // Guards the engine's user count, which a reader disposed on another thread also updates.
+        private readonly object _useLock = new object();
         private readonly SharedReaderRegistry _readers;
         private LiteEngine _engine;
         private WalRecoveryReport _recoveryReport;
@@ -54,6 +57,7 @@ namespace LiteDB
 
                 throw new PlatformNotSupportedException("Shared mode is not supported in platforms that do not implement named mutex.", ex);
             }
+            _owner = new SharedMutexOwner(_mutex, this.OnOwnerExited);
         }
 
         /// <summary>
@@ -70,20 +74,14 @@ namespace LiteDB
                 if (!ReferenceEquals(pin.Owner, Thread.CurrentThread)) pin.RequestRelease(force: false);
             }
 
-            var recoveredAbandonedOwner = false;
-            try
-            {
-                // Acquire mutex for every call to open DB.
-                _mutex.WaitOne();
-            }
-            catch (AbandonedMutexException) { recoveredAbandonedOwner = true; }
-            this.EnterRecursion();
+            // Acquire mutex for every call to open DB.
+            var recoveredAbandonedOwner = _owner.Enter();
 
             try
             {
                 RejectAbandonedTransaction();
             }
-            catch { this.ReleaseRecursion(); throw; }
+            catch { _owner.Exit(); throw; }
 
             // Don't create a new engine while a transaction is running.
             if (!_transactionRunning && _engine == null)
@@ -94,11 +92,11 @@ namespace LiteDB
                 }
                 catch
                 {
-                    this.ReleaseRecursion();
+                    _owner.Exit();
                     throw;
                 }
             }
-            _databaseUsers++;
+            lock (_useLock) _databaseUsers++;
             return null;
         }
 
@@ -152,7 +150,7 @@ namespace LiteDB
         /// Dequeue stack and dispose database on empty stack. A pinned use ends an
         /// operation, or with <paramref name="hold"/> a reader or transaction.
         /// </summary>
-        private void CloseDatabase(SharedMutexPin use = null, bool hold = false)
+        private void CloseDatabase(SharedMutexPin use = null, bool hold = false, int generation = -1)
         {
             if (use != null)
             {
@@ -163,18 +161,42 @@ namespace LiteDB
 
             try
             {
-                if (--_databaseUsers == 0 && !_transactionRunning && _engine != null)
+                lock (_useLock)
                 {
-                    var engine = _engine;
-                    _engine = null;
-                    engine.Dispose();
+                    // A reader of an ownership that already ended (Dispose, exited
+                    // owner) was counted by that ownership, which reset the count.
+                    if (generation >= 0 && generation != _owner.Generation) return;
+                    if (_databaseUsers > 0 && --_databaseUsers == 0 && !_transactionRunning && _engine != null)
+                    {
+                        var engine = _engine;
+                        _engine = null;
+                        engine.Dispose();
+                    }
                 }
             }
             finally
             {
                 if (!_transactionRunning) _transactionThreadId = 0;
                 // Every OpenDatabase call acquires a recursion, even when it borrows.
-                this.ReleaseRecursion();
+                // Any thread may end it, for example when disposing a reader.
+                _owner.Exit(generation);
+            }
+        }
+
+        /// <summary>
+        /// Runs on the mutex holder thread when the owner thread exited while owning
+        /// the mutex. The mutex was never released meanwhile, but the owner's open
+        /// reader or transaction can no longer complete: drop the engine without
+        /// writing. An exited transaction owner is reported to the next caller.
+        /// </summary>
+        private void OnOwnerExited()
+        {
+            lock (_useLock)
+            {
+                _databaseUsers = 0;
+                var engine = _engine;
+                _engine = null;
+                engine?.Close(checkpoint: false);
             }
         }
 
@@ -218,18 +240,11 @@ namespace LiteDB
             // BeginTrans is publishing.
             var pin = _pin;
             var pinned = pin != null && pin.TryEnter();
-            if (!pinned)
+            if (!pinned && !_owner.TryEnter(out _))
             {
-                try
-                {
-                    if (!_mutex.WaitOne(0))
-                    {
-                        // Rolling back nothing is safe and must not replace the error a catch block is handling.
-                        if (!_transactionRunning || !commit) return false;
-                        throw ForeignTransactionCompletion();
-                    }
-                }
-                catch (AbandonedMutexException) { }
+                // Rolling back nothing is safe and must not replace the error a catch block is handling.
+                if (!_transactionRunning || !commit) return false;
+                throw ForeignTransactionCompletion();
             }
 
             try
@@ -248,7 +263,7 @@ namespace LiteDB
             finally
             {
                 if (pinned) pin.Exit(hold: false);
-                else _mutex.ReleaseMutex();
+                else _owner.Exit();
             }
         }
 
@@ -387,14 +402,17 @@ namespace LiteDB
                 pin.WaitReleased();
             }
 
-            if (_engine != null)
+            lock (_useLock)
             {
-                _engine.Dispose();
-                _engine = null;
-                // An open reader or transaction of this thread owns a recursion.
-                // Another thread's recursion is released by that thread.
-                if (this.HoldsRecursion()) this.ReleaseRecursion();
+                if (_engine != null)
+                {
+                    _engine.Dispose();
+                    _engine = null;
+                }
+                _databaseUsers = 0;
             }
+            // Open readers and transactions of any thread end with the connection.
+            _owner.ReleaseAll();
         }
 
         private T QueryDatabase<T>(Func<T> Query)

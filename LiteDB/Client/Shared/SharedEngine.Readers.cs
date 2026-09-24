@@ -11,8 +11,6 @@ namespace LiteDB
     {
         // Leased streaming readers of this instance, per creating thread.
         private readonly Dictionary<int, int> _localReaders = new Dictionary<int, int>();
-        // Named-mutex recursions owned per thread, excluding scoped completion checks.
-        private readonly Dictionary<int, int> _recursions = new Dictionary<int, int>();
         // Holder of the mutex for the thread iterating a leased reader; null when none.
         private volatile SharedMutexPin _pin;
         // Time the last pin took to close its engine; ending the next pin costs as much.
@@ -91,7 +89,7 @@ namespace LiteDB
         /// replaced directly. A holder cannot acquire a mutex this thread owns.
         /// </summary>
         private bool CanPin() =>
-            !_transactionRunning && this.HasLocalReaders(Environment.CurrentManagedThreadId) && !this.HoldsRecursion();
+            !_transactionRunning && this.HasLocalReaders(Environment.CurrentManagedThreadId) && !_owner.IsOwnedByCurrentThread;
 
         /// <summary>
         /// Acquire the mutex on a holder thread and open the engine for this thread.
@@ -157,32 +155,6 @@ namespace LiteDB
             }
         }
 
-        private void EnterRecursion()
-        {
-            var thread = Environment.CurrentManagedThreadId;
-            lock (_recursions)
-            {
-                _recursions.TryGetValue(thread, out var count);
-                _recursions[thread] = count + 1;
-            }
-        }
-
-        /// <summary>Release one recursion; throws, unchanged, on a non-owner thread.</summary>
-        private void ReleaseRecursion()
-        {
-            _mutex.ReleaseMutex();
-            var thread = Environment.CurrentManagedThreadId;
-            lock (_recursions)
-            {
-                if (--_recursions[thread] == 0) _recursions.Remove(thread);
-            }
-        }
-
-        private bool HoldsRecursion()
-        {
-            lock (_recursions) return _recursions.ContainsKey(Environment.CurrentManagedThreadId);
-        }
-
         /// <summary>
         /// Writes made while readers were leased leave a WAL that only a full
         /// checkpoint can remove. Once the last reader anywhere is gone, close an
@@ -193,14 +165,11 @@ namespace LiteDB
         private void CheckpointAfterLastReader()
         {
             if (_settings.ReadOnly || !LogHasContent(_settings.Filename)) return;
-            try
-            {
-                if (!_mutex.WaitOne(0)) return;
-            }
-            catch (AbandonedMutexException)
+            if (!_owner.TryEnter(out var abandoned)) return;
+            if (abandoned)
             {
                 // Leave abandoned-owner recovery to the next ordinary open.
-                _mutex.ReleaseMutex();
+                _owner.Exit();
                 return;
             }
 
@@ -218,7 +187,7 @@ namespace LiteDB
             }
             finally
             {
-                _mutex.ReleaseMutex();
+                _owner.Exit();
             }
         }
 

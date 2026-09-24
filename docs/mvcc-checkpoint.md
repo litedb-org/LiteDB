@@ -164,7 +164,10 @@ WAL that the open reader keeps growing, which makes such a loop quadratic. Other
 threads and processes wait for the mutex while the pin holds it.
 
 A `Mutex` can only be released by the thread that acquired it, so the pin never
-keeps a recursion on the iterating thread; any thread can end it. The holder
+keeps a recursion on the iterating thread; any thread can end it. Outside a pin,
+the connection's mutex ownership is also held by a holder thread (see
+[shared-mode safety](shared-mode-safety.md)), so unleased results and the
+connection can be disposed on any thread. The holder
 closes the engine and releases the mutex at the first moment without a running
 operation, open write-query reader or pinned transaction of the owner, once:
 

@@ -33,7 +33,10 @@ readers. Writes from the thread iterating a streamed result of the same connecti
 keep one engine open while that thread keeps writing, blocking other writers
 meanwhile, as before v13. Unlike before, an idle iteration, a result disposed on
 another thread (for example after an `await`), or an exited thread no longer
-keeps other threads and processes waiting. When the last streamed result closes,
+keeps other threads and processes waiting. This also holds for results that
+stream under the mutex because no lease could be registered, and for disposing
+the connection on another thread; before, both threw `ApplicationException` and
+kept the mutex until the acquiring thread exited. When the last streamed result closes,
 the connection checkpoints away the remaining WAL.
 Rebuild requires shared readers to be closed. See
 [snapshot checkpointing](mvcc-checkpoint.md) and
