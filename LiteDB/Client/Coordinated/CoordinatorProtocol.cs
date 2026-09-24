@@ -4,6 +4,8 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using LiteDB.Client.Shared;
 
@@ -18,8 +20,43 @@ namespace LiteDB.Client.Coordinated
     {
         private const int MAX_MESSAGE_BYTES = 64 * 1024 * 1024;
 
+        /// <summary>
+        /// Longest Unix domain socket path, excluding the terminating NUL: sun_path is
+        /// 104 bytes on macOS and the BSDs and 108 on Linux; the smaller bound is used.
+        /// </summary>
+        internal const int MaxUnixSocketPath = 103;
+
+        /// <summary>
+        /// The coordinator's pipe name. On Unix .NET binds a domain socket at
+        /// <c>$TMPDIR/CoreFxPipe_&lt;name&gt;</c>, which must fit sun_path: macOS's per-user
+        /// TMPDIR alone is about 50 characters, so the full 40-digit hash did not fit.
+        /// Unix names keep 24 hex digits (96 bits; a collision needs two databases of one
+        /// user on one machine, about 2^-48 even for 2^24 of them). When the temp path is
+        /// still too long, a rooted name under /tmp is used, which .NET binds verbatim.
+        /// </summary>
         internal static string PipeName(string filename) =>
-            "litedb-coord-" + SharedMutexNameFactory.CreateUsingSha1(filename);
+            PipeName(filename, RuntimeInformation.IsOSPlatform(OSPlatform.Windows), Path.GetTempPath());
+
+        internal static string PipeName(string filename, bool windows, string tempPath)
+        {
+            var hash = SharedMutexNameFactory.CreateUsingSha1(filename);
+            if (windows) return "litedb-coord-" + hash;
+            var name = "lc-" + hash.Substring(0, 24);
+            if (Fits(Path.Combine(tempPath, "CoreFxPipe_" + name))) return name;
+            var rooted = "/tmp/" + name;
+            if (Fits(rooted)) return rooted;
+            throw new LiteException(0, $"The coordinator socket path '{rooted}' exceeds {MaxUnixSocketPath} bytes.");
+        }
+
+        /// <summary>The socket file .NET creates for <paramref name="pipeName"/> on Unix.</summary>
+        internal static string UnixEndpoint(string pipeName) =>
+            Path.IsPathRooted(pipeName) ? pipeName : Path.Combine(Path.GetTempPath(), "CoreFxPipe_" + pipeName);
+
+        private static bool Fits(string path) => Encoding.UTF8.GetByteCount(path) <= MaxUnixSocketPath;
+
+        /// <summary>The status page's file name; it lives in the temp directory, where length is not limited.</summary>
+        internal static string PageName(string filename) =>
+            "litedb-coord-" + SharedMutexNameFactory.CreateUsingSha1(filename) + ".page";
 
         internal static string MutexName(string filename) =>
             "coord-" + SharedMutexNameFactory.CreateUsingSha1(filename);
