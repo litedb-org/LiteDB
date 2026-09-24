@@ -42,6 +42,14 @@ checkpoints on close only once the WAL holds 50 pages (or CHECKPOINT, if smaller
 disposing the connection checkpoints the rest. This roughly halves the cost of a
 small shared write (about 9 ms to 4 ms per update on a local NVMe drive); the WAL
 file therefore usually exists while shared connections are open.
+On Windows a shared connection also keeps its data and WAL file handles open
+between operations (each operation still reads the files afresh), which roughly
+halves the cost again: about 4.8 to 3.3 ms per small update and 1.5 to 0.8 ms per
+`FindById`. **Behavior change:** while a shared connection is open, and no longer
+only during one of its operations, a direct connection or any other opener that
+denies write sharing (`FileShare.Read`, e.g. `File.OpenRead`/`File.ReadAllBytes`)
+is refused with a sharing violation. `File.Copy` shares write access and still
+works. Close shared connections before opening the file in direct mode.
 Rebuild requires shared readers to be closed. See
 [snapshot checkpointing](mvcc-checkpoint.md) and
 [the retirement format](mvcc-retirement-format.md).

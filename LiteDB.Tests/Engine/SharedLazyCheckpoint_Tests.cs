@@ -167,8 +167,8 @@ namespace LiteDB.Tests.Engine
             using (var writer = this.Open(null))
             {
                 for (var id = 1; id <= 4; id++) Insert(writer, id);
-                var wal = File.ReadAllBytes(this.LogFilename);
-                var data = File.ReadAllBytes(this.Filename);
+                var wal = TempFile.ReadAllBytesShared(this.LogFilename);
+                var data = TempFile.ReadAllBytesShared(this.Filename);
 
                 using (var reader = this.Open(null, readOnly: true))
                 using (var db = new LiteDatabase(reader, disposeOnClose: false))
@@ -176,8 +176,8 @@ namespace LiteDB.Tests.Engine
                     db.GetCollection("docs").Count().Should().Be(4);
                 }
 
-                File.ReadAllBytes(this.LogFilename).Should().Equal(wal);
-                File.ReadAllBytes(this.Filename).Should().Equal(data);
+                TempFile.ReadAllBytesShared(this.LogFilename).Should().Equal(wal);
+                TempFile.ReadAllBytesShared(this.Filename).Should().Equal(data);
                 _reclaims.Should().Be(0);
             }
             File.Exists(this.LogFilename).Should().BeFalse("the writer's final close checkpoints");

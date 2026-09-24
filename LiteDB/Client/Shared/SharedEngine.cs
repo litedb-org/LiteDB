@@ -20,6 +20,7 @@ namespace LiteDB
         // Guards the engine's user count, which a reader disposed on another thread also updates.
         private readonly object _useLock = new object();
         private readonly SharedReaderRegistry _readers;
+        private readonly SharedFileHandles _handles;
         private LiteEngine _engine;
         private WalRecoveryReport _recoveryReport;
         private volatile bool _transactionRunning = false;
@@ -33,6 +34,7 @@ namespace LiteDB
         internal int EngineOpens { get; private set; }
 
         internal SharedMutexOwner MutexOwner => _owner;
+        internal SharedFileHandles FileHandles => _handles;
 #endif
 
         public SharedEngine(EngineSettings settings)
@@ -49,6 +51,11 @@ namespace LiteDB
             // long-lived reader cannot make every close pay for partial checkpoint.
             _settings.CheckpointBackoff = new CheckpointBackoff();
             _settings.CloseCheckpointPages = CLOSE_CHECKPOINT_PAGES;
+            // Opening the files is most of an operation's fixed cost. Keep the handles,
+            // never the engine state: every operation still reads the files afresh.
+            if (SharedFileHandles.IsSupported && _settings.Filename != ":memory:" && _settings.Filename != ":temp:" &&
+                _settings.DataStream == null && _settings.LogStream == null)
+                _settings.SharedFileHandles = _handles = new SharedFileHandles();
 
             var name = SharedMutexNameFactory.Create(_settings.Filename, _settings.SharedMutexNameStrategy);
 
@@ -206,6 +213,7 @@ namespace LiteDB
                 _engine = null;
                 engine?.Close(checkpoint: false);
             }
+            _handles?.CloseIdle();
         }
 
         #region Transaction Operations
@@ -290,6 +298,7 @@ namespace LiteDB
             // committed or checkpointed. This engine's WAL index and cache can be stale:
             // release it without the close checkpoint; the next open recovers the WAL.
             orphan?.Close(checkpoint: false);
+            _handles?.CloseIdle();
             throw new LiteException(0, "The explicit transaction owner thread exited. Its uncommitted work was discarded; begin a new transaction on one thread.");
         }
 
@@ -325,7 +334,10 @@ namespace LiteDB
             {
                 if (_readers.OldestVersion().HasValue)
                     throw new LiteException(0, "Close shared readers before rebuilding the database.");
-                return _engine.Rebuild(options);
+                // Rebuild replaces the files; do not keep handles to the old ones.
+                _handles?.CloseIdle();
+                try { return _engine.Rebuild(options); }
+                finally { _handles?.CloseIdle(); }
             });
         }
 
@@ -406,7 +418,12 @@ namespace LiteDB
             if (pin != null)
             {
                 pin.RequestRelease(force: true);
-                if (!pin.CanWaitFrom(Thread.CurrentThread)) return;
+                if (!pin.CanWaitFrom(Thread.CurrentThread))
+                {
+                    // The pin's holder still closes its engine; its streams close on return.
+                    _handles?.Dispose();
+                    return;
+                }
                 pin.WaitReleased();
             }
 
@@ -426,6 +443,7 @@ namespace LiteDB
             // Operations left a WAL below the close threshold: checkpoint it now, so
             // the data file alone is the database again once every connection closed.
             if (!closed) this.CheckpointOnDispose();
+            _handles?.Dispose();
             // A disposed connection holds no mutex, even for the moment its holder
             // needs to release it; another connection's final close may try it next.
             _owner.WaitForRelease();

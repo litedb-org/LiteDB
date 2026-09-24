@@ -29,7 +29,7 @@ namespace LiteDB.Internals
             await second.Expect("ready");
             await MvccProcess.Run("write", Filename, password, "2");
             var log = FileHelper.GetLogFile(Filename);
-            var bytes = File.ReadAllBytes(log);
+            var bytes = LiteDB.Tests.TempFile.ReadAllBytesShared(log);
             await MvccProcess.Run("checkpoint", Filename, password);
             var preamble = password == null ? 0 : Constants.PAGE_SIZE;
             ((new FileInfo(log).Length - preamble) / WalChecksum.FrameSize).Should().Be(

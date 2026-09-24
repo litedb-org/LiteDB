@@ -64,6 +64,20 @@ checkpoints at its own close. Once every connection has closed, the data file
 alone is the database again, unless a reader of another connection still pins the
 WAL or CHECKPOINT is 0.
 
+On Windows a connection keeps its data and WAL file handles open between
+operations; opening them was most of an operation's fixed cost. Only the handles
+are reused. Every operation still reads the header, WAL and pages afresh, because
+another process may have committed, checkpointed or reused WAL slots meanwhile.
+Before reuse, a handle must still name the file at its original path: a deleted
+(for example the WAL after another connection's final checkpoint), replaced
+(rebuild) or renamed file is closed and the path opened again. Each open stream
+owns one handle, whose OS file pointer is not shared. Shared connections open the
+files with read, write and delete sharing, so they coexist with each other and a
+checkpoint can delete the WAL. While any shared connection is open, and not only
+during an operation, direct connections and other openers that deny write sharing
+(`FileShare.Read`) are refused; `File.Copy` shares write access and still works.
+Other platforms open the files for every operation as before.
+
 After an abandoned explicit transaction, the connection discards that engine
 without its close checkpoint: another process may have committed or checkpointed
 meanwhile, so the engine's WAL index and cache can be stale. The next open
@@ -96,6 +110,7 @@ value describes that connection, not every writer that has accessed the file.
 | A relative connection stays bound to its original database and registry after a working-directory change, before or after its first operation. | [SharedSafetyProcess_Tests](../LiteDB.Tests/Internals/SharedSafetyProcess_Tests.cs): separate child process, plain/encrypted files, a retained snapshot, and an unrelated same-named database whose records must remain unchanged. |
 | A result or connection disposed on another thread, or an owner thread that exits, never keeps other threads or processes waiting, and an exited transaction owner is still reported. | [SharedMutexOwnership_Tests](../LiteDB.Tests/Engine/SharedMutexOwnership_Tests.cs): unleased readers disposed on other threads and after an await, `Dispose` on another thread, exited reader and transaction owners, and a real second process that waits only while the reader is open. All six fail with the thread-affine mutex. |
 | An abandoned explicit transaction's engine is discarded without a checkpoint, and another connection's commits made meanwhile survive. | [Issue3005_AbandonedOrphan_Tests](../LiteDB.Tests/Issues/Issue3005_AbandonedOrphan_Tests.cs): checkpoint stages observed during the discard (none allowed), plain/encrypted, with and without a reader lease held by the other connection; the concurrent-commit variant runs on Unix hosts, where a peer can write while the orphan's handles stay open. |
+| Cached handles are reused only while they name the file at their path: commits, checkpoints that delete the WAL and rebuilds by other connections or processes stay visible, no commit reaches a deleted WAL, and a killed process holding handles blocks no peer. | [SharedFileHandles_Tests](../LiteDB.Tests/Internals/SharedFileHandles_Tests.cs): cached reads compared with a fresh connection, plain and encrypted, real child processes; without the identity check four of seven fail: three lose an acknowledged commit to a deleted WAL, one reads the replaced data file. Direct mode and write-denying readers are refused while a shared connection is open; `File.Copy` works. |
 | Storage that cannot sync never has reclaimed WAL slots reused by later shared engines; a live reader keeps its snapshot and a crash image recovers. | [SharedUnsyncableLog_Tests](../LiteDB.Tests/Internals/SharedUnsyncableLog_Tests.cs): a leased reader across a snapshot checkpoint and later writes on fresh engines; fails with 315 overwritten slots when the reuse probe is removed. |
 | An operation's close checkpoints only a WAL past its threshold; the connection's final close, and the last streamed result's disposal, checkpoint the rest; read-only connections change neither file; the WAL between operations recovers every committed operation. | [SharedLazyCheckpoint_Tests](../LiteDB.Tests/Engine/SharedLazyCheckpoint_Tests.cs): counts reclaiming checkpoints below and past the threshold, a smaller or disabled CHECKPOINT pragma, explicit checkpoint, two connections closing in either order, byte-preserving read-only access and plain/encrypted crash images. Both the old close-every-operation behavior and a missing final checkpoint fail it. |
 | Confirmation respects the durability setting, and fallback cannot be hidden by the next shared operation. | [SharedDurability_Tests](../LiteDB.Tests/Internals/SharedDurability_Tests.cs): observed device syncs, automatic/explicit commits, encrypted wrappers, injected unsupported sync, retry and connection-local diagnostics. |

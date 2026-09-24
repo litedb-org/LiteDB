@@ -27,6 +27,8 @@ namespace LiteDB.Engine
         internal bool SharedReadSnapshot { get; set; }
         internal Func<string, string, string[]> SharedReaderFiles { get; set; }
         internal SharedDurabilityState SharedDurability { get; set; }
+        // Shared mode on Windows: data/log file handles kept open between operations.
+        internal SharedFileHandles SharedFileHandles { get; set; }
         // Shared mode: an operation's engine close checkpoints only once the WAL holds this
         // many pages (at most the CHECKPOINT pragma); the connection's final close always does.
         internal int CloseCheckpointPages { get; set; }
@@ -184,7 +186,8 @@ namespace LiteDB.Engine
             }
             else if (!string.IsNullOrEmpty(this.Filename))
             {
-                return new FileStreamFactory(this.Filename, this.Password, this.ReadOnly, false, useAesStream);
+                return new FileStreamFactory(this.Filename, this.Password, this.ReadOnly, false, useAesStream,
+                    handles: this.SharedFileHandles);
             }
 
             throw new ArgumentException("EngineSettings must have Filename or DataStream as data source");
@@ -220,7 +223,8 @@ namespace LiteDB.Engine
             {
                 var logName = FileHelper.GetLogFile(this.Filename);
 
-                return new FileStreamFactory(logName, this.Password, this.ReadOnly, false, isLog: true);
+                return new FileStreamFactory(logName, this.Password, this.ReadOnly, false, isLog: true,
+                    handles: this.SharedFileHandles);
             }
 
             return new StreamFactory(new MemoryStream(), this.Password, true, isLog: true);
