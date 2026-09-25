@@ -16,6 +16,7 @@ namespace LiteDB
 
         private readonly EngineSettings _settings;
         private readonly Mutex _mutex;
+        private readonly SharedMutexTurnstile _turnstile;
         private readonly SharedMutexOwner _owner;
         // Guards the engine's user count, which a reader disposed on another thread also updates.
         private readonly object _useLock = new object();
@@ -73,6 +74,7 @@ namespace LiteDB
             try
             {
                 _mutex = SharedMutexFactory.Create(name);
+                _turnstile = new SharedMutexTurnstile(SharedMutexFactory.Create(name + ".Turn"));
             }
             catch (NotSupportedException ex)
             {
@@ -83,7 +85,7 @@ namespace LiteDB
 
                 throw new PlatformNotSupportedException("Shared mode is not supported in platforms that do not implement named mutex.", ex);
             }
-            _owner = new SharedMutexOwner(_mutex, this.OnOwnerExited);
+            _owner = new SharedMutexOwner(_mutex, _turnstile, this.OnOwnerExited);
         }
 
         /// <summary>

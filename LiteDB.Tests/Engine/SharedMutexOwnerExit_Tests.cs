@@ -23,7 +23,8 @@ namespace LiteDB.Tests.Engine
             var name = "LiteDB-exit-" + Guid.NewGuid().ToString("N");
             using var mutex = new Mutex(false, name);
             var cleanups = 0;
-            var owner = new SharedMutexOwner(mutex, () => Interlocked.Increment(ref cleanups));
+            using var turn = new Mutex(false, Guid.NewGuid().ToString("N"));
+            var owner = new SharedMutexOwner(mutex, new SharedMutexTurnstile(turn), () => Interlocked.Increment(ref cleanups));
             using var cleaning = new ManualResetEventSlim();
             using var proceed = new ManualResetEventSlim();
             owner.BeforeOwnerExitedCleanup = () =>

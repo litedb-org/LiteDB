@@ -26,6 +26,7 @@ namespace LiteDB.Client.Shared
         private enum Command { None, Acquire, TryAcquire, Release, ReleaseAndOpenGate, ReleaseExitedOwner }
 
         private readonly Mutex _mutex;
+        private readonly SharedMutexTurnstile _turnstile;
         private readonly Action _ownerExited;
         private readonly SemaphoreSlim _gate = new SemaphoreSlim(1, 1);
         private readonly object _send = new object();
@@ -49,9 +50,10 @@ namespace LiteDB.Client.Shared
         private int _recursion;
         private int _generation;
 
-        public SharedMutexOwner(Mutex mutex, Action ownerExited)
+        public SharedMutexOwner(Mutex mutex, SharedMutexTurnstile turnstile, Action ownerExited)
         {
             _mutex = mutex;
+            _turnstile = turnstile;
             _ownerExited = ownerExited;
         }
 
@@ -338,7 +340,10 @@ namespace LiteDB.Client.Shared
             {
                 // Block without polling: a polling waiter would lose its place among
                 // the OS mutex's waiters, such as a pin holder of this connection.
-                return block ? _mutex.WaitOne() : _mutex.WaitOne(0);
+                // Queued at the turnstile, a party that just released cannot barge ahead.
+                if (!block) return _mutex.WaitOne(0);
+                _turnstile.Wait(_mutex);
+                return true;
             }
             catch (AbandonedMutexException)
             {
