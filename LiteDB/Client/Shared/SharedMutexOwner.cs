@@ -60,6 +60,12 @@ namespace LiteDB.Client.Shared
 #if DEBUG || TESTING
         /// <summary>Runs on the holder before it performs a release posted by <see cref="Exit"/>.</summary>
         internal Action BeforePostedRelease { get; set; }
+
+        /// <summary>Runs on a caller after it published a command, before it signals the holder.</summary>
+        internal Action BeforeNotify { get; set; }
+
+        /// <summary>Holder wake-ups by a signal that carried no command.</summary>
+        internal int EmptySignaledWakes;
 #endif
 
         /// <summary>Changes whenever ownership ends, so a stale release is ignored.</summary>
@@ -197,8 +203,13 @@ namespace LiteDB.Client.Shared
                 {
                     this.EnsureHolder();
                     _command = command;
+                    // Signal under the same lock the holder takes to read and reset:
+                    // it must never consume a command before that command's signal.
+#if DEBUG || TESTING
+                    this.BeforeNotify?.Invoke();
+#endif
+                    _posted.Set();
                 }
-                _posted.Set();
             }
         }
 
@@ -223,8 +234,11 @@ namespace LiteDB.Client.Shared
                     this.EnsureHolder();
                     _command = command;
                     _done.Reset();
+#if DEBUG || TESTING
+                    this.BeforeNotify?.Invoke();
+#endif
+                    _posted.Set();
                 }
-                _posted.Set();
                 _done.Wait();
                 lock (_sync)
                 {
@@ -241,15 +255,21 @@ namespace LiteDB.Client.Shared
             var idleSince = DateTime.UtcNow;
             while (true)
             {
-                _posted.Wait(Poll);
+                var signaled = _posted.Wait(Poll);
                 Command command;
                 var ownerExited = false;
                 lock (_sync)
                 {
                     command = _command;
-                    if (command != Command.None) _posted.Reset();
-                    else if (_held && _owner != null && !_owner.IsAlive) ownerExited = true;
-                    else if (!_held && DateTime.UtcNow - idleSince > HolderIdle)
+                    // Publication and signal happen under this lock, so a signal without a
+                    // command is stale. Reset it either way, or the next wait would return
+                    // immediately and the holder would spin.
+                    _posted.Reset();
+#if DEBUG || TESTING
+                    if (signaled && command == Command.None) Interlocked.Increment(ref EmptySignaledWakes);
+#endif
+                    if (command == Command.None && _held && _owner != null && !_owner.IsAlive) ownerExited = true;
+                    else if (command == Command.None && !_held && DateTime.UtcNow - idleSince > HolderIdle)
                     {
                         _holder = null;
                         return;
