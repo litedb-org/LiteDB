@@ -30,16 +30,18 @@ namespace LiteDB
         }
 
         private static readonly object _gate = new object();
-        private static Binding _binding;
-        private static bool _resolved;
+        // Published once, in one volatile field: a reader sees either no result yet or the
+        // complete one. Two separate fields could be observed reordered on ARM64, and a
+        // stale "resolved, no binding" would turn native sync off for the process.
+        private static volatile Binding _binding;
+        private static readonly Binding _none = new Binding(null, null, null);
 
         /// <summary>The library that resolved, or null when none did (callers then use the runtime's sync).</summary>
         internal static string LibraryName
         {
             get
             {
-                Resolve();
-                return _binding?.Name;
+                return Resolve()?.Name;
             }
         }
 
@@ -53,10 +55,13 @@ namespace LiteDB
 
         private static Binding Resolve()
         {
-            if (_resolved) return _binding;
+            var resolved = _binding;
+            if (resolved != null) return ReferenceEquals(resolved, _none) ? null : resolved;
             lock (_gate)
             {
-                if (_resolved) return _binding;
+                resolved = _binding;
+                if (resolved != null) return ReferenceEquals(resolved, _none) ? null : resolved;
+                Binding found = null;
                 foreach (var candidate in Candidates())
                 {
                     try
@@ -64,15 +69,15 @@ namespace LiteDB
                         // An invalid descriptor fails with EBADF without touching any file;
                         // only resolution failures throw.
                         candidate.Fsync(-1);
-                        _binding = candidate;
+                        found = candidate;
                         break;
                     }
                     catch (DllNotFoundException) { }
                     catch (EntryPointNotFoundException) { }
                     catch (BadImageFormatException) { }
                 }
-                _resolved = true;
-                return _binding;
+                _binding = found ?? _none;
+                return found;
             }
         }
 
