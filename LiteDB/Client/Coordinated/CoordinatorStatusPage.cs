@@ -14,11 +14,11 @@ namespace LiteDB.Client.Coordinated
     /// accepts a copy only if it saw the same even sequence before and after.
     /// The file is named after the database path, so every coordinator of a database
     /// writes the same page. On Windows it lives in the per-user temp directory. On Unix
-    /// the temp directory may be the shared /tmp, so the page lives in a private
-    /// subdirectory that must be a real directory with mode 0700: another account cannot
-    /// place a forged page or a symlink there, and a directory another account pre-created
-    /// with 0700 cannot be entered, so the page is unavailable and snapshots fall back to
-    /// grants over IPC.
+    /// it lives in a private 0700 subdirectory of a base that no other account can write
+    /// to (see <see cref="TrustedBase"/>). A mode check alone cannot make a shared /tmp safe:
+    /// a directory another account planted there stays under that account's control, which
+    /// can change its mode after the check. Without such a base there is no page, and
+    /// snapshots fall back to grants over IPC.
     /// </summary>
     internal sealed unsafe class CoordinatorStatusPage : IDisposable
     {
@@ -65,9 +65,43 @@ namespace LiteDB.Client.Coordinated
         internal static string PathFor(string filename) =>
             Path.Combine(PrivateDirectoryPath(), CoordinatorProtocol.PageName(filename));
 
-        private static string PrivateDirectoryPath() => Windows
-            ? Path.GetTempPath()
-            : Path.Combine(Path.GetTempPath(), "litedb-coord-" + Environment.UserName);
+        private static string PrivateDirectoryPath()
+        {
+            if (Windows) return Path.GetTempPath();
+            // Candidates come from this process's own environment or the OS, never from a
+            // path another account chose. A privileged process could enter a directory of
+            // any owner, so it also only uses the root-owned run directories.
+            var candidates = Environment.IsPrivilegedProcess
+                ? new[] { Path.GetTempPath(), "/run", "/var/run" }
+                : new[] { Path.GetTempPath(), Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR") };
+            var root = TrustedBase(candidates);
+            return root == null
+                ? throw new UnauthorizedAccessException("No base directory that only its owner can write to holds the coordinator page.")
+                : Path.Combine(root, "litedb-coord-" + Environment.UserName);
+        }
+
+        /// <summary>
+        /// Unix: the first candidate that is an absolute directory without group or other
+        /// write permission, so only its owner (this user, or root) can create, replace or
+        /// remove the private directory in it. The shared /tmp (1777) never qualifies.
+        /// Returns null when no candidate does.
+        /// </summary>
+        internal static string TrustedBase(string[] candidates)
+        {
+            const UnixFileMode othersWrite = UnixFileMode.GroupWrite | UnixFileMode.OtherWrite;
+            foreach (var candidate in candidates)
+            {
+                if (string.IsNullOrEmpty(candidate) || !Path.IsPathRooted(candidate)) continue;
+                try
+                {
+                    if (Directory.Exists(candidate) && (File.GetUnixFileMode(candidate) & othersWrite) == 0)
+                        return candidate;
+                }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+            return null;
+        }
 
         /// <summary>
         /// Unix: create (when asked) and validate a private directory. It must be a real

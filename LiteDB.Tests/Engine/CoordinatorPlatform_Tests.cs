@@ -182,6 +182,53 @@ namespace LiteDB.Tests.Engine
             }
         }
 
+        /// <summary>
+        /// A directory another account planted in a shared temp directory stays under its
+        /// control (it can change the mode after any check), so the page's private directory
+        /// only lives in a base that nobody else can write to.
+        /// </summary>
+        [Fact]
+        public void Status_page_base_must_not_be_writable_by_others()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
+            var root = Path.Combine(Path.GetTempPath(), "litedb-coordbase-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(root);
+            try
+            {
+                var shared = Path.Combine(root, "shared");
+                Directory.CreateDirectory(shared);
+                File.SetUnixFileMode(shared, (UnixFileMode)0x3FF); // 1777, like /tmp
+                var group = Path.Combine(root, "group");
+                Directory.CreateDirectory(group);
+                File.SetUnixFileMode(group, (UnixFileMode)0x1F8); // 0770
+                var owned = Path.Combine(root, "owned");
+                Directory.CreateDirectory(owned);
+                File.SetUnixFileMode(owned, (UnixFileMode)0x1C0); // 0700, like XDG_RUNTIME_DIR
+
+                CoordinatorStatusPage.TrustedBase(new[] { null, "", "relative", shared, group, Path.Combine(root, "missing"), owned })
+                    .Should().Be(owned);
+                CoordinatorStatusPage.TrustedBase(new[] { shared, group }).Should().BeNull("no page beats a plantable one");
+                CoordinatorStatusPage.TrustedBase(new[] { "/tmp" }).Should().BeNull("the shared /tmp is 1777");
+            }
+            finally
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+
+        /// <summary>Wherever this environment puts the page, nobody else can write its base.</summary>
+        [Fact]
+        public void Status_page_never_lives_under_a_directory_others_can_write()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
+            string path;
+            try { path = CoordinatorStatusPage.PathFor("/data/app.db"); }
+            catch (UnauthorizedAccessException) { return; } // no trusted base: IPC grants only
+            var baseDirectory = Path.GetDirectoryName(Path.GetDirectoryName(path));
+            (File.GetUnixFileMode(baseDirectory) & (UnixFileMode.GroupWrite | UnixFileMode.OtherWrite))
+                .Should().Be((UnixFileMode)0);
+        }
+
 #if DEBUG || TESTING
         /// <summary>
         /// Stop can find the accept thread creating its next pipe instance, which may then fail
