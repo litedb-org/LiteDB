@@ -68,7 +68,7 @@ namespace LiteDB
         /// pre-v13 reader did. Otherwise every such write would reopen and replay
         /// a WAL that the open reader keeps growing, which is quadratic in the loop.
         /// </summary>
-        private T WriteDatabase<T>(Func<T> write)
+        private T WriteDatabase<T>(Func<T> write) => this.Call(() =>
         {
             var pin = _pin;
             var use = pin != null && pin.TryEnter() ? pin
@@ -82,7 +82,7 @@ namespace LiteDB
             {
                 this.CloseDatabase(use);
             }
-        }
+        });
 
         /// <summary>
         /// A thread iterating a leased reader pins; an ending pin of its own is
@@ -121,12 +121,19 @@ namespace LiteDB
             try
             {
                 // The holder owns the mutex on behalf of this thread.
+                if (Volatile.Read(ref _disposed) != 0) throw new ObjectDisposedException(nameof(SharedEngine));
                 RejectAbandonedTransaction();
                 var open = Stopwatch.StartNew();
                 if (_engine == null) this.OpenEngine(pin.RecoveredAbandonedOwner);
                 _databaseUsers++;
                 pin.MarkReady(open.Elapsed + _lastPinClose);
-                _pin = pin;
+                lock (_useLock)
+                {
+                    // Dispose reads the pin under this lock after marking itself disposed:
+                    // it either sees this pin and ends it, or this start is refused.
+                    if (Volatile.Read(ref _disposed) != 0) throw new ObjectDisposedException(nameof(SharedEngine));
+                    _pin = pin;
+                }
                 return pin;
             }
             catch
@@ -190,8 +197,15 @@ namespace LiteDB
                 return;
             }
 
+            var depth = this.AdmittedDepth();
             try
             {
+                lock (_useLock)
+                {
+                    // A disposed connection's final close does this cleanup itself.
+                    if (Volatile.Read(ref _disposed) != 0) return;
+                    this.AdmitLocked();
+                }
                 if (_engine != null || _transactionRunning || _readers.OldestVersion().HasValue) return;
                 this.CloseFinally();
             }
@@ -203,6 +217,7 @@ namespace LiteDB
             }
             finally
             {
+                this.EndAdmissions(depth);
                 _owner.Exit();
             }
         }

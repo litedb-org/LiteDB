@@ -17,7 +17,9 @@ namespace LiteDB
         /// under the mutex instead, without a second engine or a lease. Ordinary readers retain a process-lifetime
         /// lease and release the writer mutex before returning to the caller.
         /// </summary>
-        public IBsonDataReader Query(string collection, Query query)
+        public IBsonDataReader Query(string collection, Query query) => this.Call(() => this.QueryCore(collection, query));
+
+        private IBsonDataReader QueryCore(string collection, Query query)
         {
             var reads = query?.ForUpdate != true && query?.Into == null;
             SharedMutexPin use;
@@ -34,6 +36,8 @@ namespace LiteDB
                 bool needsEngine;
                 lock (_useLock)
                 {
+                    try { this.AdmitLocked(); }
+                    catch { _owner.Exit(); throw; }
                     needsEngine = !_transactionRunning && _engine == null;
 #if DEBUG || TESTING
                     if (!needsEngine) this.BeforeCountingUser?.Invoke();

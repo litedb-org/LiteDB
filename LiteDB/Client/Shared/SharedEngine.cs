@@ -114,6 +114,8 @@ namespace LiteDB
             // separate check and increment it could close the engine this call relies on.
             lock (_useLock)
             {
+                try { this.AdmitLocked(); }
+                catch { _owner.Exit(); throw; }
                 // Don't create a new engine while a transaction is running.
                 if (!_transactionRunning && _engine == null)
                 {
@@ -233,7 +235,9 @@ namespace LiteDB
 
         #region Transaction Operations
 
-        public bool BeginTrans()
+        public bool BeginTrans() => this.Call(this.BeginTransCore);
+
+        private bool BeginTransCore()
         {
             var use = OpenDatabase();
 
@@ -260,9 +264,9 @@ namespace LiteDB
             }
         }
 
-        public bool Commit() => CompleteTransaction(commit: true);
+        public bool Commit() => this.Call(() => CompleteTransaction(commit: true));
 
-        public bool Rollback() => CompleteTransaction(commit: false);
+        public bool Rollback() => this.Call(() => CompleteTransaction(commit: false));
 
         private bool CompleteTransaction(bool commit)
         {
@@ -280,6 +284,13 @@ namespace LiteDB
 
             try
             {
+                // Dispose ended the transaction with the connection; a rollback in a catch
+                // block must not replace the error it handles.
+                lock (_useLock)
+                {
+                    if (!commit && Volatile.Read(ref _disposed) != 0) return false;
+                    this.AdmitLocked();
+                }
                 RejectAbandonedTransaction();
                 if (!_transactionRunning || _engine == null) return false;
                 try { return commit ? _engine.Commit() : _engine.Rollback(); }
@@ -428,8 +439,10 @@ namespace LiteDB
         {
             if (!disposing || Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
-            // Any thread can end a pin; its holder closes the engine and releases.
-            var pin = _pin;
+            // Any thread can end a pin; its holder closes the engine and releases. Read
+            // under the lock that orders a starting pin's publication with this Dispose.
+            SharedMutexPin pin;
+            lock (_useLock) pin = _pin;
             if (pin != null)
             {
                 pin.RequestRelease(force: true);
@@ -442,6 +455,8 @@ namespace LiteDB
                 pin.WaitReleased();
             }
 
+            // Calls admitted before Dispose started finish first; later ones are refused.
+            this.WaitForAdmittedCalls();
             var closed = false;
             lock (_useLock)
             {
@@ -473,19 +488,6 @@ namespace LiteDB
         {
             foreach (var snapshot in _mutexSnapshots) snapshot.Close(checkpoint: false);
             _mutexSnapshots.Clear();
-        }
-
-        private T QueryDatabase<T>(Func<T> Query)
-        {
-            var use = OpenDatabase();
-            try
-            {
-                return Query();
-            }
-            finally
-            {
-                CloseDatabase(use);
-            }
         }
     }
 }
