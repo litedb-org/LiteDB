@@ -19,6 +19,7 @@ namespace LiteDB.Tests.Engine
     /// </summary>
     public class SharedReaderWrites_Tests : IDisposable
     {
+        private readonly OpenReaders _open = new OpenReaders();
         private const int Count = 200;
         private readonly string _directory = Path.Combine(Path.GetTempPath(), "litedb-shared-" + Guid.NewGuid().ToString("N"));
         private string Filename => Path.Combine(_directory, "test.db");
@@ -98,7 +99,7 @@ namespace LiteDB.Tests.Engine
         {
             using var engine = this.Open();
             engine.Insert("docs", Enumerable.Range(1, Count).Select(id => Doc(id, 0)), BsonAutoId.Int32);
-            var reader = engine.Query("docs", new Query());
+            var reader = _open.Track(engine.Query("docs", new Query()));
             reader.Read().Should().BeTrue();
             engine.Update("docs", new[] { Doc(1, 1) });
 
@@ -220,6 +221,7 @@ namespace LiteDB.Tests.Engine
 
         public void Dispose()
         {
+            _open.Dispose();
             try { Directory.Delete(_directory, recursive: true); }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }

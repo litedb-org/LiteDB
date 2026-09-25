@@ -18,6 +18,7 @@ namespace LiteDB.Tests.Engine
     /// </summary>
     public class SharedMutexOwnership_Tests : IDisposable
     {
+        private readonly OpenReaders _open = new OpenReaders();
         private const int Count = 200;
         private static readonly TimeSpan Prompt = TimeSpan.FromSeconds(10);
         private readonly string _directory = Path.Combine(Path.GetTempPath(), "litedb-owner-" + Guid.NewGuid().ToString("N"));
@@ -58,7 +59,7 @@ namespace LiteDB.Tests.Engine
         public async Task Unleased_reader_disposed_after_an_await_releases_the_mutex()
         {
             using var engine = this.OpenUnleased();
-            var reader = engine.Query("docs", new Query());
+            var reader = _open.Track(engine.Query("docs", new Query()));
             reader.Read().Should().BeTrue();
 
             await Task.Run(reader.Dispose);
@@ -183,7 +184,7 @@ namespace LiteDB.Tests.Engine
         public void Reader_disposed_on_another_thread_cannot_close_the_engine_under_a_starting_operation()
         {
             using var engine = this.OpenUnleased();
-            var reader = engine.Query("docs", new Query());
+            var reader = _open.Track(engine.Query("docs", new Query()));
             reader.Read().Should().BeTrue();
 
             var starter = Thread.CurrentThread;
@@ -231,7 +232,7 @@ namespace LiteDB.Tests.Engine
         {
             using var engine = this.OpenUnleased();
             // A FOR UPDATE reader streams on the connection's open engine.
-            var reader = engine.Query("docs", new Query { ForUpdate = true });
+            var reader = _open.Track(engine.Query("docs", new Query { ForUpdate = true }));
             reader.Read().Should().BeTrue();
 
             var starter = Thread.CurrentThread;
@@ -276,7 +277,7 @@ namespace LiteDB.Tests.Engine
 #endif
 
         /// <summary>Opens a reader that streams under the mutex, on a thread that then idles.</summary>
-        private static IBsonDataReader ReadOnIdleThread(SharedEngine engine, ManualResetEventSlim finish, out Thread owner)
+        private IBsonDataReader ReadOnIdleThread(SharedEngine engine, ManualResetEventSlim finish, out Thread owner)
         {
             IBsonDataReader reader = null;
             Exception error = null;
@@ -285,7 +286,7 @@ namespace LiteDB.Tests.Engine
             {
                 try
                 {
-                    reader = engine.Query("docs", new Query());
+                    reader = _open.Track(engine.Query("docs", new Query()));
                     reader.Read().Should().BeTrue();
                 }
                 catch (Exception ex) { error = ex; }
@@ -323,6 +324,7 @@ namespace LiteDB.Tests.Engine
 
         public void Dispose()
         {
+            _open.Dispose();
             try { Directory.Delete(_directory, recursive: true); }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }

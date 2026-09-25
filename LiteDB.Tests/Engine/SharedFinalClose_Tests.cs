@@ -15,6 +15,7 @@ namespace LiteDB.Tests.Engine
     /// </summary>
     public class SharedFinalClose_Tests : IDisposable
     {
+        private readonly OpenReaders _open = new OpenReaders();
         private static readonly TimeSpan Prompt = TimeSpan.FromSeconds(10);
         private readonly string _directory = Path.Combine(Path.GetTempPath(), "litedb-final-" + Guid.NewGuid().ToString("N"));
         private string Filename => Path.Combine(_directory, "test.db");
@@ -23,6 +24,7 @@ namespace LiteDB.Tests.Engine
 
         public void Dispose()
         {
+            _open.Dispose();
             try { Directory.Delete(_directory, recursive: true); }
             catch (IOException) { }
         }
@@ -45,7 +47,7 @@ namespace LiteDB.Tests.Engine
                 ReadOnly = true,
                 SharedReaderFiles = (_, __) => throw new UnauthorizedAccessException("registry denied")
             });
-            var cursor = reader.Query("docs", new Query());
+            var cursor = _open.Track(reader.Query("docs", new Query()));
             cursor.Read().Should().BeTrue();
 
             var closed = new Thread(writer.Dispose) { IsBackground = true };

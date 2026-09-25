@@ -21,6 +21,7 @@ namespace LiteDB.Tests.Engine
     /// </summary>
     public class SharedReaderPin_Tests : IDisposable
     {
+        private readonly OpenReaders _open = new OpenReaders();
         private const int Count = 200;
         private static readonly TimeSpan Prompt = TimeSpan.FromSeconds(10);
         private static readonly TimeSpan Forever = TimeSpan.FromMinutes(10);
@@ -56,7 +57,7 @@ namespace LiteDB.Tests.Engine
         }
 
         /// <summary>Opens a reader and pins it with one write on a thread that then idles.</summary>
-        private static IBsonDataReader PinOnIdleThread(SharedEngine engine, ManualResetEventSlim finish, out Thread owner)
+        private IBsonDataReader PinOnIdleThread(SharedEngine engine, ManualResetEventSlim finish, out Thread owner)
         {
             IBsonDataReader reader = null;
             Exception error = null;
@@ -65,7 +66,7 @@ namespace LiteDB.Tests.Engine
             {
                 try
                 {
-                    reader = engine.Query("docs", new Query());
+                    reader = _open.Track(engine.Query("docs", new Query()));
                     reader.Read().Should().BeTrue();
                     engine.Update("docs", new[] { Doc(1, 1) });
                 }
@@ -244,7 +245,7 @@ namespace LiteDB.Tests.Engine
         public async Task Reader_disposed_after_an_await_ends_the_pin()
         {
             using var engine = this.Seed();
-            var reader = engine.Query("docs", new Query());
+            var reader = _open.Track(engine.Query("docs", new Query()));
             reader.Read().Should().BeTrue();
             engine.Update("docs", new[] { Doc(1, 1) });
 
@@ -258,8 +259,8 @@ namespace LiteDB.Tests.Engine
         public void Nested_readers_share_one_pin_until_the_last_is_disposed()
         {
             using var engine = this.Seed();
-            var outer = engine.Query("docs", new Query());
-            var inner = engine.Query("docs", new Query());
+            var outer = _open.Track(engine.Query("docs", new Query()));
+            var inner = _open.Track(engine.Query("docs", new Query()));
             outer.Read().Should().BeTrue();
             inner.Read().Should().BeTrue();
             engine.Update("docs", new[] { Doc(1, 1) });
@@ -323,7 +324,7 @@ namespace LiteDB.Tests.Engine
         public void Pinned_transaction_rejects_completion_from_another_thread()
         {
             using var engine = this.Seed();
-            var reader = engine.Query("docs", new Query());
+            var reader = _open.Track(engine.Query("docs", new Query()));
             reader.Read().Should().BeTrue();
             engine.Update("docs", new[] { Doc(1, 1) });
             engine.BeginTrans().Should().BeTrue();
@@ -351,7 +352,7 @@ namespace LiteDB.Tests.Engine
         {
             using var engine = this.Open(expire: true);
             engine.Insert("docs", Enumerable.Range(1, Count).Select(id => Doc(id, 0)), BsonAutoId.Int32);
-            var reader = engine.Query("docs", new Query());
+            var reader = _open.Track(engine.Query("docs", new Query()));
             reader.Read().Should().BeTrue();
             engine.Update("docs", new[] { Doc(1, 1) });
 
@@ -390,6 +391,7 @@ namespace LiteDB.Tests.Engine
 
         public void Dispose()
         {
+            _open.Dispose();
             try { Directory.Delete(_directory, recursive: true); }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
