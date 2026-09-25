@@ -207,15 +207,20 @@ namespace LiteDB
             }
         }
 
+        /// <summary>How long a final close waits for another connection's use of the mutex.</summary>
+        internal static readonly TimeSpan DisposeCheckpointWait = TimeSpan.FromSeconds(2);
+
         /// <summary>
         /// The connection's final close: checkpoint what its operations left below the
-        /// close threshold. Best effort like <see cref="CheckpointAfterLastReader"/>: a
-        /// current owner of the mutex is a live connection whose own final close checkpoints.
+        /// close threshold. The current owner of the mutex may be a read-only connection,
+        /// which never checkpoints, so wait for it instead of leaving the WAL to it. The
+        /// wait is bounded: this thread may itself keep that owner busy (another
+        /// connection's operation on the same thread). A WAL another close removed ends it.
         /// </summary>
         private void CheckpointOnDispose()
         {
             if (_settings.ReadOnly || !LogHasContent(_settings.Filename)) return;
-            if (!_owner.TryEnter(out var abandoned)) return;
+            if (!this.TryEnterForDispose(out var abandoned)) return;
             try
             {
                 if (abandoned || _engine != null || _transactionRunning) return;
@@ -231,6 +236,17 @@ namespace LiteDB
             finally
             {
                 _owner.Exit();
+            }
+        }
+
+        private bool TryEnterForDispose(out bool abandoned)
+        {
+            var waited = Stopwatch.StartNew();
+            while (true)
+            {
+                if (_owner.TryEnter(out abandoned)) return true;
+                if (waited.Elapsed >= DisposeCheckpointWait || !LogHasContent(_settings.Filename)) return false;
+                Thread.Sleep(10);
             }
         }
 
