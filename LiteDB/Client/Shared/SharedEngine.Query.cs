@@ -25,7 +25,7 @@ namespace LiteDB
             {
                 // The same acquisition as OpenDatabase. Where it would open the writable
                 // operation engine, a pure read opens the read-only snapshot engine instead.
-                var recoveredAbandonedOwner = _owner.Enter();
+                var recoveredAbandonedOwner = this.EnterOwner();
                 try { RejectAbandonedTransaction(); }
                 catch { _owner.Exit(); throw; }
                 // As in OpenDatabase, an open engine is checked and counted under one lock,

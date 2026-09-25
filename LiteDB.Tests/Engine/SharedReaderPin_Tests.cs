@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.ExceptionServices;
@@ -190,6 +192,52 @@ namespace LiteDB.Tests.Engine
                 other.Join(Prompt).Should().BeTrue();
             }
             failure.Should().BeNull();
+        }
+
+        /// <summary>
+        /// With the production idle and hold limits, a thread of the same instance must not
+        /// wait for the pin's hold limit behind a tight write loop: a one-shot release request
+        /// is lost when the owner re-pins first, so the pin ends for any counted waiter.
+        /// </summary>
+        [Fact]
+        public void Tight_write_loop_bounds_another_threads_wait_under_production_limits()
+        {
+            using var engine = this.Open(expire: true);
+            engine.Insert("docs", Enumerable.Range(1, Count).Select(id => Doc(id, 0)), BsonAutoId.Int32);
+            using var reader = engine.Query("docs", new Query());
+            reader.Read().Should().BeTrue();
+            engine.Update("docs", new[] { Doc(1, 1) });
+
+            var waits = new List<TimeSpan>();
+            Exception failure = null;
+            var other = new Thread(() =>
+            {
+                try
+                {
+                    var until = DateTime.UtcNow + TimeSpan.FromSeconds(3);
+                    for (var id = 1; DateTime.UtcNow < until; id++)
+                    {
+                        var wait = Stopwatch.StartNew();
+                        engine.Insert("other", new[] { new BsonDocument { ["_id"] = id } }, BsonAutoId.Int32);
+                        waits.Add(wait.Elapsed);
+                    }
+                }
+                catch (Exception ex) { failure = ex; }
+            }) { IsBackground = true };
+            other.Start();
+
+            try
+            {
+                var value = 2;
+                while (other.IsAlive) engine.Update("docs", new[] { Doc(1, value++) });
+            }
+            finally
+            {
+                other.Join(Prompt).Should().BeTrue();
+            }
+            failure.Should().BeNull();
+            waits.Count.Should().BeGreaterThan(3);
+            waits.Max().Should().BeLessThan(TimeSpan.FromMilliseconds(900), "a waiting thread must not wait for the pin's hold limit");
         }
 
         [Fact]
