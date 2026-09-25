@@ -21,6 +21,9 @@ internal static class FuzzProcessRunner
         {
             if (!allocatedDuration.HasValue)
             {
+                // A count-bound run is one epoch: the same budget gate, before it starts.
+                if (BudgetReached(options, target, worker))
+                    return new[] { BudgetStop(target, options) };
                 var result = await RunCoreAsync(target, options, worker, 0, null, options.InputFile);
                 if (options.DeterminismCheck && result.Passed)
                     result = await VerifyDeterminismAsync(target, options, worker, result);
@@ -37,8 +40,7 @@ internal static class FuzzProcessRunner
                 if (BudgetReached(options, target, worker))
                 {
                     // A shard that never ran must not count as a passed campaign.
-                    if (epoch == 0) results.Add(new RunResult(target.Name, options.Seed, options.ArtifactDirectory,
-                        Passed: false, BudgetStopped: true));
+                    if (epoch == 0) results.Add(BudgetStop(target, options));
                     break;
                 }
                 var result = await RunCoreAsync(target, options, worker, epoch, duration, null);
@@ -66,6 +68,9 @@ internal static class FuzzProcessRunner
         }
         return result with { Compacted = true };
     }
+
+    private static RunResult BudgetStop(IFuzzTarget target, FuzzOptions options) =>
+        new(target.Name, options.Seed, options.ArtifactDirectory, Passed: false, BudgetStopped: true);
 
     private static bool BudgetReached(FuzzOptions options, IFuzzTarget target, int worker)
     {

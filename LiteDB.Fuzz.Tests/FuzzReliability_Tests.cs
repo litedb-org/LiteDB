@@ -287,6 +287,22 @@ public sealed class FuzzReliability_Tests
         Assert.Equal(0, target.Runs);
     }
 
+    [Fact]
+    public async Task A_count_bound_run_does_not_start_over_the_budget()
+    {
+        using var root = new TemporaryDirectory();
+        File.WriteAllBytes(Path.Combine(root.Path, "earlier-artifacts.bin"), new byte[2 * 1024 * 1024]);
+        var options = FuzzOptions.Parse(new[] { "--artifact-dir", root.Path, "--max-artifact-mb", "1", "--count", "3" });
+        var target = new NeverRunTarget();
+
+        var results = await FuzzProcessRunner.RunEpochsAsync(target, options, 0);
+
+        var result = Assert.Single(results);
+        Assert.True(result.BudgetStopped);
+        Assert.True(result.BlocksBuild, "a run that never started must not exit as a pass");
+        Assert.Equal(0, target.Runs);
+    }
+
     private sealed class NeverRunTarget : IFuzzTarget
     {
         internal int Runs;
