@@ -33,11 +33,18 @@ namespace LiteDB.Engine
 
         /// <summary>
         /// False when commits reach the OS cache only: the caller opted out
-        /// (<see cref="EngineSettings.DurableCommits"/>), or the log storage rejected a durable
-        /// flush or its directory sync.
+        /// (<see cref="EngineSettings.DurableCommits"/>), the log storage rejected a durable
+        /// flush or its directory sync, or the log's syncs cannot report failures.
         /// </summary>
         internal bool IsLogFlushDurable => _durableCommits && !_logFlushDegraded && !_logDirectoryUnsyncable &&
-            !(_sharedDurability?.Degraded ?? false);
+            !this.LogSyncUnverified && !(_sharedDurability?.Degraded ?? false);
+
+        /// <summary>
+        /// A file WAL synced through the runtime's Flush(true) (no C library bound on Unix): the
+        /// sync is still attempted, but a failure would go unreported, so it never proves
+        /// durability. Such a log is not used for slot reuse (see <see cref="ProveLogSync"/>).
+        /// </summary>
+        private bool LogSyncUnverified => ((ChecksummedWalFactory)_logFactory).IsFile && NativeFileSync.UsesRuntimeSync;
 
         /// <summary>
         /// Flush a confirmed WAL batch: to the device, or to the OS cache only when the caller opted out.
@@ -103,7 +110,7 @@ namespace LiteDB.Engine
             try
             {
                 log.FlushToDisk();
-                _logSyncProven = true;
+                if (!this.LogSyncUnverified) _logSyncProven = true;
             }
             catch (Exception ex) when (IsDurableFlushUnsupported(ex))
             {
@@ -124,7 +131,8 @@ namespace LiteDB.Engine
         private bool ProveLogSync()
         {
             if (_logSyncProven) return true;
-            if (_logFlushDegraded) return false;
+            // An unverifiable sync proves nothing, and retrying it per allocation would only cost.
+            if (_logFlushDegraded || this.LogSyncUnverified) return false;
             var stream = _writer.Value;
             var raw = stream is ChecksummedWalStream wal ? wal.RawStream : stream;
             try

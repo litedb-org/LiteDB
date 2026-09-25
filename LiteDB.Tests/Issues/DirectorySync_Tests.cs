@@ -30,6 +30,19 @@ namespace LiteDB.Tests.Issues
             Action missing = () => NativeFileSync.SyncDirectory(Path.Combine(directory, "litedb-missing-" + Guid.NewGuid().ToString("N")));
             missing.Should().Throw<FileSyncException>().Which.IsUnsupported.Should().BeFalse("ENOENT is a failure, not storage that cannot sync");
         }
+
+        [Fact]
+        public void Without_a_c_library_a_directory_sync_reports_storage_that_cannot_sync()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
+            NativeFileSync.SimulateRuntimeSync = true;
+            try
+            {
+                Action unavailable = () => NativeFileSync.SyncDirectory(Path.GetTempPath());
+                unavailable.Should().Throw<FileSyncException>().Which.IsUnsupported.Should().BeTrue("without a C library the sync cannot run");
+            }
+            finally { NativeFileSync.SimulateRuntimeSync = false; }
+        }
     }
 }
 #endif

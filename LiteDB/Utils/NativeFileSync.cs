@@ -33,6 +33,9 @@ namespace LiteDB
 
         /// <summary>Test hook: returns the errno a sync of this directory reports (0 = success), on every platform.</summary>
         internal static Func<string, int> SimulateDirectoryErrno;
+
+        /// <summary>Test hook: behave as if no C library could be bound (file syncs go through Flush(true)).</summary>
+        internal static volatile bool SimulateRuntimeSync;
 #endif
 
         internal static void FlushToDisk(FileStream stream)
@@ -48,7 +51,7 @@ namespace LiteDB
             }
 #endif
             // A caller's FileStream subclass that overrides Flush(bool) defines its own sync.
-            if (_windows || _nativeUnavailable || OverridesFlush(stream.GetType()))
+            if (_windows || _nativeUnavailable || RuntimeSyncSimulated || OverridesFlush(stream.GetType()))
             {
                 stream.Flush(true);
                 return;
@@ -81,9 +84,17 @@ namespace LiteDB
 
         /// <summary>
         /// True when Unix device syncs go through the runtime's Flush(true), which reports
-        /// no errors, because no C library could be bound. Always false on Windows.
+        /// no errors, because no C library could be bound. Always false on Windows. Such a
+        /// sync is still attempted, but it cannot prove durability.
         /// </summary>
-        internal static bool UsesRuntimeSync => !_windows && (_nativeUnavailable || NativeLibc.LibraryName == null);
+        internal static bool UsesRuntimeSync =>
+            RuntimeSyncSimulated || (!_windows && (_nativeUnavailable || NativeLibc.LibraryName == null));
+
+#if DEBUG || TESTING
+        private static bool RuntimeSyncSimulated => SimulateRuntimeSync;
+#else
+        private const bool RuntimeSyncSimulated = false;
+#endif
 
         /// <summary>
         /// Make the entries of <paramref name="directory"/> durable (Unix: fsync of the directory).
@@ -103,7 +114,7 @@ namespace LiteDB
             }
 #endif
             if (_windows) return;
-            if (!NativeLibc.TryGetDirectorySync(out var open, out var fsync, out var close))
+            if (RuntimeSyncSimulated || !NativeLibc.TryGetDirectorySync(out var open, out var fsync, out var close))
                 throw FileSyncException.Unavailable(directory);
 
             int descriptor;
