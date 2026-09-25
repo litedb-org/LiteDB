@@ -66,6 +66,9 @@ namespace LiteDB.Client.Shared
 
         /// <summary>Holder wake-ups by a signal that carried no command.</summary>
         internal int EmptySignaledWakes;
+
+        /// <summary>Runs on the holder after it found the owner thread exited, before it cleans up.</summary>
+        internal Action BeforeOwnerExitedCleanup { get; set; }
 #endif
 
         /// <summary>Changes whenever ownership ends, so a stale release is ignored.</summary>
@@ -360,15 +363,20 @@ namespace LiteDB.Client.Shared
             lock (_sync)
             {
                 if (!_held || _owner == null || _owner.IsAlive) return;
-            }
-            try { _ownerExited(); }
-            catch (Exception) { /* The next open recovers; the mutex must still be released. */ }
-            lock (_sync)
-            {
+                // Claim the ending ownership before cleanup. A release of it on another
+                // thread (a reader disposed with its generation) then finds it ended; else
+                // both would release the mutex and reopen the gate, and the second gate
+                // release throws on this thread. The mutex and the gate stay held until
+                // the cleanup below finishes, so nobody enters meanwhile.
                 _owner = null;
                 _recursion = 0;
                 _generation++;
             }
+#if DEBUG || TESTING
+            this.BeforeOwnerExitedCleanup?.Invoke();
+#endif
+            try { _ownerExited(); }
+            catch (Exception) { /* The next open recovers; the mutex must still be released. */ }
             this.ReleaseMutex();
             _gate.Release();
         }
