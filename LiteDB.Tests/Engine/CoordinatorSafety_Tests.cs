@@ -202,6 +202,52 @@ namespace LiteDB.Tests.Engine
             third.Dispose();
             File.Exists(marker).Should().BeFalse("a graceful stop removes the marker");
         }
+
+        /// <summary>
+        /// A client's snapshot survives its coordinator. A successor opening a file marked invalid
+        /// with AutoRebuild must not replace the files under that leased snapshot.
+        /// </summary>
+        [Fact]
+        public void A_successor_does_not_auto_rebuild_under_a_surviving_snapshot()
+        {
+            using var file = new TempFile();
+            using var first = new CoordinatedEngine(file.Filename);
+            using var second = new CoordinatedEngine(new EngineSettings { Filename = file.Filename, AutoRebuild = true });
+            using var reader = new CoordinatedEngine(file.Filename);
+            new LiteDatabase(first, disposeOnClose: false).GetCollection("docs").Insert(Enumerable.Range(1, Rows).Select(id => Doc(id)));
+
+            using var cursor = reader.Query("docs", new Query());
+            cursor.Read().Should().BeTrue();
+            reader.DirectReads.Should().BeGreaterThan(0, "the cursor reads a leased snapshot");
+
+            first.CrashCoordinator();
+            MarkInvalidState(file.Filename);
+            Exception takeover = null;
+            try { _ = new LiteDatabase(second, disposeOnClose: false).UserVersion; }
+            catch (Exception ex) { takeover = ex; }
+
+            Directory.GetFiles(Path.GetDirectoryName(file.Filename), Path.GetFileNameWithoutExtension(file.Filename) + "*")
+                .Should().NotContain(path => path.Contains("-backup"), "a live snapshot lease blocks the automatic rebuild");
+            var seen = 1;
+            while (cursor.Read())
+            {
+                cursor.Current["p"].AsString.Length.Should().Be(400);
+                seen++;
+            }
+            seen.Should().Be(Rows, "the surviving snapshot keeps reading the files it opened");
+            takeover.Should().BeNull();
+        }
+
+        private static void MarkInvalidState(string filename)
+        {
+            using var stream = new FileStream(filename, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete);
+            var header = new byte[Constants.PAGE_SIZE];
+            stream.Read(header, 0, header.Length);
+            header[HeaderPage.P_INVALID_DATAFILE_STATE] = 1;
+            PageChecksum.Write(new BufferSlice(header, 0, Constants.PAGE_SIZE));
+            stream.Position = 0;
+            stream.Write(header, 0, header.Length);
+        }
     }
 }
 #endif

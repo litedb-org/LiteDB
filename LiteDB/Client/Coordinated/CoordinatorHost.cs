@@ -71,6 +71,9 @@ namespace LiteDB.Client.Coordinated
             // Client snapshots are leased by OS-held files, so they survive this
             // process: a successor coordinator still sees every live snapshot.
             engineSettings.SharedReaderVersions = registry.LiveVersions;
+            // A rebuild would replace the files under those snapshots. As in shared mode, it
+            // runs only when the registry shows no live lease (an unreadable one counts as live).
+            engineSettings.AutoRebuildAllowed = () => !registry.OldestVersion().HasValue;
             // Without a status page clients fall back to snapshot grants over IPC. A page is
             // only published while the marker exists, so a successor can detect its death.
             try { if (_marker != null) _page = CoordinatorStatusPage.Create(settings.Filename); }
