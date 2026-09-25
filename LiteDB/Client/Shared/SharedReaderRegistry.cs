@@ -77,6 +77,19 @@ namespace LiteDB.Client.Shared
             }
         }
 
+        /// <summary>
+        /// Prove that a lease can be registered, without keeping one: register and drop a
+        /// lease at <paramref name="version"/>, and remove the directory again if this call
+        /// created it. The caller owns the mutex, under which every registration runs.
+        /// Throws <see cref="IOException"/> or <see cref="UnauthorizedAccessException"/>.
+        /// </summary>
+        internal void Probe(int version)
+        {
+            var existed = Directory.Exists(_directory);
+            using (this.Register(version)) { }
+            if (!existed) this.TryRemoveDirectory();
+        }
+
         internal int? OldestVersion()
         {
             var versions = this.LiveVersions();

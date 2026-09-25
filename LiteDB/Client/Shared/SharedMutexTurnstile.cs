@@ -39,6 +39,15 @@ namespace LiteDB.Client.Shared
             }
         }
 
+        /// <summary>Try both gates without barging ahead of an already queued waiter.</summary>
+        public bool TryWait(Mutex mutex)
+        {
+            try { if (!_turn.WaitOne(0)) return false; }
+            catch (AbandonedMutexException) { }
+            try { return mutex.WaitOne(0); }
+            finally { _turn.ReleaseMutex(); }
+        }
+
         /// <summary>True when another participant is queued for the shared mutex.</summary>
         public bool HasWaiter()
         {
