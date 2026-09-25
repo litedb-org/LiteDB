@@ -20,6 +20,7 @@ namespace LiteDB
         private const int ENOTSUP_BSD = 45;
         private const int EOPNOTSUPP_BSD = 102;
         private const int F_FULLFSYNC = 51;
+        private const int O_RDONLY = 0;
 
         private static readonly bool _windows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
         private static readonly bool _macOS = RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
@@ -29,6 +30,9 @@ namespace LiteDB
 #if DEBUG || TESTING
         /// <summary>Test hook: returns the errno a native sync of this file reports (0 = success).</summary>
         internal static Func<string, int> SimulateErrno;
+
+        /// <summary>Test hook: returns the errno a sync of this directory reports (0 = success), on every platform.</summary>
+        internal static Func<string, int> SimulateDirectoryErrno;
 #endif
 
         internal static void FlushToDisk(FileStream stream)
@@ -81,6 +85,41 @@ namespace LiteDB
         /// </summary>
         internal static bool UsesRuntimeSync => !_windows && (_nativeUnavailable || NativeLibc.LibraryName == null);
 
+        /// <summary>
+        /// Make the entries of <paramref name="directory"/> durable (Unix: fsync of the directory).
+        /// Syncing a file does not persist a newly created name there. Windows needs nothing: the
+        /// file's FlushFileBuffers commits NTFS metadata, including the creation. Without a C
+        /// library the sync cannot run, which is reported like storage that cannot sync.
+        /// </summary>
+        internal static void SyncDirectory(string directory)
+        {
+#if DEBUG || TESTING
+            var simulate = SimulateDirectoryErrno;
+            if (simulate != null)
+            {
+                var injected = simulate(directory);
+                if (injected != 0) throw new FileSyncException(directory, injected, _bsd);
+                return;
+            }
+#endif
+            if (_windows) return;
+            if (!NativeLibc.TryGetDirectorySync(out var open, out var fsync, out var close))
+                throw FileSyncException.Unavailable(directory);
+
+            int descriptor;
+            while ((descriptor = open(directory, O_RDONLY)) < 0)
+            {
+                var errno = Marshal.GetLastWin32Error();
+                if (errno != EINTR) throw new FileSyncException(directory, errno, _bsd);
+            }
+            try
+            {
+                var failure = Retry(() => fsync(descriptor));
+                if (failure != 0) throw new FileSyncException(directory, failure, _bsd);
+            }
+            finally { close(descriptor); }
+        }
+
         private static int Sync(Microsoft.Win32.SafeHandles.SafeFileHandle handle, NativeLibc.FsyncCall fsync, NativeLibc.FcntlCall fcntl)
         {
             var added = false;
@@ -132,6 +171,15 @@ namespace LiteDB
             IsUnsupported = errno == EINVAL || errno == EROFS ||
                 (bsd ? errno == ENOTSUP_BSD || errno == EOPNOTSUPP_BSD : errno == ENOTSUP_LINUX);
         }
+
+        private FileSyncException(string message) : base(message)
+        {
+            IsUnsupported = true;
+        }
+
+        /// <summary>No C library to issue the sync with: treated as storage that cannot sync.</summary>
+        internal static FileSyncException Unavailable(string path) =>
+            new FileSyncException($"Cannot sync '{path}': no C library could be bound.");
 
         internal int Errno { get; }
 
