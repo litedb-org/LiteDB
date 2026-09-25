@@ -24,11 +24,19 @@ namespace LiteDB.Engine
         // (see ProveLogSync).
         private volatile bool _logSyncProven;
 
+        // Set once this engine made the WAL's directory entry durable. Until then a durable
+        // commit is not acknowledged: syncing a new WAL does not persist its name on Unix.
+        private volatile bool _logDirectorySynced;
+
+        // The WAL's directory answered "cannot sync" (#2242): its name is not claimed durable.
+        private volatile bool _logDirectoryUnsyncable;
+
         /// <summary>
         /// False when commits reach the OS cache only: the caller opted out
-        /// (<see cref="EngineSettings.DurableCommits"/>) or the log storage rejected a durable flush.
+        /// (<see cref="EngineSettings.DurableCommits"/>), or the log storage rejected a durable
+        /// flush or its directory sync.
         /// </summary>
-        internal bool IsLogFlushDurable => _durableCommits && !_logFlushDegraded &&
+        internal bool IsLogFlushDurable => _durableCommits && !_logFlushDegraded && !_logDirectoryUnsyncable &&
             !(_sharedDurability?.Degraded ?? false);
 
         /// <summary>
@@ -76,6 +84,9 @@ namespace LiteDB.Engine
             }
 
             this.SyncLogBarrier(stream);
+            // The WAL may have been created (or recreated after a checkpoint deleted it) by
+            // this or a crashed engine: make its name durable before a commit depends on it.
+            if (!_logDirectorySynced) this.SyncLogDirectory();
         }
 
         /// <summary>
@@ -140,10 +151,26 @@ namespace LiteDB.Engine
         /// <summary>
         /// Sync the WAL directory entry unless the log storage already refused to sync:
         /// then no power-loss guarantee is claimed and the directory sync adds nothing.
+        /// A directory that answers "cannot sync" (#2242) is reported through
+        /// <see cref="IsLogFlushDurable"/>; file syncs continue. Any other failure propagates,
+        /// so a commit fails and an overwrite does not start.
         /// </summary>
         private void SyncLogDirectory()
         {
-            if (!_logFlushDegraded) ((ChecksummedWalFactory)_logFactory).SyncDirectory();
+            // An engine never deletes its WAL while open, and the WAL existed at the sync that
+            // set the flag: its name is already durable.
+            if (_logDirectorySynced || _logFlushDegraded || _logDirectoryUnsyncable) return;
+            try
+            {
+                ((ChecksummedWalFactory)_logFactory).SyncDirectory();
+                _logDirectorySynced = true;
+            }
+            catch (Exception ex) when (IsDurableFlushUnsupported(ex))
+            {
+                _logDirectoryUnsyncable = true;
+                if (_sharedDurability != null) _sharedDurability.Degraded = true;
+                LOG($"log directory rejected a durable sync ({ex.GetType().Name} 0x{ex.HResult:X8}); a new WAL's name is not claimed durable", "DISK");
+            }
         }
 
         /// <summary>
