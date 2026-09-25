@@ -25,6 +25,9 @@ namespace LiteDB.Tests.Engine
         [Fact]
         public void Unchanged_reads_reuse_the_cached_snapshot_without_ipc()
         {
+#if DEBUG || TESTING
+            using var timing = CoordinatorTiming.Relaxed();
+#endif
             using var file = new TempFile();
             using var host = new CoordinatedEngine(file.Filename);
             using var client = new CoordinatedEngine(file.Filename);
@@ -48,6 +51,9 @@ namespace LiteDB.Tests.Engine
         [Fact]
         public void Commits_advance_the_cached_snapshot_incrementally_and_match_a_fresh_open()
         {
+#if DEBUG || TESTING
+            using var timing = CoordinatorTiming.Relaxed();
+#endif
             using var file = new TempFile();
             using var host = new CoordinatedEngine(file.Filename);
             using var client = new CoordinatedEngine(file.Filename);
@@ -176,6 +182,9 @@ namespace LiteDB.Tests.Engine
         [Fact]
         public void A_reclaimed_slot_reused_after_a_snapshot_opened_prevents_its_incremental_refresh()
         {
+#if DEBUG || TESTING
+            using var timing = CoordinatorTiming.Relaxed();
+#endif
             foreach (var ignoreReuse in new[] { false, true })
             {
                 using var file = new TempFile();
@@ -284,6 +293,9 @@ namespace LiteDB.Tests.Engine
         [Fact]
         public void Refreshed_and_opened_snapshots_match_a_direct_mode_oracle_under_checkpoints_and_reuse()
         {
+#if DEBUG || TESTING
+            using var timing = CoordinatorTiming.Relaxed();
+#endif
             using var file = new TempFile();
             var expected = new Dictionary<int, int>();
             var random = new Random(3004);

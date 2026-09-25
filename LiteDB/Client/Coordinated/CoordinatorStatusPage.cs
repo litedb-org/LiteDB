@@ -38,6 +38,13 @@ namespace LiteDB.Client.Coordinated
         /// <summary>A status whose heartbeat is older than this is not trusted.</summary>
         internal const int HeartbeatTimeoutMilliseconds = 1000;
 
+#if DEBUG || TESTING
+        /// <summary>Test hook: how old a heartbeat may be before the page is not trusted.</summary>
+        internal static volatile int TrustTimeoutMilliseconds = HeartbeatTimeoutMilliseconds;
+#else
+        private const int TrustTimeoutMilliseconds = HeartbeatTimeoutMilliseconds;
+#endif
+
         /// <summary>How often a live coordinator renews its heartbeat.</summary>
         internal const int HeartbeatPeriodMilliseconds = 100;
 
@@ -205,7 +212,7 @@ namespace LiteDB.Client.Coordinated
             status = default;
             // Callers serialize reads with Dispose; this only guards a misuse.
             if (Volatile.Read(ref _disposed) != 0) return false;
-            if (Environment.TickCount64 - this.Load(HeartbeatOffset) > HeartbeatTimeoutMilliseconds) return false;
+            if (Environment.TickCount64 - this.Load(HeartbeatOffset) > TrustTimeoutMilliseconds) return false;
             for (var attempt = 0; attempt < 64; attempt++)
             {
                 var before = this.Load(SequenceOffset);

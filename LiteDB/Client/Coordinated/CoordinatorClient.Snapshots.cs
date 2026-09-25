@@ -334,8 +334,16 @@ namespace LiteDB.Client.Coordinated
             }
         }
 
+#if DEBUG || TESTING
+        /// <summary>Test hook: tests that count refreshes keep an idle snapshot instead of retiring it.</summary>
+        internal static volatile bool KeepIdleSnapshots;
+#endif
+
         private void OnIdle(object state)
         {
+#if DEBUG || TESTING
+            if (KeepIdleSnapshots) return;
+#endif
             lock (_leaseLock)
             {
                 var snapshot = _current;
