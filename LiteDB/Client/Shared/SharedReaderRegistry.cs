@@ -10,12 +10,17 @@ namespace LiteDB.Client.Shared
     /// All registration and inspection runs under the database's named mutex.
     /// An exclusive open handle is the lease, not a heartbeat or a process ID.
     /// The OS releases it on death, including when no managed cleanup runs.
+    /// A registry keeps one lease file for all its readers (<see cref="SharedReaderSlots"/>);
+    /// a lease file named after a single version is still understood.
     /// </summary>
-    internal sealed class SharedReaderRegistry
+    internal sealed class SharedReaderRegistry : IDisposable
     {
         private static readonly int[] _none = new int[0];
         private readonly string _directory;
         private readonly Func<string, string, string[]> _getFiles;
+        private readonly object _gate = new object();
+        private SharedReaderSlots _slots;
+        private bool _disposed;
 
         internal SharedReaderRegistry(string filename, Func<string, string, string[]> getFiles = null)
         {
@@ -36,6 +41,8 @@ namespace LiteDB.Client.Shared
         /// </summary>
         internal IDisposable Register(int version)
         {
+            // An open slot file already proved the registry usable.
+            lock (_gate) if (_slots != null && !_disposed) return _slots.Lease(version);
             try { _getFiles(_directory, "*.lease"); }
             catch (DirectoryNotFoundException) { }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
@@ -52,17 +59,22 @@ namespace LiteDB.Client.Shared
         /// </summary>
         internal IDisposable RegisterUnscanned(int version)
         {
-            var name = version.ToString(CultureInfo.InvariantCulture) + "-" + Guid.NewGuid().ToString("N") + ".lease";
-            var path = Path.Combine(_directory, name);
-            try { return Create(path); }
-            catch (DirectoryNotFoundException)
+            lock (_gate)
             {
-                Directory.CreateDirectory(_directory);
-                return Create(path);
+                if (_disposed) throw new ObjectDisposedException(nameof(SharedReaderRegistry));
+                if (_slots == null) _slots = SharedReaderSlots.Create(_directory);
+                return _slots.Lease(version);
             }
+        }
 
-            static FileStream Create(string path) => new FileStream(path, System.IO.FileMode.CreateNew,
-                FileAccess.ReadWrite, FileShare.None, 1, FileOptions.DeleteOnClose);
+        /// <summary>Close the slot file once its last lease ends.</summary>
+        public void Dispose()
+        {
+            lock (_gate)
+            {
+                _disposed = true;
+                _slots?.Dispose();
+            }
         }
 
         internal int? OldestVersion()
@@ -96,8 +108,21 @@ namespace LiteDB.Client.Shared
             var versions = new List<int>();
             foreach (var path in paths)
             {
-                if (TryRemoveDeadLease(path)) continue;
                 var name = Path.GetFileName(path);
+                var slots = name.StartsWith(SharedReaderSlots.Prefix, StringComparison.Ordinal);
+                if (TryRemoveDeadLease(path))
+                {
+                    // A dead or closed slot lease takes its content file with it.
+                    if (slots) TryRemoveUnheld(SharedReaderSlots.ContentPath(path));
+                    continue;
+                }
+                if (slots)
+                {
+                    var held = SharedReaderSlots.ReadVersions(path);
+                    if (held == null) return null;
+                    versions.AddRange(held);
+                    continue;
+                }
                 var separator = name.IndexOf('-');
                 // A malformed live lease has no usable snapshot floor. A synthetic
                 // version cannot conservatively represent an unknown floor, so the
@@ -106,8 +131,39 @@ namespace LiteDB.Client.Shared
                     NumberStyles.None, CultureInfo.InvariantCulture, out var parsed)) return null;
                 versions.Add(parsed);
             }
-            if (versions.Count == 0) this.TryRemoveDirectory();
+            if (versions.Count == 0)
+            {
+                this.TryRemoveOrphanContent();
+                this.TryRemoveDirectory();
+            }
             return versions.ToArray();
+        }
+
+        /// <summary>
+        /// Content files whose lease file is gone (an owner that died between creating the
+        /// two, on Unix). Owners create both under the mutex that this scan also holds.
+        /// </summary>
+        private void TryRemoveOrphanContent()
+        {
+            string[] contents;
+            try { contents = _getFiles(_directory, "*" + SharedReaderSlots.ContentExtension); }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException) { return; }
+            foreach (var content in contents)
+            {
+                if (!File.Exists(Path.ChangeExtension(content, ".lease"))) TryRemoveUnheld(content);
+            }
+        }
+
+        /// <summary>Delete a file only if nobody holds it open; best effort.</summary>
+        private static void TryRemoveUnheld(string path)
+        {
+            try
+            {
+                using (new FileStream(path, System.IO.FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { }
+                File.Delete(path);
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
         }
 
         private static bool TryRemoveDeadLease(string path)

@@ -172,9 +172,73 @@ namespace LiteDB.Tests.Engine
                 other.LiveVersions().Should().Equal(7);
                 Directory.GetFiles(this.ReadersDirectory, "*.lease").Should().HaveCount(1);
             }
-            Directory.GetFiles(this.ReadersDirectory, "*.lease").Should().BeEmpty(
-                "a closed lease deletes itself instead of waiting to be proven dead");
+            other.LiveVersions().Should().BeEmpty("an ended lease frees its slot at once");
+            using (registry.Register(8))
+            using (registry.Register(8))
+            using (registry.Register(9))
+            {
+                other.LiveVersions().Should().BeEquivalentTo(new[] { 8, 8, 9 });
+                Directory.GetFiles(this.ReadersDirectory, "*.lease").Should().HaveCount(1, "readers of one registry share its slot file");
+            }
+            registry.Dispose();
+            Directory.GetFiles(this.ReadersDirectory).Should().BeEmpty(
+                "the slot lease and its content delete themselves with the registry instead of waiting to be proven dead");
             other.LiveVersions().Should().BeEmpty();
+        }
+
+        [Fact]
+        public void A_registry_disposed_under_a_live_reader_keeps_its_lease_until_the_reader_ends()
+        {
+            var registry = new LiteDB.Client.Shared.SharedReaderRegistry(this.Filename);
+            var other = new LiteDB.Client.Shared.SharedReaderRegistry(this.Filename);
+            var lease = registry.Register(5);
+            registry.Dispose();
+            other.LiveVersions().Should().Equal(5);
+            lease.Dispose();
+            Directory.GetFiles(this.ReadersDirectory).Should().BeEmpty();
+        }
+
+        [Fact]
+        public void A_dead_slot_lease_and_orphaned_content_are_removed_by_the_scan()
+        {
+            Directory.CreateDirectory(this.ReadersDirectory);
+            var dead = Path.Combine(this.ReadersDirectory, "slots-" + Guid.NewGuid().ToString("N") + ".lease");
+            File.WriteAllBytes(dead, new byte[0]);
+            File.WriteAllBytes(Path.ChangeExtension(dead, ".slots"), new byte[] { 5, 0, 0, 0, 0xFA, 0xFF, 0xFF, 0xFF });
+            var orphan = Path.Combine(this.ReadersDirectory, "slots-" + Guid.NewGuid().ToString("N") + ".slots");
+            File.WriteAllBytes(orphan, new byte[] { 6, 0, 0, 0, 0xF9, 0xFF, 0xFF, 0xFF });
+
+            new LiteDB.Client.Shared.SharedReaderRegistry(this.Filename).LiveVersions().Should().BeEmpty(
+                "a lease nobody holds is dead whatever its content names");
+            Directory.Exists(this.ReadersDirectory).Should().BeFalse();
+        }
+
+        [Theory]
+        [InlineData(new byte[] { 5, 0, 0, 0, 0, 0, 0, 0 })]
+        [InlineData(new byte[] { 5, 0, 0, 0, 0xFA, 0xFF, 0xFF, 0xFF, 1, 2, 3 })]
+        [InlineData(new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0 })]
+        public void A_slot_file_with_a_torn_or_malformed_slot_makes_the_scan_fail_closed(byte[] content)
+        {
+            Directory.CreateDirectory(this.ReadersDirectory);
+            var path = Path.Combine(this.ReadersDirectory, "slots-" + Guid.NewGuid().ToString("N") + ".lease");
+            File.WriteAllBytes(Path.ChangeExtension(path, ".slots"), content);
+            using (new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None))
+            {
+                new LiteDB.Client.Shared.SharedReaderRegistry(this.Filename).LiveVersions().Should().BeNull();
+            }
+            File.Delete(path);
+            File.Delete(Path.ChangeExtension(path, ".slots"));
+        }
+
+        [Fact]
+        public void A_held_slot_lease_without_its_content_makes_the_scan_fail_closed()
+        {
+            Directory.CreateDirectory(this.ReadersDirectory);
+            var path = Path.Combine(this.ReadersDirectory, "slots-" + Guid.NewGuid().ToString("N") + ".lease");
+            using (new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 1, FileOptions.DeleteOnClose))
+            {
+                new LiteDB.Client.Shared.SharedReaderRegistry(this.Filename).LiveVersions().Should().BeNull();
+            }
         }
 
         [Fact]

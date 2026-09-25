@@ -59,15 +59,22 @@ namespace LiteDB.Internals
         [Fact]
         public void LargeResultStreamsFromLeasedSnapshot_AndRegistryIsRemovedAfterwards()
         {
-            using var engine = new SharedEngine(new EngineSettings { Filename = Filename });
-            engine.Insert("docs", Documents(STREAMED_DOCUMENTS, 0), BsonAutoId.Int32);
-            using (var reader = engine.Query("docs", new Query()))
+            using (var engine = new SharedEngine(new EngineSettings { Filename = Filename }))
             {
-                Directory.GetFiles(Leases, "*.lease").Should().HaveCount(1);
-                engine.Update("docs", Documents(STREAMED_DOCUMENTS, 1));
-                Values(reader).Should().HaveCount(STREAMED_DOCUMENTS).And.OnlyContain(value => value == 0);
+                engine.Insert("docs", Documents(STREAMED_DOCUMENTS, 0), BsonAutoId.Int32);
+                using (var reader = engine.Query("docs", new Query()))
+                {
+                    Directory.GetFiles(Leases, "*.lease").Should().HaveCount(1);
+                    new SharedReaderRegistry(Filename).LiveVersions().Should().HaveCount(1);
+                    engine.Update("docs", Documents(STREAMED_DOCUMENTS, 1));
+                    Values(reader).Should().HaveCount(STREAMED_DOCUMENTS).And.OnlyContain(value => value == 0);
+                }
+                engine.Checkpoint();
+                // The connection keeps its slot file for its next reader; it names no version.
+                new SharedReaderRegistry(Filename).LiveVersions().Should().BeEmpty();
             }
-            engine.Checkpoint();
+            // The slot file closes with the connection; the next scan removes the empty registry.
+            new SharedReaderRegistry(Filename).LiveVersions().Should().BeEmpty();
             Directory.Exists(Leases).Should().BeFalse();
         }
 
@@ -138,6 +145,34 @@ namespace LiteDB.Internals
             {
                 if (File.Exists(lease)) File.SetAttributes(lease, FileAttributes.Normal);
             }
+        }
+
+        /// <summary>
+        /// One connection's readers share a slot file. A checkpoint of another connection must
+        /// keep the frames of every leased version in it, not only the oldest: frames the newer
+        /// reader needs are unreachable for the oldest one and for the current state.
+        /// </summary>
+        [Fact]
+        public void ReadersOfOneConnectionAtDifferentVersionsEachKeepTheirFrames()
+        {
+            using var readers = new SharedEngine(new EngineSettings { Filename = Filename });
+            using var writer = new SharedEngine(new EngineSettings { Filename = Filename });
+            writer.Insert("docs", Documents(STREAMED_DOCUMENTS, 0), BsonAutoId.Int32);
+            using var oldest = readers.Query("docs", new Query());
+            writer.Update("docs", Documents(STREAMED_DOCUMENTS, 1));
+            using var newer = readers.Query("docs", new Query());
+            new SharedReaderRegistry(Filename).LiveVersions().Distinct().Should().HaveCount(2);
+            Directory.GetFiles(Leases, "*.lease").Should().HaveCount(1);
+
+            for (var value = 2; value <= 5; value++)
+            {
+                writer.Update("docs", Documents(STREAMED_DOCUMENTS, value));
+                // Partial checkpoints reclaim what no leased version needs; later commits reuse it.
+                writer.Checkpoint();
+            }
+
+            Values(newer).Should().HaveCount(STREAMED_DOCUMENTS).And.OnlyContain(value => value == 1);
+            Values(oldest).Should().HaveCount(STREAMED_DOCUMENTS).And.OnlyContain(value => value == 0);
         }
 
         private static BsonDocument[] Documents(int count, int value) =>

@@ -450,6 +450,7 @@ namespace LiteDB
                 {
                     // The pin's holder still closes its engine; its streams close on return.
                     _handles?.Dispose();
+                    _readers.Dispose();
                     return;
                 }
                 pin.WaitReleased();
@@ -475,6 +476,8 @@ namespace LiteDB
             // the data file alone is the database again once every connection closed.
             if (!closed) this.CheckpointOnDispose();
             _handles?.Dispose();
+            // Leased readers may outlive the connection; the slot file closes after the last.
+            _readers.Dispose();
             // A disposed connection holds no mutex, even for the moment its holder
             // needs to release it; another connection's final close may try it next.
             _owner.WaitForRelease();
