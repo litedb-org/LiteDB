@@ -152,10 +152,14 @@ The earlier negative control remains: removing the lease file makes
 - The status page carries a heartbeat that the coordinator renews every 100 ms with the
   system-wide monotonic clock (`Environment.TickCount64`). Clients trust the page only while
   the heartbeat is less than 1 s old. A graceful stop marks the page "no coordinator". A crashed
-  coordinator stops beating, and a successor that took over its abandoned election mutex waits
-  1.2 s before it opens the engine or serves anything. So every client of the dead coordinator
-  distrusts that page before the successor can commit, even a page the successor cannot see
-  or write (another temp location, changed permissions). A coordinator whose heartbeat stalls
+  coordinator stops beating. Every coordinator holds a marker file `<database>-coordinator`
+  from before it publishes its page until after a graceful stop marked it; a successor that
+  finds the marker (or took over an abandoned election mutex) waits 1.2 s before it opens the
+  engine or serves anything. The marker matters because the OS does not always report the mutex
+  abandoned: on Windows a coordinator that held the last handle of the named mutex takes it
+  with it. So every client of the dead coordinator distrusts that page before the successor can
+  commit, even a page the successor cannot see or write (another temp location, changed
+  permissions). A coordinator that cannot hold the marker publishes no page. A coordinator whose heartbeat stalls
   for over a second (a suspended process, for example) only sends its clients to IPC grants.
 - A refreshed snapshot keeps the pragmas object it opened with (lock timeouts, for example); the
   header's collections, pages and file version are refreshed in place.

@@ -32,6 +32,7 @@ namespace LiteDB.Client.Coordinated
         private readonly CoordinatorSignals _signals;
         private readonly CoordinatorGate _gate = new CoordinatorGate();
         private readonly CoordinatorMutex _mutex;
+        private readonly CoordinatorMarker _marker;
         private readonly string _pipeName;
         private readonly string _filename;
         private readonly CancellationTokenSource _stop = new CancellationTokenSource();
@@ -59,8 +60,10 @@ namespace LiteDB.Client.Coordinated
             _mutex = mutex;
             // Clients of a dead coordinator may still trust its page, which this process
             // may be unable to see or overwrite. Nothing is changed or served until that
-            // page's heartbeat has expired for every one of them.
-            if (mutex.TookOverAbandoned) CoordinatorStatusPage.WaitOutHeartbeats();
+            // page's heartbeat has expired for every one of them. The marker detects that
+            // death even when the OS reports no abandoned mutex.
+            _marker = CoordinatorMarker.TryHold(settings.Filename, out var predecessorDied);
+            if (predecessorDied || mutex.TookOverAbandoned) CoordinatorStatusPage.WaitOutHeartbeats();
             _pipeName = PipeName(settings.Filename);
             _filename = settings.Filename;
             var registry = new SharedReaderRegistry(settings.Filename, settings.SharedReaderFiles);
@@ -68,8 +71,9 @@ namespace LiteDB.Client.Coordinated
             // Client snapshots are leased by OS-held files, so they survive this
             // process: a successor coordinator still sees every live snapshot.
             engineSettings.SharedReaderVersions = registry.LiveVersions;
-            // Without a status page clients fall back to snapshot grants over IPC.
-            try { _page = CoordinatorStatusPage.Create(settings.Filename); }
+            // Without a status page clients fall back to snapshot grants over IPC. A page is
+            // only published while the marker exists, so a successor can detect its death.
+            try { if (_marker != null) _page = CoordinatorStatusPage.Create(settings.Filename); }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
             // Publish "starting" before the engine opens: opening can change the files.
@@ -80,6 +84,7 @@ namespace LiteDB.Client.Coordinated
             {
                 _signals?.Dispose();
                 _page?.Dispose();
+                _marker?.Dispose();
                 throw;
             }
             _signals?.Started(_engine.ReadVersion);
@@ -228,9 +233,9 @@ namespace LiteDB.Client.Coordinated
         public void Dispose() => this.Stop(crash: false);
 
         /// <summary>Test hook: stop as a killed process would, without checkpoint or cleanup.</summary>
-        internal void Crash() => this.Stop(crash: true);
+        internal void Crash(bool abandonMutex = true) => this.Stop(crash: true, abandonMutex);
 
-        private void Stop(bool crash)
+        private void Stop(bool crash, bool abandonMutex = true)
         {
             if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
             _stop.Cancel();
@@ -253,7 +258,11 @@ namespace LiteDB.Client.Coordinated
                 else _signals?.Halt();
                 _page?.Dispose();
                 if (!crash && _page != null) TryDelete(CoordinatorStatusPage.PathFor(_filename));
-                if (crash) _mutex.Abandon();
+                // Only after the page says "no coordinator": a successor that finds no marker
+                // relies on that.
+                if (crash) _marker?.Abandon();
+                else _marker?.Dispose();
+                if (crash && abandonMutex) _mutex.Abandon();
                 else _mutex.Dispose();
                 _stop.Dispose();
             }

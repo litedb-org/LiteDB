@@ -76,12 +76,17 @@ namespace LiteDB.Engine
         }
 #endif
 
-        /// <summary>Test hook: stop coordinating as a killed process would (no checkpoint, no cleanup).</summary>
-        internal void CrashCoordinator()
+        /// <summary>
+        /// Test hook: stop coordinating as a killed process would (no checkpoint, no cleanup).
+        /// With <paramref name="abandonMutex"/> false the election mutex is released normally,
+        /// as when the dying coordinator held the last handle of the named mutex (Windows):
+        /// the successor then sees no abandonment.
+        /// </summary>
+        internal void CrashCoordinator(bool abandonMutex = true)
         {
             lock (_roleLock)
             {
-                _host?.Crash();
+                _host?.Crash(abandonMutex);
                 _host = null;
             }
         }

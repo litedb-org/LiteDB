@@ -126,6 +126,82 @@ namespace LiteDB.Tests.Engine
                 }
             }
         }
+
+        /// <summary>
+        /// A coordinator that crashed as the last holder of the named election mutex leaves no
+        /// abandoned mutex: the successor acquires a fresh one. If that successor cannot write
+        /// the dead coordinator's page, clients still trusting it must not read its snapshot
+        /// after the successor committed.
+        /// </summary>
+        [Fact]
+        public void A_takeover_without_an_abandoned_mutex_never_serves_the_dead_coordinators_snapshot()
+        {
+            using var file = new TempFile();
+            using var first = new CoordinatedEngine(file.Filename);
+            using var second = new CoordinatedEngine(file.Filename);
+            using var reader = new CoordinatedEngine(file.Filename);
+            using var firstDb = new LiteDatabase(first, disposeOnClose: false);
+            using var secondDb = new LiteDatabase(second, disposeOnClose: false);
+            using var readerDb = new LiteDatabase(reader, disposeOnClose: false);
+            firstDb.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1, ["v"] = "before" });
+            var docs = readerDb.GetCollection("docs");
+            docs.FindById(1)["v"].AsString.Should().Be("before");
+            var hits = reader.ClientForTests.PageHits;
+            docs.FindById(1)["v"].AsString.Should().Be("before");
+            reader.ClientForTests.PageHits.Should().BeGreaterThan(hits, "the reader trusts the live coordinator's page");
+
+            CoordinatorStatusPage.FailCreate = true;
+            try
+            {
+                first.CrashCoordinator(abandonMutex: false);
+                _ = secondDb.UserVersion;
+                second.IsCoordinator.Should().BeTrue();
+                secondDb.GetCollection("docs").Update(new BsonDocument { ["_id"] = 1, ["v"] = "after" }).Should().BeTrue();
+            }
+            finally
+            {
+                CoordinatorStatusPage.FailCreate = false;
+            }
+
+            for (var i = 0; i < 20; i++)
+                docs.FindById(1)["v"].AsString.Should().Be("after", "a dead coordinator's page is never trusted after a successor committed");
+        }
+
+        /// <summary>
+        /// Only a coordinator that died leaves its marker, so a first coordinator and a successor
+        /// after a graceful stop start without the heartbeat wait, and the marker is gone again
+        /// once the last coordinator stopped gracefully.
+        /// </summary>
+        [Fact]
+        public void Only_a_dead_coordinator_makes_its_successor_wait()
+        {
+            using var file = new TempFile();
+            var marker = CoordinatorMarker.PathFor(file.Filename);
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            var first = new CoordinatedEngine(file.Filename);
+            first.IsCoordinator.Should().BeTrue();
+            File.Exists(marker).Should().BeTrue("a coordinator holds its marker");
+            using var second = new CoordinatedEngine(file.Filename);
+            var secondDb = new LiteDatabase(second, disposeOnClose: false);
+            secondDb.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1 });
+            first.Dispose();
+
+            _ = secondDb.UserVersion;
+            second.IsCoordinator.Should().BeTrue();
+            clock.Elapsed.Should().BeLessThan(TimeSpan.FromMilliseconds(CoordinatorStatusPage.HeartbeatTimeoutMilliseconds),
+                "neither the first start nor a takeover after a graceful stop waits out a heartbeat");
+
+            second.CrashCoordinator(abandonMutex: false);
+            File.Exists(marker).Should().BeTrue("a dead coordinator leaves its marker");
+            clock.Restart();
+            // No coordinator is alive, so this engine is elected while it is constructed.
+            using var third = new CoordinatedEngine(file.Filename);
+            _ = new LiteDatabase(third, disposeOnClose: false).UserVersion;
+            third.IsCoordinator.Should().BeTrue();
+            clock.Elapsed.Should().BeGreaterOrEqualTo(TimeSpan.FromMilliseconds(CoordinatorStatusPage.HeartbeatTimeoutMilliseconds));
+            third.Dispose();
+            File.Exists(marker).Should().BeFalse("a graceful stop removes the marker");
+        }
     }
 }
 #endif
