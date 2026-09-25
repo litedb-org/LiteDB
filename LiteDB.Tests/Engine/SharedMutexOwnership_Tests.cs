@@ -119,6 +119,35 @@ namespace LiteDB.Tests.Engine
             db.GetCollection("docs").FindById(1)["value"].AsInt32.Should().Be(0, "the exited owner never committed");
         }
 
+        /// <summary>
+        /// Engine transactions belong to their thread in every connection mode. A commit or
+        /// rollback from another thread is refused (or a no-op) instead of releasing or
+        /// wedging the mutex: the owner keeps its transaction and completes it itself.
+        /// </summary>
+        [Fact]
+        public void Transaction_completed_on_another_thread_stays_with_its_owner()
+        {
+            using var engine = this.OpenUnleased();
+            engine.BeginTrans().Should().BeTrue();
+            engine.Update("docs", new[] { Doc(1, 7) }).Should().Be(1);
+
+            Exception foreign = null;
+            var rolledBack = true;
+            RunPromptly(() =>
+            {
+                try { engine.Commit(); }
+                catch (LiteException ex) { foreign = ex; }
+                rolledBack = engine.Rollback();
+            });
+            foreign.Should().NotBeNull();
+            foreign.Message.Should().Contain("same thread");
+            rolledBack.Should().BeFalse("a foreign rollback must not end the owner's transaction");
+
+            engine.Commit().Should().BeTrue();
+            this.WriteFromAnotherInstance();
+            engine.Query("docs", new Query()).ToEnumerable().Single(doc => doc["_id"] == 1)["value"].AsInt32.Should().Be(7);
+        }
+
 #if !NETFRAMEWORK
         [Fact]
         public async Task Other_process_waits_only_while_an_unleased_reader_is_open()
