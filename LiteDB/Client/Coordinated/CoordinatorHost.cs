@@ -20,7 +20,12 @@ namespace LiteDB.Client.Coordinated
     internal sealed partial class CoordinatorHost : IDisposable
     {
         private static readonly TimeSpan GrantQuiescence = TimeSpan.FromMilliseconds(250);
+#if DEBUG || TESTING
+        /// <summary>How long a granted client may take to lease and open its snapshot; tests shorten it.</summary>
+        internal static TimeSpan GrantOpenTimeout = TimeSpan.FromSeconds(10);
+#else
         private static readonly TimeSpan GrantOpenTimeout = TimeSpan.FromSeconds(10);
+#endif
 
         private readonly LiteEngine _engine;
         private readonly CoordinatorStatusPage _page;
@@ -176,7 +181,8 @@ namespace LiteDB.Client.Coordinated
         /// <summary>
         /// Close the gate so no engine call runs, give the client the committed read
         /// version, and keep the gate closed until it has opened its snapshot engine.
-        /// The client leases the snapshot with an OS-held file before opening it.
+        /// The client leases the snapshot with an OS-held file before opening it, and keeps
+        /// it only after this host confirmed that the grant had not expired meanwhile.
         /// </summary>
         private BsonDocument GrantSnapshot(Stream stream, BsonDocument request)
         {
@@ -189,7 +195,11 @@ namespace LiteDB.Client.Coordinated
             try
             {
                 Write(stream, Ok(new BsonDocument { ["v"] = _engine.ReadVersion }));
-                Read(stream, GrantOpenTimeout);
+                var answer = Read(stream, GrantOpenTimeout);
+                // The gate stayed closed from the grant to this answer, so no checkpoint could
+                // miss the client's lease. Only this confirmation lets the client keep the
+                // snapshot; after a timeout the session ends without it.
+                if (answer["op"] == "opened") Write(stream, Ok(new BsonDocument { ["held"] = true }));
                 return null;
             }
             finally

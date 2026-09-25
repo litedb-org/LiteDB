@@ -33,7 +33,7 @@ namespace LiteDB.Client.Coordinated
         internal long GrantOpens;
 
 #if DEBUG || TESTING
-        /// <summary>Test hook: runs at each handshake step ("page-read", "lease-registered", "engine-opened").</summary>
+        /// <summary>Test hook: runs at each handshake step ("page-read", "lease-registered", "engine-opened", "grant-received").</summary>
         internal Action<string> HandshakeStage;
 
         /// <summary>Negative-control switch: accept a snapshot without re-reading the page after opening it.</summary>
@@ -253,11 +253,13 @@ namespace LiteDB.Client.Coordinated
                 return _current;
             }
             if (grant.ContainsKey("busy")) return null;
+            this.Stage("grant-received");
 
             var version = grant["v"].AsInt32;
             IDisposable lease = null;
             LiteEngine engine = null;
             var opened = false;
+            var confirmed = false;
             // The gate is closed, so the page is stable: record its identity for the fast path.
             var status = default(CoordinatorStatus);
             var published = _page != null && _page.TryRead(out status) && status.Version == version;
@@ -274,16 +276,23 @@ namespace LiteDB.Client.Coordinated
             catch (UnauthorizedAccessException) { }
             finally
             {
-                // The coordinator keeps its gate closed until this answer.
-                try { Write(stream, new BsonDocument { ["op"] = opened ? "opened" : "abort" }); }
+                // The coordinator keeps its gate closed until this answer, or until the grant
+                // times out. The snapshot is protected only if the gate stayed closed until the
+                // lease existed, which the coordinator confirms: without the confirmation (an
+                // expired grant ends the session) a checkpoint may already have missed the lease.
+                try
+                {
+                    Write(stream, new BsonDocument { ["op"] = opened ? "opened" : "abort" });
+                    if (opened) confirmed = Result(Read(stream)).AsDocument.ContainsKey("held");
+                }
                 catch (Exception ex) when (IsPipeFailure(ex)) { this.DropLeaseStream(); }
-                if (!opened)
+                if (!confirmed)
                 {
                     engine?.Dispose();
                     lease?.Dispose();
                 }
             }
-            if (!opened) return null;
+            if (!confirmed) return null;
             // Without a matching page the fast path and refresh never apply to it.
             return this.Install(new Snapshot(engine, lease, version, published ? status : default), ref GrantOpens);
         }
