@@ -172,7 +172,13 @@ The earlier negative control remains: removing the lease file makes
   (1777) never qualifies. A mode check there would not be enough, because a directory another
   account planted stays under its control and can change mode after the check. Without a
   qualifying base (for example, a non-root service with neither variable set) there is no page
-  and snapshots use grants over IPC. On Windows the page inherits the per-user temp directory's ACL.
+  and snapshots use grants over IPC. A non-root process also proves that it owns the private
+  directory (only the owner may set its mode), so a directory another account created there is
+  rejected. Trust assumptions: the base comes from this process's own environment or is a
+  root-owned run directory, and it is not replaceable through an ancestor another account can
+  write to. A forged page could not corrupt the database, but it could make clients serve stale
+  reads or accept a snapshot a checkpoint reclaims. On Windows the page inherits the per-user
+  temp directory's ACL.
 - Lease files require write access to the database directory.
 - Documents stream one per round trip, so bulk inserts pay per-document IPC latency.
 - Tested on Windows (.NET 8 and .NET 10) only. The Unix socket cleanup after a killed coordinator

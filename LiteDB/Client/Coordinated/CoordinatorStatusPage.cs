@@ -128,6 +128,11 @@ namespace LiteDB.Client.Coordinated
             var mode = File.GetUnixFileMode(directory);
             if (mode != PrivateDirectoryMode)
                 throw new UnauthorizedAccessException($"Coordinator directory '{directory}' has mode {mode}, not owner-only.");
+            // Only the owner may change a mode, so setting the unchanged mode proves this user owns
+            // the directory (EPERM is an UnauthorizedAccessException). Once proven, no other
+            // account can change it, and its base admits no one else to replace it. A privileged
+            // process may chmod anything, so it relies on its base alone (see TrustedBase).
+            if (!Environment.IsPrivilegedProcess) File.SetUnixFileMode(directory, PrivateDirectoryMode);
             return true;
         }
 

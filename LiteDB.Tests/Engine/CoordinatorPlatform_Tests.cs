@@ -183,6 +183,23 @@ namespace LiteDB.Tests.Engine
         }
 
         /// <summary>
+        /// A 0700 directory owned by another account passes the mode check, and its owner can
+        /// change it afterwards. Proving ownership (only an owner may set the mode) rejects it.
+        /// Creating such a directory needs another account, so the test runs only when
+        /// LITEDB_FOREIGN_PRIVATE_DIR names one (for example, created by root with mode 0700).
+        /// </summary>
+        [Fact]
+        public void Status_page_directory_owned_by_another_account_is_rejected()
+        {
+            var foreign = Environment.GetEnvironmentVariable("LITEDB_FOREIGN_PRIVATE_DIR");
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) || string.IsNullOrEmpty(foreign) ||
+                Environment.IsPrivilegedProcess) return;
+            File.GetUnixFileMode(foreign).Should().Be(UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            ((Action)(() => CoordinatorStatusPage.EnsurePrivateDirectory(foreign, create: false)))
+                .Should().Throw<UnauthorizedAccessException>("another account owns the directory");
+        }
+
+        /// <summary>
         /// A directory another account planted in a shared temp directory stays under its
         /// control (it can change the mode after any check), so the page's private directory
         /// only lives in a base that nobody else can write to.
