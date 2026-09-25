@@ -24,6 +24,8 @@ namespace LiteDB.Client.Shared
         private static readonly TimeSpan Poll = TimeSpan.FromMilliseconds(20);
 
         private readonly Mutex _mutex;
+        // Threads of this instance waiting for the mutex: the pin ends for them.
+        private readonly Func<bool> _localWaiters;
         private readonly TimeSpan _idleLimit;
         private readonly TimeSpan _holdLimit;
         private readonly Action<SharedMutexPin, bool> _close;
@@ -44,9 +46,10 @@ namespace LiteDB.Client.Shared
         private TimeSpan _idle;
         private TimeSpan _hold;
 
-        private SharedMutexPin(Mutex mutex, Action<SharedMutexPin, bool> close, TimeSpan idleLimit, TimeSpan holdLimit)
+        private SharedMutexPin(Mutex mutex, Func<bool> localWaiters, Action<SharedMutexPin, bool> close, TimeSpan idleLimit, TimeSpan holdLimit)
         {
             _mutex = mutex;
+            _localWaiters = localWaiters;
             _idleLimit = idleLimit;
             _holdLimit = holdLimit;
             _close = close;
@@ -82,9 +85,10 @@ namespace LiteDB.Client.Shared
         /// calling operation is already entered. <paramref name="close"/> runs on
         /// the holder, before release; its flag reports an abandoned or forced end.
         /// </summary>
-        public static SharedMutexPin Acquire(Mutex mutex, Action<SharedMutexPin, bool> close, TimeSpan idleLimit, TimeSpan holdLimit)
+        public static SharedMutexPin Acquire(Mutex mutex, Func<bool> localWaiters, Action<SharedMutexPin, bool> close,
+            TimeSpan idleLimit, TimeSpan holdLimit)
         {
-            var pin = new SharedMutexPin(mutex, close, idleLimit, holdLimit);
+            var pin = new SharedMutexPin(mutex, localWaiters, close, idleLimit, holdLimit);
             var holder = new Thread(pin.Hold) { IsBackground = true, Name = "LiteDB shared mutex holder" };
             holder.Start();
             pin._acquired.Wait();
@@ -229,7 +233,9 @@ namespace LiteDB.Client.Shared
             if (_operations > 0) return false;
             if (_forced) return true;
             if (_holds > 0) return false;
-            if (_requested || !this.Counted) return true;
+            // A one-shot request is lost when the owner re-pins before the requester got the
+            // mutex (named mutexes are not FIFO); a counted waiter still ends the next pin.
+            if (_requested || !this.Counted || _localWaiters()) return true;
             var now = _clock.Elapsed;
             return now - _lastUse >= _idle || now - _readyAt >= _hold;
         }

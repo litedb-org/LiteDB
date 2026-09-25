@@ -75,6 +75,24 @@ internal static class FuzzCorpus
         .SelectMany(group => group.TakeLast(MaximumRetainedCasesPerTarget))
         .ToArray();
 
+    /// <summary>The interesting cases a campaign replays, in the order <see cref="LoadInteresting"/> sees them.</summary>
+    internal static IReadOnlyList<T> SelectReplayed<T>(IEnumerable<T> items, Func<T, FuzzCorpusCase> selector)
+    {
+        var strongest = new Dictionary<(string Target, int Seed), T>();
+        var order = new List<(string Target, int Seed)>();
+        foreach (var item in items)
+        {
+            var value = selector(item);
+            var key = (value.Target, value.Seed);
+            if (!strongest.TryGetValue(key, out var retained)) { strongest[key] = item; order.Add(key); }
+            else if (StrongerThan(value, selector(retained))) strongest[key] = item;
+        }
+        return order.Select(key => strongest[key])
+            .GroupBy(item => selector(item).Target, StringComparer.Ordinal)
+            .SelectMany(group => group.TakeLast(MaximumRetainedCasesPerTarget))
+            .ToArray();
+    }
+
     private static bool StrongerThan(FuzzCorpusCase candidate, FuzzCorpusCase retained)
     {
         if (candidate.Count != retained.Count) return candidate.Count > retained.Count;

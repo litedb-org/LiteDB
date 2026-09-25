@@ -75,35 +75,27 @@ internal static class Program
             Console.WriteLine($"TOTAL BUDGET {options.Duration.Value:c}: {requestedRuns} runs, " +
                 $"{parallel} slots, {allocatedDuration.Value:c} per target/worker shard");
         }
+        // Read every corpus before any worker starts: passed epochs rewrite the interesting and
+        // coverage files as they finish, which these reads would otherwise race.
+        var corpusCases = replaying ? new List<FuzzCorpusCase>() : FuzzCorpus.Load()
+            .Concat(FuzzCorpus.LoadInteresting(options.ArtifactDirectory))
+            .Concat(FuzzCorpus.LoadCoverage(options.ArtifactDirectory))
+            .Where(item => selected.Any(target => target.Name == item.Target))
+            .ToList();
         var runs = selected.SelectMany(target => Enumerable.Range(0, options.Workers)
             .Select(worker => FuzzProcessRunner.RunEpochsAsync(target, options, worker, allocatedDuration))).ToList();
-        if (!replaying)
+        foreach (var corpusCase in corpusCases)
         {
-            foreach (var corpusCase in FuzzCorpus.Load().Where(item => selected.Any(target => target.Name == item.Target)))
-            {
-                var target = selected.Single(item => item.Name == corpusCase.Target);
-                runs.Add(FuzzProcessRunner.RunEpochsAsync(target,
-                    FuzzOptions.FromCorpus(corpusCase, options.ArtifactDirectory), 0));
-            }
-            foreach (var corpusCase in FuzzCorpus.LoadInteresting(options.ArtifactDirectory)
-                .Where(item => selected.Any(target => target.Name == item.Target)))
-            {
-                var target = selected.Single(item => item.Name == corpusCase.Target);
-                runs.Add(FuzzProcessRunner.RunEpochsAsync(target,
-                    FuzzOptions.FromCorpus(corpusCase, options.ArtifactDirectory), 0));
-            }
-            foreach (var corpusCase in FuzzCorpus.LoadCoverage(options.ArtifactDirectory)
-                .Where(item => selected.Any(target => target.Name == item.Target)))
-            {
-                var target = selected.Single(item => item.Name == corpusCase.Target);
-                runs.Add(FuzzProcessRunner.RunEpochsAsync(target,
-                    FuzzOptions.FromCorpus(corpusCase, options.ArtifactDirectory), 0));
-            }
+            var target = selected.Single(item => item.Name == corpusCase.Target);
+            runs.Add(FuzzProcessRunner.RunEpochsAsync(target,
+                FuzzOptions.FromCorpus(corpusCase, options.ArtifactDirectory), 0));
         }
         var results = (await Task.WhenAll(runs)).SelectMany(result => result).ToArray();
-        FuzzArtifacts.MergeInterestingCorpus(results, options.ArtifactDirectory);
-        if (options.CoverageGuided) FuzzArtifacts.MergeCoverageCorpus(results, options.ArtifactDirectory);
-        foreach (var result in results.Where(item => item.Passed && item.PruneSuccessfulArtifacts))
+        // Passed duration epochs were already merged and pruned as they finished.
+        var pending = results.Where(result => !result.Compacted).ToArray();
+        FuzzArtifacts.MergeInterestingCorpus(pending, options.ArtifactDirectory);
+        if (options.CoverageGuided) FuzzArtifacts.MergeCoverageCorpus(pending, options.ArtifactDirectory);
+        foreach (var result in pending.Where(item => item.Passed && item.PruneSuccessfulArtifacts))
             FuzzArtifacts.PruneSuccessfulDurationRun(result.Directory);
         var failed = results.Count(result => result.BlocksBuild);
         var recorded = results.Count(result => !result.Passed && !result.BlocksBuild);
@@ -213,6 +205,7 @@ internal static class Program
         Console.WriteLine("  --minimization-timeout <Nm> per-prefix minimization bound (default: 30s)");
         Console.WriteLine("  --workers <int>             parallel deterministic seed shards");
         Console.WriteLine("  --artifact-dir <path>       raw traces and summaries");
+        Console.WriteLine("  --max-artifact-mb <int>     artifact-root budget; 0 disables (default: 512)");
         Console.WriteLine("  --replay <replay.json>      replay one saved target/seed/count");
         Console.WriteLine("  --coverage-guided           retain seeds that add new LiteDB IL-range coverage");
         Console.WriteLine("  --determinism-check         rerun and compare input/trace hashes");
@@ -222,13 +215,15 @@ internal static class Program
     private static string ResultLabel(RunResult result)
     {
         if (result.Passed) return "PASS";
+        if (result.BudgetStopped) return "BUDGET";
         return result.Finding == null ? "FAIL" : result.Finding.Status.ToString().ToUpperInvariant();
     }
 
 }
 
 internal sealed record RunResult(string Target, int Seed, string Directory, bool Passed,
-    bool PruneSuccessfulArtifacts = false, FuzzFindingResolution Finding = null)
+    bool PruneSuccessfulArtifacts = false, FuzzFindingResolution Finding = null, bool Compacted = false,
+    bool BudgetStopped = false)
 {
     internal bool BlocksBuild => !Passed &&
         (!PruneSuccessfulArtifacts || Finding?.AllowsDiscoveryToContinue != true);

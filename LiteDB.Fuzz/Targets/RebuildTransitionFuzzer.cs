@@ -19,7 +19,7 @@ internal sealed class RebuildTransitionFuzzer : IFuzzTarget
         while (context.Next())
         {
             var phase = Phases[(context.Steps - 1) % Phases.Length];
-            var file = context.RegisterFile(Path.Combine(context.DirectoryPath, $"rebuild-{context.Steps}.db"));
+            var file = context.StepFile($"rebuild-{context.Steps}.db");
             using (var seed = new LiteDatabase(file))
             {
                 var rows = seed.GetCollection("rows");

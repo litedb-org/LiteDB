@@ -144,8 +144,21 @@ public partial class SharedWorkerDump_Tests : IDisposable
         capture.Capture().Should().Contain("Dump process timed out");
         elapsed.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(5));
         cancelCalled.Should().BeTrue();
-        Action findChild = () => { using var child = Process.GetProcessById(childPid); };
-        findChild.Should().Throw<ArgumentException>("only the diagnostic child should have been terminated");
+        // Capture's return is bounded (asserted above); the killed child may still be exiting
+        // when a loaded runner exhausted the cleanup slice, so wait for it to disappear.
+        SpinWait.SpinUntil(() => ChildExited(childPid), TimeSpan.FromSeconds(10))
+            .Should().BeTrue("only the diagnostic child should have been terminated");
+    }
+
+    private static bool ChildExited(int pid)
+    {
+        try
+        {
+            using var child = Process.GetProcessById(pid);
+            return child.HasExited;
+        }
+        catch (ArgumentException) { return true; }
+        catch (InvalidOperationException) { return true; }
     }
 
     [Fact]

@@ -37,6 +37,7 @@ namespace LiteDB.Engine
         /// </summary>
         public bool IsEOF => _isEOF;
         internal bool AllowZeroLengthDocument { get; set; }
+        internal BsonFieldNameCache FieldNames { get; set; }
 
         public BufferReader(byte[] buffer, bool utcDate = false)
             : this(new BufferSlice(buffer, 0, buffer.Length), utcDate)
@@ -199,7 +200,8 @@ namespace LiteDB.Engine
             {
                 if (_current[pos] == 0x00)
                 {
-                    value = StringEncoding.UTF8.GetString(_current.Array, _current.Offset + _currentPosition, count);
+                    value = FieldNames == null ? StringEncoding.UTF8.GetString(_current.Array, _current.Offset + _currentPosition, count)
+                        : FieldNames.Read(_current.Array, _current.Offset + _currentPosition, count);
                     this.MoveForward(count + 1); // +1 means '\0'	
                     return true;
                 }
@@ -485,8 +487,6 @@ namespace LiteDB.Engine
             ENSURE(_position == end, "BSON element exceeds its declared container boundary");
             ENSURE(this.ReadByte() == 0, "BSON container must end with a null terminator");
         }
-
-
         #endregion
 
         public void Dispose()

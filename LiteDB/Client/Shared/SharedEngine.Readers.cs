@@ -11,8 +11,6 @@ namespace LiteDB
     {
         // Leased streaming readers of this instance, per creating thread.
         private readonly Dictionary<int, int> _localReaders = new Dictionary<int, int>();
-        // Named-mutex recursions owned per thread, excluding scoped completion checks.
-        private readonly Dictionary<int, int> _recursions = new Dictionary<int, int>();
         // Holder of the mutex for the thread iterating a leased reader; null when none.
         private volatile SharedMutexPin _pin;
         // Time the last pin took to close its engine; ending the next pin costs as much.
@@ -70,7 +68,7 @@ namespace LiteDB
         /// pre-v13 reader did. Otherwise every such write would reopen and replay
         /// a WAL that the open reader keeps growing, which is quadratic in the loop.
         /// </summary>
-        private T WriteDatabase<T>(Func<T> write)
+        private T WriteDatabase<T>(Func<T> write) => this.Call(() =>
         {
             var pin = _pin;
             var use = pin != null && pin.TryEnter() ? pin
@@ -84,14 +82,14 @@ namespace LiteDB
             {
                 this.CloseDatabase(use);
             }
-        }
+        });
 
         /// <summary>
         /// A thread iterating a leased reader pins; an ending pin of its own is
         /// replaced directly. A holder cannot acquire a mutex this thread owns.
         /// </summary>
         private bool CanPin() =>
-            !_transactionRunning && this.HasLocalReaders(Environment.CurrentManagedThreadId) && !this.HoldsRecursion();
+            !_transactionRunning && this.HasLocalReaders(Environment.CurrentManagedThreadId) && !_owner.IsOwnedByCurrentThread;
 
         /// <summary>
         /// Acquire the mutex on a holder thread and open the engine for this thread.
@@ -102,16 +100,40 @@ namespace LiteDB
             var other = _pin;
             if (other != null) other.RequestRelease(force: false);
 
-            var pin = SharedMutexPin.Acquire(_mutex, this.ClosePin, this.PinIdleLimit, this.PinHoldLimit);
+            // A pin that ended for a waiting thread of this instance must not be replaced
+            // ahead of it: let the waiters take the mutex first. This cannot deadlock. A
+            // pin starts only where CanPin holds, so this thread does not own the
+            // connection's mutex ownership; a pin it could not enter has stopped accepting,
+            // which it does only without operations in flight, so this thread is not
+            // inside one of its operations either. Nothing a waiter needs is held here.
+            this.WaitForMutexWaiters();
+            SharedMutexPin pin;
+            // Counted while acquiring, so that another pin of this instance ends for us too.
+            this.AddMutexWaiter();
+            try
+            {
+                pin = SharedMutexPin.Acquire(_mutex, this.HasMutexWaiters, this.ClosePin, this.PinIdleLimit, this.PinHoldLimit);
+            }
+            finally
+            {
+                this.RemoveMutexWaiter();
+            }
             try
             {
                 // The holder owns the mutex on behalf of this thread.
+                if (Volatile.Read(ref _disposed) != 0) throw new ObjectDisposedException(nameof(SharedEngine));
                 RejectAbandonedTransaction();
                 var open = Stopwatch.StartNew();
                 if (_engine == null) this.OpenEngine(pin.RecoveredAbandonedOwner);
                 _databaseUsers++;
                 pin.MarkReady(open.Elapsed + _lastPinClose);
-                _pin = pin;
+                lock (_useLock)
+                {
+                    // Dispose reads the pin under this lock after marking itself disposed:
+                    // it either sees this pin and ends it, or this start is refused.
+                    if (Volatile.Read(ref _disposed) != 0) throw new ObjectDisposedException(nameof(SharedEngine));
+                    _pin = pin;
+                }
                 return pin;
             }
             catch
@@ -157,32 +179,6 @@ namespace LiteDB
             }
         }
 
-        private void EnterRecursion()
-        {
-            var thread = Environment.CurrentManagedThreadId;
-            lock (_recursions)
-            {
-                _recursions.TryGetValue(thread, out var count);
-                _recursions[thread] = count + 1;
-            }
-        }
-
-        /// <summary>Release one recursion; throws, unchanged, on a non-owner thread.</summary>
-        private void ReleaseRecursion()
-        {
-            _mutex.ReleaseMutex();
-            var thread = Environment.CurrentManagedThreadId;
-            lock (_recursions)
-            {
-                if (--_recursions[thread] == 0) _recursions.Remove(thread);
-            }
-        }
-
-        private bool HoldsRecursion()
-        {
-            lock (_recursions) return _recursions.ContainsKey(Environment.CurrentManagedThreadId);
-        }
-
         /// <summary>
         /// Writes made while readers were leased leave a WAL that only a full
         /// checkpoint can remove. Once the last reader anywhere is gone, close an
@@ -193,22 +189,25 @@ namespace LiteDB
         private void CheckpointAfterLastReader()
         {
             if (_settings.ReadOnly || !LogHasContent(_settings.Filename)) return;
-            try
-            {
-                if (!_mutex.WaitOne(0)) return;
-            }
-            catch (AbandonedMutexException)
+            if (!_owner.TryEnter(out var abandoned)) return;
+            if (abandoned)
             {
                 // Leave abandoned-owner recovery to the next ordinary open.
-                _mutex.ReleaseMutex();
+                _owner.Exit();
                 return;
             }
 
+            var depth = this.AdmittedDepth();
             try
             {
+                lock (_useLock)
+                {
+                    // A disposed connection's final close does this cleanup itself.
+                    if (Volatile.Read(ref _disposed) != 0) return;
+                    this.AdmitLocked();
+                }
                 if (_engine != null || _transactionRunning || _readers.OldestVersion().HasValue) return;
-                // Closing the engine runs its checkpoint, as every shared operation does.
-                this.QueryDatabase(() => 0);
+                this.CloseFinally();
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
             {
@@ -218,8 +217,61 @@ namespace LiteDB
             }
             finally
             {
-                _mutex.ReleaseMutex();
+                this.EndAdmissions(depth);
+                _owner.Exit();
             }
+        }
+
+        /// <summary>How long a final close waits for another connection's use of the mutex.</summary>
+        internal static readonly TimeSpan DisposeCheckpointWait = TimeSpan.FromSeconds(2);
+
+        /// <summary>
+        /// The connection's final close: checkpoint what its operations left below the
+        /// close threshold. The current owner of the mutex may be a read-only connection,
+        /// which never checkpoints, so wait for it instead of leaving the WAL to it. The
+        /// wait is bounded: this thread may itself keep that owner busy (another
+        /// connection's operation on the same thread). A WAL another close removed ends it.
+        /// </summary>
+        private void CheckpointOnDispose()
+        {
+            if (_settings.ReadOnly || !LogHasContent(_settings.Filename)) return;
+            if (!this.TryEnterForDispose(out var abandoned)) return;
+            try
+            {
+                if (abandoned || _engine != null || _transactionRunning) return;
+                this.CloseFinally();
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is LiteException)
+            {
+                // Dispose must not fail because of this cleanup, including a database the
+                // open refuses (an incomplete rebuild, damage): the WAL remains authoritative
+                // and the next open reports the same condition. A close checkpoint's own
+                // errors were never raised by Dispose either.
+            }
+            finally
+            {
+                _owner.Exit();
+            }
+        }
+
+        private bool TryEnterForDispose(out bool abandoned)
+        {
+            var waited = Stopwatch.StartNew();
+            while (true)
+            {
+                if (_owner.TryEnter(out abandoned)) return true;
+                if (waited.Elapsed >= DisposeCheckpointWait || !LogHasContent(_settings.Filename)) return false;
+                Thread.Sleep(10);
+            }
+        }
+
+        /// <summary>Open an engine only to close it with its checkpoint. The caller owns the mutex.</summary>
+        private void CloseFinally()
+        {
+            this.OpenEngine(false);
+            var engine = _engine;
+            _engine = null;
+            engine.Close(final: true);
         }
 
         private static bool LogHasContent(string filename)

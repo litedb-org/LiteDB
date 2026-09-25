@@ -24,6 +24,8 @@ namespace LiteDB.Engine
         public void Delete() => _inner.Delete();
         public void TrimCapacity(Stream stream) => _inner.TrimCapacity(stream);
         internal void SyncDirectory() { if (_inner is FileStreamFactory file) file.SyncDirectory(); }
+        /// <summary>The WAL is a file (not a caller stream), so its syncs go through <see cref="NativeFileSync"/>.</summary>
+        internal bool IsFile => _inner is FileStreamFactory;
         public void Dispose() => _inner.Dispose();
     }
 }

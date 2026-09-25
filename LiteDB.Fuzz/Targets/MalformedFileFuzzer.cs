@@ -23,7 +23,7 @@ internal sealed class MalformedFileFuzzer : IFuzzTarget
             var source = encrypted ? encryptedBaseline : baseline;
             var sourceLog = encrypted ? encryptedLog : baselineLog;
             var password = encrypted ? "malformed-password" : null;
-            var file = context.RegisterFile(Path.Combine(context.DirectoryPath, $"malformed-{context.Steps}.db"));
+            var file = context.StepFile($"malformed-{context.Steps}.db");
             var log = Path.ChangeExtension(file, null) + "-log.db";
             File.Copy(source, file, true);
             if (File.Exists(sourceLog)) File.Copy(sourceLog, log, true);
