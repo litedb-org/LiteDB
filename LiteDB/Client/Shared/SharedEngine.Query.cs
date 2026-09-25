@@ -28,16 +28,31 @@ namespace LiteDB
                 var recoveredAbandonedOwner = _owner.Enter();
                 try { RejectAbandonedTransaction(); }
                 catch { _owner.Exit(); throw; }
-                if (!_transactionRunning && _engine == null)
+                // As in OpenDatabase, an open engine is checked and counted under one lock,
+                // so a reader disposed on another thread cannot close it in between. Only
+                // this owner opens an engine, so a null engine stays null until it does.
+                bool needsEngine;
+                lock (_useLock)
+                {
+                    needsEngine = !_transactionRunning && _engine == null;
+#if DEBUG || TESTING
+                    if (!needsEngine) this.BeforeCountingUser?.Invoke();
+#endif
+                    if (!needsEngine) _databaseUsers++;
+                }
+                if (needsEngine)
                 {
                     var readOnly = this.TryOpenSnapshot(recoveredAbandonedOwner);
                     if (readOnly != null) return this.QuerySnapshot(collection, query, readOnly);
                     // The file needs a writable open first (creation, upgrade, index
                     // migration, format promotion, auto-rebuild): proceed as before.
-                    try { this.OpenEngine(recoveredAbandonedOwner); }
-                    catch { _owner.Exit(); throw; }
+                    lock (_useLock)
+                    {
+                        try { this.OpenEngine(recoveredAbandonedOwner); }
+                        catch { _owner.Exit(); throw; }
+                        _databaseUsers++;
+                    }
                 }
-                lock (_useLock) _databaseUsers++;
                 use = null;
             }
             else use = this.OpenDatabase();

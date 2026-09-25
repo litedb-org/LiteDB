@@ -192,6 +192,60 @@ namespace LiteDB.Tests.Engine
         }
 #endif
 
+#if DEBUG || TESTING
+        /// <summary>
+        /// The same window on the pure-read path of Query, which skips OpenDatabase and reads
+        /// on the already open engine: a disposal must not close it before the read is counted.
+        /// </summary>
+        [Fact]
+        public void Reader_disposed_on_another_thread_cannot_close_the_engine_under_a_starting_read()
+        {
+            using var engine = this.OpenUnleased();
+            // A FOR UPDATE reader streams on the connection's open engine.
+            var reader = engine.Query("docs", new Query { ForUpdate = true });
+            reader.Read().Should().BeTrue();
+
+            var starter = Thread.CurrentThread;
+            using var inWindow = new ManualResetEventSlim();
+            using var disposed = new ManualResetEventSlim();
+            Exception disposeError = null;
+            var disposer = new Thread(() =>
+            {
+                inWindow.Wait();
+                try { reader.Dispose(); }
+                catch (Exception ex) { disposeError = ex; }
+                disposed.Set();
+            }) { IsBackground = true };
+            disposer.Start();
+
+            engine.BeforeCountingUser = () =>
+            {
+                if (!ReferenceEquals(Thread.CurrentThread, starter) || inWindow.IsSet) return;
+                inWindow.Set();
+                disposed.Wait(TimeSpan.FromMilliseconds(500));
+            };
+            var read = 0;
+            Exception readError = null;
+            try
+            {
+                using var second = engine.Query("docs", new Query { Limit = 1 });
+                while (second.Read()) read++;
+            }
+            catch (Exception ex) { readError = ex; }
+            finally
+            {
+                engine.BeforeCountingUser = null;
+            }
+            var joined = disposer.Join(Prompt);
+            readError.Should().BeNull();
+            joined.Should().BeTrue();
+            read.Should().Be(1);
+            disposeError.Should().BeNull();
+            engine.Query("docs", new Query()).ToEnumerable().Count().Should().BeGreaterThan(0);
+            this.WriteFromAnotherInstance();
+        }
+#endif
+
         /// <summary>Opens a reader that streams under the mutex, on a thread that then idles.</summary>
         private static IBsonDataReader ReadOnIdleThread(SharedEngine engine, ManualResetEventSlim finish, out Thread owner)
         {
