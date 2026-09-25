@@ -109,6 +109,24 @@ namespace LiteDB.Tests.Engine
         }
 
         [Fact]
+        public void Finished_sessions_are_not_retained()
+        {
+            using var file = new TempFile();
+            using var host = new CoordinatedEngine(file.Filename);
+            for (var i = 0; i < 5; i++)
+            {
+                using var client = new CoordinatedEngine(file.Filename);
+                using var clientDb = new LiteDatabase(client, disposeOnClose: false);
+                clientDb.GetCollection("docs").Insert(new BsonDocument { ["_id"] = i });
+            }
+
+            // A session ends once its thread sees the disconnect.
+            var deadline = DateTime.UtcNow.AddSeconds(10);
+            while (host.HostForTests.SessionCount > 0 && DateTime.UtcNow < deadline) System.Threading.Thread.Sleep(20);
+            host.HostForTests.SessionCount.Should().Be(0);
+        }
+
+        [Fact]
         public void A_direct_snapshot_keeps_its_version_while_the_coordinator_writes_and_checkpoints()
         {
             using var file = new TempFile();

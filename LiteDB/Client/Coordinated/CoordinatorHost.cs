@@ -38,6 +38,12 @@ namespace LiteDB.Client.Coordinated
         /// <summary>Why the accept loop stopped, when it could not create its pipe.</summary>
         internal Exception AcceptFailure => _acceptFailure;
 
+        /// <summary>Sessions still being served (connected clients).</summary>
+        internal int SessionCount
+        {
+            get { lock (_sessions) return _sessions.Count; }
+        }
+
 #if DEBUG || TESTING
         /// <summary>Test hook: runs before the accept loop creates a pipe instance (database filename, stop token).</summary>
         internal static Action<string, CancellationToken> BeforeCreatePipe;
@@ -148,6 +154,8 @@ namespace LiteDB.Client.Coordinated
                 try { _gate.Run(() => _engine.Rollback()); }
                 catch (Exception) { }
                 stream.Dispose();
+                // Stop joins a copy of this list; a finished session leaves it.
+                lock (_sessions) _sessions.RemoveAll(session => ReferenceEquals(session.Stream, stream));
             }
         }
 
