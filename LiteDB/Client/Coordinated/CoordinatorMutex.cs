@@ -14,13 +14,18 @@ namespace LiteDB.Client.Coordinated
         private readonly ManualResetEventSlim _release = new ManualResetEventSlim(false);
         private readonly Thread _owner;
         private int _disposed;
+        private volatile bool _abandon;
 
         private CoordinatorMutex(Thread owner) => _owner = owner;
+
+        /// <summary>The previous coordinator died holding the mutex (its process or thread ended).</summary>
+        internal bool TookOverAbandoned { get; private set; }
 
         /// <summary>Acquire without waiting; null when another process coordinates.</summary>
         internal static CoordinatorMutex TryAcquire(string name)
         {
             var acquired = false;
+            var abandoned = false;
             Exception failure = null;
             var ready = new ManualResetEventSlim(false);
             CoordinatorMutex result = null;
@@ -31,7 +36,7 @@ namespace LiteDB.Client.Coordinated
                 {
                     mutex = SharedMutexFactory.Create(name);
                     try { acquired = mutex.WaitOne(0); }
-                    catch (AbandonedMutexException) { acquired = true; }
+                    catch (AbandonedMutexException) { acquired = abandoned = true; }
                 }
                 catch (Exception ex) { failure = ex; }
                 ready.Set();
@@ -41,6 +46,9 @@ namespace LiteDB.Client.Coordinated
                     return;
                 }
                 result._release.Wait();
+                // A simulated crash ends the owning thread without releasing: the OS then
+                // reports the mutex abandoned, exactly as after process death.
+                if (result._abandon) return;
                 try { mutex.ReleaseMutex(); }
                 finally { mutex.Dispose(); }
             })
@@ -50,10 +58,21 @@ namespace LiteDB.Client.Coordinated
             ready.Wait();
             ready.Dispose();
             if (failure != null) throw failure;
-            if (acquired) return result;
+            if (acquired)
+            {
+                result.TookOverAbandoned = abandoned;
+                return result;
+            }
             thread.Join();
             result._release.Dispose();
             return null;
+        }
+
+        /// <summary>Test crash: end ownership without releasing, as a killed process would.</summary>
+        internal void Abandon()
+        {
+            _abandon = true;
+            this.Dispose();
         }
 
         public void Dispose()

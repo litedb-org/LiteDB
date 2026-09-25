@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
+using LiteDB.Client.Coordinated;
 using LiteDB.Engine;
 using Xunit;
 
@@ -238,6 +239,47 @@ namespace LiteDB.Tests.Engine
             second.IsCoordinator.Should().BeTrue();
             docs.FindById(1)["v"].AsString.Should().Be("after", "a cached snapshot never outlives its coordinator's page");
         }
+
+#if DEBUG || TESTING
+        /// <summary>
+        /// A successor that cannot write the dead coordinator's page (another temp location,
+        /// changed permissions) cannot invalidate it. Clients still mapping it must stop
+        /// trusting it before the successor commits: the dead page's heartbeat has expired.
+        /// </summary>
+        [Fact]
+        public void A_successor_that_cannot_write_the_page_never_lets_clients_read_the_dead_coordinators_snapshot()
+        {
+            using var file = new TempFile();
+            using var first = new CoordinatedEngine(file.Filename);
+            using var second = new CoordinatedEngine(file.Filename);
+            using var reader = new CoordinatedEngine(file.Filename);
+            using var firstDb = new LiteDatabase(first, disposeOnClose: false);
+            using var secondDb = new LiteDatabase(second, disposeOnClose: false);
+            using var readerDb = new LiteDatabase(reader, disposeOnClose: false);
+            firstDb.GetCollection("docs").Insert(new BsonDocument { ["_id"] = 1, ["v"] = "before" });
+            var docs = readerDb.GetCollection("docs");
+            docs.FindById(1)["v"].AsString.Should().Be("before");
+            var hits = reader.ClientForTests.PageHits;
+            docs.FindById(1)["v"].AsString.Should().Be("before");
+            reader.ClientForTests.PageHits.Should().BeGreaterThan(hits, "the reader trusts the live coordinator's page");
+
+            CoordinatorStatusPage.FailCreate = true;
+            try
+            {
+                first.CrashCoordinator();
+                _ = secondDb.UserVersion;
+                second.IsCoordinator.Should().BeTrue();
+                secondDb.GetCollection("docs").Update(new BsonDocument { ["_id"] = 1, ["v"] = "after" }).Should().BeTrue();
+            }
+            finally
+            {
+                CoordinatorStatusPage.FailCreate = false;
+            }
+
+            for (var i = 0; i < 20; i++)
+                docs.FindById(1)["v"].AsString.Should().Be("after", "a dead coordinator's page is never trusted after a successor committed");
+        }
+#endif
 
         [Fact]
         public void Refreshed_and_opened_snapshots_match_a_direct_mode_oracle_under_checkpoints_and_reuse()

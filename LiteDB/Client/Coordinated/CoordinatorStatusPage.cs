@@ -32,6 +32,14 @@ namespace LiteDB.Client.Coordinated
         private const int StructuralOffset = 32;
         private const int ReuseEpochOffset = 40;
         private const int ResetsOffset = 48;
+        // Outside the seqlock: one writer (the heartbeat) stores it with a single write.
+        private const int HeartbeatOffset = 56;
+
+        /// <summary>A status whose heartbeat is older than this is not trusted.</summary>
+        internal const int HeartbeatTimeoutMilliseconds = 1000;
+
+        /// <summary>How often a live coordinator renews its heartbeat.</summary>
+        internal const int HeartbeatPeriodMilliseconds = 100;
 
         private readonly MemoryMappedFile _map;
         private readonly MemoryMappedViewAccessor _view;
@@ -132,6 +140,9 @@ namespace LiteDB.Client.Coordinated
         /// <summary>The coordinator's writable page, created with owner-only permissions.</summary>
         internal static CoordinatorStatusPage Create(string filename)
         {
+#if DEBUG || TESTING
+            if (FailCreate) throw new IOException("Simulated: the status page cannot be written.");
+#endif
             EnsurePrivateDirectory(PrivateDirectoryPath(), create: true);
             var path = PathFor(filename);
             RejectLink(path);
@@ -178,12 +189,18 @@ namespace LiteDB.Client.Coordinated
             catch (UnauthorizedAccessException) { file?.Dispose(); return null; }
         }
 
-        /// <summary>A consistent copy, or false after repeated concurrent updates or a torn page.</summary>
+        /// <summary>
+        /// A consistent copy, or false after repeated concurrent updates, a torn page, or a
+        /// heartbeat older than <see cref="HeartbeatTimeoutMilliseconds"/>. A coordinator that
+        /// died stops beating, so its frozen page stops being trusted within the timeout,
+        /// wherever a successor publishes its own page (see <see cref="WaitOutHeartbeats"/>).
+        /// </summary>
         internal bool TryRead(out CoordinatorStatus status)
         {
             status = default;
             // Callers serialize reads with Dispose; this only guards a misuse.
             if (Volatile.Read(ref _disposed) != 0) return false;
+            if (Environment.TickCount64 - this.Load(HeartbeatOffset) > HeartbeatTimeoutMilliseconds) return false;
             for (var attempt = 0; attempt < 64; attempt++)
             {
                 var before = this.Load(SequenceOffset);
@@ -201,6 +218,17 @@ namespace LiteDB.Client.Coordinated
             return false;
         }
 
+        /// <summary>Renew the heartbeat with the system-wide monotonic clock that every process shares.</summary>
+        internal void Beat() => this.Store(HeartbeatOffset, Environment.TickCount64);
+
+        /// <summary>
+        /// A coordinator that took over an abandoned election mutex waits this long before it
+        /// opens the engine: every client of the dead coordinator then distrusts that page, even
+        /// one this successor cannot see or write (another temp location, changed permissions).
+        /// </summary>
+        internal static void WaitOutHeartbeats() =>
+            Thread.Sleep(HeartbeatTimeoutMilliseconds + 2 * HeartbeatPeriodMilliseconds);
+
         /// <summary>Single writer: the caller serializes calls.</summary>
         internal void Write(in CoordinatorStatus status)
         {
@@ -217,6 +245,11 @@ namespace LiteDB.Client.Coordinated
             Interlocked.MemoryBarrier();
             this.Store(SequenceOffset, sequence + 2);
         }
+
+#if DEBUG || TESTING
+        /// <summary>Test hook: a coordinator cannot create or write its page.</summary>
+        internal static volatile bool FailCreate;
+#endif
 
         /// <summary>Test hook: use the 32-bit read path on 64-bit processes too.</summary>
         internal static bool ForceSplitLoads;

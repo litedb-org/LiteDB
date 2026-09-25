@@ -52,6 +52,10 @@ namespace LiteDB.Client.Coordinated
         internal CoordinatorHost(EngineSettings settings, CoordinatorMutex mutex)
         {
             _mutex = mutex;
+            // Clients of a dead coordinator may still trust its page, which this process
+            // may be unable to see or overwrite. Nothing is changed or served until that
+            // page's heartbeat has expired for every one of them.
+            if (mutex.TookOverAbandoned) CoordinatorStatusPage.WaitOutHeartbeats();
             _pipeName = PipeName(settings.Filename);
             _filename = settings.Filename;
             var registry = new SharedReaderRegistry(settings.Filename, settings.SharedReaderFiles);
@@ -236,9 +240,11 @@ namespace LiteDB.Client.Coordinated
                 // publishes "no coordinator" first, so clients still mapping the file
                 // (Windows keeps it until they unmap) never trust it again.
                 if (!crash) _signals?.Dispose();
+                else _signals?.Halt();
                 _page?.Dispose();
                 if (!crash && _page != null) TryDelete(CoordinatorStatusPage.PathFor(_filename));
-                _mutex.Dispose();
+                if (crash) _mutex.Abandon();
+                else _mutex.Dispose();
                 _stop.Dispose();
             }
         }

@@ -149,12 +149,14 @@ The earlier negative control remains: removing the lease file makes
   queries inside a client transaction are not supported.
 - Only the IPC grant fallback stalls writers (for one read-only engine open). A cached snapshot
   or a long reader holds back WAL reclamation like any leased reader.
-- The status page trusts that a coordinator which cannot create or open it also leaves no stale
-  page behind that clients still map. A graceful stop marks the page "no coordinator", and a
-  crashed coordinator's page is overwritten by the next one. A successor that cannot write the
-  page at all (for example after its permissions changed) while clients still map a crashed
-  predecessor's page is not detected. Clients then read that predecessor's last snapshot until
-  their next IPC call fails.
+- The status page carries a heartbeat that the coordinator renews every 100 ms with the
+  system-wide monotonic clock (`Environment.TickCount64`). Clients trust the page only while
+  the heartbeat is less than 1 s old. A graceful stop marks the page "no coordinator". A crashed
+  coordinator stops beating, and a successor that took over its abandoned election mutex waits
+  1.2 s before it opens the engine or serves anything. So every client of the dead coordinator
+  distrusts that page before the successor can commit, even a page the successor cannot see
+  or write (another temp location, changed permissions). A coordinator whose heartbeat stalls
+  for over a second (a suspended process, for example) only sends its clients to IPC grants.
 - A refreshed snapshot keeps the pragmas object it opened with (lock timeouts, for example); the
   header's collections, pages and file version are refreshed in place.
 - The status page is a 4 KiB file in the temp directory. It is deleted on a graceful stop. On

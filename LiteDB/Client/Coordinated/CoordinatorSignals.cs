@@ -1,6 +1,7 @@
 #if NET8_0_OR_GREATER
 using System;
 using System.Security.Cryptography;
+using System.Threading;
 using LiteDB.Engine;
 
 namespace LiteDB.Client.Coordinated
@@ -14,6 +15,8 @@ namespace LiteDB.Client.Coordinated
     {
         private readonly object _sync = new object();
         private readonly CoordinatorStatusPage _page;
+        private readonly ManualResetEventSlim _halt = new ManualResetEventSlim(false);
+        private readonly Thread _heartbeat;
         private readonly long _instance;
         private int _depth;
         private long _structural;
@@ -32,7 +35,21 @@ namespace LiteDB.Client.Coordinated
                 _instance = BitConverter.ToInt64(random);
             }
             while (_instance == 0);
+            _page.Beat();
+            _heartbeat = new Thread(() =>
+            {
+                while (!_halt.Wait(CoordinatorStatusPage.HeartbeatPeriodMilliseconds)) _page.Beat();
+            })
+            { IsBackground = true, Name = "LiteDB coordinator heartbeat" };
+            _heartbeat.Start();
             this.StructuralBegin();
+        }
+
+        /// <summary>Stop the heartbeat, as process death would, without touching the page otherwise.</summary>
+        internal void Halt()
+        {
+            _halt.Set();
+            if (!ReferenceEquals(Thread.CurrentThread, _heartbeat)) _heartbeat.Join();
         }
 
         internal long Instance => _instance;
@@ -102,6 +119,7 @@ namespace LiteDB.Client.Coordinated
                 _page.Write(new CoordinatorStatus(0, _version, _structural | 1, _epoch, _resets));
                 _stopped = true;
             }
+            this.Halt();
         }
     }
 }
