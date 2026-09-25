@@ -34,14 +34,14 @@ namespace LiteDB
                 {
                     _positionInChunk = 0;
 
-                    _currentChunkData = this.GetChunkData(++_currentChunkIndex);
+                    _currentChunkData = this.GetChunkData(++_currentChunkIndex, _streamPosition);
                 }
             }
 
             return count - bytesLeft;
         }
 
-        private byte[] GetChunkData(int index)
+        private byte[] GetChunkData(int index, long startPosition)
         {
             if (index >= _file.Chunks)
             {
@@ -66,6 +66,9 @@ namespace LiteDB
             byte[] result = chunk?["data"].AsBinary;
             if (result == null || result.Length == 0)
                 throw new LiteException(LiteException.INVALID_FORMAT, "File '{0}' has a missing or empty chunk at index {1}.", _fileId, index);
+            if (startPosition + result.Length > Length)
+                throw new LiteException(LiteException.INVALID_FORMAT, "File '{0}' holds more chunk data than its declared length allows, found at chunk index {1}.", _fileId, index);
+
             _chunkLengths[index] = result.Length;
             return result;
         }
@@ -96,7 +99,7 @@ namespace LiteDB
                 else
                 {
                     loadedChunk = newChunkIndex;
-                    _currentChunkData = GetChunkData(newChunkIndex);
+                    _currentChunkData = GetChunkData(newChunkIndex, seekStreamPosition);
                     seekStreamPosition += _currentChunkData.Length;
                 }
                 newChunkIndex++;
@@ -108,7 +111,7 @@ namespace LiteDB
             _currentChunkIndex = newChunkIndex;
             if (loadedChunk != _currentChunkIndex)
             {
-                _currentChunkData = GetChunkData(_currentChunkIndex);
+                _currentChunkData = GetChunkData(_currentChunkIndex, seekStreamPosition);
             }
         }
     }
