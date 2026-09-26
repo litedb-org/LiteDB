@@ -21,6 +21,12 @@ internal static class Program
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic) != null)
             throw new InvalidOperationException("Benchmarks require a Release LiteDB assembly with TestingEnabled=false.");
 
+        if (args.Length >= 2 && args[0].StartsWith("read-contention", StringComparison.Ordinal))
+        {
+            ReaderContentionBenchmarks.Run(args);
+            return;
+        }
+
         if (args.Length == 3 && args[0] == "seed")
         {
             using var seed = new LiteDatabase(args[1]);

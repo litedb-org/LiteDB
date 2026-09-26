@@ -147,3 +147,17 @@ selecting those scenarios. It does not replace the complete acceptance matrix.
 The production-comparison workflow also accepts a `baseline_ref` when dispatched
 manually, so an isolated optimization can be compared with its exact predecessor;
 pull requests always use their actual PR base. Both paths require baseline ancestry.
+
+Native simultaneous-reader comparisons use `scripts/measure-shared-readers.py`.
+The runner covers one/four readers, point/50-document/200-document (800 KiB)
+indexed streaming reads, and idle/continuous writer/explicit checkpoint activity.
+Every writer atomically changes all documents; readers verify complete payloads,
+unique keys and one consistent, nondecreasing generation per snapshot. A cold
+process checks the acknowledged final generation through scans and the secondary
+index. Five alternating pairs use synchronized 10-second warmup and measurement
+intervals. `--smoke` is only a short harness check. Reports separate read/write
+counts and include latency, CPU, allocations, close/idle resources and sampled
+WAL peaks. Summed process RSS double-counts shared mappings. Failed files and
+child diagnostics are retained. This scenario's explicit checkpoint timings do
+not count implicit engine-close checkpoints; engine replay/admission counters
+require separate diagnostic runs.
