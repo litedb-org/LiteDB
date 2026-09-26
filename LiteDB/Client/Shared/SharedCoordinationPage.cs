@@ -147,7 +147,9 @@ namespace LiteDB.Client.Shared
             lock (_writeLock)
             {
                 if (_depth++ != 0) return;
-                this.Change(() => this.Store(3, this.Load(3) | 1));
+                var before = this.BeginChange();
+                this.Store(3, this.Load(3) | 1);
+                this.EndChange(before);
             }
         }
 
@@ -157,22 +159,31 @@ namespace LiteDB.Client.Shared
             {
                 if (_depth <= 0) throw new InvalidOperationException("Unbalanced Shared structural publication.");
                 if (--_depth != 0) return;
-                this.Change(() =>
-                {
-                    if (version >= 0) this.SetVersion(version);
-                    this.Store(3, checked(this.Load(3) + 1));
-                });
+                var before = this.BeginChange();
+                if (version >= 0) this.SetVersion(version);
+                this.Store(3, checked(this.Load(3) + 1));
+                this.EndChange(before);
             }
         }
 
         public void SlotReused()
         {
-            lock (_writeLock) this.Change(() => this.Store(4, checked(this.Load(4) + 1)));
+            lock (_writeLock)
+            {
+                var before = this.BeginChange();
+                this.Store(4, checked(this.Load(4) + 1));
+                this.EndChange(before);
+            }
         }
 
         public void Committed(int version)
         {
-            lock (_writeLock) this.Change(() => this.SetVersion(version));
+            lock (_writeLock)
+            {
+                var before = this.BeginChange();
+                this.SetVersion(version);
+                this.EndChange(before);
+            }
         }
 
         private void SetVersion(int version)
@@ -181,7 +192,7 @@ namespace LiteDB.Client.Shared
             this.Store(2, version);
         }
 
-        private void Change(Action change)
+        private long BeginChange()
         {
             if (_disposed) throw new ObjectDisposedException(nameof(SharedCoordinationPage));
             var before = this.Load(1);
@@ -193,9 +204,11 @@ namespace LiteDB.Client.Shared
                 before = checked(before + 1);
             }
             this.Store(1, checked(before + 1));
-            change();
-            this.Store(1, checked(before + 2));
+            return before;
         }
+
+        // A failed field update deliberately leaves an odd sequence for recovery.
+        private void EndChange(long before) => this.Store(1, checked(before + 2));
 
         // Read/write views on every runtime: Interlocked's full fences and aligned 64-bit
         // atomics are required. No MemoryMappedViewAccessor.Write participates in ordering.

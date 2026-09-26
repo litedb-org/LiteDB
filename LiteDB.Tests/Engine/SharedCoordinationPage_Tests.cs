@@ -98,6 +98,35 @@ namespace LiteDB.Tests.Engine
         }
 
         [Fact]
+        public void Steady_epoch_publication_allocates_no_managed_objects()
+        {
+            WithFile(file =>
+            {
+                using (var page = SharedCoordinationPage.Open(file))
+                {
+                    page.Opened(0);
+                    for (var i = 0; i < 100; i++) Publish(page);
+                    var allocated = GC.GetAllocatedBytesForCurrentThread();
+                    for (var i = 0; i < 1000; i++) Publish(page);
+                    allocated = GC.GetAllocatedBytesForCurrentThread() - allocated;
+                    allocated.Should().Be(0, "publication must not allocate per-event closures or delegates");
+                    page.TryRead(out var status).Should().BeTrue();
+                    status.Version.Should().Be(0);
+                    status.Structural.Should().Be(2200);
+                    status.Reuse.Should().Be(1100);
+                }
+            });
+        }
+
+        private static void Publish(SharedCoordinationPage page)
+        {
+            page.StructuralBegin();
+            page.SlotReused();
+            page.StructuralEnd(0);
+            page.Committed(0);
+        }
+
+        [Fact]
         public void Revocation_probe_distinguishes_missing_present_and_unresolvable_paths()
         {
             WithFile(file =>
