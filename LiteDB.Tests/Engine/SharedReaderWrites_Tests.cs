@@ -78,6 +78,9 @@ namespace LiteDB.Tests.Engine
                 using (var reader = readers.Query("docs", new Query()))
                 {
                     writer.Update("docs", Enumerable.Range(1, Count).Select(id => Doc(id, 1)));
+                    // Last-reader cleanup only tries the mutex. Establish that the other
+                    // connection's asynchronous holder release has finished first.
+                    writer.MutexOwner.WaitForRelease();
                     File.Exists(this.LogFilename).Should().BeTrue("the leased reader prevents a full checkpoint");
                     var seen = 0;
                     while (reader.Read())

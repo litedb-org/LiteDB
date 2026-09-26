@@ -88,6 +88,50 @@ namespace LiteDB.Tests.Engine
             acquired.Should().BeTrue("a disposed connection must not hold the mutex, even briefly");
         }
 
+        [Fact]
+        public void Last_reader_defers_cleanup_while_another_connections_release_is_pending()
+        {
+            using var writer = this.Open(slowRelease: false);
+            using var readers = this.Open(slowRelease: false);
+            using var releasing = new ManualResetEventSlim();
+            using var allowRelease = new ManualResetEventSlim();
+            writer.Insert("docs", Enumerable.Range(1, 200).Select(id =>
+                new BsonDocument { ["_id"] = id, ["value"] = 0, ["payload"] = new string('p', 200) }), BsonAutoId.Int32);
+            using var reader = readers.Query("docs", new Query());
+            writer.MutexOwner.BeforePostedRelease = () =>
+            {
+                releasing.Set();
+                allowRelease.Wait(TimeSpan.FromSeconds(10));
+            };
+            try
+            {
+                writer.Update("docs", Enumerable.Range(1, 200).Select(id =>
+                    new BsonDocument { ["_id"] = id, ["value"] = 1, ["payload"] = new string('p', 200) }));
+                releasing.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                var count = 0;
+                while (reader.Read())
+                {
+                    reader.Current["value"].AsInt32.Should().Be(0);
+                    count++;
+                }
+                count.Should().Be(200);
+                reader.Dispose();
+                File.Exists(this.LogFilename).Should().BeTrue("reader cleanup must defer while the other holder owns the mutex");
+            }
+            finally
+            {
+                writer.MutexOwner.BeforePostedRelease = null;
+                allowRelease.Set();
+                writer.MutexOwner.WaitForRelease();
+            }
+            writer.Dispose();
+            readers.Dispose();
+            File.Exists(this.LogFilename).Should().BeFalse("the writer's final close checkpoints after its release");
+            using var reopened = new LiteDatabase(this.Filename);
+            reopened.GetCollection("docs").FindAll().Select(doc => doc["value"].AsInt32)
+                .Should().Equal(Enumerable.Repeat(1, 200));
+        }
+
         private int Count()
         {
             using var db = new LiteDatabase(new ConnectionString { Filename = this.Filename });
