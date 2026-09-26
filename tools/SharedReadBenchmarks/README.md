@@ -140,3 +140,10 @@ Ordinary workload output additionally reports close/idle CPU, peak and idle RSS,
 post-close threads/handles, and retained managed memory after 1.2 seconds and a
 full GC. `lifecycleCpuMsFromMeasurement` includes validation, close and idle cleanup
 after the measured operation interval; startup and warmup are separate.
+
+For a targeted follow-up, `measure-shared-slots.py --matrix traffic --scenarios
+same-key open-close` keeps the same five paired rounds and validation while
+selecting those scenarios. It does not replace the complete acceptance matrix.
+The production-comparison workflow also accepts a `baseline_ref` when dispatched
+manually, so an isolated optimization can be compared with its exact predecessor;
+pull requests always use their actual PR base. Both paths require baseline ancestry.
