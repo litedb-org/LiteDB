@@ -18,7 +18,7 @@ namespace LiteDB.Client.Shared
     /// takes the OS mutex directly on that thread instead: nothing but that thread can
     /// end it, so it needs no holder and saves two thread handoffs per operation.
     /// </summary>
-    internal sealed partial class SharedMutexOwner
+    internal sealed class SharedMutexOwner
     {
         private static readonly TimeSpan Poll = TimeSpan.FromMilliseconds(20);
         // A holder that owns nothing exits after this long, so an undisposed
@@ -29,6 +29,7 @@ namespace LiteDB.Client.Shared
         private enum Command { None, Acquire, TryAcquire, Release, ReleaseAndOpenGate, ReleaseExitedOwner }
 
         private readonly Mutex _mutex;
+        private readonly SharedMutexScope _scope;
         private readonly SharedMutexTurnstile _turnstile;
         private readonly Action _ownerExited;
         private readonly SemaphoreSlim _gate = new SemaphoreSlim(1, 1);
@@ -56,8 +57,30 @@ namespace LiteDB.Client.Shared
         public SharedMutexOwner(Mutex mutex, SharedMutexTurnstile turnstile, Action ownerExited)
         {
             _mutex = mutex;
+            _scope = new SharedMutexScope(mutex, turnstile);
             _turnstile = turnstile;
             _ownerExited = ownerExited;
+        }
+
+        public bool OwnsDirectly
+        {
+            get { lock (_sync) return _owner != null && ReferenceEquals(_scope.Owner, Thread.CurrentThread); }
+        }
+
+        private bool TakeDirect(bool block, out bool abandoned)
+        {
+            try
+            {
+                if (!_scope.Take(block, out abandoned)) { _gate.Release(); return false; }
+                lock (_sync)
+                {
+                    _owner = Thread.CurrentThread;
+                    _scope.Owner = _owner;
+                    _recursion = 1;
+                }
+                return true;
+            }
+            catch { _gate.Release(); throw; }
         }
 
         public Mutex Mutex => _mutex;
@@ -101,7 +124,7 @@ namespace LiteDB.Client.Shared
             if (this.TryRecurse()) return false;
             while (!_gate.Wait(Poll)) this.ReleaseIfOwnerExited();
             bool abandoned;
-            if (scoped && _directOnThread == 0) this.TakeDirect(block: true, out abandoned);
+            if (scoped && SharedMutexScope.CanEnter) this.TakeDirect(block: true, out abandoned);
             else this.TakeGate(Command.Acquire, out abandoned);
             return abandoned;
         }
@@ -120,7 +143,7 @@ namespace LiteDB.Client.Shared
             {
                 if (!this.ReleaseIfOwnerExited() || !_gate.Wait(0)) return false;
             }
-            return scoped && _directOnThread == 0
+            return scoped && SharedMutexScope.CanEnter
                 ? this.TakeDirect(block: false, out abandoned)
                 : this.TakeGate(Command.TryAcquire, out abandoned);
         }
@@ -134,7 +157,7 @@ namespace LiteDB.Client.Shared
             Thread direct;
             lock (_sync)
             {
-                direct = _direct;
+                direct = _scope.Owner;
                 if (_owner == null || (generation >= 0 && generation != _generation))
                 {
                     // ReleaseAll ended a scoped ownership while its thread still ran the
@@ -158,11 +181,12 @@ namespace LiteDB.Client.Shared
                     _generation++;
                     if (direct == null) _released.Reset();
                 }
-                _direct = null;
+                _scope.Owner = null;
             }
             if (direct != null)
             {
-                this.ReleaseDirect();
+                try { _scope.Release(); }
+                finally { _gate.Release(); }
                 return;
             }
             // The caller need not wait: the holder releases the OS mutex and only then
@@ -184,7 +208,7 @@ namespace LiteDB.Client.Shared
                 _generation++;
                 // A scoped ownership's thread is still inside its operation. It releases
                 // the OS mutex and the gate when that operation ends (see Exit).
-                if (_direct != null) return;
+                if (_scope.Owner != null) return;
             }
             try { this.Send(Command.Release); }
             catch (Exception) { /* Disposal must not fail; process exit releases the mutex. */ }
@@ -240,15 +264,15 @@ namespace LiteDB.Client.Shared
             var direct = false;
             lock (_sync)
             {
-                owner = _owner;
+                owner = _owner ?? _scope.Owner;
                 if (owner == null || owner.IsAlive) return false;
-                if (ReferenceEquals(_direct, owner))
+                if (ReferenceEquals(_scope.Owner, owner))
                 {
                     // A scoped owner cannot leave its call without unwinding; if its thread
                     // died anyway, the OS abandoned its mutex and the next wait reports it.
                     direct = true;
                     _owner = null;
-                    _direct = null;
+                    _scope.Owner = null;
                     _recursion = 0;
                     _generation++;
                 }

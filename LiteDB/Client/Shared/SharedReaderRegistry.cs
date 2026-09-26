@@ -159,10 +159,13 @@ namespace LiteDB.Client.Shared
         private void TryRemoveOrphanContent()
         {
             string[] contents;
-            try { contents = _getFiles(_directory, "*" + SharedReaderSlots.ContentExtension); }
+            try { contents = _getFiles(_directory, SharedReaderSlots.Prefix + "*" + SharedReaderSlots.ContentExtension); }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException) { return; }
             foreach (var content in contents)
             {
+                var name = Path.GetFileNameWithoutExtension(content);
+                if (!name.StartsWith(SharedReaderSlots.Prefix, StringComparison.Ordinal) ||
+                    !Guid.TryParseExact(name.Substring(SharedReaderSlots.Prefix.Length), "N", out _)) continue;
                 if (!File.Exists(Path.ChangeExtension(content, ".lease"))) TryRemoveUnheld(content);
             }
         }

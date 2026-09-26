@@ -109,10 +109,10 @@ namespace LiteDB.Tests.Engine
             lock (waits) sorted = waits.OrderBy(x => x).ToArray();
             var p = new Func<double, double>(q => sorted.Length == 0 ? double.NaN : sorted[Math.Min(sorted.Length - 1, (int)(q * sorted.Length))]);
             _output.WriteLine($"PROBE waiter={waiter} burners={burners} seconds={seconds} ownerWrites/s={writes / (double)seconds:F0} " +
-                $"engineOpens={engine.EngineOpens - opens} waiterOps={sorted.Length} p50={p(0.5):F1}ms p99={p(0.99):F1}ms max={(sorted.Length == 0 ? double.NaN : sorted[^1]):F1}ms " +
+                $"engineOpens={engine.EngineOpens - opens} waiterOps={sorted.Length} p50={p(0.5):F1}ms p99={p(0.99):F1}ms max={(sorted.Length == 0 ? double.NaN : sorted[sorted.Length - 1]):F1}ms " +
                 $"failure={failure?.GetType().Name}");
             Console.WriteLine($"PROBE waiter={waiter} burners={burners} ownerWrites/s={writes / (double)seconds:F0} engineOpens={engine.EngineOpens - opens} " +
-                $"waiterOps={sorted.Length} p50={p(0.5):F1} p99={p(0.99):F1} max={(sorted.Length == 0 ? double.NaN : sorted[^1]):F1} {worst} log={LogKb(filename)}KB");
+                $"waiterOps={sorted.Length} p50={p(0.5):F1} p99={p(0.99):F1} max={(sorted.Length == 0 ? double.NaN : sorted[sorted.Length - 1]):F1} {worst} log={LogKb(filename)}KB");
         }
 
         private static long LogKb(string filename)

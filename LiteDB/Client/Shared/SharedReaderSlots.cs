@@ -23,6 +23,7 @@ namespace LiteDB.Client.Shared
         internal const string Prefix = "slots-";
         internal const string ContentExtension = ".slots";
         private const int SlotSize = 8;
+        private const int MaxSlots = 65536;
 
         private readonly object _gate = new object();
         private readonly FileStream _content;
@@ -32,6 +33,9 @@ namespace LiteDB.Client.Shared
         private int _inUse;
         private bool _disposeRequested;
         private bool _closed;
+#if DEBUG || TESTING
+        internal Action<FileStream, byte[]> WriteOverride { get; set; }
+#endif
 
         private SharedReaderSlots(FileStream content, FileStream lease)
         {
@@ -60,6 +64,8 @@ namespace LiteDB.Client.Shared
                 FileShare.Read, 1, FileOptions.DeleteOnClose);
             try
             {
+                // A count/complement header detects empty and whole-slot truncation too.
+                content.Write(new byte[] { 0, 0, 0, 0, 255, 255, 255, 255 }, 0, SlotSize);
                 var lease = new FileStream(leasePath, FileMode.CreateNew, FileAccess.ReadWrite,
                     FileShare.None, 1, FileOptions.DeleteOnClose);
                 return new SharedReaderSlots(content, lease);
@@ -82,16 +88,26 @@ namespace LiteDB.Client.Shared
                 if (index < 0)
                 {
                     index = _used.Count;
+                    if (index == MaxSlots) throw new IOException("The shared-reader slot limit was reached.");
                     _used.Add(false);
                 }
                 // Written through to the OS before the caller releases the mutex, so the next
                 // mutex owner's scan reads it.
-                this.WriteSlot(index, version, ~version);
+                this.WriteSlot(index + 1, version, ~version);
+                // Also repair a header whose previous append failed. Registration and
+                // checkpoint inspection hold the database mutex, so append cannot race it.
+                if (_publishedCount != _used.Count)
+                {
+                    this.WriteSlot(0, _used.Count, ~_used.Count);
+                    _publishedCount = _used.Count;
+                }
                 _used[index] = true;
                 _inUse++;
                 return new Slot(this, index);
             }
         }
+
+        private int _publishedCount;
 
         private void Release(int index)
         {
@@ -103,7 +119,7 @@ namespace LiteDB.Client.Shared
                 // a stale lease only makes checkpoints conservative.
                 try
                 {
-                    this.WriteSlot(index, 0, 0);
+                    this.WriteSlot(index + 1, 0, 0);
                     _used[index] = false;
                 }
                 catch (IOException) { }
@@ -116,6 +132,9 @@ namespace LiteDB.Client.Shared
             WriteInt32(_buffer, 0, version);
             WriteInt32(_buffer, 4, check);
             _content.Position = (long)index * SlotSize;
+#if DEBUG || TESTING
+            if (this.WriteOverride != null) { this.WriteOverride(_content, _buffer); return; }
+#endif
             _content.Write(_buffer, 0, SlotSize);
         }
 
@@ -131,6 +150,7 @@ namespace LiteDB.Client.Shared
                 using (var file = new FileStream(ContentPath(leasePath), FileMode.Open, FileAccess.Read,
                     FileShare.ReadWrite | FileShare.Delete, 1, FileOptions.None))
                 {
+                    if (file.Length < SlotSize || file.Length > (MaxSlots + 1L) * SlotSize) return null;
                     content = new byte[file.Length];
                     var read = 0;
                     while (read < content.Length)
@@ -148,8 +168,10 @@ namespace LiteDB.Client.Shared
 
             // A partial trailing slot is a slot being appended: unknown.
             if (content.Length % SlotSize != 0) return null;
+            var count = ReadInt32(content, 0);
+            if (count < 0 || ReadInt32(content, 4) != ~count || count != content.Length / SlotSize - 1) return null;
             var versions = new List<int>();
-            for (var offset = 0; offset < content.Length; offset += SlotSize)
+            for (var offset = SlotSize; offset < content.Length; offset += SlotSize)
             {
                 var version = ReadInt32(content, offset);
                 var check = ReadInt32(content, offset + 4);

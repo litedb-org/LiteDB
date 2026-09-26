@@ -16,6 +16,9 @@ namespace LiteDB.Client.Shared
     internal sealed class SharedMutexTurnstile
     {
         private readonly Mutex _turn;
+#if DEBUG || TESTING
+        internal System.Action BeforeMainWait { get; set; }
+#endif
 
         public SharedMutexTurnstile(Mutex turn)
         {
@@ -31,6 +34,9 @@ namespace LiteDB.Client.Shared
             var queued = this.Enter();
             try
             {
+#if DEBUG || TESTING
+                this.BeforeMainWait?.Invoke();
+#endif
                 mutex.WaitOne();
             }
             finally

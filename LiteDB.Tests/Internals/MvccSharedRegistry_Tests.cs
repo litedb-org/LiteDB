@@ -24,7 +24,7 @@ namespace LiteDB.Internals
             using var engine = new SharedEngine(new EngineSettings { Filename = Filename });
             engine.Insert("docs", Documents(3, 0), BsonAutoId.Int32);
             using var reader = engine.Query("docs", new Query());
-            Directory.Exists(Leases).Should().BeFalse();
+            new SharedReaderRegistry(Filename).LiveVersions().Should().BeEmpty();
             engine.Update("docs", Documents(3, 1));
 
             reader.HasValues.Should().BeTrue();

@@ -51,6 +51,8 @@ namespace LiteDB.Internals
         internal Task<string> ReadLine(TimeSpan timeout) =>
             _process.StandardOutput.ReadLineAsync().WaitAsync(timeout);
 
+        internal void Send(string command) => _process.StandardInput.WriteLine(command);
+
         internal async Task Finish(bool release = false)
         {
             if (release) _process.StandardInput.WriteLine("continue");

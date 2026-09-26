@@ -75,8 +75,7 @@ namespace LiteDB.Tests.Engine
 
         private string ReadersDirectory => Path.GetFullPath(this.Filename) + "-readers";
 
-        private bool HasLease() => Directory.Exists(this.ReadersDirectory) &&
-            Directory.GetFiles(this.ReadersDirectory, "*.lease").Length > 0;
+        private bool HasLease() => new LiteDB.Client.Shared.SharedReaderRegistry(this.Filename).OldestVersion().HasValue;
 
         private static int[] Ids(IBsonDataReader reader)
         {
