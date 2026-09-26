@@ -115,6 +115,34 @@ namespace LiteDB.Tests.Engine
             });
         }
 
+        [Fact]
+        public void Reads_between_peer_commits_do_not_retain_unused_snapshots()
+        {
+            WithFile(file =>
+            {
+                using (var writer = new LiteDatabase(new ConnectionString { Filename = file, Connection = ConnectionType.Shared }))
+                using (var engine = new SharedEngine(new EngineSettings { Filename = file })
+                    { CoordinatedIdleLimit = TimeSpan.FromMinutes(1) })
+                using (var reader = new LiteDatabase(engine))
+                {
+                    writer.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = 0 });
+                    for (var i = 0; i < 3; i++) reader.GetCollection("rows").FindById(1);
+                    engine.HasCachedSnapshot.Should().BeTrue();
+                    var hits = engine.CoordinatedReadHits;
+                    for (var i = 1; i <= 5; i++)
+                    {
+                        writer.GetCollection("rows").Update(new BsonDocument { ["_id"] = 1, ["value"] = i });
+                        reader.GetCollection("rows").FindById(1)["value"].AsInt32.Should().Be(i);
+                        engine.HasCachedSnapshot.Should().BeFalse("changed versions cannot amortize retention");
+                    }
+                    reader.GetCollection("rows").FindById(1)["value"].AsInt32.Should().Be(5);
+                    engine.HasCachedSnapshot.Should().BeTrue();
+                    reader.GetCollection("rows").FindById(1)["value"].AsInt32.Should().Be(5);
+                    engine.CoordinatedReadHits.Should().Be(hits + 1);
+                }
+            });
+        }
+
         private static T Field<T>(object owner, string name) =>
             (T)owner.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(owner);
 

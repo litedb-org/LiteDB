@@ -20,6 +20,7 @@ parser.add_argument('--smoke', action='store_true', help='Short validation pair 
 parser.add_argument('--scenarios', nargs='+', choices=('point', 'medium', 'large'), default=('point', 'medium', 'large'))
 parser.add_argument('--activity', nargs='+', choices=('idle', 'writer', 'checkpoint'), default=('idle', 'writer', 'checkpoint'))
 parser.add_argument('--readers', nargs='+', type=int, choices=(1, 4), default=(1, 4))
+parser.add_argument('--load', choices=('saturation', 'equal'), default='saturation')
 args = parser.parse_args()
 if args.smoke:
     args.rounds = 1
@@ -66,7 +67,7 @@ with args.output.open('x') as output:
                             for worker, role in enumerate(roles):
                                 command = ['dotnet', str(runner), 'read-contention', str(database), str(worker), role,
                                            ('1000' if args.smoke else '10000'), ('2000' if args.smoke else '10000'),
-                                           str(signal), str(readers)]
+                                           str(signal), str(readers), ('0' if args.load == 'saturation' or role in ('writer', 'checkpoint') else '50' if role == 'large' else '20')]
                                 record['commands'].append(command)
                                 children.append(subprocess.Popen(command, env=env, text=True,
                                                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE))

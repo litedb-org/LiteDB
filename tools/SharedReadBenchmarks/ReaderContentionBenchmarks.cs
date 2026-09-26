@@ -39,8 +39,8 @@ internal static class ReaderContentionBenchmarks
             Console.WriteLine("verified");
             return;
         }
-        if (args[0] != "read-contention" || args.Length != 8)
-            throw new ArgumentException("read-contention <database> <worker> <point|medium|large|writer|checkpoint> <warmup-ms> <measure-ms> <signal> <readers>");
+        if (args[0] != "read-contention" || args.Length != 9)
+            throw new ArgumentException("read-contention <database> <worker> <point|medium|large|writer|checkpoint> <warmup-ms> <measure-ms> <signal> <readers> <interval-ms>");
         var worker = int.Parse(args[2]);
         var role = args[3];
         if (!new[] { "point", "medium", "large", "writer", "checkpoint" }.Contains(role)) throw new ArgumentException("role");
@@ -48,6 +48,8 @@ internal static class ReaderContentionBenchmarks
         var measureMs = int.Parse(args[5]);
         var signal = Path.GetFullPath(args[6]);
         var readers = int.Parse(args[7]);
+        var intervalMs = double.Parse(args[8], System.Globalization.CultureInfo.InvariantCulture);
+        if (intervalMs < 0) throw new ArgumentOutOfRangeException(nameof(intervalMs));
         using var process = Process.GetCurrentProcess();
         using var dbWorker = Open(filename);
         var rows = dbWorker.GetCollection("rows");
@@ -106,16 +108,31 @@ internal static class ReaderContentionBenchmarks
                 minimum = observed;
             }
         }
-        while (clock.Elapsed.TotalMilliseconds < warmupMs) { Operation(); warmupCount++; }
+        void AwaitArrival(Stopwatch timer, int completed)
+        {
+            if (intervalMs == 0) return;
+            while (timer.Elapsed.TotalMilliseconds < completed * intervalMs) Thread.Sleep(1);
+        }
+        while (clock.Elapsed.TotalMilliseconds < warmupMs)
+        {
+            AwaitArrival(clock, warmupCount);
+            if (clock.Elapsed.TotalMilliseconds >= warmupMs) break;
+            Operation(); warmupCount++;
+        }
         checkpointCount = 0;
         checkpointMs = 0;
         var cpu = process.TotalProcessorTime;
         var allocation = GC.GetTotalAllocatedBytes(true);
+        var arrivals = new List<double>();
         var active = Stopwatch.StartNew();
         while (active.Elapsed.TotalMilliseconds < measureMs)
         {
+            AwaitArrival(active, samples.Count);
+            if (active.Elapsed.TotalMilliseconds >= measureMs) break;
+            var intended = intervalMs == 0 ? active.Elapsed.TotalMilliseconds : samples.Count * intervalMs;
             var before = Stopwatch.GetTimestamp();
             Operation();
+            arrivals.Add(active.Elapsed.TotalMilliseconds - intended);
             samples.Add((Stopwatch.GetTimestamp() - before) * 1000.0 / Stopwatch.Frequency);
         }
         var activeMs = active.Elapsed.TotalMilliseconds;
@@ -132,12 +149,15 @@ internal static class ReaderContentionBenchmarks
         var chronologicalWindows = Enumerable.Range(0, 5).Select(i => samples.Skip(i * samples.Count / 5)
             .Take((i + 1) * samples.Count / 5 - i * samples.Count / 5).DefaultIfEmpty().Average()).ToArray();
         samples.Sort();
+        arrivals.Sort();
         if (samples.Count == 0) throw new InvalidOperationException("Worker made no progress");
         double Percentile(double p) => samples[Math.Min(samples.Count - 1, (int)(p * samples.Count))];
         var binary = typeof(LiteDatabase).Assembly.Location;
         Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
         {
-            worker, role, readers, warmupMs, warmupCount, measureMs, count = samples.Count, revision,
+            worker, role, readers, intervalMs, offered = intervalMs == 0 ? samples.Count : (int)Math.Ceiling(measureMs / intervalMs),
+            arrivalMeanMs = arrivals.Average(), arrivalP99Ms = arrivals[Math.Min(arrivals.Count - 1, (int)(.99 * arrivals.Count))],
+            warmupMs, warmupCount, measureMs, count = samples.Count, revision,
             activeMs, activeCpuMs, activeAllocated, lifecycleCpuMs, lifecycleAllocated,
             meanMs = samples.Average(), p50Ms = Percentile(.5), p95Ms = Percentile(.95), p99Ms = Percentile(.99),
             worstMs = samples.Last(), chronologicalWindows, checkpointCount, checkpointMs,

@@ -15,6 +15,7 @@ namespace LiteDB
         private bool _coordinationUnavailable;
         private int _coordinationDemand;
         private int _readCacheDemand;
+        private int _readCacheVersion = -1;
         private CachedSharedSnapshot _cachedSnapshot;
         private Timer _snapshotIdle;
         private static readonly TimeSpan SnapshotIdle = TimeSpan.FromMilliseconds(100);
@@ -166,6 +167,12 @@ namespace LiteDB
         {
             // A single read between writes cannot amortize retaining a snapshot.
             // Start caching only after two consecutive read-only opens.
+            if (_readCacheVersion != engine.ReadVersion)
+            {
+                _readCacheVersion = engine.ReadVersion;
+                _readCacheDemand = 0;
+                this.RetireCachedSnapshot();
+            }
             if (_readCacheDemand < 2) _readCacheDemand++;
             if (_readCacheDemand < 2 || _coordination == null || !_coordination.TryRead(out var status) || status.Version != engine.ReadVersion) return null;
             var lease = this.TryRegisterLease(engine.ReadVersion);
