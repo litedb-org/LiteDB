@@ -54,7 +54,7 @@ allowing arbitrary lazy inputs to take scoped ownership makes off-thread disposa
 The turnstile negative control disables the pin's waiter probe.
 
 The bounded campaign uses seeds **3012, 3013, 3014**, four steps per target,
-`snapshot,process,mvcc-retirement,index`, one worker, and a 256 MiB artifact budget.
+`snapshot,shared,mvcc-retirement,index`, one worker, and a 256 MiB artifact budget.
 The snapshot target now keeps three generations simultaneously, mutates overlapping
 keys over repeated reclamation cycles, compares full current documents and indexed
 order against an independent mutation model, and checks physical structure after
