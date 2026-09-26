@@ -45,6 +45,10 @@ operation-state lock, allowing Windows reader handles to be reused. A single rea
 between writes does not retain a snapshot. Streaming queries keep their leases
 until disposal, even after a newer snapshot replaces the cache. Idle expiry only
 closes a read-only engine; ordinary close/checkpoint rules retain durability.
+Closing a coordination view releases its native handle before disposing the
+accessor, avoiding an explicit flush of ephemeral control bytes (including from
+the finalizer). Live peers retain their own coherent views. The page never supplies
+durability evidence and is never trusted on startup without a protected open.
 
 ## Mutation and fallback
 

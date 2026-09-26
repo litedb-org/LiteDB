@@ -49,7 +49,7 @@ namespace LiteDB.Client.Shared
                     _view.SafeMemoryMappedViewHandle.ReleasePointer();
                     _pointerAcquired = false;
                 }
-                _view?.Dispose();
+                this.CloseView();
                 _map.Dispose();
                 throw;
             }
@@ -222,9 +222,19 @@ namespace LiteDB.Client.Shared
                 _view.SafeMemoryMappedViewHandle.ReleasePointer();
                 _pointerAcquired = false;
             }
-            _view?.Dispose();
+            this.CloseView();
             _map?.Dispose();
             _participation?.Dispose();
+        }
+
+        private void CloseView()
+        {
+            // The extra pointer reference was released above. Closing the native
+            // view first prevents the accessor's explicit Dispose from flushing
+            // ephemeral control bytes, including on the finalizer thread. Live
+            // peers retain their own coherent views; restart never trusts this page.
+            _view?.SafeMemoryMappedViewHandle.Dispose();
+            _view?.Dispose();
         }
 
         /// <summary>Called under the database mutex, only after disposing this participant.</summary>

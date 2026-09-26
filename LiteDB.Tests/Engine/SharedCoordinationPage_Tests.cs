@@ -58,6 +58,45 @@ namespace LiteDB.Tests.Engine
             return new WeakReference(page);
         }
 
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Releasing_one_view_preserves_published_state_for_a_live_peer(bool explicitlyDispose)
+        {
+            WithFile(file =>
+            {
+                using (var peer = SharedCoordinationPage.Open(file))
+                {
+                    var weak = PublishAndRelease(file, explicitlyDispose);
+                    GC.Collect();
+                    GC.WaitForPendingFinalizers();
+                    GC.Collect();
+                    weak.IsAlive.Should().BeFalse();
+                    peer.Opened(27);
+                    peer.TryRead(out var status).Should().BeTrue();
+                    status.Version.Should().Be(27);
+                    status.Structural.Should().Be(2);
+                    status.Reuse.Should().Be(1);
+                    SharedCoordinationPage.TryRetire(file);
+                    File.Exists(SharedCoordinationPage.PagePath(file)).Should().BeTrue("the peer still owns the authority");
+                }
+                SharedCoordinationPage.TryRetire(file);
+                File.Exists(SharedCoordinationPage.PagePath(file)).Should().BeFalse();
+            });
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static WeakReference PublishAndRelease(string file, bool explicitlyDispose)
+        {
+            var page = SharedCoordinationPage.Open(file);
+            page.Opened(27);
+            page.StructuralBegin();
+            page.SlotReused();
+            page.StructuralEnd(27);
+            if (explicitlyDispose) page.Dispose();
+            return new WeakReference(page);
+        }
+
         [Fact]
         public void Revocation_probe_distinguishes_missing_present_and_unresolvable_paths()
         {
