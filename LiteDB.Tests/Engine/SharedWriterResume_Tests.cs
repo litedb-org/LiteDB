@@ -76,8 +76,10 @@ namespace LiteDB.Tests.Engine
                         page.TryRead(out var after).Should().BeTrue();
                         after.Reuse.Should().BeGreaterThan(before.Reuse, "this must overwrite reclaimed physical slots");
                         new FileInfo(log).Length.Should().BeGreaterOrEqualTo(length);
+                        PreserveBeforeResume(file);
+                        PreserveBeforeResume(log);
                         rows.Update(Row(197, 5));
-                        engine.WriterResumeCount.Should().Be(resumed, "length and the old confirmation cannot prove an unchanged prefix");
+                        rows.FindById(198)["value"].AsInt32.Should().Be(400, "the acknowledged peer commit must survive the next writer open");
                         rows.FindById(198)["payload"].AsString.Should().Be(Payload(4));
                         rows.Query().Where("value = 400").ToArray().Select(row => row["_id"].AsInt32).Should().Equal(198);
                         var count = 1;
@@ -87,6 +89,7 @@ namespace LiteDB.Tests.Engine
                             held.Current["payload"].AsString.Should().Be(Payload(0));
                         }
                         count.Should().Be(200);
+                        engine.WriterResumeCount.Should().Be(resumed, "length and the old confirmation cannot prove an unchanged prefix");
                     }
                     writer.Checkpoint();
                 }
@@ -211,12 +214,24 @@ namespace LiteDB.Tests.Engine
         private static BsonDocument Row(int id, int revision) => new BsonDocument
             { ["_id"] = id, ["value"] = revision * 100, ["payload"] = Payload(revision) };
 
+        private static void PreserveBeforeResume(string path)
+        {
+            using (var source = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            using (var destination = new FileStream(path + ".before-resume", FileMode.CreateNew, FileAccess.Write))
+                source.CopyTo(destination);
+        }
+
         private static void WithFile(Action<string> test)
         {
             var directory = Path.Combine(Path.GetTempPath(), "litedb-writer-resume-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(directory);
-            try { test(Path.Combine(directory, "test.db")); }
-            finally { Directory.Delete(directory, true); }
+            var passed = false;
+            try { test(Path.Combine(directory, "test.db")); passed = true; }
+            finally
+            {
+                if (passed) Directory.Delete(directory, true);
+                else Console.Error.WriteLine("Preserved failed writer-resume database: " + directory);
+            }
         }
     }
 }
