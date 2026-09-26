@@ -35,9 +35,13 @@ namespace LiteDB
             lock (_useLock) return _admitted.TryGetValue(Environment.CurrentManagedThreadId, out var depth) ? depth : 0;
         }
 
+        // User callbacks and custom streams may open readers that escape the call.
+        private bool CanScope => _settings.ReadTransform == null && _settings.DataStream == null &&
+            _settings.LogStream == null && _settings.TempStream == null;
+
         private T QueryDatabase<T>(Func<T> Query) => this.Call(() =>
         {
-            var use = OpenDatabase();
+            var use = OpenDatabase(scoped: this.CanScope);
             try
             {
                 return Query();

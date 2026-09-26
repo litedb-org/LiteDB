@@ -43,7 +43,7 @@ internal sealed class SharedProcessFuzzer : IFuzzTarget
 
             var workerCount = 2 + Math.Abs((context.Seed + rounds) % 3);
             var operations = Math.Max(12, context.Count);
-            var processes = new List<(Process Process, string Ledger, bool ExpectedCrash)>();
+            var processes = new List<(Process Process, string Ledger, bool ExpectedCrash, int Worker)>();
             for (var worker = 0; worker < workerCount; worker++)
             {
                 var ledger = Path.Combine(context.DirectoryPath, $"worker-{worker}.jsonl");
@@ -52,8 +52,12 @@ internal sealed class SharedProcessFuzzer : IFuzzTarget
                 var process = Process.Start(StartInfo(database, ledger, worker,
                     context.Seed + rounds * 397 + worker, operations, crashAt))
                     ?? throw new InvalidOperationException("Failed to start shared-mode child process.");
-                processes.Add((process, ledger, worker == 0));
-                context.Trace("spawn", new { round = rounds, worker, process.Id, crashAt });
+                processes.Add((process, ledger, worker == 0, worker));
+                // Native PIDs are useful diagnostics, but change on every replay and
+                // cannot participate in the corpus's deterministic trace contract.
+                File.AppendAllText(Path.Combine(context.DirectoryPath, "processes.jsonl"),
+                    System.Text.Json.JsonSerializer.Serialize(new { round = rounds, worker, process.Id }) + Environment.NewLine);
+                context.Trace("spawn", new { round = rounds, worker, crashAt });
             }
 
             foreach (var child in processes)
@@ -67,7 +71,7 @@ internal sealed class SharedProcessFuzzer : IFuzzTarget
                 }
                 var output = await child.Process.StandardOutput.ReadToEndAsync();
                 var error = await child.Process.StandardError.ReadToEndAsync();
-                context.Trace("child-exit", new { round = rounds, child.Process.Id, child.Process.ExitCode, output, error });
+                context.Trace("child-exit", new { round = rounds, worker = child.Worker, child.Process.ExitCode, output, error });
                 if (!child.ExpectedCrash) context.Check(child.Process.ExitCode == 0,
                     $"Shared worker {child.Process.Id} exited {child.Process.ExitCode}: {error}");
                 else
@@ -133,9 +137,10 @@ internal sealed class SharedProcessFuzzer : IFuzzTarget
     internal static int RunChild(FuzzOptions options)
     {
         var random = new StableRandom(options.Seed);
-        if (options.CrashAt > OuterCrashBoundaries)
+        var crashPoint = options.CrashAt > OuterCrashBoundaries
+            ? InternalCrashPoints[options.CrashAt - OuterCrashBoundaries - 1] : null;
+        if (crashPoint != null)
         {
-            var crashPoint = InternalCrashPoints[options.CrashAt - OuterCrashBoundaries - 1];
             Engine.EngineState.SimulateProcessCrash = phase =>
             {
                 if (phase != crashPoint) return;
@@ -143,7 +148,8 @@ internal sealed class SharedProcessFuzzer : IFuzzTarget
                 Environment.FailFast($"Deterministic internal process death at {phase}");
             };
         }
-        using var db = Open(options.Database);
+        using var db = Open(options.Database, out var engine);
+        using var checkpointScope = SharedCheckpointCrashScope.Create(engine, crashPoint);
         var rows = db.GetCollection("rows");
         if (options.CrashAt > 0)
         {
@@ -218,10 +224,16 @@ internal sealed class SharedProcessFuzzer : IFuzzTarget
         }
     }
 
-    private static LiteDatabase Open(string database) => new(new ConnectionString
+    private static LiteDatabase Open(string database) => Open(database, out _);
+
+    private static LiteDatabase Open(string database, out SharedEngine engine)
     {
-        Filename = database, Connection = ConnectionType.Shared, DurableCommits = true, TransactionPageLimit = 4
-    });
+        engine = new SharedEngine(new Engine.EngineSettings
+        {
+            Filename = database, DurableCommits = true, TransactionPageLimit = 4
+        });
+        return new LiteDatabase(engine);
+    }
 
     private static ProcessStartInfo StartInfo(string database, string ledger, int worker, int seed, int count, int crashAt)
     {
