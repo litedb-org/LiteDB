@@ -8,6 +8,19 @@ internal static class SharedMappedHarness
 
     internal static bool TryRun(string mode, string filename, string? password, string[] args)
     {
+        if (mode == "resume-appending-peer")
+        {
+            using var peerEngine = new SharedEngine(new EngineSettings { Filename = filename, Password = password });
+            using var peer = new LiteDatabase(peerEngine, disposeOnClose: false);
+            peer.GetCollection("docs").Update(Enumerable.Range(0, 64).Select(id =>
+                new BsonDocument { ["_id"] = id, ["value"] = 7, ["payload"] = new string('x', 3000) }));
+            var peerOwner = typeof(SharedEngine).GetField("_owner", Private)!.GetValue(peerEngine)!;
+            peerOwner.GetType().GetMethod("WaitForRelease")!.Invoke(peerOwner, null);
+            Console.WriteLine("ready");
+            Console.ReadLine();
+            Console.WriteLine("done");
+            return true;
+        }
         if (!mode.StartsWith("mapped-", StringComparison.Ordinal)) return false;
         using var engine = new SharedEngine(new EngineSettings { Filename = filename, Password = password });
         typeof(SharedEngine).GetProperty("CoordinatedIdleLimit", Private)!.SetValue(engine, TimeSpan.FromMinutes(1));
