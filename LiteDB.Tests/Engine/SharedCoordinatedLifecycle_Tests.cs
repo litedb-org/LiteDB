@@ -12,6 +12,40 @@ namespace LiteDB.Tests.Engine
 {
     public class SharedCoordinatedLifecycle_Tests
     {
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Unavailable_new_authority_or_long_control_names_keep_existing_database_operations(bool longName)
+        {
+            WithFile(original =>
+            {
+                var file = longName ? Path.Combine(Path.GetDirectoryName(original), new string('d', 240) + ".db") : original;
+                if (!longName)
+                {
+                    // Neither control-file creation nor publishing a new marker can
+                    // succeed. There was no page and therefore no mapped authority.
+                    Directory.CreateDirectory(SharedCoordinationFallback.LivePath(file));
+                    Directory.CreateDirectory(SharedCoordinationPage.DisabledPath(file));
+                }
+                using (var engine = new SharedEngine(new EngineSettings { Filename = file }))
+                using (var database = new LiteDatabase(engine))
+                {
+                    database.CheckpointSize = 0;
+                    database.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = 73 });
+                    for (var i = 0; i < 3; i++)
+                        database.GetCollection("rows").FindById(1)["value"].AsInt32.Should().Be(73);
+                    engine.CoordinatedReadHits.Should().Be(0);
+                }
+                using (var cold = new LiteDatabase(file))
+                    cold.GetCollection("rows").FindById(1)["value"].AsInt32.Should().Be(73);
+                if (!longName)
+                {
+                    Directory.Exists(SharedCoordinationFallback.LivePath(file)).Should().BeTrue();
+                    Directory.Exists(SharedCoordinationPage.DisabledPath(file)).Should().BeTrue();
+                }
+            });
+        }
+
         [Fact]
         public void One_shot_read_does_not_create_coordination_files()
         {
@@ -85,9 +119,9 @@ namespace LiteDB.Tests.Engine
                     engine.CoordinatedReadHits.Should().BeGreaterThan(0);
                     registry.LiveVersions().Should().BeEmpty();
                     var log = Path.Combine(Path.GetDirectoryName(file), "test-log.db");
-                    var bytes = File.ReadAllBytes(log);
-                    Thread.Sleep(500);
-                    File.ReadAllBytes(log).Should().Equal(bytes);
+                    var bytes = ReadShared(log);
+                    SpinWait.SpinUntil(() => !engine.HasCachedSnapshot, TimeSpan.FromSeconds(5)).Should().BeTrue();
+                    ReadShared(log).Should().Equal(bytes);
                     var opens = engine.SnapshotOpens;
                     reader.GetCollection("rows").FindById(1)["value"].AsInt32.Should().Be(19);
                     engine.SnapshotOpens.Should().Be(opens + 1);
@@ -117,6 +151,16 @@ namespace LiteDB.Tests.Engine
                 using (var cold = new LiteDatabase(file))
                     cold.GetCollection("rows").FindById(1)["value"].AsInt32.Should().Be(71);
             });
+        }
+
+        private static byte[] ReadShared(string path)
+        {
+            using (var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            using (var copy = new MemoryStream())
+            {
+                file.CopyTo(copy);
+                return copy.ToArray();
+            }
         }
 
         private static void WithFile(Action<string> test)

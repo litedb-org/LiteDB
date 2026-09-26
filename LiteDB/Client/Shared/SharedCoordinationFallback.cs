@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
+using System.Text;
 
 namespace LiteDB.Client.Shared
 {
@@ -14,6 +16,14 @@ namespace LiteDB.Client.Shared
             return file.Read(bytes, 0, bytes.Length) == bytes.Length && BitConverter.ToInt64(bytes, 0) == Magic;
         }
 
+        // Every participant uses this same conservative name policy. Keeping the
+        // longest suffix within a 255-byte component and ordinary Windows paths
+        // avoids requiring a revocation marker that some eligible participant
+        // cannot name. Longer database paths retain the existing mutex protocol.
+        internal static bool SupportsNames(string filename) =>
+            Encoding.UTF8.GetByteCount(Path.GetFileName(filename)) <= 239 &&
+            (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows) || filename.Length <= 239);
+
         internal static string PagePath(string filename) => filename + "-shared-state";
         internal static string DisabledPath(string filename) => filename + "-shared-disabled";
         internal static string LivePath(string filename) => filename + "-shared-live";
@@ -25,7 +35,7 @@ namespace LiteDB.Client.Shared
         /// </summary>
         internal static void RevokeIfPresent(string filename)
         {
-            if (!SharedCoordinationRevocation.IsRevoked(PagePath(filename))) return;
+            if (!SupportsNames(filename) || !SharedCoordinationRevocation.IsRevoked(PagePath(filename))) return;
             try { File.GetAttributes(PagePath(filename)); }
             catch (FileNotFoundException) { return; }
             catch (DirectoryNotFoundException) { return; }

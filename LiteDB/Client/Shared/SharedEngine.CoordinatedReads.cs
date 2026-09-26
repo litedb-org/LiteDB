@@ -19,6 +19,7 @@ namespace LiteDB
         private static readonly TimeSpan SnapshotIdle = TimeSpan.FromMilliseconds(100);
 #if DEBUG || TESTING
         internal TimeSpan CoordinatedIdleLimit { get; set; } = SnapshotIdle;
+        internal bool HasCachedSnapshot { get { lock (_snapshotGate) return _cachedSnapshot != null; } }
         internal int CoordinatedReadHits;
         internal string CoordinationFallbackReason;
         internal Action<string> CoordinationStage;
@@ -31,6 +32,11 @@ namespace LiteDB
         private void EnsureCoordination(bool allowCreate = true)
         {
             if (_coordination != null) return;
+            if (!SharedCoordinationFallback.SupportsNames(_settings.Filename))
+            {
+                _coordinationUnavailable = true;
+                return;
+            }
             // One-shot connections keep their existing lifecycle. Repeated operations
             // create an authority; every later writer must join one that already exists.
             if ((!allowCreate || ++_coordinationDemand < 2) &&
@@ -78,7 +84,7 @@ namespace LiteDB
 #if DEBUG || TESTING
                 CoordinationFallbackReason = error.ToString();
 #endif
-                SharedCoordinationPage.Revoke(_settings.Filename);
+                SharedCoordinationFallback.RevokeIfPresent(_settings.Filename);
                 _coordinationUnavailable = true;
             }
         }
