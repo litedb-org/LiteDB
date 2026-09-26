@@ -68,6 +68,22 @@ internal static class SharedFollowupHarness
             for (var i = 1; ; i++)
                 engine.Update("pin", new[] { new BsonDocument { ["_id"] = 1, ["value"] = i } });
         }
+        else if (mode == "followup-verify-pin")
+        {
+            using var database = new LiteDatabase(engine, disposeOnClose: false);
+            foreach (var name in new[] { "docs", "cold" })
+            {
+                var rows = database.GetCollection(name).FindAll().OrderBy(doc => doc["_id"].AsInt32).ToArray();
+                if (rows.Length != (name == "docs" ? 84 : 64)) throw new Exception("Missing recovered " + name);
+                for (var id = 0; id < 64; id++)
+                    if (rows[id]["_id"].AsInt32 != id || rows[id]["value"].AsInt32 != 0 ||
+                        rows[id]["payload"].AsString != new string('x', 3000))
+                        throw new Exception("Changed seed document " + name + "/" + id);
+                for (var i = 64; i < rows.Length; i++)
+                    if (rows[i]["_id"].AsInt32 != i + 36 || rows[i].Count != 1)
+                        throw new Exception("Changed acknowledged insert " + i);
+            }
+        }
         else throw new ArgumentException(mode);
         Console.WriteLine("done");
         return true;

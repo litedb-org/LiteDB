@@ -66,8 +66,9 @@ namespace LiteDB.Internals
             done.Should().Be("done", "a one-minute pin must yield to the queued writer");
             await waiter.Finish();
             await owner.Kill();
-            using var db = new LiteDatabase(Filename);
-            for (var id = 100; id < 120; id++) Assert.NotNull(db.GetCollection("docs").FindById(id));
+            // Recover in a fresh process through the same Shared coordination protocol,
+            // including its mutex-protected recovery, instead of switching to Direct.
+            await MvccProcess.Run("followup-verify-pin", Filename, null);
         }
 
         public void Dispose()
