@@ -4,13 +4,16 @@ namespace LiteDB
 {
     public partial class SharedEngine
     {
-        private void OpenEngine(bool recoveredAbandonedOwner)
+        private void OpenEngine(bool recoveredAbandonedOwner, bool final = false)
         {
 #if NET8_0_OR_GREATER
-            this.EnsureCoordination();
+            this.EnsureCoordination(allowCreate: !final);
             _coordination?.StructuralBegin();
 #else
             SharedCoordinationFallback.RevokeIfPresent(_settings.Filename);
+#endif
+#if (DEBUG || TESTING) && NET8_0_OR_GREATER
+            this.CoordinationStage?.Invoke("opening");
 #endif
             _engine = this.CreateEngine(recoveredAbandonedOwner);
 #if NET8_0_OR_GREATER

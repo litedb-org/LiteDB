@@ -13,20 +13,28 @@ namespace LiteDB
         private readonly object _snapshotGate = new object();
         private SharedCoordinationPage _coordination;
         private bool _coordinationUnavailable;
+        private int _coordinationDemand;
         private CachedSharedSnapshot _cachedSnapshot;
         private Timer _snapshotIdle;
         private static readonly TimeSpan SnapshotIdle = TimeSpan.FromMilliseconds(100);
 #if DEBUG || TESTING
+        internal TimeSpan CoordinatedIdleLimit { get; set; } = SnapshotIdle;
         internal int CoordinatedReadHits;
         internal string CoordinationFallbackReason;
         internal Action<string> CoordinationStage;
         internal bool UnsafeSkipCoordinationRecheck;
+#else
+        private TimeSpan CoordinatedIdleLimit => SnapshotIdle;
 #endif
 
         // The caller owns the database mutex, so nobody can create a competing authority.
-        private void EnsureCoordination()
+        private void EnsureCoordination(bool allowCreate = true)
         {
             if (_coordination != null) return;
+            // One-shot connections keep their existing lifecycle. Repeated operations
+            // create an authority; every later writer must join one that already exists.
+            if ((!allowCreate || ++_coordinationDemand < 2) &&
+                !SharedCoordinationRevocation.IsRevoked(SharedCoordinationPage.PagePath(_settings.Filename))) return;
             if (_coordinationUnavailable)
             {
                 SharedCoordinationFallback.RevokeIfPresent(_settings.Filename);
@@ -47,8 +55,9 @@ namespace LiteDB
             {
                 // Unknown and remote volumes retain the existing protocol. The first
                 // prototype is deliberately narrow; platform qualification is separate.
-                var drive = DriveInfo.GetDrives().Where(d => _settings.Filename.StartsWith(d.RootDirectory.FullName,
-                    StringComparison.Ordinal)).OrderByDescending(d => d.RootDirectory.FullName.Length).FirstOrDefault();
+                var drive = DriveInfo.GetDrives().Where(d => _settings.Filename.StartsWith(d.RootDirectory.FullName.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar,
+                    System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows)
+                        ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)).OrderByDescending(d => d.RootDirectory.FullName.Length).FirstOrDefault();
                 if (drive == null || drive.DriveType != DriveType.Fixed ||
                     !(new[] { "ext2", "ext3", "ext4", "xfs", "btrfs", "NTFS", "ReFS", "apfs" }).Contains(drive.DriveFormat))
                 {
@@ -221,7 +230,7 @@ namespace LiteDB
                         checkpoint = snapshot.HadStreamingReader;
                         snapshot.HadStreamingReader = false;
                         if (ReferenceEquals(snapshot, _cachedSnapshot))
-                            _snapshotIdle?.Change(SnapshotIdle, Timeout.InfiniteTimeSpan);
+                            _snapshotIdle?.Change(this.CoordinatedIdleLimit, Timeout.InfiniteTimeSpan);
                         if (snapshot.Retired) snapshot.Close();
                         if (_cachedSnapshot == null) { _snapshotIdle?.Dispose(); _snapshotIdle = null; }
                     }
@@ -240,7 +249,7 @@ namespace LiteDB
             {
                 var snapshot = _cachedSnapshot;
                 if (snapshot == null || snapshot.Readers != 0) return;
-                var remaining = SnapshotIdle.TotalMilliseconds - (Environment.TickCount64 - snapshot.LastUse);
+                var remaining = this.CoordinatedIdleLimit.TotalMilliseconds - (Environment.TickCount64 - snapshot.LastUse);
                 if (remaining > 0)
                 {
                     _snapshotIdle?.Change(TimeSpan.FromMilliseconds(remaining), Timeout.InfiniteTimeSpan);

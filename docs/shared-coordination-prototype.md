@@ -66,3 +66,14 @@ interleavings, OS lifetime tests, and architecture/runtime validation remain gat
 The native cache-admission negative control checkpoints between the initial
 status read and lease publication: validation falls back successfully; bypassing
 validation reads a reclaimed WAL address and fails the otherwise valid query.
+
+Subsequent audit changes (pending final qualification): ordinary one-shot
+connections no longer create control files; the second regular operation may
+create them, and final-close cleanup never creates an otherwise absent authority.
+Every participant still joins an existing authority before writing. Revocation
+checks use native existence errors so missing markers do not allocate exceptions;
+access/IO failures fail closed. Windows requires the parent's qualified shared
+handle support so idle snapshots cannot prevent WAL deletion or rebuild rename.
+The mapping owns and finalizes its acquired pointer reference, including partial
+construction, independently of whether the connection was explicitly disposed.
+Idle expiration performs no checkpoint or other durable work.

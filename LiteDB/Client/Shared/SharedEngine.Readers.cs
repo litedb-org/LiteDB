@@ -269,7 +269,7 @@ namespace LiteDB
         /// <summary>Open an engine only to close it with its checkpoint. The caller owns the mutex.</summary>
         private void CloseFinally()
         {
-            this.OpenEngine(false);
+            this.OpenEngine(false, final: true);
             var engine = _engine;
             _engine = null;
             engine.Close(final: true);

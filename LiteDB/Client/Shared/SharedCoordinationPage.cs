@@ -16,7 +16,7 @@ namespace LiteDB.Client.Shared
     {
         private const int Size = 4096;
         private const long Magic = SharedCoordinationFallback.Magic;
-        private readonly string _filename;
+        private readonly string _revocationPath;
         private readonly FileStream _participation;
         private readonly MemoryMappedFile _map;
         private readonly MemoryMappedViewAccessor _view;
@@ -25,26 +25,30 @@ namespace LiteDB.Client.Shared
         private int _depth;
         private bool _trusted;
         private bool _disposed;
+        private bool _pointerAcquired;
 
         private SharedCoordinationPage(string filename, FileStream participation, FileStream file)
         {
-            _filename = filename;
+            _revocationPath = DisabledPath(filename);
             _participation = participation;
             _map = MemoryMappedFile.CreateFromFile(file, null, Size, MemoryMappedFileAccess.ReadWrite,
                 HandleInheritability.None, leaveOpen: false);
-            var acquired = false;
             try
             {
                 _view = _map.CreateViewAccessor(0, Size, MemoryMappedFileAccess.ReadWrite);
                 byte* address = null;
                 _view.SafeMemoryMappedViewHandle.AcquirePointer(ref address);
-                acquired = true;
+                _pointerAcquired = true;
                 _fields = (long*)(address + _view.PointerOffset);
                 if (((long)_fields & 7) != 0) throw new IOException("Unaligned Shared status page.");
             }
             catch
             {
-                if (acquired) _view.SafeMemoryMappedViewHandle.ReleasePointer();
+                if (_pointerAcquired)
+                {
+                    _view.SafeMemoryMappedViewHandle.ReleasePointer();
+                    _pointerAcquired = false;
+                }
                 _view?.Dispose();
                 _map.Dispose();
                 throw;
@@ -104,14 +108,7 @@ namespace LiteDB.Client.Shared
         /// </summary>
         internal static void Revoke(string filename) => SharedCoordinationFallback.Revoke(filename);
 
-        private bool Revoked()
-        {
-            try { File.GetAttributes(DisabledPath(_filename)); return true; }
-            catch (FileNotFoundException) { return false; }
-            catch (DirectoryNotFoundException) { return true; }
-            catch (IOException) { return true; }
-            catch (UnauthorizedAccessException) { return true; }
-        }
+        private bool Revoked() => SharedCoordinationRevocation.IsRevoked(_revocationPath);
 
         internal bool TryRead(out SharedCoordinationStatus status)
         {
@@ -202,19 +199,28 @@ namespace LiteDB.Client.Shared
         private void Store(int field, long value) => Interlocked.Exchange(ref _fields[field], value);
         private static long NewIdentity() => BitConverter.ToInt64(Guid.NewGuid().ToByteArray(), 0) | 1;
 
+        // AcquirePointer owns an extra SafeHandle reference. FileStream/view finalizers
+        // cannot release it for us when a caller forgets to dispose the connection.
+        ~SharedCoordinationPage() { this.Dispose(); }
+
         public void Dispose()
         {
             lock (_writeLock) this.Close();
+            GC.SuppressFinalize(this);
         }
 
         private void Close()
         {
             if (_disposed) return;
             _disposed = true;
-            _view.SafeMemoryMappedViewHandle.ReleasePointer();
-            _view.Dispose();
-            _map.Dispose();
-            _participation.Dispose();
+            if (_pointerAcquired)
+            {
+                _view.SafeMemoryMappedViewHandle.ReleasePointer();
+                _pointerAcquired = false;
+            }
+            _view?.Dispose();
+            _map?.Dispose();
+            _participation?.Dispose();
         }
 
         /// <summary>Called under the database mutex, only after disposing this participant.</summary>

@@ -12,6 +12,22 @@ namespace LiteDB.Tests.Engine
 {
     public class SharedCoordinatedLifecycle_Tests
     {
+        [Fact]
+        public void One_shot_read_does_not_create_coordination_files()
+        {
+            WithFile(file =>
+            {
+                using (var seed = new LiteDatabase(file))
+                    seed.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1 });
+                using (var database = new LiteDatabase(new ConnectionString { Filename = file, Connection = ConnectionType.Shared }))
+                {
+                    database.GetCollection("rows").FindById(1)["_id"].AsInt32.Should().Be(1);
+                    File.Exists(SharedCoordinationPage.PagePath(file)).Should().BeFalse();
+                }
+                File.Exists(SharedCoordinationPage.PagePath(file)).Should().BeFalse();
+            });
+        }
+
         [Theory]
         [InlineData("cached-status")]
         [InlineData("lease-published")]
@@ -29,6 +45,7 @@ namespace LiteDB.Tests.Engine
                     rows.EnsureIndex("key");
                     writer.Checkpoint();
                     reader.GetCollection("rows").FindById(0)["key"].AsInt32.Should().Be(40);
+                    reader.GetCollection("rows").FindById(0)["key"].AsInt32.Should().Be(40);
                     engine.MutexOwner.WaitForRelease();
                     var transitions = 0;
                     engine.CoordinationStage = stage =>
@@ -45,7 +62,7 @@ namespace LiteDB.Tests.Engine
                     actual["key"].AsInt32.Should().Be(1);
                     actual["payload"].AsString.Should().Be(new string('r', 4000));
                     transitions.Should().Be(1);
-                    reader.GetCollection("rows").Query().OrderBy("key").Select("_id").ToArray()
+                    reader.GetCollection("rows").Query().OrderBy("key").ToArray()
                         .Select(row => row["_id"].AsInt32).Should().Equal(Enumerable.Range(0, 40).Reverse());
                 }
             });

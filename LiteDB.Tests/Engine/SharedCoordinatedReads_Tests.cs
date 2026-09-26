@@ -19,12 +19,13 @@ namespace LiteDB.Tests.Engine
             WithFile(file =>
             {
                 using (var writer = new LiteDatabase(new ConnectionString { Filename = file, Connection = ConnectionType.Shared }))
-                using (var engine = new SharedEngine(new EngineSettings { Filename = file }))
+                using (var engine = new SharedEngine(new EngineSettings { Filename = file }) { CoordinatedIdleLimit = TimeSpan.FromMinutes(1) })
                 using (var reader = new LiteDatabase(engine))
                 {
                     writer.CheckpointSize = 0;
                     writer.GetCollection("rows").InsertBulk(Enumerable.Range(0, 40).Select(id =>
                         new BsonDocument { ["_id"] = id, ["value"] = id * 13, ["payload"] = new string('p', 4000) }));
+                    reader.GetCollection("rows").FindById(0)["value"].AsInt32.Should().Be(0);
                     reader.GetCollection("rows").FindById(0)["value"].AsInt32.Should().Be(0);
                     engine.MutexOwner.WaitForRelease();
                     var transitions = 0;
@@ -55,7 +56,7 @@ namespace LiteDB.Tests.Engine
             WithFile(file =>
             {
                 using (var writer = new LiteDatabase(new ConnectionString { Filename = file, Connection = ConnectionType.Shared }))
-                using (var engine = new SharedEngine(new EngineSettings { Filename = file }))
+                using (var engine = new SharedEngine(new EngineSettings { Filename = file }) { CoordinatedIdleLimit = TimeSpan.FromMinutes(1) })
                 using (var reader = new LiteDatabase(engine))
                 {
                     var rows = writer.GetCollection("rows");
@@ -84,7 +85,7 @@ namespace LiteDB.Tests.Engine
             WithFile(file =>
             {
                 using (var writer = new LiteDatabase(new ConnectionString { Filename = file, Connection = ConnectionType.Shared }))
-                using (var engine = new SharedEngine(new EngineSettings { Filename = file }))
+                using (var engine = new SharedEngine(new EngineSettings { Filename = file }) { CoordinatedIdleLimit = TimeSpan.FromMinutes(1) })
                 using (var reader = new LiteDatabase(engine))
                 {
                     var rows = writer.GetCollection("rows");

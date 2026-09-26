@@ -1,6 +1,7 @@
 #if NET8_0_OR_GREATER
 using System;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using FluentAssertions;
 using LiteDB.Client.Shared;
@@ -10,6 +11,43 @@ namespace LiteDB.Tests.Engine
 {
     public class SharedCoordinationPage_Tests
     {
+        [Fact]
+        public void Forgotten_mapping_releases_pointer_and_participation_handle_on_collection()
+        {
+            WithFile(file =>
+            {
+                var weak = AbandonMapping(file);
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                GC.Collect();
+                weak.IsAlive.Should().BeFalse();
+                SharedCoordinationPage.TryRetire(file);
+                File.Exists(SharedCoordinationPage.PagePath(file)).Should().BeFalse();
+            });
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static WeakReference AbandonMapping(string file)
+        {
+            var page = SharedCoordinationPage.Open(file);
+            page.Opened(0);
+            return new WeakReference(page);
+        }
+
+        [Fact]
+        public void Revocation_probe_distinguishes_missing_present_and_unresolvable_paths()
+        {
+            WithFile(file =>
+            {
+                SharedCoordinationRevocation.IsRevoked(file).Should().BeFalse();
+                File.WriteAllBytes(file, new byte[] { 1 });
+                SharedCoordinationRevocation.IsRevoked(file).Should().BeTrue();
+                // A file used as a parent component is not a missing marker: resolving
+                // the supposed marker failed, so admission must be refused.
+                SharedCoordinationRevocation.IsRevoked(Path.Combine(file, "marker")).Should().BeTrue();
+            });
+        }
+
         [Fact]
         public void New_participant_requires_a_protected_open_and_observes_every_published_fence()
         {
