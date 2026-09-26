@@ -226,7 +226,7 @@ namespace LiteDB.Engine
         }
 
         private void RestoreIndex(ref HeaderPage header, WalRecovery recovery, IEnumerable<PageBuffer> pages,
-            Action<HeaderPage> validateHeader)
+            Action<HeaderPage> validateHeader, bool restoreFreeSlots = true)
         {
             var positions = new Dictionary<long, List<PagePosition>>();
             if (_disk.ChecksumsEnabled) pages = recovery.Read(pages);
@@ -289,9 +289,12 @@ namespace LiteDB.Engine
                 validateHeader?.Invoke(header);
                 _disk.FinishWalRecovery(recovery);
                 this.RecordScan(recovery, positions.Values);
-                var occupied = new HashSet<long>(_index.Values.SelectMany(x => x).Select(x => x.Value));
-                foreach (var position in _disk.Retirement.Slots.Keys)
-                    if (!occupied.Contains(position)) _disk.RegisterFreeLogPosition(position);
+                if (restoreFreeSlots)
+                {
+                    var occupied = new HashSet<long>(_index.Values.SelectMany(x => x).Select(x => x.Value));
+                    foreach (var position in _disk.Retirement.Slots.Keys)
+                        if (!occupied.Contains(position)) _disk.RegisterFreeLogPosition(position);
+                }
             }
         }
 

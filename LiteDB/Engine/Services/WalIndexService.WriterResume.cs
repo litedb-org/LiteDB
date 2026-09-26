@@ -49,8 +49,14 @@ namespace LiteDB.Engine
             // may follow the last confirmation in the unchanged prefix.
             // Fresh recovery validates every appended transaction and handles torn tails
             // using exactly the same logic as a full open, including all observed IDs.
+            // The live query index keeps the final image of each transaction page.
+            // Intermediate committed safepoints still contribute to its checksum,
+            // even when an older incarnation of that slot has a retirement witness.
+            // Preserve the captured allocator: deriving free slots from this smaller
+            // index would wrongly free those still-unwitnessed committed frames.
+            // Unchanged storage fences prove no prefix capacity changed externally.
             RestoreIndex(ref header, new WalRecovery(saved.Sequence, saved.End),
-                _disk.ReadLogFrom(saved.End), validateHeader);
+                _disk.ReadLogFrom(saved.End), validateHeader, restoreFreeSlots: false);
             return true;
         }
     }
