@@ -10,7 +10,7 @@ internal sealed record FuzzCorpusFile(int SchemaVersion, FuzzCorpusCase[] Cases)
 
 internal static class FuzzCorpus
 {
-    private const int MaximumRetainedCasesPerTarget = 8;
+    internal const int MaximumRetainedCasesPerTarget = 8;
 
     internal static IReadOnlyList<FuzzCorpusCase> Load()
     {

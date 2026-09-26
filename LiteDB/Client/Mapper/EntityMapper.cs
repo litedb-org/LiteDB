@@ -64,6 +64,8 @@ namespace LiteDB
             return this.Members.FirstOrDefault(x => x.MemberName == expr.GetPath());
         }
 
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2075",
+            Justification = AotCompatibility.RuntimeModelMapping)]
         internal MemberMapper FindMember(MemberInfo member)
         {
             if (!this.ForType.IsInterface) return this.Members.FirstOrDefault(x => x.MemberName == member.Name);

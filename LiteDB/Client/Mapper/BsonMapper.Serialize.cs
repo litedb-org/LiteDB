@@ -12,6 +12,7 @@ namespace LiteDB
         /// <summary>
         /// Serialize a entity class to BsonDocument
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         public virtual BsonDocument ToDocument(Type type, object entity)
         {
             if (entity == null) throw new ArgumentNullException(nameof(entity));
@@ -30,6 +31,7 @@ namespace LiteDB
         /// <summary>
         /// Serialize a entity class to BsonDocument
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         public virtual BsonDocument ToDocument<T>(T entity)
         {
             return this.ToDocument(typeof(T), entity)?.AsDocument;
@@ -38,6 +40,7 @@ namespace LiteDB
         /// <summary>
         /// Serialize to BsonValue any .NET object based on T type (using mapping rules)
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         public BsonValue Serialize<T>(T obj)
         {
             return this.Serialize(typeof(T), obj, 0);
@@ -46,6 +49,7 @@ namespace LiteDB
         /// <summary>
         /// Serialize to BsonValue any .NET object based on type parameter (using mapping rules)
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         public BsonValue Serialize(Type type, object obj)
         {
             return this.Serialize(type, obj, 0);
@@ -54,6 +58,7 @@ namespace LiteDB
         /// <summary>
         /// Serialize a value using its declared type and current nesting depth.
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         public virtual BsonValue Serialize(Type type, object obj, int depth)
         {
             if (++depth > MaxDepth) throw LiteException.DocumentMaxDepth(MaxDepth, type);
@@ -169,6 +174,7 @@ namespace LiteDB
         /// <summary>
         /// Resolve the item type while retaining the declared collection contract.
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         protected virtual Type GetListItemType(Type type, object value)
         {
             return Reflection.GetListItemType(type);
@@ -177,6 +183,7 @@ namespace LiteDB
         /// <summary>
         /// Serialize the items in an enumerable value.
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         protected virtual BsonArray SerializeArray(Type type, IEnumerable array, int depth)
         {
             BsonArray bsonArray = [];
@@ -209,6 +216,7 @@ namespace LiteDB
         /// <summary>
         /// Serialize dictionary keys and values using their declared types.
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         protected virtual BsonDocument SerializeDictionary(Type keyType, Type valueType, IDictionary dict, int depth)
         {
             BsonDocument bsonDocument = [];
@@ -262,6 +270,7 @@ namespace LiteDB
         /// <summary>
         /// Serialize the mapped members of an object. The default returns null for runtime metadata and delegates.
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         protected virtual BsonDocument SerializeObject(Type type, object obj, int depth)
         {
             if (obj is Delegate || obj is MemberInfo) return null;

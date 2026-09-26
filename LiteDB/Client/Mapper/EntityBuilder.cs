@@ -10,6 +10,7 @@ namespace LiteDB
     /// <summary>
     /// Helper class to modify your entity mapping to document. Can be used instead attribute decorates
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
     public class EntityBuilder<T>
     {
         private readonly BsonMapper _mapper;
@@ -30,6 +31,7 @@ namespace LiteDB
         {
             return this.GetMember(member, (p) =>
             {
+                _mapper.RecordCustomEntityConfiguration();
                 _entity.WaitForInitialization();
                 _entity.Members.Remove(p);
                 _entity.IgnoredMembers.Add(p.MemberName);
@@ -45,6 +47,7 @@ namespace LiteDB
 
             return this.GetMember(member, (p) =>
             {
+                _mapper.RecordCustomEntityConfiguration();
                 p.FieldName = field;
             });
         }
@@ -56,6 +59,7 @@ namespace LiteDB
         {
             return this.GetMember(member, (p) =>
             {
+                _mapper.RecordCustomEntityConfiguration();
                 _entity.WaitForInitialization();
                 
                 // if contains another _id, remove-it
@@ -79,6 +83,7 @@ namespace LiteDB
         /// </summary>
         public EntityBuilder<T> Ctor(Func<BsonDocument, T> createInstance)
         {
+            _mapper.RecordCustomEntityConfiguration();
             _entity.WaitForInitialization();
             _entity.CreateInstance = v => createInstance(v);
             _entity.PopulateMembers = true;
@@ -101,11 +106,13 @@ namespace LiteDB
         /// <summary>
         /// Define a subdocument (or a list of) as a reference
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeCollectionNameResolution)]
         public EntityBuilder<T> DbRef<K>(Expression<Func<T, K>> member, string collection = null)
         {
             return this.GetMember(member, (p) =>
             {
-                BsonMapper.RegisterDbRef(_mapper, p, _typeNameBinder, collection ?? _mapper.ResolveCollectionName(typeof(K)));
+                _mapper.RecordCustomEntityConfiguration();
+                BsonMapper.RegisterDbRef(_mapper, p, _typeNameBinder, collection ?? _mapper.GetCollectionName(typeof(K)));
             });
         }
 

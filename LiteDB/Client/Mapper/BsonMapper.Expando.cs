@@ -5,6 +5,7 @@ namespace LiteDB
 {
     public partial class BsonMapper
     {
+        [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         private BsonDocument SerializeExpando(ExpandoObject expando, int depth)
         {
             var document = new BsonDocument();

@@ -25,13 +25,11 @@ namespace LiteDB
                 Visit(expression.Expression);
                 if (expression.IsScalar)
                 {
-                    expression._funcScalar = System.Linq.Expressions.Expression.Lambda<BsonExpressionScalarDelegate>(
-                        expression.Expression, context.Source, context.Root, context.Current, context.Collation, context.Parameters).Compile();
+                    expression._funcScalar = BsonExpressionCompiler.CompileScalar(expression.Expression, context);
                 }
                 else
                 {
-                    expression._funcEnumerable = System.Linq.Expressions.Expression.Lambda<BsonExpressionEnumerableDelegate>(
-                        expression.Expression, context.Source, context.Root, context.Current, context.Collation, context.Parameters).Compile();
+                    expression._funcEnumerable = BsonExpressionCompiler.CompileEnumerable(expression.Expression, context);
                 }
                 expression._selectAliasCompiled = true;
             }

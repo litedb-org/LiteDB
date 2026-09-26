@@ -5,7 +5,7 @@ using static LiteDB.Constants;
 
 namespace LiteDB
 {
-    public partial class LiteFileStream<TFileId> : Stream
+    public partial class LiteFileStream<[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(AotCompatibility.FileIdMembers)] TFileId> : Stream
     {
         /// <summary>
         /// Number of bytes on each chunk document to store

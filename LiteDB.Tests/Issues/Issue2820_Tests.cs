@@ -276,8 +276,7 @@ namespace LiteDB.Tests.Issues
 
         private static byte[] LoadResource(string filename)
         {
-            var path = Path.GetFullPath(Path.Combine(
-                AppContext.BaseDirectory, "..", "..", "..", "Resources", filename));
+            var path = TestResource.GetPath(filename);
             File.Exists(path).Should().BeTrue("the repository fixture must exist at {0}", path);
             return File.ReadAllBytes(path);
         }

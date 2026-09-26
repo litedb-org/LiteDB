@@ -25,7 +25,9 @@ while redundant `input.bin`, input-offset, and transient database files are remo
 hung runs always retain their exact recorded input and database state.
 Novel state signatures and their replayable seeds are retained in
 `interesting.jsonl`; the parent runner deduplicates them across isolated target
-processes into `interesting-corpus.jsonl`. Existing entries are preserved and
+processes into `interesting-corpus.jsonl`, keeping at most eight target/seed
+prefixes per target before hashing traces or copying input. This is the same bound
+used when replaying the corpus. Selected existing entries are preserved and
 replayed automatically on the next campaign using the same artifact root, so
 new semantic coverage feeds future runs rather than being report-only. Retained
 entries keep the longest interesting prefix for each target/seed together with

@@ -6,6 +6,10 @@ namespace LiteDB
 {
     internal static class DictionaryResolver
     {
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2075",
+            Justification = "The declaring type and dictionary contract methods are already referenced by the query expression being translated.")]
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2072",
+            Justification = "The declaring type and dictionary contract methods are already referenced by the query expression being translated.")]
         public static bool IsContainsKey(MethodInfo method)
         {
             var parameters = method.GetParameters();

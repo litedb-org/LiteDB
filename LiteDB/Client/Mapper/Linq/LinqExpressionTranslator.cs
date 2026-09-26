@@ -10,6 +10,7 @@ namespace LiteDB
     internal sealed partial class LinqExpressionTranslator
     {
         private readonly BsonMapper _mapper;
+        private readonly bool _useGeneratedMappers;
         private readonly LambdaExpression _expression;
         private readonly ParameterExpression _root;
         private readonly BsonDocument _parameters = new BsonDocument();
@@ -22,9 +23,10 @@ namespace LiteDB
         internal List<Expression> Bindings { get; }
         internal List<LinqMemberGuard> MemberGuards { get; }
 
-        internal LinqExpressionTranslator(BsonMapper mapper, Expression expression, bool recordBindings = false)
+        internal LinqExpressionTranslator(BsonMapper mapper, Expression expression, bool recordBindings = false, bool useGeneratedMappers = false)
         {
             _mapper = mapper;
+            _useGeneratedMappers = useGeneratedMappers;
             var lambda = expression as LambdaExpression ??
                 throw new NotSupportedException($"Expression {expression} must be a lambda expression");
             _expression = (LambdaExpression)new InvocationExpander().Visit(lambda);
@@ -362,12 +364,16 @@ namespace LiteDB
             return result;
         }
 
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026",
+            Justification = "Generated and BsonDocument queries use SerializeGeneratedConstant; runtime serialization is reached only through annotated typed LINQ APIs.")]
         private BsonExpression Bind(object value, Expression origin = null)
         {
             Bindings?.Add(origin);
             var name = "p" + _parameterIndex++;
             _parameters[name] = value == null ? BsonValue.Null : value is BsonValue bson ? bson :
-                value is string text ? new BsonValue(text) : _mapper.Serialize(value.GetType(), value);
+                value is string text ? new BsonValue(text) :
+                _useGeneratedMappers || _root.Type == typeof(BsonDocument) ? _mapper.SerializeGeneratedConstant(value) :
+                _mapper.Serialize(value.GetType(), value);
             return Parameter(name, _context, _parameters);
         }
 

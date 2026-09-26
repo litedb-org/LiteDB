@@ -58,13 +58,13 @@ namespace LiteDB
         {
             if (field == null) throw new ArgumentNullException(nameof(field));
 
-            var fieldExpr = _mapper.GetExpression(field);
+            var fieldExpr = this.GetExpression(field);
             return this.VectorWhereNear(fieldExpr, target, maxDistance);
         }
 
         internal ILiteQueryableResult<T> VectorTopKNear<K>(Expression<Func<T, K>> field, float[] target, int k)
         {
-            var fieldExpr = _mapper.GetExpression(field);
+            var fieldExpr = this.GetExpression(field);
             return this.VectorTopKNear(fieldExpr, target, k);
         }
 
@@ -180,6 +180,8 @@ namespace LiteDB
 
         private IEnumerable<VectorSearchResult<T>> ReadVectorResults(Query query)
         {
+            if (_deserialize is null) this.EnsureRuntimeMappingAllowed();
+
             using (var reader = _engine.Query(_collection, query))
             {
                 while (reader.Read())
@@ -188,8 +190,11 @@ namespace LiteDB
                     var projected = result["Document"].AsDocument;
                     projected.IsProjectionValue = result.IsProjectionValue;
                     var value = _isSimpleType ? projected[projected.Keys.First()] : projected;
-                    var document = _isSimpleType || typeof(T) == typeof(BsonDocument)
-                        ? (T)_mapper.Deserialize(typeof(T), value) : _mapper.ToObject<T>(projected);
+                    var document = _deserialize is not null
+                        ? _deserialize(projected)
+                        : _isSimpleType || typeof(T) == typeof(BsonDocument)
+                            ? (T)_mapper.Deserialize(typeof(T), value)
+                            : _mapper.ToObject<T>(projected);
                     yield return new VectorSearchResult<T>(document,
                         result["Score"].IsNull ? (double?)null : result["Score"].AsDouble,
                         (VectorDistanceMetric)result["Metric"].AsInt32);

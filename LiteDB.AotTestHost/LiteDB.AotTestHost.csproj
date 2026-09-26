@@ -1,0 +1,73 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+  Compiles the sources of LiteDB.Tests into a console application and runs them with a small reflection-based
+  xunit runner, so the existing test suite can execute as a Native AOT binary. No test framework runs xunit v2
+  tests under Native AOT, and the point is to reuse the suite as it is, not to maintain a second one.
+  scripts/validate-aot-test-suite.sh publishes this project regular and as Native AOT and compares per-test outcomes.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <HostTargetFramework Condition="'$(HostTargetFramework)' == ''">net8.0</HostTargetFramework>
+    <TargetFramework>$(HostTargetFramework)</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <!-- LiteDB grants InternalsVisibleTo to "LiteDB.Tests", and the tests read embedded resources by that name. -->
+    <AssemblyName>LiteDB.Tests</AssemblyName>
+    <RootNamespace>LiteDB.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <DefineConstants>$(DefineConstants);TESTING</DefineConstants>
+    <PublishAot>true</PublishAot>
+    <!--
+    The tests deliberately call the runtime-mapping APIs that carry RequiresUnreferencedCode, and the assertion
+    library is not trim-annotated. Diagnostics in test code are expected here; LiteDB's own diagnostics are
+    gated by LiteDB.csproj and by scripts/validate-aot-feature-parity.sh.
+    -->
+    <NoWarn>$(NoWarn);1701;1702;1705;1591;0618;IL2026;IL2046;IL2057;IL2060;IL2067;IL2070;IL2072;IL2075;IL2090;IL2091;IL2104;IL3050;IL3051;IL3053;xUnit1004;xUnit1013;xUnit1026;xUnit2013</NoWarn>
+    <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <IlcGenerateStackTraceData>true</IlcGenerateStackTraceData>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\LiteDB.Tests\**\*.cs" Exclude="..\LiteDB.Tests\bin\**;..\LiteDB.Tests\obj\**" LinkBase="Tests" />
+    <EmbeddedResource Include="..\LiteDB.Tests\Resources\person.json" LogicalName="LiteDB.Tests.Resources.person.json" />
+    <EmbeddedResource Include="..\LiteDB.Tests\Resources\zip.json" LogicalName="LiteDB.Tests.Resources.zip.json" />
+    <EmbeddedResource Include="..\LiteDB.Tests\Resources\IndexMigration_5_0_21.zip" LogicalName="LiteDB.Tests.Resources.IndexMigration_5_0_21.zip" />
+    <EmbeddedResource Include="..\LiteDB.Tests\Resources\IndexMigrationLegacyKeys_5_0_21.zip" LogicalName="LiteDB.Tests.Resources.IndexMigrationLegacyKeys_5_0_21.zip" />
+    <None Include="..\LiteDB.Tests\Resources\**\*" Exclude="..\LiteDB.Tests\Resources\person.json;..\LiteDB.Tests\Resources\zip.json" Link="Resources\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- The test assembly is the application: keep every test class, model, and member the runner reflects over. -->
+  <ItemGroup>
+    <TrimmerRootAssembly Include="LiteDB.Tests" />
+    <!-- This reflection-based test host needs assertion and library metadata. Real
+         consumer trimming remains independently gated by the feature-parity app. -->
+    <TrimmerRootAssembly Include="LiteDB" />
+    <RdXmlFile Include="TestRoots.rd.xml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FluentAssertions" Version="6.12.2" />
+    <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
+    <PackageReference Include="System.Text.Json" Version="9.0.9" />
+    <PackageReference Include="xunit.abstractions" Version="2.0.3" />
+    <PackageReference Include="xunit.assert" Version="2.9.2" />
+    <PackageReference Include="xunit.extensibility.core" Version="2.9.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LiteDB\LiteDB.csproj" AdditionalProperties="TestingEnabled=true" />
+  </ItemGroup>
+  <Target Name="PublishMvccProbe" AfterTargets="Publish">
+    <MSBuild Projects="../LiteDB.Tests.SharedMutexHarness/SharedMutexHarness.csproj"
+             Targets="Restore;Build"
+             Properties="Configuration=$(Configuration);TestingEnabled=true;RuntimeIdentifier=;SelfContained=false;PublishAot=false;PublishTrimmed=false"
+             RemoveProperties="TargetFramework;HostTargetFramework" />
+    <ItemGroup>
+      <MvccProbeFiles Include="$(MSBuildProjectDirectory)/../LiteDB.Tests.SharedMutexHarness/bin/$(Configuration)/net8.0/*" />
+    </ItemGroup>
+    <Error Condition="'@(MvccProbeFiles)' == ''" Text="MVCC probe output not found." />
+    <Copy SourceFiles="@(MvccProbeFiles)" DestinationFolder="$(PublishDir)mvcc-probe" />
+  </Target>
+</Project>
