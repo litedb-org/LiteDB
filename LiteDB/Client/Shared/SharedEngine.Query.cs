@@ -337,6 +337,7 @@ namespace LiteDB
             LiteEngine snapshot;
             try
             {
+                RebuildRecovery.EnsureAvailable(_settings);
 #if NET8_0_OR_GREATER
                 this.EnsureCoordination();
 #endif

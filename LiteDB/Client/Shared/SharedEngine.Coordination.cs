@@ -12,6 +12,7 @@ namespace LiteDB
 
         private void OpenEngine(bool recoveredAbandonedOwner, bool final = false)
         {
+            LiteDB.Engine.RebuildRecovery.EnsureAvailable(_settings);
 #if NET8_0_OR_GREATER
             this.EnsureCoordination(allowCreate: !final);
             this.PrepareWriterResume(recoveredAbandonedOwner);
