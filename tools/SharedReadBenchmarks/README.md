@@ -157,7 +157,10 @@ process checks the acknowledged final generation through scans and the secondary
 index. Five alternating pairs use synchronized 10-second warmup and measurement
 intervals. `--smoke` is only a short harness check. Reports separate read/write
 counts and include latency, CPU, allocations, close/idle resources and sampled
-WAL peaks. Summed process RSS double-counts shared mappings. Failed files and
+WAL peaks. The Python controller samples WAL size every 10 ms outside the measured
+.NET processes and reports its sampling CPU separately; the timed operation does
+not inspect the filesystem for benchmark bookkeeping. Peaks remain sampled lower
+bounds. Summed process RSS double-counts shared mappings. Failed files and
 child diagnostics are retained. This scenario's explicit checkpoint timings do
 not count implicit engine-close checkpoints; engine replay/admission counters
 require separate diagnostic runs.

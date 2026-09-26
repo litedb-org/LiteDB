@@ -69,13 +69,6 @@ internal static class ReaderContentionBenchmarks
         var warmupCount = 0;
         var checkpointCount = 0;
         var checkpointMs = 0.0;
-        var wal = Path.Combine(Path.GetDirectoryName(filename), Path.GetFileNameWithoutExtension(filename) + "-log.db");
-        long WalBytes()
-        {
-            try { return new FileInfo(wal).Length; }
-            catch (FileNotFoundException) { return 0; }
-        }
-        long peakWal = 0;
         void Operation()
         {
             if (role == "writer" || role == "checkpoint")
@@ -112,7 +105,6 @@ internal static class ReaderContentionBenchmarks
                 if (observed < minimum) throw new InvalidOperationException("Snapshot moved backwards");
                 minimum = observed;
             }
-            peakWal = Math.Max(peakWal, WalBytes());
         }
         while (clock.Elapsed.TotalMilliseconds < warmupMs) { Operation(); warmupCount++; }
         checkpointCount = 0;
@@ -149,7 +141,7 @@ internal static class ReaderContentionBenchmarks
             activeMs, activeCpuMs, activeAllocated, lifecycleCpuMs, lifecycleAllocated,
             meanMs = samples.Average(), p50Ms = Percentile(.5), p95Ms = Percentile(.95), p99Ms = Percentile(.99),
             worstMs = samples.Last(), chronologicalWindows, checkpointCount, checkpointMs,
-            closeMs = close.Elapsed.TotalMilliseconds, sampledPeakWalBytes = peakWal,
+            closeMs = close.Elapsed.TotalMilliseconds,
             peakWorkingSetBytes = process.PeakWorkingSet64, idleWorkingSetBytes = process.WorkingSet64,
             idleThreads = process.Threads.Count, idleHandles = process.HandleCount, retainedManagedBytes = GC.GetTotalMemory(false),
             runtime = RuntimeInformation.FrameworkDescription, os = RuntimeInformation.OSDescription,

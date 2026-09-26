@@ -9,6 +9,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import threading
 import time
 
 parser = argparse.ArgumentParser(description=__doc__)
@@ -40,10 +41,27 @@ with args.output.open('x') as output:
                                       started=time.time(), TMPDIR=env['TMPDIR'], results=[], commands=[],
                                       librarySha256=hashlib.sha256((runner.parent/'LiteDB.dll').read_bytes()).hexdigest())
                         children = []
+                        sampling_done = threading.Event()
+                        sampling = None
+                        def sample_wal():
+                            # Run in the controller, outside every measured .NET process.
+                            started_cpu = time.thread_time()
+                            peak, count = 0, 0
+                            wal = directory / 'test-log.db'
+                            while not sampling_done.wait(.01):
+                                try:
+                                    peak = max(peak, wal.stat().st_size)
+                                except FileNotFoundError:
+                                    pass
+                                count += 1
+                            record['walSampling'] = dict(peakBytes=peak, count=count, intervalMs=10,
+                                                        controllerCpuMs=(time.thread_time() - started_cpu) * 1000)
                         try:
                             seed = ['dotnet', str(runner), 'read-contention-seed', str(database)]
                             record['commands'].append(seed)
                             subprocess.run(seed, env=env, text=True, capture_output=True, check=True, timeout=30)
+                            sampling = threading.Thread(target=sample_wal, daemon=True)
+                            sampling.start()
                             roles = [scenario] * readers + ([] if activity == 'idle' else [activity])
                             for worker, role in enumerate(roles):
                                 command = ['dotnet', str(runner), 'read-contention', str(database), str(worker), role,
@@ -75,12 +93,20 @@ with args.output.open('x') as output:
                             if record['endWalBytes']:
                                 raise RuntimeError('Final close left WAL content')
                             record['passed'] = True
+                            sampling_done.set()
+                            sampling.join()
                             shutil.rmtree(directory)
                         except Exception as error:
                             record['error'] = str(error)
+                            if isinstance(error, subprocess.CalledProcessError):
+                                record['stderr'] = error.stderr
+                                record['stdout'] = error.stdout
                             record['retainedDirectory'] = str(directory)
                             raise
                         finally:
+                            sampling_done.set()
+                            if sampling is not None:
+                                sampling.join()
                             for index, child in enumerate(children):
                                 if child.poll() is None:
                                     child.kill()
