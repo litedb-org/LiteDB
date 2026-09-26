@@ -23,6 +23,7 @@ namespace LiteDB
         internal bool HasCachedSnapshot { get { lock (_snapshotGate) return _cachedSnapshot != null; } }
         internal int CoordinatedReadHits;
         internal string CoordinationFallbackReason;
+        internal System.Runtime.InteropServices.Architecture? CoordinationArchitectureOverride;
         internal Action<string> CoordinationStage;
         internal bool UnsafeSkipCoordinationRecheck;
 #else
@@ -41,7 +42,7 @@ namespace LiteDB
         }
 
         // The caller owns the database mutex, so nobody can create a competing authority.
-        private void EnsureCoordination(bool allowCreate = true)
+        private void EnsureCoordination(bool allowCreate = true, bool writing = false)
         {
             if (_coordination != null) return;
             if (!SharedCoordinationFallback.SupportsNames(_settings.Filename))
@@ -55,7 +56,22 @@ namespace LiteDB
                 !SharedCoordinationRevocation.IsRevoked(SharedCoordinationPage.PagePath(_settings.Filename))) return;
             if (_coordinationUnavailable)
             {
-                SharedCoordinationFallback.RevokeIfPresent(_settings.Filename);
+                if (writing) SharedCoordinationFallback.RevokeIfPresent(_settings.Filename);
+                return;
+            }
+            var architecture = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture;
+#if DEBUG || TESTING
+            architecture = this.CoordinationArchitectureOverride ?? architecture;
+#endif
+            if (architecture != System.Runtime.InteropServices.Architecture.X64 &&
+                architecture != System.Runtime.InteropServices.Architecture.X86 &&
+                architecture != System.Runtime.InteropServices.Architecture.Arm64)
+            {
+#if DEBUG || TESTING
+                CoordinationFallbackReason = "architecture: " + architecture;
+#endif
+                if (writing) SharedCoordinationFallback.RevokeIfPresent(_settings.Filename);
+                _coordinationUnavailable = true;
                 return;
             }
             if (!this.CanScope || _settings.Filename == ":memory:" || _settings.Filename == ":temp:" ||
@@ -65,7 +81,7 @@ namespace LiteDB
 #if DEBUG || TESTING
                 CoordinationFallbackReason = "settings: " + this.CanScope + "/" + _settings.Filename;
 #endif
-                SharedCoordinationFallback.RevokeIfPresent(_settings.Filename);
+                if (writing) SharedCoordinationFallback.RevokeIfPresent(_settings.Filename);
                 _coordinationUnavailable = true;
                 return;
             }
@@ -82,7 +98,7 @@ namespace LiteDB
 #if DEBUG || TESTING
                     CoordinationFallbackReason = "volume: " + drive?.Name + "/" + drive?.DriveType + "/" + drive?.DriveFormat;
 #endif
-                    SharedCoordinationFallback.RevokeIfPresent(_settings.Filename);
+                    if (writing) SharedCoordinationFallback.RevokeIfPresent(_settings.Filename);
                     _coordinationUnavailable = true;
                     return;
                 }
@@ -96,7 +112,7 @@ namespace LiteDB
 #if DEBUG || TESTING
                 CoordinationFallbackReason = error.ToString();
 #endif
-                SharedCoordinationFallback.RevokeIfPresent(_settings.Filename);
+                if (writing) SharedCoordinationFallback.RevokeIfPresent(_settings.Filename);
                 _coordinationUnavailable = true;
             }
         }
