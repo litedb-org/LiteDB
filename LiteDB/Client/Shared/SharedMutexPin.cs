@@ -88,7 +88,7 @@ namespace LiteDB.Client.Shared
                 _idle = cycleCost > _idleLimit ? cycleCost : _idleLimit;
                 var hold = TimeSpan.FromTicks(cycleCost.Ticks * HoldPerOpen);
                 _hold = hold > _holdLimit ? hold : _holdLimit;
-                _yield = cycleCost > YieldAfter ? cycleCost : YieldAfter;
+                _yield = YieldAfter; // Experiment: fixed fairness floor.
             }
         }
 
