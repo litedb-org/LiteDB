@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   compare:
-    name: Compare (${{ matrix.os }}, ${{ matrix.framework }})
+    name: Compare (${{ matrix.os }}, ${{ matrix.framework }}, ${{ matrix.workload }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:
@@ -23,17 +23,20 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
         framework: [net8.0, net10.0]
+        workload: [core, traffic]
     steps:
       - uses: actions/checkout@v4
         with:
           path: candidate
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+          persist-credentials: false
       - uses: actions/checkout@v4
         with:
           path: baseline
           ref: ${{ github.event.pull_request.base.sha || 'codex/shared-performance-followups' }}
           fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: |
@@ -46,6 +49,9 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
+          $baseSha = git -C baseline rev-parse HEAD
+          git -C candidate merge-base --is-ancestor $baseSha HEAD
+          if ($LASTEXITCODE) { throw 'Merge the current PR base into the head before measuring it.' }
           foreach ($variant in @('baseline', 'candidate')) {
             dotnet build "$variant/LiteDB/LiteDB.csproj" -c Release -f '${{ matrix.framework }}' -p:TestingEnabled=false
             if ($LASTEXITCODE) { throw "Library build failed: $variant" }
@@ -60,9 +66,10 @@ jobs:
       - name: Five serial alternating production pairs
         shell: pwsh
         run: |
-          python candidate/scripts/measure-shared-slots.py --baseline runner-baseline --candidate runner-candidate --scratch scratch --output evidence/paired.jsonl
+          python candidate/scripts/measure-shared-slots.py --baseline runner-baseline --candidate runner-candidate --scratch scratch --output evidence/paired.jsonl --matrix ${{ matrix.workload }}
           if ($LASTEXITCODE) { throw 'Production comparison failed' }
       - name: Two and four writer contention with lifecycle accounting
+        if: matrix.workload == 'core'
         shell: pwsh
         run: |
           python candidate/scripts/measure-shared-contention.py --baseline runner-baseline --candidate runner-candidate --scratch scratch --output evidence/contention.jsonl
@@ -70,6 +77,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: shared-slots-${{ matrix.os }}-${{ matrix.framework }}
+          name: shared-slots-${{ matrix.os }}-${{ matrix.framework }}-${{ matrix.workload }}
           path: evidence
           retention-days: 14

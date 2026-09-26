@@ -39,8 +39,8 @@ instrumented tier-0 code and should not be labeled steady state.
 
 JSON output includes the first operation, actual warmup count/duration, mean/p50/p99 latency,
 process CPU time, process-wide allocated bytes and the library SHA-256. The first
-operation excludes fixture creation and may benefit from code/global state warmed
-by seeding; it is not a measurement of cold process startup. Allocation is not live
+operation excludes fixture creation, which now runs in another process. It includes
+a fresh engine open but does not include process launch or reset filesystem caches. Allocation is not live
 memory or working set. Payload checking contributes to the measured time equally
 for all builds. `phases` adds clock reads and uses a different API, so compare its
 builds directly rather than substituting it for `scan`. Ten consecutive window
@@ -116,3 +116,17 @@ Working sets include shared runtime pages and must not be described as unique
 physical memory when summed. WAL/handle/thread peaks are samples after operations,
 not a guarantee of observing every transient peak. The benchmark does not set
 CPU affinity, reset host caches, or alter durability/checkpoint settings.
+
+The current runner seeds ordinary-workload fixtures in a separate process. Its
+first query therefore includes a fresh engine open without first warming engine
+code by creating the fixture in that process. It still does not reset filesystem
+caches or time the process launch as part of `coldMs`.
+
+`measure-shared-slots.py --matrix traffic` adds same-key/randomized reads, small
+buffered results, a secondary-index scan, per-call updates, explicit transactions,
+balanced/write-heavy traffic, delete+insert cycles, repeated connection open/use/
+close, and explicit checkpoint cycles. A churn operation contains one delete and
+one insert; a checkpoint operation contains one update and one explicit checkpoint.
+Do not interpret these multi-call cycle rates as single-write throughput. Writes
+validate the entire final expected-state array outside the timing interval, and
+every run checks final WAL cleanup. The existing mixed case is 1 write : 9 reads.

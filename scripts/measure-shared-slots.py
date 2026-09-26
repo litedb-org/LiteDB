@@ -15,6 +15,7 @@ parser.add_argument('--candidate', type=Path, required=True, help='Candidate run
 parser.add_argument('--scratch', type=Path, required=True)
 parser.add_argument('--output', type=Path, required=True)
 parser.add_argument('--rounds', type=int, default=5)
+parser.add_argument('--matrix', choices=['core', 'traffic'], default='core')
 args = parser.parse_args()
 if args.rounds < 5:
     parser.error('At least five paired rounds are required')
@@ -23,6 +24,9 @@ args.output.parent.mkdir(parents=True, exist_ok=True)
 env = dict(os.environ, TMPDIR=str(args.scratch.resolve()))
 workloads = [('point', 20000, 10), ('scan', 1000, 10), ('mixed', 3000, 10)]
 workloads += [('slots', 100000, active) for active in (1, 64, 4096, 65536)]
+if args.matrix == 'traffic':
+    workloads = [(name, 1000, 10) for name in ('same-key', 'random', 'buffered', 'indexed',
+                 'write', 'transaction', 'balanced', 'write-heavy', 'churn', 'open-close', 'checkpoint')]
 # Exclusive creation protects previous evidence from accidental replacement.
 with args.output.open('x') as output:
     for scenario, count, parameter in workloads:
