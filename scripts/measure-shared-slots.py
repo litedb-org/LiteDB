@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Serial, alternating production comparisons; build runner DLLs separately."""
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -34,6 +35,8 @@ with args.output.open('x') as output:
                 started = time.time()
                 result = subprocess.run(command, env=env, text=True, capture_output=True, timeout=300)
                 record = dict(pair=pair, variant=variant, command=command, TMPDIR=env['TMPDIR'],
+                              librarySha256=hashlib.sha256((dll.parent / 'LiteDB.dll').read_bytes()).hexdigest(),
+                              runnerSha256=hashlib.sha256(dll.read_bytes()).hexdigest(),
                               started=started, elapsed=time.time()-started, host=platform.platform(),
                               returncode=result.returncode, stderr=result.stderr)
                 if result.returncode == 0:

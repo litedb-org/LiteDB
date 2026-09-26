@@ -13,6 +13,7 @@ parser.add_argument('--runner', type=Path, required=True)
 parser.add_argument('--output', type=Path, required=True)
 parser.add_argument('--scratch', type=Path, required=True)
 parser.add_argument('--smoke', action='store_true')
+parser.add_argument('--budget-root', type=Path, help='Shared accounting root for smoke and extended artifacts')
 args = parser.parse_args()
 args.output.mkdir(parents=True, exist_ok=True)
 args.scratch.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -20,6 +21,9 @@ env = dict(os.environ, TMPDIR=str(args.scratch.resolve()))
 seeds = range(3012, 3015 if args.smoke else 3028)
 count = 4 if args.smoke else 64
 root = args.output.resolve()
+budget_root = (args.budget_root or args.output).resolve()
+if not root.is_relative_to(budget_root):
+    parser.error('--output must be inside --budget-root')
 
 def size(path):
     return sum(p.stat().st_size for p in path.rglob('*') if p.is_file() and not p.is_symlink())
@@ -27,7 +31,7 @@ def size(path):
 with (root / 'commands.jsonl').open('x') as manifest:
     for seed in seeds:
         for target in ('snapshot', 'shared', 'mvcc-retirement', 'index'):
-            if size(root) >= 480 * 1024**2:
+            if size(budget_root) >= 480 * 1024**2:
                 raise SystemExit('External 512 MiB budget nearly reached; stopping safely')
             command = ['dotnet', str(args.runner.resolve()), '--target', target,
                        '--seed', str(seed), '--count', str(count), '--workers', '1',
@@ -51,7 +55,7 @@ with (root / 'commands.jsonl').open('x') as manifest:
                     record['timeout'] = True
                     record['returncode'] = child.returncode
             record['elapsed'] = time.time() - started
-            record['artifactBytes'] = size(root)
+            record['artifactBytes'] = size(budget_root)
             manifest.write(json.dumps(record) + '\n')
             manifest.flush()
             print(target, seed, record['returncode'], round(record['elapsed'], 1), flush=True)

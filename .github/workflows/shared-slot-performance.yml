@@ -7,6 +7,7 @@ on:
       - 'LiteDB/Client/Shared/SharedReaderSlots.cs'
       - 'tools/SharedReadBenchmarks/**'
       - 'scripts/measure-shared-slots.py'
+      - 'scripts/measure-shared-contention.py'
       - '.github/workflows/shared-slot-performance.yml'
 
 permissions:
@@ -61,6 +62,11 @@ jobs:
         run: |
           python candidate/scripts/measure-shared-slots.py --baseline runner-baseline --candidate runner-candidate --scratch scratch --output evidence/paired.jsonl
           if ($LASTEXITCODE) { throw 'Production comparison failed' }
+      - name: Two and four writer contention with lifecycle accounting
+        shell: pwsh
+        run: |
+          python candidate/scripts/measure-shared-contention.py --baseline runner-baseline --candidate runner-candidate --scratch scratch --output evidence/contention.jsonl
+          if ($LASTEXITCODE) { throw 'Contention comparison failed' }
       - uses: actions/upload-artifact@v4
         if: always()
         with:

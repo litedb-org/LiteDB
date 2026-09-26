@@ -20,6 +20,17 @@ internal static class Program
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic) != null)
             throw new InvalidOperationException("Benchmarks require a Release LiteDB assembly with TestingEnabled=false.");
 
+        if (args.Length == 6 && args[0] == "contention")
+        {
+            ContentionBenchmarks.Run(args);
+            return;
+        }
+        if (args.Length == 3 && args[0] == "contention-verify")
+        {
+            ContentionBenchmarks.Verify(args[1], args[2].Split(',').Select(int.Parse).ToArray());
+            return;
+        }
+
         if (args.Length == 2 && args[0] == "interop")
         {
             InteropBenchmarks.Run(Path.GetFullPath(args[1]));

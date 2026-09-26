@@ -96,3 +96,23 @@ full payloads and indexed results, rolls back cross-collection deletion, and
 checks a transaction witness and final state from a new process. Failed fixture
 files remain for investigation. Native kill/recovery and physical integrity
 remain the responsibility of the existing Shared/MVCC regression/fuzz suite.
+
+`scripts/measure-shared-contention.py` uses the same production runner directories.
+It runs five alternating pairs with two and four separate writer processes. The
+owner continuously writes while holding a leased scan; peer arrival intervals
+are 5 ms (two writers) and 5/10/15 ms (four). The owner is a saturation workload;
+peers report both API latency and delay from their intended arrival, offered work
+and unfinished work. Every worker must make progress. A fresh process verifies
+all final acknowledged revisions and the full original collection, and final
+close must remove WAL content. `--smoke` runs short validation pairs only.
+
+Output includes each participant's mean/p50/p95/p99/worst latency, completed work,
+CPU, total allocations, open/close/lifecycle duration, sampled peak WAL bytes and
+thread/handle counts, OS peak working set, and post-close memory/thread/handle
+counts after 1.2 seconds and a full GC. CPU includes worker initialization and
+cleanup; lifecycle wall time includes the start barrier and deliberate idle wait.
+The seeded fixture and cold verifier are outside the active-work interval.
+Working sets include shared runtime pages and must not be described as unique
+physical memory when summed. WAL/handle/thread peaks are samples after operations,
+not a guarantee of observing every transient peak. The benchmark does not set
+CPU affinity, reset host caches, or alter durability/checkpoint settings.
