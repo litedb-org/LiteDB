@@ -7,6 +7,7 @@ namespace LiteDB.Engine
     {
         // Retention bounds apply to idle Shared snapshots, after their last query released.
         internal bool CanRetainSharedSnapshot => !_state.Disposed &&
+            !_sortDisk.HasSpilled &&
             _disk.Cache.AllocatedBytes <= 4L * 1024 * 1024 &&
             _disk.GetFileLength(FileOrigin.Log) <= 4L * 1024 * 1024;
 

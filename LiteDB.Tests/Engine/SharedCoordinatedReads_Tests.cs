@@ -2,6 +2,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using FluentAssertions;
 using LiteDB.Client.Shared;
 using LiteDB.Engine;
@@ -136,6 +137,49 @@ namespace LiteDB.Tests.Engine
                     rows.Update(new BsonDocument { ["_id"] = 1, ["value"] = 6 });
                     engine.HasCachedSnapshot.Should().BeFalse("the writer can reuse the idle reader's file handles");
                     rows.FindById(1)["value"].AsInt32.Should().Be(6);
+                }
+            });
+        }
+
+        [Fact]
+        public void Warm_point_read_finishes_while_another_thread_owns_the_database_mutex()
+        {
+            WithFile(file =>
+            {
+                using (var writerEngine = new SharedEngine(new EngineSettings { Filename = file }))
+                using (var writer = new LiteDatabase(writerEngine))
+                using (var readerEngine = new SharedEngine(new EngineSettings { Filename = file })
+                    { CoordinatedIdleLimit = TimeSpan.FromMinutes(1) })
+                using (var reader = new LiteDatabase(readerEngine))
+                using (var finished = new ManualResetEventSlim(false))
+                {
+                    writer.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = 19 });
+                    for (var i = 0; i < 3; i++) reader.GetCollection("rows").FindById(1);
+                    readerEngine.CoordinatedReadHits.Should().BeGreaterThan(0);
+                    readerEngine.MutexOwner.WaitForRelease();
+                    var snapshots = readerEngine.SnapshotOpens;
+                    var opens = readerEngine.EngineOpens;
+                    Exception error = null;
+                    var worker = new Thread(() =>
+                    {
+                        try { reader.GetCollection("rows").FindById(1)["value"].AsInt32.Should().Be(19); }
+                        catch (Exception exception) { error = exception; }
+                        finally { finished.Set(); }
+                    }) { IsBackground = true };
+                    var completedUnderOwnership = false;
+                    writerEngine.MutexOwner.Enter(scoped: true);
+                    try
+                    {
+                        // Hold real ownership without publishing a storage change.
+                        worker.Start();
+                        completedUnderOwnership = finished.Wait(TimeSpan.FromSeconds(5));
+                    }
+                    finally { writerEngine.MutexOwner.Exit(); }
+                    worker.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                    completedUnderOwnership.Should().BeTrue("warm admission must not wait for the database mutex");
+                    error.Should().BeNull();
+                    readerEngine.SnapshotOpens.Should().Be(snapshots);
+                    readerEngine.EngineOpens.Should().Be(opens);
                 }
             });
         }

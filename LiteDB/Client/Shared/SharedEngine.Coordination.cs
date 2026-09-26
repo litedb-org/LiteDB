@@ -13,10 +13,22 @@ namespace LiteDB
 #else
             SharedCoordinationFallback.RevokeIfPresent(_settings.Filename);
 #endif
+            try
+            {
 #if (DEBUG || TESTING) && NET8_0_OR_GREATER
-            this.CoordinationStage?.Invoke("opening");
+                this.CoordinationStage?.Invoke("opening");
 #endif
-            _engine = this.CreateEngine(recoveredAbandonedOwner);
+                _engine = this.CreateEngine(recoveredAbandonedOwner);
+            }
+            catch
+            {
+#if NET8_0_OR_GREATER
+                // Even a failed open invalidates older storage fences and must
+                // leave this participant able to publish its next transition.
+                _coordination?.StructuralEnd(-1);
+#endif
+                throw;
+            }
 #if NET8_0_OR_GREATER
             _coordination?.StructuralEnd(_engine.ReadVersion);
             _coordination?.Opened(_engine.ReadVersion);

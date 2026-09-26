@@ -2,7 +2,11 @@
 
 PR #3014's candidate assumes every concurrent Shared participant uses exactly the
 same LiteDB version. Concurrent Direct/Shared, mixed-version and cross-machine
-access are outside this protocol. Database and WAL formats are unchanged.
+access are outside this protocol. The existing [connection identity contract](shared-mode-safety.md#connection-identity-and-lifetime)
+also requires one absolute path and mutex naming strategy: concurrent symbolic-link,
+hard-link or other physical-file aliases are unsupported. Path normalization does
+not create an independent authority for a supported participant. Database and WAL
+formats are unchanged.
 
 ## Admission and lifetime
 
@@ -33,7 +37,9 @@ that already passed admission keeps an OS-backed lease for every live generation
 no minimum-version approximation is introduced. Process death releases liveness.
 
 An idle cache owns no lease. It expires after 100 ms using a monotonic clock and
-is discarded when its page cache or opening WAL exceeds 4 MiB. Those component
+is discarded when its page cache or opening WAL exceeds 4 MiB, or when a query
+spills a sort to temporary disk. Spilled engines close after their last active
+reader, releasing the spill file while the connection remains alive. Those component
 limits are not a total-RSS bound. Writers retire idle read state before taking the
 operation-state lock, allowing Windows reader handles to be reused. A single read
 between writes does not retain a snapshot. Streaming queries keep their leases
