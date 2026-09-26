@@ -80,6 +80,13 @@ mutex, forces that timeout, checks child termination and verifies committed data
 This bounds actual database calls as well as command transmission; no blocked
 writer task remains inside the controller.
 
+Shared-process scenarios targeting a checkpoint crash hook retain the crash
+worker's native mutex ownership across commit and checkpoint. Otherwise a peer
+can empty the WAL in that gap and prevent the selected hook from running. Peers
+still contend and recover after the worker dies; other crash boundaries keep
+their ordinary interleavings. The guard has native-lock positive/negative controls,
+and the campaign requires every configured marker as well as recovered contents.
+
 Runs use Release with `TestingEnabled=true`, Linux x64 and a private `TMPDIR` on
 the original temp volume. CI covers Linux, ARM64, macOS, Windows x64/x86 and Framework;
 the native child harness runs on modern .NET. Each CI partition retains its 300-second
