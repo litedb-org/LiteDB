@@ -31,6 +31,13 @@ namespace LiteDB
         private IBsonDataReader QueryCore(string collection, Query query)
         {
             var reads = query?.ForUpdate != true && query?.Into == null;
+#if NET8_0_OR_GREATER
+            if (reads && this.CanScope)
+            {
+                var coordinated = this.TryQueryCoordinated(collection, query);
+                if (coordinated != null) return coordinated;
+            }
+#endif
             SharedMutexPin use;
             if (reads && _pin == null)
             {
@@ -122,6 +129,7 @@ namespace LiteDB
                 settings.Upgrade = false;
                 settings.AutoRebuild = false;
                 settings.SharedReadSnapshot = true;
+                settings.CoordinationSignals = null;
                 snapshot = new LiteEngine(settings);
                 var reader = snapshot.Query(collection, query);
                 var ownedSnapshot = snapshot;
@@ -219,6 +227,10 @@ namespace LiteDB
         /// </summary>
         private IBsonDataReader QuerySnapshot(string collection, Query query, LiteEngine snapshot)
         {
+#if NET8_0_OR_GREATER
+            var coordinated = this.TryInstallCoordinated(collection, query, snapshot);
+            if (coordinated != null) return coordinated;
+#endif
             IBsonDataReader reader = null;
             IDisposable lease = null;
             var release = true;
@@ -322,6 +334,10 @@ namespace LiteDB
             LiteEngine snapshot;
             try
             {
+                RebuildRecovery.EnsureAvailable(_settings);
+#if NET8_0_OR_GREATER
+                this.EnsureCoordination();
+#endif
                 snapshot = this.CreateEngine(recoveredAbandonedOwner, this.SnapshotSettings());
             }
             catch (Exception ex) when (!(ex is OutOfMemoryException))
@@ -335,6 +351,9 @@ namespace LiteDB
             }
 #if DEBUG || TESTING
             this.SnapshotOpens++;
+#endif
+#if NET8_0_OR_GREATER
+            _coordination?.Opened(snapshot.ReadVersion);
 #endif
             _recoveryReport = snapshot.RecoveryReport ?? _recoveryReport;
             snapshot.RecoveryReport = _recoveryReport;
@@ -351,6 +370,7 @@ namespace LiteDB
             settings.Upgrade = false;
             settings.AutoRebuild = false;
             settings.SharedReadSnapshot = true;
+            settings.CoordinationSignals = null;
             return settings;
         }
 

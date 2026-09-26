@@ -98,14 +98,15 @@ namespace LiteDB.Client.Shared
                     _next.Add(-1);
                     _free = index;
                 }
-                // Written through to the OS before the caller releases the mutex, so the next
-                // mutex owner's scan reads it.
+                // Written through to the OS before publication returns. Mutex-free
+                // admission then fences and rechecks the destructive-operation epoch.
                 var headerStarted = false;
                 try
                 {
                     this.WriteSlot(index + 1, version, ~version);
-                    // Also repair a header whose previous append failed. Registration and
-                    // checkpoint inspection hold the database mutex, so append cannot race it.
+                    // Also repair a header whose previous append failed. A concurrent
+                    // scan sees unknown on a torn count/length; admission's epoch
+                    // handshake rejects any scan that preceded this publication.
                     if (_publishedCount != _next.Count)
                     {
                         headerStarted = true;

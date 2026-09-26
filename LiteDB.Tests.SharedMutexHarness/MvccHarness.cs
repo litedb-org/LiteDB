@@ -16,6 +16,7 @@ internal static class MvccHarness
         var mode = args[1];
         var filename = args[2];
         var password = args[3] == "-" ? null : args[3];
+        if (SharedMappedHarness.TryRun(mode, filename, password, args)) return true;
         if (SharedFollowupHarness.TryRun(mode, filename, password)) return true;
         if (SharedSafetyHarness.TryRun(mode, filename, password, args)) return true;
         if (SharedStorageHarness.TryRun(mode, filename, password, args)) return true;
