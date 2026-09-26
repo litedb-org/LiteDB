@@ -66,7 +66,7 @@ with args.output.open('x') as output:
                             for worker, role in enumerate(roles):
                                 command = ['dotnet', str(runner), 'read-contention', str(database), str(worker), role,
                                            ('1000' if args.smoke else '10000'), ('2000' if args.smoke else '10000'),
-                                           str(signal), str(readers)]
+                                           str(signal), str(readers), ('0' if role in ('writer', 'checkpoint') else '50' if role == 'large' else '20')]
                                 record['commands'].append(command)
                                 children.append(subprocess.Popen(command, env=env, text=True,
                                                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE))

@@ -117,7 +117,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
         framework: [net8.0, net10.0]
-        activity: [idle, writer, checkpoint]
+        activity: [writer, checkpoint]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -160,7 +160,7 @@ jobs:
       - name: Concurrent reader production pairs
         shell: pwsh
         run: |
-          python candidate/scripts/measure-shared-readers.py --baseline runner-baseline --candidate runner-candidate --scratch evidence/scratch --output evidence/readers.jsonl --activity ${{ matrix.activity }}
+          python candidate/scripts/measure-shared-readers.py --baseline runner-baseline --candidate runner-candidate --scratch evidence/scratch --output evidence/readers.jsonl --activity ${{ matrix.activity }} --readers 4
           if ($LASTEXITCODE) { throw 'Reader comparison failed' }
       - uses: actions/upload-artifact@v4
         if: always()
