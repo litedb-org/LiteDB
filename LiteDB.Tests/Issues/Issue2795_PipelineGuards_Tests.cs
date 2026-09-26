@@ -22,9 +22,9 @@ namespace LiteDB.Tests.Issues
         [InlineData(50, true)]
         public void Indexed_pages_match_the_external_ledger_after_reopen(int offset, bool descending)
         {
-            using var file = new TempFile();
+            using var storage = new MemoryDatabase();
             var fixture = Enumerable.Range(1, 41).Select(CreateDocument).ToArray();
-            using (var database = new LiteDatabase(file.Filename))
+            using (var database = storage.Open())
             {
                 var collection = database.GetCollection<GuardDocument>("pages");
                 collection.InsertBulk(fixture.OrderBy(document => (document.Id * 29) % 41))
@@ -33,7 +33,7 @@ namespace LiteDB.Tests.Issues
                 database.Checkpoint();
             }
 
-            using var reopened = new LiteDatabase(file.Filename);
+            using var reopened = storage.Open();
             var rows = reopened.GetCollection<GuardDocument>("pages");
             var direction = descending ? Query.Descending : Query.Ascending;
             var expected = (descending

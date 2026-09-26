@@ -12,8 +12,7 @@ namespace LiteDB.Tests.Issues
         [Fact]
         public void Disposing_cursor_on_another_thread_releases_reader_and_checkpoint_locks()
         {
-            using var file = new TempFile();
-            using var db = new LiteDatabase(file.Filename);
+            using var db = new LiteDatabase(":memory:");
             db.Timeout = TimeSpan.FromSeconds(1);
             db.CheckpointSize = 0;
             var col = db.GetCollection("rows");

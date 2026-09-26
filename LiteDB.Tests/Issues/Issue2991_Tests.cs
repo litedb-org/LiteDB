@@ -37,8 +37,7 @@ namespace LiteDB.Tests.Issues
         [Fact]
         public void Retired_cursor_owners_remain_distinct_and_foreign_cleanup_releases_all_leases()
         {
-            using var file = new TempFile();
-            using var engine = new LiteEngine(new EngineSettings { Filename = file.Filename });
+            using var engine = new LiteEngine(new EngineSettings { Filename = ":memory:" });
             using var db = new LiteDatabase(engine, disposeOnClose: false);
             db.CheckpointSize = 0;
             var rows = db.GetCollection("rows");

@@ -14,7 +14,7 @@ namespace LiteDB.Tests.Issues
             [Fact(Skip = "To slow for a unit test in a build process")]
             public void InsertItemBackToBack_Test()
             {
-                var databaseDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DatabaseLocation");
+                var databaseDirectory = Path.Combine(Path.GetTempPath(), "litedb-2127-" + Guid.NewGuid().ToString("N"));
                 var databasePath = Path.Combine(databaseDirectory, "SampleDatabase.db");
                 var databaseLogPath = Path.Combine(databaseDirectory, "SampleDatabase-log.db");
 

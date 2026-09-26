@@ -13,10 +13,10 @@ namespace LiteDB.Tests.Issues
         [InlineData(0)]
         public void Nullable_integer_empty_ids_generate_unique_persisted_integer_keys(int? empty)
         {
-            using var file = new TempFile();
+            using var storage = new MemoryDatabase();
             var first = new Row { Id = empty, Value = "first" };
             var second = new Row { Id = empty, Value = "second" };
-            using (var db = new LiteDatabase(file.Filename))
+            using (var db = storage.Open())
             {
                 var col = db.GetCollection<Row>("rows");
                 var firstId = col.Insert(first);
@@ -27,7 +27,7 @@ namespace LiteDB.Tests.Issues
                 second.Id.Should().Be(secondId.AsInt32);
                 first.Id.Should().NotBe(second.Id);
             }
-            using var reopened = new LiteDatabase(file.Filename);
+            using var reopened = storage.Open();
             reopened.GetCollection<Row>("rows").FindById(first.Id.Value).Value.Should().Be("first");
             reopened.GetCollection<Row>("rows").FindById(second.Id.Value).Value.Should().Be("second");
             reopened.GetCollection("rows").FindAll().Should().OnlyContain(x => x["_id"].IsInt32);

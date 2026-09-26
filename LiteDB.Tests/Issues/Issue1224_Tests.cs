@@ -137,15 +137,15 @@ namespace LiteDB.Tests.Issues
                 new UnsignedRecord { Id = 9223372036854775808UL, Value = 9223372036854775808UL, Marker = "first-upper" }
             };
 
-            using var file = new TempFile();
-            using (var db = new LiteDatabase(file.Filename, new BsonMapper()))
+            using var storage = new MemoryDatabase();
+            using (var db = storage.Open(new BsonMapper()))
             {
                 var records = db.GetCollection<UnsignedRecord>("records");
                 records.Insert(input).Should().Be(input.Length);
                 records.EnsureIndex(x => x.Value).Should().BeTrue();
             }
 
-            using (var db = new LiteDatabase(file.Filename, new BsonMapper()))
+            using (var db = storage.Open(new BsonMapper()))
             {
                 var raw = db.GetCollection("records");
                 AssertRawRecord(raw, -9223372036854775808L, "first-upper");

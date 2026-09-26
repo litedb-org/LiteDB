@@ -13,8 +13,7 @@ namespace LiteDB.Tests.Issues
         [Fact]
         public void Parallel_lazy_query_updates_leave_checkpoint_available()
         {
-            using var file = new TempFile();
-            using var db = new LiteDatabase(file.Filename);
+            using var db = new LiteDatabase(":memory:");
             db.CheckpointSize = 0;
             var rows = db.GetCollection("rows");
             rows.Insert(Enumerable.Range(1, 500).Select(id => new BsonDocument { ["_id"] = id, ["updated"] = false }));
@@ -32,8 +31,7 @@ namespace LiteDB.Tests.Issues
         [Fact]
         public async Task Awaiting_inside_lazy_query_does_not_leak_reader_lease()
         {
-            using var file = new TempFile();
-            using var db = new LiteDatabase(file.Filename);
+            using var db = new LiteDatabase(":memory:");
             db.CheckpointSize = 0;
             var rows = db.GetCollection("rows");
             rows.Insert(Enumerable.Range(1, 20).Select(id => new BsonDocument { ["_id"] = id }));

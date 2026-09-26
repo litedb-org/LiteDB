@@ -26,4 +26,5 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <Import Project="../tests/Shared/TestStorage.props" />
 </Project>
