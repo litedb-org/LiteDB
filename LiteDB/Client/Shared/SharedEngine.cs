@@ -343,21 +343,27 @@ namespace LiteDB
 
         #region Write Operations
 
-        public int Checkpoint()
-        {
-            return WriteDatabase(() => _engine.Checkpoint(), scoped: true);
-        }
+        public int Checkpoint() => WriteDatabase(() => _engine.Checkpoint(), scoped: true);
 
         public long Rebuild(RebuildOptions options)
         {
             return WriteDatabase(() =>
             {
-                if (_readers.OldestVersion().HasValue)
-                    throw new LiteException(0, "Close shared readers before rebuilding the database.");
-                // Rebuild replaces the files; do not keep handles to the old ones.
-                _handles?.CloseIdle();
-                try { return _engine.Rebuild(options); }
-                finally { _handles?.CloseIdle(); }
+                // Publish before inspecting leases: a cached reader may be admitting
+                // without the database mutex and must not accept a replaced file set.
+                _settings.CoordinationSignals?.StructuralBegin();
+                try
+                {
+                    if (_readers.OldestVersion().HasValue)
+                        throw new LiteException(0, "Close shared readers before rebuilding the database.");
+                    _handles?.CloseIdle();
+                    return _engine.Rebuild(options);
+                }
+                finally
+                {
+                    _handles?.CloseIdle();
+                    _settings.CoordinationSignals?.StructuralEnd(-1);
+                }
             });
         }
 

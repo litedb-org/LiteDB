@@ -32,7 +32,9 @@ namespace LiteDB
                 SharedCoordinationFallback.RevokeIfPresent(_settings.Filename);
                 return;
             }
-            if (!this.CanScope || _settings.Filename == ":memory:" || _settings.Filename == ":temp:")
+            if (!this.CanScope || _settings.Filename == ":memory:" || _settings.Filename == ":temp:" ||
+                (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
+                    System.Runtime.InteropServices.OSPlatform.Windows) && _handles == null))
             {
 #if DEBUG || TESTING
                 CoordinationFallbackReason = "settings: " + this.CanScope + "/" + _settings.Filename;
@@ -92,6 +94,7 @@ namespace LiteDB
                 }
                 Interlocked.MemoryBarrier();
 #if DEBUG || TESTING
+                CoordinationStage?.Invoke("lease-published");
                 if (!UnsafeSkipCoordinationRecheck)
 #endif
                 {
@@ -233,7 +236,6 @@ namespace LiteDB
 
         private void ExpireSnapshot()
         {
-            var expired = false;
             lock (_snapshotGate)
             {
                 var snapshot = _cachedSnapshot;
@@ -248,15 +250,9 @@ namespace LiteDB
                 RetireSnapshot(snapshot);
                 _snapshotIdle?.Dispose();
                 _snapshotIdle = null;
-                expired = true;
             }
-            // Cleanup errors remain observable by an ordinary open; never throw on a
-            // timer thread. The established final-close path still owns durability.
-            if (expired)
-            {
-                try { this.CheckpointAfterLastReader(); }
-                catch (Exception error) when (!(error is OutOfMemoryException)) { }
-            }
+            // Idle state owns no lease and cannot delay reclamation. Expiration only
+            // closes the read-only engine; durability remains with ordinary closes.
         }
 
         private void RetireCachedSnapshot()
