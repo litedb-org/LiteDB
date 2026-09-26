@@ -71,7 +71,8 @@ namespace LiteDB.Tests.Engine
                     var settings = Field<EngineSettings>(snapshot, "_settings");
                     var header = Field<HeaderPage>(snapshot, "_header");
                     // A small real file-backed sorter isolates spill retention from the page-cache bound.
-                    var sort = new SortDisk(settings.CreateTempFactory(), Constants.PAGE_SIZE, header.Pragmas);
+                    var temp = new TempStream(file + "-sort", maxMemoryUsage: 0);
+                    var sort = new SortDisk(new StreamFactory(temp, settings.Password, ownsStream: true), Constants.PAGE_SIZE, header.Pragmas);
                     sortField.SetValue(snapshot, sort);
                     var hits = engine.CoordinatedReadHits;
                     rows.Query().OrderBy("key").ToArray().Select(row => row["_id"].AsInt32)
@@ -79,10 +80,38 @@ namespace LiteDB.Tests.Engine
                     sort.HasSpilled.Should().BeTrue();
                     engine.CoordinatedReadHits.Should().BeGreaterThan(hits);
                     engine.HasCachedSnapshot.Should().BeFalse("a completed spill must not remain in idle cached storage");
-                    Directory.GetFiles(Path.GetDirectoryName(file), "*-tmp*").Should().BeEmpty();
+                    temp.InDisk.Should().BeTrue("the query must exercise an actual backing file");
+                    temp.CanRead.Should().BeFalse("retirement must dispose the owned stream");
+                    File.Exists(temp.Filename).Should().BeFalse();
                     rows.FindById(0)["key"].AsString.Should().StartWith("199");
                     GC.KeepAlive(database);
                 }
+            });
+        }
+
+        [Fact]
+        public void First_read_skips_authority_attachment_but_a_later_write_still_joins_it()
+        {
+            WithFile(file =>
+            {
+                using (var peer = new LiteDatabase(new ConnectionString { Filename = file, Connection = ConnectionType.Shared }))
+                using (var engine = new SharedEngine(new EngineSettings { Filename = file }))
+                using (var database = new LiteDatabase(engine))
+                {
+                    var peerRows = peer.GetCollection("rows");
+                    peerRows.Insert(new BsonDocument { ["_id"] = 1, ["value"] = 19 });
+                    for (var i = 0; i < 3; i++) peerRows.FindById(1);
+                    File.Exists(SharedCoordinationPage.PagePath(file)).Should().BeTrue();
+                    var rows = database.GetCollection("rows");
+                    rows.FindById(1)["value"].AsInt32.Should().Be(19);
+                    Field<SharedCoordinationPage>(engine, "_coordination").Should().BeNull();
+                    engine.HasCachedSnapshot.Should().BeFalse();
+                    rows.Update(new BsonDocument { ["_id"] = 1, ["value"] = 20 }).Should().BeTrue();
+                    Field<SharedCoordinationPage>(engine, "_coordination").Should().NotBeNull();
+                    peerRows.FindById(1)["value"].AsInt32.Should().Be(20);
+                }
+                using (var cold = new LiteDatabase(file))
+                    cold.GetCollection("rows").FindById(1)["value"].AsInt32.Should().Be(20);
             });
         }
 

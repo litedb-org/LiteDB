@@ -35,7 +35,11 @@ with (root / 'commands.jsonl').open('x') as manifest:
                 raise SystemExit('External 512 MiB budget nearly reached; stopping safely')
             command = ['dotnet', str(args.runner.resolve()), '--target', target,
                        '--seed', str(seed), '--count', str(count), '--workers', '1',
-                       '--max-artifact-mb', '256', '--artifact-dir', str(root / 'runs')]
+                       '--max-artifact-mb', '256', '--artifact-dir', str(root / 'runs' / f'{target}-{seed}')]
+            # Each invocation also replays its artifact directory's interesting
+            # corpus. Isolate finite cases so later seeds do not recursively rerun
+            # every earlier case and exceed the per-session time budget. Built-in
+            # regression inputs still run; all partitions share the external cap.
             started = time.time()
             record = dict(command=command, TMPDIR=env['TMPDIR'], started=started)
             with (root / f'{target}-{seed}.log').open('x') as log:

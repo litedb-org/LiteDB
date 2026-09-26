@@ -8,7 +8,7 @@ namespace LiteDB
         {
             LiteDB.Engine.RebuildRecovery.EnsureAvailable(_settings);
 #if NET8_0_OR_GREATER
-            this.EnsureCoordination(allowCreate: !final);
+            this.EnsureCoordination(allowCreate: !final, writing: true);
             _coordination?.StructuralBegin();
 #else
             SharedCoordinationFallback.RevokeIfPresent(_settings.Filename);

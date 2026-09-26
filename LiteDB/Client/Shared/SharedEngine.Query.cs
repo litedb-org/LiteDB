@@ -336,7 +336,7 @@ namespace LiteDB
             {
                 RebuildRecovery.EnsureAvailable(_settings);
 #if NET8_0_OR_GREATER
-                this.EnsureCoordination();
+                this.EnsureReadCoordination();
 #endif
                 snapshot = this.CreateEngine(recoveredAbandonedOwner, this.SnapshotSettings());
             }

@@ -10,7 +10,8 @@ formats are unchanged.
 
 ## Admission and lifetime
 
-Cold snapshots still open under the existing named database mutex. After two
+Cold snapshots still open under the existing named database mutex. The first
+protected read skips control-page probing and attachment. After two
 consecutive read-only opens, a connection may retain a read-only snapshot. A warm
 query checks a stable status, publishes its actual snapshot version through the
 existing reader-slot file, executes a full memory fence, then checks storage
@@ -45,6 +46,10 @@ operation-state lock, allowing Windows reader handles to be reused. A single rea
 between writes does not retain a snapshot. Streaming queries keep their leases
 until disposal, even after a newer snapshot replaces the cache. Idle expiry only
 closes a read-only engine; ordinary close/checkpoint rules retain durability.
+Closing a coordination view releases its native handle before disposing the
+accessor, avoiding an explicit flush of ephemeral control bytes (including from
+the finalizer). Live peers retain their own coherent views. The page never supplies
+durability evidence and is never trusted on startup without a protected open.
 
 ## Mutation and fallback
 
@@ -57,13 +62,17 @@ closes a read-only engine; ordinary close/checkpoint rules retain durability.
 | A blocked rebuild open creates no coordination files | RebuildRecovery guard before authority setup | Existing exhaustive rebuild install/rollback matrix |
 | Idle/failed/disposed state cannot own leaked resources | Lease release at last active reader, bounded timer, acquired-pointer finalization | Idle lease/WAL immutability, disposal, GC and native death tests |
 
-The fast path is limited to NET8-or-newer runtimes and recognized fixed local
+The fast path is limited to NET8-or-newer x86, x64 and ARM64 runtimes and recognized fixed local
 filesystems (ext2/3/4, XFS, Btrfs, NTFS, ReFS, APFS). Windows additionally requires
 the parent's qualified POSIX-delete shared handles. Other storage, custom streams,
 read transformations, or incompatible control paths use the existing path. Name
 limits are checked conservatively on every participating target. Native marker
 probes distinguish absence from access/IO errors without allocating missing-file
 exceptions. NETSTANDARD participants revoke an existing authority before writes.
+An unqualified reader can still open a protected read-only snapshot without
+revoking peers. If that connection later writes, revocation must succeed before
+the writable open; otherwise the write fails. Architecture-fallback tests verify
+post-acknowledgement visibility and preservation of an already accepted reader.
 Already accepted readers retain their leases through fallback.
 
 The bounded SC model in `scripts/model-shared-admission.py` covers modeled
