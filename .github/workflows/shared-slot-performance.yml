@@ -2,6 +2,12 @@ name: Shared slot production comparisons
 
 on:
   workflow_dispatch:
+    inputs:
+      baseline_ref:
+        description: 'Baseline branch or SHA for an isolated candidate comparison'
+        required: false
+        default: 'codex/shared-performance-followups'
+        type: string
   pull_request:
     paths:
       - 'LiteDB/Client/Shared/SharedReaderSlots.cs'
@@ -37,7 +43,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           path: baseline
-          ref: ${{ github.event.pull_request.base.sha || 'codex/shared-performance-followups' }}
+          ref: ${{ github.event.pull_request.base.sha || inputs.baseline_ref || 'codex/shared-performance-followups' }}
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-dotnet@v4
