@@ -39,17 +39,18 @@ namespace LiteDB
 #if NET8_0_OR_GREATER
             lock (_snapshotGate)
             {
-                _coordination?.Dispose();
+                if (_coordination == null) return;
+                _coordination.Dispose();
                 _coordination = null;
                 _settings.CoordinationSignals = null;
             }
-#endif
             if (_owner.TryEnter(out _, scoped: this.CanScope))
             {
                 try { SharedCoordinationFallback.TryRetire(_settings.Filename); }
                 finally { _owner.Exit(); }
                 _owner.WaitForRelease();
             }
+#endif
         }
     }
 }
