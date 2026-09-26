@@ -153,9 +153,10 @@ internal sealed class SharedProcessFuzzer : IFuzzTarget
     internal static int RunChild(FuzzOptions options)
     {
         var random = new StableRandom(options.Seed);
-        if (options.CrashAt > OuterCrashBoundaries)
+        var crashPoint = options.CrashAt > OuterCrashBoundaries
+            ? InternalCrashPoints[options.CrashAt - OuterCrashBoundaries - 1] : null;
+        if (crashPoint != null)
         {
-            var crashPoint = InternalCrashPoints[options.CrashAt - OuterCrashBoundaries - 1];
             Engine.EngineState.SimulateProcessCrash = phase =>
             {
                 if (phase != crashPoint) return;
@@ -163,7 +164,8 @@ internal sealed class SharedProcessFuzzer : IFuzzTarget
                 Environment.FailFast($"Deterministic internal process death at {phase}");
             };
         }
-        using var db = Open(options.Database);
+        using var db = Open(options.Database, out var engine);
+        using var checkpointScope = SharedCheckpointCrashScope.Create(engine, crashPoint);
         var rows = db.GetCollection("rows");
         if (options.CrashAt > 0)
         {
@@ -238,10 +240,16 @@ internal sealed class SharedProcessFuzzer : IFuzzTarget
         }
     }
 
-    private static LiteDatabase Open(string database) => new(new ConnectionString
+    private static LiteDatabase Open(string database) => Open(database, out _);
+
+    private static LiteDatabase Open(string database, out SharedEngine engine)
     {
-        Filename = database, Connection = ConnectionType.Shared, DurableCommits = true, TransactionPageLimit = 4
-    });
+        engine = new SharedEngine(new Engine.EngineSettings
+        {
+            Filename = database, DurableCommits = true, TransactionPageLimit = 4
+        });
+        return new LiteDatabase(engine);
+    }
 
     private static ProcessStartInfo StartInfo(string database, string ledger, int worker, int seed, int count, int crashAt)
     {
