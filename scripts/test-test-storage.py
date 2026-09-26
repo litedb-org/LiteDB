@@ -14,12 +14,21 @@ import xml.etree.ElementTree as ET
 repo = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser()
 parser.add_argument("--framework", choices=("net8.0", "net10.0"), default="net10.0")
+parser.add_argument("--suite", choices=("LiteDB.Tests", "LiteDB.Fuzz.Tests", "LiteDB.ReproRunner.Tests"), default="LiteDB.Tests")
 args = parser.parse_args()
-assembly = repo / "LiteDB.Tests/bin/Release" / args.framework / "LiteDB.Tests.dll"
+assembly = repo / args.suite / "bin/Release" / args.framework / (args.suite + ".dll")
+minimum_tests = {"LiteDB.Tests": 7, "LiteDB.Fuzz.Tests": 9, "LiteDB.ReproRunner.Tests": 45}[args.suite]
 ns = {"t": "http://microsoft.com/schemas/VisualStudio/TeamTest/2010"}
-local_linux = not os.environ.get("CI") and Path("/dev/shm").is_dir()
+ci = any(os.environ.get(key, "").lower() in ("1", "true") for key in ("CI", "GITHUB_ACTIONS"))
+temporary_root = None
+if not ci and os.environ.get("LITEDB_TEST_STORAGE") != "disk":
+    temporary_root = os.environ.get("LITEDB_TEST_TEMP_ROOT")
+    if not temporary_root and Path("/dev/shm").is_dir():
+        temporary_root = "/dev/shm"
+    if not temporary_root or not Path(temporary_root).is_absolute() or not Path(temporary_root).is_dir():
+        raise SystemExit("Set LITEDB_TEST_TEMP_ROOT to an existing absolute RAM-disk path.")
 
-with tempfile.TemporaryDirectory(prefix="litedb-storage-harness-", dir="/dev/shm" if local_linux else None) as root:
+with tempfile.TemporaryDirectory(prefix="litedb-storage-harness-", dir=temporary_root) as root:
     root = Path(root)
     ram = root / "configured-root"
     ram.mkdir()
@@ -45,8 +54,9 @@ with tempfile.TemporaryDirectory(prefix="litedb-storage-harness-", dir="/dev/shm
         result = root / (name + ".trx")
         command = ["dotnet", "vstest", str(assembly),
                    "/Settings:" + str(repo / "tests.runsettings"),
-                   "/TestCaseFilter:FullyQualifiedName~TestStorage_Tests",
                    "/Logger:trx;LogFileName=" + str(result)]
+        if args.suite == "LiteDB.Tests":
+            command.append("/TestCaseFilter:FullyQualifiedName~TestStorage_Tests")
         run = subprocess.run(command, cwd=repo, env=env, text=True,
                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=90)
         if error:
@@ -54,7 +64,7 @@ with tempfile.TemporaryDirectory(prefix="litedb-storage-harness-", dir="/dev/shm
         else:
             assert run.returncode == 0, run.stdout
             counters = ET.parse(result).find(".//t:Counters", ns).attrib
-            assert int(counters["passed"]) >= 7 and int(counters["failed"]) == 0, counters
+            assert int(counters["passed"]) >= minimum_tests and int(counters["failed"]) == 0, counters
         assert sentinel.read_text() == "preserve unrelated data"
         assert not list(ram.glob("litedb-tests-*")), "test host did not clean up its directory"
         print(name + ": passed", flush=True)

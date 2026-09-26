@@ -1,0 +1,13 @@
+<Project>
+  <PropertyGroup>
+    <AssemblyName Condition="'$(AssemblyName)' == ''">$(MSBuildProjectName)</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)TestStorage.cs" Link="TestStorage/TestStorage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)StorageTestFramework.cs" Link="TestStorage/StorageTestFramework.cs" />
+    <AssemblyAttribute Include="Xunit.TestFrameworkAttribute">
+      <_Parameter1>LiteDB.Tests.StorageTestFramework</_Parameter1>
+      <_Parameter2>$(AssemblyName)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+</Project>

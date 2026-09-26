@@ -4,6 +4,9 @@ Tests that only need an engine use `:memory:`. Mapper/query tests that need to
 serialize and reopen use `MemoryDatabase`, which owns data, WAL and sort streams
 across sequential engine instances. Do not share its streams between live engines.
 
+The shared test setup covers `LiteDB.Tests`, `LiteDB.Fuzz.Tests` and
+`LiteDB.ReproRunner.Tests`.
+
 Filesystem tests still exercise real `FileStream`, locking, renames, sidecars,
 child processes and recovery. Locally, the xUnit framework redirects `TMPDIR`,
 `TEMP` and `TMP` to a unique directory on a RAM filesystem before discovery or

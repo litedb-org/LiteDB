@@ -15,4 +15,5 @@
   <ItemGroup>
     <ProjectReference Include="..\LiteDB.Fuzz\LiteDB.Fuzz.csproj" AdditionalProperties="TestingEnabled=true" />
   </ItemGroup>
+  <Import Project="../tests/Shared/TestStorage.props" />
 </Project>

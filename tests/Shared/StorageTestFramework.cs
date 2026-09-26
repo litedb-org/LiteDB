@@ -1,9 +1,6 @@
 using System.Reflection;
-using Xunit;
 using Xunit.Abstractions;
 using Xunit.Sdk;
-
-[assembly: TestFramework("LiteDB.Tests.StorageTestFramework", "LiteDB.Tests")]
 
 namespace LiteDB.Tests
 {
