@@ -161,6 +161,11 @@ namespace LiteDB.AotTestHost
                 return new TestResult(test.Name, Outcome.Timeout, $"exceeded {TestTimeout.TotalMinutes:F0} minutes");
             }
 
+            if (failure != null)
+            {
+                Console.WriteLine($"DETAIL {test.Name}: {failure}");
+            }
+
             return failure == null
                 ? new TestResult(test.Name, Outcome.Pass, string.Empty)
                 : new TestResult(test.Name, Outcome.Fail, Describe(failure));

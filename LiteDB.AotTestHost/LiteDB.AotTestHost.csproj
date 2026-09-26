@@ -41,6 +41,10 @@
   <!-- The test assembly is the application: keep every test class, model, and member the runner reflects over. -->
   <ItemGroup>
     <TrimmerRootAssembly Include="LiteDB.Tests" />
+    <!-- This reflection-based test host needs assertion and library metadata. Real
+         consumer trimming remains independently gated by the feature-parity app. -->
+    <TrimmerRootAssembly Include="LiteDB" />
+    <RdXmlFile Include="TestRoots.rd.xml" />
   </ItemGroup>
 
   <ItemGroup>
