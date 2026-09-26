@@ -38,8 +38,12 @@ internal sealed class SharedProcessFuzzer : IFuzzTarget
                 File.Delete(oldLedger);
             File.Delete(database);
             File.Delete(Path.ChangeExtension(database, null) + "-log.db");
+            var crashPosition = (rounds - 1) % CrashBoundaryCount + 1;
             using (var seed = Open(database))
+            {
+                ConfigureCrashCheckpoint(seed, crashPosition);
                 seed.GetCollection("rows").Insert(new BsonDocument { ["_id"] = 1, ["value"] = "control" });
+            }
 
             var workerCount = 2 + Math.Abs((context.Seed + rounds) % 3);
             var operations = Math.Max(12, context.Count);
@@ -47,7 +51,7 @@ internal sealed class SharedProcessFuzzer : IFuzzTarget
             for (var worker = 0; worker < workerCount; worker++)
             {
                 var ledger = Path.Combine(context.DirectoryPath, $"worker-{worker}.jsonl");
-                var crashAt = worker == 0 ? (rounds - 1) % CrashBoundaryCount + 1 : -1;
+                var crashAt = worker == 0 ? crashPosition : -1;
                 if (crashAt > 0) context.ObserveNovelty("shared-crash-boundary", crashAt, workerCount);
                 var process = Process.Start(StartInfo(database, ledger, worker,
                     context.Seed + rounds * 397 + worker, operations, crashAt))
@@ -79,7 +83,7 @@ internal sealed class SharedProcessFuzzer : IFuzzTarget
                     context.Check(child.Process.ExitCode != 0, "Crash worker unexpectedly completed normally.");
                     var marker = CrashMarker(child.Ledger);
                     context.Check(File.Exists(marker),
-                        "Shared crash worker exited without proving the configured hook fired.");
+                        "Shared crash worker exited without proving the configured hook fired: " + error);
                     var observed = File.ReadAllText(marker);
                     var position = int.Parse(observed.Split('|')[0]);
                     FuzzOracle.VerifyCrashMarker(context, observed, ExpectedMarker(position));
@@ -132,6 +136,18 @@ internal sealed class SharedProcessFuzzer : IFuzzTarget
         context.Metrics["observedCrashPositions"] = observedCrashPositions.Count;
         context.Metrics["observedInternalCrashPoints"] = observedCrashPositions.Count(position => position > OuterCrashBoundaries);
         context.Metrics["integrityChecks"] = integrityChecks;
+    }
+
+    /// <summary>
+    /// Checkpoint faults must run before Commit gives up writer ownership. Otherwise a
+    /// peer can drain the WAL between Commit and the explicit Checkpoint, leaving no
+    /// work that reaches the selected hook. Ordinary and WAL-fault rounds keep defaults.
+    /// </summary>
+    internal static void ConfigureCrashCheckpoint(LiteDatabase database, int position)
+    {
+        if (position > OuterCrashBoundaries &&
+            InternalCrashPoints[position - OuterCrashBoundaries - 1].StartsWith("checkpoint-", StringComparison.Ordinal))
+            database.CheckpointSize = 1;
     }
 
     internal static int RunChild(FuzzOptions options)
