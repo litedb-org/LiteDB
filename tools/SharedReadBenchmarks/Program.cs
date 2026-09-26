@@ -20,10 +20,16 @@ internal static class Program
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic) != null)
             throw new InvalidOperationException("Benchmarks require a Release LiteDB assembly with TestingEnabled=false.");
 
+        if (args.Length == 2 && args[0] == "interop")
+        {
+            InteropBenchmarks.Run(Path.GetFullPath(args[1]));
+            return;
+        }
+
         if ((args.Length != 4 && args.Length != 5) || !int.TryParse(args[3], out var count) || count <= 0 ||
             (args[1] != "shared" && args[1] != "direct") ||
-            !new[] { "point", "scan", "mixed", "phases", "slots" }.Contains(args[2]))
-            throw new ArgumentException("Usage: SharedReadBenchmarks <scratch-parent> <shared|direct> <point|scan|mixed|phases|slots> <count> [warmup-seconds|active-slots]");
+            !new[] { "point", "scan", "mixed", "phases", "slots", "holder" }.Contains(args[2]))
+            throw new ArgumentException("Usage: SharedReadBenchmarks <scratch-parent> <shared|direct> <point|scan|mixed|phases|slots|holder> <count> [warmup-seconds|active-slots]");
 
         var warmupSeconds = args.Length == 5 ? int.Parse(args[4], CultureInfo.InvariantCulture) : 0;
         if (warmupSeconds < 0) throw new ArgumentOutOfRangeException(nameof(warmupSeconds));
@@ -34,6 +40,7 @@ internal static class Program
         try
         {
             if (args[2] == "slots") SlotBenchmarks.Run(directory, count, warmupSeconds);
+            else if (args[2] == "holder") HolderBenchmarks.Run(count);
             else Run(Path.Combine(directory, "bench.db"), args[1], args[2], count, warmupSeconds);
         }
         finally { Directory.Delete(directory, true); }

@@ -38,19 +38,19 @@ namespace LiteDB.Tests.Engine
                     });
                     release.Start();
                     release.Join(TimeSpan.FromSeconds(10)).Should().BeTrue();
-                    SharedReaderSlots.ReadVersions(LeasePath).Should().BeEquivalentTo(
-                        expected.Where((_, index) => !indices.Contains(index)));
+                    SharedReaderSlots.ReadVersions(LeasePath).OrderBy(x => x).Should().Equal(
+                        expected.Where((_, index) => !indices.Contains(index)).OrderBy(x => x));
                     foreach (var index in indices)
                     {
                         expected[index] = 1024 + round * 1024 + index;
                         readers[index] = slots.Lease(expected[index]);
                     }
-                    SharedReaderSlots.ReadVersions(LeasePath).Should().BeEquivalentTo(expected);
+                    SharedReaderSlots.ReadVersions(LeasePath).OrderBy(x => x).Should().Equal(expected.OrderBy(x => x));
                     new FileInfo(SharedReaderSlots.ContentPath(LeasePath)).Length.Should().Be(length);
                 }
                 // Disposal must keep every live lease available until its own release.
                 slots.Dispose();
-                SharedReaderSlots.ReadVersions(LeasePath).Should().BeEquivalentTo(expected);
+                SharedReaderSlots.ReadVersions(LeasePath).OrderBy(x => x).Should().Equal(expected.OrderBy(x => x));
             }
             finally { foreach (var reader in readers) reader.Dispose(); }
             Directory.GetFiles(_directory).Should().BeEmpty();
@@ -102,7 +102,7 @@ namespace LiteDB.Tests.Engine
                 slots.WriteOverride = null;
                 readers[32768] = slots.Lease(65536);
                 var expected = Enumerable.Range(0, 65536).Where(x => x != 32768).Concat(new[] { 65536 });
-                SharedReaderSlots.ReadVersions(LeasePath).Should().BeEquivalentTo(expected);
+                SharedReaderSlots.ReadVersions(LeasePath).OrderBy(x => x).Should().Equal(expected.OrderBy(x => x));
                 full.Should().Throw<IOException>();
             }
             finally

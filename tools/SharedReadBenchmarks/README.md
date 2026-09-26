@@ -82,3 +82,17 @@ python3 scripts/measure-shared-slots.py \
 Run once per runtime, serially and without competing tests/builds. Commands,
 `TMPDIR`, host, order, timing, failures and JSON results are preserved in an
 exclusively created output file; any failed process stops the comparison.
+
+`holder <count>` separately measures production pin acquire/ready/release cycles
+with no engine or durable I/O. Reflection overhead is included, and it is a
+cost probe rather than a proposed reusable-worker implementation.
+
+`interop <database>` is a line-oriented child protocol for
+`scripts/verify-shared-slot-interop.py` (Linux driver). Build the same runner
+against each production library, then pass their directories as `--baseline` and
+`--candidate` and a private `--scratch`. It alternates writer/reader binary roles,
+holds three generations through checkpoint and oldest-first departure, verifies
+full payloads and indexed results, rolls back cross-collection deletion, and
+checks a transaction witness and final state from a new process. Failed fixture
+files remain for investigation. Native kill/recovery and physical integrity
+remain the responsibility of the existing Shared/MVCC regression/fuzz suite.
