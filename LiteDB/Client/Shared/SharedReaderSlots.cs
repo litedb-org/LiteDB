@@ -28,7 +28,10 @@ namespace LiteDB.Client.Shared
         private readonly object _gate = new object();
         private readonly FileStream _content;
         private readonly FileStream _lease;
-        private readonly List<bool> _used = new List<bool>();
+        // A bounded free list: next indices live in the slot table, so release never
+        // allocates. Only a successfully cleared slot is linked back into the list.
+        private readonly List<int> _next = new List<int>();
+        private int _free = -1;
         private readonly byte[] _buffer = new byte[SlotSize];
         private int _inUse;
         private bool _disposeRequested;
@@ -84,24 +87,25 @@ namespace LiteDB.Client.Shared
             lock (_gate)
             {
                 if (_closed) throw new ObjectDisposedException(nameof(SharedReaderSlots));
-                var index = _used.IndexOf(false);
+                var index = _free;
                 if (index < 0)
                 {
-                    index = _used.Count;
+                    index = _next.Count;
                     if (index == MaxSlots) throw new IOException("The shared-reader slot limit was reached.");
-                    _used.Add(false);
+                    _next.Add(-1);
+                    _free = index;
                 }
                 // Written through to the OS before the caller releases the mutex, so the next
                 // mutex owner's scan reads it.
                 this.WriteSlot(index + 1, version, ~version);
                 // Also repair a header whose previous append failed. Registration and
                 // checkpoint inspection hold the database mutex, so append cannot race it.
-                if (_publishedCount != _used.Count)
+                if (_publishedCount != _next.Count)
                 {
-                    this.WriteSlot(0, _used.Count, ~_used.Count);
-                    _publishedCount = _used.Count;
+                    this.WriteSlot(0, _next.Count, ~_next.Count);
+                    _publishedCount = _next.Count;
                 }
-                _used[index] = true;
+                _free = _next[index];
                 _inUse++;
                 return new Slot(this, index);
             }
@@ -120,7 +124,8 @@ namespace LiteDB.Client.Shared
                 try
                 {
                     this.WriteSlot(index + 1, 0, 0);
-                    _used[index] = false;
+                    _next[index] = _free;
+                    _free = index;
                 }
                 catch (IOException) { }
                 this.CloseIfDone();
