@@ -22,10 +22,10 @@ namespace LiteDB.Engine
         // the back-off that outlives the engine instead of running unconditionally.
         private readonly bool _rationClose;
 
-        private readonly Dictionary<uint, List<KeyValuePair<int, long>>> _index = new Dictionary<uint, List<KeyValuePair<int, long>>>();
+        private Dictionary<uint, List<KeyValuePair<int, long>>> _index = new Dictionary<uint, List<KeyValuePair<int, long>>>();
         private readonly ReaderWriterLockSlim _indexLock = new ReaderWriterLockSlim();
 
-        private readonly HashSet<uint> _confirmTransactions = new HashSet<uint>();
+        private HashSet<uint> _confirmTransactions = new HashSet<uint>();
         private readonly Func<object> _getCommitLock;
         private readonly ICoordinationSignals _signals;
 
@@ -222,12 +222,13 @@ namespace LiteDB.Engine
         /// </summary>
         public void RestoreIndex(ref HeaderPage header, Action<HeaderPage> validateHeader = null)
         {
-            // get all page positions
+            RestoreIndex(ref header, new WalRecovery(), _disk.ReadFull(FileOrigin.Log), validateHeader);
+        }
+
+        private void RestoreIndex(ref HeaderPage header, WalRecovery recovery, IEnumerable<PageBuffer> pages,
+            Action<HeaderPage> validateHeader)
+        {
             var positions = new Dictionary<long, List<PagePosition>>();
-
-
-            var recovery = new WalRecovery();
-            var pages = _disk.ReadFull(FileOrigin.Log);
             if (_disk.ChecksumsEnabled) pages = recovery.Read(pages);
             foreach (var buffer in pages)
             {

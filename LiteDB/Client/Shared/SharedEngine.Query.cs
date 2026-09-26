@@ -130,6 +130,9 @@ namespace LiteDB
                 settings.AutoRebuild = false;
                 settings.SharedReadSnapshot = true;
                 settings.CoordinationSignals = null;
+                settings.WriterResume = null;
+                settings.CaptureWriterResume = false;
+                settings.WriterResumeValid = null;
                 snapshot = new LiteEngine(settings);
                 var reader = snapshot.Query(collection, query);
                 var ownedSnapshot = snapshot;
@@ -370,6 +373,9 @@ namespace LiteDB
             settings.AutoRebuild = false;
             settings.SharedReadSnapshot = true;
             settings.CoordinationSignals = null;
+            settings.WriterResume = null;
+            settings.CaptureWriterResume = false;
+            settings.WriterResumeValid = null;
             return settings;
         }
 

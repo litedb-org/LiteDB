@@ -127,7 +127,7 @@ namespace LiteDB.Client.Shared
             {
                 var sequence = this.Load(1);
                 if ((sequence & 1) != 0 || this.Load(0) != Magic) continue;
-                status = new SharedCoordinationStatus(this.Load(2), this.Load(3), this.Load(4), this.Load(5), this.Load(6));
+                status = new SharedCoordinationStatus(this.Load(2), this.Load(3), this.Load(4), this.Load(5), this.Load(6), this.Load(7));
                 Interlocked.MemoryBarrier();
                 if (sequence == this.Load(1)) return status.Quiet && !this.Revoked();
             }
@@ -140,6 +140,44 @@ namespace LiteDB.Client.Shared
         {
             this.Committed(version);
             _trusted = true;
+        }
+
+        // Opening always blocks admission, but an ordinary open does not invalidate
+        // detached WAL metadata. Recovery writes publish reuse/structural changes.
+        internal void OpeningBegin()
+        {
+            lock (_writeLock) this.Change(() =>
+            {
+                var opening = this.Load(7);
+                if (((opening | this.Load(3)) & 1) != 0) this.Store(6, NewIdentity());
+                _depth = 0; // A new exclusive open supersedes a failed predecessor.
+                this.Store(7, checked(opening + ((opening & 1) == 0 ? 1 : 2)));
+            });
+        }
+
+        internal void OpeningEnd(int version)
+        {
+            lock (_writeLock) this.Change(() =>
+            {
+                if (_depth != 0) throw new InvalidOperationException("Unfinished structural change during Shared open.");
+                this.SetVersion(version);
+                if ((this.Load(3) & 1) != 0) this.Store(3, checked(this.Load(3) + 1));
+                this.Store(7, checked(this.Load(7) + 1));
+            });
+            _trusted = true;
+        }
+
+        // Only the current database-mutex owner calls this while its open is in
+        // progress. Opening generation may differ; all storage fences must match.
+        internal bool CanResume(SharedCoordinationStatus before)
+        {
+            lock (_writeLock)
+            {
+                if (_disposed || !_trusted || this.Revoked()) return false;
+                var now = new SharedCoordinationStatus(this.Load(2), this.Load(3), this.Load(4),
+                    this.Load(5), this.Load(6), this.Load(7));
+                return (now.Structural & 1) == 0 && now.SameWriterStorage(before);
+            }
         }
 
         public void StructuralBegin()
@@ -233,15 +271,17 @@ namespace LiteDB.Client.Shared
 
     internal readonly struct SharedCoordinationStatus
     {
-        internal SharedCoordinationStatus(long version, long structural, long reuse, long resets, long identity)
-        { Version = version; Structural = structural; Reuse = reuse; Resets = resets; Identity = identity; }
+        internal SharedCoordinationStatus(long version, long structural, long reuse, long resets, long identity, long opening = 0)
+        { Version = version; Structural = structural; Reuse = reuse; Resets = resets; Identity = identity; Opening = opening; }
         internal long Version { get; }
         internal long Structural { get; }
         internal long Reuse { get; }
         internal long Resets { get; }
         internal long Identity { get; }
-        internal bool Quiet => Version >= 0 && Identity != 0 && (Structural & 1) == 0;
-        internal bool SameStorage(SharedCoordinationStatus other) => Identity == other.Identity &&
+        internal long Opening { get; }
+        internal bool Quiet => Version >= 0 && Identity != 0 && ((Structural | Opening) & 1) == 0;
+        internal bool SameStorage(SharedCoordinationStatus other) => Opening == other.Opening && SameWriterStorage(other);
+        internal bool SameWriterStorage(SharedCoordinationStatus other) => Identity == other.Identity &&
             Structural == other.Structural && Reuse == other.Reuse && Resets == other.Resets;
     }
 }

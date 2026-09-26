@@ -18,6 +18,7 @@ namespace LiteDB.Engine
                 if (initialSize % PAGE_SIZE != 0) throw LiteException.InvalidInitialSize();
             }
 
+            _signals?.SlotReused();
             var buffer = new PageBuffer(new byte[PAGE_SIZE], 0, 0);
             var header = new HeaderPage(buffer, 0);
 

@@ -1,4 +1,4 @@
-using LiteDB.Utils;
+﻿using LiteDB.Utils;
 
 using System;
 using System.Collections.Concurrent;
@@ -83,6 +83,10 @@ namespace LiteDB.Engine
 
         internal bool Open()
         {
+            this.ClosedWriterResume = null;
+#if DEBUG || TESTING
+            this.ResumedWriter = false;
+#endif
             LOG($"start initializing{(_settings.ReadOnly ? " (readonly)" : "")}", "ENGINE");
 
             _systemCollections = new Dictionary<string, SystemCollection>(StringComparer.OrdinalIgnoreCase);
@@ -158,7 +162,14 @@ namespace LiteDB.Engine
                 // if exists log file, restore wal index references (can update full _header instance)
                 if (_disk.GetFileLength(FileOrigin.Log) > 0 || _disk.ChecksumsEnabled)
                 {
-                    _walIndex.RestoreIndex(ref _header, this.ValidateCollationStamp);
+                    if (!_settings.ReadOnly && _walIndex.TryResumeWriter(_settings.WriterResume,
+                        _settings.WriterResumeValid, ref _header, this.ValidateCollationStamp))
+                    {
+#if DEBUG || TESTING
+                        this.ResumedWriter = true;
+#endif
+                    }
+                    else _walIndex.RestoreIndex(ref _header, this.ValidateCollationStamp);
                 }
 
                 this.ValidateCollationStamp();
@@ -220,6 +231,15 @@ namespace LiteDB.Engine
                 tc.Catch(() => _walIndex?.TryCloseCheckpoint());
             }
 
+            // Capture detached metadata only after every transaction and close checkpoint
+            // completed. A failed or abandoned close never creates reusable state.
+            if (checkpoint && !final && _settings.CaptureWriterResume && tc.Exceptions.Count == 0)
+            {
+                try { this.ClosedWriterResume = _walIndex?.CaptureWriterResume(_header); }
+                catch (IOException) { }
+                catch (LiteException) { }
+            }
+
             // close all disk streams (and delete log if empty)
             tc.Catch(() => _disk?.Dispose());
 
@@ -229,8 +249,14 @@ namespace LiteDB.Engine
             // dispose lockers
             tc.Catch(() => _locker?.Dispose());
 
+            if (tc.Exceptions.Count != 0) this.ClosedWriterResume = null;
             return tc.Exceptions;
         }
+
+        internal SharedWriterResume ClosedWriterResume { get; private set; }
+#if DEBUG || TESTING
+        internal bool ResumedWriter { get; private set; }
+#endif
 
         /// <summary>
         /// Every close checkpoints unless a shared connection set a threshold: its short-lived
@@ -256,6 +282,7 @@ namespace LiteDB.Engine
         internal List<Exception> Close(Exception ex, EngineState origin = null)
         {
             if (origin != null && !ReferenceEquals(origin, _state)) return new List<Exception>();
+            this.ClosedWriterResume = null;
             if (_state.Disposed) return new List<Exception>();
 
             _state.Disposed = true;

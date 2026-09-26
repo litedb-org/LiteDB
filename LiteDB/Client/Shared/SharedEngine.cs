@@ -57,7 +57,7 @@ namespace LiteDB
             _settings.SharedReaderVersions = _readers.LiveVersions;
             // A rebuild would replace the files under live snapshot readers. Scan the
             // registry only when an open is about to rebuild, not on every operation.
-            _settings.AutoRebuildAllowed = () => !_readers.OldestVersion().HasValue;
+            _settings.AutoRebuildAllowed = this.AllowAutomaticRebuild;
             // Each operation opens and closes an engine. Share one back-off so a
             // long-lived reader cannot make every close pay for partial checkpoint.
             _settings.CheckpointBackoff = new CheckpointBackoff();
@@ -195,7 +195,7 @@ namespace LiteDB
                     {
                         var engine = _engine;
                         _engine = null;
-                        engine.Close();
+                        this.CloseResumableWriter(engine);
                     }
                 }
             }

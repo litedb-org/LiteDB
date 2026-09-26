@@ -9,7 +9,7 @@ namespace LiteDB.Engine
         private readonly Dictionary<int, int> _snapshots = new Dictionary<int, int>();
         private readonly Func<int[]> _sharedReaders;
         private int _backfillVersion;
-        private readonly Dictionary<int, long> _confirmationPositions = new Dictionary<int, long>();
+        private Dictionary<int, long> _confirmationPositions = new Dictionary<int, long>();
 
 #if DEBUG || TESTING
         internal Action SnapshotCaptured;

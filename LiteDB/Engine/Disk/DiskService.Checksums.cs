@@ -66,6 +66,7 @@ namespace LiteDB.Engine
         internal void EnableChecksums(ref HeaderPage header)
         {
             if (_readOnly || ChecksumsEnabled) return;
+            _signals?.SlotReused();
             var stream = _dataPool.Writer.Value;
             var buffer = new PageBuffer(new byte[PAGE_SIZE], 0, 0);
             stream.Position = 0;

@@ -174,7 +174,8 @@ namespace LiteDB
                 var engine = _engine;
                 _engine = null;
                 var close = Stopwatch.StartNew();
-                engine.Dispose();
+                if (abandoned) engine.Dispose();
+                else this.CloseResumableWriter(engine);
                 _lastPinClose = close.Elapsed;
             }
             if (Volatile.Read(ref _disposed) != 0) this.DisposeCoordination();

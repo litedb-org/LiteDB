@@ -338,6 +338,7 @@ namespace LiteDB.Engine
         /// </summary>
         public void SetLength(long length, FileOrigin origin)
         {
+            _signals?.SlotReused();
             var stream = origin == FileOrigin.Log ? _logPool.Writer : _dataPool.Writer;
 
             if (origin == FileOrigin.Log)

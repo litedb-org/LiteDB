@@ -37,6 +37,9 @@ namespace LiteDB.Engine
         internal int CloseCheckpointPages { get; set; }
         // Experimental coordinator: set only on the coordinator's own engine.
         internal ICoordinationSignals CoordinationSignals { get; set; }
+        internal bool CaptureWriterResume { get; set; }
+        internal SharedWriterResume WriterResume { get; set; }
+        internal Func<bool> WriterResumeValid { get; set; }
         internal EngineSettings Clone() => (EngineSettings)this.MemberwiseClone();
 
         /// <summary>

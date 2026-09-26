@@ -19,6 +19,7 @@ namespace LiteDB.Engine
         {
             if (trailingLength == 0) return;
 
+            _signals?.SlotReused();
             var stream = pool.Writer.Value;
             stream.SetLength(length);
             stream.FlushToDisk();

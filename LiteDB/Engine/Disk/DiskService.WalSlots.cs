@@ -9,8 +9,8 @@ namespace LiteDB.Engine
     internal partial class DiskService
     {
         // Protected by the WAL writer lock, except during single-threaded open.
-        private readonly Dictionary<uint, long> _lastLogPositions = new Dictionary<uint, long>();
-        private readonly SortedSet<long> _freeLogPositions = new SortedSet<long>();
+        private Dictionary<uint, long> _lastLogPositions = new Dictionary<uint, long>();
+        private SortedSet<long> _freeLogPositions = new SortedSet<long>();
         private uint _lastWalTransactionID;
 
         internal void RegisterFreeLogPosition(long position)

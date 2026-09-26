@@ -83,6 +83,7 @@ namespace LiteDB.Engine
                     WalRetirement.Load(new BufferSlice(header, 0, PAGE_SIZE), reader.RawStream, verifier);
                 }
                 if (_readOnly) return;
+                _signals?.SlotReused();
 
                 // Repair and sync the header before removing its recovery copy.
                 // Legacy redo stays until checkpoint also repairs converted pages.
