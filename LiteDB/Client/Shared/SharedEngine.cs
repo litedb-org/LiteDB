@@ -141,16 +141,6 @@ namespace LiteDB
             return null;
         }
 
-        private void OpenEngine(bool recoveredAbandonedOwner)
-        {
-            _engine = this.CreateEngine(recoveredAbandonedOwner);
-#if DEBUG || TESTING
-            this.EngineOpens++;
-#endif
-            _recoveryReport = _engine.RecoveryReport ?? _recoveryReport;
-            _engine.RecoveryReport = _recoveryReport;
-        }
-
         private LiteEngine CreateEngine(bool recoveredAbandonedOwner, EngineSettings settings = null)
         {
             const int retries = 100;
@@ -443,6 +433,7 @@ namespace LiteDB
         {
             if (!disposing || Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
+            this.RetireCoordinatedReads();
             // Any thread can end a pin; its holder closes the engine and releases. Read
             // under the lock that orders a starting pin's publication with this Dispose.
             SharedMutexPin pin;
@@ -485,6 +476,7 @@ namespace LiteDB
             // A disposed connection holds no mutex, even for the moment its holder
             // needs to release it; another connection's final close may try it next.
             _owner.WaitForRelease();
+            this.DisposeCoordination();
         }
 
         /// <summary>

@@ -177,6 +177,7 @@ namespace LiteDB
                 engine.Dispose();
                 _lastPinClose = close.Elapsed;
             }
+            if (Volatile.Read(ref _disposed) != 0) this.DisposeCoordination();
         }
 
         /// <summary>

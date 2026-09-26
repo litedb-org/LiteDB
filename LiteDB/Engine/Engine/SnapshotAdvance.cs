@@ -5,6 +5,11 @@ namespace LiteDB.Engine
 {
     public partial class LiteEngine
     {
+        // Retention bounds apply to idle Shared snapshots, after their last query released.
+        internal bool CanRetainSharedSnapshot => !_state.Disposed &&
+            _disk.Cache.AllocatedBytes <= 4L * 1024 * 1024 &&
+            _disk.GetFileLength(FileOrigin.Log) <= 4L * 1024 * 1024;
+
         /// <summary>
         /// Experimental coordinator: advance this read-only snapshot engine to the newest
         /// transactions appended since it opened or last advanced; see
