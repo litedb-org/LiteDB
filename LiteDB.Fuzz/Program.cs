@@ -27,6 +27,7 @@ internal static class Program
         catch (Exception error) { Console.Error.WriteLine(error.Message); PrintHelp(); return 2; }
 
         if (options.Child == "shared") return SharedProcessFuzzer.RunChild(options);
+        if (options.Child == "snapshot-writer") return SnapshotWriterProcess.RunChild(options);
         if (options.Child == "snapshot-reader") return SnapshotFuzzer.RunChild(options);
         if (options.List)
         {

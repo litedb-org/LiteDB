@@ -14,24 +14,28 @@ namespace LiteDB.Tests.Engine
         private string DirectoryName => Filename + "-readers";
         private string LeasePath => Directory.GetFiles(DirectoryName, "*.lease").Single();
 
-        [Fact]
-        public void Whole_slot_truncation_and_empty_content_are_unknown_not_missing_readers()
+        [Theory]
+        [InlineData(16)]
+        [InlineData(8)]
+        [InlineData(0)]
+        public void Whole_slot_truncation_and_empty_content_remain_unknown(int length)
         {
             using var slots = SharedReaderSlots.Create(DirectoryName);
             using var a = slots.Lease(7);
             using var b = slots.Lease(11);
-            // Simulate loss of complete trailing writes, including the entire file.
-            foreach (var length in new[] { 16, 8, 0 })
+            slots.WriteOverride = (file, buffer) =>
             {
-                slots.WriteOverride = (file, buffer) =>
-                {
-                    file.SetLength(length);
-                    throw new IOException("lost trailing writes");
-                };
-                Action register = () => slots.Lease(19);
-                register.Should().Throw<IOException>();
-                new SharedReaderRegistry(Filename).LiveVersions().Should().BeNull();
-            }
+                file.SetLength(length);
+                throw new IOException("lost published slots");
+            };
+            Action register = () => slots.Lease(19);
+            register.Should().Throw<IOException>();
+            slots.WriteOverride = null;
+            register.Should().Throw<IOException>();
+            // Neither rollback nor later cleanup may turn lost live versions into free slots.
+            a.Dispose();
+            new SharedReaderRegistry(Filename).LiveVersions().Should().BeNull();
+            new FileInfo(Path.ChangeExtension(LeasePath, ".slots")).Length.Should().Be(length);
         }
 
         [Theory]
@@ -65,7 +69,7 @@ namespace LiteDB.Tests.Engine
         }
 
         [Fact]
-        public void Failed_append_header_is_unknown_and_a_retry_repairs_it()
+        public void Failed_append_header_restores_the_published_readers_without_another_registration()
         {
             using var slots = SharedReaderSlots.Create(DirectoryName);
             using var first = slots.Lease(7);
@@ -76,7 +80,7 @@ namespace LiteDB.Tests.Engine
             };
             Action register = () => slots.Lease(11);
             register.Should().Throw<IOException>();
-            new SharedReaderRegistry(Filename).LiveVersions().Should().BeNull();
+            new SharedReaderRegistry(Filename).LiveVersions().Should().BeEquivalentTo(new[] { 7 });
             slots.WriteOverride = null;
             using var retry = slots.Lease(19);
             new SharedReaderRegistry(Filename).LiveVersions().Should().BeEquivalentTo(new[] { 7, 19 });

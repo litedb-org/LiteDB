@@ -64,6 +64,37 @@ namespace LiteDB.Tests.Engine
         }
 
         [Fact]
+        public void Failed_registration_followed_only_by_small_reads_does_not_disable_checkpoints()
+        {
+            using var engine = new SharedEngine(new EngineSettings { Filename = Filename });
+            engine.Insert("docs", Documents(0), BsonAutoId.Int32);
+            using (var warmup = engine.Query("docs", new Query { Limit = 1 })) warmup.Read().Should().BeTrue();
+            var registry = (SharedReaderRegistry)typeof(SharedEngine).GetField("_readers", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(engine);
+            var slots = (SharedReaderSlots)typeof(SharedReaderRegistry).GetField("_slots", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(registry);
+            var failed = false;
+            slots.WriteOverride = (file, bytes) =>
+            {
+                if (!failed)
+                {
+                    failed = true;
+                    file.Write(bytes, 0, 1);
+                    throw new IOException("partial registration");
+                }
+                file.Write(bytes, 0, bytes.Length);
+            };
+            using (var small = engine.Query("docs", new Query { Limit = 1 })) small.Read().Should().BeTrue();
+            failed.Should().BeTrue();
+            using var peerEngine = new SharedEngine(new EngineSettings { Filename = Filename });
+            using var peer = new LiteDatabase(peerEngine, disposeOnClose: false);
+            peer.CheckpointSize = 0;
+            peer.GetCollection("other").Insert(new BsonDocument { ["_id"] = 1, ["value"] = 42 });
+            peerEngine.Checkpoint().Should().BeGreaterThan(0);
+            registry.LiveVersions().Should().BeEmpty("rollback must not need another lease registration");
+            peer.GetCollection("docs").FindAll().Select(x => x["_id"].AsInt32).Should().Equal(Enumerable.Range(1, 150));
+            peer.GetCollection("other").FindById(1)["value"].AsInt32.Should().Be(42);
+        }
+
+        [Fact]
         public void A_read_transform_may_open_a_reader_that_is_disposed_off_thread()
         {
             IBsonDataReader escaped = null;
