@@ -66,6 +66,10 @@ namespace LiteDB.Client.Shared
             FileStream file = null;
             try
             {
+                // After process/machine restart, no participant retains a snapshot
+                // from this authority. Retire recognizable stale control files under
+                // the database mutex; a live participant's OS handle forbids this.
+                SharedCoordinationFallback.TryRetire(filename);
                 // The participation file is never written after creation. Shared read
                 // handles prove liveness without a PID, timestamp, or heartbeat.
                 if (!File.Exists(LivePath(filename)))

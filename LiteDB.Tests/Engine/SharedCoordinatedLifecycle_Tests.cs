@@ -27,7 +27,8 @@ namespace LiteDB.Tests.Engine
                     Directory.CreateDirectory(SharedCoordinationFallback.LivePath(file));
                     Directory.CreateDirectory(SharedCoordinationPage.DisabledPath(file));
                 }
-                using (var engine = new SharedEngine(new EngineSettings { Filename = file }))
+                using (var engine = new SharedEngine(new EngineSettings
+                    { Filename = file, SharedMutexNameStrategy = SharedMutexNameStrategy.Sha1Hash }))
                 using (var database = new LiteDatabase(engine))
                 {
                     database.CheckpointSize = 0;

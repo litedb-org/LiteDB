@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
 using LiteDB.Client.Shared;
+using LiteDB.Engine;
 using Xunit;
 
 namespace LiteDB.Internals
@@ -49,6 +50,11 @@ namespace LiteDB.Internals
         public async Task Death_during_partial_lease_or_writer_open_recovers_without_lost_data(string mode)
         {
             await MvccProcess.Run("seed", Filename, null);
+            using var observerEngine = new SharedEngine(new EngineSettings { Filename = Filename });
+            using var observer = new LiteDatabase(observerEngine);
+            for (var i = 0; i < 3; i++) observer.GetCollection("docs").FindById(0)["value"].AsInt32.Should().Be(0);
+            var authority = (SharedCoordinationPage)typeof(SharedEngine).GetField("_coordination",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(observerEngine);
             using (var child = new MvccProcess(mode, Filename, null))
             {
                 await child.Expect("ready");
@@ -57,6 +63,7 @@ namespace LiteDB.Internals
                     using (var registry = new SharedReaderRegistry(Filename))
                         registry.LiveVersions().Should().BeNull("a half-written live slot must fail closed");
                 }
+                if (mode == "mapped-opening") authority.TryRead(out _).Should().BeFalse();
                 // Preserve the pre-recovery durable files before opening any successor.
                 foreach (var path in Directory.GetFiles(_directory, "*.db"))
                     File.Copy(path, path + ".before-recovery");
@@ -64,6 +71,9 @@ namespace LiteDB.Internals
             }
             await MvccProcess.Run("write", Filename, null, "7");
             await MvccProcess.Run("checkpoint", Filename, null);
+            authority.TryRead(out _).Should().BeTrue("the surviving mapping must observe recovered publication");
+            observer.GetCollection("docs").FindById(63)["value"].AsInt32.Should().Be(7);
+            observer.Dispose();
             VerifyCold(null, 7);
         }
 

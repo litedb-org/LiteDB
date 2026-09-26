@@ -12,6 +12,30 @@ namespace LiteDB.Tests.Engine
     public class SharedCoordinationPage_Tests
     {
         [Fact]
+        public void First_participant_retires_stale_owned_control_after_all_previous_handles_close()
+        {
+            WithFile(file =>
+            {
+                long identity;
+                using (var old = SharedCoordinationPage.Open(file))
+                {
+                    old.Opened(12);
+                    old.TryRead(out var status).Should().BeTrue();
+                    identity = status.Identity;
+                    old.StructuralBegin(); // Simulate a publisher dying before completion.
+                }
+                using (var current = SharedCoordinationPage.Open(file))
+                {
+                    current.TryRead(out _).Should().BeFalse("stored control bytes cannot establish a snapshot");
+                    current.Opened(3);
+                    current.TryRead(out var status).Should().BeTrue();
+                    status.Identity.Should().NotBe(identity);
+                    status.Version.Should().Be(3);
+                }
+            });
+        }
+
+        [Fact]
         public void Forgotten_mapping_releases_pointer_and_participation_handle_on_collection()
         {
             WithFile(file =>
