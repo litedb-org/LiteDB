@@ -1,4 +1,4 @@
-# Shared reader slot selection after #3013
+# Shared-mode performance after #3013
 
 Work in progress. PR #3014 is stacked on #3013, currently
 `d2fb099acebb58dbbb07acbeea49c05bb025defd` (initial measurement baseline
@@ -7,8 +7,9 @@ Work in progress. PR #3014 is stacked on #3013, currently
 **Updated concurrency contract:** all processes concurrently opening one database
 in Shared mode must use exactly the same LiteDB version. Concurrent mixed-version
 access is unsupported. This removes the legacy-writer participation objection to
-mapped admission and incremental reopen. Both strategies are being re-evaluated;
-the earlier rejection rationale below is historical, not the final decision.
+mapped admission and incremental reopen. Both strategies have implemented prototypes. The selected composition is mapped
+reader admission plus the free list; incremental writer replay did not meet the
+performance gate.
 Persisted database compatibility, durability and the other safety gates still apply.
 The free-list measurements establish only a helper improvement, not completion
 of the architectural read-admission and writer-handoff objectives.
@@ -17,8 +18,8 @@ of the architectural read-admission and writer-handoff objectives.
 
 | Strategy | Decision and evidence |
 | --- | --- |
-| A: mapped admission | Under re-evaluation with a same-version prototype. Historical rejection (superseded): an unmodified #3013/#3003 writer does not publish the page and can join later. Its checkpoint scans registrations under the named mutex. A speculative reader outside that mutex can publish after the scan, then open reclaimable storage. A new marker ignored by old writers cannot exclude that interleaving. Holding the existing mutex for the whole lifetime removes the proposed benefit. No candidate path or experimental switch is enabled. |
-| B: incremental reopen | Under re-evaluation, including centralized reuse publication. Historical rejection for the proposed fence (superseded): `DiskService.AllocateLogPosition` can consume `_freeLogPositions` below the cached boundary without updating the header salt/root. `_signals?.SlotReused()` is optional and ordinary older Shared writers do not supply it. A matching header, nonshrinking length and unchanged old confirmation therefore do not prove an append-only prefix. The coordinator's `TryRefresh` depends on an epoch all its writers honor; that precondition does not hold here. No stale engine/cache survives a handoff in this patch. |
+| A: mapped admission | Selected for PR #3014, with final qualification pending: warm reads publish a lease and validate aligned atomic storage epochs without taking the database mutex. Every same-version writer participates. Cold opens and unsupported environments retain the protected path. Platform performance and safety qualification are in progress. |
+| B: incremental reopen | Excluded after five-pair Windows/Linux .NET 8/10 comparisons: no repeatable contended-throughput gain, approximately 38 KB additional allocation per write, and several reproducible write/checkpoint regressions. The isolated branch preserves the implementation and fixes/tests for the retirement/safepoint defect found by the native campaign. |
 | C: reusable pin holder | Measurement pending. `SharedMutexOwner` already reuses its worker for one second of idle time and detects logical owner death. `SharedMutexPin` creates a thread per pin. A thread-only production diagnostic separates this cost from close/open, WAL replay and sync. |
 | D: adaptive yielding | No policy change selected. The parent already sets the quantum to at least measured open + previous close cost (minimum 10 ms), probes every 20 ms and retains the turnstile. Further experiments/evidence remain pending. |
 | E: slot selection | Candidate: replace `List<bool>.IndexOf(false)` with an intrusive free list in `List<int>`. Registration and release remain under the same lock; all existing file writes and ordering remain intact. Production comparisons pending. |
@@ -76,8 +77,9 @@ results must be reconciled with target metrics and replay manifests.
 
 Local environment: Ubuntu 24.04 x64, .NET 8.0.30 / 10.0.11, ext4; private `TMPDIR`
 on the same volume as `/tmp`. Other users' host workloads run concurrently and are
-not controlled by this task. Windows, macOS, ARM64, x86, Framework, mixed binaries,
-negative controls, full matrix and hosted CI evidence remain pending.
+not controlled by this task. The full supported platform matrix and final
+composition campaign remain acceptance gates. Concurrent mixed versions are
+outside the supported contract.
 
 ### Initial Linux .NET 10 production comparison
 
@@ -95,3 +97,64 @@ The scan mean paired change is +9.8% [−5.2%, +25.5%], despite the much smaller
 median difference. Shared-host drift matters; report the pairing and uncertainty
 rather than selecting favorable medians. All runs validated results and final WAL
 cleanup. Hosted comparisons and the other runtime remain necessary.
+
+### Same-version experiments, September 26
+
+These measurements precede the final read-cache demand refinement. The
+refined admission source is `fcea72a116f32b0c11b9353b716f8a5a63dc94e4`;
+benchmark head `7d1fc6d80eec4def1e87861c615bd784b80ce195` adds harness inputs.
+The comparator is `6d71e39bb180ef671ecf5fd4c90262b6d14666b4` (free-list only).
+[Hosted production evidence](https://github.com/litedb-org/LiteDB/actions/runs/36269004080)
+uses five alternating pairs on each host/runtime; percentages are paired mean
+latency changes with deterministic bootstrap 95% intervals.
+
+| Host/runtime | Point | 2,000-row scan | Mixed read/write |
+| --- | --- | --- | --- |
+| Linux .NET 8 | −80.6% [−80.9, −80.2] | −39.0% [−39.2, −38.7] | −57.7% [−58.9, −56.7] |
+| Linux .NET 10 | −79.4% [−79.8, −79.0] | −44.5% [−45.7, −43.4] | −58.6% [−59.4, −57.5] |
+| Windows .NET 8 | −79.4% [−80.2, −78.8] | −45.7% [−47.3, −44.2] | −59.3% [−61.4, −57.5] |
+| Windows .NET 10 | −82.0% [−82.2, −81.6] | −40.4% [−42.3, −38.4] | −53.3% [−58.3, −48.3] |
+
+Point-read allocation fell from approximately 278–280 KiB to 26 KiB per call.
+These results do not establish the complete acceptance matrix: write-heavy,
+connection lifecycle, retained resources, simultaneous readers and incremental
+writer results remain under review. An earlier admission implementation was
+rejected after open/use/close latency increased roughly eightfold; lazy authority
+creation, no absent-authority cleanup acquisition, and nonthrowing marker probes
+addressed its identified overhead. Its older timings are not final-candidate
+measurements.
+
+Local .NET 8 negative controls removed one protection at a time from isolated
+checkouts. Skipping final admission validation produced an `EndOfStreamException`
+from a reclaimed WAL address. Omitting structural publication failed the status
+visibility assertion. Ignoring published leases corrupted the oldest observed
+snapshot in all four native plain/encrypted, graceful/killed-reader cases.
+Ignoring the writer reuse epoch lost an acknowledged peer update despite a
+nonshrinking WAL. Protected variants pass their corresponding tests; failed
+patches, commands, TRX files and database images are preserved locally. The
+structural-publication control is a protocol assertion, not a claim of observed
+native data loss.
+
+The combined prototype passed 111 focused tests, followed by 12 native writer
+append/checkpoint-death cases with complete document, index and repeated-cold-open
+checks. Broader regression testing found that blocked rebuild opens could create
+coordination sidecars before checking the recovery marker. That product regression was fixed by checking the recovery marker first. The
+existing matrix and writer regression tests then passed (69 tests). The complete
+initial combined run had 12 failures, all in that rebuild matrix; its other
+partitions passed. No existing recovery assertion was relaxed. Final-composition
+full-suite validation remains pending.
+
+The writer campaign additionally found a checksum failure after partial checkpoint,
+resume and uncommitted writes. Captured live query indexes omit intermediate
+committed safepoints that full recovery indexes; inferring free slots from the
+smaller index reclaimed frames without witnesses for their latest incarnation.
+The fix preserves the captured allocator when the complete prefix fence is valid.
+A focused plaintext/encrypted reproduction fails before and passes after the fix.
+This experiment remains excluded for performance reasons, independent of that fix.
+
+The admission refinement starts retention only after two consecutive read-only
+opens and retires idle cached handles before writable operations. It targets the
+measured 2.7–6.1% alternating-read/write overhead and an extra Windows handle pair.
+Its 90 focused/native/rebuild tests pass; the lifecycle fixture now performs the
+third read needed to exercise reuse under the new demand policy. Final production
+comparisons must establish that the refinement closes those performance concerns.
