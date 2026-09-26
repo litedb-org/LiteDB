@@ -53,6 +53,12 @@ the minimum version produces WAL checksum failures in all four generation scenar
 allowing arbitrary lazy inputs to take scoped ownership makes off-thread disposal fail.
 The turnstile negative control disables the pin's waiter probe.
 
+The first full run also exposed stale admission cleanup after disposal touching a
+new mutex owner. A deterministic ownership test now forces that transition. The
+shared process campaign found a harness-only replay failure: its trace hash included
+native PIDs. Trace events now use stable worker identities, while `processes.jsonl`
+retains native PIDs for diagnostics; a real two-run test checks the replay contract.
+
 The bounded campaign uses seeds **3012, 3013, 3014**, four steps per target,
 `snapshot,shared,mvcc-retirement,index`, one worker, and a 256 MiB artifact budget.
 The snapshot target now keeps three generations simultaneously, mutates overlapping
