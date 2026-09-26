@@ -8,12 +8,19 @@ on:
         required: false
         default: 'codex/shared-performance-followups'
         type: string
+      suite:
+        description: 'Production workload suite'
+        required: false
+        default: standard
+        type: choice
+        options: [standard, readers]
   pull_request:
     paths:
       - 'LiteDB/Client/Shared/SharedReaderSlots.cs'
       - 'tools/SharedReadBenchmarks/**'
       - 'scripts/measure-shared-slots.py'
       - 'scripts/measure-shared-contention.py'
+      - 'scripts/measure-shared-readers.py'
       - 'scripts/verify-shared-slot-interop.py'
       - 'LiteDB.Fuzz/CheckpointedFileVerifier.cs'
       - 'LiteDB.Fuzz.Tests/CheckpointedFileVerifier_Tests.cs'
@@ -24,6 +31,7 @@ permissions:
 
 jobs:
   compare:
+    if: inputs.suite != 'readers'
     name: Compare (${{ matrix.os }}, ${{ matrix.framework }}, ${{ matrix.workload }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
@@ -96,5 +104,67 @@ jobs:
         if: always()
         with:
           name: shared-slots-${{ matrix.os }}-${{ matrix.framework }}-${{ matrix.workload }}
+          path: evidence
+          retention-days: 14
+
+  readers:
+    if: inputs.suite == 'readers'
+    name: Readers (${{ matrix.os }}, ${{ matrix.framework }}, ${{ matrix.activity }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        framework: [net8.0, net10.0]
+        activity: [idle, writer, checkpoint]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: candidate
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          path: baseline
+          ref: ${{ github.event.pull_request.base.sha || inputs.baseline_ref || 'codex/shared-performance-followups' }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Build production libraries and identical runners
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $baseSha = git -C baseline rev-parse HEAD
+          git -C candidate merge-base --is-ancestor $baseSha HEAD
+          if ($LASTEXITCODE) { throw 'Merge the current PR base into the head before measuring it.' }
+          foreach ($variant in @('baseline', 'candidate')) {
+            dotnet build "$variant/LiteDB/LiteDB.csproj" -c Release -f '${{ matrix.framework }}' -p:TestingEnabled=false
+            if ($LASTEXITCODE) { throw "Library build failed: $variant" }
+            $library = Join-Path $PWD "$variant/LiteDB/bin/Release/${{ matrix.framework }}/LiteDB.dll"
+            dotnet build candidate/tools/SharedReadBenchmarks -c Release -f '${{ matrix.framework }}' "-p:LiteDBAssembly=$library" -o "runner-$variant"
+            if ($LASTEXITCODE) { throw "Runner build failed: $variant" }
+          }
+          New-Item -ItemType Directory evidence | Out-Null
+          git -C baseline rev-parse HEAD | Out-File evidence/base.txt
+          git -C candidate rev-parse HEAD | Out-File evidence/head.txt
+          dotnet --info | Out-File evidence/runtime.txt
+      - name: Concurrent reader production pairs
+        shell: pwsh
+        run: |
+          python candidate/scripts/measure-shared-readers.py --baseline runner-baseline --candidate runner-candidate --scratch evidence/scratch --output evidence/readers.jsonl --activity ${{ matrix.activity }}
+          if ($LASTEXITCODE) { throw 'Reader comparison failed' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shared-readers-${{ matrix.os }}-${{ matrix.framework }}-${{ matrix.activity }}
           path: evidence
           retention-days: 14
