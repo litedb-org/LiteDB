@@ -137,7 +137,10 @@ namespace LiteDB
             // create a dictionary from string name=value collection
             if (LooksLikeKeyValueConnectionString(connectionString))
             {
-                _values.ParseKeyValue(connectionString, quotedValues);
+                foreach (var option in ConnectionStringParser.Parse(connectionString, quotedValues))
+                {
+                    _values[option.Key] = option.Value;
+                }
             }
             else
             {
