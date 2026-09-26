@@ -25,7 +25,8 @@ internal sealed class OracleSelfTestFuzzer : IFuzzTarget
             killed += Reject(() => FuzzOracle.VerifySnapshotResult(context, "stale"));
             killed += Reject(() => FuzzOracle.VerifyVectorScore(context, 0d,
                 Math.Sqrt(2d), 1e-6, "bad vector score"));
-            context.ObserveNovelty("oracle-mutation", killed);
+            // The same eight mutations repeat; the cumulative count is not new coverage.
+            context.ObserveNovelty("oracle-mutation", 8);
         }
         context.Check(killed == context.Steps * 8, "A controlled harness mutation survived its oracle.");
         context.Metrics["controlledMutationsKilled"] = killed;
