@@ -141,6 +141,11 @@ The earlier negative control remains: removing the lease file makes
   - Reads are retried after re-election.
 - **Client is killed:** its sessions close, and the coordinator rolls back their transactions.
   Its lease files are released by the OS.
+- **Coordinator hangs without dying** (a deadlocked or suspended process): nothing detects this.
+  Its election mutex stays held, so no successor takes over. Every write from every process waits
+  for it until the caller's timeout. Reads keep working from cached or IPC-free snapshots only
+  while the heartbeat is fresh; after that they need IPC grants, which also wait. One process's
+  health therefore decides the write availability of all of them.
 
 ## Limitations
 
@@ -181,8 +186,18 @@ The earlier negative control remains: removing the lease file makes
   temp directory's ACL.
 - Lease files require write access to the database directory.
 - Documents stream one per round trip, so bulk inserts pay per-document IPC latency.
-- Tested on Windows (.NET 8 and .NET 10) only. The Unix socket cleanup after a killed coordinator
-  has not been exercised.
+- **Tested:**
+  - Windows (.NET 8 and .NET 10, x64 and x86), Linux (.NET 8 and .NET 10, as root and non-root),
+    and the macOS CI jobs;
+  - almost entirely with several coordinated engines inside **one** process. A crash is simulated
+    in-process.
+- **Not exercised:**
+  - real process-kill takeovers (the Windows case where a dying coordinator takes the named mutex
+    with it was found in review, not by a test);
+  - the Unix socket cleanup after a killed coordinator.
+- **The IPC protocol is not versioned.** It changed within #3003 (the grant acknowledgement).
+  Processes running different LiteDB versions must not be mixed; nothing detects or refuses it
+  yet.
 
 ## Measurements
 
@@ -238,6 +253,15 @@ Takeaways:
 
 ## What production use would still need
 
+It stays experimental because every review round so far found new High-severity defects:
+- a 32-bit crash on the read-only mapping;
+- an unsafe shared `/tmp`;
+- two ways to trust a dead coordinator's page;
+- expired grants;
+- auto-rebuild under live snapshots.
+
+All of these are fixed, but that rate says more remain. Promotion needs at least:
+
 - **Fuzz targets** with coordinator crash points (grant, handshake steps, refresh, ack, streaming
   insert). The proof above is a written argument backed by forced interleavings, not a model check.
 - **Tests of the Unix transport** (Linux and macOS), including stale socket cleanup and abandoned
@@ -245,3 +269,11 @@ Takeaways:
 - **Batched streaming** for documents that already carry an `_id`, and streaming IPC results.
 - **Participant exclusion:** a way to refuse non-coordinated writers, for example a marker the
   coordinator holds that shared and direct mode check.
+- **Real multi-process crash tests:** kill the coordinator process at each protocol step, on every
+  OS, including the case where it held the last handle of the election mutex.
+- **A versioned handshake,** so that processes of different LiteDB versions coexist or refuse each
+  other cleanly.
+- **A way to survive a hung coordinator,** or at least to detect and report it.
+- **A benchmark that counts coordinator plus client CPU,** so that work moved across the pipe is
+  not hidden.
+- **A review round that finds no new High-severity issue.**
