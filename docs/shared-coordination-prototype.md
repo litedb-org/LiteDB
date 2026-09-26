@@ -1,5 +1,11 @@
 # Shared mapped reader admission
 
+> Excluded experiment: this protocol is preserved on `codex/shared-mapped-admission-candidate`
+> (`130b339523cbe61efcef52b5d67252aee5a6cb53`). It is not enabled or compiled into
+> the final Shared library. See [results](shared-mapped-admission-results.md) for
+> the measured writer regressions that prevented selection. Same-version
+> concurrency was assumed throughout; mixed legacy compatibility is not the reason.
+
 PR #3014's candidate assumes every concurrent Shared participant uses exactly the
 same LiteDB version. Concurrent Direct/Shared, mixed-version and cross-machine
 access are outside this protocol. The existing [connection identity contract](shared-mode-safety.md#connection-identity-and-lifetime)

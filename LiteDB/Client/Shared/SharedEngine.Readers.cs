@@ -97,7 +97,6 @@ namespace LiteDB
         /// </summary>
         private SharedMutexPin StartPin()
         {
-            this.RetireCoordinatedReads();
             var other = _pin;
             if (other != null) other.RequestRelease(force: false);
 
@@ -178,7 +177,6 @@ namespace LiteDB
                 engine.Dispose();
                 _lastPinClose = close.Elapsed;
             }
-            if (Volatile.Read(ref _disposed) != 0) this.DisposeCoordination();
         }
 
         /// <summary>
@@ -270,7 +268,7 @@ namespace LiteDB
         /// <summary>Open an engine only to close it with its checkpoint. The caller owns the mutex.</summary>
         private void CloseFinally()
         {
-            this.OpenEngine(false, final: true);
+            this.OpenEngine(false);
             var engine = _engine;
             _engine = null;
             engine.Close(final: true);

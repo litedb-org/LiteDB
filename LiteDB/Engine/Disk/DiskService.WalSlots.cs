@@ -42,7 +42,6 @@ namespace LiteDB.Engine
 
             foreach (var position in positions)
             {
-                _signals?.SlotReused();
                 _cache.Invalidate(position, FileOrigin.Log);
                 stream.Position = position;
                 stream.ReadRequired(bytes, 0, bytes.Length);
@@ -76,6 +75,7 @@ namespace LiteDB.Engine
                     if (eligible.MoveNext())
                     {
                         var position = eligible.Current;
+                        _signals?.SlotReused();
                         _freeLogPositions.Remove(position);
                         _cache.Invalidate(position, FileOrigin.Log);
                         return position;
