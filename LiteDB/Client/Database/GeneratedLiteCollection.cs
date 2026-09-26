@@ -10,7 +10,8 @@ namespace LiteDB
     internal sealed class GeneratedLiteCollection<T> : ILiteCollection<T>
     {
         private readonly string _collection;
-        private readonly ILiteEngine _engine;
+        private readonly LiteDatabaseContext _context;
+        private ILiteEngine _engine => _context.Engine;
         private readonly EntityMapper _entity;
         private readonly MemberMapper _id;
         private readonly BsonAutoId _autoId;
@@ -27,17 +28,16 @@ namespace LiteDB
         internal GeneratedLiteCollection(
             string name,
             BsonAutoId autoId,
-            ILiteEngine engine,
+            LiteDatabaseContext context,
             EntityMapper entity,
             GeneratedEntityMap<T> map,
-            BsonMapper mapper,
             Func<GeneratedExecutionOptions> getExecutionOptions)
         {
             _collection = name ?? throw new ArgumentNullException(nameof(name));
-            _engine = engine ?? throw new ArgumentNullException(nameof(engine));
+            _context = context ?? throw new ArgumentNullException(nameof(context));
             _entity = entity ?? throw new ArgumentNullException(nameof(entity));
             _map = map ?? throw new ArgumentNullException(nameof(map));
-            _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
+            _mapper = context.Mapper;
             _getExecutionOptions = getExecutionOptions ?? throw new ArgumentNullException(nameof(getExecutionOptions));
             _id = entity.Id;
             _autoId = ResolveAutoId(_id, autoId);
@@ -425,7 +425,7 @@ namespace LiteDB
         {
             var options = _getExecutionOptions();
             if (query == null) throw new ArgumentNullException(nameof(query));
-            return new LiteQueryable<T>(_engine, _mapper, _collection, query, document => _map.Deserialize(document, options), true);
+            return new LiteQueryable<T>(_context, _collection, query, document => _map.Deserialize(document, options), true);
         }
 
         private BsonValue ExecuteExtreme(BsonExpression keySelector, int order)

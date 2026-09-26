@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Linq.Expressions;
@@ -43,7 +43,7 @@ namespace LiteDB
         private Func<Type, string> _resolveCollectionName;
 
         /// <summary>
-        /// Global instance used when no BsonMapper are passed in LiteDatabase ctor
+        /// Global mapper whose configuration is cloned when no mapper is supplied to LiteDatabase.
         /// </summary>
         public static BsonMapper Global = new BsonMapper();
 
@@ -201,7 +201,10 @@ namespace LiteDB
             return new EntityBuilder<T>(this, _typeNameBinder);
         }
 
-        #region Get LinqVisitor processor
+        #region LINQ expression translation
+
+        private readonly LinqExpressionCache _linqExpressionCache = new LinqExpressionCache();
+        internal int LinqExpressionCacheCount => _linqExpressionCache.Count;
 
         /// <summary>
         /// Resolve LINQ expression into BsonExpression
@@ -209,9 +212,7 @@ namespace LiteDB
         [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         public BsonExpression GetExpression<T, K>(Expression<Func<T, K>> predicate)
         {
-            var visitor = LinqExpressionVisitor.ForRuntimeMapping(this, predicate);
-
-            var expr = visitor.Resolve(typeof(K) == typeof(bool));
+            var expr = _linqExpressionCache.Resolve(this, predicate, typeof(K) == typeof(bool));
 
             LOG($"`{predicate.ToString()}` -> `{expr.Source}`", "LINQ");
 
@@ -224,9 +225,7 @@ namespace LiteDB
         [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(AotCompatibility.RuntimeModelMapping)]
         public BsonExpression GetIndexExpression<T, K>(Expression<Func<T, K>> predicate)
         {
-            var visitor = LinqExpressionVisitor.ForRuntimeMapping(this, predicate);
-
-            var expr = visitor.Resolve(false);
+            var expr = _linqExpressionCache.Resolve(this, predicate, false);
 
             LOG($"`{predicate.ToString()}` -> `{expr.Source}`", "LINQ");
 
@@ -247,7 +246,7 @@ namespace LiteDB
         {
             if (expression == null) throw new ArgumentNullException(nameof(expression));
 
-            var visitor = LinqExpressionVisitor.ForGeneratedMapping(this, expression);
+            var visitor = new LinqExpressionTranslator(this, expression, useGeneratedMappers: true);
 
             return visitor.Resolve(ensurePredicate);
         }

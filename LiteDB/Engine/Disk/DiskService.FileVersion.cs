@@ -10,36 +10,51 @@ namespace LiteDB.Engine
 
         /// <summary>
         /// Publish the vector format before any vector bytes can enter the WAL.
-        /// The caller holds the header lock and an active write transaction, which
-        /// excludes checkpoint. Only the persisted header is copied: uncommitted
-        /// header fields must never be written directly to the data file.
         /// </summary>
-        internal void PromoteVectorFormat()
+        internal void PromoteVectorFormat() => this.PromoteFileFormat(HeaderPage.VECTOR_FILE_VERSION);
+
+        /// <summary>
+        /// Writes hold the header lock and an active transaction; startup migration
+        /// owns the disk exclusively. Only the persisted header is copied, never
+        /// uncommitted header fields. Flush before publishing dependent WAL pages.
+        /// </summary>
+        internal void PromoteFileFormat(byte version)
         {
-            if (FileVersion >= HeaderPage.VECTOR_FILE_VERSION) return;
-            var stream = _dataPool.Writer.Value;
-            lock (stream)
+            if (FileVersion >= version) return;
+            if (!ChecksumsEnabled) throw new InvalidOperationException("Enable checksums before promoting index storage.");
+            var writer = _writer.Value;
+            lock (writer)
             {
-                var header = new byte[PAGE_SIZE];
-                stream.Position = 0;
-                var read = 0;
-                while (read < header.Length)
+                var stream = _dataPool.Writer.Value;
+                lock (stream)
                 {
-                    var count = stream.Read(header, read, header.Length - read);
-                    if (count == 0) throw new EndOfStreamException("Cannot promote an incomplete database header.");
-                    read += count;
+                    var header = new PageBuffer(new byte[PAGE_SIZE], 0, 0);
+                    stream.Position = 0;
+                    stream.ReadRequired(header.Array, 0, PAGE_SIZE);
+                    PageChecksum.Validate(header, 0);
+                    _ = new HeaderPage(header);
+                    var rawLog = ((ChecksummedWalStream)writer).RawStream;
+                    var originalLength = rawLog.Length;
+                    var compact = version >= HeaderPage.COMPACT_FILE_VERSION;
+                    if (compact) this.CrashPoint("promotion-before-journal-write");
+                    BeginHeaderJournal(header.Array, promotion: compact);
+                    if (compact) this.CrashPoint("promotion-after-journal-flush");
+                    header[HeaderPage.P_FILE_VERSION] = version;
+                    if (version == HeaderPage.MVCC_FILE_VERSION) new WalRetirement().WriteHeader(header);
+                    PageChecksum.Write(header);
+                    stream.Position = 0;
+                    if (compact) this.CrashPoint("promotion-before-header-write");
+                    stream.Write(header.Array, 0, PAGE_SIZE);
+                    if (compact) this.CrashPoint("promotion-after-header-write");
+                    stream.FlushToDisk();
+                    if (compact) this.CrashPoint("promotion-after-header-flush");
+                    rawLog.SetLength(originalLength);
+                    if (compact) this.CrashPoint("promotion-before-journal-retire-flush");
+                    SyncLogBarrier(rawLog);
+                    if (compact) this.CrashPoint("promotion-after-journal-retire-flush");
+                    _checksums.JournalBytes = 0;
+                    FileVersion = version;
                 }
-                if (header[HeaderPage.P_FILE_VERSION] != HeaderPage.FILE_VERSION &&
-                    header[HeaderPage.P_FILE_VERSION] != HeaderPage.VECTOR_FILE_VERSION)
-                {
-                    throw LiteException.UnsupportedFileVersion(header[HeaderPage.P_FILE_VERSION]);
-                }
-                header[HeaderPage.P_FILE_VERSION] = HeaderPage.VECTOR_FILE_VERSION;
-                stream.Position = 0;
-                // A full page also works with encrypted streams; all other header fields are preserved.
-                stream.Write(header, 0, header.Length);
-                stream.FlushToDisk();
-                FileVersion = HeaderPage.VECTOR_FILE_VERSION;
             }
         }
 

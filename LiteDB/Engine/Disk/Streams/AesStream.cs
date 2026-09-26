@@ -13,7 +13,7 @@ namespace LiteDB.Engine
     /// <summary>
     /// Encrypted AES Stream
     /// </summary>
-    public class AesStream : Stream
+    public partial class AesStream : Stream
     {
         private readonly Aes _aes;
         private readonly ICryptoTransform _encryptor;
@@ -186,7 +186,7 @@ namespace LiteDB.Engine
         /// </summary>
         public override int Read(byte[] array, int offset, int count)
         {
-            ENSURE(this.Position % PAGE_SIZE == 0, "AesRead: position must be in PAGE_SIZE module. Position={0}, File={1}", this.Position, _name);
+            ENSURE(this.Position % 16 == 0, "AesRead: position must be AES block aligned. Position={0}, File={1}", this.Position, _name);
 
             var r = _reader.ReadFully(array, offset, count);
 
@@ -206,8 +206,9 @@ namespace LiteDB.Engine
         /// </summary>
         public override void Write(byte[] array, int offset, int count)
         {
-            ENSURE(count == PAGE_SIZE || count == 1, "buffer size must be PAGE_SIZE");
-            ENSURE(this.Position == HeaderPage.P_INVALID_DATAFILE_STATE || this.Position % PAGE_SIZE == 0, "AesWrite: position must be in PAGE_SIZE module. Position={0}, File={1}", this.Position, _name);
+            // WAL frames include a block-aligned checksum trailer after the page.
+            ENSURE(count % 16 == 0 || count == 1, "buffer size must be AES block aligned");
+            ENSURE(this.Position == HeaderPage.P_INVALID_DATAFILE_STATE || this.Position % 16 == 0, "AesWrite: position must be AES block aligned. Position={0}, File={1}", this.Position, _name);
 
             _writer.Write(array, offset, count);
         }

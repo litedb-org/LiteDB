@@ -11,13 +11,14 @@ namespace LiteDB.Engine
     /// FileStream disk implementation of disk factory
     /// [ThreadSafe]
     /// </summary>
-    internal class FileStreamFactory : IStreamFactory
+    internal partial class FileStreamFactory : IStreamFactory
     {
         private readonly string _filename;
         private readonly string _password;
         private readonly bool _readonly;
         private readonly bool _hidden;
         private readonly bool _useAesStream;
+        private readonly bool _isLog;
         private readonly Action<string> _setHiddenAttribute;
 #if DEBUG || TESTING
         internal Action BeforeReadLength;
@@ -29,13 +30,15 @@ namespace LiteDB.Engine
             bool readOnly,
             bool hidden,
             bool useAesStream = true,
-            Action<string> setHiddenAttribute = null)
+            Action<string> setHiddenAttribute = null,
+            bool isLog = false)
         {
             _filename = filename;
             _password = password;
             _readonly = readOnly;
             _hidden = hidden;
             _useAesStream = useAesStream;
+            _isLog = isLog;
             _setHiddenAttribute = setHiddenAttribute ?? (value => File.SetAttributes(value, FileAttributes.Hidden));
         }
 
@@ -88,7 +91,9 @@ namespace LiteDB.Engine
                 }
             }
 
-            return _password == null || !_useAesStream ? (Stream)stream : new AesStream(_password, stream, allowRecovery: false);
+            if (_password == null || !_useAesStream) return stream;
+            return _isLog ? EncryptedLogPreamble.Open(_password, stream) :
+                new AesStream(_password, stream, allowRecovery: false);
         }
 
         /// <summary>
@@ -131,6 +136,10 @@ namespace LiteDB.Engine
                     1,
                     FileOptions.SequentialScan))
                 {
+                    if (_isLog)
+                    {
+                        using (var reader = EncryptedLogPreamble.Open(_password, stream)) return reader.Length;
+                    }
                     return stream.ReadByte() == 1 ? 0 : length;
                 }
             }

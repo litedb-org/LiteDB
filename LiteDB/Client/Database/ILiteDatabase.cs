@@ -8,7 +8,7 @@ namespace LiteDB
     public interface ILiteDatabase : IDisposable
     {
         /// <summary>
-        /// Get current instance of BsonMapper used in this database instance (can be BsonMapper.Global)
+        /// Get the BsonMapper used by this database instance and all objects it creates.
         /// </summary>
         BsonMapper Mapper { get; }
 

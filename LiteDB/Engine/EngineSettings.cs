@@ -18,6 +18,21 @@ namespace LiteDB.Engine
     public class EngineSettings
     {
         private int? _transactionPageLimit;
+#if DEBUG || TESTING
+        internal Action<string> CheckpointStage { get; set; }
+#endif
+        internal Func<int[]> SharedReaderVersions { get; set; }
+        // Shared mode: outlives each short-lived engine; rations close checkpoints too.
+        internal CheckpointBackoff CheckpointBackoff { get; set; }
+        internal bool SharedReadSnapshot { get; set; }
+        internal Func<string, string, string[]> SharedReaderFiles { get; set; }
+        internal EngineSettings Clone() => (EngineSettings)this.MemberwiseClone();
+
+        /// <summary>
+        /// Select how documents are written. Auto uses compact writes when
+        /// beneficial and lazily promotes existing v11 databases to v12.
+        /// </summary>
+        public CompactStorageMode CompactStorage { get; set; } = CompactStorageMode.Auto;
 
         /// <summary>
         /// Memory and transaction defaults for this database. Explicit limits
@@ -56,6 +71,13 @@ namespace LiteDB.Engine
         public long InitialSize { get; set; } = 0;
 
         /// <summary>
+        /// Optional increased LIMIT_SIZE, in bytes, used only when migrating legacy indexes.
+        /// Must be at least the stored limit. Persisted with successful migration; null preserves it.
+        /// Allows retrying an incomplete migration whose stored limit is too small.
+        /// </summary>
+        public long? IndexMigrationLimitSize { get; set; }
+
+        /// <summary>
         /// Soft page-cache target in bytes. Zero selects the storage-specific
         /// default of the selected <see cref="MemoryProfile"/>.
         /// </summary>
@@ -82,12 +104,19 @@ namespace LiteDB.Engine
         public bool ReadOnly { get; set; } = false;
 
         /// <summary>
+        /// With <see cref="ReadOnly"/>, open a file whose indexes still need the v11 ordering
+        /// migration without changing it. Queries ignore those indexes and use full scans,
+        /// so results stay correct but lookups become linear. Writable opens always migrate.
+        /// </summary>
+        public bool LegacyIndexScan { get; set; } = false;
+
+        /// <summary>
         /// After a Close with exception do a database rebuild on next open
         /// </summary>
         public bool AutoRebuild { get; set; } = false;
 
         /// <summary>
-        /// Rebuild format v7 files before opening, retaining a backup. Ordinary v8 files remain compatible without migration.
+        /// Rebuild format v7 files before opening, retaining a backup. Writable v8/v9/v10 opens migrate indexes automatically.
         /// </summary>
         public bool Upgrade { get; set; } = false;
 
@@ -109,8 +138,8 @@ namespace LiteDB.Engine
         /// system crash. This costs about one device sync per commit; transactions that batch many writes and
         /// InsertBulk pay it once. When false (the behaviour before 6.0), committed data is handed to the operating
         /// system only: it survives a crash of the process, but a power loss or operating system crash can lose the
-        /// most recent commits, and because unsynced log pages may reach the device in any order it can, rarely,
-        /// leave the last transactions partially applied. Checkpoints and file creation are synced either way.
+        /// most recent commits. Checksummed WAL recovery discards incomplete transactions and their dependent tail.
+        /// Checkpoints and file creation are synced either way.
         /// Not stored in the data file: the same file can be opened with either value. Has no effect on
         /// <c>:memory:</c>, <c>:temp:</c> and non-file streams, which cannot be synced. (default: true)
         /// </summary>
@@ -173,24 +202,24 @@ namespace LiteDB.Engine
         {
             if (this.LogStream != null)
             {
-                return new StreamFactory(this.LogStream, this.Password, false);
+                return new StreamFactory(this.LogStream, this.Password, false, isLog: true);
             }
             else if (this.Filename == ":memory:")
             {
-                return new StreamFactory(new MemoryStream(), this.Password, true);
+                return new StreamFactory(new MemoryStream(), this.Password, true, isLog: true);
             }
             else if (this.Filename == ":temp:")
             {
-                return new StreamFactory(new TempStream(), this.Password, true);
+                return new StreamFactory(new TempStream(), this.Password, true, isLog: true);
             }
             else if (!string.IsNullOrEmpty(this.Filename))
             {
                 var logName = FileHelper.GetLogFile(this.Filename);
 
-                return new FileStreamFactory(logName, this.Password, this.ReadOnly, false);
+                return new FileStreamFactory(logName, this.Password, this.ReadOnly, false, isLog: true);
             }
 
-            return new StreamFactory(new MemoryStream(), this.Password, true);
+            return new StreamFactory(new MemoryStream(), this.Password, true, isLog: true);
         }
 
         /// <summary>
@@ -198,6 +227,10 @@ namespace LiteDB.Engine
         /// </summary>
         internal IStreamFactory CreateTempFactory()
         {
+            if (this.SharedReadSnapshot)
+            {
+                return new StreamFactory(new TempStream(), this.Password, true);
+            }
             if (this.TempStream != null)
             {
                 return new StreamFactory(this.TempStream, this.Password, false);

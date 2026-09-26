@@ -13,30 +13,34 @@ namespace LiteDB
     [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(AotCompatibility.RuntimeTypeConstruction)]
     public partial class LiteQueryable<T> : ILiteQueryable<T>
     {
-        protected readonly ILiteEngine _engine;
-        protected readonly BsonMapper _mapper;
+        private readonly LiteDatabaseContext _context;
         protected readonly string _collection;
         protected readonly Query _query;
         private readonly Func<BsonDocument, T> _deserialize;
         private readonly bool _useGeneratedMappers;
 
+        protected ILiteEngine _engine => _context.Engine;
+
+        protected BsonMapper _mapper => _context.Mapper;
+
+        internal LiteDatabaseContext Context => _context;
+
         // indicate that T type are simple and result are inside first document fields (query always return a BsonDocument)
         private readonly bool _isSimpleType = Reflection.IsSimpleType(typeof(T));
 
-        internal LiteQueryable(ILiteEngine engine, BsonMapper mapper, string collection, Query query)
-            : this(engine, mapper, collection, query, null)
+        internal LiteQueryable(LiteDatabaseContext context, string collection, Query query)
+            : this(context, collection, query, null)
         {
         }
 
-        internal LiteQueryable(ILiteEngine engine, BsonMapper mapper, string collection, Query query, Func<BsonDocument, T> deserialize)
-            : this(engine, mapper, collection, query, deserialize, false)
+        internal LiteQueryable(LiteDatabaseContext context, string collection, Query query, Func<BsonDocument, T> deserialize)
+            : this(context, collection, query, deserialize, false)
         {
         }
 
-        internal LiteQueryable(ILiteEngine engine, BsonMapper mapper, string collection, Query query, Func<BsonDocument, T> deserialize, bool useGeneratedMappers)
+        internal LiteQueryable(LiteDatabaseContext context, string collection, Query query, Func<BsonDocument, T> deserialize, bool useGeneratedMappers)
         {
-            _engine = engine;
-            _mapper = mapper;
+            _context = context;
             _collection = collection;
             _query = query;
             _deserialize = deserialize;
@@ -227,8 +231,7 @@ namespace LiteDB
                 }
 
                 return new LiteQueryable<IGrouping<K, T>>(
-                    _engine,
-                    _mapper,
+                    _context,
                     _collection,
                     _query,
                     DeserializeGrouping,
@@ -236,7 +239,7 @@ namespace LiteDB
             }
 
             _mapper.RegisterGroupingType<K, T>();
-            return new LiteQueryable<IGrouping<K, T>>(_engine, _mapper, _collection, _query);
+            return new LiteQueryable<IGrouping<K, T>>(_context, _collection, _query);
         }
 
         /// <summary>
@@ -276,7 +279,7 @@ namespace LiteDB
         {
             _query.Select = selector;
 
-            return new LiteQueryable<BsonDocument>(_engine, _mapper, _collection, _query, document => document, _useGeneratedMappers);
+            return new LiteQueryable<BsonDocument>(_context, _collection, _query, document => document, _useGeneratedMappers);
         }
 
         /// <summary>
@@ -304,7 +307,7 @@ namespace LiteDB
                 }
             }
 
-            return new LiteQueryable<K>(_engine, _mapper, _collection, _query, deserialize, _useGeneratedMappers);
+            return new LiteQueryable<K>(_context, _collection, _query, deserialize, _useGeneratedMappers);
         }
 
         #endregion
@@ -491,7 +494,7 @@ namespace LiteDB
 
             try
             {
-                this.Select($"{{ count: COUNT(*._id) }}");
+                _query.Select = QueryAggregateExpressions.Count.Bind(new BsonDocument());
                 var count = this.ToDocuments().Single()["count"].AsInt64;
 
                 if (count > int.MaxValue) throw new OverflowException($"The query matches {count} documents, which does not fit an Int32. Use LongCount().");
@@ -513,7 +516,7 @@ namespace LiteDB
 
             try
             {
-                this.Select($"{{ count: COUNT(*._id) }}");
+                _query.Select = QueryAggregateExpressions.Count.Bind(new BsonDocument());
                 var ret = this.ToDocuments().Single()["count"].AsInt64;
 
                 return ret;
@@ -533,7 +536,7 @@ namespace LiteDB
 
             try
             {
-                this.Select($"{{ exists: ANY(*._id) }}");
+                _query.Select = QueryAggregateExpressions.Exists.Bind(new BsonDocument());
                 var ret = this.ToDocuments().Single()["exists"].AsBoolean;
 
                 return ret;

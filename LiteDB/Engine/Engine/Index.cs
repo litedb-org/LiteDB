@@ -15,7 +15,7 @@ namespace LiteDB.Engine
         /// </summary>
         private bool EnsureIndexReadOnly(string collection, string name, string expression, VectorIndexOptions vector = null)
         {
-            var exists = this.AutoTransaction(transaction =>
+            var exists = this.AutoReadTransaction(transaction =>
             {
                 var snapshot = transaction.CreateSnapshot(LockMode.Read, collection, false);
                 var current = snapshot.CollectionPage?.GetCollectionIndex(name);
@@ -86,11 +86,11 @@ namespace LiteDB.Engine
                 var count = 0u;
 
                 // read all objects (read from PK index)
-                foreach (var pkNode in new IndexAll("_id", LiteDB.Query.Ascending).Run(collectionPage, indexer, false))
+                foreach (var pkNode in new IndexAll("_id", LiteDB.Query.Ascending).Run(collectionPage, indexer))
                 {
                     using (var reader = new BufferReader(data.Read(pkNode.DataBlock)))
                     {
-                        var doc = reader.ReadDocument(expression.Fields).GetValue();
+                        var doc = data.ReadDocument(reader, expression.Fields, false, pkNode.DataBlock).GetValue();
 
                         // first/last node in this document that will be added
                         IndexNode last = null;
@@ -183,13 +183,13 @@ namespace LiteDB.Engine
                 snapshot.RequireVectorVersion();
                 var tuple = collectionPage.InsertVectorIndex(name, expression.Source, options.Dimensions, options.Metric);
 
-                foreach (var pkNode in new IndexAll("_id", LiteDB.Query.Ascending).Run(collectionPage, indexer, false))
+                foreach (var pkNode in new IndexAll("_id", LiteDB.Query.Ascending).Run(collectionPage, indexer))
                 {
                     _state.Validate();
 
                     using (var reader = new BufferReader(data.Read(pkNode.DataBlock)))
                     {
-                        var doc = reader.ReadDocument(expression.Fields).GetValue();
+                        var doc = data.ReadDocument(reader, expression.Fields, false, pkNode.DataBlock).GetValue();
                         vectorService.Upsert(tuple.Index, tuple.Metadata, doc, pkNode.DataBlock);
                     }
 

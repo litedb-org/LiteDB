@@ -93,6 +93,10 @@ namespace LiteDB.Engine
                 // initialize engine state 
                 _state = new EngineState(this, _settings);
 
+                // A failed rebuild may have left stale data or no canonical file.
+                // Check before upgrade, recovery, or DiskService can create a new file.
+                RebuildRecovery.EnsureAvailable(_settings);
+
                 // before initilize, try if must be upgrade
                 if (_settings.Upgrade) this.TryUpgrade();
 
@@ -108,7 +112,6 @@ namespace LiteDB.Engine
                 // read header database page
                 _header = new HeaderPage(buffer);
                 _disk.FileVersion = _header.FileVersion;
-                _disk.TrimTrailingPages();
 
                 // if database is set to invalid state, need rebuild
                 if (buffer[HeaderPage.P_INVALID_DATAFILE_STATE] != 0 && _settings.AutoRebuild)
@@ -134,6 +137,8 @@ namespace LiteDB.Engine
                     _disk.FileVersion = _header.FileVersion;
                 }
 
+                this.ValidateCollationStamp();
+
                 // test for same collation
                 if (_settings.Collation != null && _settings.Collation.ToString() != _header.Pragmas.Collation.ToString())
                 {
@@ -144,19 +149,25 @@ namespace LiteDB.Engine
                 _locker = new LockService(_header.Pragmas);
 
                 // initialize wal-index service
-                _walIndex = new WalIndexService(_disk, _locker);
+                _walIndex = new WalIndexService(_disk, _locker, _settings.SharedReaderVersions, () => _header,
+                    _settings.CheckpointBackoff);
 
                 // if exists log file, restore wal index references (can update full _header instance)
-                if (_disk.GetFileLength(FileOrigin.Log) > 0)
+                if (_disk.GetFileLength(FileOrigin.Log) > 0 || _disk.ChecksumsEnabled)
                 {
-                    _walIndex.RestoreIndex(ref _header);
+                    _walIndex.RestoreIndex(ref _header, this.ValidateCollationStamp);
                 }
+
+                this.ValidateCollationStamp();
 
                 // initialize sort temp disk
                 _sortDisk = new SortDisk(_settings.CreateTempFactory(), CONTAINER_SORT_SIZE, _header.Pragmas);
 
                 // initialize transaction monitor as last service
                 _monitor = new TransactionMonitor(_header, _locker, _disk, _walIndex, _settings.TransactionPageLimit);
+
+                this.MigrateIndexOrdering();
+                _disk.TrimTrailingPages();
 
                 // register system collections
                 this.InitializeSystemCollections();
@@ -193,10 +204,10 @@ namespace LiteDB.Engine
             // stop running all transactions
             tc.Catch(() => _monitor?.Dispose());
 
-            if (_header?.Pragmas.Checkpoint > 0)
+            if (!_settings.ReadOnly && _header?.Pragmas.Checkpoint > 0)
             {
-                // do a soft checkpoint (only if exclusive lock is possible)
-                tc.Catch(() => _walIndex?.TryCheckpoint());
+                // Backfill safe pages; reclaim only when all readers have drained.
+                tc.Catch(() => _walIndex?.TryCloseCheckpoint());
             }
 
             // close all disk streams (and delete log if empty)
@@ -252,15 +263,32 @@ namespace LiteDB.Engine
 
 #if DEBUG || TESTING
         // exposes for unit tests
+        internal Action<long, FileOrigin> BeforePageRead { set => _state.BeforePageRead = value; }
+        internal WalIndexService GetWalIndex() => _walIndex;
+        internal Action<string> CheckpointStage { set => _state.CheckpointStage = value; }
         internal TransactionMonitor GetMonitor() => _monitor;
         internal Action<PageBuffer> SimulateDiskReadFail { set => _state.SimulateDiskReadFail = value; }
         internal Action<PageBuffer> SimulateDiskWriteFail { set => _state.SimulateDiskWriteFail = value; }
+        internal Action SimulateBeforeTransactionAdmission { set => _locker.BeforeTransactionAdmission = value; }
+        internal Action SimulateBeforeExclusiveAdmission { set => _locker.BeforeExclusiveAdmission = value; }
+        internal Action SimulateAfterExclusiveAdmission { set => _locker.AfterExclusiveAdmission = value; }
 #endif
 
         /// <summary>
         /// Run checkpoint command to copy log file into data file
         /// </summary>
-        public int Checkpoint() => _walIndex.Checkpoint();
+        public int Checkpoint()
+        {
+            _state.Validate();
+            try { return _settings.ReadOnly ? 0 : _walIndex.Checkpoint(); }
+            catch (Exception ex)
+            {
+                _state.Handle(ex);
+                throw;
+            }
+        }
+
+        internal int ReadVersion => _walIndex.CurrentReadVersion;
 
         public void Dispose()
         {

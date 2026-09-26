@@ -1,24 +1,38 @@
-﻿using LiteDB.Engine;
-using System;
-using System.Collections.Generic;
+﻿using System;
 using System.IO;
+using System.Collections.Generic;
 using System.Threading;
 using LiteDB.Client.Shared;
+using LiteDB.Engine;
 using LiteDB.Vector;
 
 namespace LiteDB
 {
-    public class SharedEngine : ILiteEngine
+    public partial class SharedEngine : ILiteEngine
     {
         private readonly EngineSettings _settings;
         private readonly Mutex _mutex;
+        private readonly SharedReaderRegistry _readers;
         private LiteEngine _engine;
+        private WalRecoveryReport _recoveryReport;
         private volatile bool _transactionRunning = false;
         private int _transactionThreadId;
+        private int _databaseUsers;
+        private SharedMutexPin _transactionUse;
+#if DEBUG || TESTING
+        internal Func<LiteEngine> SimulateOpenEngine { get; set; }
+
+        internal int EngineOpens { get; private set; }
+#endif
 
         public SharedEngine(EngineSettings settings)
         {
-            _settings = settings;
+            _settings = settings.Clone();
+            _readers = new SharedReaderRegistry(settings.Filename, settings.SharedReaderFiles);
+            _settings.SharedReaderVersions = _readers.LiveVersions;
+            // Each operation opens and closes an engine. Share one back-off so a
+            // long-lived reader cannot make every close pay for partial checkpoint.
+            _settings.CheckpointBackoff = new CheckpointBackoff();
 
             var name = SharedMutexNameFactory.Create(settings.Filename, settings.SharedMutexNameStrategy);
 
@@ -38,50 +52,113 @@ namespace LiteDB
         }
 
         /// <summary>
-        /// Open database in safe mode
+        /// Open database in safe mode. Returns the pin the operation runs under, or
+        /// null when the operation owns a recursion of the named mutex instead.
         /// </summary>
-        /// <returns>true if successfully opened; false if already open</returns>
-        private bool OpenDatabase()
+        private SharedMutexPin OpenDatabase()
         {
+            var pin = _pin;
+            if (pin != null)
+            {
+                if (pin.TryEnter()) return pin;
+                // Another thread needs the mutex: end the pin at its next idle moment.
+                if (!ReferenceEquals(pin.Owner, Thread.CurrentThread)) pin.RequestRelease(force: false);
+            }
+
+            var recoveredAbandonedOwner = false;
             try
             {
                 // Acquire mutex for every call to open DB.
                 _mutex.WaitOne();
             }
-            catch (AbandonedMutexException) { }
+            catch (AbandonedMutexException) { recoveredAbandonedOwner = true; }
+            this.EnterRecursion();
 
-            try { RejectAbandonedTransaction(); }
-            catch { _mutex.ReleaseMutex(); throw; }
+            try
+            {
+                RejectAbandonedTransaction();
+            }
+            catch { this.ReleaseRecursion(); throw; }
 
             // Don't create a new engine while a transaction is running.
             if (!_transactionRunning && _engine == null)
             {
                 try
                 {
-                    _engine = new LiteEngine(_settings);
-                    return true;
+                    this.OpenEngine(recoveredAbandonedOwner);
                 }
                 catch
                 {
-                    _mutex.ReleaseMutex();
+                    this.ReleaseRecursion();
                     throw;
                 }
             }
-            else
+            _databaseUsers++;
+            return null;
+        }
+
+        private void OpenEngine(bool recoveredAbandonedOwner)
+        {
+            _engine = this.CreateEngine(recoveredAbandonedOwner);
+#if DEBUG || TESTING
+            this.EngineOpens++;
+#endif
+            _recoveryReport = _engine.RecoveryReport ?? _recoveryReport;
+            _engine.RecoveryReport = _recoveryReport;
+        }
+
+        private LiteEngine CreateEngine(bool recoveredAbandonedOwner)
+        {
+            const int retries = 100;
+            for (var attempt = 0; ; attempt++)
             {
-                return false;
+                try
+                {
+#if DEBUG || TESTING
+                    if (SimulateOpenEngine != null) return SimulateOpenEngine();
+#endif
+                    var settings = _settings;
+                    if (settings.AutoRebuild && _readers.OldestVersion().HasValue)
+                    {
+                        settings = settings.Clone();
+                        settings.AutoRebuild = false;
+                    }
+                    return new LiteEngine(settings);
+                }
+                catch (IOException ex) when (recoveredAbandonedOwner && IsWindowsLockViolation(ex) && attempt < retries)
+                {
+                    // On Windows an abandoned mutex can become available just before
+                    // the dead process' file handles finish closing. Keep ownership
+                    // while the transient sharing violation clears.
+                    Thread.Sleep(20);
+                }
             }
         }
 
-        /// <summary>
-        /// Dequeue stack and dispose database on empty stack
-        /// </summary>
-        private void CloseDatabase(bool ownsEngine = true)
+        private static bool IsWindowsLockViolation(IOException exception)
         {
+            const int ERROR_SHARING_VIOLATION = 32;
+            const int ERROR_LOCK_VIOLATION = 33;
+            var errorCode = exception.HResult & 0xFFFF;
+            return errorCode == ERROR_SHARING_VIOLATION || errorCode == ERROR_LOCK_VIOLATION;
+        }
+
+        /// <summary>
+        /// Dequeue stack and dispose database on empty stack. A pinned use ends an
+        /// operation, or with <paramref name="hold"/> a reader or transaction.
+        /// </summary>
+        private void CloseDatabase(SharedMutexPin use = null, bool hold = false)
+        {
+            if (use != null)
+            {
+                // The pin keeps the engine; its holder closes it.
+                use.Exit(hold);
+                return;
+            }
+
             try
             {
-                // Nested operations borrow an engine owned by a transaction or reader.
-                if (ownsEngine && !_transactionRunning && _engine != null)
+                if (--_databaseUsers == 0 && !_transactionRunning && _engine != null)
                 {
                     var engine = _engine;
                     _engine = null;
@@ -90,9 +167,9 @@ namespace LiteDB
             }
             finally
             {
-                if (ownsEngine && !_transactionRunning) _transactionThreadId = 0;
+                if (!_transactionRunning) _transactionThreadId = 0;
                 // Every OpenDatabase call acquires a recursion, even when it borrows.
-                _mutex.ReleaseMutex();
+                this.ReleaseRecursion();
             }
         }
 
@@ -100,7 +177,7 @@ namespace LiteDB
 
         public bool BeginTrans()
         {
-            var opened = OpenDatabase();
+            var use = OpenDatabase();
 
             try
             {
@@ -109,15 +186,18 @@ namespace LiteDB
                 {
                     _transactionThreadId = Environment.CurrentManagedThreadId;
                     _transactionRunning = true;
+                    // A pinned transaction keeps the pin until it completes.
+                    _transactionUse = use;
+                    use?.ToHold();
                 }
                 // A false join belongs to the surrounding explicit or automatic
                 // transaction; its caller owes no completion or mutex recursion.
-                else CloseDatabase(opened);
+                else CloseDatabase(use);
                 return started;
             }
             catch
             {
-                CloseDatabase(opened);
+                CloseDatabase(use);
                 throw;
             }
         }
@@ -128,18 +208,24 @@ namespace LiteDB
 
         private bool CompleteTransaction(bool commit)
         {
-            // Hold one extra mutex recursion throughout completion. A foreign
-            // thread must not reach cleanup, even while BeginTrans is publishing.
-            try
+            // Hold one extra mutex recursion (or pinned operation) throughout
+            // completion. A foreign thread must not reach cleanup, even while
+            // BeginTrans is publishing.
+            var pin = _pin;
+            var pinned = pin != null && pin.TryEnter();
+            if (!pinned)
             {
-                if (!_mutex.WaitOne(0))
+                try
                 {
-                    // Rolling back nothing is safe and must not replace the error a catch block is handling.
-                    if (!_transactionRunning || !commit) return false;
-                    throw ForeignTransactionCompletion();
+                    if (!_mutex.WaitOne(0))
+                    {
+                        // Rolling back nothing is safe and must not replace the error a catch block is handling.
+                        if (!_transactionRunning || !commit) return false;
+                        throw ForeignTransactionCompletion();
+                    }
                 }
+                catch (AbandonedMutexException) { }
             }
-            catch (AbandonedMutexException) { }
 
             try
             {
@@ -148,11 +234,17 @@ namespace LiteDB
                 try { return commit ? _engine.Commit() : _engine.Rollback(); }
                 finally
                 {
+                    var use = _transactionUse;
+                    _transactionUse = null;
                     _transactionRunning = false;
-                    CloseDatabase();
+                    CloseDatabase(use, hold: true);
                 }
             }
-            finally { _mutex.ReleaseMutex(); }
+            finally
+            {
+                if (pinned) pin.Exit(hold: false);
+                else _mutex.ReleaseMutex();
+            }
         }
 
         private void RejectAbandonedTransaction()
@@ -163,6 +255,7 @@ namespace LiteDB
             if (!_transactionRunning || _transactionThreadId == Environment.CurrentManagedThreadId) return;
             _transactionRunning = false;
             _transactionThreadId = 0;
+            _databaseUsers = 0;
             var orphan = _engine;
             _engine = null;
             orphan?.Dispose();
@@ -176,21 +269,6 @@ namespace LiteDB
 
         #region Read Operation
 
-        public IBsonDataReader Query(string collection, Query query)
-        {
-            bool opened = OpenDatabase();
-            try
-            {
-                var reader = _engine.Query(collection, query);
-                return new SharedDataReader(reader, () => CloseDatabase(opened));
-            }
-            catch
-            {
-                CloseDatabase(opened);
-                throw;
-            }
-        }
-
         public BsonValue Pragma(string name)
         {
             return QueryDatabase(() => _engine.Pragma(name));
@@ -198,7 +276,7 @@ namespace LiteDB
 
         public bool Pragma(string name, BsonValue value)
         {
-            return QueryDatabase(() => _engine.Pragma(name, value));
+            return WriteDatabase(() => _engine.Pragma(name, value));
         }
 
         #endregion
@@ -207,67 +285,72 @@ namespace LiteDB
 
         public int Checkpoint()
         {
-            return QueryDatabase(() => _engine.Checkpoint());
+            return WriteDatabase(() => _engine.Checkpoint());
         }
 
         public long Rebuild(RebuildOptions options)
         {
-            return QueryDatabase(() => _engine.Rebuild(options));
+            return WriteDatabase(() =>
+            {
+                if (_readers.OldestVersion().HasValue)
+                    throw new LiteException(0, "Close shared readers before rebuilding the database.");
+                return _engine.Rebuild(options);
+            });
         }
 
         public int Insert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId)
         {
-            return QueryDatabase(() => _engine.Insert(collection, docs, autoId));
+            return WriteDatabase(() => _engine.Insert(collection, docs, autoId));
         }
 
         public int Update(string collection, IEnumerable<BsonDocument> docs)
         {
-            return QueryDatabase(() => _engine.Update(collection, docs));
+            return WriteDatabase(() => _engine.Update(collection, docs));
         }
 
         public int UpdateMany(string collection, BsonExpression extend, BsonExpression predicate)
         {
-            return QueryDatabase(() => _engine.UpdateMany(collection, extend, predicate));
+            return WriteDatabase(() => _engine.UpdateMany(collection, extend, predicate));
         }
 
         public int Upsert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId)
         {
-            return QueryDatabase(() => _engine.Upsert(collection, docs, autoId));
+            return WriteDatabase(() => _engine.Upsert(collection, docs, autoId));
         }
 
         public int Delete(string collection, IEnumerable<BsonValue> ids)
         {
-            return QueryDatabase(() => _engine.Delete(collection, ids));
+            return WriteDatabase(() => _engine.Delete(collection, ids));
         }
 
         public int DeleteMany(string collection, BsonExpression predicate)
         {
-            return QueryDatabase(() => _engine.DeleteMany(collection, predicate));
+            return WriteDatabase(() => _engine.DeleteMany(collection, predicate));
         }
 
         public bool DropCollection(string name)
         {
-            return QueryDatabase(() => _engine.DropCollection(name));
+            return WriteDatabase(() => _engine.DropCollection(name));
         }
 
         public bool RenameCollection(string name, string newName)
         {
-            return QueryDatabase(() => _engine.RenameCollection(name, newName));
+            return WriteDatabase(() => _engine.RenameCollection(name, newName));
         }
 
         public bool DropIndex(string collection, string name)
         {
-            return QueryDatabase(() => _engine.DropIndex(collection, name));
+            return WriteDatabase(() => _engine.DropIndex(collection, name));
         }
 
         public bool EnsureIndex(string collection, string name, BsonExpression expression, bool unique)
         {
-            return QueryDatabase(() => _engine.EnsureIndex(collection, name, expression, unique));
+            return WriteDatabase(() => _engine.EnsureIndex(collection, name, expression, unique));
         }
 
         public bool EnsureVectorIndex(string collection, string name, BsonExpression expression, VectorIndexOptions options)
         {
-            return QueryDatabase(() => _engine.EnsureVectorIndex(collection, name, expression, options));
+            return WriteDatabase(() => _engine.EnsureVectorIndex(collection, name, expression, options));
         }
 
         #endregion
@@ -285,27 +368,37 @@ namespace LiteDB
 
         protected virtual void Dispose(bool disposing)
         {
-            if (disposing)
+            if (!disposing) return;
+
+            // Any thread can end a pin; its holder closes the engine and releases.
+            var pin = _pin;
+            if (pin != null)
             {
-                if (_engine != null)
-                {
-                    _engine.Dispose();
-                    _engine = null;
-                    _mutex.ReleaseMutex();
-                }
+                pin.RequestRelease(force: true);
+                if (!pin.CanWaitFrom(Thread.CurrentThread)) return;
+                pin.WaitReleased();
+            }
+
+            if (_engine != null)
+            {
+                _engine.Dispose();
+                _engine = null;
+                // An open reader or transaction of this thread owns a recursion.
+                // Another thread's recursion is released by that thread.
+                if (this.HoldsRecursion()) this.ReleaseRecursion();
             }
         }
 
         private T QueryDatabase<T>(Func<T> Query)
         {
-            bool opened = OpenDatabase();
+            var use = OpenDatabase();
             try
             {
                 return Query();
             }
             finally
             {
-                CloseDatabase(opened);
+                CloseDatabase(use);
             }
         }
     }

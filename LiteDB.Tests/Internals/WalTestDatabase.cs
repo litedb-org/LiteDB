@@ -20,7 +20,7 @@ namespace LiteDB.Internals
             _password = password;
             this.Engine = new LiteEngine(new EngineSettings
             {
-                DataStream = this.Data, LogStream = this.Log, Password = password, TransactionPageLimit = 1
+                CompactStorage = CompactStorageMode.Legacy, DataStream = this.Data, LogStream = this.Log, Password = password, TransactionPageLimit = 1
             });
             this.Database = new LiteDatabase(this.Engine, disposeOnClose: false);
             this.Database.Pragma(Pragmas.CHECKPOINT, 0);
@@ -46,7 +46,7 @@ namespace LiteDB.Internals
             using var log = Copy(this.Log);
             using (var engine = new LiteEngine(new EngineSettings
             {
-                DataStream = data, LogStream = log, Password = _password
+                CompactStorage = CompactStorageMode.Legacy, DataStream = data, LogStream = log, Password = _password
             }))
             using (var database = new LiteDatabase(engine, disposeOnClose: false))
             {
@@ -56,7 +56,7 @@ namespace LiteDB.Internals
             // A second open verifies the data-file image produced by checkpoint.
             using var reopenedEngine = new LiteEngine(new EngineSettings
             {
-                DataStream = data, LogStream = log, Password = _password
+                CompactStorage = CompactStorageMode.Legacy, DataStream = data, LogStream = log, Password = _password
             });
             using var reopened = new LiteDatabase(reopenedEngine, disposeOnClose: false);
             return reopened.GetCollection(collection).FindAll().ToArray();

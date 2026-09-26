@@ -33,6 +33,8 @@
     <Compile Include="..\LiteDB.Tests\**\*.cs" Exclude="..\LiteDB.Tests\bin\**;..\LiteDB.Tests\obj\**" LinkBase="Tests" />
     <EmbeddedResource Include="..\LiteDB.Tests\Resources\person.json" LogicalName="LiteDB.Tests.Resources.person.json" />
     <EmbeddedResource Include="..\LiteDB.Tests\Resources\zip.json" LogicalName="LiteDB.Tests.Resources.zip.json" />
+    <EmbeddedResource Include="..\LiteDB.Tests\Resources\IndexMigration_5_0_21.zip" LogicalName="LiteDB.Tests.Resources.IndexMigration_5_0_21.zip" />
+    <EmbeddedResource Include="..\LiteDB.Tests\Resources\IndexMigrationLegacyKeys_5_0_21.zip" LogicalName="LiteDB.Tests.Resources.IndexMigrationLegacyKeys_5_0_21.zip" />
     <None Include="..\LiteDB.Tests\Resources\**\*" Exclude="..\LiteDB.Tests\Resources\person.json;..\LiteDB.Tests\Resources\zip.json" Link="Resources\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
@@ -53,4 +55,15 @@
   <ItemGroup>
     <ProjectReference Include="..\LiteDB\LiteDB.csproj" AdditionalProperties="TestingEnabled=true" />
   </ItemGroup>
+  <Target Name="PublishMvccProbe" AfterTargets="Publish">
+    <MSBuild Projects="../LiteDB.Tests.SharedMutexHarness/SharedMutexHarness.csproj"
+             Targets="Restore;Build"
+             Properties="Configuration=$(Configuration);TestingEnabled=true;RuntimeIdentifier=;SelfContained=false;PublishAot=false;PublishTrimmed=false"
+             RemoveProperties="TargetFramework;HostTargetFramework" />
+    <ItemGroup>
+      <MvccProbeFiles Include="$(MSBuildProjectDirectory)/../LiteDB.Tests.SharedMutexHarness/bin/$(Configuration)/net8.0/*" />
+    </ItemGroup>
+    <Error Condition="'@(MvccProbeFiles)' == ''" Text="MVCC probe output not found." />
+    <Copy SourceFiles="@(MvccProbeFiles)" DestinationFolder="$(PublishDir)mvcc-probe" />
+  </Target>
 </Project>

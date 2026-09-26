@@ -29,6 +29,10 @@ namespace LiteDB.Engine
 
         public override IEnumerable<IndexNode> Execute(IndexService indexer, CollectionIndex index)
         {
+            // Sentinel keys delimit the skip list and never represent documents.
+            // IN can also reach this path with user-supplied MinValue/MaxValue.
+            if (_value.IsMinValue || _value.IsMaxValue) yield break;
+
             var node = indexer.Find(index, _value, false, Query.Ascending);
 
             if (node == null) yield break;

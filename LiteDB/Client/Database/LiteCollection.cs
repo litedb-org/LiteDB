@@ -10,9 +10,8 @@ namespace LiteDB
     public sealed partial class LiteCollection<T> : ILiteCollection<T>
     {
         private readonly string _collection;
-        private readonly ILiteEngine _engine;
+        private readonly LiteDatabaseContext _context;
         private readonly List<BsonExpression> _includes;
-        private readonly BsonMapper _mapper;
         private readonly EntityMapper _entity;
         private readonly MemberMapper _id;
         private readonly BsonAutoId _autoId;
@@ -32,11 +31,18 @@ namespace LiteDB
         /// </summary>
         public EntityMapper EntityMapper => _entity;
 
-        internal LiteCollection(string name, BsonAutoId autoId, ILiteEngine engine, BsonMapper mapper)
+        private ILiteEngine _engine => _context.Engine;
+
+        private BsonMapper _mapper => _context.Mapper;
+
+        internal LiteDatabaseContext Context => _context;
+
+        internal LiteCollection(string name, BsonAutoId autoId, LiteDatabaseContext context)
         {
+            var mapper = context.Mapper;
+
             _collection = name ?? mapper.GetCollectionName(typeof(T));
-            _engine = engine;
-            _mapper = mapper;
+            _context = context;
             _includes = new List<BsonExpression>();
 
             // if strong typed collection, get _id member mapped (if exists)

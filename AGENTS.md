@@ -1,46 +1,32 @@
-# Repository Guidelines
+# Working on LiteDB
 
-## Project Structure & Module Organization
-The `LiteDB/` library is the heart of the solution and is split into domains such as `Engine/`, `Document/`, `Client/`, and `Utils/` for low-level storage, document modeling, and public APIs. Companion apps live beside it: `LiteDB.Shell/` provides the interactive CLI, `LiteDB.Benchmarks/` and `LiteDB.Stress/` target performance and endurance scenarios, while `LiteDB.Tests/` houses unit coverage grouped by feature area. Sample integrations and temporary packaging output stay in `ConsoleApp1/` and `artifacts_temp/` respectively.
+Data integrity comes first. Avoid forced legacy rebuilds; upgrades must be atomic,
+repeatable, and recoverable after crashes or power loss. Read
+[data safety](docs/rules/data-safety.md) before changing storage or migration code.
+Implementation is not complete until tests establish database safety for the affected
+behavior. Unresolved safety risks or missing safety coverage block completion.
 
-## Build, Test, and Development Commands
-Restore and build with `dotnet build LiteDB.sln -c Release -p:TestingEnabled=true` after a `dotnet restore`. The solution includes tests that require engine test hooks; use the same flag as CI to avoid mixing production and test-hook assemblies in shared build output. Build the library alone with `-p:TestingEnabled=false` for production measurements and packaging. Execute `dotnet test LiteDB.sln --settings tests.runsettings` to honor the solution-wide timeout profile, or scope to a single project with `dotnet test LiteDB.Tests -f net8.0`. Launch the shell locally via `dotnet run --project LiteDB.Shell/LiteDB.Shell.csproj -- MyData.db`. Produce NuGet artifacts using `dotnet pack LiteDB/LiteDB.csproj -c Release -p:TestingEnabled=false` when preparing releases.
+Read [development](docs/rules/development.md) and
+[workflow](docs/rules/workflow.md) before changing code. Read the relevant topic
+below when working in that area; there is no need to load every rule file.
 
-## Coding Style & Naming Conventions
-Follow the repository’s C# conventions: four-space indentation, Allman braces, and grouped `using` directives with system namespaces first. Prefer `var` only when the right-hand side is obvious, keep public APIs XML-documented (the build emits `LiteDB.xml`), and avoid introducing nullable warnings in both `netstandard2.0` and `net8.0` targets. Unsafe code is enabled; justify its use with comments tied to the relevant `Engine` component.
+| Work area | Guidance |
+| --- | --- |
+| Reproductions, tests, fuzzing, CI evidence | [Validation](docs/rules/validation.md) |
+| File formats, upgrades, persisted indexes | [Compatibility](docs/rules/compatibility.md) |
+| Transactions, cursors, WAL, disposal, buffers | [Storage and ownership](docs/rules/storage-ownership.md) |
+| LINQ/SQL translation, expression and statement caches | [Query expressions](docs/rules/query-expressions.md) |
+| Index planning, INCLUDE, sorting, LIKE, vectors | [Query execution](docs/rules/query-execution.md) |
+| BSON, mapper contracts, public API behavior | [Mapping and serialization](docs/rules/mapping-serialization.md) |
+| Benchmarks and memory measurements | [Performance](docs/rules/performance.md) |
+| Source generators, trimming, AOT | [Code generation](docs/rules/code-generation.md) |
 
-Keep new C# files below 300 lines where practical and at or below 500 lines.
-CI checks changed files with `scripts/check-csharp-size.py`; existing oversized
-files have explicit, non-growing exceptions in `scripts/csharp-size-exceptions.json`.
-Enable the matching staged-content check with `git config core.hooksPath .githooks`.
-The hook prefers `python3` and falls back to `python`. Generated-looking file
-names are checked too; any exception must be explicitly justified in the manifest.
-The manifest also baselines legacy files exposed by the full `dev`-to-`master`
-PR diff, with limits fixed at their size before the check was introduced.
+The library is in `LiteDB/`; tests are in `LiteDB.Tests/`. Use `gh` for GitHub.
+Issues and PRs normally belong to `litedb-org/LiteDB`; verify the actual PR head
+repository before pushing. New work normally targets `dev`.
 
-## Testing Guidelines
-Tests are written with xUnit and FluentAssertions; mirror the production folder names (`Engine`, `Query`, `Issues`, etc.) when adding scenarios. Name files after the type under test and choose expressive `[Fact]` / `[Theory]` method names describing the behavior. Long-running tests must finish within the 300-second session timeout defined in `tests.runsettings`; run focused suites with `dotnet test LiteDB.Tests --filter FullyQualifiedName~Engine` to triage regressions quickly.
-
-## Commit & Pull Request Guidelines
-Commits use concise, present-tense subject lines (e.g., `Add test run settings`) and may reference issues inline (`Fix #123`). Each PR should describe the problem, the approach, and include before/after notes or perf metrics when touching storage internals. Link to tracking issues, attach shell transcripts or benchmarks where relevant, and confirm `dotnet test` output so reviewers can spot regressions.
-
-## Versioning & Release Prep
-Semantic versions are generated by GitVersion.MsBuild through `Directory.Build.props`; create annotated version tags rather than editing project versions manually. Keep GitVersion output files separate for concurrent framework/configuration builds. Before tagging, ensure Release builds are clean, pack outputs land in `artifacts_temp/`, and update any shell or benchmark usage notes affected by the change. Update this guide whenever you discover repository practices worth sharing.
-
-Keep synthetic package-consumer builds in the `PackageValidation` configuration so they cannot replace release DLLs. Release packing rebuilds with `TestingEnabled=false`; use GitVersion 6's `SemVer` output with `UseFullSemVerForNuGet=false`, then validate both archives and their embedded assembly versions using the scripts under `scripts/` before publishing.
-
-
-## Forge
-This repository is hosted on **GitHub** (`api_base`: `https://api.github.com`). Use the `gh` CLI for
-issues, pull requests, CI runs, and releases. Upstream is `litedb-org/LiteDB` (remote `upstream`);
-this fork is `JKamsker/LiteDB` (remote `origin`). Issues are tracked upstream, so pass
-`-R litedb-org/LiteDB` when searching or viewing them.
-
-## Vector File Compatibility
-Ordinary files remain on format v8 and open without migration. The first vector
-write durably promotes the header to v9 before vector pages can enter the WAL;
-rollback, WAL replay, and checkpoint must never downgrade it. `Upgrade=true`
-continues to rebuild v7 files before applying read-only access. Durable flushes
-must reach the underlying file through encryption and caller-stream wrappers. Run `python3 scripts/test-vector-compatibility.py`
-to verify ordinary v8 round trips and vector-file rejection by LiteDB 5.0.21,
-including encrypted files. See `docs/vector-query-compatibility.md` for semantics.
+Keep this file as an entry point. Add durable lessons to the relevant rule file,
+prefer links to existing design docs and tests, and remove superseded guidance.
+Do not add task logs, individual bug histories, or benchmark results here.
+The [session review](docs/rules/session-review.md) records the sources and limits
+of the initial cleanup.

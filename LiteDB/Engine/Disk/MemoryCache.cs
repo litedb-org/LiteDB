@@ -292,7 +292,7 @@ namespace LiteDB.Engine
 #if DEBUG || TESTING
             for (var i = 0; i < page.Count; i++)
             {
-                page.Array[page.Offset + i] = 0xFF;
+                page.Array[page.Offset + i] = 0xDD;
             }
 #endif
 
