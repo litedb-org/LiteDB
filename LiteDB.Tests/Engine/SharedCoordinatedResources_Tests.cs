@@ -86,6 +86,32 @@ namespace LiteDB.Tests.Engine
             });
         }
 
+        [Fact]
+        public void First_read_skips_authority_attachment_but_a_later_write_still_joins_it()
+        {
+            WithFile(file =>
+            {
+                using (var peer = new LiteDatabase(new ConnectionString { Filename = file, Connection = ConnectionType.Shared }))
+                using (var engine = new SharedEngine(new EngineSettings { Filename = file }))
+                using (var database = new LiteDatabase(engine))
+                {
+                    var peerRows = peer.GetCollection("rows");
+                    peerRows.Insert(new BsonDocument { ["_id"] = 1, ["value"] = 19 });
+                    for (var i = 0; i < 3; i++) peerRows.FindById(1);
+                    File.Exists(SharedCoordinationPage.PagePath(file)).Should().BeTrue();
+                    var rows = database.GetCollection("rows");
+                    rows.FindById(1)["value"].AsInt32.Should().Be(19);
+                    Field<SharedCoordinationPage>(engine, "_coordination").Should().BeNull();
+                    engine.HasCachedSnapshot.Should().BeFalse();
+                    rows.Update(new BsonDocument { ["_id"] = 1, ["value"] = 20 }).Should().BeTrue();
+                    Field<SharedCoordinationPage>(engine, "_coordination").Should().NotBeNull();
+                    peerRows.FindById(1)["value"].AsInt32.Should().Be(20);
+                }
+                using (var cold = new LiteDatabase(file))
+                    cold.GetCollection("rows").FindById(1)["value"].AsInt32.Should().Be(20);
+            });
+        }
+
         private static T Field<T>(object owner, string name) =>
             (T)owner.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(owner);
 

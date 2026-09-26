@@ -29,6 +29,17 @@ namespace LiteDB
         private TimeSpan CoordinatedIdleLimit => SnapshotIdle;
 #endif
 
+        private void EnsureReadCoordination()
+        {
+            // The first read already owns the database mutex and cannot retain a
+            // cached snapshot. It needs neither an authority nor a filesystem probe.
+            // Writable opens still discover an existing authority before mutation.
+            if (_coordination == null && _coordinationDemand == 0)
+                _coordinationDemand = 1;
+            else
+                this.EnsureCoordination();
+        }
+
         // The caller owns the database mutex, so nobody can create a competing authority.
         private void EnsureCoordination(bool allowCreate = true)
         {
