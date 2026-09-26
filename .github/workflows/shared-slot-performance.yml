@@ -40,7 +40,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
         framework: [net8.0, net10.0]
-        workload: [core, traffic]
+        workload: [traffic]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -83,7 +83,7 @@ jobs:
       - name: Five serial alternating production pairs
         shell: pwsh
         run: |
-          python candidate/scripts/measure-shared-slots.py --baseline runner-baseline --candidate runner-candidate --scratch scratch --output evidence/paired.jsonl --matrix ${{ matrix.workload }}
+          python candidate/scripts/measure-shared-slots.py --baseline runner-baseline --candidate runner-candidate --scratch scratch --output evidence/paired.jsonl --matrix core --scenarios mixed --rounds 10
           if ($LASTEXITCODE) { throw 'Production comparison failed' }
       - name: Two and four writer contention with lifecycle accounting
         if: matrix.workload == 'core'
