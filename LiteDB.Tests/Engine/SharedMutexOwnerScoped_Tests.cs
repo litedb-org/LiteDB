@@ -122,7 +122,8 @@ namespace LiteDB.Tests.Engine
             var owner = new SharedMutexOwner(mutex, new SharedMutexTurnstile(turn), () => { });
 
             owner.Enter(scoped: true);
-            Action foreign = () => OnThread(() => owner.Exit());
+            var generation = owner.Generation;
+            Action foreign = () => OnThread(() => owner.Exit(generation));
             foreign.Should().Throw<InvalidOperationException>();
 
             owner.OwnsDirectly.Should().BeTrue();
@@ -178,6 +179,43 @@ namespace LiteDB.Tests.Engine
             });
             abandoned.Should().BeTrue();
             Volatile.Read(ref exited).Should().Be(1, "the connection's state of the dead owner is closed");
+            FreeForOthers(name).Should().BeTrue();
+        }
+
+        [Fact]
+        public void Cleanup_of_an_acquisition_ended_by_disposal_cannot_release_a_new_owner()
+        {
+            var name = NewName();
+            using var mutex = new Mutex(false, name);
+            using var turn = new Mutex(false, NewName());
+            var owner = new SharedMutexOwner(mutex, new SharedMutexTurnstile(turn), () => { });
+            using var acquired = new ManualResetEventSlim();
+            using var cleanup = new ManualResetEventSlim();
+            Exception error = null;
+            var earlier = new Thread(() =>
+            {
+                try
+                {
+                    owner.Enter();
+                    acquired.Set();
+                    cleanup.Wait(Prompt);
+                    owner.Exit(); // admission refused after Dispose, with another owner now present
+                }
+                catch (Exception ex) { error = ex; }
+            });
+            earlier.Start();
+            acquired.Wait(Prompt).Should().BeTrue();
+            owner.ReleaseAll();
+            owner.Enter(scoped: true);
+            try
+            {
+                cleanup.Set();
+                earlier.Join(Prompt).Should().BeTrue();
+                error.Should().BeNull();
+                owner.OwnsDirectly.Should().BeTrue();
+                FreeForOthers(name).Should().BeFalse();
+            }
+            finally { owner.Exit(); }
             FreeForOthers(name).Should().BeTrue();
         }
     }

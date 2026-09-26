@@ -149,8 +149,8 @@ namespace LiteDB.Client.Shared
         }
 
         /// <summary>
-        /// End one recursion from any thread. With <paramref name="generation"/>,
-        /// nothing happens once that ownership already ended.
+        /// End one recursion on its caller. Cross-thread readers supply their captured
+        /// <paramref name="generation"/>; an already-ended ownership is ignored.
         /// </summary>
         public void Exit(int generation = -1)
         {
@@ -158,6 +158,10 @@ namespace LiteDB.Client.Shared
             lock (_sync)
             {
                 direct = _scope.Owner;
+                // Dispose can end an acquisition before its caller is admitted. Its
+                // later error cleanup must not release a subsequent thread's ownership.
+                // Cross-thread readers always supply their captured generation.
+                if (generation < 0 && _owner != null && !ReferenceEquals(_owner, Thread.CurrentThread)) return;
                 if (_owner == null || (generation >= 0 && generation != _generation))
                 {
                     // ReleaseAll ended a scoped ownership while its thread still ran the

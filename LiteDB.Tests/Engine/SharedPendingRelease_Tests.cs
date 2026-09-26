@@ -32,8 +32,11 @@ namespace LiteDB.Tests.Engine
             return engine;
         }
 
-        private static void Insert(ILiteEngine engine, int id) =>
-            engine.Insert("docs", new[] { new BsonDocument { ["_id"] = id, ["payload"] = new string('p', 3000) } }, BsonAutoId.Int32);
+        private static void Insert(SharedEngine engine, int id)
+        {
+            engine.Insert("docs", Enumerable.Repeat(new BsonDocument { ["_id"] = id, ["payload"] = new string('p', 3000) }, 1), BsonAutoId.Int32);
+            engine.MutexOwner.HasHolderThread.Should().BeTrue("this test exercises posted holder releases");
+        }
 
         [Fact]
         public void Final_close_waits_for_its_own_release_before_checkpointing()
