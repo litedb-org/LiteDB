@@ -189,12 +189,13 @@ The earlier negative control remains: removing the lease file makes
 - **Tested:**
   - Windows (.NET 8 and .NET 10, x64 and x86), Linux (.NET 8 and .NET 10, as root and non-root),
     and the macOS CI jobs;
-  - almost entirely with several coordinated engines inside **one** process. A crash is simulated
-    in-process.
+  - most scheduling tests use several coordinated engines inside **one** process;
+  - `CoordinatorProcess_Tests.A_killed_coordinator_process_keeps_every_acknowledged_write`
+    kills a real coordinator and checks acknowledged records and absence of its uncommitted
+    transaction after takeover. This covers one controlled takeover sequence.
 - **Not exercised:**
-  - real process-kill takeovers (the Windows case where a dying coordinator takes the named mutex
-    with it was found in review, not by a test);
-  - the Unix socket cleanup after a killed coordinator.
+  - killing at every protocol boundary with several simultaneous takeover contenders;
+  - an independent exhaustive Unix socket cleanup fault campaign.
 - **The IPC protocol is not versioned.** It changed within #3003 (the grant acknowledgement).
   Processes running different LiteDB versions must not be mixed; nothing detects or refuses it
   yet.
