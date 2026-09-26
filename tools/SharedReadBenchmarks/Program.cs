@@ -21,6 +21,12 @@ internal static class Program
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic) != null)
             throw new InvalidOperationException("Benchmarks require a Release LiteDB assembly with TestingEnabled=false.");
 
+        if (args.Length == 2 && args[0] == "connection-resources")
+        {
+            ConnectionResources.Run(args[1]);
+            return;
+        }
+
         if (args.Length >= 2 && args[0].StartsWith("read-contention", StringComparison.Ordinal))
         {
             ReaderContentionBenchmarks.Run(args);

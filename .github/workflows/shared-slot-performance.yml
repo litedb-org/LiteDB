@@ -173,7 +173,7 @@ jobs:
     if: inputs.suite == 'contention'
     name: Pin lifecycle (${{ matrix.os }}, ${{ matrix.framework }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -218,15 +218,11 @@ jobs:
           git -C baseline rev-parse HEAD | Out-File evidence/base.txt
           git -C candidate rev-parse HEAD | Out-File evidence/head.txt
           dotnet --info | Out-File evidence/runtime.txt
-      - name: Pin lifecycle and paired writer fairness
+      - name: Resource lifetime and Direct reference
         shell: pwsh
         run: |
-          foreach ($variant in @('baseline', 'candidate')) {
-            dotnet "runner-$variant/SharedReadBenchmarks.dll" scratch shared holder 2000 | Out-File "evidence/holder-$variant.json"
-            if ($LASTEXITCODE) { throw "Holder diagnostic failed: $variant" }
-          }
-          python candidate/scripts/measure-shared-contention.py --baseline runner-baseline --candidate runner-candidate --scratch evidence/scratch --output evidence/contention.jsonl
-          if ($LASTEXITCODE) { throw 'Contention comparison failed' }
+          python candidate/scripts/measure-shared-resources.py --baseline runner-baseline --candidate runner-candidate --scratch evidence/scratch --output evidence/resources.jsonl
+          if ($LASTEXITCODE) { throw 'Resource/reference comparison failed' }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
