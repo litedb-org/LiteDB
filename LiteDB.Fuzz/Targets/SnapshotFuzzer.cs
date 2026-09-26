@@ -18,34 +18,43 @@ internal sealed class SnapshotFuzzer : IFuzzTarget
         rows.Insert(model.Values);
         writer.Checkpoint();
 
+        var readers = new List<ReaderProcess>();
+        using var mutations = new SnapshotWriterProcess(file, onFailure: () =>
+        {
+            foreach (var reader in readers) reader.Abort();
+        });
         var validations = 0;
         var checkpoints = 0;
         while (context.Next())
         {
             using var firstPrimary = new ReaderProcess(context, file,
                 Path.Combine(context.DirectoryPath, $"reader-{context.Steps}-first-primary"), 0);
-            Mutate(writer, rows, context, model);
+            readers.Add(firstPrimary);
+            Mutate(mutations, context, model);
             using var secondSecondary = new ReaderProcess(context, file,
                 Path.Combine(context.DirectoryPath, $"reader-{context.Steps}-second-secondary"), 1);
-            Mutate(writer, rows, context, model);
+            readers.Add(secondSecondary);
+            Mutate(mutations, context, model);
             using var thirdPrimary = new ReaderProcess(context, file,
                 Path.Combine(context.DirectoryPath, $"reader-{context.Steps}-third-primary"), 0);
+            readers.Add(thirdPrimary);
             for (var generation = 0; generation < 4; generation++)
             {
-                Mutate(writer, rows, context, model);
-                writer.Checkpoint();
+                Mutate(mutations, context, model);
+                mutations.Execute("checkpoint");
                 checkpoints++;
             }
             firstPrimary.Validate();
             firstPrimary.Stop();
-            Mutate(writer, rows, context, model);
-            writer.Checkpoint();
+            Mutate(mutations, context, model);
+            mutations.Execute("checkpoint");
             secondSecondary.Validate();
             secondSecondary.Stop();
-            Mutate(writer, rows, context, model);
-            writer.Checkpoint();
+            Mutate(mutations, context, model);
+            mutations.Execute("checkpoint");
             thirdPrimary.Validate();
             thirdPrimary.Stop();
+            readers.Clear();
             context.Check(Snapshot(rows.FindAll().OrderBy(row => row["_id"].AsInt32)) ==
                 Snapshot(model.Values.OrderBy(row => row["_id"].AsInt32)), "Current documents differ from the independent mutation model.");
             context.Check(Snapshot(Documents(rows, 1)) ==
@@ -60,11 +69,11 @@ internal sealed class SnapshotFuzzer : IFuzzTarget
             }
             validations += 3;
             context.ObserveNovelty("snapshot", 3, checkpoints % 4, rows.Count() / 8);
-            writer.Checkpoint();
+            mutations.Execute("checkpoint");
             checkpoints += 3;
         }
 
-        writer.Checkpoint();
+        mutations.Execute("checkpoint");
         DatabaseIntegrityVerifier.Verify(context, file);
         context.Metrics["simultaneousSnapshotGenerations"] = 3;
         context.Metrics["snapshotValidations"] = validations;
@@ -115,23 +124,27 @@ internal sealed class SnapshotFuzzer : IFuzzTarget
         return string.Join("|", values) + "\n" + values.Length;
     }
 
-    private static void Mutate(LiteDatabase writer, ILiteCollection<BsonDocument> rows, FuzzContext context,
+    private static void Mutate(SnapshotWriterProcess writer, FuzzContext context,
         Dictionary<int, BsonDocument> model)
     {
-        writer.BeginTrans();
+        var operations = new BsonArray();
         var changes = 2 + context.Random.Next(4);
         for (var change = 0; change < changes; change++)
         {
             var id = context.Random.Next(1, 35);
-            if (context.Random.Next(4) == 0) { rows.Delete(id); model.Remove(id); }
+            if (context.Random.Next(4) == 0)
+            {
+                operations.Add(new BsonDocument { ["_id"] = id, ["delete"] = true });
+                model.Remove(id);
+            }
             else
             {
                 var value = context.Random.Next(-1000, 1001);
-                rows.Upsert(Document(id, value));
+                operations.Add(new BsonDocument { ["document"] = Document(id, value) });
                 model[id] = Document(id, value);
             }
         }
-        writer.Commit();
+        writer.Execute(Convert.ToBase64String(BsonSerializer.Serialize(new BsonDocument { ["changes"] = operations })));
     }
 
     private static LiteDatabase Open(string file) => new(new ConnectionString
@@ -148,13 +161,14 @@ internal sealed class SnapshotFuzzer : IFuzzTarget
         ["Payload"] = new byte[9000 + id % 5 * 200]
     };
 
-    private sealed class ReaderProcess : IDisposable
+    internal sealed class ReaderProcess : IDisposable
     {
         private readonly Process _process;
         private readonly string _prefix;
         private readonly FuzzContext _context;
         private int _validation;
         private bool _stopped;
+        internal int ProcessId => _process.Id;
 
         internal ReaderProcess(FuzzContext context, string database, string prefix, int mode)
         {
@@ -196,6 +210,20 @@ internal sealed class SnapshotFuzzer : IFuzzTarget
         public void Dispose()
         {
             this.Stop();
+        }
+
+        /// <summary>End failed scenarios without trying to complete a potentially blocked reader.</summary>
+        internal void Abort()
+        {
+            if (_stopped) return;
+            _stopped = true;
+            try
+            {
+                if (!_process.HasExited) _process.Kill(entireProcessTree: true);
+                if (!_process.WaitForExit(5000))
+                    throw new FuzzFailureException("SNAPSHOT_READER_KILL_TIMEOUT", "The terminated snapshot reader did not exit.");
+            }
+            finally { _process.Dispose(); }
         }
 
         internal void Stop()

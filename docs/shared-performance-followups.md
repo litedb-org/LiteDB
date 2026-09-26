@@ -32,6 +32,12 @@ release never reuses its slot. The bounded file supports 65,536 concurrent slots
 exhaustion falls back to mutex-protected streaming. Files outlive connection disposal
 while any reader still needs them, and native locks release on process death.
 
+Failed registration makes a best-effort rollback of unpublished slot bytes and
+the count header, preserving the original I/O error. Cleanup failure remains
+conservative. Rollback never extends a file shorter than its published length:
+zero-filling missing slots would hide live versions. Such a connection refuses
+new leases and preserves the unknown metadata until its readers finish.
+
 Legacy per-reader leases are still understood. #3003 readers encountering the
 `slots-` prefix conservatively skip checkpoints and rebuilds, even for an idle new
 connection, until that connection closes. Mixed-version operation sacrifices
@@ -66,6 +72,13 @@ keys over repeated reclamation cycles, compares full current documents and index
 order against an independent mutation model, and checks physical structure after
 quiescence. Native process-death tests and the persistence fault model remain distinct:
 a killed process does not simulate losing the OS page cache or a lying device.
+
+Snapshot mutations and checkpoints run in a separate writer process. Each command
+has a 15-second progress deadline; timeout terminates the writer and live reader
+processes, reporting `SNAPSHOT_WRITER_TIMEOUT`. A regression holds the native writer
+mutex, forces that timeout, checks child termination and verifies committed data.
+This bounds actual database calls as well as command transmission; no blocked
+writer task remains inside the controller.
 
 Runs use Release with `TestingEnabled=true`, Linux x64 and a private `TMPDIR` on
 the original temp volume. CI covers Linux, ARM64, macOS, Windows x64/x86 and Framework;
