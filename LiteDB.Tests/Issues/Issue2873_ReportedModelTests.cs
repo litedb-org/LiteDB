@@ -15,14 +15,14 @@ namespace LiteDB.Tests.Issues
         [Fact]
         public void Reported_Enum_model_survives_custom_construction_and_independent_reopen()
         {
-            using var file = new TempFile();
+            using var storage = new MemoryDatabase();
             var receipts = new[]
             {
                 new QuantityRange<Mass>(100, 500, Mass.Units.Pound),
                 new QuantityRange<Mass>(-12.5, 81.75, Mass.Units.Kilogram)
             };
             var keys = new List<BsonValue>();
-            using (var writer = new LiteDatabase(file.Filename, new BsonMapper()))
+            using (var writer = storage.Open(new BsonMapper()))
             {
                 var rows = writer.GetCollection<QuantityRange<Mass>>("ranges");
                 foreach (var receipt in receipts)
@@ -49,14 +49,14 @@ namespace LiteDB.Tests.Issues
 
             Exception failure;
             QuantityRange<Mass>[] actual = null;
-            using (var reader = new LiteDatabase(file.Filename, mapper))
+            using (var reader = storage.Open(mapper))
             {
                 AssertRawLedger(reader, keys, receipts);
                 failure = Record.Exception(() =>
                     actual = reader.GetCollection<QuantityRange<Mass>>("ranges").FindAll().ToArray());
                 AssertRawLedger(reader, keys, receipts);
             }
-            using (var reopened = new LiteDatabase(file.Filename, new BsonMapper()))
+            using (var reopened = storage.Open(new BsonMapper()))
             {
                 AssertRawLedger(reopened, keys, receipts);
             }

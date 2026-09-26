@@ -10,8 +10,7 @@ namespace LiteDB.Tests.Issues
         [Fact]
         public void Commit_from_another_thread_does_not_silently_report_no_transaction()
         {
-            using var file = new TempFile();
-            using var db = new LiteDatabase(file.Filename);
+            using var db = new LiteDatabase(":memory:");
             using var pending = new ManualResetEventSlim();
             using var finish = new ManualResetEventSlim();
             Exception ownerFailure = null;

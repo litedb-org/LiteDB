@@ -42,6 +42,12 @@ jobs:
       - name: Build
         run: dotnet build LiteDB.sln --configuration Release --no-restore /p:TestingEnabled=true
 
+      - name: Verify test storage routing (.NET 8)
+        run: python scripts/test-test-storage.py --framework net8.0
+
+      - name: Verify test storage routing (.NET 10)
+        run: python scripts/test-test-storage.py --framework net10.0
+
       - name: Verify index migration from LiteDB 5.0.21
         run: python3 scripts/test-index-compatibility.py
       - name: Verify vector file compatibility with LiteDB 5.0.21
@@ -143,6 +149,12 @@ jobs:
       - name: Build
         run: dotnet build LiteDB.sln --configuration Release --no-restore /p:TestingEnabled=true
 
+      - name: Verify test storage routing (.NET 8)
+        run: python scripts/test-test-storage.py --framework net8.0
+
+      - name: Verify test storage routing (.NET 10)
+        run: python scripts/test-test-storage.py --framework net10.0
+
       - name: Package build outputs
         run: tar -czf tests-build-macos.tar.gz LiteDB/bin/Release LiteDB/obj/Release LiteDB.Tests/bin/Release LiteDB.Tests/obj/Release LiteDB.Tests.SharedMutexHarness/bin/Release LiteDB.Tests.SharedMutexHarness/obj/Release
 
@@ -220,6 +232,12 @@ jobs:
 
       - name: Build
         run: dotnet build LiteDB.sln --configuration Release --no-restore /p:TestingEnabled=true
+
+      - name: Verify test storage routing (.NET 8)
+        run: python scripts/test-test-storage.py --framework net8.0
+
+      - name: Verify test storage routing (.NET 10)
+        run: python scripts/test-test-storage.py --framework net10.0
 
       - name: Verify genuine v9 vectors through the storage stack
         run: python scripts/test-v9-compatibility.py

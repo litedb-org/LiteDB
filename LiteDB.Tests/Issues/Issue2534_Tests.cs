@@ -2,15 +2,15 @@
 
 namespace LiteDB.Tests.Issues;
 
-[Collection("SharedDemoDatabase")]
 public class Issue2534_Tests
 {
     [Fact]
     public void Test() 
     {
+        using var file = new TempFile();
         using LiteDatabase database = new(new ConnectionString()
         {
-            Filename = "Demo.db",
+            Filename = file.Filename,
             Connection = ConnectionType.Shared,
         });
 

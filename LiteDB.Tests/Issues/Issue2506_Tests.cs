@@ -9,9 +9,7 @@ public class Issue2506_Tests
     [Fact]
     public void Test()
     {
-        // Isolate the fixture from files left by earlier runs/formats.
-        using var databaseFile = new TempFile();
-        using LiteDatabase dataBase = new(databaseFile.Filename);
+        using LiteDatabase dataBase = new(":memory:");
 
         // Get the file metadata/chunks storage
         ILiteStorage<string> fileStorage = dataBase.GetStorage<string>("myFiles", "myChunks");
@@ -24,8 +22,10 @@ public class Issue2506_Tests
         LiteFileInfo<string> file = fileStorage.FindById("photos/2014/picture-01.jpg");
         Assert.NotNull(file);
 
-        // Load and save file bytes to hard drive
-        file.SaveAs(Path.Combine(Path.GetTempPath(), "new-picture.jpg"));
+        // Exercise the filename-based SaveAs API on the configured test filesystem
+        using var output = new TempFile();
+        file.SaveAs(output.Filename);
+        Assert.Equal(0, new FileInfo(output.Filename).Length);
 
         // Find all files matching pattern
         IEnumerable<LiteFileInfo<string>> files = fileStorage.Find("_id LIKE 'photos/2014/%'");

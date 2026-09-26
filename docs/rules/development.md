@@ -16,6 +16,10 @@ through restore/build/test; production and test-hook assemblies otherwise share
 output paths. Do not run competing builds with different hook settings in the
 same checkout. Use a separate worktree for production benchmarks.
 
+Local test database and temporary files default to a RAM filesystem; CI uses the
+original system temp directory. See [test storage](../testing-storage.md) for
+RAM-disk setup, explicit disk opt-in, cleanup and swap limitations.
+
 For a full solution run, use:
 
 ```bash

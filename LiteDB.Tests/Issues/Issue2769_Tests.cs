@@ -55,12 +55,12 @@ namespace LiteDB.Tests.Issues
             (encoded.IsInt32 || encoded.IsInt64).Should().BeTrue("integer enums must not lose bits through double");
             encoded.AsInt64.Should().Be(expected);
 
-            using var file = new TempFile();
-            using (var db = new LiteDatabase(file.Filename))
+            using var storage = new MemoryDatabase();
+            using (var db = storage.Open())
             {
                 db.GetCollection("values").Insert(new BsonDocument { ["_id"] = 1, ["Value"] = encoded });
             }
-            using (var db = new LiteDatabase(file.Filename))
+            using (var db = storage.Open())
             {
                 var stored = db.GetCollection("values").FindById(1)["Value"];
                 stored.AsInt64.Should().Be(expected);
@@ -101,15 +101,15 @@ namespace LiteDB.Tests.Issues
                 mapped["Marker"].AsString.Should().Be(row.Marker);
             }
 
-            using var file = new TempFile();
-            using (var db = new LiteDatabase(file.Filename, mapper))
+            using var storage = new MemoryDatabase();
+            using (var db = storage.Open(mapper))
             {
                 var collection = db.GetCollection<UnsignedLongRow>("values");
                 collection.Insert(rows).Should().Be(5);
                 collection.EnsureIndex(x => x.Value).Should().BeTrue();
             }
 
-            using (var db = new LiteDatabase(file.Filename, new BsonMapper { EnumAsInteger = true }))
+            using (var db = storage.Open(new BsonMapper { EnumAsInteger = true }))
             {
                 var collection = db.GetCollection<UnsignedLongRow>("values");
                 var ordered = collection.FindAll().OrderBy(x => x.Id).ToArray();

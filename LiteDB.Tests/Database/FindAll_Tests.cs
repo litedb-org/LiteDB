@@ -22,9 +22,9 @@ namespace LiteDB.Tests.Database
         [Fact]
         public void FindAll()
         {
-            using (var f = new TempFile())
+            using (var f = new MemoryDatabase())
             {
-                using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, f.Filename))
+                using (var db = f.Open())
                 {
                     var col = db.GetCollection<Person>("Person");
 
@@ -35,7 +35,7 @@ namespace LiteDB.Tests.Database
                 }
                 // close datafile
 
-                using (var db = DatabaseFactory.Create(TestDatabaseType.Disk, f.Filename))
+                using (var db = f.Open())
                 {
                     var p = db.GetCollection<Person>("Person").Find(Query.All("Fullname", Query.Ascending));
 
