@@ -16,6 +16,7 @@ parser.add_argument('--scratch', type=Path, required=True)
 parser.add_argument('--output', type=Path, required=True)
 parser.add_argument('--rounds', type=int, default=5)
 parser.add_argument('--matrix', choices=['core', 'traffic'], default='core')
+parser.add_argument('--scenarios', nargs='+', help='Run only these scenarios from the selected matrix; still requires five pairs')
 args = parser.parse_args()
 if args.rounds < 5:
     parser.error('At least five paired rounds are required')
@@ -27,6 +28,11 @@ workloads += [('slots', 100000, active) for active in (1, 64, 4096, 65536)]
 if args.matrix == 'traffic':
     workloads = [(name, 1000, 10) for name in ('same-key', 'random', 'buffered', 'indexed',
                  'write', 'transaction', 'balanced', 'write-heavy', 'churn', 'open-close', 'checkpoint')]
+if args.scenarios:
+    unknown = set(args.scenarios) - {name for name, _, _ in workloads}
+    if unknown:
+        parser.error('Scenarios are not in the selected matrix: ' + ', '.join(sorted(unknown)))
+    workloads = [workload for workload in workloads if workload[0] in args.scenarios]
 # Exclusive creation protects previous evidence from accidental replacement.
 with args.output.open('x') as output:
     for scenario, count, parameter in workloads:
