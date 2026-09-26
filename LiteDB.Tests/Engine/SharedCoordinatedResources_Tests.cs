@@ -115,8 +115,10 @@ namespace LiteDB.Tests.Engine
             });
         }
 
-        [Fact]
-        public void Reads_between_peer_commits_do_not_retain_unused_snapshots()
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Reads_between_peer_commits_do_not_retain_unused_snapshots(bool checkpoint)
         {
             WithFile(file =>
             {
@@ -132,8 +134,9 @@ namespace LiteDB.Tests.Engine
                     for (var i = 1; i <= 5; i++)
                     {
                         writer.GetCollection("rows").Update(new BsonDocument { ["_id"] = 1, ["value"] = i });
+                        if (checkpoint) writer.Checkpoint();
                         reader.GetCollection("rows").FindById(1)["value"].AsInt32.Should().Be(i);
-                        engine.HasCachedSnapshot.Should().BeFalse("changed versions cannot amortize retention");
+                        engine.HasCachedSnapshot.Should().BeFalse("changed storage cannot amortize retention");
                     }
                     reader.GetCollection("rows").FindById(1)["value"].AsInt32.Should().Be(5);
                     engine.HasCachedSnapshot.Should().BeTrue();

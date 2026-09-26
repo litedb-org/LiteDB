@@ -162,6 +162,8 @@ jobs:
         if: matrix.os == 'ubuntu-latest' && matrix.framework == 'net8.0' && matrix.load == 'saturation'
         shell: pwsh
         run: |
+          python candidate/scripts/verify-shared-stability-control.py
+          if ($LASTEXITCODE) { throw 'Stability negative control was not discriminating' }
           dotnet test candidate/LiteDB.Tests -c Release -f net8.0 -p:TestingEnabled=true --settings candidate/tests.runsettings --filter 'FullyQualifiedName~SharedCoordinated|FullyQualifiedName~SharedCoordination|FullyQualifiedName~SharedMapped|FullyQualifiedName~SharedFileHandles|FullyQualifiedName~SharedSlot|FullyQualifiedName~Rebuild_InstallFaultMatrix' --logger trx --results-directory evidence/tests
           if ($LASTEXITCODE) { throw 'Stability policy tests failed' }
       - name: Concurrent reader production pairs
