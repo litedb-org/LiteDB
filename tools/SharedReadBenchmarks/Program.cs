@@ -22,8 +22,8 @@ internal static class Program
 
         if ((args.Length != 4 && args.Length != 5) || !int.TryParse(args[3], out var count) || count <= 0 ||
             (args[1] != "shared" && args[1] != "direct") ||
-            !new[] { "point", "scan", "mixed", "phases" }.Contains(args[2]))
-            throw new ArgumentException("Usage: SharedReadBenchmarks <scratch-parent> <shared|direct> <point|scan|mixed|phases> <count> [warmup-seconds]");
+            !new[] { "point", "scan", "mixed", "phases", "slots" }.Contains(args[2]))
+            throw new ArgumentException("Usage: SharedReadBenchmarks <scratch-parent> <shared|direct> <point|scan|mixed|phases|slots> <count> [warmup-seconds|active-slots]");
 
         var warmupSeconds = args.Length == 5 ? int.Parse(args[4], CultureInfo.InvariantCulture) : 0;
         if (warmupSeconds < 0) throw new ArgumentOutOfRangeException(nameof(warmupSeconds));
@@ -31,7 +31,11 @@ internal static class Program
         CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
         var directory = Path.Combine(Path.GetFullPath(args[0]), "shared-read-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
-        try { Run(Path.Combine(directory, "bench.db"), args[1], args[2], count, warmupSeconds); }
+        try
+        {
+            if (args[2] == "slots") SlotBenchmarks.Run(directory, count, warmupSeconds);
+            else Run(Path.Combine(directory, "bench.db"), args[1], args[2], count, warmupSeconds);
+        }
         finally { Directory.Delete(directory, true); }
     }
 

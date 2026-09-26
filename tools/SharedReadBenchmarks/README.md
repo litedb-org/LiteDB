@@ -62,3 +62,23 @@ not establish the percentage of CPU spent inside an inlined helper. Keep traces
 separate from the uninstrumented latency comparison.
 
 See [shared read performance](../../docs/shared-read-performance.md).
+
+`slots <count> <active-slots>` is a separate helper diagnostic. It binds production
+slot methods to delegates before timing, fills the specified number of live leases,
+then repeatedly releases/replaces the final lease. The complete version set is
+validated before and after timing. Counts from 1 through the 65,536-slot limit
+show whether selection cost scales with live readers. It reports fill allocation,
+fill and close time as well as steady-state latency/CPU/allocation. This bypasses
+query execution; do not describe its speedup as application throughput.
+
+For five alternating pairs, including the existing point/scan/mixed workloads:
+
+```sh
+python3 scripts/measure-shared-slots.py \
+  --baseline <baseline-runner-directory> --candidate <candidate-runner-directory> \
+  --scratch <private-directory-on-test-volume> --output <new-results.jsonl>
+```
+
+Run once per runtime, serially and without competing tests/builds. Commands,
+`TMPDIR`, host, order, timing, failures and JSON results are preserved in an
+exclusively created output file; any failed process stops the comparison.
