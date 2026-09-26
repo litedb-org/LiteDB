@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Threading;
 using LiteDB;
 using LiteDB.Engine;
 
@@ -191,14 +192,15 @@ internal static class Program
         Array.Clear(phases, 0, phases.Length);
         var samples = new double[count];
         var allocated = GC.GetTotalAllocatedBytes(true);
-        var startCpu = Process.GetCurrentProcess().TotalProcessorTime;
+        using var process = Process.GetCurrentProcess();
+        var startCpu = process.TotalProcessorTime;
         for (var i = 0; i < count; i++)
         {
             var start = Stopwatch.GetTimestamp();
             Operation(i);
             samples[i] = Milliseconds(Stopwatch.GetTimestamp() - start);
         }
-        var cpuMs = (Process.GetCurrentProcess().TotalProcessorTime - startCpu).TotalMilliseconds;
+        var cpuMs = (process.TotalProcessorTime - startCpu).TotalMilliseconds;
         var bytes = GC.GetTotalAllocatedBytes(true) - allocated;
         // Preserve time order for checking that tiering or host load did not make
         // the measured interval drift, before sorting for percentiles.
@@ -217,13 +219,23 @@ internal static class Program
             Path.GetFileNameWithoutExtension(filename) + "-log" + Path.GetExtension(filename));
         long LogBytes() => File.Exists(log) ? new FileInfo(log).Length : 0;
         var walBytesBeforeClose = LogBytes();
+        var closeCpu = process.TotalProcessorTime;
         var closing = Stopwatch.GetTimestamp();
         db.Dispose();
         engine.Dispose();
         var closeMs = Milliseconds(Stopwatch.GetTimestamp() - closing);
+        var closeCpuMs = (process.TotalProcessorTime - closeCpu).TotalMilliseconds;
         var walBytesAfterClose = LogBytes();
         if (walBytesAfterClose != 0) throw new InvalidOperationException("Final close left WAL content behind.");
 
+        var idleCpu = process.TotalProcessorTime;
+        Thread.Sleep(1200); // Include bounded holder eviction after connection churn.
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+        process.Refresh();
+        var idleCpuMs = (process.TotalProcessorTime - idleCpu).TotalMilliseconds;
+        var lifecycleCpuMsFromMeasurement = (process.TotalProcessorTime - startCpu).TotalMilliseconds;
         var binary = typeof(LiteDatabase).Assembly.Location;
         Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
         {
@@ -234,7 +246,10 @@ internal static class Program
             queryMs = Milliseconds(phases[0]) / count,
             iterateMs = Milliseconds(phases[1]) / count,
             disposeMs = Milliseconds(phases[2]) / count,
-            closeMs, dataBytes = new FileInfo(filename).Length, walBytesBeforeClose, walBytesAfterClose,
+            closeMs, closeCpuMs, idleCpuMs, lifecycleCpuMsFromMeasurement,
+            peakWorkingSetBytes = process.PeakWorkingSet64, idleWorkingSetBytes = process.WorkingSet64,
+            idleThreads = process.Threads.Count, idleHandles = process.HandleCount,
+            retainedManagedBytes = GC.GetTotalMemory(false), dataBytes = new FileInfo(filename).Length, walBytesBeforeClose, walBytesAfterClose,
             runtime = RuntimeInformation.FrameworkDescription, os = RuntimeInformation.OSDescription,
             binary, sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(binary)))
         }));

@@ -1,8 +1,17 @@
 # Shared reader slot selection after #3013
 
-Work in progress. Parent: #3013, initially frozen at
-`4cff52c4074a61bea5a283b513dbbfe526c16b86`. This change does not establish the
-broader task's performance or platform acceptance gates yet.
+Work in progress. PR #3014 is stacked on #3013, currently
+`d2fb099acebb58dbbb07acbeea49c05bb025defd` (initial measurement baseline
+`4cff52c4074a61bea5a283b513dbbfe526c16b86`).
+
+**Updated concurrency contract:** all processes concurrently opening one database
+in Shared mode must use exactly the same LiteDB version. Concurrent mixed-version
+access is unsupported. This removes the legacy-writer participation objection to
+mapped admission and incremental reopen. Both strategies are being re-evaluated;
+the earlier rejection rationale below is historical, not the final decision.
+Persisted database compatibility, durability and the other safety gates still apply.
+The free-list measurements establish only a helper improvement, not completion
+of the architectural read-admission and writer-handoff objectives.
 
 ## Candidates and safety boundaries
 

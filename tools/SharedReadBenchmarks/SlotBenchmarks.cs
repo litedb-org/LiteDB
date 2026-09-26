@@ -18,11 +18,13 @@ internal static class SlotBenchmarks
         var lease = (Func<int, IDisposable>)type.GetMethod("Lease", flags).CreateDelegate(typeof(Func<int, IDisposable>), slots);
         var read = (Func<string, int[]>)type.GetMethod("ReadVersions", flags).CreateDelegate(typeof(Func<string, int[]>));
         var readers = new IDisposable[active];
+        var beforeFillLiveBytes = GC.GetTotalMemory(true);
         var allocated = GC.GetTotalAllocatedBytes(true);
         var filling = Stopwatch.StartNew();
         for (var i = 0; i < active; i++) readers[i] = lease(i);
         filling.Stop();
         var fillBytes = GC.GetTotalAllocatedBytes(true) - allocated;
+        var liveFillBytes = GC.GetTotalMemory(true) - beforeFillLiveBytes;
         var path = Directory.GetFiles(directory, "*.lease").Single();
         try
         {
@@ -55,10 +57,13 @@ internal static class SlotBenchmarks
             foreach (var reader in readers) reader.Dispose();
             slots.Dispose();
             close.Stop();
+            Array.Clear(readers, 0, readers.Length);
+            var retainedAfterCloseBytes = GC.GetTotalMemory(true) - beforeFillLiveBytes;
+            GC.KeepAlive(slots); // Measure the slot owner while it is still reachable.
             Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
             {
                 scenario = "slots", active, count, fillMs = filling.Elapsed.TotalMilliseconds,
-                fillBytes, meanMs = samples.Average(), p50Ms = samples[count / 2],
+                fillBytes, liveFillBytes, retainedAfterCloseBytes, meanMs = samples.Average(), p50Ms = samples[count / 2],
                 p95Ms = samples[(int)(count * .95)], p99Ms = samples[(int)(count * .99)],
                 worstMs = samples[count - 1], cpuMsPerOperation = cpuMs / count,
                 bytesPerOperation = bytes / (double)count, closeMs = close.Elapsed.TotalMilliseconds,

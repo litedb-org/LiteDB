@@ -8,6 +8,9 @@ on:
       - 'tools/SharedReadBenchmarks/**'
       - 'scripts/measure-shared-slots.py'
       - 'scripts/measure-shared-contention.py'
+      - 'scripts/verify-shared-slot-interop.py'
+      - 'LiteDB.Fuzz/CheckpointedFileVerifier.cs'
+      - 'LiteDB.Fuzz.Tests/CheckpointedFileVerifier_Tests.cs'
       - '.github/workflows/shared-slot-performance.yml'
 
 permissions:
@@ -74,6 +77,15 @@ jobs:
         run: |
           python candidate/scripts/measure-shared-contention.py --baseline runner-baseline --candidate runner-candidate --scratch scratch --output evidence/contention.jsonl
           if ($LASTEXITCODE) { throw 'Contention comparison failed' }
+      - name: Same-version production state campaign with writer death and raw validation
+        if: matrix.workload == 'core'
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
+          dotnet build candidate/LiteDB.Fuzz -c Release -f net8.0 -p:TestingEnabled=true
+          if ($LASTEXITCODE) { throw 'Raw verifier build failed' }
+          python candidate/scripts/verify-shared-slot-interop.py --baseline runner-baseline --candidate runner-candidate --validator candidate/LiteDB.Fuzz/bin/Release/net8.0/LiteDB.Fuzz.dll --scratch evidence/interop | Tee-Object evidence/interop.jsonl
+          if ($LASTEXITCODE) { throw 'Production state campaign failed' }
       - uses: actions/upload-artifact@v4
         if: always()
         with:

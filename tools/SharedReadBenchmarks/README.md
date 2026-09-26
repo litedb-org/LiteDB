@@ -65,7 +65,8 @@ See [shared read performance](../../docs/shared-read-performance.md).
 
 `slots <count> <active-slots>` is a separate helper diagnostic. It binds production
 slot methods to delegates before timing, fills the specified number of live leases,
-then repeatedly releases/replaces the final lease. The complete version set is
+then repeatedly releases/replaces the final lease. Live memory is sampled after
+a full GC before/after filling and after release while the slot owner is kept alive. The complete version set is
 validated before and after timing. Counts from 1 through the 65,536-slot limit
 show whether selection cost scales with live readers. It reports fill allocation,
 fill and close time as well as steady-state latency/CPU/allocation. This bypasses
@@ -88,14 +89,18 @@ with no engine or durable I/O. Reflection overhead is included, and it is a
 cost probe rather than a proposed reusable-worker implementation.
 
 `interop <database>` is a line-oriented child protocol for
-`scripts/verify-shared-slot-interop.py` (Linux driver). Build the same runner
+`scripts/verify-shared-slot-interop.py` (portable driver). Build the same runner
 against each production library, then pass their directories as `--baseline` and
-`--candidate` and a private `--scratch`. It alternates writer/reader binary roles,
+`--candidate`, `--validator <hook-enabled LiteDB.Fuzz.dll>` and a private
+`--scratch`. Each production variant runs separately with same-version participants. It
 holds three generations through checkpoint and oldest-first departure, verifies
 full payloads and indexed results, rolls back cross-collection deletion, and
 checks a transaction witness and final state from a new process. Failed fixture
-files remain for investigation. Native kill/recovery and physical integrity
-remain the responsibility of the existing Shared/MVCC regression/fuzz suite.
+files remain for investigation. Four epochs also race two conflicting transactions, kill an uncommitted writer
+and a pinned reader, preserve unrecovered data/WAL before reopening, and run the
+existing raw structural oracle after quiescence. The oracle requires an empty WAL
+and checks that the data file bytes remain unchanged. This is process-death
+coverage; it does not simulate loss of the host page cache.
 
 `scripts/measure-shared-contention.py` uses the same production runner directories.
 It runs five alternating pairs with two and four separate writer processes. The
@@ -130,3 +135,8 @@ one insert; a checkpoint operation contains one update and one explicit checkpoi
 Do not interpret these multi-call cycle rates as single-write throughput. Writes
 validate the entire final expected-state array outside the timing interval, and
 every run checks final WAL cleanup. The existing mixed case is 1 write : 9 reads.
+
+Ordinary workload output additionally reports close/idle CPU, peak and idle RSS,
+post-close threads/handles, and retained managed memory after 1.2 seconds and a
+full GC. `lifecycleCpuMsFromMeasurement` includes validation, close and idle cleanup
+after the measured operation interval; startup and warmup are separate.

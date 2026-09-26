@@ -8,7 +8,7 @@ internal static class InteropBenchmarks
     // Both old and new production DLLs execute this identical public-API protocol.
     internal static void Run(string filename)
     {
-        using var db = new LiteDatabase(new ConnectionString { Filename = filename, Connection = ConnectionType.Shared });
+        using var db = new LiteDatabase(new ConnectionString { Filename = filename, Connection = ConnectionType.Shared, TransactionPageLimit = 3 });
         var rows = db.GetCollection("rows");
         var readers = new Dictionary<int, IEnumerator<BsonDocument>>();
         try
@@ -47,15 +47,22 @@ internal static class InteropBenchmarks
                         readers.Remove(generation);
                         break;
                     case "verify":
-                        var current = rows.FindAll().OrderBy(x => x["_id"].AsInt32).ToArray();
-                        if (current.Length != 200) throw new InvalidOperationException("Current count changed");
-                        for (var id = 0; id < current.Length; id++) Validate(current[id], id, generation);
-                        var indexed = rows.Find(Query.EQ("revision", generation)).OrderBy(x => x["_id"].AsInt32).ToArray();
-                        if (indexed.Length != 200) throw new InvalidOperationException("Index count changed");
-                        for (var id = 0; id < indexed.Length; id++) Validate(indexed[id], id, generation);
-                        if (db.GetCollection("witness").FindById(1)["revision"].AsInt32 != generation)
-                            throw new InvalidOperationException("Atomic witness changed");
+                        Verify(rows, db, generation);
                         break;
+                    case "verify-either":
+                        var actual = db.GetCollection("witness").FindById(1)["revision"].AsInt32;
+                        if (actual != generation && actual != int.Parse(parts[2]))
+                            throw new InvalidOperationException("No legal concurrent transaction won");
+                        Verify(rows, db, actual);
+                        break;
+                    case "uncommitted":
+                        db.BeginTrans();
+                        if (rows.DeleteAll() != 200 || db.GetCollection("witness").DeleteAll() != 1)
+                            throw new InvalidOperationException("Incomplete uncommitted deletion");
+                        Console.WriteLine(command);
+                        // The controller kills this native writer with its transaction open.
+                        Console.ReadLine();
+                        throw new InvalidOperationException("Crash worker was not terminated");
                     case "rollback":
                         db.BeginTrans();
                         rows.DeleteAll();
@@ -69,6 +76,18 @@ internal static class InteropBenchmarks
             }
         }
         finally { foreach (var reader in readers.Values) reader.Dispose(); }
+    }
+
+    private static void Verify(ILiteCollection<BsonDocument> rows, LiteDatabase db, int generation)
+    {
+        var current = rows.FindAll().OrderBy(x => x["_id"].AsInt32).ToArray();
+        if (current.Length != 200) throw new InvalidOperationException("Current count changed");
+        for (var id = 0; id < current.Length; id++) Validate(current[id], id, generation);
+        var indexed = rows.Find(Query.EQ("revision", generation)).OrderBy(x => x["_id"].AsInt32).ToArray();
+        if (indexed.Length != 200) throw new InvalidOperationException("Index count changed");
+        for (var id = 0; id < indexed.Length; id++) Validate(indexed[id], id, generation);
+        if (db.GetCollection("witness").FindById(1)["revision"].AsInt32 != generation)
+            throw new InvalidOperationException("Atomic witness changed");
     }
 
     private static BsonDocument Document(int id, int generation) => new BsonDocument
