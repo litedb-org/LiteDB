@@ -33,8 +33,10 @@ namespace LiteDB.Client.Shared
         private int _inUse;
         private bool _disposeRequested;
         private bool _closed;
+        private bool _lostPublishedContent;
 #if DEBUG || TESTING
         internal Action<FileStream, byte[]> WriteOverride { get; set; }
+        internal Action<FileStream, long> TruncateOverride { get; set; }
 #endif
 
         private SharedReaderSlots(FileStream content, FileStream lease)
@@ -84,6 +86,7 @@ namespace LiteDB.Client.Shared
             lock (_gate)
             {
                 if (_closed) throw new ObjectDisposedException(nameof(SharedReaderSlots));
+                if (_lostPublishedContent) throw new IOException("The shared-reader slots lost published content.");
                 var index = _used.IndexOf(false);
                 if (index < 0)
                 {
@@ -93,14 +96,20 @@ namespace LiteDB.Client.Shared
                 }
                 // Written through to the OS before the caller releases the mutex, so the next
                 // mutex owner's scan reads it.
-                this.WriteSlot(index + 1, version, ~version);
-                // Also repair a header whose previous append failed. Registration and
-                // checkpoint inspection hold the database mutex, so append cannot race it.
-                if (_publishedCount != _used.Count)
+                var headerStarted = false;
+                try
                 {
-                    this.WriteSlot(0, _used.Count, ~_used.Count);
-                    _publishedCount = _used.Count;
+                    this.WriteSlot(index + 1, version, ~version);
+                    // Also repair a header whose previous append failed. Registration and
+                    // checkpoint inspection hold the database mutex, so append cannot race it.
+                    if (_publishedCount != _used.Count)
+                    {
+                        headerStarted = true;
+                        this.WriteSlot(0, _used.Count, ~_used.Count);
+                        _publishedCount = _used.Count;
+                    }
                 }
+                catch (IOException) { this.UndoRegistration(index, headerStarted); throw; }
                 _used[index] = true;
                 _inUse++;
                 return new Slot(this, index);
@@ -108,6 +117,32 @@ namespace LiteDB.Client.Shared
         }
 
         private int _publishedCount;
+
+        /// <summary>Undo only unpublished content; failed cleanup must not replace the registration error.</summary>
+        private void UndoRegistration(int index, bool headerStarted)
+        {
+            try
+            {
+                var length = (_publishedCount + 1L) * SlotSize;
+                if (_content.Length < length)
+                {
+                    // Extending with zeroes would make lost live slots look free. Keep
+                    // the file unknown and reject new leases until this connection closes.
+                    _lostPublishedContent = true;
+                    return;
+                }
+                if (index < _publishedCount) { this.WriteSlot(index + 1, 0, 0); return; }
+#if DEBUG || TESTING
+                if (this.TruncateOverride != null) this.TruncateOverride(_content, length);
+                else
+#endif
+                _content.SetLength(length);
+                // A failed header write may already have changed some or all count bytes.
+                if (headerStarted) this.WriteSlot(0, _publishedCount, ~_publishedCount);
+                _used.RemoveRange(_publishedCount, _used.Count - _publishedCount);
+            }
+            catch (IOException) { }
+        }
 
         private void Release(int index)
         {
@@ -119,7 +154,7 @@ namespace LiteDB.Client.Shared
                 // a stale lease only makes checkpoints conservative.
                 try
                 {
-                    this.WriteSlot(index + 1, 0, 0);
+                    if (!_lostPublishedContent) this.WriteSlot(index + 1, 0, 0);
                     _used[index] = false;
                 }
                 catch (IOException) { }
