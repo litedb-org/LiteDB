@@ -92,8 +92,7 @@ namespace LiteDB.Tests.Issues
         [InlineData("Issue_2494_EncryptedV4.db", "pass123")]
         public void Legacy_upgrade_reader_fills_pages_before_parsing_or_decrypting(string fixture, string password)
         {
-            var path = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-                "..", "..", "..", "Resources", fixture));
+            var path = TestResource.GetPath(fixture);
             var original = File.ReadAllBytes(path);
             using var shortReads = new ShortReadStream(original.ToArray());
             var settings = new EngineSettings { DataStream = shortReads, Password = password };

@@ -199,7 +199,7 @@ namespace LiteDB.AotTestHost
         }
 
         /// <summary>
-        /// xunit converts InlineData literals to the parameter types and fills optional parameters.
+        /// xunit converts InlineData literals, packs params arrays, and fills optional parameters.
         /// </summary>
         private static object[] ConvertArguments(MethodInfo method, object[] supplied)
         {
@@ -213,30 +213,36 @@ namespace LiteDB.AotTestHost
             {
                 var parameter = parameters[i];
 
+                if (parameter.GetCustomAttribute<ParamArrayAttribute>() != null &&
+                    !(supplied.Length == parameters.Length &&
+                      (supplied[i] == null || parameter.ParameterType.IsInstanceOfType(supplied[i]))))
+                {
+                    var elementType = parameter.ParameterType.GetElementType();
+                    var values = Array.CreateInstance(elementType, Math.Max(0, supplied.Length - i));
+                    for (var j = 0; j < values.Length; j++)
+                        values.SetValue(ConvertArgument(supplied[i + j], elementType), j);
+                    converted[i] = values;
+                    continue;
+                }
+
                 if (i >= supplied.Length)
                 {
                     converted[i] = parameter.HasDefaultValue ? parameter.DefaultValue : null;
                     continue;
                 }
 
-                var value = supplied[i];
-                var target = Nullable.GetUnderlyingType(parameter.ParameterType) ?? parameter.ParameterType;
-
-                if (value == null || target.IsInstanceOfType(value))
-                {
-                    converted[i] = value;
-                }
-                else if (target.IsEnum)
-                {
-                    converted[i] = Enum.ToObject(target, value);
-                }
-                else
-                {
-                    converted[i] = Convert.ChangeType(value, target, System.Globalization.CultureInfo.InvariantCulture);
-                }
+                converted[i] = ConvertArgument(supplied[i], parameter.ParameterType);
             }
 
             return converted;
+        }
+
+        private static object ConvertArgument(object value, Type parameterType)
+        {
+            var target = Nullable.GetUnderlyingType(parameterType) ?? parameterType;
+            if (value == null || target.IsInstanceOfType(value)) return value;
+            return target.IsEnum ? Enum.ToObject(target, value) :
+                Convert.ChangeType(value, target, System.Globalization.CultureInfo.InvariantCulture);
         }
 
         private static string Describe(Exception exception)
