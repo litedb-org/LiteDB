@@ -71,7 +71,8 @@ namespace LiteDB.Tests.Engine
                     var settings = Field<EngineSettings>(snapshot, "_settings");
                     var header = Field<HeaderPage>(snapshot, "_header");
                     // A small real file-backed sorter isolates spill retention from the page-cache bound.
-                    var sort = new SortDisk(settings.CreateTempFactory(), Constants.PAGE_SIZE, header.Pragmas);
+                    var temp = new TempStream(file + "-sort", maxMemoryUsage: 0);
+                    var sort = new SortDisk(new StreamFactory(temp, settings.Password, ownsStream: true), Constants.PAGE_SIZE, header.Pragmas);
                     sortField.SetValue(snapshot, sort);
                     var hits = engine.CoordinatedReadHits;
                     rows.Query().OrderBy("key").ToArray().Select(row => row["_id"].AsInt32)
@@ -79,7 +80,9 @@ namespace LiteDB.Tests.Engine
                     sort.HasSpilled.Should().BeTrue();
                     engine.CoordinatedReadHits.Should().BeGreaterThan(hits);
                     engine.HasCachedSnapshot.Should().BeFalse("a completed spill must not remain in idle cached storage");
-                    Directory.GetFiles(Path.GetDirectoryName(file), "*-tmp*").Should().BeEmpty();
+                    temp.InDisk.Should().BeTrue("the query must exercise an actual backing file");
+                    temp.CanRead.Should().BeFalse("retirement must dispose the owned stream");
+                    File.Exists(temp.Filename).Should().BeFalse();
                     rows.FindById(0)["key"].AsString.Should().StartWith("199");
                     GC.KeepAlive(database);
                 }
