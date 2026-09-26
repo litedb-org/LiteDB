@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace LiteDB.Client.Shared
 {
@@ -18,7 +19,11 @@ namespace LiteDB.Client.Shared
                     return GetFileAttributes(path) != uint.MaxValue || Marshal.GetLastWin32Error() != 2;
                 // access(F_OK) tests existence, including through symlinks, without
                 // requiring read permission on the marker itself. Only ENOENT is absent.
+#if NET8_0_OR_GREATER
                 return Access(path, 0) == 0 || Marshal.GetLastWin32Error() != 2;
+#else
+                return Access(Encoding.UTF8.GetBytes(path + "\0"), 0) == 0 || Marshal.GetLastWin32Error() != 2;
+#endif
             }
             catch (DllNotFoundException) { return true; }
             catch (EntryPointNotFoundException) { return true; }
@@ -28,6 +33,10 @@ namespace LiteDB.Client.Shared
         private static extern uint GetFileAttributes(string path);
 
         [DllImport("libc", EntryPoint = "access", SetLastError = true)]
+#if NET8_0_OR_GREATER
         private static extern int Access([MarshalAs(UnmanagedType.LPUTF8Str)] string path, int mode);
+#else
+        private static extern int Access([In] byte[] path, int mode);
+#endif
     }
 }
