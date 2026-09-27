@@ -15,16 +15,21 @@ namespace LiteDB.Client.Shared
     /// first moment without operations or holds after the idle or total limit.
     /// Both limits grow with the cost of opening the engine, so ending a pin to let
     /// other processes in never costs the owner more than a fraction of its time.
+    /// A waiter ends the pin too: another thread of the instance at the owner's next
+    /// idle moment, another process (seen at the turnstile) once the pin has held for
+    /// at least the cost of reopening the engine.
     /// </summary>
     internal sealed class SharedMutexPin
     {
         internal static readonly TimeSpan IdleLimit = TimeSpan.FromMilliseconds(100);
         internal static readonly TimeSpan HoldLimit = TimeSpan.FromSeconds(1);
         private const int HoldPerOpen = 10;
+        // Least hold before a waiting process ends the pin, and at least the reopen cost.
+        internal static readonly TimeSpan YieldAfter = TimeSpan.FromMilliseconds(10);
         private static readonly TimeSpan Poll = TimeSpan.FromMilliseconds(20);
 
         private readonly Mutex _mutex;
-        // Threads of this instance waiting for the mutex: the pin ends for them.
+        private readonly SharedMutexTurnstile _turnstile;
         private readonly Func<bool> _localWaiters;
         private readonly TimeSpan _idleLimit;
         private readonly TimeSpan _holdLimit;
@@ -38,6 +43,10 @@ namespace LiteDB.Client.Shared
         private bool _accepting = true;
         private bool _requested;
         private bool _forced;
+        // Another process queued at the turnstile; probed by the holder at most every Poll.
+        private bool _waiterSeen;
+        private TimeSpan _lastProbe;
+        private TimeSpan _yield;
         // Operations executing now, and readers or transactions spanning calls.
         private int _operations = 1;
         private int _holds;
@@ -46,9 +55,11 @@ namespace LiteDB.Client.Shared
         private TimeSpan _idle;
         private TimeSpan _hold;
 
-        private SharedMutexPin(Mutex mutex, Func<bool> localWaiters, Action<SharedMutexPin, bool> close, TimeSpan idleLimit, TimeSpan holdLimit)
+        private SharedMutexPin(Mutex mutex, SharedMutexTurnstile turnstile, Func<bool> localWaiters,
+            Action<SharedMutexPin, bool> close, TimeSpan idleLimit, TimeSpan holdLimit)
         {
             _mutex = mutex;
+            _turnstile = turnstile;
             _localWaiters = localWaiters;
             _idleLimit = idleLimit;
             _holdLimit = holdLimit;
@@ -77,6 +88,7 @@ namespace LiteDB.Client.Shared
                 _idle = cycleCost > _idleLimit ? cycleCost : _idleLimit;
                 var hold = TimeSpan.FromTicks(cycleCost.Ticks * HoldPerOpen);
                 _hold = hold > _holdLimit ? hold : _holdLimit;
+                _yield = cycleCost > YieldAfter ? cycleCost : YieldAfter;
             }
         }
 
@@ -85,10 +97,10 @@ namespace LiteDB.Client.Shared
         /// calling operation is already entered. <paramref name="close"/> runs on
         /// the holder, before release; its flag reports an abandoned or forced end.
         /// </summary>
-        public static SharedMutexPin Acquire(Mutex mutex, Func<bool> localWaiters, Action<SharedMutexPin, bool> close,
-            TimeSpan idleLimit, TimeSpan holdLimit)
+        public static SharedMutexPin Acquire(Mutex mutex, SharedMutexTurnstile turnstile, Func<bool> localWaiters,
+            Action<SharedMutexPin, bool> close, TimeSpan idleLimit, TimeSpan holdLimit)
         {
-            var pin = new SharedMutexPin(mutex, localWaiters, close, idleLimit, holdLimit);
+            var pin = new SharedMutexPin(mutex, turnstile, localWaiters, close, idleLimit, holdLimit);
             var holder = new Thread(pin.Hold) { IsBackground = true, Name = "LiteDB shared mutex holder" };
             holder.Start();
             pin._acquired.Wait();
@@ -185,7 +197,7 @@ namespace LiteDB.Client.Shared
         {
             try
             {
-                try { _mutex.WaitOne(); }
+                try { _turnstile.Wait(_mutex); }
                 catch (AbandonedMutexException) { this.RecoveredAbandonedOwner = true; }
             }
             catch (Exception ex)
@@ -214,6 +226,7 @@ namespace LiteDB.Client.Shared
         {
             while (true)
             {
+                bool probe;
                 lock (_sync)
                 {
                     var ownerExited = !this.Owner.IsAlive;
@@ -223,6 +236,15 @@ namespace LiteDB.Client.Shared
                         _accepting = false;
                         return ownerExited || _forced;
                     }
+                    var now = _clock.Elapsed;
+                    probe = _accepting && !_waiterSeen && now - _lastProbe >= Poll;
+                    if (probe) _lastProbe = now;
+                }
+                // Outside the lock: the owner's operations never wait for a probe.
+                if (probe && _turnstile.HasWaiter())
+                {
+                    lock (_sync) _waiterSeen = true;
+                    continue;
                 }
                 _signal.WaitOne(Poll);
             }
@@ -233,10 +255,9 @@ namespace LiteDB.Client.Shared
             if (_operations > 0) return false;
             if (_forced) return true;
             if (_holds > 0) return false;
-            // A one-shot request is lost when the owner re-pins before the requester got the
-            // mutex (named mutexes are not FIFO); a counted waiter still ends the next pin.
             if (_requested || !this.Counted || _localWaiters()) return true;
             var now = _clock.Elapsed;
+            if (_waiterSeen && now - _readyAt >= _yield) return true;
             return now - _lastUse >= _idle || now - _readyAt >= _hold;
         }
     }

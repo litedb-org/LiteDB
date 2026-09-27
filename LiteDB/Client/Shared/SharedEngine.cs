@@ -16,6 +16,7 @@ namespace LiteDB
 
         private readonly EngineSettings _settings;
         private readonly Mutex _mutex;
+        private readonly SharedMutexTurnstile _turnstile;
         private readonly SharedMutexOwner _owner;
         // Guards the engine's user count, which a reader disposed on another thread also updates.
         private readonly object _useLock = new object();
@@ -73,6 +74,7 @@ namespace LiteDB
             try
             {
                 _mutex = SharedMutexFactory.Create(name);
+                _turnstile = new SharedMutexTurnstile(SharedMutexFactory.Create(name + ".Turn"));
             }
             catch (NotSupportedException ex)
             {
@@ -83,14 +85,16 @@ namespace LiteDB
 
                 throw new PlatformNotSupportedException("Shared mode is not supported in platforms that do not implement named mutex.", ex);
             }
-            _owner = new SharedMutexOwner(_mutex, this.OnOwnerExited);
+            _owner = new SharedMutexOwner(_mutex, _turnstile, this.OnOwnerExited);
         }
 
         /// <summary>
         /// Open database in safe mode. Returns the pin the operation runs under, or
         /// null when the operation owns a recursion of the named mutex instead.
+        /// Open for an operation. A <paramref name="scoped"/> caller closes on the same thread
+        /// before it returns; its ownership then takes the OS mutex directly on this thread.
         /// </summary>
-        private SharedMutexPin OpenDatabase()
+        private SharedMutexPin OpenDatabase(bool scoped = false)
         {
             var pin = _pin;
             if (pin != null)
@@ -101,7 +105,7 @@ namespace LiteDB
             }
 
             // Acquire mutex for every call to open DB.
-            var recoveredAbandonedOwner = this.EnterOwner();
+            var recoveredAbandonedOwner = this.EnterOwner(scoped && this.CanScope);
 
             try
             {
@@ -342,7 +346,7 @@ namespace LiteDB
 
         public bool Pragma(string name, BsonValue value)
         {
-            return WriteDatabase(() => _engine.Pragma(name, value));
+            return WriteDatabase(() => _engine.Pragma(name, value), scoped: true);
         }
 
         #endregion
@@ -351,7 +355,7 @@ namespace LiteDB
 
         public int Checkpoint()
         {
-            return WriteDatabase(() => _engine.Checkpoint());
+            return WriteDatabase(() => _engine.Checkpoint(), scoped: true);
         }
 
         public long Rebuild(RebuildOptions options)
@@ -369,57 +373,57 @@ namespace LiteDB
 
         public int Insert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId)
         {
-            return WriteDatabase(() => _engine.Insert(collection, docs, autoId));
+            return WriteDatabase(() => _engine.Insert(collection, docs, autoId), scoped: docs is BsonDocument[]);
         }
 
         public int Update(string collection, IEnumerable<BsonDocument> docs)
         {
-            return WriteDatabase(() => _engine.Update(collection, docs));
+            return WriteDatabase(() => _engine.Update(collection, docs), scoped: docs is BsonDocument[]);
         }
 
         public int UpdateMany(string collection, BsonExpression extend, BsonExpression predicate)
         {
-            return WriteDatabase(() => _engine.UpdateMany(collection, extend, predicate));
+            return WriteDatabase(() => _engine.UpdateMany(collection, extend, predicate), scoped: true);
         }
 
         public int Upsert(string collection, IEnumerable<BsonDocument> docs, BsonAutoId autoId)
         {
-            return WriteDatabase(() => _engine.Upsert(collection, docs, autoId));
+            return WriteDatabase(() => _engine.Upsert(collection, docs, autoId), scoped: docs is BsonDocument[]);
         }
 
         public int Delete(string collection, IEnumerable<BsonValue> ids)
         {
-            return WriteDatabase(() => _engine.Delete(collection, ids));
+            return WriteDatabase(() => _engine.Delete(collection, ids), scoped: ids is BsonValue[]);
         }
 
         public int DeleteMany(string collection, BsonExpression predicate)
         {
-            return WriteDatabase(() => _engine.DeleteMany(collection, predicate));
+            return WriteDatabase(() => _engine.DeleteMany(collection, predicate), scoped: true);
         }
 
         public bool DropCollection(string name)
         {
-            return WriteDatabase(() => _engine.DropCollection(name));
+            return WriteDatabase(() => _engine.DropCollection(name), scoped: true);
         }
 
         public bool RenameCollection(string name, string newName)
         {
-            return WriteDatabase(() => _engine.RenameCollection(name, newName));
+            return WriteDatabase(() => _engine.RenameCollection(name, newName), scoped: true);
         }
 
         public bool DropIndex(string collection, string name)
         {
-            return WriteDatabase(() => _engine.DropIndex(collection, name));
+            return WriteDatabase(() => _engine.DropIndex(collection, name), scoped: true);
         }
 
         public bool EnsureIndex(string collection, string name, BsonExpression expression, bool unique)
         {
-            return WriteDatabase(() => _engine.EnsureIndex(collection, name, expression, unique));
+            return WriteDatabase(() => _engine.EnsureIndex(collection, name, expression, unique), scoped: true);
         }
 
         public bool EnsureVectorIndex(string collection, string name, BsonExpression expression, VectorIndexOptions options)
         {
-            return WriteDatabase(() => _engine.EnsureVectorIndex(collection, name, expression, options));
+            return WriteDatabase(() => _engine.EnsureVectorIndex(collection, name, expression, options), scoped: true);
         }
 
         #endregion
@@ -450,6 +454,7 @@ namespace LiteDB
                 {
                     // The pin's holder still closes its engine; its streams close on return.
                     _handles?.Dispose();
+                    _readers.Dispose();
                     return;
                 }
                 pin.WaitReleased();
@@ -475,6 +480,8 @@ namespace LiteDB
             // the data file alone is the database again once every connection closed.
             if (!closed) this.CheckpointOnDispose();
             _handles?.Dispose();
+            // Leased readers may outlive the connection; the slot file closes after the last.
+            _readers.Dispose();
             // A disposed connection holds no mutex, even for the moment its holder
             // needs to release it; another connection's final close may try it next.
             _owner.WaitForRelease();

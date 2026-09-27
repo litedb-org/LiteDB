@@ -14,6 +14,9 @@ namespace LiteDB.Client.Shared
     /// Any thread may end the ownership. When the owner thread exits while holding
     /// it, the holder closes the connection's state and releases the mutex, as the
     /// OS would have abandoned it; the connection reports the exit on its next call.
+    /// A scoped ownership, which its caller ends on the same thread before returning,
+    /// takes the OS mutex directly on that thread instead: nothing but that thread can
+    /// end it, so it needs no holder and saves two thread handoffs per operation.
     /// </summary>
     internal sealed class SharedMutexOwner
     {
@@ -26,6 +29,8 @@ namespace LiteDB.Client.Shared
         private enum Command { None, Acquire, TryAcquire, Release, ReleaseAndOpenGate, ReleaseExitedOwner }
 
         private readonly Mutex _mutex;
+        private readonly SharedMutexScope _scope;
+        private readonly SharedMutexTurnstile _turnstile;
         private readonly Action _ownerExited;
         private readonly SemaphoreSlim _gate = new SemaphoreSlim(1, 1);
         private readonly object _send = new object();
@@ -49,10 +54,33 @@ namespace LiteDB.Client.Shared
         private int _recursion;
         private int _generation;
 
-        public SharedMutexOwner(Mutex mutex, Action ownerExited)
+        public SharedMutexOwner(Mutex mutex, SharedMutexTurnstile turnstile, Action ownerExited)
         {
             _mutex = mutex;
+            _scope = new SharedMutexScope(mutex, turnstile);
+            _turnstile = turnstile;
             _ownerExited = ownerExited;
+        }
+
+        public bool OwnsDirectly
+        {
+            get { lock (_sync) return _owner != null && ReferenceEquals(_scope.Owner, Thread.CurrentThread); }
+        }
+
+        private bool TakeDirect(bool block, out bool abandoned)
+        {
+            try
+            {
+                if (!_scope.Take(block, out abandoned)) { _gate.Release(); return false; }
+                lock (_sync)
+                {
+                    _owner = Thread.CurrentThread;
+                    _scope.Owner = _owner;
+                    _recursion = 1;
+                }
+                return true;
+            }
+            catch { _gate.Release(); throw; }
         }
 
         public Mutex Mutex => _mutex;
@@ -71,6 +99,14 @@ namespace LiteDB.Client.Shared
         internal Action BeforeOwnerExitedCleanup { get; set; }
 #endif
 
+#if DEBUG || TESTING
+        /// <summary>Test hook: whether a holder thread was started and has not exited.</summary>
+        internal bool HasHolderThread
+        {
+            get { lock (_sync) return _holder != null; }
+        }
+#endif
+
         /// <summary>Changes whenever ownership ends, so a stale release is ignored.</summary>
         public int Generation { get { lock (_sync) return _generation; } }
 
@@ -83,11 +119,13 @@ namespace LiteDB.Client.Shared
         /// Acquire, or enter recursively on the owner thread. Returns true when the
         /// OS reported the mutex abandoned by another process.
         /// </summary>
-        public bool Enter()
+        public bool Enter(bool scoped = false)
         {
             if (this.TryRecurse()) return false;
             while (!_gate.Wait(Poll)) this.ReleaseIfOwnerExited();
-            this.TakeGate(Command.Acquire, out var abandoned);
+            bool abandoned;
+            if (scoped && SharedMutexScope.CanEnter) this.TakeDirect(block: true, out abandoned);
+            else this.TakeGate(Command.Acquire, out abandoned);
             return abandoned;
         }
 
@@ -95,7 +133,7 @@ namespace LiteDB.Client.Shared
         /// Enter without waiting for another thread or process. Fails when a live
         /// thread of this connection, or another process, owns the mutex.
         /// </summary>
-        public bool TryEnter(out bool abandoned)
+        public bool TryEnter(out bool abandoned, bool scoped = false)
         {
             abandoned = false;
             if (this.TryRecurse()) return true;
@@ -105,22 +143,55 @@ namespace LiteDB.Client.Shared
             {
                 if (!this.ReleaseIfOwnerExited() || !_gate.Wait(0)) return false;
             }
-            return this.TakeGate(Command.TryAcquire, out abandoned);
+            return scoped && SharedMutexScope.CanEnter
+                ? this.TakeDirect(block: false, out abandoned)
+                : this.TakeGate(Command.TryAcquire, out abandoned);
         }
 
         /// <summary>
-        /// End one recursion from any thread. With <paramref name="generation"/>,
-        /// nothing happens once that ownership already ended.
+        /// End one recursion on its caller. Cross-thread readers supply their captured
+        /// <paramref name="generation"/>; an already-ended ownership is ignored.
         /// </summary>
         public void Exit(int generation = -1)
         {
+            Thread direct;
             lock (_sync)
             {
-                if (_owner == null || (generation >= 0 && generation != _generation)) return;
-                if (--_recursion > 0) return;
-                _owner = null;
-                _generation++;
-                _released.Reset();
+                direct = _scope.Owner;
+                // Dispose can end an acquisition before its caller is admitted. Its
+                // later error cleanup must not release a subsequent thread's ownership.
+                // Cross-thread readers always supply their captured generation.
+                if (generation < 0 && _owner != null && !ReferenceEquals(_owner, Thread.CurrentThread)) return;
+                if (_owner == null || (generation >= 0 && generation != _generation))
+                {
+                    // ReleaseAll ended a scoped ownership while its thread still ran the
+                    // operation: that thread alone can release the OS mutex, when it ends.
+                    if (_owner != null || !ReferenceEquals(direct, Thread.CurrentThread)) return;
+                }
+                else
+                {
+                    if (_recursion > 1)
+                    {
+                        _recursion--;
+                        return;
+                    }
+                    // A scoped ownership that escaped its call is a caller bug. Only its
+                    // thread can release the mutex: fail loudly, and leave the ownership
+                    // intact for that thread, instead of leaving the mutex held silently.
+                    if (direct != null && !ReferenceEquals(direct, Thread.CurrentThread))
+                        throw new InvalidOperationException("A scoped shared-mode mutex ownership was ended on another thread.");
+                    _recursion = 0;
+                    _owner = null;
+                    _generation++;
+                    if (direct == null) _released.Reset();
+                }
+                _scope.Owner = null;
+            }
+            if (direct != null)
+            {
+                try { _scope.Release(); }
+                finally { _gate.Release(); }
+                return;
             }
             // The caller need not wait: the holder releases the OS mutex and only then
             // opens the gate, so the next owner in this process still waits for it.
@@ -139,6 +210,9 @@ namespace LiteDB.Client.Shared
                 _owner = null;
                 _recursion = 0;
                 _generation++;
+                // A scoped ownership's thread is still inside its operation. It releases
+                // the OS mutex and the gate when that operation ends (see Exit).
+                if (_scope.Owner != null) return;
             }
             try { this.Send(Command.Release); }
             catch (Exception) { /* Disposal must not fail; process exit releases the mutex. */ }
@@ -191,8 +265,29 @@ namespace LiteDB.Client.Shared
         private bool ReleaseIfOwnerExited()
         {
             Thread owner;
-            lock (_sync) owner = _owner;
-            if (owner == null || owner.IsAlive) return false;
+            var direct = false;
+            lock (_sync)
+            {
+                owner = _owner ?? _scope.Owner;
+                if (owner == null || owner.IsAlive) return false;
+                if (ReferenceEquals(_scope.Owner, owner))
+                {
+                    // A scoped owner cannot leave its call without unwinding; if its thread
+                    // died anyway, the OS abandoned its mutex and the next wait reports it.
+                    direct = true;
+                    _owner = null;
+                    _scope.Owner = null;
+                    _recursion = 0;
+                    _generation++;
+                }
+            }
+            if (direct)
+            {
+                try { _ownerExited(); }
+                catch (Exception) { /* The next open recovers. */ }
+                _gate.Release();
+                return true;
+            }
             this.Send(Command.ReleaseExitedOwner);
             return true;
         }
@@ -338,7 +433,10 @@ namespace LiteDB.Client.Shared
             {
                 // Block without polling: a polling waiter would lose its place among
                 // the OS mutex's waiters, such as a pin holder of this connection.
-                return block ? _mutex.WaitOne() : _mutex.WaitOne(0);
+                // Queued at the turnstile, a party that just released cannot barge ahead.
+                if (!block) return _turnstile.TryWait(_mutex);
+                _turnstile.Wait(_mutex);
+                return true;
             }
             catch (AbandonedMutexException)
             {

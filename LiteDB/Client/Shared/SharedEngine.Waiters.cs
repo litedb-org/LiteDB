@@ -13,13 +13,13 @@ namespace LiteDB
         /// Enter the connection's mutex ownership, counted as a waiter meanwhile so that
         /// any pin of this instance, including one started after this call, ends for it.
         /// </summary>
-        private bool EnterOwner()
+        private bool EnterOwner(bool scoped = false)
         {
-            if (_owner.IsOwnedByCurrentThread) return _owner.Enter();
+            if (_owner.IsOwnedByCurrentThread) return _owner.Enter(scoped);
             this.AddMutexWaiter();
             try
             {
-                return _owner.Enter();
+                return _owner.Enter(scoped);
             }
             finally
             {

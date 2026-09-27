@@ -186,6 +186,7 @@ namespace LiteDB.Client.Coordinated
             {
                 this.CloseSnapshots();
                 this.DropLeaseStream();
+                _registry.Dispose();
                 // Under the lease lock: no snapshot acquisition can read it afterwards.
                 _page?.Dispose();
             }

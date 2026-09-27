@@ -68,12 +68,12 @@ namespace LiteDB
         /// pre-v13 reader did. Otherwise every such write would reopen and replay
         /// a WAL that the open reader keeps growing, which is quadratic in the loop.
         /// </summary>
-        private T WriteDatabase<T>(Func<T> write) => this.Call(() =>
+        private T WriteDatabase<T>(Func<T> write, bool scoped = false) => this.Call(() =>
         {
             var pin = _pin;
             var use = pin != null && pin.TryEnter() ? pin
                 : this.CanPin() ? this.StartPin()
-                : this.OpenDatabase();
+                : this.OpenDatabase(scoped && this.CanScope);
             try
             {
                 return write();
@@ -112,7 +112,7 @@ namespace LiteDB
             this.AddMutexWaiter();
             try
             {
-                pin = SharedMutexPin.Acquire(_mutex, this.HasMutexWaiters, this.ClosePin, this.PinIdleLimit, this.PinHoldLimit);
+                pin = SharedMutexPin.Acquire(_mutex, _turnstile, this.HasMutexWaiters, this.ClosePin, this.PinIdleLimit, this.PinHoldLimit);
             }
             finally
             {
@@ -189,7 +189,7 @@ namespace LiteDB
         private void CheckpointAfterLastReader()
         {
             if (_settings.ReadOnly || !LogHasContent(_settings.Filename)) return;
-            if (!_owner.TryEnter(out var abandoned)) return;
+            if (!_owner.TryEnter(out var abandoned, scoped: this.CanScope)) return;
             if (abandoned)
             {
                 // Leave abandoned-owner recovery to the next ordinary open.
@@ -259,7 +259,7 @@ namespace LiteDB
             var waited = Stopwatch.StartNew();
             while (true)
             {
-                if (_owner.TryEnter(out abandoned)) return true;
+                if (_owner.TryEnter(out abandoned, scoped: this.CanScope)) return true;
                 if (waited.Elapsed >= DisposeCheckpointWait || !LogHasContent(_settings.Filename)) return false;
                 Thread.Sleep(10);
             }

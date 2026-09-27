@@ -12,6 +12,15 @@ namespace LiteDB
         private const int BUFFERED_RESULT_VALUES = 100;
         private const int BUFFERED_RESULT_BYTES = 64 * 1024;
 
+        private const int LEASES_UNKNOWN = 0;
+        private const int LEASES_AVAILABLE = 1;
+        private const int LEASES_UNAVAILABLE = 2;
+
+        // Whether the last reader-lease registration succeeded. A pure read's ownership
+        // ends before Query returns only when a larger result can be leased, so only then
+        // is it scoped; without leases it streams under the mutex, beyond the call.
+        private volatile int _leaseState = LEASES_UNKNOWN;
+
         /// <summary>
         /// Open a streaming snapshot. A result that fits the buffer budget completes
         /// under the mutex instead, without a second engine or a lease. Ordinary readers retain a process-lifetime
@@ -27,7 +36,7 @@ namespace LiteDB
             {
                 // The same acquisition as OpenDatabase. Where it would open the writable
                 // operation engine, a pure read opens the read-only snapshot engine instead.
-                var recoveredAbandonedOwner = this.EnterOwner();
+                var recoveredAbandonedOwner = this.EnterOwner(scoped: this.CanScope && _leaseState == LEASES_AVAILABLE);
                 try { RejectAbandonedTransaction(); }
                 catch { _owner.Exit(); throw; }
                 // As in OpenDatabase, an open engine is checked and counted under one lock,
@@ -72,18 +81,35 @@ namespace LiteDB
             var closeDatabase = true;
             try
             {
+                // A direct owner must establish protection before executing the query: a
+                // reader cannot escape its thread if registration subsequently fails.
+                if (_owner.OwnsDirectly)
+                {
+                    lease = this.TryRegisterLease();
+                    if (lease == null)
+                    {
+                        closeDatabase = false;
+                        this.CloseDatabase(use);
+                        return this.QueryCore(collection, query);
+                    }
+                }
+
                 // A user callback can be stateful. Speculative buffering followed
                 // by snapshot replay would execute it twice for the discarded
                 // prefix, so transformed queries always take the one-pass path.
                 if (_settings.ReadTransform == null)
                 {
                     var buffered = this.TryBufferResult(collection, query);
-                    if (buffered != null) return buffered;
+                    if (buffered != null)
+                    {
+                        this.ProbeLeases(_engine.ReadVersion);
+                        return buffered;
+                    }
                 }
 
                 // Replay and registration are ordered with commits/checkpoints by
                 // the mutex. This engine's index never changes for the query lifetime.
-                lease = this.TryRegisterLease();
+                lease = lease ?? this.TryRegisterLease();
                 if (lease == null)
                 {
                     // No lease can protect a snapshot (for example, a read-only
@@ -152,10 +178,34 @@ namespace LiteDB
         {
             try
             {
-                return _readers.Register(version);
+                var lease = _readers.Register(version);
+                _leaseState = LEASES_AVAILABLE;
+                return lease;
             }
-            catch (IOException) { return null; }
-            catch (UnauthorizedAccessException) { return null; }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
+                _leaseState = LEASES_UNAVAILABLE;
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// A connection's first pure reads may never need a lease (small results). Register
+        /// and drop one once, under the mutex and at this snapshot's own version, to learn
+        /// whether later reads may use a scoped ownership.
+        /// </summary>
+        private void ProbeLeases(int version)
+        {
+            if (_leaseState != LEASES_UNKNOWN) return;
+            try
+            {
+                _readers.Probe(version);
+                _leaseState = LEASES_AVAILABLE;
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
+                _leaseState = LEASES_UNAVAILABLE;
+            }
         }
 
         /// <summary>
@@ -174,6 +224,20 @@ namespace LiteDB
             var release = true;
             try
             {
+                if (_owner.OwnsDirectly)
+                {
+                    lease = this.TryRegisterLease(snapshot.ReadVersion);
+                    if (lease == null)
+                    {
+                        snapshot.Dispose();
+                        snapshot = null;
+                        release = false;
+                        _owner.Exit();
+                        // Nothing has executed. Retry through the holder so an unleased
+                        // streaming reader can still be disposed on any thread.
+                        return this.QueryCore(collection, query);
+                    }
+                }
                 reader = snapshot.Query(collection, query);
 
                 List<BsonValue> prefix = null;
@@ -182,11 +246,15 @@ namespace LiteDB
                 if (_settings.ReadTransform == null)
                 {
                     var buffered = TryBuffer(reader, out prefix);
-                    if (buffered != null) return buffered;
+                    if (buffered != null)
+                    {
+                        this.ProbeLeases(snapshot.ReadVersion);
+                        return buffered;
+                    }
                 }
                 IBsonDataReader continued = prefix == null ? reader : new PrefixedDataReader(prefix, reader);
 
-                lease = this.TryRegisterLease(snapshot.ReadVersion);
+                lease = lease ?? this.TryRegisterLease(snapshot.ReadVersion);
                 if (lease == null)
                 {
                     // No lease can protect the snapshot (for example, a read-only

@@ -10,6 +10,15 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+if ($IsLinux -and !$env:LITEDB_CI_TMPDIR) {
+    # Keep the original temp volume, with a private base shared by parent and children.
+    $privateTmp = Join-Path ([IO.Path]::GetTempPath()) ("litedb-ci-" + [Guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory $privateTmp | Out-Null
+    & chmod 700 -- $privateTmp
+    if ($LASTEXITCODE -ne 0) { throw 'Could not make the Linux test temp directory private.' }
+    $env:TMPDIR = $privateTmp
+    $env:LITEDB_CI_TMPDIR = $privateTmp
+}
 $repoRoot = Split-Path $PSScriptRoot -Parent
 $temporary = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [IO.Path]::GetTempPath() }
 if (!$RuntimeDirectory) {
@@ -46,7 +55,8 @@ if ($PartitionSuite) {
         engine = 'FullyQualifiedName~LiteDB.Tests.Engine.&FullyQualifiedName!~LiteDB.Tests.Engine.Rebuild&FullyQualifiedName!~LiteDB.Tests.Engine.Compact&FullyQualifiedName!~LiteDB.Tests.Engine.Index'
         query = 'FullyQualifiedName~LiteDB.Tests.QueryTest.'
         shared = 'FullyQualifiedName~LiteDB.Internals.Shared'
-        internals = 'FullyQualifiedName~LiteDB.Internals.&FullyQualifiedName!~LiteDB.Internals.Shared'
+        mvcc = 'FullyQualifiedName~LiteDB.Internals.Mvcc'
+        internals = 'FullyQualifiedName~LiteDB.Internals.&FullyQualifiedName!~LiteDB.Internals.Shared&FullyQualifiedName!~LiteDB.Internals.Mvcc'
         remaining = 'FullyQualifiedName!~LiteDB.Tests.Issues.&FullyQualifiedName!~LiteDB.Tests.Engine.&FullyQualifiedName!~LiteDB.Tests.QueryTest.&FullyQualifiedName!~LiteDB.Internals.'
     }
     & $PSCommandPath -RuntimeMajor $RuntimeMajor -Framework $Framework -Architecture $Architecture `
