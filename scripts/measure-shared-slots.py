@@ -26,7 +26,7 @@ env = dict(os.environ, TMPDIR=str(args.scratch.resolve()))
 workloads = [('point', 20000, 10), ('scan', 1000, 10), ('mixed', 3000, 10)]
 workloads += [('slots', 100000, active) for active in (1, 64, 4096, 65536)]
 if args.matrix == 'traffic':
-    workloads = [(name, 1000, 10) for name in ('same-key', 'random', 'buffered', 'indexed',
+    workloads = [(name, 20000, 10) for name in ('same-key', 'random', 'buffered', 'indexed',
                  'write', 'transaction', 'balanced', 'write-heavy', 'churn', 'open-close', 'checkpoint')]
 if args.scenarios:
     unknown = set(args.scenarios) - {name for name, _, _ in workloads}
