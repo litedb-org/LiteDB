@@ -36,6 +36,7 @@ namespace LiteDB
             {
                 var coordinated = this.TryQueryCoordinated(collection, query);
                 if (coordinated != null) return coordinated;
+                System.Threading.Interlocked.Increment(ref _coordinatedReadMisses);
             }
 #endif
             SharedMutexPin use;

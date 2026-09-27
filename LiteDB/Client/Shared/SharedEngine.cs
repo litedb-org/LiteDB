@@ -48,6 +48,7 @@ namespace LiteDB
         public SharedEngine(EngineSettings settings)
         {
             _settings = settings.Clone();
+            _settings.SharedMode = true;
             // Reopens must use the same path as the mutex and snapshot registry,
             // even if the process changes its working directory between calls.
             if (_settings.Filename != ":memory:" && _settings.Filename != ":temp:")
@@ -70,7 +71,6 @@ namespace LiteDB
                 _settings.SharedFileHandles = _handles = new SharedFileHandles();
 
             var name = SharedMutexNameFactory.Create(_settings.Filename, _settings.SharedMutexNameStrategy);
-
             try
             {
                 _mutex = SharedMutexFactory.Create(name);

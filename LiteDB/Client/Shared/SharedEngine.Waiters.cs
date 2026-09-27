@@ -22,7 +22,7 @@ namespace LiteDB
 #if NET8_0_OR_GREATER
             long request = 0;
             if (writing)
-                lock (_snapshotGate) request = _coordination?.RequestWriterTurn(System.Environment.TickCount64) ?? 0;
+                lock (_snapshotGate) request = this.RequestWriterPressure();
 #endif
             this.AddMutexWaiter();
             try
@@ -55,7 +55,7 @@ namespace LiteDB
             // here because engine opening can already hold useLock.
             if (Interlocked.Read(ref _writerRequest) == 0)
                 Interlocked.Exchange(ref _writerRequest,
-                    _coordination?.RequestWriterTurn(System.Environment.TickCount64) ?? 0);
+                    this.RequestWriterPressure());
 #endif
         }
 

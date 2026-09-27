@@ -13,7 +13,7 @@ internal static class SharedPolicyHarness
             using var database = new LiteDatabase(engine);
             for (var i = 0; i < 3; i++)
                 if (database.GetCollection("docs").FindById(0)["value"].AsInt32 != 0) throw new Exception("Wrong row");
-            if ((int)typeof(SharedEngine).GetField("CoordinatedReadHits", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(engine)! != 0 || !engine.CoordinationFallbackReason.Contains("LiteDB.DisableSharedMappedReads"))
+            if (engine.GetDiagnostics().CoordinatedReadHits != 0 || !engine.CoordinationFallbackReason.Contains("LiteDB.DisableSharedMappedReads"))
                 throw new Exception("Environment opt-out did not disable mapped admission");
             var row = database.GetCollection("docs").FindById(0);
             row["value"] = 7;

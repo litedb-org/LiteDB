@@ -18,6 +18,8 @@ namespace LiteDB.Client.Shared
         private const int Size = SharedCoordinationProtocol.PageSize;
         private readonly string _revocationPath;
         private readonly FileStream _participation;
+        private SharedModeGuard _modeGuard;
+        private string _filename;
         private readonly MemoryMappedFile _map;
         private readonly MemoryMappedViewAccessor _view;
         private readonly long* _header;
@@ -63,23 +65,27 @@ namespace LiteDB.Client.Shared
         internal static string DisabledPath(string filename) => SharedCoordinationFallback.DisabledPath(filename);
 
         /// <summary>Caller owns the database mutex. Failure requires revocation before writable fallback.</summary>
-        internal static SharedCoordinationPage Open(string filename)
+        internal static SharedCoordinationPage Open(string filename, SharedMutexNameStrategy strategy = SharedMutexNameStrategy.Default)
         {
+            SharedModeGuard guard = SharedModeGuard.Open(filename, shared: true, strategy);
             FileStream participation = null;
             FileStream file = null;
             try
             {
                 var header = SharedCoordinationFiles.Open(filename, out participation, out file);
-                var page = new SharedCoordinationPage(filename, participation, file, header);
+                var page = new SharedCoordinationPage(filename, participation, file, header) { _modeGuard = guard };
                 if (!page.HeaderMatches())
                 {
                     page.Dispose();
                     throw new IOException("Shared coordination header changed during attachment: " + filename);
                 }
+                page._filename = filename;
+                SharedCoordinationEvents.Attached(filename);
                 return page;
             }
             catch
             {
+                guard?.Dispose();
                 file?.Dispose();
                 participation?.Dispose();
                 throw;
@@ -91,6 +97,8 @@ namespace LiteDB.Client.Shared
         /// writer runs. Failure to publish revocation propagates before database mutation.
         /// </summary>
         internal static void Revoke(string filename) => SharedCoordinationFallback.Revoke(filename);
+
+        internal bool IsRevoked { get { lock (_writeLock) return _disposed || !this.HeaderMatches() || this.Revoked(); } }
 
         private bool Revoked() => SharedCoordinationRevocation.ExistsOrUnknown(_revocationPath);
 
@@ -304,6 +312,7 @@ namespace LiteDB.Client.Shared
         {
             if (_disposed) return;
             _disposed = true;
+            if (_filename != null) SharedCoordinationEvents.Detached(_filename);
             if (_pointerAcquired)
             {
                 _view.SafeMemoryMappedViewHandle.ReleasePointer();
@@ -313,7 +322,11 @@ namespace LiteDB.Client.Shared
             finally
             {
                 try { _map?.Dispose(); }
-                finally { _participation?.Dispose(); }
+                finally
+                {
+                    try { _participation?.Dispose(); }
+                    finally { _modeGuard?.Dispose(); }
+                }
             }
         }
 

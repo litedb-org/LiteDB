@@ -102,6 +102,7 @@ namespace LiteDB.Client.Shared
         private static void Retire(string path)
         {
             File.Delete(path);
+            SharedCoordinationEvents.Log.Transition(path, "retired", "");
             SharedCoordinationFile.Observe(path, "retired");
         }
     }

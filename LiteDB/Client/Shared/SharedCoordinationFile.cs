@@ -43,6 +43,7 @@ namespace LiteDB.Client.Shared
                         return true;
                     });
                     Observe(path, "published");
+                    SharedCoordinationEvents.Log.Transition(path, "created", "");
                 }
             }
             finally

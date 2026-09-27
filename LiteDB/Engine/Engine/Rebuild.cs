@@ -35,14 +35,12 @@ namespace LiteDB.Engine
             if (_locker.IsInTransaction) throw LiteException.AlreadyExistsTransaction();
             _locker.EnterExclusive();
 
-            this.Close();
-
-            // run build service
-            var rebuilder = new RebuildService(_settings);
+            this.Close(releaseMode: false);
 
             long diff;
             try
             {
+                var rebuilder = new RebuildService(_settings);
                 // return how many bytes of diference from original/rebuild version
                 diff = rebuilder.Rebuild(options, collation);
             }
@@ -55,6 +53,7 @@ namespace LiteDB.Engine
                     _settings.Password = password;
                     _settings.Collation = collation;
                 }
+                this.ReleaseModeGuard();
                 throw;
             }
 

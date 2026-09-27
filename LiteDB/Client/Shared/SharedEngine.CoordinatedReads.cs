@@ -23,7 +23,6 @@ namespace LiteDB
 #if DEBUG || TESTING
         internal TimeSpan CoordinatedIdleLimit { get; set; } = SnapshotIdle;
         internal bool HasCachedSnapshot { get { lock (_snapshotGate) return _cachedSnapshot != null; } }
-        internal int CoordinatedReadHits;
         internal int MeasuredStreamingReaders;
         internal System.Runtime.InteropServices.Architecture? CoordinationArchitectureOverride;
         internal Action<string> CoordinationStage;
@@ -51,7 +50,7 @@ namespace LiteDB
             if (!SharedCoordinationFallback.SupportsNames(_settings.Filename))
             {
                 _coordinationUnavailable = true;
-                CoordinationFallbackReason = "names: control paths exceed the supported limit";
+                this.RecordCoordinationFallback("names: control paths exceed the supported limit");
                 return;
             }
             // One-shot connections keep their existing lifecycle. Repeated operations
@@ -61,7 +60,7 @@ namespace LiteDB
             if (_mappedReadsDisabled)
             {
                 _coordinationUnavailable = true;
-                CoordinationFallbackReason = "disabled: " + SharedCoordinationPolicy.DisableMappedSwitch;
+                this.RecordCoordinationFallback("disabled: " + SharedCoordinationPolicy.DisableMappedSwitch);
             }
             if (_coordinationUnavailable)
             {
@@ -76,7 +75,7 @@ namespace LiteDB
                 architecture != System.Runtime.InteropServices.Architecture.X86 &&
                 architecture != System.Runtime.InteropServices.Architecture.Arm64)
             {
-                CoordinationFallbackReason = "architecture: " + architecture;
+                this.RecordCoordinationFallback("architecture: " + architecture);
                 if (writing) SharedCoordinationFallback.RevokeIfPresent(_settings.Filename);
                 _coordinationUnavailable = true;
                 return;
@@ -85,7 +84,7 @@ namespace LiteDB
                 (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
                     System.Runtime.InteropServices.OSPlatform.Windows) && _handles == null))
             {
-                CoordinationFallbackReason = "settings: " + this.CanScope + "/" + _settings.Filename;
+                this.RecordCoordinationFallback("settings: " + this.CanScope + "/" + _settings.Filename);
                 if (writing) SharedCoordinationFallback.RevokeIfPresent(_settings.Filename);
                 _coordinationUnavailable = true;
                 return;
@@ -97,19 +96,19 @@ namespace LiteDB
                 var volumeFailure = SharedCoordinationPolicy.VolumeFailure(_settings.Filename);
                 if (volumeFailure != null)
                 {
-                    CoordinationFallbackReason = volumeFailure;
+                    this.RecordCoordinationFallback(volumeFailure);
                     if (writing) SharedCoordinationFallback.RevokeIfPresent(_settings.Filename);
                     _coordinationUnavailable = true;
                     return;
                 }
-                _coordination = SharedCoordinationFile.RetrySharingViolation(() => SharedCoordinationPage.Open(_settings.Filename));
+                _coordination = SharedCoordinationFile.RetrySharingViolation(() => SharedCoordinationPage.Open(_settings.Filename, _settings.SharedMutexNameStrategy));
                 _settings.CoordinationSignals = _coordination;
             }
             catch (Exception error) when (error is IOException || error is UnauthorizedAccessException || error is NotSupportedException)
             {
                 // Existing participants must learn about this fallback before this
                 // connection is allowed to make a write they would otherwise miss.
-                CoordinationFallbackReason = error.ToString();
+                this.RecordCoordinationFallback(error.ToString());
                 if (writing) SharedCoordinationFallback.RevokeIfPresent(_settings.Filename);
                 _coordinationUnavailable = true;
             }
@@ -131,6 +130,7 @@ namespace LiteDB
             }
             if (yieldToWriter)
             {
+                Interlocked.Increment(ref _writerYields);
 #if DEBUG || TESTING
                 CoordinationStage?.Invoke("writer-pressure");
 #endif
@@ -176,9 +176,7 @@ namespace LiteDB
                     throw;
                 }
                 snapshot.Readers++;
-#if DEBUG || TESTING
                 Interlocked.Increment(ref CoordinatedReadHits);
-#endif
             }
             return this.ReadCached(collection, query, snapshot, workStarted);
         }
