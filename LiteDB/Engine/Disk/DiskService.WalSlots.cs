@@ -26,7 +26,7 @@ namespace LiteDB.Engine
             }
         }
 
-        internal void RecordLogTransactionID(uint transactionID)
+        internal void RecordLogTransactionID(uint transactionID, ref bool reusePublished)
         {
             if (transactionID > _lastWalTransactionID)
             {
@@ -35,14 +35,14 @@ namespace LiteDB.Engine
         }
 
         private void RewriteLogTransactionIDs(Stream stream, IEnumerable<long> positions,
-            uint transactionID)
+            uint transactionID, ref bool reusePublished)
         {
             var bytes = new byte[PAGE_SIZE];
             var buffer = new BufferSlice(bytes, 0, bytes.Length);
 
             foreach (var position in positions)
             {
-                _signals?.SlotReused();
+                this.PublishWalReuse(ref reusePublished);
                 _cache.Invalidate(position, FileOrigin.Log);
                 stream.Position = position;
                 stream.ReadRequired(bytes, 0, bytes.Length);
@@ -50,6 +50,13 @@ namespace LiteDB.Engine
                 stream.Position = position;
                 stream.Write(bytes, 0, bytes.Length);
             }
+        }
+
+        private void PublishWalReuse(ref bool published)
+        {
+            if (published) return;
+            _signals?.SlotReused();
+            published = true;
         }
 
         private long AllocateLogPosition(uint pageID, bool confirmation, bool transactionAnchored, long transactionMinimum)

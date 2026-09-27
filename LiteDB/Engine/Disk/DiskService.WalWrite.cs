@@ -32,6 +32,7 @@ namespace LiteDB.Engine
         {
             var count = 0;
             var hasConfirmation = false;
+            var reusePublished = false;
             var stream = _writer.Value;
             Exception flushFailure = null;
             var ownsFailure = false;
@@ -85,7 +86,7 @@ namespace LiteDB.Engine
 
                             this.WriteLogPage(stream, page, written, transactionPages,
                                 ref transactionAnchored, first && rebase,
-                                ref count, ref hasConfirmation);
+                                ref count, ref hasConfirmation, ref reusePublished);
 
                             if (first && rebase)
                             {
@@ -93,7 +94,7 @@ namespace LiteDB.Engine
                                 // Make their new-ID tail anchor equally durable first.
                                 this.FlushLogToDisk(stream);
                                 this.RewriteLogTransactionIDs(stream, previousPositions,
-                                    transactionState.TransactionID);
+                                    transactionState.TransactionID, ref reusePublished);
                             }
 
                             first = false;
@@ -104,7 +105,7 @@ namespace LiteDB.Engine
                         {
                             this.WriteLogPage(stream, delayedConfirmation, written,
                                 transactionPages, ref transactionAnchored, false,
-                                ref count, ref hasConfirmation);
+                                ref count, ref hasConfirmation, ref reusePublished);
                             delayedConfirmation = null;
                         }
                     }
@@ -152,7 +153,7 @@ namespace LiteDB.Engine
 
         private void WriteLogPage(Stream stream, PageBuffer page, Action<uint, long> written,
             IReadOnlyDictionary<uint, PagePosition> transactionPages, ref bool transactionAnchored,
-            bool forceAppend, ref int count, ref bool hasConfirmation)
+            bool forceAppend, ref int count, ref bool hasConfirmation, ref bool reusePublished)
         {
             var previousLogLength = _logLength;
             long? previousStreamLength = null;
@@ -183,9 +184,9 @@ namespace LiteDB.Engine
                         ? prior.Position + PAGE_SIZE : 0;
                     page.Position = this.AllocateLogPosition(pageID, isConfirmed, transactionAnchored, minimum);
                 }
-                // One notification point covers reclaimed slots and in-transaction
-                // safepoint rewrites, before either can overwrite an observed prefix.
-                if (page.Position < previousStreamLength.Value) _signals?.SlotReused();
+                // Invalidate before the first destructive write in this locked batch.
+                // Cached snapshots cannot be installed while Shared ownership is held.
+                if (page.Position < previousStreamLength.Value) this.PublishWalReuse(ref reusePublished);
                 this.RecordLogPosition(pageID, page.Position);
                 this.RecordLogTransactionID(page.ReadUInt32(BasePage.P_TRANSACTION_ID));
                 page.Origin = FileOrigin.Log;
@@ -219,7 +220,7 @@ namespace LiteDB.Engine
                     Interlocked.Exchange(ref _logLength, previousLogLength);
                     if (previousStreamLength.HasValue)
                     {
-                        _signals?.SlotReused();
+                        this.PublishWalReuse(ref reusePublished);
                         stream.SetLength(previousStreamLength.Value);
                         _logFactory.TrimCapacity(stream);
                     }
